@@ -53,13 +53,13 @@ const EmployeeHealth: React.FC = () => {
     }
   }, [userProfile?.ma_kho]);
 
-  const { 
-    biRevenueData, 
-    luyKeNganhHang, 
-    thiDuaNv, 
+  const {
+    biRevenueData,
+    luyKeNganhHang,
+    thiDuaNv,
     phucVu,
     banKemNv,
-    isLoading, 
+    isLoading,
     isSaving,
     refresh,
     savePhucVu,
@@ -72,7 +72,7 @@ const EmployeeHealth: React.FC = () => {
   useEffect(() => {
     if (processedData.markets.length > 0) {
       const allowedPrefixes = ["ĐML", "ĐMM", "ĐMS", "ĐMS3", "TGD", "AAR"];
-      const filtered = processedData.markets.filter(m => 
+      const filtered = processedData.markets.filter(m =>
         allowedPrefixes.some(prefix => m.name.toUpperCase().startsWith(prefix))
       );
       if (filtered.length > 0) {
@@ -98,7 +98,7 @@ const EmployeeHealth: React.FC = () => {
       .map(parts => ({
         nhanVien: parts[0],
         dtlk: parts[1],
-        luotBill: parts[4], 
+        luotBill: parts[4],
         phanTramBill: parts[5], // Use 6th column (index 5)
         luotBillBanHang: parts[9], // 10th column (index 9)
       }));
@@ -136,13 +136,13 @@ const EmployeeHealth: React.FC = () => {
 
   const filteredBiData = biRevenueData.filter(staff => {
     const matchesSearch = staff.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         staff.fullId.toLowerCase().includes(searchTerm.toLowerCase());
+      staff.fullId.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSelection = selectedStaffIds.includes(staff.fullId);
     return matchesSearch && matchesSelection;
   });
 
   const toggleStaffSelection = (id: string) => {
-    setSelectedStaffIds(prev => 
+    setSelectedStaffIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
@@ -183,15 +183,15 @@ const EmployeeHealth: React.FC = () => {
     const targetQdPerStaff = filteredBiData.length > 0 ? Math.round(stTargetSauHeSo / filteredBiData.length) : 0;
 
     const staffStats = filteredBiData.map(staff => {
-      const effQd = (staff.actualVal || 0) > 0 
-        ? ((staff.virtualVal - (staff.actualVal || 0)) / (staff.actualVal || 0)) * 100 
+      const effQd = (staff.actualVal || 0) > 0
+        ? ((staff.virtualVal - (staff.actualVal || 0)) / (staff.actualVal || 0)) * 100
         : 0;
       const actualTargetQdPerStaff = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
       const actualVirtualVal = Math.abs(staff.virtualVal) > 10000 ? staff.virtualVal : staff.virtualVal * 1000000;
-      const percentHT = (actualTargetQdPerStaff > 0 && daysPassed > 0) 
-        ? (((actualVirtualVal / daysPassed) * totalDays) / actualTargetQdPerStaff) * 100 
+      const percentHT = (actualTargetQdPerStaff > 0 && daysPassed > 0)
+        ? (((actualVirtualVal / daysPassed) * totalDays) / actualTargetQdPerStaff) * 100
         : 0;
-      
+
       return {
         fullName: staff.displayName,
         effQd,
@@ -213,50 +213,52 @@ const EmployeeHealth: React.FC = () => {
 
     const text = `📊 BÁO CÁO DOANH THU QUY ĐỔI SIÊU THỊ: ${maKho}
 
-🌟 TOP 20% NHÂN VIÊN HOÀN THÀNH TỐT TIẾN ĐỘ (%HT):
+🌟 TOP 20% DOANH THU QUY ĐỔI
 ${topHT.map((s) => {
-  const parts = s.fullName.split(' - ');
-  const id = parts[0].trim();
-  const name = parts.length > 1 ? parts[1].trim() : '';
-  const shortName = name.split(' ').pop() || '';
-  return `${id} - ${shortName.toUpperCase()} (${Math.round(s.percentHT)}%)`;
-}).join('\n')}
+      const parts = s.fullName.split(' - ');
+      const id = parts[0].trim();
+      const name = parts.length > 1 ? parts[1].trim() : '';
+      const shortName = name.split(' ').pop() || '';
+      return `${id} - ${shortName.toUpperCase()} (${Math.round(s.percentHT)}%)`;
+    }).join('\n')}
 
-⚠️ NHÓM BOTTOM 20% CẦN CỐ GẮNG ĐẨY MẠNH TIẾN ĐỘ (%HT):
+⚠️ NHÓM BOTTOM 20% DOANH THU QUY ĐỔI
 ${botHT.map((s) => {
-  const parts = s.fullName.split(' - ');
-  const id = parts[0].trim();
-  const name = parts.length > 1 ? parts[1].trim() : '';
-  const shortName = name.split(' ').pop() || '';
-  return `${id} - ${shortName.toUpperCase()} (${Math.round(s.percentHT)}%)`;
-}).join('\n')}
+      const parts = s.fullName.split(' - ');
+      const id = parts[0].trim();
+      const name = parts.length > 1 ? parts[1].trim() : '';
+      const shortName = name.split(' ').pop() || '';
+      return `${id} - ${shortName.toUpperCase()} (${Math.round(s.percentHT)}%)`;
+    }).join('\n')}
 
-🏆 TOP 20% NHÂN VIÊN CÓ HIỆU QUẢ QUY ĐỔI TỐT NHẤT:
+🏆 TOP 20% HIỆU QUẢ QUY ĐỔI
 ${topEff.map((s) => {
-  const parts = s.fullName.split(' - ');
-  const id = parts[0].trim();
-  const name = parts.length > 1 ? parts[1].trim() : '';
-  const shortName = name.split(' ').pop() || '';
-  return `${id} - ${shortName.toUpperCase()} (${Math.round(s.effQd)}%)`;
-}).join('\n')}
+      const parts = s.fullName.split(' - ');
+      const id = parts[0].trim();
+      const name = parts.length > 1 ? parts[1].trim() : '';
+      const shortName = name.split(' ').pop() || '';
+      return `${id} - ${shortName.toUpperCase()} (${Math.round(s.effQd)}%)`;
+    }).join('\n')}
 
-⚠️ NHÓM BOTTOM 20% CẦN CẢI THIỆN HIỆU QUẢ QUY ĐỔI:
+⚠️ NHÓM BOTTOM 20% HIỆU QUẢ QUY ĐỔI:
 ${botEff.map((s) => {
-  const parts = s.fullName.split(' - ');
-  const id = parts[0].trim();
-  const name = parts.length > 1 ? parts[1].trim() : '';
-  const shortName = name.split(' ').pop() || '';
-  return `${id} - ${shortName.toUpperCase()} (${Math.round(s.effQd)}%)`;
-}).join('\n')}
+      const parts = s.fullName.split(' - ');
+      const id = parts[0].trim();
+      const name = parts.length > 1 ? parts[1].trim() : '';
+      const shortName = name.split(' ').pop() || '';
+      return `${id} - ${shortName.toUpperCase()} (${Math.round(s.effQd)}%)`;
+    }).join('\n')}
 
 Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu nhé! 💪`;
 
-    // navigator.clipboard.writeText(text).then(() => {
-    //   setIsCopied(true);
-    //   setTimeout(() => setIsCopied(false), 2000);
-    // }).catch(err => {
-    //   console.error('Failed to copy text: ', err);
-    // });
+    navigator.clipboard.writeText(text).then(() => {
+      setIsCopied(true);
+      showNotification('Đã copy nhận xét TOP / BOT vào clipboard!', 'success');
+      setTimeout(() => setIsCopied(false), 2000);
+    }).catch(err => {
+      console.error('Failed to copy text: ', err);
+      showNotification('Không thể copy. Vui lòng thử lại.', 'error');
+    });
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -268,18 +270,18 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
       try {
         const buffer = event.target?.result as ArrayBuffer;
         if (!buffer) throw new Error('Nội dung file rỗng hoặc không thể đọc');
-        
+
         let tsvOutput = '';
         let workBook: XLSX.WorkBook | null = null;
-        
+
         // CHIẾN THUẬT ĐỌC FILE ĐA TẦNG:
-        
+
         // Tầng 1: Đọc dưới dạng ArrayBuffer (Chuẩn cho .xlsx và .xls hiện đại)
         try {
           workBook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
         } catch (e) {
           console.warn('Tầng 1 (ArrayBuffer) thất bại, chuyển sang Tầng 2...');
-          
+
           // Tầng 2: Đọc dưới dạng Binary String (Chuẩn cho .xls cổ điển / BIFF8)
           try {
             // Chuyển buffer thành binary string (latin1 giữ nguyên byte dữ liệu)
@@ -287,7 +289,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
             workBook = XLSX.read(binary, { type: 'binary' });
           } catch (e2) {
             console.warn('Tầng 2 (Binary String) thất bại, chuyển sang Tầng 3...');
-            
+
             // Tầng 3: Đọc dưới dạng String (Cho các file CSV/TSV/HTML giả danh .xls)
             try {
               const text = new TextDecoder('utf-8').decode(buffer);
@@ -302,13 +304,13 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
         if (workBook && workBook.SheetNames.length > 0) {
           const firstSheetName = workBook.SheetNames[0];
           const worksheet = workBook.Sheets[firstSheetName];
-          
+
           // Trích xuất dữ liệu thành mảng
-          const rows = XLSX.utils.sheet_to_json(worksheet, { 
+          const rows = XLSX.utils.sheet_to_json(worksheet, {
             header: 1,
-            defval: '' 
+            defval: ''
           }) as any[][];
-          
+
           if (rows && rows.length > 0) {
             tsvOutput = rows
               .filter(row => Array.isArray(row))
@@ -319,7 +321,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
               .join('\n');
           }
         }
-        
+
         if (!tsvOutput || tsvOutput.trim() === '') {
           throw new Error('Không tìm thấy dữ liệu hợp lệ trong file');
         }
@@ -333,10 +335,10 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
         showNotification(`Lỗi: ${finalErrorMsg}. Vui lòng kiểm tra lại file.`, 'error');
       }
     };
-    
+
     // Luôn đọc dưới dạng ArrayBuffer để có dữ liệu thô (raw) nhất cho các bước giải mã
     reader.readAsArrayBuffer(file);
-    
+
     // Reset input để có thể chọn lại cùng 1 file nếu cần
     e.target.value = '';
   };
@@ -355,17 +357,16 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
   return (
     <div className="flex h-[calc(100vh-64px)] bg-slate-50 overflow-hidden font-sans">
       {/* Sidebar Menu */}
-      <aside 
-        className={`bg-white border-r border-slate-200 flex flex-col h-full shadow-sm z-20 relative transition-all duration-300 ${
-          (autoExpand ? isSidebarExpanded : true) ? 'w-96' : 'w-[120px]'
-        }`}
+      <aside
+        className={`bg-white border-r border-slate-200 flex flex-col h-full shadow-sm z-20 relative transition-all duration-300 ${(autoExpand ? isSidebarExpanded : true) ? 'w-96' : 'w-[120px]'
+          }`}
         onMouseEnter={() => autoExpand && setIsSidebarExpanded(true)}
         onMouseLeave={() => autoExpand && setIsSidebarExpanded(false)}
       >
         {/* Sidebar Header */}
         <div className={`p-6 transition-all duration-300 ${(!isSidebarExpanded && autoExpand) ? 'opacity-0 invisible h-0 overflow-hidden' : 'opacity-100 visible'}`}>
           <h1 className="text-xl font-black text-slate-800 tracking-tight mb-8 uppercase">Sức khỏe nhân sự</h1>
-          
+
           <div className="flex items-center gap-4 mb-10">
             <div className="w-14 h-14 rounded-2xl bg-[#00965e] flex items-center justify-center text-white shadow-lg shadow-emerald-100 shrink-0">
               <HeartPulse size={28} />
@@ -387,11 +388,10 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id as any)}
-                className={`w-full flex items-center px-5 py-4 rounded-full transition-all group ${
-                  isActive 
-                    ? 'bg-[#00965e] text-white shadow-xl shadow-emerald-200 translate-x-1' 
-                    : 'text-slate-500 hover:bg-slate-50'
-                } ${!showLabel ? 'justify-center px-0' : 'justify-between'}`}
+                className={`w-full flex items-center px-5 py-4 rounded-full transition-all group ${isActive
+                  ? 'bg-[#00965e] text-white shadow-xl shadow-emerald-200 translate-x-1'
+                  : 'text-slate-500 hover:bg-slate-50'
+                  } ${!showLabel ? 'justify-center px-0' : 'justify-between'}`}
               >
                 <div className="flex items-center gap-4">
                   <Icon size={24} className={isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-600'} />
@@ -420,7 +420,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                 <p className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">HOVER MENU</p>
               </div>
             )}
-            <button 
+            <button
               onClick={() => setAutoExpand(!autoExpand)}
               className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${autoExpand ? 'bg-[#00965e]' : 'bg-slate-200'}`}
             >
@@ -474,7 +474,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     <div className="w-2 h-2 bg-emerald-500 rounded-full" />
                     <span className="truncate uppercase tracking-wider">
                       {selectedStaffIds.length === biRevenueData.length
-                        ? "Tất cả nhân viên" 
+                        ? "Tất cả nhân viên"
                         : selectedStaffIds.length === 0
                           ? "Chưa chọn NV"
                           : `Đã chọn ${selectedStaffIds.length} NV`}
@@ -485,7 +485,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                 <AnimatePresence>
                   {isFilterOpen && (
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 10 }}
@@ -503,7 +503,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                           />
                         </div>
                       </div>
-                      
+
                       <div className="max-h-64 overflow-y-auto p-2">
                         <div className="flex items-center justify-between px-3 mb-2">
                           <button
@@ -519,8 +519,8 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             Bỏ chọn tất cả
                           </button>
                         </div>
-                        
-                        {biRevenueData.filter(s => 
+
+                        {biRevenueData.filter(s =>
                           s.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           s.fullId.toLowerCase().includes(searchTerm.toLowerCase())
                         ).map(staff => (
@@ -585,20 +585,20 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
-                      <button 
+                      <button
                         onClick={handleCapture}
                         disabled={isCapturing}
                         className={cn(
                           "flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm",
-                          isCapturing 
-                            ? "bg-indigo-600/80 text-white cursor-wait" 
+                          isCapturing
+                            ? "bg-indigo-600/80 text-white cursor-wait"
                             : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100 border border-transparent active:scale-95"
                         )}
                       >
                         {isCapturing ? (
                           <div className="relative w-3.5 h-3.5 flex items-center justify-center">
                             <div className="absolute inset-0 border-2 border-white/20 rounded-full" />
-                            <motion.div 
+                            <motion.div
                               className="absolute inset-0 border-2 border-white rounded-full border-t-transparent"
                               animate={{ rotate: 360 }}
                               transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
@@ -609,11 +609,31 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                         )}
                         {isCapturing ? 'ĐANG XUẤT...' : 'XUẤT ẢNH BÁO CÁO'}
                       </button>
+
+                      <button
+                        onClick={handleCopyFeedback}
+                        disabled={filteredBiData.length === 0}
+                        className={cn(
+                          "flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm",
+                          filteredBiData.length === 0
+                            ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                            : isCopied
+                              ? "bg-emerald-600 text-white shadow-emerald-100"
+                              : "bg-amber-500 text-white hover:bg-amber-600 shadow-amber-100 border border-transparent active:scale-95"
+                        )}
+                      >
+                        {isCopied ? (
+                          <Check size={14} />
+                        ) : (
+                          <MessageSquare size={14} />
+                        )}
+                        {isCopied ? 'ĐÃ COPY!' : 'NHẬN XÉT TOP / BOT'}
+                      </button>
                     </div>
                   </div>
 
                   <div ref={captureRef}>
-                    <RevenueRankingTableQd 
+                    <RevenueRankingTableQd
                       data={filteredBiData}
                       onCapture={handleCapture}
                       stTargetSauHeSo={stTargetSauHeSo}
@@ -643,17 +663,17 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                           try {
                             const zip = new JSZip();
                             const tables = document.querySelectorAll('[id^="employee-detail-"]');
-                            
+
                             for (let i = 0; i < tables.length; i++) {
                               const element = tables[i] as HTMLElement;
-                              const dataUrl = await htmlToImage.toPng(element, { 
-                                backgroundColor: '#ffffff', 
+                              const dataUrl = await htmlToImage.toPng(element, {
+                                backgroundColor: '#ffffff',
                                 pixelRatio: 2,
                               });
                               const base64Data = dataUrl.split(',')[1];
                               zip.file(`ChiTiet_${element.id.replace('employee-detail-', '')}.png`, base64Data, { base64: true });
                             }
-                            
+
                             const content = await zip.generateAsync({ type: "blob" });
                             saveAs(content, "ChiTiet_All_NV.zip");
                           } finally {
@@ -683,7 +703,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.1 + (idx * 0.05) }}
                           >
-                            <EmployeeDetailTable 
+                            <EmployeeDetailTable
                               staffName={`${staff.displayName.split(' - ').pop()} - ${staff.fullId}`}
                               luyKeNganhHang={luyKeNganhHang}
                               thiDuaNv={thiDuaNv}
@@ -714,7 +734,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <SummaryThiDuaTable 
+                  <SummaryThiDuaTable
                     luyKeNganhHang={luyKeNganhHang}
                     thiDuaNv={thiDuaNv}
                     staffCount={selectedStaffIds.length}
@@ -735,7 +755,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   transition={{ duration: 0.2 }}
                   className="max-w-[calc(100%-1px)] mx-auto"
                 >
-                  <CategoryDetailByStaffTable 
+                  <CategoryDetailByStaffTable
                     luyKeNganhHang={luyKeNganhHang}
                     thiDuaNv={thiDuaNv}
                     staffCount={selectedStaffIds.length}
@@ -765,8 +785,8 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   </p>
 
                   <div className="w-full max-w-sm bg-slate-50 border-2 border-dashed border-slate-200 rounded-full py-3.5 px-6 transition-all hover:border-indigo-300 hover:bg-slate-100/50 group relative flex items-center justify-center gap-4">
-                    <input 
-                      type="file" 
+                    <input
+                      type="file"
                       onChange={handleFileUpload}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                     />
@@ -795,7 +815,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     const visibleIndices = allHeaders
                       .map((h, i) => {
                         const headerText = h.trim().toUpperCase();
-                        const isExcluded = excludedColumns.some(excluded => 
+                        const isExcluded = excludedColumns.some(excluded =>
                           excluded.toUpperCase() === headerText
                         );
                         return isExcluded ? -1 : i;
@@ -821,11 +841,11 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     const topLimit = Math.ceil(totalRows * 0.2);
                     const botLimit = Math.ceil(totalRows * 0.2);
                     const today = new Date().toLocaleDateString('vi-VN');
-                    
-                    const startIndex5Sao = visibleIndices.findIndex(idx => 
+
+                    const startIndex5Sao = visibleIndices.findIndex(idx =>
                       allHeaders[idx].trim().toUpperCase().includes('5 SAO')
                     );
-                    
+
                     const handleExportPhucVuImage = async () => {
                       if (!capturePhucVuRef.current) return;
                       setIsCapturing(true);
@@ -877,7 +897,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               </div>
                             </div>
                           </div>
-                          
+
                           <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-visible shadow-xl shadow-slate-200/50">
                             <div className="w-full">
                               <table className="w-full border-collapse">
@@ -888,7 +908,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                       // Map color regions like the image
                                       let bgColor = 'bg-[#00965e]'; // First group (Emerald)
                                       if (i >= 2) bgColor = 'bg-[#ffcb05]'; // Middle group (Amber)
-                                      
+
                                       const headerText = allHeaders[idx].trim().toUpperCase();
                                       let widthClasses = ''; // Flexible width
 
@@ -909,90 +929,90 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                     const isStriped = rowIdx % 2 === 1;
                                     const isTopOne = rowIdx < topLimit;
                                     const isBottomOne = rowIdx >= totalRows - botLimit;
-                                    
+
                                     return (
-                                    <tr key={rowIdx} className={`${isStriped ? 'bg-[#f8faff]' : 'bg-white'} hover:bg-slate-50 transition-colors h-[30px]`}>
-                                      <td className="px-2 py-0 text-center font-black text-slate-800 text-[13px] font-oswald border-r border-slate-100 h-[30px]">{rowIdx + 1}</td>
-                                      {visibleIndices.map((idx, i) => {
-                                        const value = cells[idx] || '';
-                                        const headerText = allHeaders[idx].trim().toUpperCase();
-                                        const isStaffName = headerText.includes('TÊN') || headerText.includes('TEN') || i === 0;
-                                        const isUserNV = headerText.includes('USER') || headerText.includes('MÃ NV');
-                                        const isPercentage = value.includes('%');
-                                        
-                                        // Numeric fonts per request
-                                        const isNumericColumn = !isStaffName && !isUserNV;
-                                        const fontClass = isNumericColumn ? 'font-oswald' : 'font-sans';
+                                      <tr key={rowIdx} className={`${isStriped ? 'bg-[#f8faff]' : 'bg-white'} hover:bg-slate-50 transition-colors h-[30px]`}>
+                                        <td className="px-2 py-0 text-center font-black text-slate-800 text-[13px] font-oswald border-r border-slate-100 h-[30px]">{rowIdx + 1}</td>
+                                        {visibleIndices.map((idx, i) => {
+                                          const value = cells[idx] || '';
+                                          const headerText = allHeaders[idx].trim().toUpperCase();
+                                          const isStaffName = headerText.includes('TÊN') || headerText.includes('TEN') || i === 0;
+                                          const isUserNV = headerText.includes('USER') || headerText.includes('MÃ NV');
+                                          const isPercentage = value.includes('%');
 
-                                        // Specific formatting based on reference image
-                                        let textColor = 'text-slate-700';
-                                        if (isStaffName) textColor = isTopOne ? 'text-[#2563eb]' : (isBottomOne ? 'text-[#e11d48]' : 'text-slate-800');
-                                        if (isPercentage) {
-                                          const numVal = parseFloat(value);
-                                          if (!isNaN(numVal)) {
-                                            textColor = numVal >= 100 ? 'text-[#059669]' : 'text-[#e11d48]';
+                                          // Numeric fonts per request
+                                          const isNumericColumn = !isStaffName && !isUserNV;
+                                          const fontClass = isNumericColumn ? 'font-oswald' : 'font-sans';
+
+                                          // Specific formatting based on reference image
+                                          let textColor = 'text-slate-700';
+                                          if (isStaffName) textColor = isTopOne ? 'text-[#2563eb]' : (isBottomOne ? 'text-[#e11d48]' : 'text-slate-800');
+                                          if (isPercentage) {
+                                            const numVal = parseFloat(value);
+                                            if (!isNaN(numVal)) {
+                                              textColor = numVal >= 100 ? 'text-[#059669]' : 'text-[#e11d48]';
+                                            }
                                           }
-                                        }
 
-                                        return (
-                                          <td key={idx} className={`px-2 py-0 text-center text-[13px] font-utm-avo font-bold ${textColor} border-r border-slate-100 whitespace-nowrap h-[40px]`}>
-                                            <div className="flex items-center justify-center gap-1 h-full px-2">
-                                              {isStaffName && <ChevronRight size={14} className="flex-shrink-0" />}
-                                              {isPercentage ? (
-                                                <span className={`px-1.5 py-0.5 rounded ${parseFloat(value) >= 100 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                                                  {value}
-                                                </span>
-                                              ) : (
-                                                <span>{value}</span>
-                                              )}
-                                            </div>
-                                          </td>
-                                        );
-                                      })}
-                                      <td className={`px-1 py-0 text-center text-[13px] font-bold font-oswald border-r border-slate-100 last:border-r-0 whitespace-nowrap h-[30px]`}>
-                                        <div className="flex items-center justify-center gap-1 h-full">
-                                          {isTopOne && (
-                                            <div className="flex items-center gap-1 text-[#2563eb]">
-                                              <Trophy size={14} className="flex-shrink-0" />
-                                              <span className="text-[11px]">TOP</span>
-                                            </div>
-                                          )}
-                                          {isBottomOne && (
-                                            <div className="flex items-center gap-1 text-[#e11d48]">
-                                              <TrendingDown size={14} className="flex-shrink-0" />
-                                              <span className="text-[11px]">BOT</span>
-                                            </div>
-                                          )}
-                                          {!isTopOne && !isBottomOne && <span className="opacity-20 text-slate-400">-</span>}
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                              {/* Footer like the image */}
-                              <tfoot className="bg-[#f8faff] border-t-2 border-slate-200">
-                                <tr className="font-black text-slate-800 uppercase text-[12pt]">
-                                  <td colSpan={2} className="px-6 py-4 text-center">TỔNG</td>
-                                  {visibleIndices.slice(1).map((_, i) => (
-                                    <td key={i} className="px-4 py-4 text-center">---</td>
-                                  ))}
-                                  <td className="px-4 py-4 text-center">---</td>
-                                </tr>
-                              </tfoot>
-                            </table>
+                                          return (
+                                            <td key={idx} className={`px-2 py-0 text-center text-[13px] font-utm-avo font-bold ${textColor} border-r border-slate-100 whitespace-nowrap h-[40px]`}>
+                                              <div className="flex items-center justify-center gap-1 h-full px-2">
+                                                {isStaffName && <ChevronRight size={14} className="flex-shrink-0" />}
+                                                {isPercentage ? (
+                                                  <span className={`px-1.5 py-0.5 rounded ${parseFloat(value) >= 100 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                                                    {value}
+                                                  </span>
+                                                ) : (
+                                                  <span>{value}</span>
+                                                )}
+                                              </div>
+                                            </td>
+                                          );
+                                        })}
+                                        <td className={`px-1 py-0 text-center text-[13px] font-bold font-oswald border-r border-slate-100 last:border-r-0 whitespace-nowrap h-[30px]`}>
+                                          <div className="flex items-center justify-center gap-1 h-full">
+                                            {isTopOne && (
+                                              <div className="flex items-center gap-1 text-[#2563eb]">
+                                                <Trophy size={14} className="flex-shrink-0" />
+                                                <span className="text-[11px]">TOP</span>
+                                              </div>
+                                            )}
+                                            {isBottomOne && (
+                                              <div className="flex items-center gap-1 text-[#e11d48]">
+                                                <TrendingDown size={14} className="flex-shrink-0" />
+                                                <span className="text-[11px]">BOT</span>
+                                              </div>
+                                            )}
+                                            {!isTopOne && !isBottomOne && <span className="opacity-20 text-slate-400">-</span>}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                                {/* Footer like the image */}
+                                <tfoot className="bg-[#f8faff] border-t-2 border-slate-200">
+                                  <tr className="font-black text-slate-800 uppercase text-[12pt]">
+                                    <td colSpan={2} className="px-6 py-4 text-center">TỔNG</td>
+                                    {visibleIndices.slice(1).map((_, i) => (
+                                      <td key={i} className="px-4 py-4 text-center">---</td>
+                                    ))}
+                                    <td className="px-4 py-4 text-center">---</td>
+                                  </tr>
+                                </tfoot>
+                              </table>
+                            </div>
                           </div>
+                          {sortedRows.length > 50 && (
+                            <p className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">
+                              * Hiển thị danh sách đầy đủ nhân viên
+                            </p>
+                          )}
                         </div>
-                        {sortedRows.length > 50 && (
-                          <p className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">
-                            * Hiển thị danh sách đầy đủ nhân viên
-                          </p>
-                        )}
                       </div>
-                    </div>
-                  );
-                })()}
-              </motion.div>
+                    );
+                  })()}
+                </motion.div>
               )}
 
               {activeTab === 'BAN_KEM_NV' && (
@@ -1006,92 +1026,92 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                 >
                   <div className="flex items-center justify-between mb-6 border-b-2 border-orange-400 pb-4">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-slate-50 text-slate-500 rounded-xl">
-                            <LayoutGrid size={24} />
-                        </div>
-                        <h2 className="text-xl font-black text-slate-500 uppercase tracking-tight">1. Data Bán Kèm NV</h2>
+                      <div className="p-2 bg-slate-50 text-slate-500 rounded-xl">
+                        <LayoutGrid size={24} />
+                      </div>
+                      <h2 className="text-xl font-black text-slate-500 uppercase tracking-tight">1. Data Bán Kèm NV</h2>
                     </div>
                     <div className="p-2 bg-slate-50 text-orange-400 rounded-xl">
-                        <TrendingUp size={24} />
+                      <TrendingUp size={24} />
                     </div>
                   </div>
-                  
+
                   <textarea
-                      value={banKemNv}
-                      onChange={(e) => saveBanKemNv(e.target.value)}
-                      className="w-full h-32 p-4 border border-slate-200 bg-slate-50 rounded-2xl focus:ring-2 focus:ring-orange-400 outline-none text-slate-800 font-mono"
-                      placeholder="Dán dữ liệu (định dạng Excel tab) vào đây..."
+                    value={banKemNv}
+                    onChange={(e) => saveBanKemNv(e.target.value)}
+                    className="w-full h-32 p-4 border border-slate-200 bg-slate-50 rounded-2xl focus:ring-2 focus:ring-orange-400 outline-none text-slate-800 font-mono"
+                    placeholder="Dán dữ liệu (định dạng Excel tab) vào đây..."
                   />
                   {isSaving && <p className="text-xs text-orange-500 mt-2">Đang lưu tự động...</p>}
-                  
+
                   {banKemNv && (
                     <div className="mt-8 w-full">
                       <div className="flex justify-end mb-4">
-                        <button 
+                        <button
                           onClick={handleCaptureBanKem}
                           className="flex items-center gap-2 px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-xl text-sm font-bold uppercase transition-all shadow-sm"
                         >
                           <Camera size={16} /> CHỤP ẢNH BẢNG
                         </button>
                       </div>
-                      
-                      <div 
-                        ref={captureBanKemRef} 
+
+                      <div
+                        ref={captureBanKemRef}
                         className="w-full bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden p-6"
                       >
                         <div className="mb-6 flex items-center gap-3">
-                          <Trophy size={20} className="text-orange-500"/>
+                          <Trophy size={20} className="text-orange-500" />
                           <h3 style={{ fontFamily: 'var(--font-utm-avo)', fontSize: '24px', fontWeight: 'bold' }} className="text-slate-800 uppercase tracking-widest">LK BÁN KÈM NHÂN VIÊN</h3>
                         </div>
                         <div className="overflow-x-auto">
                           <table className="w-full text-left font-sans text-slate-800 border-collapse border-2 border-slate-300">
-                          <thead className="text-white uppercase border-b-2 border-slate-300">
-                            <tr>
-                              <th style={{ width: '240px', fontFamily: 'var(--font-utm-avo)', fontSize: '16px' }} className="px-6 py-[11px] border-r-2 border-slate-300 bg-emerald-600">NHÂN VIÊN</th>
-                              <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">DTLK</th>
-                              <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">LƯỢT BILL BÁN KÈM</th>
-                              <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">%BILL BÁN KÈM</th>
-                              <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">LƯỢT BILL BÁN HÀNG (TRỪ ONLINE, TRẢ GÓP)</th>
-                              <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px' }} className="px-6 py-[11px] text-center bg-orange-300 text-slate-800">HIỆU QUẢ</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y-2 divide-slate-200 font-bold" style={{ fontFamily: 'var(--font-utm-avo)', fontSize: '14px' }}>
-                            {parseBanKemData(banKemNv)
-                              .filter(row => selectedStaffIds.length === 0 || selectedStaffIds.some(id => row.nhanVien.includes(id)))
-                              .sort((a, b) => parseFloat(b.phanTramBill) - parseFloat(a.phanTramBill))
-                              .map((row: any, i:number, arr: any[]) => {
-                                const threshold = Math.max(1, Math.ceil(arr.length * 0.2));
-                                const isTop = i < threshold;
-                                const isBottom = i >= arr.length - threshold && !isTop;
-                                return (
-                              <tr key={i} className="hover:bg-slate-50">
-                                  <td style={{ width: '240px' }} className="px-6 py-[11px] text-slate-900 border-r-2 border-slate-300">{row.nhanVien}</td>
-                                  <td style={{ width: '70px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300">{row.dtlk ? Math.round(parseFloat(row.dtlk.toString().replace(/,/g, '')) || 0).toLocaleString('vi-VN') : '0'}</td>
-                                  <td style={{ width: '70px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300">{row.luotBill}</td>
-                                  <td style={{ width: '70px' }} className={`px-6 py-[11px] text-center border-r-2 border-slate-300 ${isTop ? 'text-emerald-600 font-black' : isBottom ? 'text-rose-600 font-black' : ''}`}>{row.phanTramBill}</td>
-                                  <td style={{ width: '70px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300">{row.luotBillBanHang}</td>
-                                  <td style={{ width: '70px' }} className="px-6 py-[11px] text-center">
-                                    {isTop && (
-                                      <span className="inline-flex items-center justify-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-[11px] font-black uppercase whitespace-nowrap">
-                                        <TrendingUp size={12} strokeWidth={3} /> TỐT
-                                      </span>
-                                    )}
-                                    {isBottom && (
-                                      <span className="inline-flex items-center justify-center gap-1 px-2 py-1 bg-rose-100 text-rose-700 rounded text-[11px] font-black uppercase whitespace-nowrap">
-                                        <TrendingDown size={12} strokeWidth={3} /> CHÚ Ý
-                                      </span>
-                                    )}
-                                    {!isTop && !isBottom && (
-                                      <span className="text-slate-400">-</span>
-                                    )}
-                                  </td>
+                            <thead className="text-white uppercase border-b-2 border-slate-300">
+                              <tr>
+                                <th style={{ width: '240px', fontFamily: 'var(--font-utm-avo)', fontSize: '16px' }} className="px-6 py-[11px] border-r-2 border-slate-300 bg-emerald-600">NHÂN VIÊN</th>
+                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">DTLK</th>
+                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">LƯỢT BILL BÁN KÈM</th>
+                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">%BILL BÁN KÈM</th>
+                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">LƯỢT BILL BÁN HÀNG (TRỪ ONLINE, TRẢ GÓP)</th>
+                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px' }} className="px-6 py-[11px] text-center bg-orange-300 text-slate-800">HIỆU QUẢ</th>
                               </tr>
-                                );
-                            })}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody className="divide-y-2 divide-slate-200 font-bold" style={{ fontFamily: 'var(--font-utm-avo)', fontSize: '14px' }}>
+                              {parseBanKemData(banKemNv)
+                                .filter(row => selectedStaffIds.length === 0 || selectedStaffIds.some(id => row.nhanVien.includes(id)))
+                                .sort((a, b) => parseFloat(b.phanTramBill) - parseFloat(a.phanTramBill))
+                                .map((row: any, i: number, arr: any[]) => {
+                                  const threshold = Math.max(1, Math.ceil(arr.length * 0.2));
+                                  const isTop = i < threshold;
+                                  const isBottom = i >= arr.length - threshold && !isTop;
+                                  return (
+                                    <tr key={i} className="hover:bg-slate-50">
+                                      <td style={{ width: '240px' }} className="px-6 py-[11px] text-slate-900 border-r-2 border-slate-300">{row.nhanVien}</td>
+                                      <td style={{ width: '70px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300">{row.dtlk ? Math.round(parseFloat(row.dtlk.toString().replace(/,/g, '')) || 0).toLocaleString('vi-VN') : '0'}</td>
+                                      <td style={{ width: '70px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300">{row.luotBill}</td>
+                                      <td style={{ width: '70px' }} className={`px-6 py-[11px] text-center border-r-2 border-slate-300 ${isTop ? 'text-emerald-600 font-black' : isBottom ? 'text-rose-600 font-black' : ''}`}>{row.phanTramBill}</td>
+                                      <td style={{ width: '70px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300">{row.luotBillBanHang}</td>
+                                      <td style={{ width: '70px' }} className="px-6 py-[11px] text-center">
+                                        {isTop && (
+                                          <span className="inline-flex items-center justify-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-[11px] font-black uppercase whitespace-nowrap">
+                                            <TrendingUp size={12} strokeWidth={3} /> TỐT
+                                          </span>
+                                        )}
+                                        {isBottom && (
+                                          <span className="inline-flex items-center justify-center gap-1 px-2 py-1 bg-rose-100 text-rose-700 rounded text-[11px] font-black uppercase whitespace-nowrap">
+                                            <TrendingDown size={12} strokeWidth={3} /> CHÚ Ý
+                                          </span>
+                                        )}
+                                        {!isTop && !isBottom && (
+                                          <span className="text-slate-400">-</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                    </div>
                     </div>
                   )}
                 </motion.div>
@@ -1108,13 +1128,13 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                 >
                   <div className="flex items-center justify-between mb-6 border-b-2 border-purple-400 pb-4">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-slate-50 text-slate-500 rounded-xl">
-                            <Gift size={24} />
-                        </div>
-                        <h2 className="text-xl font-black text-slate-500 uppercase tracking-tight">Dữ liệu Thưởng NV</h2>
+                      <div className="p-2 bg-slate-50 text-slate-500 rounded-xl">
+                        <Gift size={24} />
+                      </div>
+                      <h2 className="text-xl font-black text-slate-500 uppercase tracking-tight">Dữ liệu Thưởng NV</h2>
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
                     <div className="space-y-4">
                       <h3 className="font-bold text-slate-700 uppercase tracking-wider text-sm">Dữ liệu Thưởng tháng trước</h3>
@@ -1175,16 +1195,16 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                 >
                   <div className="flex items-center justify-between mb-6 border-b-2 border-blue-400 pb-4">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-slate-50 text-slate-500 rounded-xl">
-                            <Target size={24} />
-                        </div>
-                        <h2 className="text-xl font-black text-slate-500 uppercase tracking-tight">Khai Thác NV</h2>
+                      <div className="p-2 bg-slate-50 text-slate-500 rounded-xl">
+                        <Target size={24} />
+                      </div>
+                      <h2 className="text-xl font-black text-slate-500 uppercase tracking-tight">Khai Thác NV</h2>
                     </div>
                     <div className="p-2 bg-slate-50 text-blue-400 rounded-xl">
-                        <Target size={24} />
+                      <Target size={24} />
                     </div>
                   </div>
-                  
+
                   <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                     <Target size={64} className="mb-4 text-blue-200" />
                     <p className="text-lg font-bold">Tính năng Khai Thác Nhân Viên đang được phát triển</p>

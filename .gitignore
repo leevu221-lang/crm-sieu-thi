@@ -6,3 +6,5 @@ coverage/
 *.log
 .env*
 !.env.example
+43751-crm.local+1-key.pem
+43751-crm.local+1.pem
