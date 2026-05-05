@@ -1,0 +1,47 @@
+{
+  "tables": {
+    "warehouses": {
+      "columns": {
+        "ma_kho": "text primary key",
+        "ten_kho": "text not null",
+        "dia_chi": "text",
+        "created_at": "timestamp with time zone default now()"
+      }
+    },
+    "users": {
+      "columns": {
+        "username": "text primary key",
+        "password": "text not null",
+        "ma_kho": "text references warehouses(ma_kho)",
+        "role": "text default 'user'",
+        "created_at": "timestamp with time zone default now()"
+      }
+    },
+    "store_luyke": {
+      "columns": {
+        "warehouse_code": "text primary key references warehouses(ma_kho)",
+        "ten_sieu_thi": "text",
+        "lk_bi_tong_quan": "text",
+        "lk_nh_sieu_thi": "text",
+        "lk_dt_nv": "text",
+        "lk_td_nv": "text",
+        "ds_nhan_vien": "text",
+        "dt_gio_cong": "text",
+        "data_phan_ca": "jsonb",
+        "category_targets": "jsonb",
+        "updated_at": "timestamp with time zone default now()"
+      }
+    },
+    "employee_health": {
+      "columns": {
+        "id": "uuid primary key default gen_random_uuid()",
+        "warehouse_code": "text references warehouses(ma_kho)",
+        "employee_name": "text not null",
+        "status": "text",
+        "note": "text",
+        "check_date": "date default current_date",
+        "created_at": "timestamp with time zone default now()"
+      }
+    }
+  }
+}

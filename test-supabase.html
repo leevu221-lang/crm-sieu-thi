@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kiểm tra kết nối Supabase</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f8fafc; }
+        .card { background: white; padding: 2rem; border-radius: 1rem; shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border: 1px solid #e2e8f0; text-align: center; max-width: 400px; width: 100%; }
+        .status { font-weight: bold; margin: 1rem 0; padding: 0.5rem; border-radius: 0.5rem; }
+        .success { background: #ecfdf5; color: #059669; }
+        .error { background: #fef2f2; color: #dc2626; }
+        .loading { background: #fffbeb; color: #d97706; }
+        pre { text-align: left; background: #f1f5f9; padding: 1rem; border-radius: 0.5rem; font-size: 0.8rem; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Kiểm tra Supabase</h2>
+        <div id="status" class="status loading">Đang kiểm tra kết nối...</div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // --- CẤU HÌNH TẠI ĐÂY ---
+        const SUPABASE_URL = "DÁN_URL_CỦA_BẠN_VÀO_ĐÂY";
+        const SUPABASE_ANON_KEY = "DÁN_KEY_CỦA_BẠN_VÀO_ĐÂY";
+
+        async function testConnection() {
+            const statusEl = document.getElementById('status');
+            const resultEl = document.getElementById('result');
+
+            if (SUPABASE_URL.includes("DÁN_URL")) {
+                statusEl.className = "status error";
+                statusEl.innerText = "Lỗi: Bạn chưa dán URL và Key vào code!";
+                return;
+            }
+
+            try {
+                const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                
+                // Thử truy vấn bảng users
+                const { data, error } = await supabase.from('users').select('*').limit(5);
+
+                if (error) {
+                    statusEl.className = "status error";
+                    statusEl.innerText = "Không kết nối được Supabase";
+                    resultEl.innerHTML = `<p>Chi tiết lỗi:</p><pre>${JSON.stringify(error, null, 2)}</pre>`;
+                    console.error("Lỗi:", error);
+                } else {
+                    statusEl.className = "status success";
+                    statusEl.innerText = "Đã kết nối Supabase";
+                    resultEl.innerHTML = `<p>Truy vấn bảng 'users' thành công!</p><p>Dữ liệu (tối đa 5 dòng):</p><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    console.log("Dữ liệu:", data);
+                }
+            } catch (err) {
+                statusEl.className = "status error";
+                statusEl.innerText = "Lỗi hệ thống khi kết nối";
+                resultEl.innerHTML = `<pre>${err.message}</pre>`;
+            }
+        }
+
+        testConnection();
+    </script>
+</body>
+</html>
