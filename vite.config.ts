@@ -4,6 +4,8 @@ import path from 'path';
 import fs from 'fs';
 import {defineConfig, loadEnv} from 'vite';
 
+const certExists = fs.existsSync('./43751-crm.local+1-key.pem');
+
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
@@ -18,10 +20,12 @@ export default defineConfig(({mode}) => {
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       allowedHosts: ['43751-crm.local'],
-      https: {
-        key: fs.readFileSync('./43751-crm.local+1-key.pem'),
-        cert: fs.readFileSync('./43751-crm.local+1.pem'),
-      },
+      ...(certExists && {
+        https: {
+          key: fs.readFileSync('./43751-crm.local+1-key.pem'),
+          cert: fs.readFileSync('./43751-crm.local+1.pem'),
+        },
+      }),
     },
     build: {
       outDir: 'dist',
