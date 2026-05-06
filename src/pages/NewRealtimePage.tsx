@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useDeferredValue, useTransition } from 'react';
 import { supabase } from '../supabaseClient';
 import { 
   BarChart, 
@@ -435,6 +435,9 @@ export default function NewRealtimePage() {
     });
   }, [rawYcxRows]);
 
+  // Defer heavy row list so useMemo stats don't block render
+  const deferredFilteredRows = useDeferredValue(filteredRawYcxRows);
+
   const staffAirConStats = useMemo(() => {
     if (rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return [];
 
@@ -496,6 +499,72 @@ export default function NewRealtimePage() {
       .sort((a, b) => b.mayLanh - a.mayLanh);
   }, [rawYcxRows, filteredRawYcxRows, selectedStaffs]);
 
+  const staffCEStats = useMemo(() => {
+    if (rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return [];
+
+    const headers = rawYcxRows[0].map(h => String(h || '').trim());
+    const findIdx = (names: string[], defaultIdx: number) => {
+      const idx = headers.findIndex(h => names.some(n => h.toLowerCase().includes(n.toLowerCase())));
+      return idx !== -1 ? idx : defaultIdx;
+    };
+
+    const idxStaff = findIdx(['người tạo'], 23);
+    const idxQty = findIdx(['số lượng'], 35);
+    const idxRevenue = findIdx(['phải thu', 'doanh thu', 'tổng tiền', 'thành tiền', 'giá bán'], 37);
+    const idxCategory = findIdx(['nhóm ngành hàng', 'nhóm hàng'], 40);
+    // Exact match "tên sản phẩm" first to avoid matching IMEI/serial columns
+    const idxProduct = (() => {
+      const exact = headers.findIndex(h => h.toLowerCase() === 'tên sản phẩm');
+      if (exact !== -1) return exact;
+      const partial = headers.findIndex(h => h.toLowerCase().startsWith('tên sản phẩm') || h.toLowerCase() === 'tên hàng');
+      return partial !== -1 ? partial : 33;
+    })();
+
+    const statsMap = new Map<string, {
+      staffName: string;
+      ceSL: number;
+      ceDT: number;
+      products: { name: string; sl: number; dt: number }[];
+    }>();
+
+    filteredRawYcxRows.forEach(row => {
+      const staffName = String(row[idxStaff] || '').trim();
+      if (!staffName || staffName.toLowerCase().includes('người tạo') || staffName.toLowerCase() === 'admin' || staffName.toLowerCase() === 'administrator') return;
+
+      const category = String(row[idxCategory] || '').trim();
+      const nhomHangLarge = NHOM_HANG_MAP[category]?.large || '';
+
+      if (nhomHangLarge === 'CE') {
+        const qty = Math.round(parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0);
+        const revenue = Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0);
+        const productName = String(row[idxProduct] || '').trim() || 'Không rõ';
+
+        if (!statsMap.has(staffName)) {
+          statsMap.set(staffName, { staffName, ceSL: 0, ceDT: 0, products: [] });
+        }
+        const staffData = statsMap.get(staffName)!;
+        staffData.ceSL += qty;
+        staffData.ceDT += revenue;
+
+        // Gom sản phẩm cùng tên
+        const existing = staffData.products.find(p => p.name === productName);
+        if (existing) {
+          existing.sl += qty;
+          existing.dt += revenue;
+        } else {
+          staffData.products.push({ name: productName, sl: qty, dt: revenue });
+        }
+      }
+    });
+
+    // Sort products by DT desc for each staff
+    statsMap.forEach(s => s.products.sort((a, b) => b.dt - a.dt));
+
+    const allStats = Array.from(statsMap.values());
+    return (selectedStaffs.length > 0 ? allStats.filter(s => selectedStaffs.includes(s.staffName)) : allStats)
+      .sort((a, b) => b.ceDT - a.ceDT);
+  }, [rawYcxRows, filteredRawYcxRows, selectedStaffs]);
+
   const allStaffNames = useMemo(() => {
     if (rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return [];
     const headers = rawYcxRows[0].map(h => String(h || '').trim());
@@ -516,6 +585,9 @@ export default function NewRealtimePage() {
     console.log('[NewRealtimePage] selectedMaKho:', selectedMaKho);
   }, [selectedMaKho]);
   const [activeTab, setActiveTab] = useState<'summary' | 'khai_thac'>('summary');
+  const [isPending, startTransition] = useTransition();
+  const [rawTablePage, setRawTablePage] = useState(0);
+  const RAW_PAGE_SIZE = 100;
   const [currentTime, setCurrentTime] = useState(new Date());
   const categoriesRef = useRef<HTMLDivElement>(null);
   const overviewRef = useRef<HTMLDivElement>(null);
@@ -547,6 +619,7 @@ export default function NewRealtimePage() {
   const [showDtlkComment, setShowDtlkComment] = useState(false);
   const [showLuykeColumn, setShowLuykeColumn] = useState(true);
   const [expandedStaff, setExpandedStaff] = useState<Record<string, boolean>>({});
+  const [expandedCERows, setExpandedCERows] = useState<Record<string, boolean>>({});
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
   const allCategories = useMemo(() => {
@@ -862,13 +935,13 @@ export default function NewRealtimePage() {
       <div className="flex items-center gap-3 overflow-x-auto pb-4 scrollbar-hide sticky top-0 z-40 bg-slate-50/90 backdrop-blur-xl py-4 -mx-4 px-4">
         <TabButton 
           active={activeTab === 'summary'} 
-          onClick={() => setActiveTab('summary')} 
+          onClick={() => startTransition(() => setActiveTab('summary'))} 
           icon={LayoutGrid} 
           label="TỔNG QUAN" 
         />
         <TabButton 
           active={activeTab === 'khai_thac'} 
-          onClick={() => setActiveTab('khai_thac')} 
+          onClick={() => startTransition(() => { setActiveTab('khai_thac'); setRawTablePage(0); })} 
           icon={Activity} 
           label="DASHBOARD YCX" 
         />
@@ -1228,54 +1301,87 @@ export default function NewRealtimePage() {
             style={{ zoom: 1.3 }}
           >
 
-            {/* Realtime Staff Table: REALTIME NHÂN VIÊN */}
-            <div className="bg-white rounded-3xl overflow-hidden border border-emerald-100 shadow-sm mt-8">
-              <div className="p-6 border-b border-emerald-50 flex items-center justify-between bg-emerald-50/20">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-lg shadow-emerald-200">
-                    <Users size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-widest text-[16px] md:text-xl">REALTIME NHÂN VIÊN</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Đồng bộ theo dữ liệu hiển thị (Đã xuất & Chưa trả)</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Lọc theo NV:</span>
-                  <StaffMultiSelectFilter 
-                    staffNames={allStaffNames}
-                    selectedStaffs={selectedStaffs}
-                    setSelectedStaffs={setSelectedStaffs}
-                  />
+            {/* HIỆU QUẢ REALTIME - CE Stats */}
+            <div className="bg-white rounded-2xl overflow-hidden border border-amber-200 shadow-md">
+              {/* Title bar */}
+              <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-3">
+                <Zap size={18} className="text-slate-700 flex-shrink-0" />
+                <div>
+                  <h3 className="text-[15px] font-black text-slate-900 uppercase tracking-widest">HIỆU QUẢ REALTIME</h3>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Dữ liệu CE từ YCX (Đã xuất &amp; Chưa trả) • Nhóm hàng lớn = CE</p>
                 </div>
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[800px]">
+                <table className="w-full border-collapse text-center" style={{ borderSpacing: 0 }}>
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="py-4 px-6 text-[11px] font-black text-slate-600 uppercase tracking-wider">NGƯỜI TẠO</th>
-                      <th className="py-4 px-6 text-[11px] font-black text-indigo-600 uppercase tracking-wider text-center bg-indigo-50/30">MÁY LẠNH</th>
-                      <th className="py-4 px-6 text-[11px] font-black text-slate-600 uppercase tracking-wider text-center">MÁY LẠNH DAIKIN</th>
-                      <th className="py-4 px-6 text-[11px] font-black text-slate-600 uppercase tracking-wider text-center">MÁY LẠI HAIER</th>
-                      <th className="py-4 px-6 text-[11px] font-black text-slate-600 uppercase tracking-wider text-center">MÁY LẠNH HISENSI</th>
+                    {/* Row 1: Group headers */}
+                    <tr>
+                      <th rowSpan={2} className="border border-amber-300 bg-amber-100 py-3 px-4 text-[11px] font-black text-amber-900 uppercase tracking-wider text-left align-middle min-w-[200px]">
+                        NGƯỜI TẠO
+                      </th>
+                      <th colSpan={2} className="border border-amber-300 bg-amber-400 py-2 px-4 text-[12px] font-black text-white uppercase tracking-widest">
+                        CE
+                      </th>
+                    </tr>
+                    {/* Row 2: Sub-headers */}
+                    <tr>
+                      <th className="border border-amber-300 bg-amber-200 py-2 px-4 text-[10px] font-black text-amber-900 uppercase tracking-wider w-24">S.L</th>
+                      <th className="border border-amber-300 bg-amber-200 py-2 px-4 text-[10px] font-black text-amber-900 uppercase tracking-wider min-w-[120px]">DT</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {staffAirConStats.length > 0 ? (
-                      staffAirConStats.map((s, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 group">
-                          <td className="py-4 px-6 text-[13px] font-bold text-slate-700 group-hover:text-indigo-600 transition-colors">{s.staffName}</td>
-                          <td className="py-4 px-6 text-[15px] font-black text-indigo-600 text-center font-oswald bg-indigo-50/10">{s.mayLanh}</td>
-                          <td className="py-4 px-6 text-[14px] font-bold text-slate-600 text-center font-oswald">{s.mayLanhDaikin}</td>
-                          <td className="py-4 px-6 text-[14px] font-bold text-slate-600 text-center font-oswald">{s.mayLanhHaier}</td>
-                          <td className="py-4 px-6 text-[14px] font-bold text-slate-600 text-center font-oswald">{s.mayLanhHisense}</td>
+                    {staffCEStats.length > 0 ? (
+                      <>
+                        {staffCEStats.map((s, idx) => {
+                          const isExpanded = expandedCERows[s.staffName] || false;
+                          const isOdd = idx % 2 === 1;
+                          return (
+                            <React.Fragment key={idx}>
+                              {/* Staff row */}
+                              <tr
+                                className={`cursor-pointer transition-colors ${isOdd ? 'bg-amber-50/40' : 'bg-white'} hover:bg-amber-50`}
+                                onClick={() => setExpandedCERows(prev => ({ ...prev, [s.staffName]: !prev[s.staffName] }))}
+                              >
+                                <td className="border border-amber-200 py-3 px-4 text-[12px] font-bold text-slate-800 text-left">
+                                  <div className="flex items-center gap-2">
+                                    <ChevronDown
+                                      size={14}
+                                      className={`text-amber-500 transition-transform duration-200 flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
+                                    />
+                                    {s.staffName}
+                                  </div>
+                                </td>
+                                <td className="border border-amber-200 py-3 px-4 text-[14px] font-black text-slate-900">{s.ceSL}</td>
+                                <td className="border border-amber-200 py-3 px-4 text-[13px] font-bold text-slate-900">{s.ceDT.toLocaleString()}</td>
+                              </tr>
+                              {/* Expanded product rows */}
+                              {isExpanded && s.products.map((p, pIdx) => (
+                                <tr key={`${idx}-${pIdx}`} className="bg-amber-50/70">
+                                  <td className="border border-amber-100 py-2 pl-10 pr-4 text-[10px] text-slate-600 font-medium text-left">
+                                    <div className="flex items-center gap-1.5">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                                      {p.name}
+                                    </div>
+                                  </td>
+                                  <td className="border border-amber-100 py-2 px-4 text-[11px] font-bold text-slate-700">{p.sl}</td>
+                                  <td className="border border-amber-100 py-2 px-4 text-[11px] font-bold text-slate-700">{p.dt.toLocaleString()}</td>
+                                </tr>
+                              ))}
+                            </React.Fragment>
+                          );
+                        })}
+                        {/* Total Row */}
+                        <tr className="bg-amber-500">
+                          <td className="border border-amber-400 py-3 px-4 text-[12px] font-black text-white uppercase text-left tracking-wider">TỔNG</td>
+                          <td className="border border-amber-400 py-3 px-4 text-[15px] font-black text-white">{staffCEStats.reduce((sum, s) => sum + s.ceSL, 0)}</td>
+                          <td className="border border-amber-400 py-3 px-4 text-[13px] font-black text-white">{staffCEStats.reduce((sum, s) => sum + s.ceDT, 0).toLocaleString()}</td>
                         </tr>
-                      ))
+                      </>
                     ) : (
                       <tr>
-                        <td className="py-12 text-center text-slate-400 italic text-[11px]" colSpan={5}>
-                          {isLoadingRealtime ? 'Đang tải dữ liệu...' : 'Chưa có dữ liệu khai thác máy lạnh thỏa mãn điều kiện.'}
+                        <td className="py-12 text-center text-slate-400 italic text-[11px] border border-amber-100" colSpan={3}>
+                          {isLoadingRealtime ? 'Đang tải dữ liệu...' : 'Chưa có dữ liệu CE thỏa mãn điều kiện.'}
                         </td>
                       </tr>
                     )}
@@ -1284,39 +1390,37 @@ export default function NewRealtimePage() {
               </div>
             </div>
 
+
             {/* Raw Data Table: 3. THÊM YCX RT */}
-            <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm mt-8 mb-12">
-              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-white shadow-lg shadow-slate-200">
-                    <ShoppingBag size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-widest">3. THÊM YCX RT (DỮ LIỆU NGUỒN)</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lọc: Đã xuất & Chưa trả</p>
-                  </div>
+            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-md mt-8 mb-12">
+              <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-3">
+                <ShoppingBag size={18} className="text-slate-700 flex-shrink-0" />
+                <div>
+                  <h3 className="text-[15px] font-black text-slate-900 uppercase tracking-widest">3. THÊM YCX RT (DỮ LIỆU NGUỒN)</h3>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Lọc: Đã xuất &amp; Chưa trả</p>
                 </div>
               </div>
 
               <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-                <table className="w-full text-left border-collapse min-w-[3000px]">
-                  <thead className="sticky top-0 z-10 bg-slate-100">
+                <table className="w-full border-collapse text-center min-w-[3000px]" style={{ borderSpacing: 0 }}>
+                  <thead className="sticky top-0 z-10">
                     <tr>
                       {rawYcxRows.length > 0 && 
                         rawYcxRows[0].map((cell, idx) => (
-                          <th key={idx} className="py-3 px-4 text-[10px] font-black text-slate-600 uppercase tracking-wider border-b border-slate-300">
+                          <th key={idx} className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">
                             {cell || `Cột ${String.fromCharCode(65 + idx)}`}
                           </th>
                         ))
                       }
-                      <th className="py-3 px-4 text-[10px] font-black text-slate-600 uppercase tracking-wider border-b border-slate-300">PHÂN LOẠI</th>
-                      <th className="py-3 px-4 text-[10px] font-black text-slate-600 uppercase tracking-wider border-b border-slate-300">NHÓM HÀNG LỚN</th>
-                      <th className="py-3 px-4 text-[10px] font-black text-slate-600 uppercase tracking-wider border-b border-slate-300">NHÓM HÀNG NHỎ</th>
-                      <th className="py-3 px-4 text-[10px] font-black text-slate-600 uppercase tracking-wider border-b border-slate-300">PHÂN LOẠI YCX</th>
+                      <th className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">PHÂN LOẠI</th>
+                      <th className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">NHÓM HÀNG LỚN</th>
+                      <th className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">NHÓM HÀNG NHỎ</th>
+                      <th className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">PHÂN LOẠI YCX</th>
                     </tr>
                   </thead>
+
                   <tbody>
-                    {filteredRawYcxRows.length > 0 ? (
+                    {deferredFilteredRows.length > 0 ? (
                       (() => {
                         // Find index of Tên sản phẩm
                         const headers = rawYcxRows[0].map(h => String(h || '').trim());
@@ -1339,11 +1443,9 @@ export default function NewRealtimePage() {
                           if (n.includes('BẢO HIỂM XE MOTO')) return 'BHMT';
                           if (n.includes('BẢO HIỂM XÃ HỘI')) return 'BHXH';
                           if (n.includes('BẢO HIỂM Y TẾ')) return 'BHYT';
-                          
                           if (n.includes('01 THÁNG')) return 'V1';
                           if (n.includes('03 THÁNG')) return 'V2';
                           if (n.includes('06 THÁNG')) return 'V4';
-                          
                           return 'Khác';
                         };
 
@@ -1352,23 +1454,29 @@ export default function NewRealtimePage() {
                           return 'Bán hàng';
                         };
 
-                        return filteredRawYcxRows.map((row, rowIdx) => (
-                          <tr key={rowIdx} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0">
+                        // Paginate: only render current page rows
+                        const pageRows = deferredFilteredRows.slice(
+                          rawTablePage * RAW_PAGE_SIZE,
+                          (rawTablePage + 1) * RAW_PAGE_SIZE
+                        );
+
+                        return pageRows.map((row, rowIdx) => (
+                          <tr key={rowIdx} className={`transition-colors ${rowIdx % 2 === 1 ? 'bg-slate-50' : 'bg-white'} hover:bg-slate-100`}>
                             {row.map((cell, cellIdx) => (
-                              <td key={cellIdx} className="py-2 px-4 text-[10px] text-slate-600 whitespace-nowrap">
+                              <td key={cellIdx} className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 font-medium whitespace-nowrap">
                                 {cell}
                               </td>
                             ))}
-                            <td className="py-2 px-4 text-[10px] text-slate-600 whitespace-nowrap font-bold">
+                            <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
                               {classifyProduct(String(row[idxProduct] || '').toUpperCase())}
                             </td>
-                            <td className="py-2 px-4 text-[10px] text-slate-600 whitespace-nowrap font-bold">
+                            <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
                               {idxNhomHang !== -1 ? (NHOM_HANG_MAP[row[idxNhomHang]]?.large || '-') : '-'}
                             </td>
-                            <td className="py-2 px-4 text-[10px] text-slate-600 whitespace-nowrap font-bold">
+                            <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
                               {idxSmallCategoryHeader !== -1 ? (row[idxSmallCategoryHeader] || '-') : (idxNhomHang !== -1 ? (NHOM_HANG_MAP[row[idxNhomHang]]?.small || '-') : '-')}
                             </td>
-                            <td className="py-2 px-4 text-[10px] text-slate-600 whitespace-nowrap font-bold">
+                            <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
                               {idxHinhThucXuat !== -1 ? classifyHinhThucXuat(String(row[idxHinhThucXuat] || '')) : '-'}
                             </td>
                           </tr>
@@ -1384,6 +1492,30 @@ export default function NewRealtimePage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Pagination controls */}
+              {deferredFilteredRows.length > RAW_PAGE_SIZE && (
+                <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-slate-50/50">
+                  <span className="text-[11px] font-bold text-slate-500">
+                    Hiển thị {rawTablePage * RAW_PAGE_SIZE + 1}–{Math.min((rawTablePage + 1) * RAW_PAGE_SIZE, deferredFilteredRows.length)} / {deferredFilteredRows.length} dòng
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      disabled={rawTablePage === 0}
+                      onClick={() => setRawTablePage(p => Math.max(0, p - 1))}
+                      className="px-3 py-1 text-[11px] font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >← Trước</button>
+                    <span className="text-[11px] font-bold text-slate-600">
+                      Trang {rawTablePage + 1} / {Math.ceil(deferredFilteredRows.length / RAW_PAGE_SIZE)}
+                    </span>
+                    <button
+                      disabled={(rawTablePage + 1) * RAW_PAGE_SIZE >= deferredFilteredRows.length}
+                      onClick={() => setRawTablePage(p => p + 1)}
+                      className="px-3 py-1 text-[11px] font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >Tiếp →</button>
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
