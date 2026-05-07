@@ -438,8 +438,10 @@ export default function NewRealtimePage() {
   // Defer heavy row list so useMemo stats don't block render
   const deferredFilteredRows = useDeferredValue(filteredRawYcxRows);
 
-  const staffAirConStats = useMemo(() => {
-    if (rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return [];
+  // ─── Single-pass computation: iterate filteredRawYcxRows only ONCE ──────────
+  const { staffAirConStats, staffCEStats, allStaffNames } = useMemo(() => {
+    const empty = { staffAirConStats: [], staffCEStats: [], allStaffNames: [] };
+    if (rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return empty;
 
     const headers = rawYcxRows[0].map(h => String(h || '').trim());
     const findIdx = (names: string[], defaultIdx: number) => {
@@ -447,72 +449,12 @@ export default function NewRealtimePage() {
       return idx !== -1 ? idx : defaultIdx;
     };
 
-    const idxStaff = findIdx(['người tạo'], 23);
-    const idxProduct = findIdx(['tên sản phẩm'], 33);
-    const idxQty = findIdx(['số lượng'], 35);
-    const idxSmallCategory = findIdx(['nhóm hàng nhỏ'], -1);
-    const idxCategory = findIdx(['nhóm ngành hàng', 'nhóm hàng'], 40);
-
-    const statsMap = new Map<string, {
-      staffName: string;
-      mayLanh: number;
-      mayLanhDaikin: number;
-      mayLanhHaier: number;
-      mayLanhHisense: number;
-    }>();
-
-    filteredRawYcxRows.forEach(row => {
-      const staffName = String(row[idxStaff] || '').trim();
-      if (!staffName || staffName.toLowerCase().includes('người tạo') || staffName.toLowerCase() === 'admin' || staffName.toLowerCase() === 'administrator') return;
-
-      if (!statsMap.has(staffName)) {
-        statsMap.set(staffName, {
-          staffName,
-          mayLanh: 0,
-          mayLanhDaikin: 0,
-          mayLanhHaier: 0,
-          mayLanhHisense: 0
-        });
-      }
-
-      const category = String(row[idxCategory] || '').trim();
-      const nhomHangSmallFromMap = NHOM_HANG_MAP[category]?.small || '';
-      const nhomHangSmallValue = idxSmallCategory !== -1 ? String(row[idxSmallCategory] || '').trim().toUpperCase() : '';
-      
-      const isMayLanhImei = nhomHangSmallValue === "ML" || nhomHangSmallFromMap === "ML";
-      
-      if (isMayLanhImei) {
-        const qty = Math.round(parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0);
-        const productName = String(row[idxProduct] || '').toUpperCase();
-        
-        const staffData = statsMap.get(staffName)!;
-        staffData.mayLanh += qty;
-        
-        if (productName.includes("DAIKIN")) staffData.mayLanhDaikin += qty;
-        if (productName.includes("HAIER")) staffData.mayLanhHaier += qty;
-        if (productName.includes("HISENSE") || productName.includes("HISENSI")) staffData.mayLanhHisense += qty;
-      }
-    });
-
-    const allStats = Array.from(statsMap.values());
-    return (selectedStaffs.length > 0 ? allStats.filter(s => selectedStaffs.includes(s.staffName)) : allStats)
-      .sort((a, b) => b.mayLanh - a.mayLanh);
-  }, [rawYcxRows, filteredRawYcxRows, selectedStaffs]);
-
-  const staffCEStats = useMemo(() => {
-    if (rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return [];
-
-    const headers = rawYcxRows[0].map(h => String(h || '').trim());
-    const findIdx = (names: string[], defaultIdx: number) => {
-      const idx = headers.findIndex(h => names.some(n => h.toLowerCase().includes(n.toLowerCase())));
-      return idx !== -1 ? idx : defaultIdx;
-    };
-
-    const idxStaff = findIdx(['người tạo'], 23);
-    const idxQty = findIdx(['số lượng'], 35);
-    const idxRevenue = findIdx(['phải thu', 'doanh thu', 'tổng tiền', 'thành tiền', 'giá bán'], 37);
-    const idxCategory = findIdx(['nhóm ngành hàng', 'nhóm hàng'], 40);
-    // Exact match "tên sản phẩm" first to avoid matching IMEI/serial columns
+    const idxStaff       = findIdx(['người tạo'], 23);
+    const idxQty         = findIdx(['số lượng'], 35);
+    const idxRevenue     = findIdx(['phải thu', 'doanh thu', 'tổng tiền', 'thành tiền', 'giá bán'], 37);
+    const idxCategory    = findIdx(['nhóm ngành hàng', 'nhóm hàng'], 40);
+    const idxSmallCat    = findIdx(['nhóm hàng nhỏ'], -1);
+    // Exact-match product column to avoid IMEI columns
     const idxProduct = (() => {
       const exact = headers.findIndex(h => h.toLowerCase() === 'tên sản phẩm');
       if (exact !== -1) return exact;
@@ -520,66 +462,69 @@ export default function NewRealtimePage() {
       return partial !== -1 ? partial : 33;
     })();
 
-    const statsMap = new Map<string, {
-      staffName: string;
-      ceSL: number;
-      ceDT: number;
-      products: { name: string; sl: number; dt: number }[];
-    }>();
+    type ACStats = { staffName: string; mayLanh: number; mayLanhDaikin: number; mayLanhHaier: number; mayLanhHisense: number };
+    type CEStats = { staffName: string; ceSL: number; ceDT: number; products: { name: string; sl: number; dt: number }[] };
 
-    filteredRawYcxRows.forEach(row => {
+    const acMap  = new Map<string, ACStats>();
+    const ceMap  = new Map<string, CEStats>();
+    const names  = new Set<string>();
+
+    const isSystemName = (n: string) =>
+      !n || n.toLowerCase().includes('người tạo') || n.toLowerCase() === 'admin' || n.toLowerCase() === 'administrator';
+
+    for (const row of filteredRawYcxRows) {
       const staffName = String(row[idxStaff] || '').trim();
-      if (!staffName || staffName.toLowerCase().includes('người tạo') || staffName.toLowerCase() === 'admin' || staffName.toLowerCase() === 'administrator') return;
+      if (isSystemName(staffName)) continue;
 
-      const category = String(row[idxCategory] || '').trim();
-      const nhomHangLarge = NHOM_HANG_MAP[category]?.large || '';
+      names.add(staffName);
 
-      if (nhomHangLarge === 'CE') {
-        const qty = Math.round(parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0);
-        const revenue = Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0);
-        const productName = String(row[idxProduct] || '').trim() || 'Không rõ';
+      const category        = String(row[idxCategory] || '').trim();
+      const nhomLarge       = NHOM_HANG_MAP[category]?.large || '';
+      const nhomSmallFromMap = NHOM_HANG_MAP[category]?.small || '';
+      const nhomSmallValue  = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
 
-        if (!statsMap.has(staffName)) {
-          statsMap.set(staffName, { staffName, ceSL: 0, ceDT: 0, products: [] });
-        }
-        const staffData = statsMap.get(staffName)!;
-        staffData.ceSL += qty;
-        staffData.ceDT += revenue;
-
-        // Gom sản phẩm cùng tên
-        const existing = staffData.products.find(p => p.name === productName);
-        if (existing) {
-          existing.sl += qty;
-          existing.dt += revenue;
-        } else {
-          staffData.products.push({ name: productName, sl: qty, dt: revenue });
-        }
+      // ── Air-con stats ──
+      if (nhomSmallValue === 'ML' || nhomSmallFromMap === 'ML') {
+        const qty         = Math.round(parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0);
+        const productName = String(row[idxProduct] || '').toUpperCase();
+        if (!acMap.has(staffName)) acMap.set(staffName, { staffName, mayLanh: 0, mayLanhDaikin: 0, mayLanhHaier: 0, mayLanhHisense: 0 });
+        const d = acMap.get(staffName)!;
+        d.mayLanh += qty;
+        if (productName.includes('DAIKIN'))                               d.mayLanhDaikin  += qty;
+        if (productName.includes('HAIER'))                                d.mayLanhHaier   += qty;
+        if (productName.includes('HISENSE') || productName.includes('HISENSI')) d.mayLanhHisense += qty;
       }
-    });
 
-    // Sort products by DT desc for each staff
-    statsMap.forEach(s => s.products.sort((a, b) => b.dt - a.dt));
+      // ── CE stats ──
+      if (nhomLarge === 'CE') {
+        const qty         = Math.round(parseFloat(String(row[idxQty]     || '0').replace(/,/g, '')) || 0);
+        const revenue     = Math.round(parseFloat(String(row[idxRevenue]  || '0').replace(/,/g, '')) || 0);
+        const productName = String(row[idxProduct] || '').trim() || 'Không rõ';
+        if (!ceMap.has(staffName)) ceMap.set(staffName, { staffName, ceSL: 0, ceDT: 0, products: [] });
+        const d = ceMap.get(staffName)!;
+        d.ceSL += qty;
+        d.ceDT += revenue;
+        const existing = d.products.find(p => p.name === productName);
+        if (existing) { existing.sl += qty; existing.dt += revenue; }
+        else d.products.push({ name: productName, sl: qty, dt: revenue });
+      }
+    }
 
-    const allStats = Array.from(statsMap.values());
-    return (selectedStaffs.length > 0 ? allStats.filter(s => selectedStaffs.includes(s.staffName)) : allStats)
-      .sort((a, b) => b.ceDT - a.ceDT);
+    // Sort products by DT desc
+    ceMap.forEach(s => s.products.sort((a, b) => b.dt - a.dt));
+
+    const acAll = Array.from(acMap.values());
+    const ceAll = Array.from(ceMap.values());
+
+    return {
+      staffAirConStats: (selectedStaffs.length > 0 ? acAll.filter(s => selectedStaffs.includes(s.staffName)) : acAll)
+        .sort((a, b) => b.mayLanh - a.mayLanh),
+      staffCEStats: (selectedStaffs.length > 0 ? ceAll.filter(s => selectedStaffs.includes(s.staffName)) : ceAll)
+        .sort((a, b) => b.ceDT - a.ceDT),
+      allStaffNames: Array.from(names).sort(),
+    };
   }, [rawYcxRows, filteredRawYcxRows, selectedStaffs]);
 
-  const allStaffNames = useMemo(() => {
-    if (rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return [];
-    const headers = rawYcxRows[0].map(h => String(h || '').trim());
-    const idxStaff = headers.findIndex(h => h.toLowerCase().includes('người tạo'));
-    if (idxStaff === -1) return [];
-
-    const names = new Set<string>();
-    filteredRawYcxRows.forEach(row => {
-      const staffName = String(row[idxStaff] || '').trim();
-      if (staffName && !staffName.toLowerCase().includes('người tạo') && staffName.toLowerCase() !== 'admin' && staffName.toLowerCase() !== 'administrator') {
-        names.add(staffName);
-      }
-    });
-    return Array.from(names).sort();
-  }, [rawYcxRows, filteredRawYcxRows]);
 
   useEffect(() => {
     console.log('[NewRealtimePage] selectedMaKho:', selectedMaKho);

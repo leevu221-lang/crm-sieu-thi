@@ -112,15 +112,16 @@ export const useRealtimeData = (maKho: string) => {
     getRates();
   }, []);
 
-  // Auto-process data when inputs change and sync to localStorage
+  // Auto-process data when inputs change (debounced 200ms) and sync to localStorage
   useEffect(() => {
-    handleProcess();
+    const tid = setTimeout(() => {
+      handleProcess();
+    }, 200);
     if (marketInput) safeSetItem(STORAGE_KEYS.MARKET_INPUT, marketInput);
     if (categoryInput) safeSetItem(STORAGE_KEYS.CATEGORY_INPUT, categoryInput);
-    if (ycxData) {
-      safeSetItem(STORAGE_KEYS.YCX_DATA, ycxData);
-    }
+    if (ycxData) safeSetItem(STORAGE_KEYS.YCX_DATA, ycxData);
     if (categoryRevenueInput) safeSetItem(STORAGE_KEYS.CATEGORY_REVENUE_INPUT, categoryRevenueInput);
+    return () => clearTimeout(tid);
   }, [marketInput, categoryInput, ycxData, categoryRevenueInput, handleProcess]);
 
   const updateYcxData = useCallback((newData: string) => {

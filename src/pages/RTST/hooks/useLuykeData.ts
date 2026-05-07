@@ -294,11 +294,12 @@ export const useLuykeData = (maKho: string) => {
       setIsLoading(false);
       setHasLoadedFromDB(true);
     }
-  }, [maKho, activeStore, showNotification, lastLoadedMaKho, lastLoadedStore, hasLoadedFromDB]);
+  }, [maKho, showNotification, lastLoadedMaKho, lastLoadedStore, hasLoadedFromDB]);
 
+  // Only reload when maKho actually changes, not on every activeStore update
   useEffect(() => {
-    loadData();
-  }, [maKho, activeStore, loadData]);
+    if (maKho) loadData();
+  }, [maKho]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Set up Supabase Realtime subscription for store_luyke
   useEffect(() => {
