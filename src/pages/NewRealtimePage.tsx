@@ -1,24 +1,24 @@
 import React, { useState, useMemo, useEffect, useRef, useDeferredValue, useTransition } from 'react';
 import { supabase } from '../supabaseClient';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
   Cell,
   PieChart,
   Pie
 } from 'recharts';
-import { 
-  LayoutGrid, 
-  Users, 
-  TrendingUp, 
-  Target, 
-  ShoppingBag, 
-  Clock, 
+import {
+  LayoutGrid,
+  Users,
+  TrendingUp,
+  Target,
+  ShoppingBag,
+  Clock,
   ChevronRight,
   ChevronDown,
   ChevronUp,
@@ -54,11 +54,10 @@ import { isValidStoreName } from './RTST/utils';
 const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: boolean, onClick: () => void, icon: any, label: string, count?: number }) => (
   <button
     onClick={onClick}
-    className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all duration-300 ${
-      active 
-        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' 
-        : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'
-    }`}
+    className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all duration-300 ${active
+      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
+      : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'
+      }`}
   >
     <Icon size={14} className={active ? 'text-white' : 'text-slate-400'} />
     <span>{label}</span>
@@ -93,7 +92,7 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
 
   if (isColored) {
     return (
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay, duration: 0.4 }}
@@ -110,7 +109,7 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
             </div>
           )}
         </div>
-        
+
         <div>
           <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-widest mb-1">{title}</h3>
           <div className="font-bold text-4xl tracking-tight font-oswald">
@@ -127,7 +126,7 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
   }
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.4 }}
@@ -144,7 +143,7 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
           </div>
         )}
       </div>
-      
+
       <div>
         <h3 className="text-[12px] font-bold text-slate-400 uppercase tracking-widest mb-1">{title}</h3>
         <div className={`font-bold text-slate-900 tracking-tight font-oswald ${isLarge ? 'text-5xl' : 'text-4xl'}`}>
@@ -158,14 +157,14 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
   );
 };
 
-const StaffMultiSelectFilter = ({ 
-  staffNames, 
-  selectedStaffs, 
-  setSelectedStaffs 
-}: { 
-  staffNames: string[], 
-  selectedStaffs: string[], 
-  setSelectedStaffs: (names: string[]) => void 
+const StaffMultiSelectFilter = ({
+  staffNames,
+  selectedStaffs,
+  setSelectedStaffs
+}: {
+  staffNames: string[],
+  selectedStaffs: string[],
+  setSelectedStaffs: (names: string[]) => void
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -231,11 +230,10 @@ const StaffMultiSelectFilter = ({
             </div>
 
             <div className="flex items-center gap-3 px-2 py-2 mb-2 border-b border-slate-50 group cursor-pointer" onClick={handleToggleAll}>
-              <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
-                selectedStaffs.length === staffNames.length 
-                  ? 'bg-indigo-600 border-indigo-600' 
-                  : 'bg-white border-slate-300'
-              }`}>
+              <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${selectedStaffs.length === staffNames.length
+                ? 'bg-indigo-600 border-indigo-600'
+                : 'bg-white border-slate-300'
+                }`}>
                 {selectedStaffs.length === staffNames.length && <Check size={12} className="text-white" strokeWidth={3} />}
               </div>
               <span className="text-[13px] font-bold text-indigo-600">Chọn tất cả</span>
@@ -244,7 +242,7 @@ const StaffMultiSelectFilter = ({
             <div className="max-h-64 overflow-y-auto pr-1 custom-scrollbar">
               {filteredNames.length > 0 ? (
                 filteredNames.map(name => (
-                  <div 
+                  <div
                     key={name}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -252,11 +250,10 @@ const StaffMultiSelectFilter = ({
                     }}
                     className="flex items-center gap-3 px-2 py-2.5 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors group"
                   >
-                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
-                      selectedStaffs.includes(name) 
-                        ? 'bg-indigo-600 border-indigo-600' 
-                        : 'bg-white border-slate-300 group-hover:border-indigo-400'
-                    }`}>
+                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${selectedStaffs.includes(name)
+                      ? 'bg-indigo-600 border-indigo-600'
+                      : 'bg-white border-slate-300 group-hover:border-indigo-400'
+                      }`}>
                       {selectedStaffs.includes(name) && <Check size={12} className="text-white" strokeWidth={3} />}
                     </div>
                     <span className="text-[13px] text-slate-700 font-medium">{name}</span>
@@ -382,8 +379,49 @@ const NHOM_HANG_MAP: Record<string, { large: string, small: string }> = {
   "571 - UDDĐ": { large: "VIEON", small: "VIEON" },
   "4741 - Xe Đạp Trẻ Em": { large: "XE ĐẠP", small: "XE ĐẠP" },
   "4742 - Xe Đạp Người Lớn": { large: "XE ĐẠP", small: "XE ĐẠP" },
-  "4324 - Khung treo, giá đỡ": { large: "KHUNG TREO", small: "KHUNG TREO" },
-  "4169 - Lõi lọc": { large: "LÕI LỌC", small: "LÕI LỌC" }
+  "4324 - Khung treo, giá đỡ": { large: "ĐIỆN GD", small: "KHUNG TREO" },
+  "4169 - Lõi lọc": { large: "ĐIỆN GD", small: "LÕI LỌC" }
+};
+
+const NHOM_SMALL_DISPLAY: Record<string, string> = {
+  'ML': 'Máy lạnh', 'MNN': 'Máy nước nóng', 'TL': 'Tủ lạnh', 'MG': 'Máy giặt',
+  'AUDIO': 'Loa Karaoke', 'TIVI': 'Tivi', 'MLN': 'Lọc nước', 'QĐH': 'Quạt ĐH',
+  'NC NẮP RỜI': 'NC nắp rời', 'NC Đ.TỬ': 'NC điện tử', 'NC': 'Nồi cơm',
+  'HÚT BỤI': 'Hút bụi', 'BẾP GAS/ĐIỆN/HÚT MÙI': 'Bếp', 'XAY ÉP/S.TỐ': 'Xay ép',
+  'N.CHIÊN': 'Nồi chiên', 'ĐGD KHÁC': 'ĐGD khác', 'QUẠT': 'Quạt',
+  'SMP': 'Smartphone', 'LAP': 'Laptop', 'TAB': 'Máy tính bảng',
+  'TN BLT': 'Tai nghe BT', 'TN DÂY': 'Tai nghe dây', 'CÁP': 'Cáp',
+  'ADAPTER': 'Sạc', 'T.NHỚ': 'Thẻ nhớ', 'M.DÁN': 'Miếng dán',
+  'ỐP LƯNG': 'Ốp lưng', 'PK APPLE': 'PK Apple', 'BALO': 'Balo/Túi',
+  'CAM': 'Camera', 'LOA': 'Loa', 'PIN SDP': 'Pin sạc', 'SIM': 'Sim',
+  'CHUỘT': 'Chuột', 'Đ.HỒ': 'Đồng hồ', 'B.HIỂM': 'Bảo hiểm',
+  'XE ĐẠP': 'Xe đạp', 'VIEON': 'UDDĐ', 'KHUNG TREO': 'Khung treo', 'LÕI LỌC': 'Lõi lọc',
+};
+
+const fmtTr = (v: number): string => {
+  if (v === 0) return '0';
+  const m = v / 1_000_000;
+  return `${m % 1 === 0 ? m : m.toFixed(1)} Tr`;
+};
+
+const fmtPct = (tc_dt: number, total_dt: number): string => {
+  if (total_dt === 0 || tc_dt === 0) return '';
+  return `${Math.round(tc_dt / total_dt * 100)}%`;
+};
+
+const BRAND_KEYWORDS = [
+  'HAIER','DAIKIN','HISENSE','HISENSI','SAMSUNG','LG','PANASONIC','TOSHIBA','SHARP',
+  'AQUA','BEKO','BOSCH','ELECTROLUX','MIDEA','CASPER','APPLE','XIAOMI','OPPO','VIVO',
+  'REALME','HUAWEI','NOKIA','INFINIX','TECNO','ASUS','LENOVO','HP','DELL','ACER',
+  'SONY','JBL','MARSHALL','HARMAN','CANON','FUJIFILM','NIKON','PHILIPS','GORENJE',
+];
+
+const extractBrand = (productName: string): string => {
+  const upper = productName.toUpperCase();
+  for (const brand of BRAND_KEYWORDS) {
+    if (upper.includes(brand)) return brand.charAt(0) + brand.slice(1).toLowerCase();
+  }
+  return 'Khác';
 };
 
 export default function NewRealtimePage() {
@@ -399,7 +437,7 @@ export default function NewRealtimePage() {
   const luykeRemainingMap = useMemo(() => {
     const map = new Map<string, number>();
     if (!luykeProcessedData?.categories) return map;
-    
+
     luykeProcessedData.categories.forEach(cat => {
       const name = cat.name.trim().toUpperCase();
       const type = cat.type;
@@ -420,11 +458,11 @@ export default function NewRealtimePage() {
   const filteredRawYcxRows = useMemo(() => {
     if (rawYcxRows.length <= 1) return [];
     const headers = rawYcxRows[0].map(h => h.trim());
-    
+
     // Find column indices by exact name or fallback to index 13 (N) and 44 (AS)
     let idxStatus = headers.findIndex(h => h === 'Trạng thái xuất');
     let idxTra = headers.findIndex(h => h === 'Tình trạng nhập trả của sản phẩm đổi với sản phẩm chính');
-    
+
     if (idxStatus === -1) idxStatus = 13;
     if (idxTra === -1) idxTra = 44;
 
@@ -439,8 +477,8 @@ export default function NewRealtimePage() {
   const deferredFilteredRows = useDeferredValue(filteredRawYcxRows);
 
   // ─── Single-pass computation: iterate filteredRawYcxRows only ONCE ──────────
-  const { staffAirConStats, staffCEStats, allStaffNames } = useMemo(() => {
-    const empty = { staffAirConStats: [], staffCEStats: [], allStaffNames: [] };
+  const { staffAirConStats, staffCEStats, allStaffNames, drillDownData } = useMemo(() => {
+    const empty = { staffAirConStats: [] as any[], staffCEStats: [] as any[], allStaffNames: [] as string[], drillDownData: [] as any[] };
     if (rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return empty;
 
     const headers = rawYcxRows[0].map(h => String(h || '').trim());
@@ -449,11 +487,12 @@ export default function NewRealtimePage() {
       return idx !== -1 ? idx : defaultIdx;
     };
 
-    const idxStaff       = findIdx(['người tạo'], 23);
-    const idxQty         = findIdx(['số lượng'], 35);
-    const idxRevenue     = findIdx(['phải thu', 'doanh thu', 'tổng tiền', 'thành tiền', 'giá bán'], 37);
-    const idxCategory    = findIdx(['nhóm ngành hàng', 'nhóm hàng'], 40);
-    const idxSmallCat    = findIdx(['nhóm hàng nhỏ'], -1);
+    const idxStaff = findIdx(['người tạo'], 23);
+    const idxQty = findIdx(['số lượng'], 35);
+    const idxRevenue = findIdx(['phải thu', 'doanh thu', 'tổng tiền', 'thành tiền', 'giá bán'], 37);
+    const idxCategory = findIdx(['nhóm ngành hàng', 'nhóm hàng'], 40);
+    const idxSmallCat = findIdx(['nhóm hàng nhỏ'], -1);
+    const idxHinhThucXuat = findIdx(['hình thức xuất'], -1);
     // Exact-match product column to avoid IMEI columns
     const idxProduct = (() => {
       const exact = headers.findIndex(h => h.toLowerCase() === 'tên sản phẩm');
@@ -464,10 +503,13 @@ export default function NewRealtimePage() {
 
     type ACStats = { staffName: string; mayLanh: number; mayLanhDaikin: number; mayLanhHaier: number; mayLanhHisense: number };
     type CEStats = { staffName: string; ceSL: number; ceDT: number; products: { name: string; sl: number; dt: number }[] };
+    type DGDStats = { staffName: string; mln: number; qdh: number; nc: number };
 
-    const acMap  = new Map<string, ACStats>();
-    const ceMap  = new Map<string, CEStats>();
-    const names  = new Set<string>();
+    const acMap = new Map<string, ACStats>();
+    const ceMap = new Map<string, CEStats>();
+    const dgdMap = new Map<string, DGDStats>();
+    const drillMap = new Map<string, Map<string, Map<string, Map<string, { sl: number; dt: number; tc_dt: number }>>>>();
+    const names = new Set<string>();
 
     const isSystemName = (n: string) =>
       !n || n.toLowerCase().includes('người tạo') || n.toLowerCase() === 'admin' || n.toLowerCase() === 'administrator';
@@ -478,27 +520,29 @@ export default function NewRealtimePage() {
 
       names.add(staffName);
 
-      const category        = String(row[idxCategory] || '').trim();
-      const nhomLarge       = NHOM_HANG_MAP[category]?.large || '';
+      const category = String(row[idxCategory] || '').trim();
+      const nhomLarge = NHOM_HANG_MAP[category]?.large || '';
       const nhomSmallFromMap = NHOM_HANG_MAP[category]?.small || '';
-      const nhomSmallValue  = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
+      const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
+      // Prefer value from data column, fallback to map
+      const nhomSmall = nhomSmallValue || nhomSmallFromMap.toUpperCase();
+
+      const qty = Math.round(parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0);
+      const revenue = Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0);
 
       // ── Air-con stats ──
       if (nhomSmallValue === 'ML' || nhomSmallFromMap === 'ML') {
-        const qty         = Math.round(parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0);
         const productName = String(row[idxProduct] || '').toUpperCase();
         if (!acMap.has(staffName)) acMap.set(staffName, { staffName, mayLanh: 0, mayLanhDaikin: 0, mayLanhHaier: 0, mayLanhHisense: 0 });
         const d = acMap.get(staffName)!;
         d.mayLanh += qty;
-        if (productName.includes('DAIKIN'))                               d.mayLanhDaikin  += qty;
-        if (productName.includes('HAIER'))                                d.mayLanhHaier   += qty;
+        if (productName.includes('DAIKIN')) d.mayLanhDaikin += qty;
+        if (productName.includes('HAIER')) d.mayLanhHaier += qty;
         if (productName.includes('HISENSE') || productName.includes('HISENSI')) d.mayLanhHisense += qty;
       }
 
       // ── CE stats ──
       if (nhomLarge === 'CE') {
-        const qty         = Math.round(parseFloat(String(row[idxQty]     || '0').replace(/,/g, '')) || 0);
-        const revenue     = Math.round(parseFloat(String(row[idxRevenue]  || '0').replace(/,/g, '')) || 0);
         const productName = String(row[idxProduct] || '').trim() || 'Không rõ';
         if (!ceMap.has(staffName)) ceMap.set(staffName, { staffName, ceSL: 0, ceDT: 0, products: [] });
         const d = ceMap.get(staffName)!;
@@ -508,6 +552,33 @@ export default function NewRealtimePage() {
         if (existing) { existing.sl += qty; existing.dt += revenue; }
         else d.products.push({ name: productName, sl: qty, dt: revenue });
       }
+
+      // ── ĐGD stats (MLN, QĐH, NC) ──
+      if (nhomLarge === 'ĐIỆN GD') {
+        if (!dgdMap.has(staffName)) dgdMap.set(staffName, { staffName, mln: 0, qdh: 0, nc: 0 });
+        const d = dgdMap.get(staffName)!;
+        if (nhomSmall === 'MLN') d.mln += qty;
+        else if (nhomSmall === 'QĐH') d.qdh += qty;
+        else if (nhomSmall.startsWith('NC')) d.nc += qty;
+      }
+
+      // ── Drill-down hierarchy (5 levels) ──
+      if (nhomLarge) {
+        const productName = String(row[idxProduct] || '').trim() || 'Không rõ';
+        if (!drillMap.has(nhomLarge)) drillMap.set(nhomLarge, new Map());
+        const subMap = drillMap.get(nhomLarge)!;
+        const subKey = nhomSmall || 'Khác';
+        if (!subMap.has(subKey)) subMap.set(subKey, new Map());
+        const staffMap = subMap.get(subKey)!;
+        if (!staffMap.has(staffName)) staffMap.set(staffName, new Map());
+        const prodMap = staffMap.get(staffName)!;
+        if (!prodMap.has(productName)) prodMap.set(productName, { sl: 0, dt: 0, tc_dt: 0 });
+        const pd = prodMap.get(productName)!;
+        pd.sl += qty; pd.dt += revenue;
+        // TC = trả góp
+        const htx = idxHinhThucXuat !== -1 ? String(row[idxHinhThucXuat] || '').toLowerCase() : '';
+        if (htx.includes('trả góp')) pd.tc_dt += revenue;
+      }
     }
 
     // Sort products by DT desc
@@ -515,13 +586,50 @@ export default function NewRealtimePage() {
 
     const acAll = Array.from(acMap.values());
     const ceAll = Array.from(ceMap.values());
+    const ceWithDGD = ceAll.map(s => ({ ...s, ...(dgdMap.get(s.staffName) || { mln: 0, qdh: 0, nc: 0 }) }));
+
+    // Build drillDownData with brand grouping
+    const drillDownData = Array.from(drillMap.entries()).map(([large, subMap]) => {
+      const subs = Array.from(subMap.entries()).map(([subKey, staffMap]) => {
+        const staffRows = Array.from(staffMap.entries()).map(([sName, prodMap]) => {
+          const products = Array.from((prodMap as Map<string, {sl:number;dt:number;tc_dt:number}>).entries())
+            .map(([pName, pd]) => ({ name: pName, sl: pd.sl, dt: pd.dt, tc_dt: pd.tc_dt }))
+            .sort((a, b) => b.dt - a.dt);
+          // Group products by brand
+          const brandMap = new Map<string, { sl: number; dt: number; tc_dt: number; products: {name:string;sl:number;dt:number;tc_dt:number}[] }>();
+          products.forEach(p => {
+            const brand = extractBrand(p.name);
+            if (!brandMap.has(brand)) brandMap.set(brand, { sl: 0, dt: 0, tc_dt: 0, products: [] });
+            const bd = brandMap.get(brand)!;
+            bd.sl += p.sl; bd.dt += p.dt; bd.tc_dt += p.tc_dt;
+            bd.products.push(p);
+          });
+          const brands = Array.from(brandMap.entries())
+            .map(([bName, bd]) => ({ name: bName, sl: bd.sl, dt: bd.dt, tc_dt: bd.tc_dt, products: bd.products }))
+            .sort((a, b) => b.dt - a.dt);
+          const sSL = products.reduce((s, x) => s + x.sl, 0);
+          const sDT = products.reduce((s, x) => s + x.dt, 0);
+          const sTC = products.reduce((s, x) => s + x.tc_dt, 0);
+          return { name: sName, sl: sSL, dt: sDT, tc_dt: sTC, brands };
+        }).sort((a, b) => b.dt - a.dt);
+        const subSL = staffRows.reduce((s, x) => s + x.sl, 0);
+        const subDT = staffRows.reduce((s, x) => s + x.dt, 0);
+        const subTC = staffRows.reduce((s, x) => s + x.tc_dt, 0);
+        return { key: subKey, name: NHOM_SMALL_DISPLAY[subKey] || subKey, sl: subSL, dt: subDT, tc_dt: subTC, staffRows };
+      }).sort((a, b) => b.dt - a.dt);
+      const grpSL = subs.reduce((s, x) => s + x.sl, 0);
+      const grpDT = subs.reduce((s, x) => s + x.dt, 0);
+      const grpTC = subs.reduce((s, x) => s + x.tc_dt, 0);
+      return { key: large, name: large, sl: grpSL, dt: grpDT, tc_dt: grpTC, subs };
+    }).sort((a, b) => b.dt - a.dt);
 
     return {
       staffAirConStats: (selectedStaffs.length > 0 ? acAll.filter(s => selectedStaffs.includes(s.staffName)) : acAll)
         .sort((a, b) => b.mayLanh - a.mayLanh),
-      staffCEStats: (selectedStaffs.length > 0 ? ceAll.filter(s => selectedStaffs.includes(s.staffName)) : ceAll)
+      staffCEStats: (selectedStaffs.length > 0 ? ceWithDGD.filter(s => selectedStaffs.includes(s.staffName)) : ceWithDGD)
         .sort((a, b) => b.ceDT - a.ceDT),
       allStaffNames: Array.from(names).sort(),
+      drillDownData,
     };
   }, [rawYcxRows, filteredRawYcxRows, selectedStaffs]);
 
@@ -536,7 +644,7 @@ export default function NewRealtimePage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const categoriesRef = useRef<HTMLDivElement>(null);
   const overviewRef = useRef<HTMLDivElement>(null);
-  const [stores, setStores] = useState<{warehouse_code: string, ten_sieu_thi: string}[]>([]);
+  const [stores, setStores] = useState<{ warehouse_code: string, ten_sieu_thi: string }[]>([]);
   const [isStoreSelectorOpen, setIsStoreSelectorOpen] = useState(false);
 
   // Update selectedMaKho when userProfile changes
@@ -565,6 +673,10 @@ export default function NewRealtimePage() {
   const [showLuykeColumn, setShowLuykeColumn] = useState(true);
   const [expandedStaff, setExpandedStaff] = useState<Record<string, boolean>>({});
   const [expandedCERows, setExpandedCERows] = useState<Record<string, boolean>>({});
+  const [expandedDrillRows, setExpandedDrillRows] = useState<Record<string, boolean>>({});
+  const [expandedDrillBrand, setExpandedDrillBrand] = useState<Record<string, boolean>>({});
+  const [isDrillCollapsed, setIsDrillCollapsed] = useState(false);
+  const [isDrillAllOpen, setIsDrillAllOpen] = useState(false); // default: all closed, drill-down per level
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
   const allCategories = useMemo(() => {
@@ -601,7 +713,7 @@ export default function NewRealtimePage() {
 
     const title = type === 'SL' ? 'BÁO CÁO NGÀNH HÀNG (SL)' : 'BÁO CÁO NGÀNH HÀNG (DT)';
     let commentText = `📊 ${title}\n⏰ Cập nhật: ${currentTime.toLocaleTimeString('vi-VN')}\n\n`;
-    
+
     categories.forEach(cat => {
       const rate = Math.round(cat.rate || 0);
       const status = rate >= 100 ? '✅' : '❌';
@@ -700,15 +812,15 @@ export default function NewRealtimePage() {
 
   const filteredCategories = useMemo(() => {
     if (!processedData.categories || processedData.categories.length === 0) return [];
-    
+
     // 1. Filter by global market filter
-    const visibleCats = processedData.categories.filter(cat => 
+    const visibleCats = processedData.categories.filter(cat =>
       marketFilter === 'ALL' || !cat.marketName || cat.marketName === marketFilter
     );
 
     // 2. Aggregate by name and type
     const aggregated: Record<string, any> = {};
-    
+
     visibleCats.forEach(cat => {
       const key = `${cat.name}_${cat.type}`;
       if (!aggregated[key]) {
@@ -736,11 +848,11 @@ export default function NewRealtimePage() {
 
     return processedData.staff.map(s => {
       const filteredItems = s.items.filter(item => selectedCategories.includes(item.category));
-      
+
       const totalRevenue = filteredItems.reduce((sum, item) => sum + item.revenue, 0);
       const convertedRevenue = filteredItems.reduce((sum, item) => sum + item.convertedRevenue, 0);
       const installmentRevenue = filteredItems.reduce((sum, item) => sum + (item.isInstallment ? item.revenue : 0), 0);
-      
+
       const giaDungTotal = filteredItems.filter(item => item.category === 'Gia dụng').reduce((sum, item) => sum + item.revenue, 0);
       const baoHiemTotal = filteredItems.filter(item => item.category === 'Bảo hiểm').reduce((sum, item) => sum + item.revenue, 0);
       const ictTotal = filteredItems.filter(item => item.category === 'ICT').reduce((sum, item) => sum + item.revenue, 0);
@@ -839,7 +951,7 @@ export default function NewRealtimePage() {
               </div>
             </div>
             <div className="w-px h-10 bg-slate-100" />
-            <button 
+            <button
               onClick={() => loadData()}
               className="w-10 h-10 flex items-center justify-center bg-slate-50 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-xl transition-all duration-300"
               title="Làm mới"
@@ -867,7 +979,7 @@ export default function NewRealtimePage() {
           </div>
         </div>
         <div className="h-2 bg-slate-50 rounded-full overflow-hidden">
-          <motion.div 
+          <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${Math.min(Math.round(summary?.percentHT || 0), 100)}%` }}
             transition={{ duration: 1.2, ease: "circOut" }}
@@ -878,24 +990,24 @@ export default function NewRealtimePage() {
 
       {/* Navigation Tabs */}
       <div className="flex items-center gap-3 overflow-x-auto pb-4 scrollbar-hide sticky top-0 z-40 bg-slate-50/90 backdrop-blur-xl py-4 -mx-4 px-4">
-        <TabButton 
-          active={activeTab === 'summary'} 
-          onClick={() => startTransition(() => setActiveTab('summary'))} 
-          icon={LayoutGrid} 
-          label="TỔNG QUAN" 
+        <TabButton
+          active={activeTab === 'summary'}
+          onClick={() => startTransition(() => setActiveTab('summary'))}
+          icon={LayoutGrid}
+          label="TỔNG QUAN"
         />
-        <TabButton 
-          active={activeTab === 'khai_thac'} 
-          onClick={() => startTransition(() => { setActiveTab('khai_thac'); setRawTablePage(0); })} 
-          icon={Activity} 
-          label="DASHBOARD YCX" 
+        <TabButton
+          active={activeTab === 'khai_thac'}
+          onClick={() => startTransition(() => { setActiveTab('khai_thac'); setRawTablePage(0); })}
+          icon={Activity}
+          label="DASHBOARD YCX"
         />
       </div>
 
 
       <AnimatePresence mode="wait">
         {activeTab === 'summary' && (
-          <motion.div 
+          <motion.div
             key="summary"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -916,7 +1028,7 @@ export default function NewRealtimePage() {
                         {userProfile?.ten_sieu_thi || activeStore || 'Tổng quan hiệu quả'}
                       </h2>
                       {userProfile?.role === 'admin' && (
-                        <button 
+                        <button
                           onClick={() => setIsStoreSelectorOpen(!isStoreSelectorOpen)}
                           className="p-1 hover:bg-slate-100 rounded-full transition-colors"
                           title="Lọc siêu thị"
@@ -926,7 +1038,7 @@ export default function NewRealtimePage() {
                       )}
                     </div>
                     <p className="text-[10px] font-medium text-slate-400">KPI & Chi tiết ngành hàng</p>
-                    
+
                     {isStoreSelectorOpen && stores.length > 0 && (
                       <div className="absolute z-50 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl p-2 animate-in fade-in slide-in-from-top-2">
                         <div className="max-h-60 overflow-y-auto">
@@ -964,68 +1076,68 @@ export default function NewRealtimePage() {
               {filteredMarkets
                 .filter(m => marketFilter === 'ALL' || m.name === marketFilter)
                 .map((market, mIdx) => (
-                <div key={mIdx} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between px-2 border-b border-slate-50 pb-3">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${market.isSummary || market.name === 'TỔNG' ? 'bg-rose-500 animate-pulse' : 'bg-indigo-500'}`} />
-                      <h3 className="text-[24px] font-black text-slate-800 uppercase tracking-wider">{market.name}</h3>
+                  <div key={mIdx} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between px-2 border-b border-slate-50 pb-3">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${market.isSummary || market.name === 'TỔNG' ? 'bg-rose-500 animate-pulse' : 'bg-indigo-500'}`} />
+                        <h3 className="text-[24px] font-black text-slate-800 uppercase tracking-wider">{market.name}</h3>
+                      </div>
+                      <div className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                        {Math.round(market.percentHT || 0)}% HT
+                      </div>
                     </div>
-                    <div className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
-                      {Math.round(market.percentHT || 0)}% HT
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+                      <StatCard
+                        title="TAGET QĐ"
+                        value={market.targetQD?.toLocaleString() || '0'}
+                        subValue=""
+                        icon={Target}
+                        color="rose"
+                        isColored={true}
+                      />
+                      <StatCard
+                        title="DOANH THU QUY ĐỔI"
+                        value={market.actualVirtual?.toLocaleString() || '0'}
+                        subValue=""
+                        icon={TrendingUp}
+                        color="indigo"
+                        isColored={true}
+                      />
+                      <StatCard
+                        title="%HT"
+                        value={`${Math.round(market.percentHT || 0)}%`}
+                        subValue=""
+                        icon={Activity}
+                        color="emerald"
+                        isColored={true}
+                      />
+                      <StatCard
+                        title="Tỷ Trọng Trả Góp"
+                        value={`${(market.installmentRate || 0).toFixed(1)}%`}
+                        subValue=""
+                        icon={ShoppingBag}
+                        color="amber"
+                        isColored={true}
+                      />
+                      <StatCard
+                        title="Lượt Bill Bán Hàng"
+                        value={Math.round(market.luotBillBanHang || 0).toLocaleString()}
+                        subValue=""
+                        icon={Zap}
+                        color="orange"
+                        isColored={true}
+                      />
+                      <StatCard
+                        title="Lượt Bill Thu Hộ"
+                        value={Math.round(market.luotBillThuHo || 0).toLocaleString()}
+                        subValue=""
+                        icon={CreditCard}
+                        color="blue"
+                        isColored={true}
+                      />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-                    <StatCard 
-                      title="TAGET QĐ"
-                      value={market.targetQD?.toLocaleString() || '0'}
-                      subValue=""
-                      icon={Target}
-                      color="rose"
-                      isColored={true}
-                    />
-                    <StatCard 
-                      title="DOANH THU QUY ĐỔI"
-                      value={market.actualVirtual?.toLocaleString() || '0'}
-                      subValue=""
-                      icon={TrendingUp}
-                      color="indigo"
-                      isColored={true}
-                    />
-                    <StatCard 
-                      title="%HT"
-                      value={`${Math.round(market.percentHT || 0)}%`}
-                      subValue=""
-                      icon={Activity}
-                      color="emerald"
-                      isColored={true}
-                    />
-                    <StatCard 
-                      title="Tỷ Trọng Trả Góp"
-                      value={`${(market.installmentRate || 0).toFixed(1)}%`}
-                      subValue=""
-                      icon={ShoppingBag}
-                      color="amber"
-                      isColored={true}
-                    />
-                    <StatCard 
-                      title="Lượt Bill Bán Hàng"
-                      value={Math.round(market.luotBillBanHang || 0).toLocaleString()}
-                      subValue=""
-                      icon={Zap}
-                      color="orange"
-                      isColored={true}
-                    />
-                    <StatCard 
-                      title="Lượt Bill Thu Hộ"
-                      value={Math.round(market.luotBillThuHo || 0).toLocaleString()}
-                      subValue=""
-                      icon={CreditCard}
-                      color="blue"
-                      isColored={true}
-                    />
-                  </div>
-                </div>
-              ))}
+                ))}
             </div>
 
             {/* Categories Tables moved to Summary */}
@@ -1035,11 +1147,10 @@ export default function NewRealtimePage() {
                 <div className="flex flex-wrap items-center justify-center gap-3 no-capture">
                   <button
                     onClick={() => setShowLuykeColumn(!showLuykeColumn)}
-                    className={`flex items-center gap-2 px-5 py-2 rounded-full text-[13px] font-black uppercase transition-all duration-300 shadow-sm border active:scale-95 ${
-                      showLuykeColumn 
-                        ? 'bg-rose-50 text-rose-700 border-rose-200' 
-                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-white'
-                    }`}
+                    className={`flex items-center gap-2 px-5 py-2 rounded-full text-[13px] font-black uppercase transition-all duration-300 shadow-sm border active:scale-95 ${showLuykeColumn
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-white'
+                      }`}
                   >
                     <div className={`w-2 h-2 rounded-full ${showLuykeColumn ? 'bg-rose-600 animate-pulse' : 'bg-slate-400'}`}></div>
                     {showLuykeColumn ? 'Ẩn cột luỹ kế' : 'Hiện cột luỹ kế'}
@@ -1074,7 +1185,7 @@ export default function NewRealtimePage() {
                             {filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length} / {filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').length}
                           </span>
                         </div>
-                        <button 
+                        <button
                           onClick={() => generateAndCopyComment('SL')}
                           className={`p-2.5 rounded-xl transition-all duration-300 no-capture shadow-sm ${showSllkComment ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 border border-slate-200'}`}
                           title="Tự động nhận xét & Copy"
@@ -1083,7 +1194,7 @@ export default function NewRealtimePage() {
                         </button>
                       </div>
                     </div>
-                    
+
                     {showSllkComment && (
                       <div className="mb-4">
                         <textarea
@@ -1114,7 +1225,7 @@ export default function NewRealtimePage() {
                             .map((cat, idx) => {
                               const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type}`;
                               const lkRemaining = luykeRemainingMap.get(lkKey);
-                              
+
                               return (
                                 <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                                   <td className="py-3 px-3 text-[13px] font-bold text-slate-700 border border-slate-300">{cat.name}</td>
@@ -1161,7 +1272,7 @@ export default function NewRealtimePage() {
                             {filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length} / {filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').length}
                           </span>
                         </div>
-                        <button 
+                        <button
                           onClick={() => generateAndCopyComment('DT')}
                           className={`p-2.5 rounded-xl transition-all duration-300 no-capture shadow-sm ${showDtlkComment ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 border border-slate-200'}`}
                           title="Tự động nhận xét & Copy"
@@ -1203,7 +1314,7 @@ export default function NewRealtimePage() {
                               // In BC Thang DT table, it uses DT or ALL. 
                               // we need to be careful with types.
                               const lkRemaining = luykeRemainingMap.get(lkKey) || luykeRemainingMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
-                              
+
                               return (
                                 <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
                                   <td className="py-3 px-3 text-[13px] font-bold text-slate-700 border border-slate-300">{cat.name}</td>
@@ -1238,7 +1349,7 @@ export default function NewRealtimePage() {
         )}
 
         {activeTab === 'khai_thac' && (
-          <motion.div 
+          <motion.div
             key="khai_thac"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1246,87 +1357,166 @@ export default function NewRealtimePage() {
             style={{ zoom: 1.3 }}
           >
 
-            {/* HIỆU QUẢ REALTIME - CE Stats */}
-            <div className="bg-white rounded-2xl overflow-hidden border border-amber-200 shadow-md">
-              {/* Title bar */}
-              <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-3">
-                <Zap size={18} className="text-slate-700 flex-shrink-0" />
-                <div>
-                  <h3 className="text-[15px] font-black text-slate-900 uppercase tracking-widest">HIỆU QUẢ REALTIME</h3>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Dữ liệu CE từ YCX (Đã xuất &amp; Chưa trả) • Nhóm hàng lớn = CE</p>
-                </div>
+            {/* CHI TIẾT NGÀNH HÀNG - Drill-down table */}
+            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+              {/* Header */}
+              <div className="px-6 pt-5 pb-3 border-b border-slate-100">
+                <h3 className="text-[18px] font-black text-slate-900 tracking-tight">CHI TIẾT NGÀNH HÀNG</h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">Thống kê chi tiết theo ngành hàng và nhóm hàng.</p>
               </div>
 
+              {/* Table */}
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-center" style={{ borderSpacing: 0 }}>
+                <table className="w-full border-collapse" style={{ borderSpacing: 0 }}>
                   <thead>
-                    {/* Row 1: Group headers */}
-                    <tr>
-                      <th rowSpan={2} className="border border-amber-300 bg-amber-100 py-3 px-4 text-[11px] font-black text-amber-900 uppercase tracking-wider text-left align-middle min-w-[200px]">
-                        NGƯỜI TẠO
-                      </th>
-                      <th colSpan={2} className="border border-amber-300 bg-amber-400 py-2 px-4 text-[12px] font-black text-white uppercase tracking-widest">
-                        CE
-                      </th>
-                    </tr>
-                    {/* Row 2: Sub-headers */}
-                    <tr>
-                      <th className="border border-amber-300 bg-amber-200 py-2 px-4 text-[10px] font-black text-amber-900 uppercase tracking-wider w-24">S.L</th>
-                      <th className="border border-amber-300 bg-amber-200 py-2 px-4 text-[10px] font-black text-amber-900 uppercase tracking-wider min-w-[120px]">DT</th>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="py-3 px-4 text-[11px] font-black text-slate-500 uppercase tracking-wider text-left min-w-[240px]">NGÀNH HÀNG</th>
+                      <th className="py-3 px-4 text-[11px] font-black text-slate-500 uppercase tracking-wider text-right w-24">S.LƯỢNG</th>
+                      <th className="py-3 px-4 text-[11px] font-black text-slate-500 uppercase tracking-wider text-right w-24">D.THU</th>
+                      <th className="py-3 px-4 text-[11px] font-black text-slate-500 uppercase tracking-wider text-right w-24">DTQĐ</th>
+                      <th className="py-3 px-4 text-[11px] font-black text-slate-500 uppercase tracking-wider text-right w-24">GTĐH</th>
+                      <th className="py-3 px-4 text-[11px] font-black text-amber-600 uppercase tracking-wider text-right w-24">% T.CHẬM</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {staffCEStats.length > 0 ? (
-                      <>
-                        {staffCEStats.map((s, idx) => {
-                          const isExpanded = expandedCERows[s.staffName] || false;
-                          const isOdd = idx % 2 === 1;
-                          return (
-                            <React.Fragment key={idx}>
-                              {/* Staff row */}
-                              <tr
-                                className={`cursor-pointer transition-colors ${isOdd ? 'bg-amber-50/40' : 'bg-white'} hover:bg-amber-50`}
-                                onClick={() => setExpandedCERows(prev => ({ ...prev, [s.staffName]: !prev[s.staffName] }))}
-                              >
-                                <td className="border border-amber-200 py-3 px-4 text-[12px] font-bold text-slate-800 text-left">
-                                  <div className="flex items-center gap-2">
-                                    <ChevronDown
-                                      size={14}
-                                      className={`text-amber-500 transition-transform duration-200 flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
-                                    />
-                                    {s.staffName}
-                                  </div>
-                                </td>
-                                <td className="border border-amber-200 py-3 px-4 text-[14px] font-black text-slate-900">{s.ceSL}</td>
-                                <td className="border border-amber-200 py-3 px-4 text-[13px] font-bold text-slate-900">{s.ceDT.toLocaleString()}</td>
-                              </tr>
-                              {/* Expanded product rows */}
-                              {isExpanded && s.products.map((p, pIdx) => (
-                                <tr key={`${idx}-${pIdx}`} className="bg-amber-50/70">
-                                  <td className="border border-amber-100 py-2 pl-10 pr-4 text-[10px] text-slate-600 font-medium text-left">
-                                    <div className="flex items-center gap-1.5">
-                                      <div className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-                                      {p.name}
+                    {drillDownData.length > 0 ? drillDownData.map((group) => {
+                      const groupKey = group.key;
+                      const isGroupOpen = isDrillAllOpen
+                        ? expandedDrillRows[groupKey] !== false  // when all-open: open unless explicitly closed
+                        : expandedDrillRows[groupKey] === true;  // when individual: open only if explicitly opened
+                      const showGroup = !isDrillCollapsed && isGroupOpen;
+                      return (
+                        <React.Fragment key={groupKey}>
+                          {/* Level 1: nhomLarge */}
+                          <tr
+                            className="border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors"
+                            onClick={() => {
+                              setExpandedDrillRows(prev => ({ ...prev, [groupKey]: !isGroupOpen }));
+                            }}
+                          >
+                            <td className="py-3 px-4 text-left">
+                              <div className="flex items-center gap-2">
+                                <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 flex-shrink-0 ${isGroupOpen ? '' : '-rotate-90'}`} />
+                                <span className="text-[13px] font-black text-slate-800">{group.name}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-right text-[13px] font-bold text-slate-700">{group.sl}</td>
+                            <td className="py-3 px-4 text-right text-[13px] font-bold text-slate-700">{fmtTr(group.dt)}</td>
+                            <td className="py-3 px-4 text-right text-[13px] font-bold text-indigo-600">{fmtTr(group.dt)}</td>
+                            <td className="py-3 px-4 text-right text-[13px] font-bold text-slate-600">{fmtTr(group.sl > 0 ? group.dt / group.sl : 0)}</td>
+                            <td className="py-3 px-4 text-right text-[13px] font-black text-amber-600">{fmtPct(group.tc_dt, group.dt)}</td>
+                          </tr>
+
+                          {showGroup && group.subs.map((sub: any) => {
+                            const subKey = `${groupKey}.${sub.key}`;
+                            const isSubOpen = isDrillAllOpen
+                              ? expandedDrillRows[subKey] !== false
+                              : expandedDrillRows[subKey] === true;
+                            const showSub = !isDrillCollapsed && isSubOpen;
+                            return (
+                              <React.Fragment key={subKey}>
+                                {/* Level 2: nhomSmall */}
+                                <tr
+                                  className="border-b border-slate-100 cursor-pointer hover:bg-blue-50/30 transition-colors bg-slate-50/50"
+                                  onClick={() => {
+                                    setExpandedDrillRows(prev => ({ ...prev, [subKey]: !isSubOpen }));
+                                  }}
+                                >
+                                  <td className="py-2.5 px-4 pl-10 text-left">
+                                    <div className="flex items-center gap-2">
+                                      <ChevronDown size={12} className={`text-blue-400 transition-transform duration-200 flex-shrink-0 ${isSubOpen ? '' : '-rotate-90'}`} />
+                                      <span className="text-[12px] font-bold text-blue-600">{sub.name}</span>
                                     </div>
                                   </td>
-                                  <td className="border border-amber-100 py-2 px-4 text-[11px] font-bold text-slate-700">{p.sl}</td>
-                                  <td className="border border-amber-100 py-2 px-4 text-[11px] font-bold text-slate-700">{p.dt.toLocaleString()}</td>
+                                  <td className="py-2.5 px-4 text-right text-[12px] font-bold text-slate-600">{sub.sl}</td>
+                                  <td className="py-2.5 px-4 text-right text-[12px] font-bold text-slate-600">{fmtTr(sub.dt)}</td>
+                                  <td className="py-2.5 px-4 text-right text-[12px] font-bold text-indigo-500">{fmtTr(sub.dt)}</td>
+                                  <td className="py-2.5 px-4 text-right text-[12px] font-bold text-slate-500">{fmtTr(sub.sl > 0 ? sub.dt / sub.sl : 0)}</td>
+                                  <td className="py-2.5 px-4 text-right text-[12px] font-black text-amber-500">{fmtPct(sub.tc_dt, sub.dt)}</td>
                                 </tr>
-                              ))}
-                            </React.Fragment>
-                          );
-                        })}
-                        {/* Total Row */}
-                        <tr className="bg-amber-500">
-                          <td className="border border-amber-400 py-3 px-4 text-[12px] font-black text-white uppercase text-left tracking-wider">TỔNG</td>
-                          <td className="border border-amber-400 py-3 px-4 text-[15px] font-black text-white">{staffCEStats.reduce((sum, s) => sum + s.ceSL, 0)}</td>
-                          <td className="border border-amber-400 py-3 px-4 text-[13px] font-black text-white">{staffCEStats.reduce((sum, s) => sum + s.ceDT, 0).toLocaleString()}</td>
-                        </tr>
-                      </>
-                    ) : (
+
+                                {showSub && sub.staffRows.map((staff: any, si: number) => {
+                                  const staffKey = `${subKey}.${si}`;
+                                  const isStaffOpen = isDrillAllOpen
+                                    ? expandedDrillRows[staffKey] !== false
+                                    : expandedDrillRows[staffKey] === true;
+                                  const showStaff = !isDrillCollapsed && isStaffOpen;
+                                  return (
+                                    <React.Fragment key={staffKey}>
+                                      {/* Level 3: Staff */}
+                                      <tr
+                                        className="border-b border-slate-50 cursor-pointer hover:bg-orange-50/30 transition-colors"
+                                        onClick={() => {
+                                          setExpandedDrillRows(prev => ({ ...prev, [staffKey]: !isStaffOpen }));
+                                        }}
+                                      >
+                                        <td className="py-2 px-4 pl-16 text-left">
+                                          <div className="flex items-center gap-2">
+                                            <ChevronDown size={11} className={`text-orange-400 transition-transform duration-200 flex-shrink-0 ${isStaffOpen ? '' : '-rotate-90'}`} />
+                                            <span className="text-[11px] font-bold text-orange-600">{staff.name}</span>
+                                          </div>
+                                        </td>
+                                        <td className="py-2 px-4 text-right text-[11px] font-medium text-slate-500">{staff.sl}</td>
+                                        <td className="py-2 px-4 text-right text-[11px] font-medium text-slate-500">{fmtTr(staff.dt)}</td>
+                                        <td className="py-2 px-4 text-right text-[11px] font-medium text-indigo-400">{fmtTr(staff.dt)}</td>
+                                        <td className="py-2 px-4 text-right text-[11px] font-medium text-slate-400">{fmtTr(staff.sl > 0 ? staff.dt / staff.sl : 0)}</td>
+                                        <td className="py-2 px-4 text-right text-[11px] font-black text-amber-500">{fmtPct(staff.tc_dt, staff.dt)}</td>
+                                      </tr>
+                                      {showStaff && staff.brands.map((brand: any, bi: number) => {
+                                        const brandKey = `${staffKey}.${bi}`;
+                                        const isBrandOpen = isDrillAllOpen
+                                          ? expandedDrillBrand[brandKey] !== false
+                                          : expandedDrillBrand[brandKey] === true;
+                                        const showBrand = !isDrillCollapsed && isBrandOpen;
+                                        return (
+                                          <React.Fragment key={brandKey}>
+                                            {/* Level 4: Brand */}
+                                            <tr
+                                              className="border-b border-slate-50 cursor-pointer hover:bg-purple-50/20 transition-colors bg-slate-50/30"
+                                              onClick={() => {
+                                                setExpandedDrillBrand(prev => ({ ...prev, [brandKey]: !isBrandOpen }));
+                                              }}
+                                            >
+                                              <td className="py-1.5 px-4 pl-24 text-left">
+                                                <div className="flex items-center gap-2">
+                                                  <ChevronDown size={10} className={`text-purple-400 transition-transform duration-200 flex-shrink-0 ${isBrandOpen ? '' : '-rotate-90'}`} />
+                                                  <span className="text-[11px] font-bold text-purple-700">{brand.name}</span>
+                                                </div>
+                                              </td>
+                                              <td className="py-1.5 px-4 text-right text-[10px] font-medium text-slate-400">{brand.sl}</td>
+                                              <td className="py-1.5 px-4 text-right text-[10px] font-medium text-slate-400">{fmtTr(brand.dt)}</td>
+                                              <td className="py-1.5 px-4 text-right text-[10px] font-medium text-indigo-300">{fmtTr(brand.dt)}</td>
+                                              <td className="py-1.5 px-4 text-right text-[10px] font-medium text-slate-400">{fmtTr(brand.sl > 0 ? brand.dt / brand.sl : 0)}</td>
+                                              <td className="py-1.5 px-4 text-right text-[10px] font-black text-amber-400">{fmtPct(brand.tc_dt, brand.dt)}</td>
+                                            </tr>
+                                            {showBrand && brand.products.map((prod: any, pi: number) => (
+                                              <tr key={`${brandKey}.${pi}`} className="border-b border-slate-50/50 hover:bg-blue-50/10 transition-colors">
+                                                <td className="py-1.5 px-4 pl-32 text-left">
+                                                  <span className="text-[10px] font-semibold text-blue-700">{prod.name}</span>
+                                                </td>
+                                                <td className="py-1.5 px-4 text-right text-[10px] text-slate-400">{prod.sl}</td>
+                                                <td className="py-1.5 px-4 text-right text-[10px] text-slate-400">{fmtTr(prod.dt)}</td>
+                                                <td className="py-1.5 px-4 text-right text-[10px] text-indigo-300">{fmtTr(prod.dt)}</td>
+                                                <td className="py-1.5 px-4 text-right text-[10px] text-slate-400">{fmtTr(prod.sl > 0 ? prod.dt / prod.sl : 0)}</td>
+                                                <td className="py-1.5 px-4 text-right text-[10px] font-black text-amber-400">{fmtPct(prod.tc_dt, prod.dt)}</td>
+                                              </tr>
+                                            ))}
+                                          </React.Fragment>
+                                        );
+                                      })}
+                                    </React.Fragment>
+                                  );
+                                })}
+
+                              </React.Fragment>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    }) : (
                       <tr>
-                        <td className="py-12 text-center text-slate-400 italic text-[11px] border border-amber-100" colSpan={3}>
-                          {isLoadingRealtime ? 'Đang tải dữ liệu...' : 'Chưa có dữ liệu CE thỏa mãn điều kiện.'}
+                        <td colSpan={6} className="py-12 text-center text-slate-400 italic text-[11px]">
+                          {isLoadingRealtime ? 'Đang tải dữ liệu...' : 'Chưa có dữ liệu thỏa mãn điều kiện.'}
                         </td>
                       </tr>
                     )}
@@ -1350,7 +1540,7 @@ export default function NewRealtimePage() {
                 <table className="w-full border-collapse text-center min-w-[3000px]" style={{ borderSpacing: 0 }}>
                   <thead className="sticky top-0 z-10">
                     <tr>
-                      {rawYcxRows.length > 0 && 
+                      {rawYcxRows.length > 0 &&
                         rawYcxRows[0].map((cell, idx) => (
                           <th key={idx} className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">
                             {cell || `Cột ${String.fromCharCode(65 + idx)}`}
@@ -1373,7 +1563,7 @@ export default function NewRealtimePage() {
                         const idxSmallCategoryHeader = headers.findIndex(h => h.toLowerCase().includes('nhóm hàng nhỏ'));
                         const idxNhomHang = headers.findIndex(h => h.includes('Nhóm hàng'));
                         const idxHinhThucXuat = headers.findIndex(h => h.includes('Hình thức xuất'));
-                        
+
                         const classifyProduct = (name: string) => {
                           const n = name.toUpperCase();
                           if (n.includes('1 ĐỔI 1')) return '1 ĐỔI 1';
@@ -1391,12 +1581,15 @@ export default function NewRealtimePage() {
                           if (n.includes('01 THÁNG')) return 'V1';
                           if (n.includes('03 THÁNG')) return 'V2';
                           if (n.includes('06 THÁNG')) return 'V4';
-                          return 'Khác';
+                          return '-';
                         };
 
-                        const classifyHinhThucXuat = (htx: string) => {
-                          if (htx.includes('Thu hộ')) return 'Thu hộ';
-                          return 'Bán hàng';
+                        const classifyHinhThucXuat = (htx: string): string => {
+                          const lower = htx.toLowerCase();
+                          // TC = Trả cửợc: chứa 'trả góp'
+                          if (lower.includes('trả góp')) return 'TC';
+                          // TM = Tiền mặt: tất cả các trường hợp còn lại
+                          return 'TM';
                         };
 
                         // Paginate: only render current page rows
@@ -1421,8 +1614,15 @@ export default function NewRealtimePage() {
                             <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
                               {idxSmallCategoryHeader !== -1 ? (row[idxSmallCategoryHeader] || '-') : (idxNhomHang !== -1 ? (NHOM_HANG_MAP[row[idxNhomHang]]?.small || '-') : '-')}
                             </td>
-                            <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
-                              {idxHinhThucXuat !== -1 ? classifyHinhThucXuat(String(row[idxHinhThucXuat] || '')) : '-'}
+                            <td className="border border-slate-200 py-2 px-3 text-[9px] whitespace-nowrap font-black text-center">
+                              {(() => {
+                                const val = idxHinhThucXuat !== -1 ? classifyHinhThucXuat(String(row[idxHinhThucXuat] || '')) : '-';
+                                return val === 'TC'
+                                  ? <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-black">TC</span>
+                                  : val === 'TM'
+                                    ? <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-black">TM</span>
+                                    : <span className="text-slate-400">-</span>;
+                              })()}
                             </td>
                           </tr>
                         ));
