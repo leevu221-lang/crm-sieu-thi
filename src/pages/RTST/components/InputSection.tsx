@@ -362,62 +362,7 @@ const InputSection: React.FC<InputSectionProps> = ({
             ))}
           </div>
 
-          {/* DỮ LIỆU LUỸ KẾ */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-1.5 h-5 bg-indigo-600 rounded-full" />
-              <h2 className="text-[13px] font-black text-slate-600 uppercase tracking-wider">DỮ LIỆU LUỸ KẾ</h2>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              {[
-                { id: 'lk_summary', label: 'BC TỔNG HỢP CỤM', value: clusterSummaryInput, onChange: setClusterSummaryInput, onBlur: () => onSaveLuyke(true,'auto'), hasData: !!clusterSummaryInput, link: 'https://bi.thegioididong.com/khoi-ban-hang-sub?id=13559&tab=bcth&rt=2&dm=1' },
-              ].map(item => (
-                <div key={item.id}>
-                  <button onClick={() => toggleInput(item.id)} className={cn(
-                    "w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left",
-                    expandedInput === item.id ? "border-indigo-400 bg-indigo-50/50 shadow-md" :
-                    item.hasData ? "border-teal-200 bg-teal-50/30 hover:shadow-md" : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
-                  )}>
-                    <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
-                      item.hasData ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-400"
-                    )}>
-                      {item.hasData ? <Globe size={16} /> : <Download size={16} />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <span className={cn("text-[12px] font-black uppercase tracking-wide", item.hasData ? "text-teal-700" : "text-slate-500")}>{item.label}</span>
-                    </div>
-                    <a href={item.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-indigo-400 hover:text-indigo-600"><ExternalLink size={14} /></a>
-                  </button>
-                  {expandedInput === item.id && (
-                    <textarea
-                      value={item.value}
-                      onChange={(e) => {
-                        if (e.target.value.length >= item.value.length || !item.value) {
-                          item.onChange(e.target.value);
-                        }
-                      }}
-                      onPaste={(e) => {
-                        e.preventDefault();
-                        const pastedText = e.clipboardData.getData('text');
-                        if (pastedText) {
-                          item.onChange(pastedText);
-                          setTimeout(() => {
-                            item.onBlur();
-                            setExpandedInput(null);
-                          }, 300);
-                        }
-                      }}
-                      onBlur={item.onBlur}
-                      rows={3}
-                      autoFocus
-                      placeholder="Dán dữ liệu (Ctrl+V)..."
-                      className="w-full mt-2 bg-white border-2 border-indigo-200 rounded-xl p-3 text-[11px] focus:ring-2 focus:ring-indigo-400 outline-none resize-none font-mono shadow-inner"
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+
         </div>
         )}
       </div>
