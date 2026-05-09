@@ -166,7 +166,7 @@ export default function App() {
       {/* Sticky Top Section */}
       <motion.div 
         initial={false}
-        animate={{ y: showHeader ? 0 : -120 }}
+        animate={{ y: 0 }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
         className="sticky top-0 z-50 bg-white print:hidden"
       >
