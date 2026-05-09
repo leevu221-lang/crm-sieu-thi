@@ -285,9 +285,9 @@ const InputSection: React.FC<InputSectionProps> = ({
                 { id: 'rt_market', label: 'REALTIME', value: marketInput, onChange: setMarketInput, onBlur: () => onSaveRealtime(true), hasData: !!marketInput },
                 { id: 'rt_catrev', label: 'LUỸ KẾ', value: categoryRevenueInput, onChange: setCategoryRevenueInput, onBlur: () => onSaveRealtime(true), hasData: !!categoryRevenueInput, isLuyke: true },
               ]},
-              { title: 'THI ĐUA CỤM', color: 'bg-orange-500', items: [
+              { title: 'THI ĐUA CỤM', color: 'bg-orange-500', hasYcx: true, items: [
                 { id: 'rt_cat', label: 'REALTIME', value: categoryInput, onChange: setCategoryInput, onBlur: () => onSaveRealtime(true), hasData: !!categoryInput },
-                { id: 'rt_ycx', label: 'LUỸ KẾ', value: '', onChange: () => {}, onBlur: () => {}, hasData: !!ycxFileName, isYcx: true, isLuyke: true },
+                { id: 'rt_catlk', label: 'LUỸ KẾ', value: categoryRevenueInput, onChange: setCategoryRevenueInput, onBlur: () => onSaveRealtime(true), hasData: !!ycxFileName, isLuyke: true },
               ]},
             ].map(group => (
               <div key={group.title}>
@@ -298,7 +298,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                   {group.items.map(item => (
                     <div key={item.id}>
-                      <button onClick={() => !item.isYcx && toggleInput(item.id)} className={cn(
+                      <button onClick={() => toggleInput(item.id)} className={cn(
                         "w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left",
                         expandedInput === item.id ? "border-blue-400 bg-blue-50/50 shadow-md" :
                         item.hasData ? "border-teal-200 bg-teal-50/30 hover:shadow-md" : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
@@ -315,18 +315,24 @@ const InputSection: React.FC<InputSectionProps> = ({
                           )}
                         </div>
                       </button>
-                      {item.isYcx && (
-                        <label className="mt-2 flex items-center justify-center gap-1.5 text-emerald-600 text-[10px] font-bold hover:bg-emerald-50 px-3 py-2 rounded-xl transition-colors cursor-pointer border border-dashed border-slate-200 bg-white">
-                          <FileSpreadsheet size={13} /> {ycxFileName || "THÊM FILE YCX"}
-                          <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelUpload} />
-                        </label>
-                      )}
-                      {expandedInput === item.id && !item.isYcx && (
+                      {expandedInput === item.id && (
                         <textarea value={item.value} onChange={(e) => item.onChange(e.target.value)} onBlur={item.onBlur} rows={3} autoFocus placeholder="Dán dữ liệu (Ctrl+V)..." className="w-full mt-2 bg-white border-2 border-blue-200 rounded-xl p-3 text-[11px] focus:ring-2 focus:ring-blue-400 outline-none resize-none font-mono shadow-inner" />
                       )}
                     </div>
                   ))}
                 </div>
+                {group.hasYcx && (
+                  <label className="mt-3 flex items-center gap-2 px-4 py-3 rounded-2xl border-2 border-dashed border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/30 transition-all cursor-pointer">
+                    <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", ycxFileName ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-400")}>
+                      <FileSpreadsheet size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <span className={cn("text-[12px] font-black uppercase tracking-wide", ycxFileName ? "text-teal-700" : "text-slate-500")}>YCX NHÂN VIÊN</span>
+                      {ycxFileName && <p className="text-[9px] text-slate-400 truncate max-w-[200px]">{ycxFileName}</p>}
+                    </div>
+                    <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelUpload} />
+                  </label>
+                )}
               </div>
             ))}
           </div>
