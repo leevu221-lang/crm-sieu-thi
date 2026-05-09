@@ -46,7 +46,8 @@ const KhaiBao: React.FC = () => {
     isLoadingRealtime,
     isYcxDirty,
     lastUpdated: rtLastUpdated,
-    processData: processRealtimeData
+    processData: processRealtimeData,
+    clearField
   } = useRealtimeData(maKho);
 
   const {
@@ -394,6 +395,7 @@ const KhaiBao: React.FC = () => {
             ycxData={ycxData}
             onAnalyze={() => { processRealtimeData(); processLuykeData(); }}
             onSaveRealtime={saveRealtimeData}
+            clearField={clearField}
             onSyncRealtime={syncRealtimeData}
             onLoadRealtime={loadData}
             activeStore={marketFilter}

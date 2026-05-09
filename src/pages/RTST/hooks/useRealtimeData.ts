@@ -65,6 +65,7 @@ export const useRealtimeData = (maKho: string) => {
   }, [isYcxDirty]);
 
   const skipAutoSaveRef = useRef(false);
+  const skipSubscriptionRef = useRef(false);
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const clearData = useCallback(() => {
@@ -127,6 +128,11 @@ export const useRealtimeData = (maKho: string) => {
   const updateYcxData = useCallback((newData: string) => {
     setYcxData(newData);
     setIsYcxDirty(true);
+  }, []);
+
+  const clearField = useCallback((setter: (val: string) => void) => {
+    skipSubscriptionRef.current = true;
+    setter('');
   }, []);
 
   const saveRealtimeData = useCallback(async (silent = false) => {
@@ -301,6 +307,10 @@ export const useRealtimeData = (maKho: string) => {
         },
         (payload) => {
           // console.log('[RTST] Realtime update received from DB:', payload);
+          if (skipSubscriptionRef.current) {
+            skipSubscriptionRef.current = false;
+            return;
+          }
           if (payload.new) {
             const record = payload.new as any;
             
@@ -394,6 +404,7 @@ export const useRealtimeData = (maKho: string) => {
     saveRealtimeData,
     syncRealtimeData,
     loadData,
-    clearData
+    clearData,
+    clearField
   };
 };

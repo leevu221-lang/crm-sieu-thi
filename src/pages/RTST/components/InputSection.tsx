@@ -61,6 +61,7 @@ interface InputSectionProps {
   ycxData: string;
   onAnalyze: () => void;
   onSaveRealtime: (silent?: boolean) => void;
+  clearField?: (setter: (val: string) => void) => void;
   onSaveLuyke: (isSilent?: boolean, source?: 'staff' | 'targets' | 'auto', storeName?: string, overrideTargets?: any[]) => void;
   onSyncRealtime: () => void;
   activeStore: string;
@@ -127,6 +128,7 @@ const InputSection: React.FC<InputSectionProps> = ({
   ycxData,
   onAnalyze,
   onSaveRealtime,
+  clearField,
   onSaveLuyke,
   onSyncRealtime,
   activeStore,
@@ -310,7 +312,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                           )}
                         </div>
                         {item.hasData && (
-                          <div onClick={(e) => { e.stopPropagation(); item.onChange(''); }} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0" title="Xoá dữ liệu">
+                          <div onClick={(e) => { e.stopPropagation(); clearField ? clearField(item.onChange) : item.onChange(''); }} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0" title="Xoá dữ liệu">
                             <X size={14} />
                           </div>
                         )}
