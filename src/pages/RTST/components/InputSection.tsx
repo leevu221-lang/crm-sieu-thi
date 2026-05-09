@@ -316,7 +316,32 @@ const InputSection: React.FC<InputSectionProps> = ({
                         </div>
                       </button>
                       {expandedInput === item.id && (
-                        <textarea value={item.value} onChange={(e) => item.onChange(e.target.value)} onBlur={item.onBlur} rows={3} autoFocus placeholder="Dán dữ liệu (Ctrl+V)..." className="w-full mt-2 bg-white border-2 border-blue-200 rounded-xl p-3 text-[11px] focus:ring-2 focus:ring-blue-400 outline-none resize-none font-mono shadow-inner" />
+                        <textarea
+                          value={item.value}
+                          onChange={(e) => {
+                            // Chỉ cho phép thay đổi nếu giá trị mới dài hơn (dán thêm) hoặc chưa có dữ liệu
+                            if (e.target.value.length >= item.value.length || !item.value) {
+                              item.onChange(e.target.value);
+                            }
+                          }}
+                          onPaste={(e) => {
+                            e.preventDefault();
+                            const pastedText = e.clipboardData.getData('text');
+                            if (pastedText) {
+                              item.onChange(pastedText);
+                              // Tự động lưu và ẩn ô sau khi dán
+                              setTimeout(() => {
+                                item.onBlur();
+                                setExpandedInput(null);
+                              }, 300);
+                            }
+                          }}
+                          onBlur={item.onBlur}
+                          rows={3}
+                          autoFocus
+                          placeholder="Dán dữ liệu (Ctrl+V)..."
+                          className="w-full mt-2 bg-white border-2 border-blue-200 rounded-xl p-3 text-[11px] focus:ring-2 focus:ring-blue-400 outline-none resize-none font-mono shadow-inner"
+                        />
                       )}
                     </div>
                   ))}
@@ -364,7 +389,30 @@ const InputSection: React.FC<InputSectionProps> = ({
                     <a href={item.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-indigo-400 hover:text-indigo-600"><ExternalLink size={14} /></a>
                   </button>
                   {expandedInput === item.id && (
-                    <textarea value={item.value} onChange={(e) => item.onChange(e.target.value)} onBlur={item.onBlur} rows={3} autoFocus placeholder="Dán dữ liệu (Ctrl+V)..." className="w-full mt-2 bg-white border-2 border-indigo-200 rounded-xl p-3 text-[11px] focus:ring-2 focus:ring-indigo-400 outline-none resize-none font-mono shadow-inner" />
+                    <textarea
+                      value={item.value}
+                      onChange={(e) => {
+                        if (e.target.value.length >= item.value.length || !item.value) {
+                          item.onChange(e.target.value);
+                        }
+                      }}
+                      onPaste={(e) => {
+                        e.preventDefault();
+                        const pastedText = e.clipboardData.getData('text');
+                        if (pastedText) {
+                          item.onChange(pastedText);
+                          setTimeout(() => {
+                            item.onBlur();
+                            setExpandedInput(null);
+                          }, 300);
+                        }
+                      }}
+                      onBlur={item.onBlur}
+                      rows={3}
+                      autoFocus
+                      placeholder="Dán dữ liệu (Ctrl+V)..."
+                      className="w-full mt-2 bg-white border-2 border-indigo-200 rounded-xl p-3 text-[11px] focus:ring-2 focus:ring-indigo-400 outline-none resize-none font-mono shadow-inner"
+                    />
                   )}
                 </div>
               ))}
