@@ -173,6 +173,8 @@ const InputSection: React.FC<InputSectionProps> = ({
   const [showStaffData, setShowStaffData] = useState(true);
   const [showTargetData, setShowTargetData] = useState(true);
   const [showStoreRevenueData, setShowStoreRevenueData] = useState(true);
+  const [expandedInput, setExpandedInput] = useState<string | null>(null);
+  const toggleInput = (id: string) => setExpandedInput(prev => prev === id ? null : id);
   const [savingRow, setSavingRow] = useState<string | null>(null);
   const [globalPercent, setGlobalPercent] = useState(() => {
     const saved = localStorage.getItem('rtst_global_percent');
@@ -255,115 +257,112 @@ const InputSection: React.FC<InputSectionProps> = ({
       {/* Data Realtime Container - Redesigned */}
       {activeTab === 'REALTIME' && (
       <div className="space-y-6">
-        {/* Clean Header */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
-            <h1 className="text-[28px] font-black text-slate-800 tracking-tight">CẬP NHẬT DỮ LIỆU</h1>
+            <h1 className="text-[28px] font-black text-slate-700 tracking-tight">CẬP NHẬT DỮ LIỆU</h1>
             <p className="text-[12px] text-slate-400 mt-1">Bấm vào các ô và dán dữ liệu (Ctrl+V) từ báo cáo BI.</p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
             <button onClick={onLoadRealtime} disabled={isLoadingRealtime} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-500 hover:bg-slate-50 transition-all active:scale-95 disabled:opacity-50">
               {isLoadingRealtime ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} TẢI LẠI
             </button>
             <button onClick={() => onSaveRealtime(false)} disabled={isSavingRealtime} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all active:scale-95 disabled:opacity-50", isYcxDirty ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50")}>
               {isSavingRealtime ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} LƯU
             </button>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg">
-              <div className={cn("w-2 h-2 rounded-full", (isSavingRealtime || isLoadingRealtime) ? "bg-amber-400 animate-pulse" : "bg-emerald-500")} />
-              <span className="text-[10px] font-bold text-slate-500 uppercase">{isSavingRealtime ? "Đang lưu..." : isLoadingRealtime ? "Đang tải..." : "Sẵn sàng"}</span>
+            <div className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl">
+              <div className={cn("w-2.5 h-2.5 rounded-full", (isSavingRealtime || isLoadingRealtime) ? "bg-amber-400 animate-pulse" : "bg-emerald-500")} />
+              <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider">{isSavingRealtime ? "Đang lưu..." : isLoadingRealtime ? "Đang tải..." : "Sẵn sàng"}</span>
             </div>
           </div>
         </div>
 
         {showAll && showRealtime && (
-        <div className="space-y-6">
-          {/* Two Side-by-Side Groups */}
+        <div className="space-y-8">
+          {/* Two Groups: BÁO CÁO TỔNG HỢP + THI ĐUA CỤM */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* BÁO CÁO TỔNG HỢP */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-1 h-5 bg-slate-700 rounded-full" />
-                <h2 className="text-[13px] font-black text-slate-600 uppercase tracking-wider">BÁO CÁO TỔNG HỢP</h2>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white rounded-2xl border border-slate-200 p-4 hover:shadow-md transition-all">
-                  <div className="flex items-center gap-2.5 mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500"><ShoppingBag size={16} /></div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">1. BI Tổng quan</span>
-                  </div>
-                  <textarea value={marketInput} onChange={(e) => setMarketInput(e.target.value)} onBlur={() => onSaveRealtime(true)} rows={2} placeholder="Dán dữ liệu..." className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-[10px] focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all resize-none font-mono" />
+            {[
+              { title: 'BÁO CÁO TỔNG HỢP', color: 'bg-slate-700', items: [
+                { id: 'rt_market', label: 'REALTIME', value: marketInput, onChange: setMarketInput, onBlur: () => onSaveRealtime(true), hasData: !!marketInput },
+                { id: 'rt_catrev', label: 'LUỸ KẾ', value: categoryRevenueInput, onChange: setCategoryRevenueInput, onBlur: () => onSaveRealtime(true), hasData: !!categoryRevenueInput, isLuyke: true },
+              ]},
+              { title: 'THI ĐUA CỤM', color: 'bg-orange-500', items: [
+                { id: 'rt_cat', label: 'REALTIME', value: categoryInput, onChange: setCategoryInput, onBlur: () => onSaveRealtime(true), hasData: !!categoryInput },
+                { id: 'rt_ycx', label: 'LUỸ KẾ', value: '', onChange: () => {}, onBlur: () => {}, hasData: !!ycxFileName, isYcx: true, isLuyke: true },
+              ]},
+            ].map(group => (
+              <div key={group.title}>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={cn("w-1.5 h-5 rounded-full", group.color)} />
+                  <h2 className="text-[13px] font-black text-slate-600 uppercase tracking-wider">{group.title}</h2>
                 </div>
-                <div className="bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-200 p-4 hover:shadow-md transition-all">
-                  <div className="flex items-center gap-2.5 mb-1">
-                    <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm"><Globe size={16} /></div>
-                    <div>
-                      <span className="text-[11px] font-black text-slate-700 uppercase">LUỸ KẾ</span>
-                      {lastUpdatedRealtime && <p className="text-[8px] text-slate-400 flex items-center gap-0.5"><Calendar size={8} /> {lastUpdatedRealtime.toLocaleTimeString('vi-VN', {hour:'2-digit',minute:'2-digit'})} {lastUpdatedRealtime.toLocaleDateString('vi-VN', {day:'2-digit',month:'2-digit'})}</p>}
+                <div className="grid grid-cols-2 gap-3">
+                  {group.items.map(item => (
+                    <div key={item.id}>
+                      <button onClick={() => !item.isYcx && toggleInput(item.id)} className={cn(
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left",
+                        expandedInput === item.id ? "border-blue-400 bg-blue-50/50 shadow-md" :
+                        item.hasData ? "border-teal-200 bg-teal-50/30 hover:shadow-md" : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+                      )}>
+                        <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+                          item.hasData ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-400"
+                        )}>
+                          {item.hasData ? <Globe size={16} /> : <Download size={16} />}
+                        </div>
+                        <div className="min-w-0">
+                          <span className={cn("text-[12px] font-black uppercase tracking-wide", item.hasData ? "text-teal-700" : "text-slate-500")}>{item.label}</span>
+                          {item.hasData && lastUpdatedRealtime && item.isLuyke && (
+                            <p className="text-[9px] text-slate-400 flex items-center gap-1 mt-0.5"><Calendar size={8} /> {lastUpdatedRealtime.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})} {lastUpdatedRealtime.toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'})}</p>
+                          )}
+                        </div>
+                      </button>
+                      {item.isYcx && (
+                        <label className="mt-2 flex items-center justify-center gap-1.5 text-emerald-600 text-[10px] font-bold hover:bg-emerald-50 px-3 py-2 rounded-xl transition-colors cursor-pointer border border-dashed border-slate-200 bg-white">
+                          <FileSpreadsheet size={13} /> {ycxFileName || "THÊM FILE YCX"}
+                          <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelUpload} />
+                        </label>
+                      )}
+                      {expandedInput === item.id && !item.isYcx && (
+                        <textarea value={item.value} onChange={(e) => item.onChange(e.target.value)} onBlur={item.onBlur} rows={3} autoFocus placeholder="Dán dữ liệu (Ctrl+V)..." className="w-full mt-2 bg-white border-2 border-blue-200 rounded-xl p-3 text-[11px] focus:ring-2 focus:ring-blue-400 outline-none resize-none font-mono shadow-inner" />
+                      )}
                     </div>
-                  </div>
-                  <textarea value={categoryRevenueInput} onChange={(e) => setCategoryRevenueInput(e.target.value)} onBlur={() => onSaveRealtime(true)} rows={2} placeholder="4. BC DT Ngành hàng..." className="w-full bg-white/80 border border-slate-200 rounded-lg p-2 text-[10px] focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all resize-none font-mono mt-1" />
+                  ))}
                 </div>
               </div>
-            </div>
-            {/* THI ĐUA CỤM */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-1 h-5 bg-orange-500 rounded-full" />
-                <h2 className="text-[13px] font-black text-slate-600 uppercase tracking-wider">THI ĐUA CỤM</h2>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white rounded-2xl border border-slate-200 p-4 hover:shadow-md transition-all">
-                  <div className="flex items-center gap-2.5 mb-2">
-                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500"><Boxes size={16} /></div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">2. BI Ngành hàng</span>
-                  </div>
-                  <textarea value={categoryInput} onChange={(e) => setCategoryInput(e.target.value)} onBlur={() => onSaveRealtime(true)} rows={2} placeholder="Dán dữ liệu..." className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 text-[10px] focus:ring-2 focus:ring-amber-500 focus:bg-white outline-none transition-all resize-none font-mono" />
-                </div>
-                <div className="bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-200 p-4 hover:shadow-md transition-all">
-                  <div className="flex items-center gap-2.5 mb-1">
-                    <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm"><Globe size={16} /></div>
-                    <div>
-                      <span className="text-[11px] font-black text-slate-700 uppercase">LUỸ KẾ</span>
-                      {lastUpdatedRealtime && <p className="text-[8px] text-slate-400 flex items-center gap-0.5"><Calendar size={8} /> {lastUpdatedRealtime.toLocaleTimeString('vi-VN', {hour:'2-digit',minute:'2-digit'})} {lastUpdatedRealtime.toLocaleDateString('vi-VN', {day:'2-digit',month:'2-digit'})}</p>}
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-center justify-center h-[52px] bg-white/80 border border-slate-200 border-dashed rounded-lg mt-1">
-                    <label className="flex items-center gap-1.5 text-emerald-600 text-[10px] font-bold hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
-                      <FileSpreadsheet size={13} /> {ycxFileName ? "ĐỔI FILE" : "THÊM YCX"}
-                      <input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleExcelUpload} />
-                    </label>
-                    {ycxFileName && <p className="text-[7px] text-slate-400 truncate max-w-[120px]">{ycxFileName}</p>}
-                  </div>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
 
-          {/* DỮ LIỆU LUỸ KẾ - Moved from LUY_KE tab */}
-          <div className="flex items-center gap-2 mt-6 mb-3">
-            <div className="w-1 h-5 bg-indigo-600 rounded-full" />
-            <h2 className="text-[13px] font-black text-slate-600 uppercase tracking-wider">DỮ LIỆU LUỸ KẾ</h2>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-all">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600"><LayoutDashboard size={16} /></div>
-                <div>
-                  <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-wider">1. BC TỔNG HỢP CỤM</h3>
-                  <a href="https://bi.thegioididong.com/khoi-ban-hang-sub?id=13559&tab=bcth&rt=2&dm=1" target="_blank" rel="noopener noreferrer" className="text-[8px] text-indigo-400 hover:text-indigo-600 flex items-center gap-0.5"><ExternalLink size={8} /> Mở BI</a>
-                </div>
-              </div>
-              <textarea value={clusterSummaryInput} onChange={(e) => setClusterSummaryInput(e.target.value)} onBlur={() => onSaveLuyke(true, 'auto')} rows={3} placeholder="Dán dữ liệu báo cáo tổng hợp cụm..." className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all resize-none font-mono" />
+          {/* DỮ LIỆU LUỸ KẾ */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1.5 h-5 bg-indigo-600 rounded-full" />
+              <h2 className="text-[13px] font-black text-slate-600 uppercase tracking-wider">DỮ LIỆU LUỸ KẾ</h2>
             </div>
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-all">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center text-violet-600"><Boxes size={16} /></div>
-                <div>
-                  <h3 className="text-[11px] font-black text-slate-700 uppercase tracking-wider">2. BC NGÀNH HÀNG CỤM</h3>
-                  <a href="https://bi.thegioididong.com/thi-dua?id=-1&tab=1&rt=2&dm=2&mt=2" target="_blank" rel="noopener noreferrer" className="text-[8px] text-violet-400 hover:text-violet-600 flex items-center gap-0.5"><ExternalLink size={8} /> Mở BI</a>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {[
+                { id: 'lk_summary', label: 'BC TỔNG HỢP CỤM', value: clusterSummaryInput, onChange: setClusterSummaryInput, onBlur: () => onSaveLuyke(true,'auto'), hasData: !!clusterSummaryInput, link: 'https://bi.thegioididong.com/khoi-ban-hang-sub?id=13559&tab=bcth&rt=2&dm=1' },
+                { id: 'lk_category', label: 'BC NGÀNH HÀNG CỤM', value: clusterCategoryInput, onChange: setClusterCategoryInput, onBlur: () => onSaveLuyke(true,'auto'), hasData: !!clusterCategoryInput, link: 'https://bi.thegioididong.com/thi-dua?id=-1&tab=1&rt=2&dm=2&mt=2' },
+              ].map(item => (
+                <div key={item.id}>
+                  <button onClick={() => toggleInput(item.id)} className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left",
+                    expandedInput === item.id ? "border-indigo-400 bg-indigo-50/50 shadow-md" :
+                    item.hasData ? "border-teal-200 bg-teal-50/30 hover:shadow-md" : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+                  )}>
+                    <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+                      item.hasData ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-400"
+                    )}>
+                      {item.hasData ? <Globe size={16} /> : <Download size={16} />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className={cn("text-[12px] font-black uppercase tracking-wide", item.hasData ? "text-teal-700" : "text-slate-500")}>{item.label}</span>
+                    </div>
+                    <a href={item.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-indigo-400 hover:text-indigo-600"><ExternalLink size={14} /></a>
+                  </button>
+                  {expandedInput === item.id && (
+                    <textarea value={item.value} onChange={(e) => item.onChange(e.target.value)} onBlur={item.onBlur} rows={3} autoFocus placeholder="Dán dữ liệu (Ctrl+V)..." className="w-full mt-2 bg-white border-2 border-indigo-200 rounded-xl p-3 text-[11px] focus:ring-2 focus:ring-indigo-400 outline-none resize-none font-mono shadow-inner" />
+                  )}
                 </div>
-              </div>
-              <textarea value={clusterCategoryInput} onChange={(e) => setClusterCategoryInput(e.target.value)} onBlur={() => onSaveLuyke(true, 'auto')} rows={3} placeholder="Dán dữ liệu báo cáo ngành hàng cụm..." className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] focus:ring-2 focus:ring-violet-500 focus:bg-white outline-none transition-all resize-none font-mono" />
+              ))}
             </div>
           </div>
         </div>
