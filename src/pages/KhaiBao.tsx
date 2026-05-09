@@ -327,7 +327,6 @@ const KhaiBao: React.FC = () => {
           <div className="flex flex-col gap-3 py-4 sticky top-[116px]">
             {[
               { id: 'REALTIME', label: 'REALTIME', icon: Database },
-              { id: 'LUY_KE', label: 'DATA LUỸ KẾ', icon: BarChart3 },
               { id: 'THOI_GIAN', label: 'CÀI ĐẶT THỜI GIAN', icon: Clock },
               { id: 'NHAN_VIEN', label: 'DỮ LIỆU NV', icon: Users },
               { id: 'TARGET_NGANH_HANG', label: 'CÀI ĐẶT TAGET NGÀNH HÀNG', icon: Target },

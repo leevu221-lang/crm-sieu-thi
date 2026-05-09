@@ -338,26 +338,12 @@ const InputSection: React.FC<InputSectionProps> = ({
               </div>
             </div>
           </div>
-        </div>
-        )}
-      </div>
-      )}
 
-      {/* Data Cluster Container */}
-      {activeTab === 'LUY_KE' && (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div>
-            <h1 className="text-[28px] font-black text-slate-800 tracking-tight">DỮ LIỆU LUỸ KẾ</h1>
-            <p className="text-[12px] text-slate-400 mt-1">Dán dữ liệu tổng hợp cụm từ BI để cập nhật Luỹ kế tháng.</p>
+          {/* DỮ LIỆU LUỸ KẾ - Moved from LUY_KE tab */}
+          <div className="flex items-center gap-2 mt-6 mb-3">
+            <div className="w-1 h-5 bg-indigo-600 rounded-full" />
+            <h2 className="text-[13px] font-black text-slate-600 uppercase tracking-wider">DỮ LIỆU LUỸ KẾ</h2>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg">
-            <div className={cn("w-2 h-2 rounded-full", (isProcessingLuyke || isLoadingLuyke) ? "bg-amber-400 animate-pulse" : "bg-emerald-500")} />
-            <span className="text-[10px] font-bold text-slate-500 uppercase">{isProcessingLuyke ? "Đang lưu..." : isLoadingLuyke ? "Đang tải..." : "Sẵn sàng"}</span>
-          </div>
-        </div>
-        
-        {showAll && showClusterData && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-all">
               <div className="flex items-center gap-3 mb-3">
@@ -380,9 +366,12 @@ const InputSection: React.FC<InputSectionProps> = ({
               <textarea value={clusterCategoryInput} onChange={(e) => setClusterCategoryInput(e.target.value)} onBlur={() => onSaveLuyke(true, 'auto')} rows={3} placeholder="Dán dữ liệu báo cáo ngành hàng cụm..." className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] focus:ring-2 focus:ring-violet-500 focus:bg-white outline-none transition-all resize-none font-mono" />
             </div>
           </div>
+        </div>
         )}
       </div>
       )}
+
+
 
       {/* Time Settings Container */}
       {activeTab === 'THOI_GIAN' && (
