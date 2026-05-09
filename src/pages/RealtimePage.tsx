@@ -1162,7 +1162,7 @@ export default function NewRealtimePage() {
         </div>
       )}
       {/* Professional Header - Spans full width */}
-      <div className="bg-white border-b border-slate-200 px-8 py-5 sticky top-0 z-50 shadow-sm">
+      <div className="bg-white border-b border-slate-200 px-8 py-5 sticky top-[116px] z-40 shadow-sm">
         <div className="max-w-[1800px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-center gap-5">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-400 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
