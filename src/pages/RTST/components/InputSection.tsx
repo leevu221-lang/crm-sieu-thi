@@ -27,7 +27,8 @@ import {
   Store,
   Save,
   Loader2,
-  TrendingUp
+  TrendingUp,
+  X
 } from 'lucide-react';
 import { cn, formatShortCurrency } from '../utils';
 
@@ -302,27 +303,27 @@ const InputSection: React.FC<InputSectionProps> = ({
                         )}>
                           {item.hasData ? <Globe size={16} /> : <Download size={16} />}
                         </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <span className={cn("text-[12px] font-black uppercase tracking-wide", item.hasData ? "text-teal-700" : "text-slate-500")}>{item.label}</span>
                           {item.hasData && lastUpdatedRealtime && item.isLuyke && (
                             <p className="text-[9px] text-slate-400 flex items-center gap-1 mt-0.5"><Calendar size={8} /> {lastUpdatedRealtime.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})} {lastUpdatedRealtime.toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'})}</p>
                           )}
                         </div>
+                        {item.hasData && (
+                          <div onClick={(e) => { e.stopPropagation(); item.onChange(''); item.onBlur(); }} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0" title="Xoá dữ liệu">
+                            <X size={14} />
+                          </div>
+                        )}
                       </button>
                       {expandedInput === item.id && (
                         <textarea
                           value={item.value}
-                          onChange={(e) => {
-                            if (e.target.value.length >= item.value.length || !item.value) {
-                              item.onChange(e.target.value);
-                            }
-                          }}
+                          onChange={(e) => item.onChange(e.target.value)}
                           onPaste={(e) => {
                             e.preventDefault();
                             const pastedText = e.clipboardData.getData('text');
                             if (pastedText) {
                               item.onChange(pastedText);
-                              // Ẩn ô ngay lập tức, auto-save 3s sẽ tự lưu Firebase
                               setExpandedInput(null);
                             }
                           }}
