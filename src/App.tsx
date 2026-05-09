@@ -5,6 +5,7 @@ import { useAuth } from './contexts/AuthContext';
 import { useSettings } from './contexts/SettingsContext';
 import { useMarket } from './contexts/MarketContext';
 import Login from './pages/Login';
+import { testSupabaseConnection } from './supabaseClient';
 
 // Lazy load pages for better performance
 const NewRealtimePage = lazy(() => import('./pages/RealtimePage'));
@@ -88,16 +89,14 @@ export default function App() {
   }, [userProfile, currentPage, effectiveAllowedPages]);
 
   useEffect(() => {
-    import('./supabaseClient').then(({ testSupabaseConnection }) => {
-      testSupabaseConnection().then(res => {
-        if (!res.online) {
-          console.error('[APP] Firebase Connection Error:', res.error);
-          setSupabaseError(res.error || 'Lỗi kết nối Firebase');
-        } else {
-          console.log('[APP] Firebase Connection OK');
-          setSupabaseError(null);
-        }
-      });
+    testSupabaseConnection().then(res => {
+      if (!res.online) {
+        console.error('[APP] Firebase Connection Error:', res.error);
+        setSupabaseError(res.error || 'Lỗi kết nối Firebase');
+      } else {
+        console.log('[APP] Firebase Connection OK');
+        setSupabaseError(null);
+      }
     });
   }, []);
 
