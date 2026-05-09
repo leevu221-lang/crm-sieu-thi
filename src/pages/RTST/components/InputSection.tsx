@@ -319,7 +319,6 @@ const InputSection: React.FC<InputSectionProps> = ({
                         <textarea
                           value={item.value}
                           onChange={(e) => {
-                            // Chỉ cho phép thay đổi nếu giá trị mới dài hơn (dán thêm) hoặc chưa có dữ liệu
                             if (e.target.value.length >= item.value.length || !item.value) {
                               item.onChange(e.target.value);
                             }
@@ -329,11 +328,8 @@ const InputSection: React.FC<InputSectionProps> = ({
                             const pastedText = e.clipboardData.getData('text');
                             if (pastedText) {
                               item.onChange(pastedText);
-                              // Tự động lưu và ẩn ô sau khi dán
-                              setTimeout(() => {
-                                item.onBlur();
-                                setExpandedInput(null);
-                              }, 300);
+                              // Ẩn ô ngay lập tức, auto-save 3s sẽ tự lưu Firebase
+                              setExpandedInput(null);
                             }
                           }}
                           onBlur={item.onBlur}

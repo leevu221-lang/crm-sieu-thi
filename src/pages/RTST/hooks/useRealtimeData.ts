@@ -214,7 +214,7 @@ export const useRealtimeData = (maKho: string) => {
     autoSaveTimeoutRef.current = setTimeout(() => {
       // console.log('[RTST] Auto-saving data to DB...');
       saveRealtimeData(true);
-    }, 3000); // 3 seconds debounce for typing
+    }, 1000); // 1 second debounce
 
     return () => {
       if (autoSaveTimeoutRef.current) {
