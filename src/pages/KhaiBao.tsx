@@ -129,6 +129,13 @@ const KhaiBao: React.FC = () => {
         if (stDtDuKienQD !== (market.targetQD || 0)) setStDtDuKienQD(market.targetQD || 0);
         if (stPercentHTTargetDuKienQD !== (market.percentHT || 0)) setStPercentHTTargetDuKienQD(market.percentHT || 0);
       }
+    } else if (processedData.markets.length === 0) {
+      // Reset khi ô LUỸ KẾ bị xoá trống
+      if (stName) setStName('');
+      if (stDtlk) setStDtlk(0);
+      if (stDtqd) setStDtqd(0);
+      if (stDtDuKienQD) setStDtDuKienQD(0);
+      if (stPercentHTTargetDuKienQD) setStPercentHTTargetDuKienQD(0);
     }
   }, [marketFilter, processedData.markets, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD]);
 
