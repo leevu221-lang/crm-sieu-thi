@@ -262,18 +262,12 @@ const InputSection: React.FC<InputSectionProps> = ({
             <h1 className="text-[28px] font-black text-slate-700 tracking-tight">CẬP NHẬT DỮ LIỆU</h1>
             <p className="text-[12px] text-slate-400 mt-1">Bấm vào các ô và dán dữ liệu (Ctrl+V) từ báo cáo BI.</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={onLoadRealtime} disabled={isLoadingRealtime} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-500 hover:bg-slate-50 transition-all active:scale-95 disabled:opacity-50">
-              {isLoadingRealtime ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} TẢI LẠI
-            </button>
-            <button onClick={() => onSaveRealtime(false)} disabled={isSavingRealtime} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all active:scale-95 disabled:opacity-50", isYcxDirty ? "bg-emerald-600 text-white hover:bg-emerald-700" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50")}>
-              {isSavingRealtime ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} LƯU
-            </button>
-            <div className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl">
+          <div className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl">
               <div className={cn("w-2.5 h-2.5 rounded-full", (isSavingRealtime || isLoadingRealtime) ? "bg-amber-400 animate-pulse" : "bg-emerald-500")} />
-              <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider">{isSavingRealtime ? "Đang lưu..." : isLoadingRealtime ? "Đang tải..." : "Sẵn sàng"}</span>
+              <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider">
+                {isSavingRealtime ? "Đang lưu..." : isLoadingRealtime ? "Đang tải..." : lastUpdatedRealtime ? `Dữ liệu đã cập nhật ${lastUpdatedRealtime.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})}` : "Sẵn sàng"}
+              </span>
             </div>
-          </div>
         </div>
 
         {showAll && showRealtime && (
