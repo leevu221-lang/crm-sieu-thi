@@ -54,6 +54,9 @@ export const useLuykeData = (maKho: string) => {
   const [isProcessingSave, setIsProcessingSave] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoadedFromDB, setHasLoadedFromDB] = useState(false);
+  const skipSubscriptionRef = useRef(false);
+  const skipAutoSaveRef = useRef(false);
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const saveLuykeData = useCallback(async (isSilent: boolean = false, source: 'staff' | 'targets' | 'auto' = 'auto', storeName?: string, overrideTargets?: any[]) => {
     const cleanMaKho = maKho.trim();
@@ -84,13 +87,13 @@ export const useLuykeData = (maKho: string) => {
       const payload: any = {
         warehouse_code: cleanMaKho,
         ten_sieu_thi: cleanStore,
-        lk_bi_tong_quan: clusterSummaryInput || existingData?.lk_bi_tong_quan || null,
-        lk_nh_sieu_thi: clusterCategoryInput || existingData?.lk_nh_sieu_thi || null,
-        lk_dt_nv: staffInput || existingData?.lk_dt_nv || null,
-        lk_td_nv: staffCategoryInput || existingData?.lk_td_nv || null,
-        ds_nhan_vien: staffListInput || existingData?.ds_nhan_vien || null,
-        dt_gio_cong: dtGioCong || existingData?.dt_gio_cong || null,
-        data_phan_ca: dataPhanCa || existingData?.data_phan_ca || null,
+        lk_bi_tong_quan: clusterSummaryInput !== undefined ? clusterSummaryInput : existingData?.lk_bi_tong_quan,
+        lk_nh_sieu_thi: clusterCategoryInput !== undefined ? clusterCategoryInput : existingData?.lk_nh_sieu_thi,
+        lk_dt_nv: staffInput !== undefined ? staffInput : existingData?.lk_dt_nv,
+        lk_td_nv: staffCategoryInput !== undefined ? staffCategoryInput : existingData?.lk_td_nv,
+        ds_nhan_vien: staffListInput !== undefined ? staffListInput : existingData?.ds_nhan_vien,
+        dt_gio_cong: dtGioCong !== undefined ? dtGioCong : existingData?.dt_gio_cong,
+        data_phan_ca: dataPhanCa !== undefined ? dataPhanCa : existingData?.data_phan_ca,
         category_targets: targetsToSave,
         taget_doanh_thu: existingData?.taget_doanh_thu || null,
         updated_at: new Date().toISOString()
@@ -231,6 +234,30 @@ export const useLuykeData = (maKho: string) => {
     return () => clearTimeout(timeoutId);
   }, [clusterSummaryInput, clusterCategoryInput, staffInput, staffCategoryInput]);
 
+  // Auto-save debounce
+  useEffect(() => {
+    if (!maKho || !activeStore || !hasLoadedFromDB) return;
+    
+    if (skipAutoSaveRef.current) {
+      skipAutoSaveRef.current = false;
+      return;
+    }
+
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      saveLuykeData(true, 'auto');
+    }, 1000);
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [clusterSummaryInput, clusterCategoryInput, staffInput, staffCategoryInput, staffListInput, dataPhanCa, dtGioCong, categoryTargets, maKho, activeStore, hasLoadedFromDB, saveLuykeData]);
+
   const [isFirstProcess, setIsFirstProcess] = useState(true);
 
   useEffect(() => {
@@ -298,11 +325,15 @@ export const useLuykeData = (maKho: string) => {
         setStaffListInput(record.ds_nhan_vien || '');
         setDtGioCong(record.dt_gio_cong || '');
         setDataPhanCa(record.data_phan_ca || null);
-        if (record.ten_sieu_thi) setActiveStore(record.ten_sieu_thi);
         
         if (record.category_targets && Array.isArray(record.category_targets)) {
           setCategoryTargets(record.category_targets);
         }
+        
+        if (record.ten_sieu_thi) setActiveStore(record.ten_sieu_thi);
+        
+        skipAutoSaveRef.current = true;
+        setHasLoadedFromDB(true);
       } else {
         // Firebase is empty, check if localStorage has cached data to auto-sync
         const hasCachedLuyke = !!(
@@ -350,17 +381,63 @@ export const useLuykeData = (maKho: string) => {
         },
         (payload) => {
           // console.log('[LuykeData] Realtime update received from DB:', payload);
+          if (skipSubscriptionRef.current) {
+            skipSubscriptionRef.current = false;
+            return;
+          }
           if (payload.new) {
             const record = payload.new as any;
             
             // Update inputs only if they are different to avoid loops
-            setClusterSummaryInput((prev: string) => prev !== record.lk_bi_tong_quan ? (record.lk_bi_tong_quan || '') : prev);
-            setClusterCategoryInput((prev: string) => prev !== record.lk_nh_sieu_thi ? (record.lk_nh_sieu_thi || '') : prev);
-            setStaffInput((prev: string) => prev !== record.lk_dt_nv ? (record.lk_dt_nv || '') : prev);
-            setStaffCategoryInput((prev: string) => prev !== record.lk_td_nv ? (record.lk_td_nv || '') : prev);
-            setStaffListInput((prev: string) => prev !== record.ds_nhan_vien ? (record.ds_nhan_vien || '') : prev);
-            setDtGioCong((prev: string) => prev !== record.dt_gio_cong ? (record.dt_gio_cong || '') : prev);
-            setDataPhanCa((prev: any) => JSON.stringify(prev) !== JSON.stringify(record.data_phan_ca) ? (record.data_phan_ca || null) : prev);
+            setClusterSummaryInput((prev: string) => {
+              if (prev !== record.lk_bi_tong_quan) {
+                skipAutoSaveRef.current = true;
+                return record.lk_bi_tong_quan || '';
+              }
+              return prev;
+            });
+            setClusterCategoryInput((prev: string) => {
+              if (prev !== record.lk_nh_sieu_thi) {
+                skipAutoSaveRef.current = true;
+                return record.lk_nh_sieu_thi || '';
+              }
+              return prev;
+            });
+            setStaffInput((prev: string) => {
+              if (prev !== record.lk_dt_nv) {
+                skipAutoSaveRef.current = true;
+                return record.lk_dt_nv || '';
+              }
+              return prev;
+            });
+            setStaffCategoryInput((prev: string) => {
+              if (prev !== record.lk_td_nv) {
+                skipAutoSaveRef.current = true;
+                return record.lk_td_nv || '';
+              }
+              return prev;
+            });
+            setStaffListInput((prev: string) => {
+              if (prev !== record.ds_nhan_vien) {
+                skipAutoSaveRef.current = true;
+                return record.ds_nhan_vien || '';
+              }
+              return prev;
+            });
+            setDtGioCong((prev: string) => {
+              if (prev !== record.dt_gio_cong) {
+                skipAutoSaveRef.current = true;
+                return record.dt_gio_cong || '';
+              }
+              return prev;
+            });
+            setDataPhanCa((prev: any) => {
+              if (JSON.stringify(prev) !== JSON.stringify(record.data_phan_ca)) {
+                skipAutoSaveRef.current = true;
+                return record.data_phan_ca || null;
+              }
+              return prev;
+            });
             
             if (record.category_targets && Array.isArray(record.category_targets)) {
               setCategoryTargets(record.category_targets);
@@ -433,6 +510,10 @@ export const useLuykeData = (maKho: string) => {
     saveLuykeData,
     syncFromRealtime,
     loadData,
-    setActiveStore
+    setActiveStore,
+    clearField: (setter: (val: string) => void) => {
+      skipSubscriptionRef.current = true;
+      setter('');
+    }
   };
 };

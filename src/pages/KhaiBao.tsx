@@ -47,7 +47,7 @@ const KhaiBao: React.FC = () => {
     isYcxDirty,
     lastUpdated: rtLastUpdated,
     processData: processRealtimeData,
-    clearField
+    clearField: clearRealtimeField
   } = useRealtimeData(maKho);
 
   const {
@@ -64,8 +64,14 @@ const KhaiBao: React.FC = () => {
     isSavingTargets,
     isLoading,
     processData: processLuykeData,
-    syncFromRealtime
+    syncFromRealtime,
+    clearField: clearLuykeField
   } = useLuykeData(maKho);
+
+  const handleClearField = (setter: (val: string) => void) => {
+    clearRealtimeField(setter);
+    clearLuykeField(setter);
+  };
 
   const {
     manualAdjustment, setManualAdjustment,
@@ -395,7 +401,7 @@ const KhaiBao: React.FC = () => {
             ycxData={ycxData}
             onAnalyze={() => { processRealtimeData(); processLuykeData(); }}
             onSaveRealtime={saveRealtimeData}
-            clearField={clearField}
+            clearField={handleClearField}
             onSyncRealtime={syncRealtimeData}
             onLoadRealtime={loadData}
             activeStore={marketFilter}
