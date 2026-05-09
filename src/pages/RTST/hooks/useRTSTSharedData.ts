@@ -357,6 +357,10 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
 
   useEffect(() => {
     if (maKho && (maKho !== lastLoadedMaKho)) {
+      console.log('[SharedData] maKho changed, resetting state for:', maKho);
+      hasLoadedFromDB.current = false;
+      setAllStoreTargets({}); // Clear stale targets
+      
       loadStoreRevenue(maKho, stName).then(() => {
         setLastLoadedMaKho(maKho);
       });

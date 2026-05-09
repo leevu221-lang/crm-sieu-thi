@@ -7,9 +7,9 @@ import { useMarket } from './contexts/MarketContext';
 import Login from './pages/Login';
 
 // Lazy load pages for better performance
-const NewRealtimePage = lazy(() => import('./pages/NewRealtimePage'));
-const UserManagement = lazy(() => import('./pages/UserManagement'));
-const EmployeeHealth = lazy(() => import('./pages/EmployeeHealth'));
+const NewRealtimePage = lazy(() => import('./pages/RealtimePage'));
+const UserManagement = lazy(() => import('./pages/DanhSachNguoiDung'));
+const EmployeeHealth = lazy(() => import('./pages/SucKhoeNhanVien'));
 const KhaiBao = lazy(() => import('./pages/KhaiBao'));
 const LuyKe = lazy(() => import('./pages/LuyKe'));
 const ToolHoTro = lazy(() => import('./pages/ToolHoTro'));
@@ -47,9 +47,8 @@ export default function App() {
   
   const effectiveAllowedPages = canEditUser && !allowedPages.includes('users') ? [...allowedPages, 'users'] : allowedPages;
   // Thêm dòng này sau dòng 46
-console.log('--- PERMISSION DEBUG ---');
-console.log('User:', userProfile?.username);
-console.log('Effective Allowed Pages:', effectiveAllowedPages);
+  // console.log('--- PERMISSION DEBUG ---');
+  // console.log('Effective Allowed Pages:', effectiveAllowedPages);
   
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
   const [showHeader, setShowHeader] = useState(true);
@@ -92,15 +91,17 @@ console.log('Effective Allowed Pages:', effectiveAllowedPages);
     import('./supabaseClient').then(({ testSupabaseConnection }) => {
       testSupabaseConnection().then(res => {
         if (!res.online) {
-          console.error('[APP] Supabase Connection Error:', res.error);
-          setSupabaseError(res.error || 'Lỗi kết nối Supabase');
+          console.error('[APP] Firebase Connection Error:', res.error);
+          setSupabaseError(res.error || 'Lỗi kết nối Firebase');
         } else {
-          console.log('[APP] Supabase Connection OK');
+          console.log('[APP] Firebase Connection OK');
           setSupabaseError(null);
         }
       });
     });
   }, []);
+
+
 
   // Removed the blocking error screen to allow fallback login
   // if (supabaseError && !userProfile) { ... }
@@ -139,7 +140,7 @@ console.log('Effective Allowed Pages:', effectiveAllowedPages);
 
   return (
     <div className={`min-h-screen flex flex-col pb-24 md:pb-0 bg-slate-50 selection:bg-indigo-100 selection:text-indigo-900`}>
-      {/* Supabase Error Banner */}
+      {/* Firebase Error Banner */}
       <AnimatePresence>
         {supabaseError && (
           <motion.div 
@@ -170,26 +171,12 @@ console.log('Effective Allowed Pages:', effectiveAllowedPages);
         transition={{ duration: 0.3, ease: "easeInOut" }}
         className="sticky top-0 z-50 bg-white print:hidden"
       >
-        {/* Title Card: QUẢN LÝ PHÂN CA - Hidden as per user request */}
-        {/* 
-        <div className="bg-indigo-600 py-2.5 px-4 flex items-center justify-center shadow-lg relative z-50">
-          <div className="absolute left-4">
-            <LayoutGrid size={16} className="text-indigo-200" />
-          </div>
-          <h1 className="text-white text-[11px] font-black uppercase tracking-[0.4em] drop-shadow-sm">
-            Quản lý phân ca
-          </h1>
-          <div className="absolute right-4 flex gap-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          </div>
-        </div>
-        */}
+
 
         {/* Top Header */}
         <header className="bg-white/80 backdrop-blur-md border-b border-slate-200">
           <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {/* Logo and Brand removed */}
             </div>
             
             <div className="flex items-center gap-2 sm:gap-3">
@@ -296,9 +283,9 @@ console.log('Effective Allowed Pages:', effectiveAllowedPages);
                   <button 
                     key={item.id}
                     onClick={() => setCurrentPage(item.id as any)}
-                    className={`flex items-center gap-2 px-4 py-3 text-xs font-black uppercase tracking-wider transition-colors ${isActive ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`flex items-center gap-2 px-5 py-3.5 text-sm font-black uppercase tracking-wider transition-colors ${isActive ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
                   >
-                    <Icon size={16} />
+                    <Icon size={18} />
                     {item.label}
                   </button>
                 );
@@ -307,25 +294,7 @@ console.log('Effective Allowed Pages:', effectiveAllowedPages);
           </div>
         </nav>
 
-        {/* Marquee Banner - Professional Ticker Style */}
-        <div className="bg-white border-b border-slate-100 h-9 flex items-center overflow-hidden relative">
-          <div className="pl-4 pr-3 border-r border-slate-100 h-full flex items-center bg-white z-20 shadow-[10px_0_15px_-5px_rgba(255,255,255,1)]">
-            <span className="text-[8px] font-black bg-indigo-600 text-white px-2 py-0.5 rounded-[4px] tracking-wider uppercase">Beta</span>
-          </div>
-          <motion.div 
-            animate={{ x: ['100%', '-100%'] }}
-            transition={{ 
-              repeat: Infinity, 
-              duration: 30, 
-              ease: "linear" 
-            }}
-            className="whitespace-nowrap text-[11px] font-bold text-amber-500 uppercase tracking-[0.2em] pl-4"
-          >
-            App đang trong quá trình xây dựng chưa hoàn chỉnh, mong anh chị góp ý ạ !
-          </motion.div>
-          {/* Gradient fade on the right */}
-          <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none" />
-        </div>
+
       </motion.div>
 
       <main className="flex-1 relative">

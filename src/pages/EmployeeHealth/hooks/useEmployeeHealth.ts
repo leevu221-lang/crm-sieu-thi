@@ -36,20 +36,22 @@ export const useEmployeeHealth = (maKho: string) => {
           .from('store_realtime')
           .select('ycx_rt, ten_sieu_thi')
           .or(warehouseFilter)
-          .order('updated_at', { ascending: false })
-          .limit(1)
           .maybeSingle(),
         supabase
           .from('store_luyke')
           .select('lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, ten_sieu_thi')
           .or(warehouseFilter)
-          .order('updated_at', { ascending: false })
-          .limit(1)
           .maybeSingle()
       ]);
 
       if (rtError) console.error('[EmployeeHealth] RT Error:', rtError);
       if (lkError) console.error('[EmployeeHealth] LK Error:', lkError);
+      console.log('[EmployeeHealth] Query result:', { 
+        maKho, warehouseFilter, 
+        rtData: rtData ? 'found' : 'null', 
+        lkData: lkData ? 'found' : 'null',
+        lk_dt_nv_length: lkData?.lk_dt_nv?.length || 0
+      });
       
       const ycxRaw = rtData?.ycx_rt || '';
       const lkRaw = lkData?.lk_dt_nv || '';

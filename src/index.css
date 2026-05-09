@@ -1,6 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Lexend:wght@300;400;500;600;700;800;900&family=Oswald:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
+/* Global font size reduction: ~45% of default */
+html {
+  font-size: 7.17px;
+}
+
+/* Mobile: slightly larger for touch readability */
+@media (max-width: 768px) {
+  html {
+    font-size: 7.56px;
+  }
+}
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-lexend: "Lexend", sans-serif;

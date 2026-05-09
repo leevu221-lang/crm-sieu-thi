@@ -89,7 +89,7 @@ export const useRealtimeData = (maKho: string) => {
       const markets = parseMarketData(marketInput, 0, 'RTST');
       const categories = parseCategoryData(categoryInput, 0, 30, markets);
       const staff = parseYcxData(ycxData, conversionRates);
-      console.log('[useRealtimeData] handleProcess: staff count:', staff?.length || 0);
+      // console.log('[useRealtimeData] handleProcess: staff count:', staff?.length || 0);
       const ycxRankData = parseYcxRankData(ycxData, conversionRates);
 
       setProcessedData({
@@ -139,12 +139,13 @@ export const useRealtimeData = (maKho: string) => {
       const cleanMaKho = normalizedMaKho;
       const cleanStore = (activeStore || normalizedMaKho).trim();
 
-      console.log('[RealtimeData] Saving data for:', cleanMaKho, {
-        ycxLength: ycxData?.length || 0,
-        marketLength: marketInput?.length || 0
-      });
+      // console.log('[RealtimeData] Saving data for:', cleanMaKho, {
+      //   ycxLength: ycxData?.length || 0,
+      //   marketLength: marketInput?.length || 0
+      // });
 
-      const { error } = await supabase
+      // 1. First, upsert the current active store to ensure at least one record exists
+      const { error: upsertError } = await supabase
         .from('store_realtime')
         .upsert({
           warehouse_code: cleanMaKho,
@@ -155,16 +156,31 @@ export const useRealtimeData = (maKho: string) => {
           updated_at: new Date().toISOString()
         }, { onConflict: 'warehouse_code,ten_sieu_thi' });
 
-      if (error) {
-        console.error('[RealtimeData] Upsert error:', error);
-        throw error;
+      if (upsertError) {
+        console.error('[RealtimeData] Upsert error:', upsertError);
+        throw upsertError;
+      }
+
+      // 2. Then, update all other stores with the same warehouse_code to keep them in sync
+      const { error: updateError } = await supabase
+        .from('store_realtime')
+        .update({
+          rt_bi_tong_quan: marketInput,
+          rt_nh_cum: categoryInput,
+          bc_dt_nganh_hang: categoryRevenueInput,
+          updated_at: new Date().toISOString()
+        })
+        .eq('warehouse_code', cleanMaKho);
+
+      if (updateError) {
+        console.warn('[RealtimeData] Global update error (non-critical):', updateError);
       }
       
       if (!silent) {
         setIsYcxDirty(false);
       }
       
-      console.log('[RealtimeData] Data saved successfully to DB for:', cleanMaKho);
+      // console.log('[RealtimeData] Data saved successfully to DB for:', cleanMaKho);
       if (!silent) showNotification('Đã lưu dữ liệu Realtime thành công!', 'success');
     } catch (error: any) {
       console.error('Lỗi lưu dữ liệu Realtime:', error);
@@ -196,7 +212,7 @@ export const useRealtimeData = (maKho: string) => {
     }
 
     autoSaveTimeoutRef.current = setTimeout(() => {
-      console.log('[RTST] Auto-saving data to DB...');
+      // console.log('[RTST] Auto-saving data to DB...');
       saveRealtimeData(true);
     }, 3000); // 3 seconds debounce for typing
 
@@ -208,16 +224,17 @@ export const useRealtimeData = (maKho: string) => {
   }, [marketInput, categoryInput, categoryRevenueInput, normalizedMaKho, activeStore, saveRealtimeData]);
 
   const loadData = useCallback(async () => {
-    if (!normalizedMaKho) {
-      console.log('[RTST] loadData: maKho is empty, skipping load');
-      return;
-    }
+    if (!normalizedMaKho) return;
     const cleanMaKho = normalizedMaKho;
-    const shortMaKho = cleanMaKho; // Already normalized
+    const shortMaKho = cleanMaKho;
     const paddedMaKho = shortMaKho.padStart(7, '0');
     
-    setIsLoadingRealtime(true);
-    console.log(`[RTST] loadData: Fetching for maKho: ${cleanMaKho} (Short: ${shortMaKho}, Padded: ${paddedMaKho})`);
+    // Cache-first: Only show loading spinner if we have NO cached data at all
+    const hasCachedData = !!(localStorage.getItem(STORAGE_KEYS.MARKET_INPUT) || localStorage.getItem(STORAGE_KEYS.CATEGORY_INPUT));
+    if (!hasCachedData) {
+      setIsLoadingRealtime(true);
+    }
+    
     try {
       const { data, error } = await supabase
         .from('store_realtime')
@@ -228,25 +245,25 @@ export const useRealtimeData = (maKho: string) => {
 
       if (error) {
         console.error('[RTST] Error loading realtime data:', error);
-        showNotification('Lỗi khi tải dữ liệu từ Database', 'error');
         return;
       }
 
-        if (data && data.length > 0) {
+
+      if (data && data.length > 0) {
         const record = data[0];
-        console.log(`[RTST] loadData: Found record for ${maKho}.`);
-        
         skipAutoSaveRef.current = true;
         setMarketInput(record.rt_bi_tong_quan || '');
         setCategoryInput(record.rt_nh_cum || '');
-        
         setCategoryRevenueInput(record.bc_dt_nganh_hang || '');
         setActiveStore(record.ten_sieu_thi || maKho);
         if (record.updated_at) setLastUpdated(new Date(record.updated_at));
-      } else {
-        console.log('[RTST] loadData: No data found in DB for this maKho');
-        // If no data in DB, we might want to clear or keep local? 
-        // Let's keep local for now but log it.
+      } else if (hasCachedData) {
+        // Firebase is empty but localStorage has data → auto-sync to Firebase
+        console.log('[RTST] Firebase empty, auto-syncing localStorage data to Firebase...');
+        setTimeout(() => {
+          saveRealtimeData(true); // silent save
+          console.log('[RTST] Auto-sync from localStorage to Firebase complete!');
+        }, 500);
       }
     } catch (err) {
       console.error('[RTST] Unexpected error in loadData:', err);
@@ -258,7 +275,7 @@ export const useRealtimeData = (maKho: string) => {
   // Handle maKho change
   useEffect(() => {
     if (normalizedMaKho) {
-      console.log(`[RTST] maKho detected: ${normalizedMaKho}. Preparing to load...`);
+      // console.log(`[RTST] maKho detected: ${normalizedMaKho}. Preparing to load...`);
       loadData();
     } else {
       clearData();
@@ -271,7 +288,7 @@ export const useRealtimeData = (maKho: string) => {
   useEffect(() => {
     if (!normalizedMaKho) return;
 
-    console.log(`[RTST] Subscribing to realtime updates for warehouse: ${normalizedMaKho}`);
+    // console.log(`[RTST] Subscribing to realtime updates for warehouse: ${normalizedMaKho}`);
     
     const channel = supabase
       .channel(`public:store_realtime:warehouse_code=eq.${normalizedMaKho}`)
@@ -284,7 +301,7 @@ export const useRealtimeData = (maKho: string) => {
           filter: `warehouse_code=eq.${normalizedMaKho}`
         },
         (payload) => {
-          console.log('[RTST] Realtime update received from DB:', payload);
+          // console.log('[RTST] Realtime update received from DB:', payload);
           if (payload.new) {
             const record = payload.new as any;
             
@@ -318,11 +335,11 @@ export const useRealtimeData = (maKho: string) => {
         }
       )
       .subscribe((status) => {
-        console.log(`[RTST] Subscription status for ${maKho}:`, status);
+        // console.log(`[RTST] Subscription status for ${maKho}:`, status);
       });
 
     return () => {
-      console.log(`[RTST] Unsubscribing from realtime updates for ${maKho}`);
+      // console.log(`[RTST] Unsubscribing from realtime updates for ${maKho}`);
       supabase.removeChannel(channel);
     };
   }, [normalizedMaKho]);

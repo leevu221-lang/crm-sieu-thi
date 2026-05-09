@@ -208,9 +208,9 @@ export const isValidStoreName = (name: string): boolean => {
   // Check if any keyword exists in the name (using both normalization forms)
   const isValid = keywords.some(k => nfc.includes(k) || nfd.includes(k));
   
-  if (!isValid) {
-    console.warn(`[isValidStoreName] Invalid store name: "${name}" (NFC: "${nfc}", NFD: "${nfd}")`);
-  }
+  // if (!isValid) {
+  //   console.warn(`[isValidStoreName] Invalid store name: "${name}" (NFC: "${nfc}", NFD: "${nfd}")`);
+  // }
   
   return isValid;
 };

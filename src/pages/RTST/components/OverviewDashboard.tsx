@@ -4,13 +4,13 @@
  */
 
 import React from 'react';
-import { Camera, Target, TrendingUp, BarChart3, Zap, Store, Smartphone, Watch, Monitor } from 'lucide-react';
+import { Camera, Target, TrendingUp, BarChart3, Zap, Store, Smartphone, Watch, Monitor, Globe } from 'lucide-react';
 import { MarketInfo } from '../types';
 import { formatRealtimeDate, cn, formatShortCurrency, isValidStoreName, normalize } from '../utils';
 import Dashboard from './Dashboard';
 
 import CategoryTable from './CategoryTable';
-import LuyKeCategoryTable from '../../LuyKeCategoryTable';
+
 
 interface OverviewDashboardProps {
   markets: MarketInfo[];
@@ -95,6 +95,16 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
               {m.name}
             </button>
           ))}
+          {/* Temporarily hidden */}
+          {false && title.toUpperCase().includes('LUỸ KẾ') && (
+            <button
+              onClick={() => window.open('https://bi.thegioididong.com/khoi-ban-hang-sub?id=73920&tab=bcth&rt=1&dm=1', '_blank')}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-400 to-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:from-amber-500 hover:to-amber-600 transition-all shadow-lg shadow-amber-200/50 active:scale-95 border-t border-white/20 ml-auto"
+            >
+              <Globe size={14} />
+              Lấy dữ liệu BI
+            </button>
+          )}
         </div>
       )}
 
@@ -134,52 +144,38 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-6">
                 {(() => {
-                  // Find the target for this specific market from allStoreTargets using robust matching
                   const normMarketName = normalize(market.name);
                   
-                  // 1. Calculate target based on current file data
-                  const mDtDuKienQD = market.targetQD || 0;
-                  const mPercentHT = market.percentHT || 0;
-                  const mTargetQuyDoi = mPercentHT > 0 ? Math.round(mDtDuKienQD / (mPercentHT / 100)) : 0;
-
-                  // 2. Find the target for this specific market from allStoreTargets using robust matching
-                  const mTargetData = Object.entries(allStoreTargets || {}).find(([name, settings]) => {
-                    // 1. Try matching by warehouse code if available
-                    let mCode = market.ma_kho ? market.ma_kho.toString().trim().replace(/^0+/, '').replace(/[\s_]+/g, '').toUpperCase() : "";
-                    
-                    // Fallback: extract code from market name if ma_kho is missing
-                    if (!mCode && market.name) {
-                      const codeMatch = market.name.match(/^([^-]+)/);
-                      if (codeMatch) mCode = codeMatch[1].trim().replace(/[\s_]+/g, '').toUpperCase();
-                    }
-
-                    if (mCode && settings.warehouse_code) {
-                      const sCode = settings.warehouse_code.toString().trim().replace(/^0+/, '').replace(/[\s_]+/g, '').toUpperCase();
-                      if (mCode === sCode) return true;
+                  // STRICT matching with KHAI BÁO (Cài đặt doanh thu)
+                  let mTargetData: any = undefined;
+                  
+                  if (allStoreTargets) {
+                    // Priority 1: Exact normalized name match
+                    for (const [name, settings] of Object.entries(allStoreTargets)) {
+                      if (normalize(name) === normMarketName) {
+                        mTargetData = settings;
+                        break;
+                      }
                     }
                     
-                    // 2. Try matching by name
-                    const normName = normalize(name);
-                    const normMarketName = normalize(market.name || '');
-                    return normName === normMarketName || normName.includes(normMarketName) || normMarketName.includes(normName);
-                  })?.[1];
-                  
-                  // 4. Final target: STRICTLY use saved target from Khai Bao (CÀI ĐẶT DOANH THU SIÊU THỊ)
-                  // No fallback calculation allowed (CẤM DỰ ĐOÁN KẾT QUẢ)
-                  let finalTargetSauHeSo = mTargetData?.stTargetSauHeSo || 0;
-                  
-                  // If this is the active store, prioritize the prop value which is more up-to-date
-                  if (stName && normalize(market.name) === normalize(stName) && stTargetSauHeSo > 0) {
-                    finalTargetSauHeSo = stTargetSauHeSo;
+                    // Priority 2: Match by settings.stName if priority 1 fails
+                    if (!mTargetData) {
+                      for (const settings of Object.values(allStoreTargets) as any[]) {
+                        if (settings.stName && normalize(settings.stName) === normMarketName) {
+                          mTargetData = settings;
+                          break;
+                        }
+                      }
+                    }
                   }
 
+                  // Use TAGET SAU X HỆ SỐ directly from Khai Bao
+                  const finalTargetSauHeSo = mTargetData?.stTargetSauHeSo || 0;
+
                   return [
-                    { label: 'TARGET (QĐ)', value: `${Math.round(market.targetQD || 0).toLocaleString('vi-VN')}`, color: 'bg-blue-600', icon: <Target size={20} /> },
                     { 
                       label: 'TARGET QUY ĐỔI', 
-                      value: title.toUpperCase().includes('LUỸ KẾ')
-                        ? Math.round(finalTargetSauHeSo).toLocaleString('vi-VN')
-                        : Math.round(market.targetQD || 0).toLocaleString('vi-VN'), 
+                      value: Math.round(finalTargetSauHeSo).toLocaleString('vi-VN'), 
                       color: 'bg-blue-800', 
                       icon: <Target size={20} /> 
                     },
@@ -218,7 +214,7 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                     if (hideTargetQD || title.toUpperCase().includes('LUỸ KẾ')) {
                       return card.label !== 'TARGET (QĐ)';
                     }
-                    return card.label !== 'TARGET QUY ĐỔI';
+                    return true;
                   }).map((card, i) => (
                     <div key={i} className={cn("p-5 rounded-2xl border shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full text-white", card.color)}>
                       <div className="flex justify-between items-start mb-4">
@@ -240,7 +236,7 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
         {categories.length > 0 && (
           <div className="mt-4">
             {title.toUpperCase().includes('LUỸ KẾ') ? (
-              <LuyKeCategoryTable 
+              <CategoryTable 
                 categories={categories}
                 catMarketFilter={marketFilter}
                 setCatMarketFilter={setMarketFilter}
@@ -248,8 +244,6 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                 setCatGroupFilter={setCatGroupFilter}
                 captureRef={categoryCaptureRef || captureRef}
                 captureElement={captureElement}
-                daysPassed={daysPassed}
-                totalDays={totalDays}
               />
             ) : (
               <CategoryTable 

@@ -242,8 +242,8 @@ export default function UserManagement({ onBack }: UserManagementProps) {
               )}
             </div>
           ) : (
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+            <table className="w-full text-left text-[14px]">
+              <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-xs tracking-wider">
                 <tr>
                   <th className="px-6 py-4 border-b border-slate-200">Mã NV</th>
                   <th className="px-6 py-4 border-b border-slate-200">Mã Kho</th>
@@ -262,20 +262,39 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                       {user.ma_kho}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-                        user.role === 'admin' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {user.role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}
-                      </span>
+                      {user.username === '43751' ? (
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm">
+                          <Shield size={12} />
+                          SUPER ADMIN
+                        </span>
+                      ) : (
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                          user.role === 'admin' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {user.role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex gap-1">
-                        {user.userPermissions?.allowedPages?.includes('realtime') && <span className="w-2 h-2 rounded-full bg-indigo-500" title="BC NGÀY" />}
-                        {user.userPermissions?.allowedPages?.includes('luyke') && <span className="w-2 h-2 rounded-full bg-blue-500" title="BC THÁNG" />}
-                        {user.userPermissions?.allowedPages?.includes('khaibao') && <span className="w-2 h-2 rounded-full bg-indigo-500" title="Khai Báo" />}
-                        {user.userPermissions?.allowedPages?.includes('health') && <span className="w-2 h-2 rounded-full bg-rose-500" title="Sức khoẻ nhân viên" />}
-                        {user.userPermissions?.allowedPages?.includes('toolhotro') && <span className="w-2 h-2 rounded-full bg-amber-500" title="Tool Hỗ Trợ" />}
-                      </div>
+                      {user.username === '43751' ? (
+                        <span className="text-sm font-bold text-amber-600 italic">Toàn quyền</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {[
+                            { id: 'realtime', label: 'BC Ngày', color: 'bg-indigo-100 text-indigo-700' },
+                            { id: 'luyke', label: 'BC Tháng', color: 'bg-blue-100 text-blue-700' },
+                            { id: 'khaibao', label: 'Khai Báo', color: 'bg-violet-100 text-violet-700' },
+                            { id: 'health', label: 'Sức Khoẻ', color: 'bg-rose-100 text-rose-700' },
+                            { id: 'toolhotro', label: 'Tool HT', color: 'bg-amber-100 text-amber-700' },
+                            { id: 'tnb_dm_7611', label: 'TNB', color: 'bg-emerald-100 text-emerald-700' },
+                          ].filter(p => user.userPermissions?.allowedPages?.includes(p.id)).map(p => (
+                            <span key={p.id} className={`px-2.5 py-1 rounded-full text-xs font-bold ${p.color}`}>{p.label}</span>
+                          ))}
+                          {(!user.userPermissions?.allowedPages || user.userPermissions.allowedPages.length === 0) && (
+                            <span className="text-xs text-slate-400 italic">Chưa phân quyền</span>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -289,13 +308,15 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                         >
                           <Edit2 size={16} />
                         </button>
-                        <button
-                          onClick={() => setDeleteConfirm(user.username)}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Xoá"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {user.username !== '43751' && (
+                          <button
+                            onClick={() => setDeleteConfirm(user.username)}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Xoá"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

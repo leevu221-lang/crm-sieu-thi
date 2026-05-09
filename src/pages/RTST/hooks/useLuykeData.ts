@@ -78,7 +78,7 @@ export const useLuykeData = (maKho: string) => {
         .maybeSingle();
 
       const targetsToSave = overrideTargets || categoryTargets;
-      console.log(`[SAVE] Saving ${targetsToSave?.length || 0} category targets for store: ${cleanStore}`);
+      // console.log(`[SAVE] Saving ${targetsToSave?.length || 0} category targets for store: ${cleanStore}`);
 
       // 2. Prepare payload: only update fields that have content, otherwise keep existing
       const payload: any = {
@@ -96,13 +96,32 @@ export const useLuykeData = (maKho: string) => {
         updated_at: new Date().toISOString()
       };
 
-      const { error } = await supabase
+      // 1. First, upsert the current active store
+      const { error: upsertError } = await supabase
         .from('store_luyke')
         .upsert(payload, { onConflict: 'warehouse_code,ten_sieu_thi' });
 
-      if (error) {
-        console.error('[LuykeData] Upsert error:', error);
-        throw error;
+      if (upsertError) {
+        console.error('[LuykeData] Upsert error:', upsertError);
+        throw upsertError;
+      }
+
+      // 2. Then, update all other stores with the same warehouse_code to keep them in sync
+      // We only sync the global background data (BC TỔNG HỢP CỤM, BC NGÀNH HÀNG CỤM)
+      // Personnel data (lk_dt_nv, lk_td_nv, ds_nhan_vien) and targets are kept specific to the store
+      const globalUpdatePayload = {
+        lk_bi_tong_quan: payload.lk_bi_tong_quan,
+        lk_nh_sieu_thi: payload.lk_nh_sieu_thi,
+        updated_at: payload.updated_at
+      };
+
+      const { error: updateError } = await supabase
+        .from('store_luyke')
+        .update(globalUpdatePayload)
+        .eq('warehouse_code', cleanMaKho);
+
+      if (updateError) {
+        console.warn('[LuykeData] Global update error (non-critical):', updateError);
       }
       if (!isSilent) showNotification('Lưu dữ liệu Luỹ kế thành công!', 'success');
     } catch (error: any) {
@@ -150,7 +169,7 @@ export const useLuykeData = (maKho: string) => {
         if (isValidStoreName(detectedStore)) {
           if (!currentIsFullStore || activeStore.match(/^\d+$/)) {
             if (detectedStore !== activeStore) {
-              console.log(`[LuykeData] Detected new store name: ${detectedStore}. Updating activeStore.`);
+              // console.log(`[LuykeData] Detected new store name: ${detectedStore}. Updating activeStore.`);
               setActiveStore(detectedStore);
               // Lưu ngay với tên siêu thị vừa nhận diện được để tránh timing issue của state
               saveLuykeData(true, 'auto', detectedStore);
@@ -247,7 +266,7 @@ export const useLuykeData = (maKho: string) => {
     }
 
     setIsLoading(true);
-    console.log(`[LuykeData] loadData: Fetching for maKho: ${cleanMaKho}, store: ${targetStore}`);
+    // console.log(`[LuykeData] loadData: Fetching for maKho: ${cleanMaKho}, store: ${targetStore}`);
     
     try {
       const { data, error } = await supabase
@@ -285,7 +304,19 @@ export const useLuykeData = (maKho: string) => {
           setCategoryTargets(record.category_targets);
         }
       } else {
-        console.log('[LuykeData] No record found in Database for warehouse_code:', maKho);
+        // Firebase is empty, check if localStorage has cached data to auto-sync
+        const hasCachedLuyke = !!(
+          localStorage.getItem(STORAGE_KEYS.CLUSTER_SUMMARY_INPUT) || 
+          localStorage.getItem(STORAGE_KEYS.CLUSTER_CATEGORY_INPUT) ||
+          localStorage.getItem('BI_REAL_STAF_V1')
+        );
+        if (hasCachedLuyke) {
+          console.log('[LuykeData] Firebase empty, auto-syncing localStorage data to Firebase...');
+          setTimeout(() => {
+            saveLuykeData(true, 'auto');
+            console.log('[LuykeData] Auto-sync from localStorage to Firebase complete!');
+          }, 1000);
+        }
       }
       
       setLastLoadedMaKho(cleanMaKho);
@@ -305,7 +336,7 @@ export const useLuykeData = (maKho: string) => {
   useEffect(() => {
     if (!maKho) return;
 
-    console.log(`[LuykeData] Subscribing to realtime updates for warehouse: ${maKho}`);
+    // console.log(`[LuykeData] Subscribing to realtime updates for warehouse: ${maKho}`);
     
     const channel = supabase
       .channel(`public:store_luyke:warehouse_code=eq.${maKho}`)
@@ -318,7 +349,7 @@ export const useLuykeData = (maKho: string) => {
           filter: `warehouse_code=eq.${maKho}`
         },
         (payload) => {
-          console.log('[LuykeData] Realtime update received from DB:', payload);
+          // console.log('[LuykeData] Realtime update received from DB:', payload);
           if (payload.new) {
             const record = payload.new as any;
             
@@ -344,7 +375,7 @@ export const useLuykeData = (maKho: string) => {
       .subscribe();
 
     return () => {
-      console.log(`[LuykeData] Unsubscribing from realtime updates for ${maKho}`);
+      // console.log(`[LuykeData] Unsubscribing from realtime updates for ${maKho}`);
       supabase.removeChannel(channel);
     };
   }, [maKho]);

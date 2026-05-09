@@ -10,7 +10,7 @@ import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';
 import { useAuth } from '../contexts/AuthContext';
 import { useMarket } from '../contexts/MarketContext';
 import InputSection from './RTST/components/InputSection';
-import { Loader2, Database, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Database, Eye, EyeOff, BarChart3, Clock, Users, Target, TrendingUp, Globe, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, parseMarketData, getMarketRegistry, cleanNum, extractSection, safeSetItem, normalize, isValidStoreName } from './RTST/utils';
 
@@ -288,136 +288,162 @@ const KhaiBao: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-32 pt-6 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto space-y-8">
-        {/* Page Header - Sticky */}
-        <div className="sticky top-0 z-40 bg-slate-50/80 backdrop-blur-md py-4 -mx-4 px-4 border-b border-slate-200 transition-all duration-300">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-100">
-                <Database size={24} />
+    <div className="min-h-screen bg-[#f8fafc] font-sans">
+      {/* Professional Header - Spans full width */}
+      <div className="bg-white border-b border-slate-200 px-8 py-5 sticky top-0 z-50 shadow-sm">
+        <div className="max-w-[1800px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center gap-5">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-400 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+              <Database size={24} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600">Hệ thống quản trị</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               </div>
-              <div>
-                <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">KHAI BÁO DỮ LIỆU</h1>
-                  <button 
-                    onClick={() => setShowAll(!showAll)}
-                    className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-indigo-600 hover:border-indigo-100 transition-all shadow-sm"
-                    title={showAll ? "Ẩn tất cả" : "Hiện tất cả"}
-                  >
-                    {showAll ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Cập nhật thông số vận hành & dữ liệu BI</p>
-              </div>
+              <h1 className="text-xl font-black text-slate-800 tracking-tight uppercase">Khai báo dữ liệu</h1>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setShowAll(!showAll)}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-all text-[11px] font-black uppercase tracking-tighter"
+            >
+              {showAll ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showAll ? "Thu gọn giao diện" : "Mở rộng giao diện"}
+            </button>
+            <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
+              <div className="w-2 h-2 bg-indigo-600 rounded-full" />
+              <span className="text-[11px] font-black text-slate-800 uppercase tracking-tighter">Kho: {maKho || '---'}</span>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Tabs */}
-        <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2 scrollbar-hide">
-          {[
-            { id: 'REALTIME', label: 'REALTIME' },
-            { id: 'LUY_KE', label: 'DATA LUỸ KẾ' },
-            { id: 'THOI_GIAN', label: 'CÀI ĐẶT THỜI GIAN' },
-            { id: 'NHAN_VIEN', label: 'DỮ LIỆU NV' },
-            { id: 'TARGET_NGANH_HANG', label: 'CÀI ĐẶT TAGET NGÀNH HÀNG' },
-            { id: 'TARGET_DOANH_THU', label: 'CÀI ĐẶT TAGET DOANH THU' },
-            { id: 'RESOURCES', label: 'TÀI NGUYÊN' }
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={cn(
-                "px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap",
-                activeTab === tab.id
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
-                  : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+      <div className="max-w-[1800px] mx-auto flex flex-col lg:flex-row gap-8 p-8">
+        {/* Left Vertical Navigation */}
+        <div className="w-full lg:w-[340px] shrink-0">
+          <div className="flex flex-col gap-3 py-4 sticky top-[116px]">
+            {[
+              { id: 'REALTIME', label: 'REALTIME', icon: Database },
+              { id: 'LUY_KE', label: 'DATA LUỸ KẾ', icon: BarChart3 },
+              { id: 'THOI_GIAN', label: 'CÀI ĐẶT THỜI GIAN', icon: Clock },
+              { id: 'NHAN_VIEN', label: 'DỮ LIỆU NV', icon: Users },
+              { id: 'TARGET_NGANH_HANG', label: 'CÀI ĐẶT TAGET NGÀNH HÀNG', icon: Target },
+              { id: 'TARGET_DOANH_THU', label: 'CÀI ĐẶT TAGET DOANH THU', icon: TrendingUp },
+              { id: 'RESOURCES', label: 'TÀI NGUYÊN', icon: Globe }
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`w-full flex items-center gap-4 px-6 py-5 rounded-[22px] border transition-all duration-300 group ${
+                    isActive 
+                      ? 'bg-white border-indigo-500 shadow-[0_15px_35px_-10px_rgba(79,70,229,0.15)] -translate-y-0.5 translate-x-1' 
+                      : 'bg-transparent border-transparent hover:bg-white/50 hover:border-slate-200 text-slate-500'
+                  }`}
+                >
+                  <div className={`p-2.5 rounded-xl transition-all duration-300 ${
+                    isActive ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400 group-hover:bg-white group-hover:text-slate-500'
+                  }`}>
+                    <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
+                  </div>
+                  <span className={`text-[13px] font-black tracking-tight uppercase text-left ${isActive ? 'text-slate-800' : 'text-slate-500'}`}>
+                    {tab.label}
+                  </span>
+                  {isActive && (
+                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.5)]" />
+                  )}
+                </button>
+              );
+            })}
+
+          </div>
         </div>
 
-        {/* Input Section Component */}
-        <InputSection 
-          marketInput={marketInput}
-          setMarketInput={setMarketInput}
-          categoryInput={categoryInput}
-          setCategoryInput={setCategoryInput}
-          categoryRevenueInput={categoryRevenueInput}
-          setCategoryRevenueInput={setCategoryRevenueInput}
-          manualAdjustment={manualAdjustment}
-          setManualAdjustment={setManualAdjustment}
-          selectedMonth={selectedMonth}
-          setSelectedMonth={setSelectedMonth}
-          daysPassed={daysPassed}
-          setDaysPassed={setDaysPassed}
-          totalDays={totalDays}
-          setTotalDays={setTotalDays}
-          ycxFileName={ycxFileName}
-          setYcxFileName={setYcxFileName}
-          linkBcTongHop={linkBcTongHop}
-          setLinkBcTongHop={setLinkBcTongHop}
-          linkNganhHangTongHop={linkNganhHangTongHop}
-          setLinkNganhHangTongHop={setLinkNganhHangTongHop}
-          clusterSummaryInput={clusterSummaryInput}
-          setClusterSummaryInput={setClusterSummaryInput}
-          clusterCategoryInput={clusterCategoryInput}
-          setClusterCategoryInput={setClusterCategoryInput}
-          setYcxData={setYcxData}
-          ycxData={ycxData}
-          onAnalyze={() => { processRealtimeData(); processLuykeData(); }}
-          onSaveRealtime={saveRealtimeData}
-          onSyncRealtime={syncRealtimeData}
-          onLoadRealtime={loadData}
-          activeStore={marketFilter}
-          onSaveLuyke={saveLuykeData}
-          onSyncFromRealtime={handleSync}
-          isSavingRealtime={isSavingRealtime}
-          isLoadingRealtime={isLoadingRealtime}
-          isProcessingLuyke={isProcessingSave}
-          isLoadingLuyke={isLoading}
-          isSavingStaff={isSavingStaff}
-          isSavingTargets={isSavingTargets}
-          staffListInput={staffListInput}
-          setStaffListInput={setStaffListInput}
-          staffListFileName={staffListFileName}
-          setStaffListFileName={setStaffListFileName}
-          handleStaffListUpload={handleStaffListUpload}
-          staffInput={staffInput}
-          setStaffInput={setStaffInput}
-          staffCategoryInput={staffCategoryInput}
-          setStaffCategoryInput={setStaffCategoryInput}
-          categoryTargets={categoryTargets}
-          setCategoryTargets={setCategoryTargets}
-          stName={stName}
-          setStName={setStName}
-          stDtlk={stDtlk}
-          setStDtlk={setStDtlk}
-          stDtqd={stDtqd}
-          setStDtqd={setStDtqd}
-          stDtDuKienQD={stDtDuKienQD}
-          setStDtDuKienQD={setStDtDuKienQD}
-          stPercentHTTargetDuKienQD={stPercentHTTargetDuKienQD}
-          setStPercentHTTargetDuKienQD={setStPercentHTTargetDuKienQD}
-          stTargetQuyDoi={stTargetQuyDoi}
-          setStTargetQuyDoi={setStTargetQuyDoi}
-          stPercentTarget={stPercentTarget}
-          setStPercentTarget={setStPercentTarget}
-          stTargetSauHeSo={stTargetSauHeSo}
-          onSaveStoreRevenue={() => saveStoreRevenue(maKho, activeStore)}
-          onLoadStoreRevenue={() => loadStoreRevenue(maKho)}
-          isSavingStoreRevenue={isSavingStoreRevenue}
-          isLoadingStoreRevenue={isLoadingStoreRevenue}
-          isValidStoreName={isValidStoreName}
-          VALID_STORE_PREFIXES={VALID_STORE_PREFIXES}
-          lastUpdatedRealtime={rtLastUpdated}
-          isYcxDirty={isYcxDirty}
-          showAll={showAll}
-          activeTab={activeTab}
-        />
+        {/* Main Content Area - Right Side */}
+        <div className="flex-1 min-w-0">
+          <InputSection 
+            marketInput={marketInput}
+            setMarketInput={setMarketInput}
+            categoryInput={categoryInput}
+            setCategoryInput={setCategoryInput}
+            categoryRevenueInput={categoryRevenueInput}
+            setCategoryRevenueInput={setCategoryRevenueInput}
+            manualAdjustment={manualAdjustment}
+            setManualAdjustment={setManualAdjustment}
+            selectedMonth={selectedMonth}
+            setSelectedMonth={setSelectedMonth}
+            daysPassed={daysPassed}
+            setDaysPassed={setDaysPassed}
+            totalDays={totalDays}
+            setTotalDays={setTotalDays}
+            ycxFileName={ycxFileName}
+            setYcxFileName={setYcxFileName}
+            linkBcTongHop={linkBcTongHop}
+            setLinkBcTongHop={setLinkBcTongHop}
+            linkNganhHangTongHop={linkNganhHangTongHop}
+            setLinkNganhHangTongHop={setLinkNganhHangTongHop}
+            clusterSummaryInput={clusterSummaryInput}
+            setClusterSummaryInput={setClusterSummaryInput}
+            clusterCategoryInput={clusterCategoryInput}
+            setClusterCategoryInput={setClusterCategoryInput}
+            setYcxData={setYcxData}
+            ycxData={ycxData}
+            onAnalyze={() => { processRealtimeData(); processLuykeData(); }}
+            onSaveRealtime={saveRealtimeData}
+            onSyncRealtime={syncRealtimeData}
+            onLoadRealtime={loadData}
+            activeStore={marketFilter}
+            onSaveLuyke={saveLuykeData}
+            onSyncFromRealtime={handleSync}
+            isSavingRealtime={isSavingRealtime}
+            isLoadingRealtime={isLoadingRealtime}
+            isProcessingLuyke={isProcessingSave}
+            isLoadingLuyke={isLoading}
+            isSavingStaff={isSavingStaff}
+            isSavingTargets={isSavingTargets}
+            staffListInput={staffListInput}
+            setStaffListInput={setStaffListInput}
+            staffListFileName={staffListFileName}
+            setStaffListFileName={setStaffListFileName}
+            handleStaffListUpload={handleStaffListUpload}
+            staffInput={staffInput}
+            setStaffInput={setStaffInput}
+            staffCategoryInput={staffCategoryInput}
+            setStaffCategoryInput={setStaffCategoryInput}
+            categoryTargets={categoryTargets}
+            setCategoryTargets={setCategoryTargets}
+            stName={stName}
+            setStName={setStName}
+            stDtlk={stDtlk}
+            setStDtlk={setStDtlk}
+            stDtqd={stDtqd}
+            setStDtqd={setStDtqd}
+            stDtDuKienQD={stDtDuKienQD}
+            setStDtDuKienQD={setStDtDuKienQD}
+            stPercentHTTargetDuKienQD={stPercentHTTargetDuKienQD}
+            setStPercentHTTargetDuKienQD={setStPercentHTTargetDuKienQD}
+            stTargetQuyDoi={stTargetQuyDoi}
+            setStTargetQuyDoi={setStTargetQuyDoi}
+            stPercentTarget={stPercentTarget}
+            setStPercentTarget={setStPercentTarget}
+            stTargetSauHeSo={stTargetSauHeSo}
+            onSaveStoreRevenue={() => saveStoreRevenue(maKho, activeStore)}
+            onLoadStoreRevenue={() => loadStoreRevenue(maKho)}
+            isSavingStoreRevenue={isSavingStoreRevenue}
+            isLoadingStoreRevenue={isLoadingStoreRevenue}
+            isValidStoreName={isValidStoreName}
+            VALID_STORE_PREFIXES={VALID_STORE_PREFIXES}
+            lastUpdatedRealtime={rtLastUpdated}
+            isYcxDirty={isYcxDirty}
+            showAll={showAll}
+            activeTab={activeTab}
+          />
+        </div>
       </div>
     </div>
   );
