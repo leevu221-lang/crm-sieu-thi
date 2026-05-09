@@ -364,7 +364,7 @@ const InputSection: React.FC<InputSectionProps> = ({
 
 
       {/* Time Settings Container */}
-      {activeTab === 'THOI_GIAN' && (
+      {activeTab === 'REALTIME' && (
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 flex items-center justify-between bg-slate-50 border-b border-slate-200">
           <div className="flex items-center gap-3">
@@ -424,7 +424,7 @@ const InputSection: React.FC<InputSectionProps> = ({
       )}
 
       {/* DATA NHÂN VIÊN Container */}
-      {activeTab === 'NHAN_VIEN' && (
+      {activeTab === 'REALTIME' && (
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 flex items-center justify-between bg-slate-50 border-b border-slate-200">
           <div className="flex items-center gap-3">
@@ -513,7 +513,7 @@ const InputSection: React.FC<InputSectionProps> = ({
       )}
 
       {/* CÀI ĐẶT TARGET NGÀNH HÀNG Container */}
-      {activeTab === 'TARGET_NGANH_HANG' && (
+      {activeTab === 'REALTIME' && (
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 border-b border-slate-200 gap-4">
           <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">CÀI ĐẶT TARGET NGÀNH HÀNG</h3>
@@ -693,7 +693,7 @@ const InputSection: React.FC<InputSectionProps> = ({
       )}
 
       {/* CÀI ĐẶT DOANH THU SIÊU THỊ Container */}
-      {activeTab === 'TARGET_DOANH_THU' && (
+      {activeTab === 'REALTIME' && (
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 flex items-center justify-between bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
           <div className="flex items-center gap-3">
