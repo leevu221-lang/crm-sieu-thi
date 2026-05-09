@@ -310,7 +310,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                           )}
                         </div>
                         {item.hasData && (
-                          <div onClick={(e) => { e.stopPropagation(); item.onChange(''); item.onBlur(); }} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0" title="Xoá dữ liệu">
+                          <div onClick={(e) => { e.stopPropagation(); item.onChange(''); }} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0" title="Xoá dữ liệu">
                             <X size={14} />
                           </div>
                         )}

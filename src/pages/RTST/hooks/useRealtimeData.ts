@@ -204,8 +204,7 @@ export const useRealtimeData = (maKho: string) => {
       return;
     }
 
-    // Only auto-save if there's content
-    if (!marketInput && !categoryInput && !ycxData && !categoryRevenueInput) return;
+
 
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
