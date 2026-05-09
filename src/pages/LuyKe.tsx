@@ -23,28 +23,6 @@ const LuyKe: React.FC = () => {
   const [maKho, setMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
   const [activeTab, setActiveTab] = useState<'summary' | 'efficiency'>('summary');
 
-  // Sync maKho when userProfile changes
-  useEffect(() => {
-    if (userProfile?.ma_kho && userProfile.ma_kho !== maKho) {
-      setMaKho(userProfile.ma_kho);
-      localStorage.setItem('rtst_ma_kho', userProfile.ma_kho);
-    }
-  }, [userProfile?.ma_kho]);
-
-  // Sync maKho from report data if available
-  useEffect(() => {
-    if (filteredMarkets.length > 0) {
-      const firstMarket = filteredMarkets[0];
-      if (firstMarket.ma_kho) {
-        const detectedMaKho = firstMarket.ma_kho.toString().trim().replace(/^0+/, '');
-        if (detectedMaKho && detectedMaKho !== maKho) {
-          console.log('[LuyKe] Detected ma_kho from report:', detectedMaKho);
-          setMaKho(detectedMaKho);
-        }
-      }
-    }
-  }, [filteredMarkets, maKho]);
-
   const {
     clusterSummaryInput, setClusterSummaryInput,
     clusterCategoryInput, setClusterCategoryInput,
@@ -67,7 +45,7 @@ const LuyKe: React.FC = () => {
     stDtqd, setStDtqd,
     stPercentHTTargetDuKienQD, setStPercentHTTargetDuKienQD,
     stPercentTarget, setStPercentTarget,
-    stTargetSauHeSo,
+    stTargetSauHeSo, setStTargetSauHeSo,
     storeSettings,
     saveStoreRevenue,
     loadStoreRevenue,
@@ -79,12 +57,35 @@ const LuyKe: React.FC = () => {
 
   const isInitialLoading = isLoading || isLoadingStoreRevenue;
 
+  // MUST be declared before any useEffect that references it
   const filteredMarkets = React.useMemo(() => {
     const allowedPrefixes = ["ĐML", "ĐMM", "ĐMS", "ĐMS3", "TGD", "AAR"];
     return displayData.markets.filter(m => 
       allowedPrefixes.some(prefix => m.name.toUpperCase().startsWith(prefix))
     );
   }, [displayData.markets]);
+
+  // Sync maKho when userProfile changes
+  useEffect(() => {
+    if (userProfile?.ma_kho && userProfile.ma_kho !== maKho) {
+      setMaKho(userProfile.ma_kho);
+      localStorage.setItem('rtst_ma_kho', userProfile.ma_kho);
+    }
+  }, [userProfile?.ma_kho]);
+
+  // Sync maKho from report data if available
+  useEffect(() => {
+    if (filteredMarkets.length > 0) {
+      const firstMarket = filteredMarkets[0];
+      if (firstMarket.ma_kho) {
+        const detectedMaKho = firstMarket.ma_kho.toString().trim().replace(/^0+/, '');
+        if (detectedMaKho && detectedMaKho !== maKho) {
+          console.log('[LuyKe] Detected ma_kho from report:', detectedMaKho);
+          setMaKho(detectedMaKho);
+        }
+      }
+    }
+  }, [filteredMarkets, maKho]);
 
   // Sync available markets to global context
   useEffect(() => {
