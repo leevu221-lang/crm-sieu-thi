@@ -287,7 +287,7 @@ const InputSection: React.FC<InputSectionProps> = ({
               ]},
               { title: 'THI ĐUA CỤM', color: 'bg-orange-500', hasYcx: true, items: [
                 { id: 'rt_cat', label: 'REALTIME', value: categoryInput, onChange: setCategoryInput, onBlur: () => onSaveRealtime(true), hasData: !!categoryInput },
-                { id: 'rt_catlk', label: 'LUỸ KẾ', value: categoryRevenueInput, onChange: setCategoryRevenueInput, onBlur: () => onSaveRealtime(true), hasData: !!ycxFileName, isLuyke: true },
+                { id: 'rt_catlk', label: 'LUỸ KẾ', value: clusterCategoryInput, onChange: setClusterCategoryInput, onBlur: () => onSaveLuyke(true,'auto'), hasData: !!clusterCategoryInput, isLuyke: true },
               ]},
             ].map(group => (
               <div key={group.title}>
@@ -346,7 +346,6 @@ const InputSection: React.FC<InputSectionProps> = ({
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {[
                 { id: 'lk_summary', label: 'BC TỔNG HỢP CỤM', value: clusterSummaryInput, onChange: setClusterSummaryInput, onBlur: () => onSaveLuyke(true,'auto'), hasData: !!clusterSummaryInput, link: 'https://bi.thegioididong.com/khoi-ban-hang-sub?id=13559&tab=bcth&rt=2&dm=1' },
-                { id: 'lk_category', label: 'BC NGÀNH HÀNG CỤM', value: clusterCategoryInput, onChange: setClusterCategoryInput, onBlur: () => onSaveLuyke(true,'auto'), hasData: !!clusterCategoryInput, link: 'https://bi.thegioididong.com/thi-dua?id=-1&tab=1&rt=2&dm=2&mt=2' },
               ].map(item => (
                 <div key={item.id}>
                   <button onClick={() => toggleInput(item.id)} className={cn(
