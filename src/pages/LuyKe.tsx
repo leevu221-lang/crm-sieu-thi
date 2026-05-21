@@ -19,7 +19,10 @@ import { normalize } from './RTST/utils';
 
 const LuyKe: React.FC = () => {
   const { userProfile } = useAuth();
-  const { marketFilter, setMarketFilter, availableMarkets: filteredMarkets } = useMarket();
+  const { marketFilter, setMarketFilter, availableMarkets } = useMarket();
+  const filteredMarkets = React.useMemo(() => {
+    return (availableMarkets || []).filter(m => !m.name.toUpperCase().includes('KHO BÁN HÀNG LƯU ĐỘNG'));
+  }, [availableMarkets]);
   const [maKho, setMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
   const [activeTab, setActiveTab] = useState<'summary' | 'efficiency'>('summary');
 
@@ -134,10 +137,23 @@ const LuyKe: React.FC = () => {
 
   // FastSync removed — allStoreTargets sync is handled in the unified effect above
 
+  // Filter out any supermarkets containing (KHO BÁN HÀNG LƯU ĐỘNG)
+  const filteredDisplayData = React.useMemo(() => {
+    return {
+      ...displayData,
+      markets: (displayData.markets || []).filter(
+        m => !m.name.toUpperCase().includes('KHO BÁN HÀNG LƯU ĐỘNG')
+      ),
+      categories: (displayData.categories || []).filter(
+        c => !c.marketName || !c.marketName.toUpperCase().includes('KHO BÁN HÀNG LƯU ĐỘNG')
+      )
+    };
+  }, [displayData]);
+
   // Categories from LUỸ KẾ TĐ already have correct data:
   // cat.target = Column 3 (TARGET) and cat.revenue = Column 2 (LUỸ KẾ)
   // No adjustment needed — pass through raw parsed values directly.
-  const adjustedCategories = displayData.categories;
+  const adjustedCategories = filteredDisplayData.categories;
 
   // Filter categories by marketFilter (store button selection)
   const filteredCategories = React.useMemo(() => {
@@ -156,8 +172,8 @@ const LuyKe: React.FC = () => {
         // unless we explicitly know it belongs to a completely different store (multi-store edge case).
         if (normMarketName && normFilter && normMarketName !== normFilter && !normMarketName.includes(normFilter) && !normFilter.includes(normMarketName)) {
            // In single-store view, even if names mismatch slightly, we trust the data source.
-           // Only filter if we have multiple stores loaded in displayData.markets.
-           if (displayData.markets && displayData.markets.length > 1) {
+           // Only filter if we have multiple stores loaded in filteredDisplayData.markets.
+           if (filteredDisplayData.markets && filteredDisplayData.markets.length > 1) {
              return false;
            }
         }
@@ -175,7 +191,7 @@ const LuyKe: React.FC = () => {
       seen.add(key);
       return true;
     });
-  }, [adjustedCategories, marketFilter]);
+  }, [adjustedCategories, marketFilter, filteredDisplayData.markets]);
 
   // Removed window focus re-processing to improve performance
 
@@ -329,7 +345,7 @@ const LuyKe: React.FC = () => {
               >
           <div ref={captureRefs.fullDashboard}>
             <OverviewDashboard 
-              markets={displayData.markets}
+              markets={filteredDisplayData.markets}
               marketFilter={marketFilter}
               setMarketFilter={setMarketFilter}
               captureRef={captureRefs.overviewInternal}
