@@ -20,7 +20,7 @@ interface OverviewDashboardProps {
   catGroupFilter?: string;
   setCatGroupFilter?: (val: string) => void;
   captureRef: React.RefObject<HTMLDivElement | null>;
-  categoryCaptureRef?: React.RefObject<HTMLDivElement | null>;
+  fullCaptureRef?: React.RefObject<HTMLDivElement | null>;
   captureElement: (ref: React.RefObject<HTMLDivElement | null>, name: string) => void;
   title?: string;
   showFilters?: boolean;
@@ -34,6 +34,7 @@ interface OverviewDashboardProps {
   allStoreTargets?: Record<string, any>;
   storeSettings?: Record<string, any>;
   stDtDuKienQD?: number;
+  stPercentTarget?: number;
 }
 
 const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
@@ -44,7 +45,7 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
   catGroupFilter = 'ALL',
   setCatGroupFilter = () => {},
   captureRef,
-  categoryCaptureRef,
+  fullCaptureRef,
   captureElement,
   title = 'TỔNG QUAN SIÊU THỊ (REALTIME)',
   showFilters = true,
@@ -57,7 +58,8 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
   stTargetSauHeSo = 0,
   allStoreTargets = {},
   storeSettings = {},
-  stDtDuKienQD = 0
+  stDtDuKienQD = 0,
+  stPercentTarget = 100
 }) => {
   const getIcon = (name: string) => {
     const upper = name.toUpperCase();
@@ -68,7 +70,18 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
   };
 
   const validMarkets = markets.filter(m => isValidStoreName(m.name) && m.name.trim() !== '104');
-  const filteredMarkets = validMarkets.filter(m => (marketFilter === 'ALL' || m.name === marketFilter));
+  const filteredMarkets = validMarkets.filter(m => 
+    marketFilter === 'ALL' || 
+    normalize(m.name).includes(normalize(marketFilter)) || 
+    normalize(marketFilter).includes(normalize(m.name))
+  );
+
+  const formatCurrencyUnit = (num: number) => {
+    const abs = Math.abs(Math.round(num));
+    if (abs >= 1000) return `${Math.round(num).toLocaleString('vi-VN')} tỷ`;
+    if (abs > 0) return `${Math.round(num).toLocaleString('vi-VN')} tr`;
+    return '0';
+  };
 
   return (
     <div className="flex flex-col gap-0">
@@ -108,7 +121,7 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
         </div>
       )}
 
-      <div ref={captureRef} className="flex flex-col gap-6 bg-white p-4 rounded-3xl border border-slate-200 shadow-sm mt-0 md:mt-4">
+      <div ref={captureRef} className="flex flex-col gap-6 bg-white p-4 rounded-3xl border border-slate-200 mt-0 md:mt-4">
         <div className="flex items-center justify-between px-2 sticky top-0 bg-white z-20 py-2">
           <div className="flex items-center gap-3">
             <div className="w-2 h-10 bg-black rounded-full" />
@@ -124,7 +137,7 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
             </div>
           </div>
           <button 
-            onClick={() => captureElement(captureRef, 'Realtime_Dashboard')}
+            onClick={() => captureElement(fullCaptureRef || captureRef, 'Realtime_Dashboard')}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black hover:bg-emerald-100 transition-all no-capture"
           >
             <Camera size={14} />
@@ -137,53 +150,30 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
         {filteredMarkets.map((market, mIdx) => (
           <div key={mIdx} className="p-4 md:p-6 bg-slate-50 rounded-2xl md:rounded-3xl border border-slate-100">
             <div className="flex items-center gap-3 mb-6">
-              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg bg-indigo-600")}>
+              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white bg-indigo-600")}>
                 {getIcon(market.name)}
               </div>
               <h2 className="text-base md:text-xl font-black text-slate-900 uppercase tracking-tight">{market.name}</h2>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-6">
                 {(() => {
-                  const normMarketName = normalize(market.name);
-                  
-                  // STRICT matching with KHAI BÁO (Cài đặt doanh thu)
-                  let mTargetData: any = undefined;
-                  
-                  if (allStoreTargets) {
-                    // Priority 1: Exact normalized name match
-                    for (const [name, settings] of Object.entries(allStoreTargets)) {
-                      if (normalize(name) === normMarketName) {
-                        mTargetData = settings;
-                        break;
-                      }
-                    }
-                    
-                    // Priority 2: Match by settings.stName if priority 1 fails
-                    if (!mTargetData) {
-                      for (const settings of Object.values(allStoreTargets) as any[]) {
-                        if (settings.stName && normalize(settings.stName) === normMarketName) {
-                          mTargetData = settings;
-                          break;
-                        }
-                      }
-                    }
-                  }
-
-                  // Use TAGET SAU X HỆ SỐ directly from Khai Bao
-                  const finalTargetSauHeSo = mTargetData?.stTargetSauHeSo || 0;
+                  // Compute targetValue from parsed market data (DT Dự Kiến QĐ / % HT Target Dự Kiến QĐ)
+                  // Data synced from: LUỸ KẾ DT, BÁO CÁO TỔNG HỢP, KHAI BÁO
+                  const targetDataKey = Object.keys(allStoreTargets || {}).find(k => normalize(k) === normalize(market.name));
+                  const targetData: any = targetDataKey ? allStoreTargets[targetDataKey] : null;
+                  const dtDuKienQD = market.targetQD || 0;
+                  const percentHT = market.percentHT || 0;
+                  const targetValue = (dtDuKienQD > 0 && percentHT > 0) ? Math.round(dtDuKienQD / (percentHT / 100)) : ((targetData as any)?.stTargetSauHeSo || (targetData as any)?.stTargetQuyDoi || stTargetSauHeSo || stTargetQuyDoi || 0);
+                  const percentTargetVal = (targetData as any)?.stPercentTarget ?? stPercentTarget ?? 100;
+                  const targetSauHeSo = Math.round(targetValue * (percentTargetVal / 100));
 
                   return [
-                    { 
-                      label: 'TARGET QUY ĐỔI', 
-                      value: Math.round(finalTargetSauHeSo).toLocaleString('vi-VN'), 
-                      color: 'bg-blue-800', 
-                      icon: <Target size={20} /> 
-                    },
-                    { label: 'DT QUY ĐỔI (DTQĐ)', value: `${Math.round(market.actualVirtual || 0).toLocaleString('vi-VN')}`, color: 'bg-emerald-600', icon: <TrendingUp size={20} /> },
+                    { label: 'TARGET QUY ĐỔI', value: formatCurrencyUnit(targetSauHeSo), color: 'bg-blue-900', icon: <Target size={20} /> },
+                    { label: 'DT QUY ĐỔI (DTQĐ)', value: formatCurrencyUnit(market.actualVirtual || 0), color: 'bg-emerald-600', icon: <TrendingUp size={20} /> },
                     { 
                       label: '% HT TARGET (QĐ)', 
                       value: title.toUpperCase().includes('LUỸ KẾ')
-                        ? `${finalTargetSauHeSo > 0 ? Math.round((daysPassed > 0 && totalDays > 0 ? (((market.actualVirtual || 0) / daysPassed) * totalDays) : (market.actualVirtual || 0)) / finalTargetSauHeSo * 100) : 0}%`
+                        ? `${targetSauHeSo > 0 ? Math.round((daysPassed > 0 && totalDays > 0 ? (((market.actualVirtual || 0) / daysPassed) * totalDays) : (market.actualVirtual || 0)) / targetSauHeSo * 100) : 0}%`
                         : `${Math.round(market.percentHT || 0)}%`, 
                       color: 'bg-amber-500', 
                       icon: <BarChart3 size={20} /> 
@@ -212,19 +202,19 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                     },
                   ].filter(card => {
                     if (hideTargetQD || title.toUpperCase().includes('LUỸ KẾ')) {
-                      return card.label !== 'TARGET (QĐ)';
+                      if (card.label === 'TARGET (QĐ)') return false;
                     }
                     return true;
                   }).map((card, i) => (
-                    <div key={i} className={cn("p-5 rounded-2xl border shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full text-white", card.color)}>
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white/20 backdrop-blur-sm">
+                    <div key={i} className={cn("p-5 rounded-2xl border transition-all duration-300 flex flex-col justify-between h-full text-white", card.color)}>
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white/20 backdrop-blur-sm shrink-0">
                           {React.cloneElement(card.icon as any, { size: 18, strokeWidth: 2.5 })}
                         </div>
+                        <p className="text-[11px] font-bold text-white uppercase tracking-widest leading-tight">{card.label}</p>
                       </div>
                       <div>
-                        <p className="text-[11px] font-bold text-white uppercase tracking-widest mb-1">{card.label}</p>
-                        <p className="text-3xl font-bold tracking-tight font-oswald">{card.value}</p>
+                        <p className="text-[45px] font-bold tracking-tight whitespace-nowrap font-oswald">{card.value}</p>
                       </div>
                     </div>
                   ));
@@ -242,7 +232,7 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                 setCatMarketFilter={setMarketFilter}
                 catGroupFilter={catGroupFilter}
                 setCatGroupFilter={setCatGroupFilter}
-                captureRef={categoryCaptureRef || captureRef}
+                captureRef={fullCaptureRef || captureRef}
                 captureElement={captureElement}
               />
             ) : (
@@ -252,7 +242,7 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                 setCatMarketFilter={setMarketFilter}
                 catGroupFilter={catGroupFilter}
                 setCatGroupFilter={setCatGroupFilter}
-                captureRef={categoryCaptureRef || captureRef}
+                captureRef={fullCaptureRef || captureRef}
                 captureElement={captureElement}
                 title='REALTIME NGÀNH HÀNG'
                 mode='realtime'

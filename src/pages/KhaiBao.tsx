@@ -7,8 +7,9 @@ import React, { useState } from 'react';
 import { useRealtimeData } from './RTST/hooks/useRealtimeData';
 import { useLuykeData } from './RTST/hooks/useLuykeData';
 import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';
+import { useEmployeeHealth } from './EmployeeHealth/hooks/useEmployeeHealth';
 import { useAuth } from '../contexts/AuthContext';
-import { useMarket } from '../contexts/MarketContext';
+import { useStore } from '../contexts/StoreContext';
 import InputSection from './RTST/components/InputSection';
 import { Loader2, Database, Eye, EyeOff, BarChart3, Clock, Users, Target, TrendingUp, Globe, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -16,7 +17,7 @@ import { cn, parseMarketData, getMarketRegistry, cleanNum, extractSection, safeS
 
 const KhaiBao: React.FC = () => {
   const { userProfile } = useAuth();
-  const { marketFilter, setMarketFilter, setAvailableMarkets } = useMarket();
+  const { currentStoreId: marketFilter, setCurrentStoreId: setMarketFilter, availableStores: storeSourceMarkets, setStoreReady } = useStore();
   const [maKho, setMaKho] = useState(() => {
     const initial = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '';
     console.log('[KHAI_BAO] Initial maKho:', initial);
@@ -36,9 +37,11 @@ const KhaiBao: React.FC = () => {
   const {
     marketInput, setMarketInput,
     categoryInput, setCategoryInput,
+    categoryTargetInput, setCategoryTargetInput,
     ycxData, setYcxData,
     categoryRevenueInput, setCategoryRevenueInput,
     activeStore,
+    processedData: rtProcessedData,
     saveRealtimeData,
     syncRealtimeData,
     loadData,
@@ -56,6 +59,8 @@ const KhaiBao: React.FC = () => {
     staffInput, setStaffInput,
     staffCategoryInput, setStaffCategoryInput,
     staffListInput, setStaffListInput,
+    tragopMatran, setTragopMatran,
+    tragopNv, setTragopNv,
     categoryTargets, setCategoryTargets,
     processedData,
     saveLuykeData,
@@ -65,7 +70,8 @@ const KhaiBao: React.FC = () => {
     isLoading,
     processData: processLuykeData,
     syncFromRealtime,
-    clearField: clearLuykeField
+    clearField: clearLuykeField,
+    allStoresCache
   } = useLuykeData(maKho);
 
   const handleClearField = (setter: (val: string) => void) => {
@@ -94,182 +100,158 @@ const KhaiBao: React.FC = () => {
     isLoadingStoreRevenue,
     saveStoreRevenue,
     loadStoreRevenue,
+    updateStoreSettings,
     isValidStoreName,
-    VALID_STORE_PREFIXES
+    VALID_STORE_PREFIXES,
+    allStoreTargets
   } = useRTSTSharedData(maKho, isYcxDirty);
 
-  // Sync available markets to global context
+  const { banKemNv, setBanKemNv, saveBanKemNv, phucVu, savePhucVu } = useEmployeeHealth(maKho, stName || (marketFilter !== 'ALL' ? marketFilter : undefined));
+
+  // Synchronized with DB-declared stores list via useStore()
+
+  // Sync marketFilter when available stores change
   React.useEffect(() => {
-    if (processedData.markets.length > 0) {
-      const filtered = processedData.markets.filter(m => isValidStoreName(m.name));
-      if (filtered.length > 0) {
-        setAvailableMarkets(filtered);
+    if (storeSourceMarkets.length > 0 && (marketFilter === 'ALL' || !storeSourceMarkets.some(m => m.name === marketFilter))) {
+      if (marketFilter === 'ALL') {
+        setMarketFilter(storeSourceMarkets[0].name);
       }
     }
-  }, [processedData.markets, setAvailableMarkets, isValidStoreName]);
+  }, [storeSourceMarkets, marketFilter]);
 
-  // Sync marketFilter when processedData.markets changes
+  // NOTE: Luyke data auto-loads when currentStoreId changes (centralized in useLuykeData)
+  // Only handle 'ALL' case here — mark store ready immediately
   React.useEffect(() => {
-    if (processedData.markets.length > 0 && (marketFilter === 'ALL' || !processedData.markets.some(m => m.name === marketFilter))) {
-      const filtered = processedData.markets.filter(m => isValidStoreName(m.name));
-      if (filtered.length > 0 && marketFilter === 'ALL') {
-         setMarketFilter(filtered[0].name);
-      }
+    if (!marketFilter || marketFilter === 'ALL') {
+      setStoreReady(true);
     }
-  }, [processedData.markets, isValidStoreName]);
+  }, [marketFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync stName and revenue fields when marketFilter changes in Khai Bao
+  // ═══════════════════════════════════════════════════════
+  // AUTO-SYNC: LUỸ KẾ TĐ → TARGET THI ĐUA per store
+  // When clusterCategoryInput changes (user paste/load) or store finishes loading,
+  // re-process the cluster data so categoryTargets are extracted for the active store.
+  // ═══════════════════════════════════════════════════════
+  const prevClusterCategoryRef = React.useRef(clusterCategoryInput);
   React.useEffect(() => {
-    if (marketFilter !== 'ALL' && processedData.markets.length > 0) {
-      const market = processedData.markets.find(m => m.name === marketFilter);
+    if (marketFilter === 'ALL' || !marketFilter) return;
+    if (isLoading) return; // Wait for store data to finish loading
+
+    // Only trigger when clusterCategoryInput actually changed (not just on mount)
+    const clusterChanged = prevClusterCategoryRef.current !== clusterCategoryInput;
+    prevClusterCategoryRef.current = clusterCategoryInput;
+
+    if (clusterChanged && clusterCategoryInput) {
+      console.log(`[KhaiBao] LUỸ KẾ TĐ changed → re-processing TARGET THI ĐUA for: ${marketFilter}`);
+      processLuykeData();
+    }
+  }, [clusterCategoryInput, marketFilter, isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync stName and revenue fields from LUỸ KẾ data (BÁO CÁO TỔNG HỢP) when marketFilter changes
+  // ONLY uses luykeMarkets (from categoryRevenueInput). When empty → reset all revenue fields.
+  // PERF: Using functional setState (prev =>) to avoid depending on current state values,
+  // which previously caused infinite re-render loops.
+  React.useEffect(() => {
+    const luykeMarkets = rtProcessedData.luykeMarkets || [];
+    if (marketFilter !== 'ALL') {
+      setStName((prev: string) => prev !== marketFilter ? marketFilter : prev);
+
+      const market = luykeMarkets.find(m => m.name.toUpperCase() === marketFilter.toUpperCase());
+      
       if (market) {
-        if (stName !== market.name) setStName(market.name);
-        if (stDtlk !== (market.actualReal || 0)) setStDtlk(market.actualReal || 0);
-        if (stDtqd !== (market.actualVirtual || 0)) setStDtqd(market.actualVirtual || 0);
-        if (stDtDuKienQD !== (market.targetQD || 0)) setStDtDuKienQD(market.targetQD || 0);
-        if (stPercentHTTargetDuKienQD !== (market.percentHT || 0)) setStPercentHTTargetDuKienQD(market.percentHT || 0);
+        setStDtlk((prev: number) => prev !== (market.actualReal || 0) ? (market.actualReal || 0) : prev);
+        setStDtqd((prev: number) => prev !== (market.actualVirtual || 0) ? (market.actualVirtual || 0) : prev);
+        const luykeTarget = market.targetQD || market.targetST || 0;
+        setStDtDuKienQD((prev: number) => prev !== luykeTarget ? luykeTarget : prev);
+        setStPercentHTTargetDuKienQD((prev: number) => prev !== (market.percentHT || 0) ? (market.percentHT || 0) : prev);
+      } else {
+        // Reset luyke-specific fields if not found in Luy Ke data
+        setStDtlk((prev: number) => prev !== 0 ? 0 : prev);
+        setStDtqd((prev: number) => prev !== 0 ? 0 : prev);
+        
+        // Try fallback to Realtime data for projected targets
+        const rtMarket = (rtProcessedData.markets || []).find(m => m.name.toUpperCase() === marketFilter.toUpperCase());
+        const dtDuKienQD = rtMarket?.targetQD || 0;
+        const percentHT = rtMarket?.percentHT || 0;
+        
+        setStDtDuKienQD((prev: number) => prev !== dtDuKienQD ? dtDuKienQD : prev);
+        setStPercentHTTargetDuKienQD((prev: number) => prev !== percentHT ? percentHT : prev);
       }
-    } else if (processedData.markets.length === 0) {
-      // Reset khi ô LUỸ KẾ bị xoá trống
-      if (stName) setStName('');
-      if (stDtlk) setStDtlk(0);
-      if (stDtqd) setStDtqd(0);
-      if (stDtDuKienQD) setStDtDuKienQD(0);
-      if (stPercentHTTargetDuKienQD) setStPercentHTTargetDuKienQD(0);
+    } else if (luykeMarkets.length === 0) {
+      // Reset khi ô LUỸ KẾ (BÁO CÁO TỔNG HỢP) bị xoá trống và đang ở ALL
+      setStName((prev: string) => prev ? '' : prev);
+      setStDtlk((prev: number) => prev ? 0 : prev);
+      setStDtqd((prev: number) => prev ? 0 : prev);
+      setStDtDuKienQD((prev: number) => prev ? 0 : prev);
+      setStPercentHTTargetDuKienQD((prev: number) => prev ? 0 : prev);
     }
-  }, [marketFilter, processedData.markets, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD]);
+  }, [marketFilter, rtProcessedData.luykeMarkets, rtProcessedData.markets, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD]);
+
+  // Restore % TARGET per-store when switching stores
+  // Separate effect to avoid blocking user input on the % TARGET field
+  React.useEffect(() => {
+    if (marketFilter === 'ALL') return;
+    const targetEntry = Object.entries(allStoreTargets || {}).find(([name]) => normalize(name) === normalize(marketFilter));
+    const savedTarget = targetEntry ? targetEntry[1] : null;
+    const newPercent = savedTarget?.stPercentTarget ?? 100;
+    setStPercentTarget(newPercent);
+  }, [marketFilter, allStoreTargets]);
 
   // Sync category targets from processed data
   // Logic moved to useLuykeData hook to prevent race conditions and F5 resets
 
-  // Tự động tính toán Target Quy Đổi khi DT Dự Kiến hoặc % HT thay đổi
-  React.useEffect(() => {
-    if (stPercentHTTargetDuKienQD > 0) {
-      const calculated = Math.round(stDtDuKienQD / (stPercentHTTargetDuKienQD / 100));
-      if (calculated !== stTargetQuyDoi) {
-        setStTargetQuyDoi(calculated);
-      }
-    }
-  }, [stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, setStTargetQuyDoi]);
-
-  // Tự động tính toán Target Sau X Hệ Số
-  React.useEffect(() => {
-    const calculated = Math.round(stTargetQuyDoi * (stPercentTarget / 100));
-    if (calculated !== stTargetSauHeSo) {
-      setStTargetSauHeSo(calculated);
-    }
-  }, [stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, setStTargetSauHeSo]);
+  // Auto-calculation logic moved to useRTSTSharedData.ts to sync globally
 
   const lastProcessedRef = React.useRef({ input: '', maKho: '' });
 
-  // Sync supermarket revenue settings from clusterSummaryInput
+  // Sync store name ONLY from clusterSummaryInput (BC TỔNG HỢP CỤM)
+  // Revenue fields (DTLK, DTQD, etc.) are handled exclusively by the luykeMarkets effect above
   React.useEffect(() => {
-    // Chỉ đồng bộ nếu có dữ liệu và (dữ liệu mới HOẶC mã kho mới)
     if (!clusterSummaryInput || !maKho) return;
     
     if (clusterSummaryInput === lastProcessedRef.current.input && maKho === lastProcessedRef.current.maKho) return;
     
     lastProcessedRef.current = { input: clusterSummaryInput, maKho };
-    console.log('[KHAI_BAO] Đang đồng bộ dữ liệu từ BC Tổng Hợp Cụm cho mã kho:', maKho);
 
     try {
-      // Trích xuất phần "1. BC TỔNG HỢP CỤM" từ dữ liệu đầu vào
       const inputToParse = extractSection(clusterSummaryInput, "1. BC TỔNG HỢP CỤM");
-      console.log('[KHAI_BAO] Đã trích xuất section "1. BC TỔNG HỢP CỤM"');
-
       const allMarkets = parseMarketData(inputToParse, 0, 'LUYKE');
-      console.log('[KHAI_BAO] Tổng số siêu thị tìm thấy trong section:', allMarkets.length);
-      
-      // Lọc siêu thị theo tiền tố quy định
       const filteredMarkets = allMarkets.filter(m => isValidStoreName(m.name || ''));
-      console.log('[KHAI_BAO] Số siêu thị sau khi lọc tiền tố:', filteredMarkets.length);
 
       const cleanMaKho = maKho.trim().replace(/^0+/, '');
       const normMaKho = cleanMaKho.replace(/[\s_]+/g, '_').toUpperCase();
       const registry = getMarketRegistry();
       const registeredName = registry[cleanMaKho];
       
-      console.log('[KHAI_BAO] Thử khớp siêu thị với mã kho:', cleanMaKho, 'Norm:', normMaKho, 'Tên đăng ký:', registeredName);
-      
-      // Tìm siêu thị khớp với mã kho hiện tại trong danh sách đã lọc
       const currentMarket = filteredMarkets.find(m => {
-        // 1. Kiểm tra mã kho nếu có
         if (m.ma_kho) {
           const mCode = m.ma_kho.toString().trim().replace(/^0+/, '').replace(/[\s_]+/g, '').toUpperCase();
           if (mCode === normMaKho) return true;
         }
-        
-        // 2. Kiểm tra trong tên
-        const marketName = m.name.toUpperCase();
-        const normMarketName = marketName.replace(/[\s_]+/g, '').toUpperCase();
-        
-        // 3. Kiểm tra với tên trong registry
+        const normMarketName = m.name.toUpperCase().replace(/[\s_]+/g, '').toUpperCase();
         if (registeredName) {
           const normRegistered = registeredName.toUpperCase().replace(/[\s_]+/g, '').toUpperCase();
-          if (normMarketName === normRegistered || normMarketName.includes(normRegistered) || normRegistered.includes(normMarketName)) {
-            return true;
-          }
+          if (normMarketName === normRegistered || normMarketName.includes(normRegistered) || normRegistered.includes(normMarketName)) return true;
         }
-
-        // 4. Kiểm tra mã kho xuất hiện trong tên (ví dụ: "96 - ĐMM_BLI_GRA")
         if (normMarketName.includes(normMaKho)) return true;
-        
-        // 5. Sử dụng normalize để so khớp linh hoạt hơn
         const nMarket = normalize(m.name);
         const nMaKho = normalize(maKho);
         if (nMarket.includes(nMaKho)) return true;
-
         return false;
       });
       
+      // Only sync store name - revenue fields are synced from LUỸ KẾ (BÁO CÁO TỔNG HỢP)
       if (currentMarket) {
-        console.log('[KHAI_BAO] Đã tìm thấy siêu thị khớp:', currentMarket.name);
-        
-        // Extract values from currentMarket (already parsed by parseMarketData)
-        const dtlkValue = currentMarket.actualReal || 0;
-        const dtqdValue = currentMarket.actualVirtual || 0;
-        const dtDuKienQD = currentMarket.targetQD || 0;
-        const percentHT = currentMarket.percentHT || 0;
-
         setStName(currentMarket.name || '');
-        setStDtlk(dtlkValue);
-        setStDtqd(dtqdValue);
-        setStDtDuKienQD(dtDuKienQD); 
-        setStPercentHTTargetDuKienQD(percentHT);
-        
-        console.log('[KHAI_BAO] Đã cập nhật stName:', currentMarket.name);
-        
-        // CỘT "TAGET QUY ĐỔI" = CỘT "DT Dự Kiến (QĐ)" / (CỘT "% HT Target Dự Kiến (QĐ)" / 100)
-        if (percentHT > 0) {
-          setStTargetQuyDoi(Math.round(dtDuKienQD / (percentHT / 100)));
-        } else {
-          setStTargetQuyDoi(0);
-        }
-        
-        // Mặc định % Target là 100 nếu chưa có
-        setStPercentTarget(prev => prev || 100);
+        setStPercentTarget((prev: number) => prev || 100);
       } else if (filteredMarkets.length === 1) {
-        // Nếu không tìm thấy theo mã kho, nhưng chỉ có 1 siêu thị hợp lệ trong báo cáo thì lấy luôn
-        const m = filteredMarkets[0];
-        console.log('[KHAI_BAO] Tự động lấy siêu thị duy nhất hợp lệ trong báo cáo:', m.name);
-        setStName(m.name || '');
-        setStDtlk(m.actualReal || 0);
-        setStDtqd(m.actualVirtual || 0);
-        setStDtDuKienQD(m.targetQD || 0);
-        setStPercentHTTargetDuKienQD(m.percentHT || 0);
-        if (m.percentHT && m.percentHT > 0 && m.targetQD) {
-          setStTargetQuyDoi(Math.round(m.targetQD / (m.percentHT / 100)));
-        } else {
-          setStTargetQuyDoi(0);
-        }
-        setStPercentTarget(prev => prev || 100);
-      } else {
-        console.warn('[KHAI_BAO] Không tìm thấy siêu thị hợp lệ khớp với mã kho:', cleanMaKho);
+        setStName(filteredMarkets[0].name || '');
+        setStPercentTarget((prev: number) => prev || 100);
       }
     } catch (err) {
-      console.error('[KHAI_BAO] Lỗi khi đồng bộ dữ liệu:', err);
+      console.error('[KHAI_BAO] Lỗi khi đồng bộ tên siêu thị:', err);
     }
-  }, [clusterSummaryInput, maKho, isValidStoreName, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD, setStTargetQuyDoi, setStPercentTarget]);
+  }, [clusterSummaryInput, maKho, isValidStoreName, setStName, setStPercentTarget]);
 
   const handleStaffListUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     // Implement or mock if needed, or get from hook
@@ -303,87 +285,18 @@ const KhaiBao: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans">
-      {/* Professional Header - Spans full width */}
-      <div className="bg-white border-b border-slate-200 px-8 py-5 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-[1800px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-center gap-5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-400 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
-              <Database size={24} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600">Hệ thống quản trị</span>
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              </div>
-              <h1 className="text-xl font-black text-slate-800 tracking-tight uppercase">Khai báo dữ liệu</h1>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setShowAll(!showAll)}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-all text-[11px] font-black uppercase tracking-tighter"
-            >
-              {showAll ? <EyeOff size={16} /> : <Eye size={16} />}
-              {showAll ? "Thu gọn giao diện" : "Mở rộng giao diện"}
-            </button>
-            <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl flex items-center gap-3 shadow-sm">
-              <div className="w-2 h-2 bg-indigo-600 rounded-full" />
-              <span className="text-[11px] font-black text-slate-800 uppercase tracking-tighter">Kho: {maKho || '---'}</span>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <div className="max-w-[1800px] mx-auto flex flex-col lg:flex-row gap-8 p-8">
-        {/* Left Vertical Navigation */}
-        <div className="w-full lg:w-[340px] shrink-0">
-          <div className="flex flex-col gap-3 py-4 sticky top-[116px]">
-            {[
-              { id: 'REALTIME', label: 'REALTIME', icon: Database },
-              { id: 'THOI_GIAN', label: 'CÀI ĐẶT THỜI GIAN', icon: Clock },
-              { id: 'NHAN_VIEN', label: 'DỮ LIỆU NV', icon: Users },
-              { id: 'TARGET_NGANH_HANG', label: 'CÀI ĐẶT TAGET NGÀNH HÀNG', icon: Target },
-              { id: 'TARGET_DOANH_THU', label: 'CÀI ĐẶT TAGET DOANH THU', icon: TrendingUp },
-              { id: 'RESOURCES', label: 'TÀI NGUYÊN', icon: Globe }
-            ].map((tab) => {
-              const isActive = activeTab === tab.id;
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`w-full flex items-center gap-4 px-6 py-5 rounded-[22px] border transition-all duration-300 group ${
-                    isActive 
-                      ? 'bg-white border-indigo-500 shadow-[0_15px_35px_-10px_rgba(79,70,229,0.15)] -translate-y-0.5 translate-x-1' 
-                      : 'bg-transparent border-transparent hover:bg-white/50 hover:border-slate-200 text-slate-500'
-                  }`}
-                >
-                  <div className={`p-2.5 rounded-xl transition-all duration-300 ${
-                    isActive ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400 group-hover:bg-white group-hover:text-slate-500'
-                  }`}>
-                    <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-                  </div>
-                  <span className={`text-[13px] font-black tracking-tight uppercase text-left ${isActive ? 'text-slate-800' : 'text-slate-500'}`}>
-                    {tab.label}
-                  </span>
-                  {isActive && (
-                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.5)]" />
-                  )}
-                </button>
-              );
-            })}
 
-          </div>
-        </div>
-
-        {/* Main Content Area - Right Side */}
-        <div className="flex-1 min-w-0">
+      <div className="max-w-[1260px] mx-auto p-8">
+         {/* Main Content Area */}
+         <div>
           <InputSection 
             marketInput={marketInput}
             setMarketInput={setMarketInput}
             categoryInput={categoryInput}
             setCategoryInput={setCategoryInput}
+            categoryTargetInput={categoryTargetInput}
+            setCategoryTargetInput={setCategoryTargetInput}
             categoryRevenueInput={categoryRevenueInput}
             setCategoryRevenueInput={setCategoryRevenueInput}
             manualAdjustment={manualAdjustment}
@@ -431,8 +344,17 @@ const KhaiBao: React.FC = () => {
             setStaffCategoryInput={setStaffCategoryInput}
             categoryTargets={categoryTargets}
             setCategoryTargets={setCategoryTargets}
+            banKemNv={banKemNv}
+            setBanKemNv={setBanKemNv}
+            phucVu={phucVu}
+            setPhucVu={savePhucVu}
+            tragopMatran={tragopMatran}
+            setTragopMatran={setTragopMatran}
+            tragopNv={tragopNv}
+            setTragopNv={setTragopNv}
             stName={stName}
             setStName={setStName}
+            isLuykeSynced={marketFilter !== 'ALL' && (rtProcessedData.luykeMarkets || []).some(m => m.name.toUpperCase() === marketFilter.toUpperCase())}
             stDtlk={stDtlk}
             setStDtlk={setStDtlk}
             stDtqd={stDtqd}
@@ -446,6 +368,7 @@ const KhaiBao: React.FC = () => {
             stPercentTarget={stPercentTarget}
             setStPercentTarget={setStPercentTarget}
             stTargetSauHeSo={stTargetSauHeSo}
+            updateStoreSettings={updateStoreSettings}
             onSaveStoreRevenue={() => saveStoreRevenue(maKho, activeStore)}
             onLoadStoreRevenue={() => loadStoreRevenue(maKho)}
             isSavingStoreRevenue={isSavingStoreRevenue}
@@ -456,6 +379,9 @@ const KhaiBao: React.FC = () => {
             isYcxDirty={isYcxDirty}
             showAll={showAll}
             activeTab={activeTab}
+            availableMarkets={storeSourceMarkets.map(m => m.name)}
+            onStoreChange={setMarketFilter}
+            allStoresCache={allStoresCache}
           />
         </div>
       </div>

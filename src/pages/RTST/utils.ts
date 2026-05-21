@@ -805,9 +805,9 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
     const normLine = normalize(line);
     const cols = line.split(/\t|\s{2,}/).map(c => c.trim());
     
-    if (normLine.includes("tổng") || 
-        normLine.includes("hỗ trợ bi liên hệ user") || 
-        normLine.includes("copyright © bi report")) {
+    if (normLine.includes("tong") && line.toLowerCase().includes("tổng") || 
+        normLine.includes("ho tro bi lien he") || 
+        normLine.includes("copyright")) {
       continue;
     }
 
@@ -820,7 +820,8 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
       });
       if (matchedMarket) {
         currentMarketName = matchedMarket.name;
-      } else {
+      } else if (markets.length !== 1) {
+        // DO NOT HIJACK currentMarketName if we are explicitly locked to a single store!
         const prefixes = ["ĐML", "ĐMM", "ĐMS3", "ĐMS", "TGD", "AAR"];
         const upperLine = line.toUpperCase();
         for (const p of prefixes) {
@@ -836,7 +837,7 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
     const numbers = line.match(/-?[\d,.]+(%?)/g);
     // Nếu dòng chứa từ khóa header thì không coi là DataLine để nó rơi vào nhánh !isDataLine
     const isHeaderLine = normLine.includes('target') || normLine.includes('tháng') || normLine.includes('đự kiến') || normLine.includes('rank') || normLine.includes('dự kiến');                
-    const isDataLine = (numbers && numbers.length >= 3) && !isHeaderLine;
+    const isDataLine = (numbers && (numbers.length >= 3 || (mode === 'LUYKE' && numbers.length >= 2))) && !isHeaderLine;
     
     let dataNumbers = numbers || [];
     if (isDataLine) {
@@ -872,7 +873,20 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
         
         const firstNumMatch = line.match(/-?[\d,.]+(%?)/);
         if (firstNumMatch && firstNumMatch.index !== undefined && firstNumMatch.index > 0) {
-           // Có thể log debug ở đây nếu cần, nhưng không thay đổi currentCatName
+           if (mode === 'LUYKE') {
+             const potentialCatName = line.substring(0, firstNumMatch.index).trim();
+             const cleanCatName = potentialCatName.replace(/^\d+\.\s*/, '').trim();
+             if (cleanCatName && !cleanCatName.toLowerCase().startsWith('tổng')) {
+               currentCatName = cleanCatName;
+               if (currentCatName.match(/SL Realtime|SL REALTIME|SLLK|\bSL\b/i)) {
+                 currentCatType = 'SL';
+               } else if (currentCatName.match(/DT Realtime|DT REALTIME|DTLK|\bDT\b/i)) {
+                 currentCatType = 'DT';
+               }
+               // If no explicit SL/DT tag is found in the name, preserve currentCatType
+               // which might have been correctly inherited from a previous header line.
+             }
+           }
         }
       }
     }
@@ -883,9 +897,10 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
         let catName = line.trim();
         let catType: 'SL' | 'DT' | 'ALL' = 'ALL';
         
-        // Determine type based on keywords, default to ALL if unknown
+        // Determine type based on keywords, inherit from currentCatType if unknown
         if (catName.match(/SL Realtime|SL REALTIME|SLLK|\bSL\b/i)) catType = 'SL';
         else if (catName.match(/DT Realtime|DT REALTIME|DTLK|\bDT\b/i)) catType = 'DT';
+        else catType = currentCatType;
 
         const normCat = normalize(catName);
         const isMarket = sortedMarkets.some(m => {

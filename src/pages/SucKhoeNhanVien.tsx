@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { HeartPulse, Camera, TrendingUp, Search, ChevronDown, Check, MessageSquare, FileText, ChevronRight, LayoutGrid, Info, Users, Printer, UploadCloud, Trophy, TrendingDown, Gift, Target } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { motion, AnimatePresence } from 'motion/react';
@@ -21,7 +21,7 @@ import RevenueRankingTableQd from './EmployeeHealth/components/RevenueRankingTab
 import EmployeeDetailTable from './EmployeeHealth/components/EmployeeDetailTable';
 import SummaryThiDuaTable from './EmployeeHealth/components/SummaryThiDuaTable';
 import CategoryDetailByStaffTable from './EmployeeHealth/components/CategoryDetailByStaffTable';
-import { cn } from './RTST/utils';
+import { cn, parseStaffRankData, parseYcxData } from './RTST/utils';
 
 const EmployeeHealth: React.FC = () => {
   const { userProfile } = useAuth();
@@ -54,9 +54,9 @@ const EmployeeHealth: React.FC = () => {
   }, [userProfile?.ma_kho]);
 
   const {
-    biRevenueData,
+    biRevenueData: dbBiRevenueData,
     luyKeNganhHang,
-    thiDuaNv,
+    thiDuaNv: dbThiDuaNv,
     phucVu,
     banKemNv,
     isLoading,
@@ -64,9 +64,26 @@ const EmployeeHealth: React.FC = () => {
     refresh,
     savePhucVu,
     saveBanKemNv
-  } = useEmployeeHealth(maKho);
-  const { stTargetSauHeSo, daysPassed, totalDays } = useRTSTSharedData(maKho);
-  const { categoryTargets, processedData } = useLuykeData(maKho);
+  } = useEmployeeHealth(maKho, marketFilter !== 'ALL' ? marketFilter : undefined);
+  const { stTargetSauHeSo, stTargetQuyDoi, stPercentTarget, daysPassed, totalDays } = useRTSTSharedData(maKho);
+  const { categoryTargets, processedData, staffInput, staffCategoryInput, loadData: loadLuykeData } = useLuykeData(maKho);
+
+  // Note: stTargetSauHeSo is now globally synced and calculated automatically in useRTSTSharedData
+  // No manual recalculation is needed here.
+
+  // NOTE: Luyke data auto-loads when currentStoreId changes (centralized in useLuykeData)
+
+  // Removed visibilitychange reload for performance — data is already real-time and auto-reacts to store changes
+
+  // Use KHAI BÁO inputs (DOANH THU + THI ĐUA NV) when available, otherwise use DB data
+  const biRevenueData = React.useMemo(() => {
+    if (staffInput) {
+      return parseStaffRankData(staffInput);
+    }
+    return dbBiRevenueData;
+  }, [staffInput, dbBiRevenueData]);
+
+  const thiDuaNv = staffCategoryInput || dbThiDuaNv;
 
   // Sync available markets to global context if on this page
   useEffect(() => {
@@ -87,14 +104,17 @@ const EmployeeHealth: React.FC = () => {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const [autoExpand, setAutoExpand] = useState(false);
 
-  const parseBanKemData = (text: string) => {
+  const parseBanKemData = useCallback((text: string) => {
     if (!text) return [];
     return text.split('\n')
       .map(line => line.trim())
       .filter(line => line.length > 0)
       .map(line => line.split('\t'))
-      .filter(parts => parts.length >= 10)
-      .slice(1) // Assuming first row is header
+      .filter(parts => {
+        // Employee lines usually have at least 10 columns and the first column starts with a 4-6 digit ID
+        if (parts.length < 10) return false;
+        return /^(\d{4,6})\s*-/.test(parts[0]);
+      })
       .map(parts => ({
         nhanVien: parts[0],
         dtlk: parts[1],
@@ -102,22 +122,60 @@ const EmployeeHealth: React.FC = () => {
         phanTramBill: parts[5], // Use 6th column (index 5)
         luotBillBanHang: parts[9], // 10th column (index 9)
       }));
-  };
+  }, []);
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef<string | null>(null);
+  const [thuongData, setThuongData] = useState<Record<string, { truoc: string; hientai: string }>>({});
+  const thuongSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const [thuongThangTruoc, setThuongThangTruoc] = useState(() => localStorage.getItem('rtst_thuong_thang_truoc') || '');
-  const [thuongThangHienTai, setThuongThangHienTai] = useState(() => localStorage.getItem('rtst_thuong_thang_hien_tai') || '');
+  // Save entire thuong data object as JSON into a single column
+  const saveThuongToDb = (data: Record<string, { truoc: string; hientai: string }>) => {
+    const storeName = marketFilter !== 'ALL' ? marketFilter : '';
+    if (!storeName || !maKho) return;
+    const shortMaKho = maKho.replace(/^0+/, '');
+    
+    if (thuongSaveTimerRef.current) clearTimeout(thuongSaveTimerRef.current);
+    
+    thuongSaveTimerRef.current = setTimeout(() => {
+      supabase.from('store').upsert({
+        id: storeName, // The Supermarket Name as the unique Document ID / Primary Key!
+        warehouse_code: shortMaKho,
+        ten_sieu_thi: storeName,
+        thuong_nv_data: JSON.stringify(data)
+      }, { onConflict: 'id' }).then(({ error }: any) => {
+        if (error) console.error('[THUONG] Save error:', error);
+        else console.log('[THUONG] Saved thuong_nv_data for', storeName);
+      });
+    }, 1500);
+  };
 
-  // Default to check all when data is loaded or maKho changes
+  const saveThuongField = (staffId: string, field: 'truoc' | 'hientai', value: string) => {
+    setThuongData(prev => {
+      const updated = { ...prev, [staffId]: { ...prev[staffId], [field]: value } };
+      saveThuongToDb(updated);
+      return updated;
+    });
+  };
+
+  // Default to check all when data is loaded or STORE changes
+  // Key: must use marketFilter (store name), not just maKho (same for all stores in cluster)
   useEffect(() => {
-    if (maKho && biRevenueData.length > 0 && initializedRef.current !== maKho) {
+    const storeKey = `${maKho}_${marketFilter}`;
+    if (maKho && biRevenueData.length > 0 && initializedRef.current !== storeKey) {
       setSelectedStaffIds(biRevenueData.map(s => s.fullId));
-      initializedRef.current = maKho;
+      initializedRef.current = storeKey;
     }
-  }, [maKho, biRevenueData]);
+  }, [maKho, marketFilter, biRevenueData]);
+
+  // Clear selectedStaffIds immediately when store switches to prevent stale filter
+  useEffect(() => {
+    if (marketFilter && marketFilter !== 'ALL') {
+      setSelectedStaffIds([]);
+      initializedRef.current = null; // Force re-initialize on next data load
+    }
+  }, [marketFilter]);
 
   // Close filter when clicking outside
   useEffect(() => {
@@ -134,12 +192,39 @@ const EmployeeHealth: React.FC = () => {
     };
   }, []);
 
-  const filteredBiData = biRevenueData.filter(staff => {
+  const filteredBiData = useMemo(() => biRevenueData.filter(staff => {
     const matchesSearch = staff.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       staff.fullId.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSelection = selectedStaffIds.includes(staff.fullId);
     return matchesSearch && matchesSelection;
-  });
+  }), [biRevenueData, searchTerm, selectedStaffIds]);
+
+  // Load thuong data from DB when store changes or tab switches to THUONG_NV
+  useEffect(() => {
+    if (activeTab !== 'THUONG_NV' || marketFilter === 'ALL' || !maKho) return;
+    const shortMaKho = maKho.replace(/^0+/, '');
+    
+    supabase.from('store')
+      .select('thuong_nv_data')
+      .eq('id', marketFilter.trim())
+      .maybeSingle()
+      .then(({ data }: any) => {
+        if (!data || !data.thuong_nv_data) {
+          setThuongData({});
+          return;
+        }
+        try {
+          const parsed = typeof data.thuong_nv_data === 'string' 
+            ? JSON.parse(data.thuong_nv_data) 
+            : data.thuong_nv_data;
+          setThuongData(parsed || {});
+          console.log('[THUONG] Loaded thuong_nv_data:', Object.keys(parsed || {}).length, 'staff');
+        } catch (e) {
+          console.error('[THUONG] Parse error:', e);
+          setThuongData({});
+        }
+      });
+  }, [activeTab, marketFilter, maKho]);
 
   const toggleStaffSelection = (id: string) => {
     setSelectedStaffIds(prev =>
@@ -147,15 +232,6 @@ const EmployeeHealth: React.FC = () => {
     );
   };
 
-  const handleSaveThuongThangTruoc = (value: string) => {
-    setThuongThangTruoc(value);
-    localStorage.setItem('rtst_thuong_thang_truoc', value);
-  };
-
-  const handleSaveThuongThangHienTai = (value: string) => {
-    setThuongThangHienTai(value);
-    localStorage.setItem('rtst_thuong_thang_hien_tai', value);
-  };
 
   const handleCapture = async () => {
     if (!captureRef.current) return;
@@ -180,7 +256,7 @@ const EmployeeHealth: React.FC = () => {
   const handleCopyFeedback = () => {
     if (filteredBiData.length === 0) return;
 
-    const targetQdPerStaff = filteredBiData.length > 0 ? Math.round(stTargetSauHeSo / filteredBiData.length) : 0;
+    const targetQdPerStaff = filteredBiData.length > 0 ? stTargetSauHeSo / filteredBiData.length : 0;
 
     const staffStats = filteredBiData.map(staff => {
       const effQd = (staff.actualVal || 0) > 0
@@ -261,87 +337,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
     });
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const buffer = event.target?.result as ArrayBuffer;
-        if (!buffer) throw new Error('Nội dung file rỗng hoặc không thể đọc');
-
-        let tsvOutput = '';
-        let workBook: XLSX.WorkBook | null = null;
-
-        // CHIẾN THUẬT ĐỌC FILE ĐA TẦNG:
-
-        // Tầng 1: Đọc dưới dạng ArrayBuffer (Chuẩn cho .xlsx và .xls hiện đại)
-        try {
-          workBook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
-        } catch (e) {
-          console.warn('Tầng 1 (ArrayBuffer) thất bại, chuyển sang Tầng 2...');
-
-          // Tầng 2: Đọc dưới dạng Binary String (Chuẩn cho .xls cổ điển / BIFF8)
-          try {
-            // Chuyển buffer thành binary string (latin1 giữ nguyên byte dữ liệu)
-            const binary = new TextDecoder('latin1').decode(buffer);
-            workBook = XLSX.read(binary, { type: 'binary' });
-          } catch (e2) {
-            console.warn('Tầng 2 (Binary String) thất bại, chuyển sang Tầng 3...');
-
-            // Tầng 3: Đọc dưới dạng String (Cho các file CSV/TSV/HTML giả danh .xls)
-            try {
-              const text = new TextDecoder('utf-8').decode(buffer);
-              workBook = XLSX.read(text, { type: 'string' });
-            } catch (e3) {
-              console.error('Tất cả các tầng giải mã đều thất bại');
-              throw new Error('Định dạng file không được hỗ trợ hoặc file bị hỏng');
-            }
-          }
-        }
-
-        if (workBook && workBook.SheetNames.length > 0) {
-          const firstSheetName = workBook.SheetNames[0];
-          const worksheet = workBook.Sheets[firstSheetName];
-
-          // Trích xuất dữ liệu thành mảng
-          const rows = XLSX.utils.sheet_to_json(worksheet, {
-            header: 1,
-            defval: ''
-          }) as any[][];
-
-          if (rows && rows.length > 0) {
-            tsvOutput = rows
-              .filter(row => Array.isArray(row))
-              .map(row => row.map(cell => {
-                const val = cell === null || cell === undefined ? '' : String(cell);
-                return val.replace(/\t|\n|\r/g, ' ').trim();
-              }).join('\t'))
-              .join('\n');
-          }
-        }
-
-        if (!tsvOutput || tsvOutput.trim() === '') {
-          throw new Error('Không tìm thấy dữ liệu hợp lệ trong file');
-        }
-
-        await savePhucVu(tsvOutput);
-        showNotification('Tải file và lưu dữ liệu Phục vụ thành công!', 'success');
-      } catch (error: any) {
-        console.error('Lỗi chi tiết khi xử lý file:', error);
-        // Hiển thị thông báo lỗi cụ thể nhất có thể
-        const finalErrorMsg = error?.message || (typeof error === 'string' ? error : 'Sai định dạng file');
-        showNotification(`Lỗi: ${finalErrorMsg}. Vui lòng kiểm tra lại file.`, 'error');
-      }
-    };
-
-    // Luôn đọc dưới dạng ArrayBuffer để có dữ liệu thô (raw) nhất cho các bước giải mã
-    reader.readAsArrayBuffer(file);
-
-    // Reset input để có thể chọn lại cùng 1 file nếu cần
-    e.target.value = '';
-  };
 
   const menuItems = [
     { id: 'DOANH_THU', label: 'DOANH THU NV', icon: TrendingUp },
@@ -601,7 +597,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     <RevenueRankingTableQd
                       data={filteredBiData}
                       onCapture={handleCapture}
-                      stTargetSauHeSo={stTargetSauHeSo}
+                      stTargetQuyDoi={stTargetSauHeSo}
                       daysPassed={daysPassed}
                       totalDays={totalDays}
                     />
@@ -661,6 +657,14 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                       {selectedStaffIds.map((id, idx) => {
                         const staff = biRevenueData.find(s => s.fullId === id);
                         if (!staff) return null;
+                        const targetQdPerStaff = filteredBiData.length > 0 ? stTargetSauHeSo / filteredBiData.length : 0;
+                        const actualTargetQd = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
+                        const staffActualVal = staff.actualVal || 0;
+                        const actualDtqd = Math.abs(staffActualVal) > 1000000 ? staffActualVal : staffActualVal * 1000000;
+                        const staffPercentHT = (actualTargetQd > 0 && daysPassed > 0)
+                          ? (((actualDtqd / daysPassed) * totalDays) / actualTargetQd) * 100
+                          : 0;
+
                         return (
                           <motion.div
                             key={`detail-${id}`}
@@ -676,6 +680,14 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               daysPassed={daysPassed}
                               totalDays={totalDays}
                               categoryTargets={categoryTargets}
+                              luykeCategories={processedData.categories.filter(c => {
+                                if (marketFilter === 'ALL') return true;
+                                if (!c.marketName) return true;
+                                return c.marketName.toUpperCase().includes(marketFilter.toUpperCase()) || marketFilter.toUpperCase().includes(c.marketName.toUpperCase());
+                              })}
+                              staffTargetQd={targetQdPerStaff}
+                              staffDtqd={staffActualVal}
+                              staffPercentHT={staffPercentHT}
                             />
                           </motion.div>
                         );
@@ -707,6 +719,11 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     totalDays={totalDays}
                     selectedStaffIds={selectedStaffIds}
                     categoryTargets={categoryTargets}
+                    luykeCategories={processedData.categories.filter(c => {
+                      if (marketFilter === 'ALL') return true;
+                      if (!c.marketName) return true;
+                      return c.marketName.toUpperCase().includes(marketFilter.toUpperCase()) || marketFilter.toUpperCase().includes(c.marketName.toUpperCase());
+                    })}
                   />
                 </motion.div>
               )}
@@ -728,6 +745,11 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     totalDays={totalDays}
                     categoryTargets={categoryTargets}
                     selectedStaffIds={selectedStaffIds}
+                    luykeCategories={processedData.categories.filter(c => {
+                      if (marketFilter === 'ALL') return true;
+                      if (!c.marketName) return true;
+                      return c.marketName.toUpperCase().includes(marketFilter.toUpperCase()) || marketFilter.toUpperCase().includes(c.marketName.toUpperCase());
+                    })}
                   />
                 </motion.div>
               )}
@@ -744,26 +766,20 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mb-6">
                     <Users size={40} />
                   </div>
-                  <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">QUẢN LÝ PHỤC VỤ</h2>
-                  <p className="text-slate-500 font-medium max-w-md mx-auto mb-8">
-                    Tải lên file Excel báo cáo phục vụ khách hàng để lưu trữ và phân tích.
-                  </p>
-
-                  <div className="w-full max-w-sm bg-slate-50 border-2 border-dashed border-slate-200 rounded-full py-3.5 px-6 transition-all hover:border-indigo-300 hover:bg-slate-100/50 group relative flex items-center justify-center gap-4">
-                    <input
-                      type="file"
-                      onChange={handleFileUpload}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                    />
-                    <UploadCloud size={20} className="text-indigo-600 group-hover:scale-110 transition-transform" />
-                    <span className="text-xs font-black text-slate-700 uppercase tracking-tight">
-                      {isSaving ? 'ĐANG LƯU DỮ LIỆU...' : 'CHỌN FILE DỮ LIỆU'}
-                    </span>
-                  </div>
+                  <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">BÁO CÁO PHỤC VỤ</h2>
+                  {!phucVu && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 w-full max-w-md mt-6">
+                      <p className="text-amber-700 font-bold text-sm mb-2">Chưa có dữ liệu Phục vụ!</p>
+                      <p className="text-amber-600 text-xs">Vui lòng tải file dữ liệu Phục vụ tại tab <b>Khai Báo &gt; Cấu Hình Siêu Thị &gt; Dữ Liệu Nguồn &gt; TRẢ GÓP & CHI TIẾT NH</b> để hiển thị báo cáo.</p>
+                    </div>
+                  )}
 
                   {phucVu && (() => {
                     const lines = phucVu.split('\n').filter(l => l.trim() !== '');
-                    const allHeaders = lines[0].split('\t');
+                    const headerIdx = lines.findIndex(l => l.toUpperCase().includes('5 SAO') && l.includes('\t'));
+                    if (headerIdx === -1) return null; // Could not find header row
+                    
+                    const allHeaders = lines[headerIdx].split('\t');
                     const excludedColumns = [
                       'Tổng điểm KH đánh giá NV',
                       'Tổng SL ĐH gửi khảo sát (đã gửi hoặc KH đã quét QR)',
@@ -787,7 +803,12 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                       })
                       .filter(i => i !== -1);
 
-                    const rows = lines.slice(1);
+                    const rows = lines.slice(headerIdx + 1).filter(l => {
+                      const parts = l.split('\t');
+                      // Only keep rows that look like employee data (has ID or enough columns)
+                      if (parts.length < 5) return false;
+                      return /^(\d{4,6})\s*-/.test(parts[0]) || parts.length >= allHeaders.length - 2;
+                    });
 
                     // Sorting by '5 SAO' descending
                     const colIndex5Sao = allHeaders.findIndex(h => h.trim().toUpperCase().includes('5 SAO'));
@@ -989,28 +1010,15 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   transition={{ duration: 0.2 }}
                   className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-[1260px] mx-auto w-full"
                 >
-                  <div className="flex items-center justify-between mb-6 border-b-2 border-orange-400 pb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-slate-50 text-slate-500 rounded-xl">
-                        <LayoutGrid size={24} />
-                      </div>
-                      <h2 className="text-xl font-black text-slate-500 uppercase tracking-tight">1. Data Bán Kèm NV</h2>
-                    </div>
-                    <div className="p-2 bg-slate-50 text-orange-400 rounded-xl">
-                      <TrendingUp size={24} />
-                    </div>
+                  <div className="hidden">
+                    <textarea
+                      value={banKemNv}
+                      onChange={(e) => saveBanKemNv(e.target.value)}
+                    />
                   </div>
 
-                  <textarea
-                    value={banKemNv}
-                    onChange={(e) => saveBanKemNv(e.target.value)}
-                    className="w-full h-32 p-4 border border-slate-200 bg-slate-50 rounded-2xl focus:ring-2 focus:ring-orange-400 outline-none text-slate-800 font-mono"
-                    placeholder="Dán dữ liệu (định dạng Excel tab) vào đây..."
-                  />
-                  {isSaving && <p className="text-xs text-orange-500 mt-2">Đang lưu tự động...</p>}
-
                   {banKemNv && (
-                    <div className="mt-8 w-full">
+                    <div className="w-full">
                       <div className="flex justify-end mb-4">
                         <button
                           onClick={handleCaptureBanKem}
@@ -1089,61 +1097,219 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-4xl mx-auto w-full"
+                  className="w-full"
                 >
-                  <div className="flex items-center justify-between mb-6 border-b-2 border-purple-400 pb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-slate-50 text-slate-500 rounded-xl">
-                        <Gift size={24} />
+                  <div className="space-y-5">
+                    {/* TOP ROW - Two input panels side by side */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Tháng trước */}
+                      <div className="bg-white rounded-[20px] p-4 shadow-lg border border-slate-200/80">
+                        <div className="flex items-center gap-2.5 pb-3 mb-3 border-b border-slate-200">
+                          <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center">
+                            <Gift size={14} className="text-slate-500" />
+                          </div>
+                          <div>
+                            <h3 className="text-xs font-black text-slate-700 uppercase tracking-tight">Thưởng tháng trước</h3>
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Dán dữ liệu từ BI</p>
+                          </div>
+                        </div>
+                        <div className="space-y-2.5">
+                          {filteredBiData.map((staff) => (
+                            <div key={`truoc-${staff.fullId}`}>
+                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 block truncate">{staff.displayName}</label>
+                              <textarea
+                                className="w-full p-2 rounded-lg border border-slate-200 text-[10px] font-medium focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 outline-none transition-all bg-slate-50/50 hover:bg-white resize-none"
+                                rows={1}
+                                placeholder="Dán dữ liệu..."
+                                value={thuongData[staff.fullId]?.truoc || ''}
+                                onChange={(e) => {
+                                  saveThuongField(staff.fullId, 'truoc', e.target.value);
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <h2 className="text-xl font-black text-slate-500 uppercase tracking-tight">Dữ liệu Thưởng NV</h2>
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-                    <div className="space-y-4">
-                      <h3 className="font-bold text-slate-700 uppercase tracking-wider text-sm">Dữ liệu Thưởng tháng trước</h3>
-                      {filteredBiData.map((staff) => (
-                        <div key={`truoc-${staff.fullId}`} className="p-4 border border-slate-100 rounded-2xl bg-slate-50 space-y-2">
-                          <div className="font-bold text-xs text-slate-600">{staff.displayName}</div>
-                          <textarea
-                            className="w-full p-2 rounded-xl border border-slate-200 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                            placeholder="Dán dữ liệu tháng trước..."
-                            onBlur={(e) => {
-                              const value = e.target.value;
-                              supabase.from('store_luyke').upsert({
-                                staff_id: staff.fullId,
-                                thuong_thang_truoc: value,
-                                warehouse_code: maKho
-                              }, { onConflict: 'staff_id, warehouse_code' }).then(({ error }) => {
-                                if (error) console.error('Lỗi lưu thưởng tháng trước:', error);
-                              });
-                            }}
-                          />
+                      {/* Tháng hiện tại */}
+                      <div className="bg-white rounded-[20px] p-4 shadow-lg border border-purple-200/80">
+                        <div className="flex items-center gap-2.5 pb-3 mb-3 border-b border-purple-200">
+                          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-sm shadow-purple-200/50">
+                            <Gift size={14} className="text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-xs font-black text-purple-700 uppercase tracking-tight">Thưởng hiện tại</h3>
+                            <p className="text-[9px] text-purple-400 font-bold uppercase tracking-widest">Dán dữ liệu từ BI</p>
+                          </div>
                         </div>
-                      ))}
+                        <div className="space-y-2.5">
+                          {filteredBiData.map((staff) => (
+                            <div key={`hientai-${staff.fullId}`}>
+                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 block truncate">{staff.displayName}</label>
+                              <textarea
+                                className="w-full p-2 rounded-lg border border-purple-200 text-[10px] font-medium focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 outline-none transition-all bg-purple-50/30 hover:bg-white resize-none"
+                                rows={1}
+                                placeholder="Dán dữ liệu..."
+                                value={thuongData[staff.fullId]?.hientai || ''}
+                                onChange={(e) => {
+                                  saveThuongField(staff.fullId, 'hientai', e.target.value);
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-4">
-                      <h3 className="font-bold text-slate-700 uppercase tracking-wider text-sm">Dữ liệu Thưởng hiện tại</h3>
-                      {filteredBiData.map((staff) => (
-                        <div key={`hientai-${staff.fullId}`} className="p-4 border border-slate-100 rounded-2xl bg-slate-50 space-y-2">
-                          <div className="font-bold text-xs text-slate-600">{staff.displayName}</div>
-                          <textarea
-                            className="w-full p-2 rounded-xl border border-slate-200 text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                            placeholder="Dán dữ liệu tháng hiện tại..."
-                            onBlur={(e) => {
-                              const value = e.target.value;
-                              supabase.from('store_luyke').upsert({
-                                staff_id: staff.fullId,
-                                thuong_hien_tai: value,
-                                warehouse_code: maKho
-                              }, { onConflict: 'staff_id, warehouse_code' }).then(({ error }) => {
-                                if (error) console.error('Lỗi lưu thưởng hiện tại:', error);
-                              });
-                            }}
-                          />
+
+                    {/* RIGHT PANEL - Bonus Summary Table */}
+                    <div className="bg-white rounded-[24px] shadow-lg border border-slate-200/80 overflow-hidden">
+                      {/* Table Header */}
+                      <div className="bg-gradient-to-r from-purple-600 via-indigo-600 to-violet-700 px-6 py-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                              <Gift size={18} className="text-white" />
+                            </div>
+                            <div>
+                              <h2 className="text-base font-black text-white uppercase tracking-tight">Bảng thưởng nhân viên</h2>
+                              <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest">{marketFilter !== 'ALL' ? marketFilter : 'Tất cả siêu thị'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="px-3 py-1.5 rounded-xl bg-white/15 backdrop-blur-sm">
+                              <span className="text-[10px] font-black text-white/90 uppercase tracking-widest">{filteredBiData.length} NV</span>
+                            </div>
+                          </div>
                         </div>
-                      ))}
+                      </div>
+
+                      {/* Table Content */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="bg-slate-50 border-b-2 border-slate-200">
+                              <th className="px-3 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest text-left w-10">STT</th>
+                              <th className="px-3 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest text-left">Nhân viên</th>
+                              <th className="px-3 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-l border-slate-200">Thưởng T.Trước</th>
+                              <th className="px-3 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-l border-slate-200">Thưởng Hiện tại</th>
+                              <th className="px-3 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-l border-slate-200">Xu hướng</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {filteredBiData.map((staff, idx) => {
+                              const truoc = thuongData[staff.fullId]?.truoc || '';
+                              const hientai = thuongData[staff.fullId]?.hientai || '';
+                              const hasTruoc = truoc.trim().length > 0;
+                              const hasHientai = hientai.trim().length > 0;
+                              
+                              // Parse: dòng "Tổng cộng" → cột thứ 9 (index 8) = "Điểm thực lãnh"
+                              // Chỉ lấy dữ liệu hiển thị trực tiếp, CẤM lấy từ nguồn DB khác
+                              const parseBonusData = (text: string) => {
+                                if (!text) return { tong: 0 };
+                                const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                                let tong = 0;
+                                for (const line of lines) {
+                                  const parts = line.split(/\t/).map(p => p.trim());
+                                  const label = parts[0]?.toLowerCase() || '';
+                                  
+                                  // Tìm dòng "Tổng cộng" hoặc "Tổng"
+                                  if (label === 'tổng cộng' || label === 'tong cong' || label === 'tổng' || label === 'tong' || label.startsWith('tổng cộng') || label.startsWith('tổng ') || label.startsWith('tổng:') || label.includes('tổng cộng') || label.includes('tổng')) {
+                                    const COL_INDEX = 8;
+                                    if (COL_INDEX < parts.length) {
+                                      const raw = parts[COL_INDEX].replace(/[,.\s]/g, '').replace(/đ$/i, '');
+                                      const num = parseFloat(raw);
+                                      tong = isNaN(num) ? 0 : num;
+                                    } else {
+                                      // Fallback: try the last numeric value
+                                      for (let i = parts.length - 1; i >= 1; i--) {
+                                        const clean = parts[i].replace(/[,.\s]/g, '').replace(/đ$/i, '');
+                                        const n = parseFloat(clean);
+                                        if (!isNaN(n) && n > 0) { tong = n; break; }
+                                      }
+                                    }
+                                    break;
+                                  }
+                                }
+                                return { tong };
+                              };
+                              
+                              const truocData = parseBonusData(truoc);
+                              const hientaiData = parseBonusData(hientai);
+                              const tongDiff = hientaiData.tong - truocData.tong;
+
+                              return (
+                                <tr key={staff.fullId} className="hover:bg-purple-50/30 transition-colors">
+                                  <td className="px-3 py-3">
+                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-slate-100 text-[10px] font-black text-slate-500">
+                                      {idx + 1}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-3">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center flex-shrink-0">
+                                        <span className="text-[10px] font-black text-purple-600">
+                                          {staff.displayName.split(' ').pop()?.charAt(0) || '?'}
+                                        </span>
+                                      </div>
+                                      <p className="text-[11px] font-bold text-slate-800 truncate max-w-[180px]">{staff.displayName}</p>
+                                    </div>
+                                  </td>
+                                  {/* Thưởng T.Trước */}
+                                  <td className="px-3 py-3 text-center border-l border-slate-100">
+                                    {hasTruoc && truocData.tong > 0 ? (
+                                      <span className="inline-flex px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-bold text-slate-700">{truocData.tong.toLocaleString('vi-VN')}</span>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-300 font-bold">—</span>
+                                    )}
+                                  </td>
+                                  {/* Thưởng Hiện tại */}
+                                  <td className="px-3 py-3 text-center border-l border-slate-100">
+                                    {hasHientai && hientaiData.tong > 0 ? (
+                                      <span className="inline-flex px-2.5 py-1 rounded-lg bg-purple-100 text-xs font-bold text-purple-700">{hientaiData.tong.toLocaleString('vi-VN')}</span>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-300 font-bold">—</span>
+                                    )}
+                                  </td>
+                                  {/* Xu hướng */}
+                                  <td className="px-3 py-3 text-center border-l border-slate-100">
+                                    {(hasTruoc && truocData.tong > 0) || (hasHientai && hientaiData.tong > 0) ? (
+                                      <div className="flex items-center justify-center">
+                                        {tongDiff > 0 ? (
+                                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase">
+                                            <TrendingUp size={11} strokeWidth={3} /> Tăng
+                                          </span>
+                                        ) : tongDiff < 0 ? (
+                                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 text-rose-600 text-[9px] font-black uppercase">
+                                            <TrendingDown size={11} strokeWidth={3} /> Giảm
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 text-amber-600 text-[9px] font-black uppercase">
+                                            <Check size={11} strokeWidth={3} /> Ổn định
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="inline-flex items-center px-2 py-1 rounded-lg bg-slate-50 text-slate-400 text-[9px] font-black uppercase">
+                                        Chưa có DL
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+
+                        {filteredBiData.length === 0 && (
+                          <div className="flex flex-col items-center justify-center py-16 text-center">
+                            <div className="w-16 h-16 rounded-3xl bg-slate-100 flex items-center justify-center mb-4">
+                              <Gift size={28} className="text-slate-300" />
+                            </div>
+                            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Chưa có nhân viên</h3>
+                            <p className="text-xs text-slate-300 font-medium mt-1">Chọn siêu thị và nhân viên để xem bảng thưởng</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </motion.div>

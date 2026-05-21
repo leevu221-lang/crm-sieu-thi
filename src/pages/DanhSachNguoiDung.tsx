@@ -286,7 +286,6 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                             { id: 'khaibao', label: 'Khai Báo', color: 'bg-violet-100 text-violet-700' },
                             { id: 'health', label: 'Sức Khoẻ', color: 'bg-rose-100 text-rose-700' },
                             { id: 'toolhotro', label: 'Tool HT', color: 'bg-amber-100 text-amber-700' },
-                            { id: 'tnb_dm_7611', label: 'TNB', color: 'bg-emerald-100 text-emerald-700' },
                           ].filter(p => user.userPermissions?.allowedPages?.includes(p.id)).map(p => (
                             <span key={p.id} className={`px-2.5 py-1 rounded-full text-xs font-bold ${p.color}`}>{p.label}</span>
                           ))}
@@ -463,7 +462,6 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                       { id: 'khaibao', label: 'Khai Báo', color: 'bg-indigo-500' },
                       { id: 'health', label: 'Sức khoẻ nhân viên', color: 'bg-rose-500' },
                       { id: 'toolhotro', label: 'Tool Hỗ Trợ', color: 'bg-amber-500' },
-                      { id: 'tnb_dm_7611', label: 'TNB_DM_7611', color: 'bg-indigo-500' },
                     ].map((page) => {
                       const hasAccess = isEditing.userPermissions?.allowedPages?.includes(page.id) || false;
                       return (

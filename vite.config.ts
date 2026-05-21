@@ -9,6 +9,7 @@ const certExists = fs.existsSync('./43751-crm.local+1-key.pem');
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
+    base: './',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

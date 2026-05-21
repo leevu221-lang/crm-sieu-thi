@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { useStore } from '../contexts/StoreContext';
 import { Loader2, Save, Trash2, ChevronRight, ChevronLeft, Camera, RotateCcw, RefreshCw, GripVertical, Eye, EyeOff, CalendarCheck } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import * as htmlToImage from 'html-to-image';
@@ -20,6 +21,7 @@ const SHIFT_HOURS: { [key: string]: number } = {
 
 export default function PhanCaTuanTable() {
   const { userProfile } = useAuth();
+  const { currentStoreId } = useStore();
   const { loadData } = useRealtimeData(userProfile?.ma_kho || '');
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,12 +67,11 @@ export default function PhanCaTuanTable() {
       }
 
       // 2. Fallback to database or monthly data if no local weekly data
-      // For simplicity in this tool, we'll try to load the staff list from the same source
+      const targetStore = currentStoreId || userProfile.ma_kho || '';
       const { data: lkData, error } = await supabase
-        .from('store_luyke')
+        .from('store')
         .select('ds_nhan_vien')
-        .eq('warehouse_code', userProfile.ma_kho)
-        .limit(1)
+        .eq('id', targetStore.trim())
         .maybeSingle();
 
       if (error) {

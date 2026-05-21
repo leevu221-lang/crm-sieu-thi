@@ -58,7 +58,9 @@ import {
   GripVertical,
   Package,
   RotateCcw,
-  ClipboardList
+  ClipboardList,
+  X,
+  FileSpreadsheet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
@@ -66,8 +68,10 @@ import { useNotification } from '../contexts/NotificationContext';
 import { useMarket } from '../contexts/MarketContext';
 import { useRealtimeData } from './RTST/hooks/useRealtimeData';
 import { useLuykeData } from './RTST/hooks/useLuykeData';
+import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';
+import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
-import { isValidStoreName } from './RTST/utils';
+import { isValidStoreName, normalize } from './RTST/utils';
 
 const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: boolean, onClick: () => void, icon: any, label: string, count?: number }) => (
   <button
@@ -114,14 +118,15 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay, duration: 0.4 }}
-        className={`${bgMap[color] || 'bg-white'} p-5 rounded-2xl border-2 border-white shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between h-full`}
+        className={`${bgMap[color] || 'bg-white'} p-5 rounded-2xl border-2 border-white transition-all duration-300 flex flex-col justify-between h-full`}
       >
-        <div className="flex justify-between items-start mb-4">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white/20 backdrop-blur-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white/20 backdrop-blur-sm shrink-0">
             <Icon size={18} strokeWidth={2.5} />
           </div>
+          <h3 className="text-[11px] font-bold text-white/90 uppercase tracking-widest leading-tight">{title}</h3>
           {trend !== undefined && (
-            <div className="flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-bold bg-white/20 backdrop-blur-sm">
+            <div className="flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-bold bg-white/20 backdrop-blur-sm ml-auto shrink-0">
               {trend > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
               {Math.abs(trend)}%
             </div>
@@ -129,8 +134,7 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
         </div>
 
         <div>
-          <h3 className="text-[11px] font-bold text-white/70 uppercase tracking-widest mb-1">{title}</h3>
-          <div className="font-bold text-4xl tracking-tight font-oswald">
+          <div className="font-bold text-[45px] tracking-tight font-oswald whitespace-nowrap">
             {value}
           </div>
           {subValue && (
@@ -148,14 +152,15 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.4 }}
-      className={`bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between ${isLarge ? 'md:col-span-2' : ''}`}
+      className={`bg-white p-5 rounded-2xl border border-slate-100 transition-all duration-300 flex flex-col justify-between ${isLarge ? 'md:col-span-2' : ''}`}
     >
-      <div className="flex justify-between items-center mb-4">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${colorMap[color] || 'bg-slate-50 text-slate-600'}`}>
-          <Icon size={20} strokeWidth={2.5} />
+      <div className="flex items-center gap-2 mb-4">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${colorMap[color] || 'bg-slate-50 text-slate-600'}`}>
+          <Icon size={18} strokeWidth={2.5} />
         </div>
+        <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-tight">{title}</h3>
         {trend !== undefined && (
-          <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ${trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+          <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ml-auto shrink-0 ${trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
             {trend > 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
             {Math.abs(trend)}%
           </div>
@@ -163,8 +168,7 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
       </div>
 
       <div>
-        <h3 className="text-[12px] font-bold text-slate-400 uppercase tracking-widest mb-1">{title}</h3>
-        <div className={`font-bold text-slate-900 tracking-tight font-oswald ${isLarge ? 'text-5xl' : 'text-4xl'}`}>
+        <div className={`font-bold text-slate-900 tracking-tight font-oswald whitespace-nowrap ${isLarge ? 'text-[45px]' : 'text-[45px]'}`}>
           {value}
         </div>
         <div className="mt-4 flex items-center gap-2 text-[10px] font-medium text-slate-500">
@@ -416,6 +420,13 @@ const NHOM_SMALL_DISPLAY: Record<string, string> = {
   'XE ĐẠP': 'Xe đạp', 'VIEON': 'UDDĐ', 'KHUNG TREO': 'Khung treo', 'LÕI LỌC': 'Lõi lọc',
 };
 
+const formatCurrencyUnit = (num: number) => {
+  const abs = Math.abs(Math.round(num));
+  if (abs >= 1000) return `${Math.round(num).toLocaleString('vi-VN')} tỷ`;
+  if (abs > 0) return `${Math.round(num).toLocaleString('vi-VN')} tr`;
+  return '0';
+};
+
 const fmtTr = (v: number): string => {
   if (v === 0) return '0';
   const m = v / 1_000_000;
@@ -461,12 +472,79 @@ const extractBrand = (productName: string): string => {
 export default function NewRealtimePage() {
   const { userProfile } = useAuth();
   const { showNotification } = useNotification();
-  const { marketFilter, setMarketFilter, setAvailableMarkets } = useMarket();
+  const { marketFilter, setMarketFilter, availableMarkets: filteredMarkets } = useMarket();
   const [selectedStaffs, setSelectedStaffs] = useState<string[]>([]);
   const [selectedMaKho, setSelectedMaKho] = useState(userProfile?.ma_kho || '');
-  const { ycxData, processedData, isLoadingRealtime, loadData, lastUpdated, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
+  const { ycxData, setYcxData, processedData, isLoadingRealtime, loadData, lastUpdated, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
+
+  const { ycxFileName, setYcxFileName } = useRTSTSharedData(selectedMaKho);
 
   const { processedData: luykeProcessedData, clusterSummaryInput, setClusterSummaryInput, clusterCategoryInput, setClusterCategoryInput, saveLuykeData } = useLuykeData(selectedMaKho);
+
+  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setYcxFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const bstr = evt.target?.result;
+      const wb = XLSX.read(bstr, { type: 'binary' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+      
+      // Clean numeric strings: remove commas and convert to numbers where possible
+      // to avoid database storage issues with formatted strings.
+      const cleanedData = data.map(row => 
+        row.map(cell => {
+          if (typeof cell === 'string') {
+            const trimmed = cell.trim();
+            // If it's a numeric string with commas/dots
+            if (/^-?[\d,.]+(%?)$/.test(trimmed)) {
+              // Robust numeric parsing logic
+              const clean = (s: string) => {
+                let c = s.replace(/[^\d,.-]/g, '');
+                const lastComma = c.lastIndexOf(',');
+                const lastDot = c.lastIndexOf('.');
+                
+                if (lastComma > lastDot && lastComma !== -1) {
+                  // Vietnamese format: 1.234.567,89 -> 1234567.89
+                  return parseFloat(c.replace(/\./g, '').replace(',', '.'));
+                } else if (lastDot > lastComma && lastDot !== -1) {
+                  // International format: 1,234,567.89 -> 1234567.89
+                  return parseFloat(c.replace(/,/g, ''));
+                } else if (lastComma !== -1 && lastDot === -1) {
+                  // Only comma: 1234,56 -> 1234.56
+                  return parseFloat(c.replace(',', '.'));
+                } else if (lastDot !== -1 && lastComma === -1) {
+                  // Only dot: could be 1.234 (thousands) or 1.23 (decimal)
+                  const parts = c.split('.');
+                  if (parts.length > 1 && parts[parts.length - 1].length === 3) {
+                    return parseFloat(c.replace(/\./g, ''));
+                  }
+                  return parseFloat(c);
+                }
+                return parseFloat(c);
+              };
+              
+              const num = clean(trimmed);
+              if (!isNaN(num)) return num;
+            }
+          }
+          return cell;
+        })
+      );
+      
+      // Chuyển đổi thành chuỗi Tab-Separated thay vì JSON để tránh lưu các dấu phẩy, ngoặc vuông của định dạng JSON vào Database.
+      const rawString = cleanedData.map(row => 
+        (Array.isArray(row) ? row : []).map(cell => cell === null || cell === undefined ? '' : String(cell)).join('\t')
+      ).join('\n');
+      
+      setYcxData(rawString);
+    };
+    reader.readAsBinaryString(file);
+  };
 
   // --- BI Import: show paste button when user returns ---
   const [biImportMode, setBiImportMode] = useState<'realtime' | 'luyke' | null>(null);
@@ -548,17 +626,57 @@ export default function NewRealtimePage() {
     const map = new Map<string, number>();
     if (!luykeProcessedData?.categories) return map;
 
-    luykeProcessedData.categories.forEach(cat => {
-      const name = cat.name.trim().toUpperCase();
-      const type = cat.type;
-      const key = `${name}_${type}`;
-      const remaining = cat.revenue - cat.target;
-      if (remaining < 0) {
-        map.set(key, (map.get(key) || 0) + remaining);
-      }
-    });
+    luykeProcessedData.categories
+      .filter(cat => marketFilter === 'ALL' || !cat.marketName || 
+        normalize(cat.marketName).includes(normalize(marketFilter)) ||
+        normalize(marketFilter).includes(normalize(cat.marketName))
+      )
+      .forEach(cat => {
+        const name = cat.name.trim().toUpperCase();
+        const type = cat.type;
+        const key = `${name}_${type}`;
+        const remaining = cat.revenue - cat.target;
+        if (remaining < 0) {
+          map.set(key, (map.get(key) || 0) + remaining);
+        }
+      });
     return map;
-  }, [luykeProcessedData?.categories]);
+  }, [luykeProcessedData?.categories, marketFilter]);
+
+  // Map for MỤC TIÊU 100%: stores { target, revenue } from BC THÁNG per category
+  const luykeCatMap = useMemo(() => {
+    const map = new Map<string, { target: number; revenue: number }>();
+    if (!luykeProcessedData?.categories) return map;
+
+    luykeProcessedData.categories
+      .filter(cat => marketFilter === 'ALL' || !cat.marketName || 
+        normalize(cat.marketName).includes(normalize(marketFilter)) ||
+        normalize(marketFilter).includes(normalize(cat.marketName))
+      )
+      .forEach(cat => {
+        const name = cat.name.trim().toUpperCase();
+        const type = cat.type;
+        const key = `${name}_${type}`;
+        const existing = map.get(key);
+        if (existing) {
+          existing.target += cat.target;
+          existing.revenue += cat.revenue;
+        } else {
+          map.set(key, { target: cat.target, revenue: cat.revenue });
+        }
+      });
+    return map;
+  }, [luykeProcessedData?.categories, marketFilter]);
+
+  // Calculate days in current month and days passed for MỤC TIÊU 100%
+  const mucTieu100Info = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysPassed = now.getDate();
+    return { totalDaysInMonth, daysPassed };
+  }, []);
 
   // compareMode MUST be declared before the useMemo that uses it (TDZ fix)
   const [compareMode, setCompareMode] = useState<'none' | 'day' | 'week' | 'month'>('none');
@@ -854,7 +972,7 @@ export default function NewRealtimePage() {
     if (userProfile?.role === 'admin') {
       const fetchStores = async () => {
         const { data } = await supabase
-          .from('store_realtime')
+          .from('store')
           .select('warehouse_code, ten_sieu_thi');
         if (data) setStores(data);
       };
@@ -866,6 +984,8 @@ export default function NewRealtimePage() {
   const [showSllkComment, setShowSllkComment] = useState(false);
   const [showDtlkComment, setShowDtlkComment] = useState(false);
   const [showLuykeColumn, setShowLuykeColumn] = useState(true);
+  const [showTargetCols, setShowTargetCols] = useState(true);  // TARGET, REAL, %HT
+  const [showOrangeCols, setShowOrangeCols] = useState(true);  // CÒN LẠI, LUỸ KẾ, MỤC TIÊU 100%
   const [expandedStaff, setExpandedStaff] = useState<Record<string, boolean>>({});
   const [expandedCERows, setExpandedCERows] = useState<Record<string, boolean>>({});
   const [expandedDrillRows, setExpandedDrillRows] = useState<Record<string, boolean>>({});
@@ -982,6 +1102,44 @@ export default function NewRealtimePage() {
     });
   };
 
+  const generateCategoryComment = () => {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    
+    let commentText = `📊 REALTIME NGÀNH HÀNG ĐẾN ${timeStr}\n\n`;
+
+    // SL categories under 100%
+    const slCats = filteredCategories
+      .filter(c => (c.type === 'SL' || c.type === 'ALL') && Math.round(c.rate || 0) < 100)
+      .sort((a, b) => (b.rate || 0) - (a.rate || 0));
+
+    if (slCats.length > 0) {
+      commentText += `📦 NGÀNH HÀNG (SL)\n`;
+      slCats.forEach(cat => {
+        const remaining = cat.target - cat.revenue;
+        commentText += `❌ ${cat.name}: còn ${remaining > 0 ? Math.round(remaining).toLocaleString() : 0}\n`;
+      });
+      commentText += `\n`;
+    }
+
+    // DT categories under 100%
+    const dtCats = filteredCategories
+      .filter(c => (c.type === 'DT' || c.type === 'ALL') && Math.round(c.rate || 0) < 100)
+      .sort((a, b) => (b.rate || 0) - (a.rate || 0));
+
+    if (dtCats.length > 0) {
+      commentText += `💰 NGÀNH HÀNG (DT)\n`;
+      dtCats.forEach(cat => {
+        const remaining = cat.target - cat.revenue;
+        commentText += `❌ ${cat.name}: còn ${remaining > 0 ? Math.round(remaining).toLocaleString() : 0}\n`;
+      });
+    }
+
+    navigator.clipboard.writeText(commentText).then(() => {
+      showNotification(`Đã copy nhận xét ngành hàng dưới 100% vào bộ nhớ tạm!`, 'success');
+    });
+  };
+
   const captureCategories = async () => {
     if (categoriesRef.current) {
       try {
@@ -1041,30 +1199,32 @@ export default function NewRealtimePage() {
     return 'Chào buổi tối';
   }, [currentTime]);
 
-  const filteredMarkets = useMemo(() => {
-    return processedData.markets.filter(m => isValidStoreName(m.name));
-  }, [processedData.markets]);
-
-  // Sync available markets to global context
-  useEffect(() => {
-    if (filteredMarkets.length > 0) {
-      setAvailableMarkets(filteredMarkets);
-    }
-  }, [filteredMarkets, setAvailableMarkets]);
+  // Synchronized with DB-declared stores list via useMarket()
 
   const summary = useMemo(() => {
     if (!processedData.markets.length) return null;
+    
+    if (marketFilter !== 'ALL') {
+      const match = processedData.markets.find(m => 
+        normalize(m.name).includes(normalize(marketFilter)) ||
+        normalize(marketFilter).includes(normalize(m.name))
+      );
+      if (match) return match;
+    }
+    
     // Try to find the "TỔNG" row first, otherwise take the first one
     const totalRow = processedData.markets.find(m => m.name === 'TỔNG' || m.isSummary);
     return totalRow || processedData.markets[0];
-  }, [processedData.markets]);
+  }, [processedData.markets, marketFilter]);
 
   const filteredCategories = useMemo(() => {
     if (!processedData.categories || processedData.categories.length === 0) return [];
 
     // 1. Filter by global market filter
     const visibleCats = processedData.categories.filter(cat =>
-      marketFilter === 'ALL' || !cat.marketName || cat.marketName === marketFilter
+      marketFilter === 'ALL' || !cat.marketName || 
+      normalize(cat.marketName).includes(normalize(marketFilter)) ||
+      normalize(marketFilter).includes(normalize(cat.marketName))
     );
 
     // 2. Aggregate by name and type
@@ -1153,7 +1313,7 @@ export default function NewRealtimePage() {
 
   return (
     <>
-    <div className="min-h-screen bg-[#f8fafc] font-sans">
+    <div className="min-h-screen bg-[#f8fafc]" style={{ fontFamily: '"Inter", sans-serif' }}>
       {/* Non-blocking loading indicator */}
       {isLoadingRealtime && (
         <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-slate-100 overflow-hidden">
@@ -1161,8 +1321,8 @@ export default function NewRealtimePage() {
                style={{ animation: 'loading-slide 1s ease-in-out infinite' }} />
         </div>
       )}
-      {/* Professional Header - Spans full width */}
-      <div className="bg-white border-b border-slate-200 px-8 py-5 sticky top-[116px] z-40 shadow-sm">
+      {/* Professional Header - Hidden */}
+      <div className="hidden bg-white border-b border-slate-200 px-8 py-5 sticky top-[116px] z-40 shadow-sm">
         <div className="max-w-[1800px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-center gap-5">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-400 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
@@ -1256,7 +1416,7 @@ export default function NewRealtimePage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm"
+            className="bg-white p-8 rounded-[32px] border border-slate-100"
           >
             <div className="flex items-center justify-between mb-8">
               <div className="space-y-1">
@@ -1292,7 +1452,7 @@ export default function NewRealtimePage() {
             ref={overviewRef}
           >
             {/* Overview Header with Capture Button */}
-            <div className="flex flex-col gap-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+            <div className="flex flex-col gap-4 bg-white p-4 rounded-2xl border border-slate-100 no-capture">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
@@ -1312,7 +1472,7 @@ export default function NewRealtimePage() {
                             try { await navigator.clipboard.readText(); } catch {}
                             setBiImportMode('realtime');
                             window.open('https://bi.thegioididong.com/khoi-ban-hang-sub?id=73920&tab=bcth&rt=1&dm=1', '_blank');
-                            showNotification('📄 Đang mở trang BI... Hãy Ctrl+A → Ctrl+C rồi quay lại, dữ liệu sẽ tự động cập nhật!', 'info');
+                            showNotification('📄 Đang mở trang BI... Hãy Ctrl+A → Ctrl+C rồi quay lại, dữ liệu sẽ tự động cập nhật!', 'success');
                           }}
                           className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-400 to-amber-500 text-white rounded-xl text-[11px] font-black uppercase tracking-widest hover:from-amber-500 hover:to-amber-600 transition-all shadow-lg shadow-amber-200/50 active:scale-95 border-t border-white/20"
                         >
@@ -1369,271 +1529,281 @@ export default function NewRealtimePage() {
             <div className="space-y-6">
               {filteredMarkets
                 .filter(m => marketFilter === 'ALL' || m.name === marketFilter)
-                .map((market, mIdx) => (
-                  <div key={mIdx} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+                .map((declaredMarket, mIdx) => {
+                  // Find matching parsed store from processedData.markets (parsed from pasted REALTIME DT BI text)
+                  const parsedMarket = processedData.markets.find(pm => 
+                    normalize(pm.name).includes(normalize(declaredMarket.name)) ||
+                    normalize(declaredMarket.name).includes(normalize(pm.name))
+                  ) || {
+                    name: declaredMarket.name,
+                    targetQD: 0,
+                    actualVirtual: 0,
+                    percentHT: 0,
+                    installmentRate: 0,
+                    luotBillBanHang: 0,
+                    luotBillThuHo: 0
+                  };
+
+                  return (
+                    <div key={mIdx} className="bg-white p-5 rounded-3xl border border-slate-100 space-y-4">
                       <div className="flex flex-wrap items-center justify-between gap-4 px-2 border-b border-slate-50 pb-3">
                         <div className="flex items-center gap-3">
-                          <div className={`w-3 h-3 rounded-full ${market.isSummary || market.name === 'TỔNG' ? 'bg-rose-500 animate-pulse' : 'bg-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.3)]'}`} />
-                          <h3 className="text-[28px] font-black text-slate-800 uppercase tracking-wider">{market.name}</h3>
+                          <div className={`w-3 h-3 rounded-full ${(parsedMarket as any).isSummary || parsedMarket.name === 'TỔNG' ? 'bg-rose-500 animate-pulse' : 'bg-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.3)]'}`} />
+                          <h3 className="text-[28px] font-black text-slate-800 uppercase tracking-wider">{declaredMarket.name}</h3>
                         </div>
                         <div className="text-[12px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
-                          {Math.round(market.percentHT || 0)}% HT
+                          {Math.round(parsedMarket.percentHT || 0)}% HT
                         </div>
                       </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-                      <StatCard
-                        title="TAGET QĐ"
-                        value={market.targetQD?.toLocaleString() || '0'}
-                        subValue=""
-                        icon={Target}
-                        color="rose"
-                        isColored={true}
-                      />
-                      <StatCard
-                        title="DOANH THU QUY ĐỔI"
-                        value={market.actualVirtual?.toLocaleString() || '0'}
-                        subValue=""
-                        icon={TrendingUp}
-                        color="indigo"
-                        isColored={true}
-                      />
-                      <StatCard
-                        title="%HT"
-                        value={`${Math.round(market.percentHT || 0)}%`}
-                        subValue=""
-                        icon={Activity}
-                        color="emerald"
-                        isColored={true}
-                      />
-                      <StatCard
-                        title="Tỷ Trọng Trả Góp"
-                        value={`${(market.installmentRate || 0).toFixed(1)}%`}
-                        subValue=""
-                        icon={ShoppingBag}
-                        color="amber"
-                        isColored={true}
-                      />
-                      <StatCard
-                        title="Lượt Bill Bán Hàng"
-                        value={Math.round(market.luotBillBanHang || 0).toLocaleString()}
-                        subValue=""
-                        icon={Zap}
-                        color="orange"
-                        isColored={true}
-                      />
-                      <StatCard
-                        title="Lượt Bill Thu Hộ"
-                        value={Math.round(market.luotBillThuHo || 0).toLocaleString()}
-                        subValue=""
-                        icon={CreditCard}
-                        color="blue"
-                        isColored={true}
-                      />
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+                        <StatCard
+                          title="TAGET QĐ"
+                          value={formatCurrencyUnit(parsedMarket.targetQD || 0)}
+                          subValue=""
+                          icon={Target}
+                          color="rose"
+                          isColored={true}
+                        />
+                        <StatCard
+                          title="DOANH THU QUY ĐỔI"
+                          value={formatCurrencyUnit(parsedMarket.actualVirtual || 0)}
+                          subValue=""
+                          icon={TrendingUp}
+                          color="indigo"
+                          isColored={true}
+                        />
+                        <StatCard
+                          title="%HT"
+                          value={`${Math.round(parsedMarket.percentHT || 0)}%`}
+                          subValue=""
+                          icon={Activity}
+                          color="emerald"
+                          isColored={true}
+                        />
+                        <StatCard
+                          title="Tỷ Trọng Trả Góp"
+                          value={`${(parsedMarket.installmentRate || 0).toFixed(1)}%`}
+                          subValue=""
+                          icon={ShoppingBag}
+                          color="amber"
+                          isColored={true}
+                        />
+                        <StatCard
+                          title="Lượt Bill Bán Hàng"
+                          value={Math.round(parsedMarket.luotBillBanHang || 0).toLocaleString()}
+                          subValue=""
+                          icon={Zap}
+                          color="orange"
+                          isColored={true}
+                        />
+                        <StatCard
+                          title="Lượt Bill Thu Hộ"
+                          value={Math.round(parsedMarket.luotBillThuHo || 0).toLocaleString()}
+                          subValue=""
+                          icon={CreditCard}
+                          color="blue"
+                          isColored={true}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
 
             {/* Categories Tables moved to Summary */}
             <div className="space-y-6 pt-8 border-t border-slate-200">
-              <div className="flex flex-col items-center gap-4">
-                <h2 className="text-3xl md:text-4xl font-black text-slate-900 uppercase tracking-tight text-center">Chi tiết ngành hàng</h2>
-                <div className="flex flex-wrap items-center justify-center gap-3 no-capture">
-                  <button
-                    onClick={() => setShowLuykeColumn(!showLuykeColumn)}
-                    className={`flex items-center gap-2 px-5 py-2 rounded-full text-[13px] font-black uppercase transition-all duration-300 shadow-sm border active:scale-95 ${showLuykeColumn
-                      ? 'bg-rose-50 text-rose-700 border-rose-200'
-                      : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-white'
-                      }`}
-                  >
-                    <div className={`w-2 h-2 rounded-full ${showLuykeColumn ? 'bg-rose-600 animate-pulse' : 'bg-slate-400'}`}></div>
-                    {showLuykeColumn ? 'Ẩn cột luỹ kế' : 'Hiện cột luỹ kế'}
-                  </button>
-                  <button
-                    onClick={captureCategories}
-                    className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[12px] font-bold uppercase tracking-wider transition-all duration-300 shadow-lg shadow-emerald-200 active:scale-95"
-                  >
-                    <Camera size={16} />
-                    <span>Chụp ảnh báo cáo</span>
-                  </button>
+              <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                <div className="flex flex-col items-center gap-4">
+                  <h2 className="text-[27px] font-black text-slate-900 uppercase tracking-tight text-center">Chi tiết ngành hàng</h2>
+                  <p className="text-[17px] text-slate-500">Theo dõi tiến độ hoàn thành mục tiêu ngành hàng</p>
+                  <div className="flex flex-wrap items-center justify-center gap-2 no-capture">
+                    <button
+                      onClick={() => setShowTargetCols(!showTargetCols)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 ${showTargetCols
+                        ? 'bg-yellow-50 text-yellow-700 border-yellow-300'
+                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-white'
+                        }`}
+                    >
+                      <div className={`w-2 h-2 rounded-full ${showTargetCols ? 'bg-yellow-500' : 'bg-slate-400'}`}></div>
+                      TARGET · REAL · %HT · CÒN LẠI
+                    </button>
+                    <button
+                      onClick={() => setShowOrangeCols(!showOrangeCols)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 ${showOrangeCols
+                        ? 'bg-orange-50 text-orange-700 border-orange-300'
+                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-white'
+                        }`}
+                    >
+                      <div className={`w-2 h-2 rounded-full ${showOrangeCols ? 'bg-orange-500' : 'bg-slate-400'}`}></div>
+                      LUỸ KẾ · MỤC TIÊU
+                    </button>
+                    <button
+                      onClick={generateCategoryComment}
+                      className="flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                    >
+                      <MessageSquare size={14} />
+                      NHẬN XÉT
+                    </button>
+                    <button
+                      onClick={captureCategories}
+                      className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[12px] font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 no-capture"
+                    >
+                      <Camera size={16} />
+                      <span>Chụp ảnh</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div ref={categoriesRef} className="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-sm">
-                <div className="p-10 grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div ref={categoriesRef} className="bg-white rounded-3xl overflow-hidden border border-slate-200">
+                <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Left Table: SLLK */}
-                  <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-                    <div className="flex items-center justify-between mb-8">
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-center text-indigo-600 shrink-0">
-                          <ShoppingBag size={24} />
+                  <div className="border border-slate-300 overflow-hidden">
+                    <div className="bg-white p-[15px]">
+                      <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
+                        <div className="p-4 flex flex-col items-center justify-center">
+                          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">NGÀNH HÀNG (SL)</h2>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">REALTIME</span>
                         </div>
-                        <div className="flex flex-col">
-                          <h3 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tight">NGÀNH HÀNG (SL)</h3>
-                          <p className="text-[14px] font-medium text-slate-500">Lọc theo số lượng luỹ kế</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="bg-indigo-50 px-5 py-2.5 rounded-full border border-indigo-100 shadow-sm">
-                          <span className="text-[18px] font-black text-indigo-700">
-                            {filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length} / {filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').length}
+                        <div className="p-4 flex flex-col items-center justify-center">
+                          <h2 className="text-xl font-black text-rose-600 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">DỰ KIẾN</h2>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                            ĐẠT : {filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length}/{filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').length}
                           </span>
                         </div>
-                        <button
-                          onClick={() => generateAndCopyComment('SL')}
-                          className={`p-2.5 rounded-xl transition-all duration-300 no-capture shadow-sm ${showSllkComment ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 border border-slate-200'}`}
-                          title="Tự động nhận xét & Copy"
-                        >
-                          <MessageSquare size={18} />
-                        </button>
                       </div>
-                    </div>
 
-                    {showSllkComment && (
-                      <div className="mb-4">
-                        <textarea
-                          value={sllkComment}
-                          onChange={(e) => setSllkComment(e.target.value)}
-                          placeholder="Nhập nhận xét cho bảng SLLK..."
-                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 resize-none min-h-[60px] screenshot-comment"
-                        />
+                      {showSllkComment && (
+                        <div className="my-4 no-capture">
+                          <textarea
+                            value={sllkComment}
+                            onChange={(e) => setSllkComment(e.target.value)}
+                            placeholder="Nhập nhận xét cho bảng SLLK..."
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 resize-none min-h-[60px] screenshot-comment"
+                          />
+                        </div>
+                      )}
+
+                      <div className="overflow-hidden">
+                        <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300">
+                          <thead>
+                            <tr className="text-slate-900 h-[60px]">
+                              <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
+                              <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
+                              {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">TARGET</th>}
+                              {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">REAL</th>}
+                              {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>}
+                              {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">CÒN LẠI</th>}
+                              {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">LUỸ KẾ</th>}
+                              {showOrangeCols && <th className="px-2 py-0 text-[11px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[70px] leading-tight">MỤC TIÊU<br/>100%/NGÀY</th>}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredCategories
+                              .filter(c => c.type === 'SL' || c.type === 'ALL')
+                              .sort((a, b) => (b.rate || 0) - (a.rate || 0))
+                              .map((cat, idx) => {
+                                const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type}`;
+                                const lkRemaining = luykeRemainingMap.get(lkKey);
+                                const remaining = cat.target - cat.revenue;
+                                return (
+                                  <tr key={idx} className="hover:bg-slate-50 transition-colors h-[40px]">
+                                    <td className="px-2 py-0 text-[13px] font-extrabold text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
+                                    <td className="px-2 py-0 text-[13px] font-extrabold uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
+                                    {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
+                                    {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
+                                    {showTargetCols && <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
+                                    {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>}
+                                    {showOrangeCols && showLuykeColumn && (
+                                      <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                    )}
+                                    {showOrangeCols && (() => {
+                                      const lkCat = luykeCatMap.get(lkKey);
+                                      if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-400"></td>;
+                                      const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
+                                      return <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                    })()}
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                        </table>
                       </div>
-                    )}
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse border border-slate-300">
-                        <thead>
-                          <tr className="bg-slate-100/80">
-                            <th className="py-3 px-3 text-[12px] font-black bg-emerald-600 text-white uppercase tracking-wider border border-emerald-500">NGÀNH HÀNG</th>
-                            <th className="py-3 px-1 text-[12px] font-black bg-emerald-600 text-white uppercase tracking-wider text-center border border-emerald-500 w-[60px] min-w-[60px] max-w-[60px]">TARGET</th>
-                            <th className="py-3 px-1 text-[12px] font-black bg-amber-500 text-white uppercase tracking-wider text-center border border-amber-400 w-[60px] min-w-[60px] max-w-[60px]">REAL</th>
-                            <th className="py-3 px-1 text-[12px] font-black bg-amber-500 text-white uppercase tracking-wider text-center border border-amber-400 w-[60px] min-w-[60px] max-w-[60px]">%HT</th>
-                            <th className="py-3 px-1 text-[12px] font-black bg-amber-500 text-white uppercase tracking-wider text-center border border-amber-400 w-[60px] min-w-[60px] max-w-[60px]">CÒN LẠI</th>
-                            {showLuykeColumn && <th className="py-3 px-1 text-[12px] font-black bg-rose-600 text-white uppercase tracking-wider text-center border border-rose-500 w-[60px] min-w-[60px] max-w-[60px]">LUỸ KẾ</th>}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredCategories
-                            .filter(c => c.type === 'SL' || c.type === 'ALL')
-                            .sort((a, b) => (b.rate || 0) - (a.rate || 0))
-                            .map((cat, idx) => {
-                              const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type}`;
-                              const lkRemaining = luykeRemainingMap.get(lkKey);
-
-                              return (
-                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                  <td className="py-3 px-3 text-[13px] font-bold text-slate-700 border border-slate-300">{cat.name}</td>
-                                  <td className="py-3 px-1 text-[13px] font-bold text-slate-900 font-oswald text-center border border-slate-300 w-[60px] min-w-[60px] max-w-[60px] truncate">{cat.target.toLocaleString()}</td>
-                                  <td className="py-3 px-1 text-[13px] font-bold text-indigo-600 font-oswald text-center border border-slate-300 w-[60px] min-w-[60px] max-w-[60px] truncate">
-                                    {cat.revenue === 0 ? "" : cat.revenue.toLocaleString()}
-                                  </td>
-                                  <td className="py-3 px-1 text-center border border-slate-300 w-[60px] min-w-[60px] max-w-[60px]">
-                                    <span className={`text-[13px] font-bold px-1.5 py-0.5 rounded ${Math.round(cat.rate || 0) >= 100 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                                      {Math.round(cat.rate || 0)}%
-                                    </span>
-                                  </td>
-                                  <td className="py-3 px-1 text-[13px] font-bold text-rose-600 font-oswald text-center border border-slate-300 w-[60px] min-w-[60px] max-w-[60px] truncate">
-                                    {cat.target - cat.revenue > 0 ? (cat.target - cat.revenue).toLocaleString() : ""}
-                                  </td>
-                                  {showLuykeColumn && (
-                                    <td className="py-3 px-1 text-[13px] font-black text-rose-600 bg-white font-oswald text-center border border-slate-300 w-[60px] min-w-[60px] max-w-[60px] truncate">
-                                      {lkRemaining ? Math.round(lkRemaining).toLocaleString() : ""}
-                                    </td>
-                                  )}
-                                </tr>
-                              );
-                            })}
-                        </tbody>
-                      </table>
                     </div>
                   </div>
 
                   {/* Right Table: DTLK */}
-                  <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-                    <div className="flex items-center justify-between mb-8">
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-white border border-slate-100 shadow-sm flex items-center justify-center text-emerald-600 shrink-0">
-                          <TrendingUp size={24} />
+                  <div className="border border-slate-300 overflow-hidden">
+                    <div className="bg-white p-[15px]">
+                      <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
+                        <div className="p-4 flex flex-col items-center justify-center">
+                          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">NGÀNH HÀNG (DT)</h2>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">REALTIME</span>
                         </div>
-                        <div className="flex flex-col">
-                          <h3 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tight">NGÀNH HÀNG (DT)</h3>
-                          <p className="text-[14px] font-medium text-slate-500">Lọc theo doanh thu luỹ kế</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="bg-emerald-50 px-5 py-2.5 rounded-full border border-emerald-100 shadow-sm">
-                          <span className="text-[18px] font-black text-emerald-700">
-                            {filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length} / {filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').length}
+                        <div className="p-4 flex flex-col items-center justify-center">
+                          <h2 className="text-xl font-black text-rose-600 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">DỰ KIẾN</h2>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                            ĐẠT : {filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length}/{filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').length}
                           </span>
                         </div>
-                        <button
-                          onClick={() => generateAndCopyComment('DT')}
-                          className={`p-2.5 rounded-xl transition-all duration-300 no-capture shadow-sm ${showDtlkComment ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 border border-slate-200'}`}
-                          title="Tự động nhận xét & Copy"
-                        >
-                          <MessageSquare size={18} />
-                        </button>
                       </div>
-                    </div>
 
-                    {showDtlkComment && (
-                      <div className="mb-4">
-                        <textarea
-                          value={dtlkComment}
-                          onChange={(e) => setDtlkComment(e.target.value)}
-                          placeholder="Nhập nhận xét cho bảng DTLK..."
-                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 resize-none min-h-[60px] screenshot-comment"
-                        />
+                      {showDtlkComment && (
+                        <div className="my-4 no-capture">
+                          <textarea
+                            value={dtlkComment}
+                            onChange={(e) => setDtlkComment(e.target.value)}
+                            placeholder="Nhập nhận xét cho bảng DTLK..."
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 resize-none min-h-[60px] screenshot-comment"
+                          />
+                        </div>
+                      )}
+
+                      <div className="overflow-hidden">
+                        <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300">
+                          <thead>
+                            <tr className="text-slate-900 h-[60px]">
+                              <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
+                              <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
+                              {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">TARGET</th>}
+                              {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">REAL</th>}
+                              {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>}
+                              {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">CÒN LẠI</th>}
+                              {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">LUỸ KẾ</th>}
+                              {showOrangeCols && <th className="px-2 py-0 text-[11px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[70px] leading-tight">MỤC TIÊU<br/>100%/NGÀY</th>}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredCategories
+                              .filter(c => c.type === 'DT' || c.type === 'ALL')
+                              .sort((a, b) => (b.rate || 0) - (a.rate || 0))
+                              .map((cat, idx) => {
+                                const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type === 'ALL' ? 'DT' : cat.type}`;
+                                const lkRemaining = luykeRemainingMap.get(lkKey) || luykeRemainingMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
+                                const remaining = cat.target - cat.revenue;
+                                return (
+                                  <tr key={idx} className="hover:bg-slate-50 transition-colors h-[40px]">
+                                    <td className="px-2 py-0 text-[13px] font-extrabold text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
+                                    <td className="px-2 py-0 text-[13px] font-extrabold uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
+                                    {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
+                                    {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
+                                    {showTargetCols && <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
+                                    {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>}
+                                    {showOrangeCols && showLuykeColumn && (
+                                      <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                    )}
+                                    {showOrangeCols && (() => {
+                                      const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
+                                      if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-400"></td>;
+                                      const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
+                                      return <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                    })()}
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                        </table>
                       </div>
-                    )}
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse border border-slate-300">
-                        <thead>
-                          <tr className="bg-slate-100/80">
-                            <th className="py-3 px-3 text-[12px] font-black bg-emerald-600 text-white uppercase tracking-wider border border-emerald-500">NGÀNH HÀNG</th>
-                            <th className="py-3 px-1 text-[12px] font-black bg-emerald-600 text-white uppercase tracking-wider text-center border border-emerald-500 w-[60px] min-w-[60px] max-w-[60px]">TARGET</th>
-                            <th className="py-3 px-1 text-[12px] font-black bg-amber-500 text-white uppercase tracking-wider text-center border border-amber-400 w-[60px] min-w-[60px] max-w-[60px]">REAL</th>
-                            <th className="py-3 px-1 text-[12px] font-black bg-amber-500 text-white uppercase tracking-wider text-center border border-amber-400 w-[60px] min-w-[60px] max-w-[60px]">%HT</th>
-                            <th className="py-3 px-1 text-[12px] font-black bg-amber-500 text-white uppercase tracking-wider text-center border border-amber-400 w-[60px] min-w-[60px] max-w-[60px]">CÒN LẠI</th>
-                            {showLuykeColumn && <th className="py-3 px-1 text-[12px] font-black bg-rose-600 text-white uppercase tracking-wider text-center border border-rose-500 w-[60px] min-w-[60px] max-w-[60px]">LUỸ KẾ</th>}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredCategories
-                            .filter(c => c.type === 'DT' || c.type === 'ALL')
-                            .sort((a, b) => (b.rate || 0) - (a.rate || 0))
-                            .map((cat, idx) => {
-                              const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type === 'ALL' ? 'DT' : cat.type}`;
-                              // In BC Thang DT table, it uses DT or ALL. 
-                              // we need to be careful with types.
-                              const lkRemaining = luykeRemainingMap.get(lkKey) || luykeRemainingMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
-
-                              return (
-                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                                  <td className="py-3 px-3 text-[13px] font-bold text-slate-700 border border-slate-300">{cat.name}</td>
-                                  <td className="py-3 px-1 text-[13px] font-bold text-slate-900 font-oswald text-center border border-slate-300 w-[60px] min-w-[60px] max-w-[60px] truncate">{cat.target.toLocaleString()}</td>
-                                  <td className="py-3 px-1 text-[13px] font-bold text-indigo-600 font-oswald text-center border border-slate-300 w-[60px] min-w-[60px] max-w-[60px] truncate">
-                                    {cat.revenue === 0 ? "" : cat.revenue.toLocaleString()}
-                                  </td>
-                                  <td className="py-3 px-1 text-center border border-slate-300 w-[60px] min-w-[60px] max-w-[60px]">
-                                    <span className={`text-[13px] font-bold px-1.5 py-0.5 rounded ${Math.round(cat.rate || 0) >= 100 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                                      {Math.round(cat.rate || 0)}%
-                                    </span>
-                                  </td>
-                                  <td className="py-3 px-1 text-[13px] font-bold text-rose-600 font-oswald text-center border border-slate-300 w-[60px] min-w-[60px] max-w-[60px] truncate">
-                                    {cat.target - cat.revenue > 0 ? (cat.target - cat.revenue).toLocaleString() : ""}
-                                  </td>
-                                  {showLuykeColumn && (
-                                    <td className="py-3 px-1 text-[13px] font-black text-rose-600 bg-white font-oswald text-center border border-slate-300 w-[60px] min-w-[60px] max-w-[60px] truncate">
-                                      {lkRemaining ? Math.round(lkRemaining).toLocaleString() : ""}
-                                    </td>
-                                  )}
-                                </tr>
-                              );
-                            })}
-                        </tbody>
-                      </table>
                     </div>
                   </div>
                 </div>
@@ -1651,8 +1821,42 @@ export default function NewRealtimePage() {
             style={{ zoom: 1.3 }}
           >
 
+            {/* YCX NHÂN VIÊN Upload Card */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-dashed border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/30 transition-all cursor-pointer flex-1 min-w-0">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${ycxFileName ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                    <FileSpreadsheet size={16} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className={`text-[12px] font-black uppercase tracking-wide block ${ycxFileName ? 'text-teal-700' : 'text-slate-500'}`}>YCX NHÂN VIÊN</span>
+                    {ycxFileName ? (
+                      <p className="text-[10px] text-slate-400 truncate max-w-xl">{ycxFileName}</p>
+                    ) : (
+                      <p className="text-[10px] text-slate-400">Nhấp để tải lên file Excel YCX nhân viên</p>
+                    )}
+                  </div>
+                  <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelUpload} />
+                </label>
+                {ycxFileName && (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setYcxFileName('');
+                      setYcxData('');
+                    }}
+                    className="ml-3 w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0 cursor-pointer border border-slate-100"
+                    title="Xoá dữ liệu YCX"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* CHI TIẾT NGÀNH HÀNG - Drill-down table */}
-            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200">
               {/* Header */}
               <div className="px-6 pt-5 pb-4 border-b border-slate-100">
                 <div className="flex items-start justify-between mb-4">

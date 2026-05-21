@@ -15,7 +15,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const showNotification = useCallback((message: string, type: NotificationType) => {
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3000);
+    setTimeout(() => setNotification(null), 2000);
   }, []);
 
   return (

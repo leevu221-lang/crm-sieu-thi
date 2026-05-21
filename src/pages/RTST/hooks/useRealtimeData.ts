@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNotification } from '../../../contexts/NotificationContext';
+import { useStore, getStoreItem, setStoreItem } from '../../../contexts/StoreContext';
 import { 
   MarketInfo, 
   CategoryData, 
@@ -21,11 +22,13 @@ import {
   parseYcxRankData,
   fetchConversionRates,
   CONVERSION_RATES,
-  safeSetItem
+  safeSetItem,
+  isValidStoreName
 } from '../utils';
 
 export const useRealtimeData = (maKho: string) => {
   const { showNotification } = useNotification();
+  const { isStoreReady, currentStoreId } = useStore();
   
   // Normalize maKho: trim and remove leading zeros for consistency
   const normalizedMaKho = maKho ? maKho.trim().replace(/^0+/, '') : '';
@@ -34,19 +37,58 @@ export const useRealtimeData = (maKho: string) => {
   const [categoryInput, setCategoryInput] = useState(() => localStorage.getItem(STORAGE_KEYS.CATEGORY_INPUT) || '');
   const [ycxData, setYcxData] = useState(() => localStorage.getItem(STORAGE_KEYS.YCX_DATA) || '');
   const [categoryRevenueInput, setCategoryRevenueInput] = useState(() => localStorage.getItem(STORAGE_KEYS.CATEGORY_REVENUE_INPUT) || '');
+  const [categoryTargetInput, setCategoryTargetInput] = useState(() => localStorage.getItem('RTST_CATEGORY_TARGET_INPUT') || '');
   const [activeStore, setActiveStore] = useState<string>(maKho);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [conversionRates, setConversionRates] = useState<Record<string, { normal: number, installment: number }>>(CONVERSION_RATES);
+
+  // Keep refs of inputs to prevent stale closures during saving
+  const marketInputRef = useRef(marketInput);
+  const categoryInputRef = useRef(categoryInput);
+  const categoryRevenueInputRef = useRef(categoryRevenueInput);
+  const categoryTargetInputRef = useRef(categoryTargetInput);
+  const activeStoreRef = useRef(activeStore);
+
+  useEffect(() => { marketInputRef.current = marketInput; }, [marketInput]);
+  useEffect(() => { categoryInputRef.current = categoryInput; }, [categoryInput]);
+  useEffect(() => { categoryRevenueInputRef.current = categoryRevenueInput; }, [categoryRevenueInput]);
+  useEffect(() => { categoryTargetInputRef.current = categoryTargetInput; }, [categoryTargetInput]);
+  useEffect(() => { activeStoreRef.current = activeStore; }, [activeStore]);
+
+  // Sync activeStore and load data when StoreContext's currentStoreId changes
+  const prevStoreIdRef = useRef(currentStoreId);
+  useEffect(() => {
+    if (!currentStoreId || currentStoreId === 'ALL') return;
+    if (!normalizedMaKho) return;
+    
+    // Skip if store hasn't actually changed
+    if (prevStoreIdRef.current === currentStoreId && activeStore === currentStoreId) return;
+
+    // FORCE SAVE the old store's data before we switch away from it
+    if (prevStoreIdRef.current && prevStoreIdRef.current !== 'ALL') {
+      if (saveRealtimeDataRef.current) {
+        console.log(`[RealtimeData] AUTO-REACT: Force saving OLD store before switch → "${prevStoreIdRef.current}"`);
+        saveRealtimeDataRef.current(true);
+      }
+    }
+
+    prevStoreIdRef.current = currentStoreId;
+    console.log(`[RealtimeData] AUTO-REACT: currentStoreId changed → "${currentStoreId}"`);
+    setActiveStore(currentStoreId);
+    loadData(currentStoreId);
+  }, [currentStoreId]);
 
   const [excludedYcxStaffNames, setExcludedYcxStaffNames] = useState<string[]>([]);
 
   const [processedData, setProcessedData] = useState<{
     markets: MarketInfo[];
+    luykeMarkets: MarketInfo[];
     categories: CategoryData[];
     staff: YcxStaffData[];
     ycxRankData: YcxRankData[];
   }>({
     markets: [],
+    luykeMarkets: [],
     categories: [],
     staff: [],
     ycxRankData: []
@@ -67,6 +109,8 @@ export const useRealtimeData = (maKho: string) => {
   const skipAutoSaveRef = useRef(false);
   const skipSubscriptionRef = useRef(false);
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // PERF: Ref for saveRealtimeData to avoid it as dependency in auto-save effect
+  const saveRealtimeDataRef = useRef<((silent?: boolean) => Promise<void>) | null>(null);
 
   const clearData = useCallback(() => {
     setMarketInput('');
@@ -74,8 +118,10 @@ export const useRealtimeData = (maKho: string) => {
     setYcxData('');
     setIsYcxDirty(false);
     setCategoryRevenueInput('');
+    setCategoryTargetInput('');
     setProcessedData({
       markets: [],
+      luykeMarkets: [],
       categories: [],
       staff: [],
       ycxRankData: []
@@ -88,6 +134,7 @@ export const useRealtimeData = (maKho: string) => {
   const handleProcess = useCallback(() => {
     try {
       const markets = parseMarketData(marketInput, 0, 'RTST');
+      const luykeMarkets = categoryRevenueInput ? parseMarketData(categoryRevenueInput, 0, 'LUYKE') : [];
       const categories = parseCategoryData(categoryInput, 0, 30, markets);
       const staff = parseYcxData(ycxData, conversionRates);
       // console.log('[useRealtimeData] handleProcess: staff count:', staff?.length || 0);
@@ -95,6 +142,7 @@ export const useRealtimeData = (maKho: string) => {
 
       setProcessedData({
         markets,
+        luykeMarkets,
         categories,
         staff,
         ycxRankData
@@ -102,7 +150,7 @@ export const useRealtimeData = (maKho: string) => {
     } catch (error) {
       console.error('Error processing realtime data:', error);
     }
-  }, [marketInput, categoryInput, ycxData, conversionRates]);
+  }, [marketInput, categoryInput, ycxData, categoryRevenueInput, categoryTargetInput, conversionRates]);
 
   // Fetch conversion rates on mount
   useEffect(() => {
@@ -112,18 +160,26 @@ export const useRealtimeData = (maKho: string) => {
     };
     getRates();
   }, []);
-
-  // Auto-process data when inputs change (debounced 200ms) and sync to localStorage
   useEffect(() => {
     const tid = setTimeout(() => {
       handleProcess();
     }, 200);
+
     if (marketInput) safeSetItem(STORAGE_KEYS.MARKET_INPUT, marketInput);
+    else localStorage.removeItem(STORAGE_KEYS.MARKET_INPUT);
+    
     if (categoryInput) safeSetItem(STORAGE_KEYS.CATEGORY_INPUT, categoryInput);
+    else localStorage.removeItem(STORAGE_KEYS.CATEGORY_INPUT);
+    
+    if (categoryTargetInput) safeSetItem('RTST_CATEGORY_TARGET_INPUT', categoryTargetInput);
+    else localStorage.removeItem('RTST_CATEGORY_TARGET_INPUT');
+    
+    // YCX is still global
     if (ycxData) safeSetItem(STORAGE_KEYS.YCX_DATA, ycxData);
-    if (categoryRevenueInput) safeSetItem(STORAGE_KEYS.CATEGORY_REVENUE_INPUT, categoryRevenueInput);
+    else localStorage.removeItem(STORAGE_KEYS.YCX_DATA);
+    
     return () => clearTimeout(tid);
-  }, [marketInput, categoryInput, ycxData, categoryRevenueInput, handleProcess]);
+  }, [marketInput, categoryInput, ycxData, handleProcess]);
 
   const updateYcxData = useCallback((newData: string) => {
     setYcxData(newData);
@@ -136,51 +192,51 @@ export const useRealtimeData = (maKho: string) => {
   }, []);
 
   const saveRealtimeData = useCallback(async (silent = false) => {
-    if (!normalizedMaKho || !activeStore) {
-      if (!silent) showNotification('Vui lòng chọn hoặc tải dữ liệu siêu thị trước khi lưu!', 'error');
+    const cleanStore = (activeStore || '').trim();
+    if (!normalizedMaKho || !cleanStore || !isValidStoreName(cleanStore)) {
+      if (!silent && !cleanStore) {
+        showNotification('Vui lòng chọn hoặc tải dữ liệu siêu thị trước khi lưu!', 'error');
+      } else if (cleanStore && !isValidStoreName(cleanStore)) {
+        if (!silent) showNotification(`Tên siêu thị "${cleanStore}" không hợp lệ. Vui lòng chọn siêu thị cụ thể từ danh sách trên cùng!`, 'error');
+        console.warn(`[RealtimeData] Skip saving to DB: "${cleanStore}" is not a valid declared supermarket name.`);
+      }
       return;
     }
     setIsSavingRealtime(true);
     try {
       const cleanMaKho = normalizedMaKho;
-      const cleanStore = (activeStore || normalizedMaKho).trim();
 
       // console.log('[RealtimeData] Saving data for:', cleanMaKho, {
       //   ycxLength: ycxData?.length || 0,
       //   marketLength: marketInput?.length || 0
       // });
 
-      // 1. First, upsert the current active store to ensure at least one record exists
+      const { data: existingData } = await supabase
+        .from('store')
+        .select('*')
+        .eq('id', cleanStore)
+        .maybeSingle();
+
       const { error: upsertError } = await supabase
-        .from('store_realtime')
+        .from('store')
         .upsert({
+          ...(existingData || {}),
+          id: cleanStore, // Supermarket Name!
           warehouse_code: cleanMaKho,
           ten_sieu_thi: cleanStore,
-          rt_bi_tong_quan: marketInput,
-          rt_nh_cum: categoryInput,
-          bc_dt_nganh_hang: categoryRevenueInput,
+          rt_bi_tong_quan: marketInputRef.current,
+          rt_nh_cum: categoryInputRef.current,
+          lk_bi_tong_quan: categoryRevenueInputRef.current,
+          lk_nh_sieu_thi: categoryTargetInputRef.current,
           updated_at: new Date().toISOString()
-        }, { onConflict: 'warehouse_code,ten_sieu_thi' });
+        }, { onConflict: 'id' });
 
       if (upsertError) {
         console.error('[RealtimeData] Upsert error:', upsertError);
         throw upsertError;
       }
 
-      // 2. Then, update all other stores with the same warehouse_code to keep them in sync
-      const { error: updateError } = await supabase
-        .from('store_realtime')
-        .update({
-          rt_bi_tong_quan: marketInput,
-          rt_nh_cum: categoryInput,
-          bc_dt_nganh_hang: categoryRevenueInput,
-          updated_at: new Date().toISOString()
-        })
-        .eq('warehouse_code', cleanMaKho);
-
-      if (updateError) {
-        console.warn('[RealtimeData] Global update error (non-critical):', updateError);
-      }
+      // 2. Global update removed as requested - REALTIME DT and REALTIME TĐ are now per-store.
       
       if (!silent) {
         setIsYcxDirty(false);
@@ -198,9 +254,13 @@ export const useRealtimeData = (maKho: string) => {
     } finally {
       setIsSavingRealtime(false);
     }
-  }, [maKho, activeStore, marketInput, categoryInput, ycxData, categoryRevenueInput, showNotification]);
+  }, [maKho, activeStore, marketInput, categoryInput, ycxData, categoryRevenueInput, categoryTargetInput, showNotification]);
+
+  // PERF: Keep ref up-to-date
+  useEffect(() => { saveRealtimeDataRef.current = saveRealtimeData; }, [saveRealtimeData]);
 
   // Debounced Auto-save
+  // PERF: Uses saveRealtimeDataRef instead of saveRealtimeData to avoid dependency cascade
   useEffect(() => {
     if (!normalizedMaKho || !activeStore) return;
     
@@ -210,15 +270,15 @@ export const useRealtimeData = (maKho: string) => {
       return;
     }
 
-
+    // MULTI-STORE GUARD: Block auto-save during store switch
+    if (!isStoreReady) return;
 
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
     }
 
     autoSaveTimeoutRef.current = setTimeout(() => {
-      // console.log('[RTST] Auto-saving data to DB...');
-      saveRealtimeData(true);
+      saveRealtimeDataRef.current?.(true);
     }, 1000); // 1 second debounce
 
     return () => {
@@ -226,68 +286,88 @@ export const useRealtimeData = (maKho: string) => {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [marketInput, categoryInput, categoryRevenueInput, normalizedMaKho, activeStore, saveRealtimeData]);
+  }, [marketInput, categoryInput, categoryRevenueInput, categoryTargetInput, normalizedMaKho, activeStore, isStoreReady]);
 
-  const loadData = useCallback(async () => {
-    if (!normalizedMaKho) return;
-    const cleanMaKho = normalizedMaKho;
-    const shortMaKho = cleanMaKho;
-    const paddedMaKho = shortMaKho.padStart(7, '0');
-    
-    // Cache-first: Only show loading spinner if we have NO cached data at all
-    const hasCachedData = !!(localStorage.getItem(STORAGE_KEYS.MARKET_INPUT) || localStorage.getItem(STORAGE_KEYS.CATEGORY_INPUT));
-    if (!hasCachedData) {
-      setIsLoadingRealtime(true);
+  const loadData = useCallback(async (storeName?: string) => {
+    if (!normalizedMaKho) {
+      setIsLoadingRealtime(false);
+      return;
     }
     
+    const targetStore = storeName || activeStore;
+
+    // Clear state before loading to ensure clean isolation
+    setMarketInput('');
+    setCategoryInput('');
+    setYcxData('');
+    setCategoryRevenueInput('');
+    setCategoryTargetInput('');
+    setLastUpdated(null);
+
+    // Cancel pending auto-saves and block current triggers
+    setIsLoadingRealtime(true);
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
+    }
+    skipAutoSaveRef.current = true;
+
+    if (!isValidStoreName(targetStore)) {
+      setIsLoadingRealtime(false);
+      return;
+    }
+
+    console.log(`[RealtimeData] loadData → store: "${targetStore}"`);
+
     try {
-      const { data, error } = await supabase
-        .from('store_realtime')
-        .select('rt_bi_tong_quan, rt_nh_cum, bc_dt_nganh_hang, ten_sieu_thi, updated_at')
-        .or(`warehouse_code.eq.${cleanMaKho},warehouse_code.eq.${shortMaKho},warehouse_code.eq.${paddedMaKho}`)
-        .order('updated_at', { ascending: false })
-        .limit(1);
+      // Query directly using the selected store name as the unique document ID
+      const { data: record, error } = await supabase
+        .from('store')
+        .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ten_sieu_thi, updated_at')
+        .eq('id', targetStore.trim())
+        .maybeSingle();
 
       if (error) {
         console.error('[RTST] Error loading realtime data:', error);
         return;
       }
 
-
-      if (data && data.length > 0) {
-        const record = data[0];
+      if (record) {
         skipAutoSaveRef.current = true;
         setMarketInput(record.rt_bi_tong_quan || '');
         setCategoryInput(record.rt_nh_cum || '');
-        setCategoryRevenueInput(record.bc_dt_nganh_hang || '');
-        setActiveStore(record.ten_sieu_thi || maKho);
-        if (record.updated_at) setLastUpdated(new Date(record.updated_at));
-      } else if (hasCachedData) {
-        // Firebase is empty but localStorage has data → auto-sync to Firebase
-        console.log('[RTST] Firebase empty, auto-syncing localStorage data to Firebase...');
-        setTimeout(() => {
-          saveRealtimeData(true); // silent save
-          console.log('[RTST] Auto-sync from localStorage to Firebase complete!');
-        }, 500);
+        setCategoryRevenueInput(record.lk_bi_tong_quan || '');
+        setCategoryTargetInput(record.lk_nh_sieu_thi || '');
+        
+        if (record.updated_at) {
+          const parsedDate = new Date(record.updated_at);
+          // Only set lastUpdated if it's a valid date object
+          if (!isNaN(parsedDate.getTime())) {
+            setLastUpdated(parsedDate);
+          } else {
+            setLastUpdated(null);
+          }
+        } else {
+          setLastUpdated(null);
+        }
       }
     } catch (err) {
       console.error('[RTST] Unexpected error in loadData:', err);
     } finally {
       setIsLoadingRealtime(false);
     }
-  }, [normalizedMaKho, showNotification]);
+  }, [normalizedMaKho, activeStore]);
 
   // Handle maKho change
   useEffect(() => {
     if (normalizedMaKho) {
-      // console.log(`[RTST] maKho detected: ${normalizedMaKho}. Preparing to load...`);
       loadData();
     } else {
       clearData();
       setActiveStore('');
       setLastUpdated(null);
     }
-  }, [normalizedMaKho, loadData, clearData]);
+  }, [normalizedMaKho]);
 
   // Set up Supabase Realtime subscription
   useEffect(() => {
@@ -296,16 +376,16 @@ export const useRealtimeData = (maKho: string) => {
     // console.log(`[RTST] Subscribing to realtime updates for warehouse: ${normalizedMaKho}`);
     
     const channel = supabase
-      .channel(`public:store_realtime:warehouse_code=eq.${normalizedMaKho}`)
+      .channel(`public:store:warehouse_code=eq.${normalizedMaKho}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'store_realtime',
+          table: 'store',
           filter: `warehouse_code=eq.${normalizedMaKho}`
         },
-        (payload) => {
+        (payload: any) => {
           // console.log('[RTST] Realtime update received from DB:', payload);
           if (skipSubscriptionRef.current) {
             skipSubscriptionRef.current = false;
@@ -313,6 +393,16 @@ export const useRealtimeData = (maKho: string) => {
           }
           if (payload.new) {
             const record = payload.new as any;
+            const recordStore = record.ten_sieu_thi || '';
+            const isGlobalRecord = !recordStore;
+
+            // Ignore legacy global records without a store name
+            if (isGlobalRecord) return;
+
+            // Verify it matches our active store
+            const normRecordStore = recordStore.trim().toUpperCase();
+            const normActiveStore = (activeStoreRef.current || '').trim().toUpperCase();
+            if (normRecordStore && normActiveStore && normRecordStore !== normActiveStore) return;
             
             // Only update if different to avoid loops and preserve cursor position if user is typing
             setMarketInput(prev => {
@@ -330,20 +420,26 @@ export const useRealtimeData = (maKho: string) => {
               }
               return prev;
             });
-            
+
             setCategoryRevenueInput(prev => {
-              if (prev !== record.bc_dt_nganh_hang) {
+              if (prev !== record.lk_bi_tong_quan) {
                 skipAutoSaveRef.current = true;
-                return record.bc_dt_nganh_hang || '';
+                return record.lk_bi_tong_quan || '';
               }
               return prev;
             });
-
-            if (record.ten_sieu_thi) setActiveStore(record.ten_sieu_thi);
+            
+            setCategoryTargetInput(prev => {
+              if (prev !== record.lk_nh_sieu_thi) {
+                skipAutoSaveRef.current = true;
+                return record.lk_nh_sieu_thi || '';
+              }
+              return prev;
+            });
           }
         }
       )
-      .subscribe((status) => {
+      .subscribe((status: any) => {
         // console.log(`[RTST] Subscription status for ${maKho}:`, status);
       });
 
@@ -361,21 +457,20 @@ export const useRealtimeData = (maKho: string) => {
     clearData(); // Clear old data first
     setIsLoadingRealtime(true);
     try {
+      // Query directly using the selected store name as the unique document ID
       const { data, error } = await supabase
-        .from('store_realtime')
-        .select('rt_bi_tong_quan, rt_nh_cum, bc_dt_nganh_hang')
-        .eq('warehouse_code', normalizedMaKho)
-        .eq('ten_sieu_thi', activeStore)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .single();
+        .from('store')
+        .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ten_sieu_thi, updated_at')
+        .eq('id', activeStore.trim())
+        .maybeSingle();
 
       if (error) throw error;
+
       if (data) {
         setMarketInput(data.rt_bi_tong_quan || '');
         setCategoryInput(data.rt_nh_cum || '');
-        
-        setCategoryRevenueInput(data.bc_dt_nganh_hang || '');
+        setCategoryRevenueInput(data.lk_bi_tong_quan || '');
+        setCategoryTargetInput(data.lk_nh_sieu_thi || '');
       } else {
         showNotification('Không tìm thấy dữ liệu Realtime để đồng bộ.', 'error');
       }
@@ -387,11 +482,30 @@ export const useRealtimeData = (maKho: string) => {
     }
   }, [normalizedMaKho, activeStore, handleProcess, showNotification, clearData]);
 
+  // Synchronous setters to prevent stale closures during rapid paste/blur events
+  const setMarketInputSync = useCallback((val: string | ((prev: string) => string)) => {
+    const newVal = typeof val === 'function' ? val(marketInputRef.current) : val;
+    marketInputRef.current = newVal; setMarketInput(newVal);
+  }, []);
+  const setCategoryInputSync = useCallback((val: string | ((prev: string) => string)) => {
+    const newVal = typeof val === 'function' ? val(categoryInputRef.current) : val;
+    categoryInputRef.current = newVal; setCategoryInput(newVal);
+  }, []);
+  const setCategoryRevenueInputSync = useCallback((val: string | ((prev: string) => string)) => {
+    const newVal = typeof val === 'function' ? val(categoryRevenueInputRef.current) : val;
+    categoryRevenueInputRef.current = newVal; setCategoryRevenueInput(newVal);
+  }, []);
+  const setCategoryTargetInputSync = useCallback((val: string | ((prev: string) => string)) => {
+    const newVal = typeof val === 'function' ? val(categoryTargetInputRef.current) : val;
+    categoryTargetInputRef.current = newVal; setCategoryTargetInput(newVal);
+  }, []);
+
   return {
-    marketInput, setMarketInput,
-    categoryInput, setCategoryInput,
+    marketInput, setMarketInput: setMarketInputSync,
+    categoryInput, setCategoryInput: setCategoryInputSync,
     ycxData, setYcxData: updateYcxData,
-    categoryRevenueInput, setCategoryRevenueInput,
+    categoryRevenueInput, setCategoryRevenueInput: setCategoryRevenueInputSync,
+    categoryTargetInput, setCategoryTargetInput: setCategoryTargetInputSync,
     activeStore, setActiveStore,
     excludedYcxStaffNames, setExcludedYcxStaffNames,
     processedData,

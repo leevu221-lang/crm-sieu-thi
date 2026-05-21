@@ -58,7 +58,7 @@ export default function ToolHoTro() {
 
   // Fetch data from local storage on mount
   useEffect(() => {
-    if (activeTab === 'sticker-event') {
+    if (activeTab === 'sticker-event' || activeTab === 'sticker') {
       const storageKeyInv = STORAGE_KEYS.STICKER_INVENTORY_DATA;
       const storageKeyPrice = STORAGE_KEYS.STICKER_PRICE_DATA;
 
@@ -296,52 +296,139 @@ export default function ToolHoTro() {
           timestamp
         }));
         showNotification('Đã tải và lưu tạm file Tồn kho!', 'success');
+
+        // Tự động xuất file Excel chỉ lấy dữ liệu cột G
+        try {
+          const originalName = file.name.substring(0, file.name.lastIndexOf('.')) || 'Du_Lieu';
+          const colGData = data.map((row) => {
+            const value = row && row.length > 6 ? row[6] : '';
+            return [value];
+          });
+          const exportWs = XLSX.utils.aoa_to_sheet(colGData);
+          const exportWb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(exportWb, exportWs, 'Sheet1');
+          XLSX.writeFile(exportWb, `${originalName}_Cot_G.xlsx`);
+          showNotification('Đã tự động xuất file Excel cột G!', 'success');
+        } catch (err) {
+          console.error('Error auto-exporting column G:', err);
+        }
       } else {
         // Process price data
         const parsedPriceData: any[] = [];
         
-        let headerRowIdx = -1;
-        for (let i = 0; i < Math.min(20, data.length); i++) {
-          const row: any = data[i];
-          if (!row || !Array.isArray(row)) continue;
-          const rowStr = row.join(' ').toLowerCase();
-          if (rowStr.includes('tên sản phẩm') || rowStr.includes('tên hàng') || rowStr.includes('mã sản phẩm') || rowStr.includes('giá niêm yết')) {
-            headerRowIdx = i;
-            break;
-          }
-        }
+        if (shouldAppend) {
+          // TRANG STICKER -> BẢNG DỮ LIỆU BẢNG GIÁ -> Cột A = Mã SP, Cột B = Tên SP, Cột C = Giá gốc, Cột D = Giá giảm
+          const cleanPrice = (val: any) => {
+            if (val === undefined || val === null || val === '') return 0;
+            if (typeof val === 'number') return val;
+            return parseInt(String(val).replace(/[^\d]/g, ''), 10) || 0;
+          };
 
-        if (headerRowIdx !== -1) {
-          const headerRow = data[headerRowIdx].map((h: any) => String(h || '').toLowerCase().trim());
-          const maSpIdx = headerRow.findIndex((h: string) => h === 'mã sản phẩm' || h === 'mã sp' || h === 'mã hàng');
-          const nameIdx = headerRow.findIndex((h: string) => h === 'tên sản phẩm' || h === 'tên hàng' || h === 'sản phẩm');
-          const originalPriceIdx = headerRow.findIndex((h: string) => h === 'giá niêm yết' || h === 'giá gốc' || h === 'giá cũ');
-          const discountPriceIdx = headerRow.findIndex((h: string) => h === 'giá mới' || h === 'giá giảm' || h === 'giá bán' || h === 'giá hiện tại');
-          const nganhHangIdx = headerRow.findIndex((h: string) => h === 'ngành hàng');
-          const nhomHangIdx = headerRow.findIndex((h: string) => h === 'nhóm hàng');
-
-          for (let i = headerRowIdx + 1; i < data.length; i++) {
+          for (let i = 0; i < data.length; i++) {
             const row: any = data[i];
             if (!row || !Array.isArray(row)) continue;
 
-            const name = nameIdx !== -1 ? String(row[nameIdx] || '').trim() : '';
-            if (!name || name.toLowerCase().includes('tên sản phẩm')) continue;
+            const colA = String(row[0] || '').trim();  // Cột A
+            const colB = String(row[1] || '').trim();  // Cột B
+            const colC = row[2];                        // Cột C = Giá gốc
+            const colD = row[3];                        // Cột D = Giá giảm
 
+            // Bỏ qua dòng tiêu đề
+            if (i === 0 && (colA.toLowerCase().includes('mã') || colB.toLowerCase().includes('tên') || colB.toLowerCase().includes('sản phẩm'))) {
+              continue;
+            }
+
+            if (!colB) continue; // Bỏ qua dòng trống không có tên SP
+
+            parsedPriceData.push({
+              maSanPham: colA,
+              productCode: colA,
+              name: colB,
+              originalPrice: cleanPrice(colC),
+              discountPrice: cleanPrice(colD),
+              nganhHang: '',
+              nhomHang: ''
+            });
+          }
+        } else {
+          let headerRowIdx = -1;
+          for (let i = 0; i < Math.min(20, data.length); i++) {
+            const row: any = data[i];
+            if (!row || !Array.isArray(row)) continue;
+            const rowStr = row.join(' ').toLowerCase();
+            if (rowStr.includes('tên sản phẩm') || rowStr.includes('tên hàng') || rowStr.includes('mã sản phẩm') || rowStr.includes('giá niêm yết') || rowStr.includes('giá gốc') || rowStr.includes('giá sau giảm')) {
+              headerRowIdx = i;
+              break;
+            }
+          }
+
+          if (headerRowIdx !== -1) {
+            const headerRow = data[headerRowIdx].map((h: any) => String(h || '').toLowerCase().trim());
+            const maSpIdx = headerRow.findIndex((h: string) => h === 'mã sản phẩm' || h === 'mã sp' || h === 'mã hàng');
+            const nameIdx = headerRow.findIndex((h: string) => h === 'tên sản phẩm' || h === 'tên hàng' || h === 'sản phẩm');
+            const originalPriceIdx = headerRow.findIndex((h: string) => h === 'giá niêm yết' || h === 'giá gốc' || h === 'giá cũ');
+            const discountPriceIdx = headerRow.findIndex((h: string) => h === 'giá mới' || h === 'giá giảm' || h === 'giá bán' || h === 'giá hiện tại' || h === 'giá sau giảm');
+            const nganhHangIdx = headerRow.findIndex((h: string) => h === 'ngành hàng');
+            const nhomHangIdx = headerRow.findIndex((h: string) => h === 'nhóm hàng');
+
+            for (let i = headerRowIdx + 1; i < data.length; i++) {
+              const row: any = data[i];
+              if (!row || !Array.isArray(row)) continue;
+
+              const name = nameIdx !== -1 ? String(row[nameIdx] || '').trim() : '';
+              if (!name || name.toLowerCase().includes('tên sản phẩm')) continue;
+
+              const cleanPrice = (val: any) => {
+                if (val === undefined || val === null || val === '') return 0;
+                if (typeof val === 'number') return val;
+                return parseInt(String(val).replace(/[^\d]/g, ''), 10) || 0;
+              };
+
+              parsedPriceData.push({
+                maSanPham: maSpIdx !== -1 ? String(row[maSpIdx] || '').trim() : '',
+                productCode: maSpIdx !== -1 ? String(row[maSpIdx] || '').trim() : '',
+                name,
+                originalPrice: originalPriceIdx !== -1 ? cleanPrice(row[originalPriceIdx]) : 0,
+                discountPrice: discountPriceIdx !== -1 ? cleanPrice(row[discountPriceIdx]) : 0,
+                nganhHang: nganhHangIdx !== -1 ? String(row[nganhHangIdx] || '').trim() : '',
+                nhomHang: nhomHangIdx !== -1 ? String(row[nhomHangIdx] || '').trim() : ''
+              });
+            }
+          } else {
+            // Fallback: Không tìm thấy header
+            // Cột AK (index 36) = Mã SP, Cột A+B = Tên SP, Cột E = Giá gốc, Cột F = Giá giảm
             const cleanPrice = (val: any) => {
               if (val === undefined || val === null || val === '') return 0;
               if (typeof val === 'number') return val;
               return parseInt(String(val).replace(/[^\d]/g, ''), 10) || 0;
             };
 
-            parsedPriceData.push({
-              maSanPham: maSpIdx !== -1 ? String(row[maSpIdx] || '').trim() : '',
-              productCode: maSpIdx !== -1 ? String(row[maSpIdx] || '').trim() : '',
-              name,
-              originalPrice: originalPriceIdx !== -1 ? cleanPrice(row[originalPriceIdx]) : 0,
-              discountPrice: discountPriceIdx !== -1 ? cleanPrice(row[discountPriceIdx]) : 0,
-              nganhHang: nganhHangIdx !== -1 ? String(row[nganhHangIdx] || '').trim() : '',
-              nhomHang: nhomHangIdx !== -1 ? String(row[nhomHangIdx] || '').trim() : ''
-            });
+            for (let i = 0; i < data.length; i++) {
+              const row: any = data[i];
+              if (!row || !Array.isArray(row)) continue;
+
+              const colA = String(row[0] || '').trim();  // Cột A
+              const colB = String(row[1] || '').trim();  // Cột B
+              const colE = row[4];                        // Cột E = Giá gốc
+              const colF = row[5];                        // Cột F = Giá giảm
+              const colAK = String(row[36] || '').trim(); // Cột AK = Mã SP
+
+              // Tên SP = Cột A + Cột B (gộp lại)
+              const name = [colA, colB].filter(Boolean).join(' ').trim();
+
+              // Bỏ qua dòng trống
+              if (!name) continue;
+
+              parsedPriceData.push({
+                maSanPham: colAK,
+                productCode: colAK,
+                name,
+                originalPrice: cleanPrice(colE),
+                discountPrice: cleanPrice(colF),
+                nganhHang: '',
+                nhomHang: ''
+              });
+            }
           }
         }
 
@@ -545,260 +632,8 @@ export default function ToolHoTro() {
                 <PhanCaTuanTable />
               </motion.div>
             )}
-            {activeTab === 'sticker' && (
-              <motion.div
-                key="sticker"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="grid grid-cols-1 lg:grid-cols-3 gap-6"
-              >
-                {/* ── LEFT COLUMN ── */}
-                <div className="col-span-1 space-y-6">
-                  {/* Card 1: Thông tin & Upload */}
-                  <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-bold text-slate-700">Thông tin người in <span className="text-red-500">*</span></h3>
-                      <button onClick={handleClearData} className="flex items-center gap-1 text-red-500 hover:text-red-600 transition-colors">
-                        <Trash2 size={14} /><span className="text-xs font-medium">Xóa dữ liệu</span>
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2 mb-6">
-                      <span className="text-2xl font-black text-slate-800">{maKho || '43751'}</span>
-                      <button className="text-sm text-blue-600 hover:underline">(Sửa)</button>
-                    </div>
-                    <div className="h-px bg-slate-100 w-full mb-6" />
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-bold text-slate-700">Nhập dữ liệu (Admin)</h3>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <input type="file" accept=".xlsx,.xls" className="hidden" ref={inventoryInputRef} onChange={(e) => handleFileUpload(e, 'inventory')} />
-                      <button onClick={() => inventoryInputRef.current?.click()}
-                        className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all ${inventoryFile || lastUpdateInventory ? 'border-indigo-200 bg-indigo-50 text-indigo-700' : 'border-indigo-100 bg-indigo-50/50 text-indigo-600 hover:bg-indigo-50'}`}>
-                        {inventoryFile || lastUpdateInventory ? <CheckCircle2 size={24} strokeWidth={1.5} className="text-indigo-500" /> : <Archive size={24} strokeWidth={1.5} />}
-                        <div className="text-center">
-                          <div className="text-[10px] font-black uppercase tracking-wider">{inventoryFile || lastUpdateInventory ? 'Đã tải Tồn Kho' : 'Tải Tồn Kho'}</div>
-                          {lastUpdateInventory && !inventoryFile && <div className="text-[8px] font-bold text-indigo-400 mt-1">Cập nhật: {lastUpdateInventory}</div>}
-                          {inventoryFile && <div className="text-[8px] font-bold text-indigo-400 mt-1 truncate max-w-[80px]">{inventoryFile.name}</div>}
-                        </div>
-                      </button>
-                      <input type="file" accept=".xlsx,.xls" className="hidden" ref={priceInputRef} onChange={(e) => handleFileUpload(e, 'price')} />
-                      <button onClick={() => priceInputRef.current?.click()}
-                        className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border border-dashed transition-all ${priceFile || lastUpdatePrice ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-emerald-300 bg-emerald-50/30 text-emerald-600 hover:bg-emerald-50/50'}`}>
-                        {priceFile || lastUpdatePrice ? <CheckCircle2 size={24} strokeWidth={1.5} className="text-emerald-500" /> : <FilePlus size={24} strokeWidth={1.5} />}
-                        <div className="text-center">
-                          <div className="text-[10px] font-black uppercase tracking-wider">{priceFile || lastUpdatePrice ? 'Đã tải Bảng Giá' : 'Tải Bảng Giá'}</div>
-                          {lastUpdatePrice && !priceFile && <div className="text-[8px] font-bold text-emerald-500 mt-1">Cập nhật: {lastUpdatePrice}</div>}
-                          {priceFile && <div className="text-[8px] font-bold text-emerald-500 mt-1 truncate max-w-[80px]">{priceFile.name}</div>}
-                        </div>
-                      </button>
-                    </div>
-                  </div>
 
-                  {/* Card 2: In Sticker Thủ Công */}
-                  <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
-                    <div className="flex items-center gap-2 mb-4">
-                      <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600"><FilePlus size={16} /></div>
-                      <h3 className="text-sm font-bold text-slate-700 uppercase tracking-tight">In Sticker Thủ Công</h3>
-                    </div>
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Mã sản phẩm</label>
-                          <input type="text" placeholder="Mã SP..." value={manualData.productCode}
-                            onChange={(e) => setManualData(prev => ({ ...prev, productCode: e.target.value }))}
-                            className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500" />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Tên sản phẩm</label>
-                          <input type="text" placeholder="Tên SP..." value={manualData.name}
-                            onChange={(e) => setManualData(prev => ({ ...prev, name: e.target.value }))}
-                            className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500" />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Giá gốc</label>
-                          <input type="text" placeholder="Giá gốc..." value={manualData.originalPrice}
-                            onChange={(e) => setManualData(prev => ({ ...prev, originalPrice: e.target.value }))}
-                            className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500" />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Giá sau giảm</label>
-                          <input type="text" placeholder="Giá giảm..." value={manualData.discountPrice}
-                            onChange={(e) => setManualData(prev => ({ ...prev, discountPrice: e.target.value }))}
-                            className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500" />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <button onClick={handleAddManualSticker}
-                          className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2">
-                          <FilePlus size={14} /> THÊM VÀO LIST
-                        </button>
-                        <label className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer">
-                          <UploadCloud size={14} /> FILE EXCEL {'→'} LIST
-                          <input type="file" className="hidden" accept=".xlsx,.xls"
-                            onChange={(e) => { handleFileUpload(e, 'price', true); e.target.value = ''; }} />
-                        </label>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const templateData = [{ 'MÃ SẢN PHẨM': 'SP001', 'TÊN SẢN PHẨM': 'Ví dụ Tên Sản Phẩm', 'GIÁ GỐC': 1000000, 'GIÁ SAU GIẢM': 500000 }];
-                          const ws = XLSX.utils.json_to_sheet(templateData);
-                          const wb = XLSX.utils.book_new();
-                          XLSX.utils.book_append_sheet(wb, ws, 'StickerTemplate');
-                          XLSX.writeFile(wb, 'Mau_In_Sticker.xlsx');
-                          showNotification('Đã tải file Excel mẫu!', 'success');
-                        }}
-                        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2">
-                        <UploadCloud size={14} /> XUẤT FILE MẪU
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Card 3: Mẫu in */}
-                  <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 space-y-3">
-                    <h3 className="text-xs font-black text-slate-600 uppercase tracking-wider">Chọn mẫu in</h3>
-                    <button onClick={() => handleQuickPrint('giovang', '1')}
-                      disabled={combinedPriceData.length === 0}
-                      className="w-full p-4 rounded-2xl bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-700 hover:to-orange-600 disabled:from-slate-300 disabled:to-slate-400 disabled:cursor-not-allowed text-white shadow-md transition-all flex items-center justify-between group">
-                      <div>
-                        <div className="text-sm font-black">GIỜ VÀNG GIÁ SỐC</div>
-                        <div className="text-[10px] text-red-100">Khổ A5 • 1 sticker/trang</div>
-                      </div>
-                      <Printer size={22} className="opacity-80 group-hover:scale-110 transition-transform" />
-                    </button>
-                    {[
-                      { style: 'classic', label: 'Kiểu có sẵn', layout: '4', cls: 'from-indigo-600 to-indigo-500' },
-                      { style: 'modern', label: 'Kiểu giá quạt', layout: '4', cls: 'from-teal-600 to-teal-500' },
-                      { style: 'display', label: 'Kiểu hàng trưng bày', layout: '1', cls: 'from-purple-600 to-purple-500' },
-                    ].map(({ style, label, layout, cls }) => (
-                      <button key={style} onClick={() => handleQuickPrint(style, layout)}
-                        disabled={combinedPriceData.length === 0}
-                        className={`w-full px-4 py-3 rounded-2xl bg-gradient-to-r ${cls} hover:brightness-110 disabled:from-slate-300 disabled:to-slate-400 disabled:cursor-not-allowed text-white text-xs font-black transition-all flex items-center justify-between group`}>
-                        {label}
-                        <Printer size={16} className="opacity-70 group-hover:scale-110 transition-transform" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* ── RIGHT COLUMN (2/3) ── */}
-                <div className="col-span-1 lg:col-span-2 space-y-6">
-                  {/* Card 4: Bộ lọc tồn kho */}
-                  <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-4">
-                        <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">BỘ LỌC TỒN KHO</h3>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" checked={filters.onlyInventory}
-                            onChange={(e) => setFilters(prev => ({ ...prev, onlyInventory: e.target.checked }))} />
-                          <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Chỉ sản phẩm có tồn kho</span>
-                        </label>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => setFilters(prev => ({ ...prev, sortOrder: prev.sortOrder === 'asc' ? 'desc' : 'asc' }))}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-bold uppercase hover:bg-slate-200 transition-colors">
-                          <ArrowUpDown size={12} /> {filters.sortOrder === 'asc' ? 'Tồn tăng dần' : 'Tồn giảm dần'}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Siêu thị</label>
-                        <select value={filters.maSieuThi} onChange={(e) => setFilters(prev => ({ ...prev, maSieuThi: e.target.value }))}
-                          className="w-full bg-slate-50 border border-slate-200 py-2 px-3 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500">
-                          <option value="">Tất cả siêu thị</option>
-                          {Array.from(new Set(inventoryData.map(item => item.MaSieuThi))).map(ma => <option key={ma} value={ma}>{ma}</option>)}
-                        </select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Ngành hàng</label>
-                        <select value={filters.nganhHang} onChange={(e) => setFilters(prev => ({ ...prev, nganhHang: e.target.value }))}
-                          className="w-full bg-slate-50 border border-slate-200 py-2 px-3 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500">
-                          <option value="">Tất cả ngành hàng</option>
-                          {Array.from(new Set(inventoryData.map(item => item.TenNganhHang))).map(nganh => <option key={nganh} value={nganh}>{nganh}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Card 5: Bảng dữ liệu */}
-                  <div className="bg-white rounded-[32px] shadow-sm border border-slate-200 overflow-hidden flex flex-col min-h-[600px]">
-                    <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-emerald-600 shadow-sm">
-                          <Archive size={20} />
-                        </div>
-                        <div>
-                          <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">DỮ LIỆU BẢNG GIÁ</h3>
-                          <p className="text-xs font-medium text-slate-500 mt-0.5">Đã lọc {filteredPriceData.length} / {combinedPriceData.length} sản phẩm</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="overflow-auto flex-1">
-                      <table className="w-full text-left border-collapse">
-                        <thead className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200">
-                          <tr>
-                            <th className="py-3 px-4 text-[10px] font-black text-slate-500 uppercase tracking-wider text-center w-12">
-                              <input type="checkbox" checked={filteredPriceData.length > 0 && selectedIndices.length === filteredPriceData.length} onChange={handleSelectAll} className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
-                            </th>
-                            <th className="py-3 px-4 text-[10px] font-black text-slate-500 uppercase tracking-wider w-12">STT</th>
-                            <th className="py-3 px-4 text-[10px] font-black text-slate-500 uppercase tracking-wider text-center w-20">SL In</th>
-                            <th className="py-3 px-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">Mã SP</th>
-                            <th className="py-3 px-4 text-[10px] font-black text-slate-500 uppercase tracking-wider">Tên sản phẩm</th>
-                            <th className="py-3 px-4 text-[10px] font-black text-slate-500 uppercase tracking-wider text-right">Giá gốc</th>
-                            <th className="py-3 px-4 text-[10px] font-black text-slate-500 uppercase tracking-wider text-right">Giá giảm</th>
-                            <th className="py-3 px-4 text-[10px] font-black text-slate-500 uppercase tracking-wider text-center w-12">Xóa</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {filteredPriceData.length > 0 ? filteredPriceData.map((item, idx) => {
-                            const actualIdx = idx;
-                            return (
-                              <tr key={idx} className={`hover:bg-slate-50/80 transition-colors ${item.isManual ? 'bg-amber-50/30' : ''}`}>
-                                <td className="py-3 px-4 text-center">
-                                  <input type="checkbox" checked={selectedIndices.includes(actualIdx)} onChange={() => handleSelectRow(actualIdx)} className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
-                                </td>
-                                <td className="py-3 px-4 text-xs font-bold text-slate-400">{idx + 1}</td>
-                                <td className="py-3 px-4 text-center">
-                                  <input type="number" min="1" value={printQuantities[actualIdx] || 1} onChange={(e) => handleQuantityChange(actualIdx, parseInt(e.target.value) || 1)}
-                                    className="w-14 bg-white border border-slate-200 py-1 px-2 rounded-lg text-xs font-black text-center outline-none focus:ring-2 focus:ring-indigo-500" />
-                                </td>
-                                <td className="py-3 px-4 text-xs font-black text-slate-700">{item.productCode}</td>
-                                <td className="py-3 px-4">
-                                  <div className="text-xs font-bold text-slate-800 line-clamp-1">{item.name}</div>
-                                  <div className="text-[9px] text-slate-400 font-medium uppercase tracking-tighter mt-0.5">{item.nganhHang} • {item.nhomHang}</div>
-                                </td>
-                                <td className="py-3 px-4 text-xs font-black text-slate-500 text-right line-through">{item.originalPrice.toLocaleString()}đ</td>
-                                <td className="py-3 px-4 text-xs font-black text-emerald-600 text-right">{item.discountPrice.toLocaleString()}đ</td>
-                                <td className="py-3 px-4 text-center">
-                                  <button onClick={() => {
-                                    setPriceData(prev => prev.filter((_, i) => i !== actualIdx));
-                                    setSelectedIndices(prev => prev.filter(i => i !== actualIdx));
-                                  }} className="text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
-                                </td>
-                              </tr>
-                            );
-                          }) : (
-                            <tr>
-                              <td colSpan={8} className="py-20 text-center">
-                                <div className="flex flex-col items-center justify-center text-slate-300">
-                                  <Archive size={48} strokeWidth={1} className="mb-4" />
-                                  <p className="text-sm font-bold uppercase tracking-widest">Chưa có dữ liệu in</p>
-                                  <p className="text-xs font-medium mt-1">Vui lòng tải file Excel hoặc nhập thủ công</p>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-            {activeTab === 'sticker-event' && (
+            {(activeTab === 'sticker-event' || activeTab === 'sticker') && (
               <motion.div
                 key={activeTab}
                 initial={{ opacity: 0, x: 20 }}
@@ -808,181 +643,192 @@ export default function ToolHoTro() {
               >
               {/* Left Column */}
               <div className="col-span-1 space-y-6">
-                {/* Card 1: Thông tin & Nhập dữ liệu */}
-                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-bold text-slate-700">Thông tin người in <span className="text-red-500">*</span></h3>
-                    <button 
-                      onClick={handleClearData}
-                      className="flex items-center gap-1 text-red-500 hover:text-red-600 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                      <span className="text-xs font-medium">Xóa dữ liệu</span>
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2 mb-6">
-                    <span className="text-2xl font-black text-slate-800">43751</span>
-                    <button className="text-sm text-blue-600 hover:underline">(Sửa)</button>
-                  </div>
-
-                  <div className="h-px bg-slate-100 w-full mb-6"></div>
-
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-bold text-slate-700">Nhập dữ liệu (Admin)</h3>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <input 
-                      type="file" 
-                      accept=".xlsx, .xls" 
-                      className="hidden" 
-                      ref={inventoryInputRef}
-                      onChange={(e) => handleFileUpload(e, 'inventory')}
-                    />
-                    <button 
-                      onClick={() => inventoryInputRef.current?.click()}
-                      className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all relative ${
-                        inventoryFile || lastUpdateInventory
-                          ? 'border-indigo-200 bg-indigo-50 text-indigo-700' 
-                          : 'border-indigo-100 bg-indigo-50/50 text-indigo-600 hover:bg-indigo-50'
-                      }`}
-                    >
-                      {inventoryFile || lastUpdateInventory ? <CheckCircle2 size={24} strokeWidth={1.5} className="text-indigo-500" /> : <Archive size={24} strokeWidth={1.5} />}
-                      <div className="text-center">
-                        <div className="text-[10px] font-black uppercase tracking-wider">{inventoryFile || lastUpdateInventory ? 'Đã tải Tồn Kho' : 'Tải Tồn Kho'}</div>
-                        {lastUpdateInventory && !inventoryFile && <div className="text-[8px] font-bold text-indigo-400 mt-1">Cập nhật: {lastUpdateInventory}</div>}
-                        {inventoryFile && <div className="text-[8px] font-bold text-indigo-400 mt-1 truncate max-w-[80px]">{inventoryFile.name}</div>}
-                      </div>
-                    </button>
-
-                    <input 
-                      type="file" 
-                      accept=".xlsx, .xls" 
-                      className="hidden" 
-                      ref={priceInputRef}
-                      onChange={(e) => handleFileUpload(e, 'price')}
-                    />
-                    <button 
-                      onClick={() => priceInputRef.current?.click()}
-                      className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border border-dashed transition-all relative ${
-                        priceFile || lastUpdatePrice
-                          ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
-                          : 'border-emerald-300 bg-emerald-50/30 text-emerald-600 hover:bg-emerald-50/50'
-                      }`}
-                    >
-                      {priceFile || lastUpdatePrice ? <CheckCircle2 size={24} strokeWidth={1.5} className="text-emerald-500" /> : <FilePlus size={24} strokeWidth={1.5} />}
-                      <div className="text-center">
-                        <div className="text-[10px] font-black uppercase tracking-wider">{priceFile || lastUpdatePrice ? 'Đã tải Bảng Giá' : 'Tải Bảng Giá'}</div>
-                        {lastUpdatePrice && !priceFile && <div className="text-[8px] font-bold text-emerald-500 mt-1">Cập nhật: {lastUpdatePrice}</div>}
-                        {priceFile && <div className="text-[8px] font-bold text-emerald-500 mt-1 truncate max-w-[80px]">{priceFile.name}</div>}
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Card 2: Nhập thủ công */}
-                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
-                      <FilePlus size={16} />
+                {activeTab === 'sticker-event' ? (
+                  /* Card 1: Thông tin & Nhập dữ liệu */
+                  <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-bold text-slate-700">Thông tin người in <span className="text-red-500">*</span></h3>
+                      <button 
+                        onClick={handleClearData}
+                        className="flex items-center gap-1 text-red-500 hover:text-red-600 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                        <span className="text-xs font-medium">Xóa dữ liệu</span>
+                      </button>
                     </div>
-                    <h3 className="text-sm font-bold text-slate-700 uppercase tracking-tight">In Sticker Thủ Công</h3>
-                  </div>
-                  
-                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 mb-6">
+                      <span className="text-2xl font-black text-slate-800">43751</span>
+                      <button className="text-sm text-blue-600 hover:underline">(Sửa)</button>
+                    </div>
+
+                    <div className="h-px bg-slate-100 w-full mb-6"></div>
+
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-bold text-slate-700">Nhập dữ liệu (Admin)</h3>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">Mã sản phẩm</label>
-                        <input 
-                          type="text"
-                          placeholder="Mã SP..."
-                          value={manualData.productCode}
-                          onChange={(e) => setManualData(prev => ({ ...prev, productCode: e.target.value }))}
-                          className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
-                        />
+                      <input 
+                        type="file" 
+                        accept=".xlsx, .xls" 
+                        className="hidden" 
+                        ref={inventoryInputRef}
+                        onChange={(e) => handleFileUpload(e, 'inventory')}
+                      />
+                      <button 
+                        onClick={() => inventoryInputRef.current?.click()}
+                        className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all relative ${
+                          inventoryFile || lastUpdateInventory
+                            ? 'border-indigo-200 bg-indigo-50 text-indigo-700' 
+                            : 'border-indigo-100 bg-indigo-50/50 text-indigo-600 hover:bg-indigo-50'
+                        }`}
+                      >
+                        {inventoryFile || lastUpdateInventory ? <CheckCircle2 size={24} strokeWidth={1.5} className="text-indigo-500" /> : <Archive size={24} strokeWidth={1.5} />}
+                        <div className="text-center">
+                          <div className="text-[10px] font-black uppercase tracking-wider">{inventoryFile || lastUpdateInventory ? 'Đã tải Tồn Kho' : 'Tải Tồn Kho'}</div>
+                          {lastUpdateInventory && !inventoryFile && <div className="text-[8px] font-bold text-indigo-400 mt-1">Cập nhật: {lastUpdateInventory}</div>}
+                          {inventoryFile && <div className="text-[8px] font-bold text-indigo-400 mt-1 truncate max-w-[80px]">{inventoryFile.name}</div>}
+                        </div>
+                      </button>
+
+                      <input 
+                        type="file" 
+                        accept=".xlsx, .xls" 
+                        className="hidden" 
+                        ref={priceInputRef}
+                        onChange={(e) => handleFileUpload(e, 'price')}
+                      />
+                      <button 
+                        onClick={() => priceInputRef.current?.click()}
+                        className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border border-dashed transition-all relative ${
+                          priceFile || lastUpdatePrice
+                            ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                            : 'border-emerald-300 bg-emerald-50/30 text-emerald-600 hover:bg-emerald-50/50'
+                        }`}
+                      >
+                        {priceFile || lastUpdatePrice ? <CheckCircle2 size={24} strokeWidth={1.5} className="text-emerald-500" /> : <FilePlus size={24} strokeWidth={1.5} />}
+                        <div className="text-center">
+                          <div className="text-[10px] font-black uppercase tracking-wider">{priceFile || lastUpdatePrice ? 'Đã tải Bảng Giá' : 'Tải Bảng Giá'}</div>
+                          {lastUpdatePrice && !priceFile && <div className="text-[8px] font-bold text-emerald-500 mt-1">Cập nhật: {lastUpdatePrice}</div>}
+                          {priceFile && <div className="text-[8px] font-bold text-emerald-500 mt-1 truncate max-w-[80px]">{priceFile.name}</div>}
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Card 2: Nhập thủ công */
+                  <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
+                          <FilePlus size={16} />
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-tight">In Sticker Thủ Công</h3>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">Tên sản phẩm</label>
-                        <input 
-                          type="text"
-                          placeholder="Tên SP..."
-                          value={manualData.name}
-                          onChange={(e) => setManualData(prev => ({ ...prev, name: e.target.value }))}
-                          className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
-                        />
-                      </div>
+                      <button 
+                        onClick={handleClearData}
+                        className="flex items-center gap-1 text-red-500 hover:text-red-600 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                        <span className="text-xs font-medium">Xóa dữ liệu</span>
+                      </button>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">Giá gốc</label>
-                        <input 
-                          type="text"
-                          placeholder="Giá gốc..."
-                          value={manualData.originalPrice}
-                          onChange={(e) => setManualData(prev => ({ ...prev, originalPrice: e.target.value }))}
-                          className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
-                        />
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Mã sản phẩm</label>
+                          <input 
+                            type="text"
+                            placeholder="Mã SP..."
+                            value={manualData.productCode}
+                            onChange={(e) => setManualData(prev => ({ ...prev, productCode: e.target.value }))}
+                            className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Tên sản phẩm</label>
+                          <input 
+                            type="text"
+                            placeholder="Tên SP..."
+                            value={manualData.name}
+                            onChange={(e) => setManualData(prev => ({ ...prev, name: e.target.value }))}
+                            className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          />
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">Giá sau giảm</label>
-                        <input 
-                          type="text"
-                          placeholder="Giá giảm..."
-                          value={manualData.discountPrice}
-                          onChange={(e) => setManualData(prev => ({ ...prev, discountPrice: e.target.value }))}
-                          className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <button
-                        onClick={handleAddManualSticker}
-                        className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-2"
-                      >
-                        <FilePlus size={14} />
-                        THÊM VÀO LIST
-                      </button>
                       
-                      <label className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer">
-                        <UploadCloud size={14} />
-                        FILE EXCEL {'->'} LIST
-                        <input 
-                          type="file" 
-                          className="hidden" 
-                          accept=".xlsx, .xls"
-                          onChange={(e) => {
-                            handleFileUpload(e, 'price', true);
-                            e.target.value = ''; // Reset to allow same file again
-                          }}
-                        />
-                      </label>
-                    </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Giá gốc</label>
+                          <input 
+                            type="text"
+                            placeholder="Giá gốc..."
+                            value={manualData.originalPrice}
+                            onChange={(e) => setManualData(prev => ({ ...prev, originalPrice: e.target.value }))}
+                            className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Giá sau giảm</label>
+                          <input 
+                            type="text"
+                            placeholder="Giá giảm..."
+                            value={manualData.discountPrice}
+                            onChange={(e) => setManualData(prev => ({ ...prev, discountPrice: e.target.value }))}
+                            className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          />
+                        </div>
+                      </div>
 
-                    <button
-                      onClick={() => {
-                        const templateData = [
-                          {
-                            'MÃ SẢN PHẨM': 'SP001',
-                            'TÊN SẢN PHẨM': 'Ví dụ Tên Sản Phẩm',
-                            'GIÁ GỐC': 1000000,
-                            'GIÁ SAU GIẢM': 500000
-                          }
-                        ];
-                        const worksheet = XLSX.utils.json_to_sheet(templateData);
-                        const workbook = XLSX.utils.book_new();
-                        XLSX.utils.book_append_sheet(workbook, worksheet, 'StickerTemplate');
-                        XLSX.writeFile(workbook, `Mau_In_Sticker_Event.xlsx`);
-                        showNotification('Đã tải file Excel mẫu!', 'success');
-                      }}
-                      className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-2"
-                    >
-                      <UploadCloud size={14} />
-                      XUẤT FILE MẪU
-                    </button>
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <button
+                          onClick={handleAddManualSticker}
+                          className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-2"
+                        >
+                          <FilePlus size={14} />
+                          THÊM VÀO LIST
+                        </button>
+                        
+                        <label className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer">
+                          <UploadCloud size={14} />
+                          FILE EXCEL {'->'} LIST
+                          <input 
+                            type="file" 
+                            className="hidden" 
+                            accept=".xlsx, .xls"
+                            onChange={(e) => {
+                              handleFileUpload(e, 'price', true);
+                              e.target.value = ''; // Reset to allow same file again
+                            }}
+                          />
+                        </label>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          const templateData = [
+                            {
+                              'MÃ SẢN PHẨM': 'SP001',
+                              'TÊN SẢN PHẨM': 'Ví dụ Tên Sản Phẩm',
+                              'GIÁ GỐC': 1000000,
+                              'GIÁ SAU GIẢM': 500000
+                            }
+                          ];
+                          const worksheet = XLSX.utils.json_to_sheet(templateData);
+                          const workbook = XLSX.utils.book_new();
+                          XLSX.utils.book_append_sheet(workbook, worksheet, 'StickerTemplate');
+                          XLSX.writeFile(workbook, `Mau_In_Sticker_Event.xlsx`);
+                          showNotification('Đã tải file Excel mẫu!', 'success');
+                        }}
+                        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-2"
+                      >
+                        <UploadCloud size={14} />
+                        XUẤT FILE MẪU
+                      </button>
                     </div>
                   </div>
+                )}
 
                 {/* Nút In Sticker */}
                 <button
@@ -997,7 +843,6 @@ export default function ToolHoTro() {
 
               {/* Right Column */}
               <div className="col-span-1 lg:col-span-2 space-y-6">
-                {/* Card 3: Bộ lọc tồn kho */}
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-4">
@@ -1139,8 +984,8 @@ export default function ToolHoTro() {
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Tên sản phẩm</th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Ngành hàng</th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Nhóm hàng</th>
-                            <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-right">Giá gốc</th>
-                            <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-right">Giá giảm</th>
+                            <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-right w-36">Giá gốc</th>
+                            <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-right w-36">Giá giảm</th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-center w-10">Xóa</th>
                           </tr>
                         </thead>
@@ -1172,16 +1017,16 @@ export default function ToolHoTro() {
                               <td className="py-3 px-4 text-sm font-medium text-slate-600 text-right">
                                 <input 
                                   type="text"
-                                  className="w-24 bg-white border border-slate-200 text-slate-700 py-1 px-2 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right"
-                                  value={item.originalPrice}
+                                  className="w-32 bg-white border border-slate-200 text-slate-700 py-1 px-2 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right"
+                                  value={Number(item.originalPrice || 0).toLocaleString('vi-VN') + ' đ'}
                                   onChange={(e) => handlePriceChange(index, 'originalPrice', e.target.value)}
                                 />
                               </td>
                               <td className="py-3 px-4 text-sm font-bold text-red-600 text-right">
                                 <input 
                                   type="text"
-                                  className="w-24 bg-white border border-slate-200 text-red-600 py-1 px-2 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right"
-                                  value={item.discountPrice}
+                                  className="w-32 bg-white border border-slate-200 text-red-600 py-1 px-2 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right"
+                                  value={Number(item.discountPrice || 0).toLocaleString('vi-VN') + ' đ'}
                                   onChange={(e) => handlePriceChange(index, 'discountPrice', e.target.value)}
                                 />
                               </td>

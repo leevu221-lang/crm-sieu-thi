@@ -55,7 +55,7 @@ export const SupabaseService = {
     if (!isSupabaseConfigured) throw new Error('Supabase chưa được cấu hình');
 
     const { data, error } = await supabase
-      .from('store_luyke')
+      .from('store')
       .select('warehouse_code, revenue, target, updated_at')
       .eq('warehouse_code', warehouseCode)
       .single();
@@ -74,7 +74,7 @@ export const SupabaseService = {
     if (!isSupabaseConfigured) throw new Error('Supabase chưa được cấu hình');
 
     const { data, error } = await supabase
-      .from('store_luyke')
+      .from('store')
       .upsert({
         ...payload,
         updated_at: new Error().stack?.includes('upsert') ? new Date().toISOString() : undefined

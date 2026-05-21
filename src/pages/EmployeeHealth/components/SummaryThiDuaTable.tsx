@@ -1,13 +1,13 @@
 import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { parseCategoryData } from '../../RTST/utils';
-import { StaffMatrixData } from '../../RTST/types';
+import { StaffMatrixData, CategoryData } from '../../RTST/types';
 import { cn } from '../../RTST/utils';
-import { Download, Copy, Check, MessageSquare } from 'lucide-react';
+import { Download, Copy, Check, MessageSquare, ChevronDown, Search } from 'lucide-react';
 import { toPng } from 'html-to-image';
 
 // Reusing parsing logic to avoid affecting EmployeeDetailTable
-const parseStaffMatrixDataRefined = (input: string, staffCount: number, categoryTargets: any[], daysPassed: number, totalDays: number): { staffMatrix: StaffMatrixData[], categories: string[] } => {
+const parseStaffMatrixDataRefined = (input: string, staffCount: number, categoryTargets: any[], luykeCategories: CategoryData[], daysPassed: number, totalDays: number): { staffMatrix: StaffMatrixData[], categories: string[] } => {
   const raw = input.trim();
   if (!raw) return { staffMatrix: [], categories: [] };
   const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -73,8 +73,12 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
     let achievedCount = 0; // Track categories >= 100% (based on projected)
 
     categories.forEach((catName, catIdx) => {
-      const targetObj = categoryTargets.find(t => t.name === catName);
-      const target = targetObj ? targetObj.adjustedTarget / staffCount : 0;
+      const lkCat = luykeCategories.length > 0
+        ? luykeCategories.find(c => c.name.toUpperCase() === catName.toUpperCase())
+        : null;
+      const target = lkCat
+        ? lkCat.target / staffCount
+        : (() => { const t = categoryTargets.find(t => t.name.toUpperCase() === catName.toUpperCase()); return t ? t.target / staffCount : 0; })();
       const accumulated = values[catIdx] || 0;
       
       // Actual
@@ -114,7 +118,8 @@ interface SummaryThiDuaTableProps {
   daysPassed: number;
   totalDays: number;
   selectedStaffIds?: string[];
-  categoryTargets: any[]; // Accept categoryTargets
+  categoryTargets: any[];
+  luykeCategories?: CategoryData[];
 }
 
 const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
@@ -124,16 +129,55 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   daysPassed,
   totalDays,
   selectedStaffIds,
-  categoryTargets // Accept categoryTargets
+  categoryTargets,
+  luykeCategories = []
 }) => {
   const tableRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isCopyingAll, setIsCopyingAll] = useState(false);
+  const [visibleCategories, setVisibleCategories] = useState<string[]>([]);
+  const [catSearchTerm, setCatSearchTerm] = useState('');
+  const [isCatDropdownOpen, setIsCatDropdownOpen] = useState(false);
+  const catDropdownRef = useRef<HTMLDivElement>(null);
+  const catInitializedRef = useRef(false);
   
-  // Use passed categoryTargets for staffMatrix calculation
-  const { staffMatrix, categories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, daysPassed, totalDays);
+  // Use passed luykeCategories (BC THÁNG displayed data) for staffMatrix calculation
+  const { staffMatrix, categories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays);
   const sortedStaffMatrix = staffMatrix.sort((a, b) => b.rate - a.rate);
   
+  // Initialize visible categories when categories load
+  React.useEffect(() => {
+    if (categories.length > 0 && !catInitializedRef.current) {
+      setVisibleCategories(categories);
+      catInitializedRef.current = true;
+    }
+  }, [categories]);
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (catDropdownRef.current && !catDropdownRef.current.contains(event.target as Node)) {
+        setIsCatDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, []);
+
+  const toggleCategory = (cat: string) => {
+    setVisibleCategories(prev =>
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+    );
+  };
+
+  const filteredCatList = categories.filter(cat =>
+    cat.toLowerCase().includes(catSearchTerm.toLowerCase())
+  );
+
   const filteredStaffMatrix = selectedStaffIds && selectedStaffIds.length > 0 
     ? sortedStaffMatrix.filter(s => selectedStaffIds.includes(s.fullId))
     : sortedStaffMatrix;
@@ -284,7 +328,84 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 ml-4">
+      <div className="flex items-center gap-2 ml-4">
+          {/* Category Filter Dropdown */}
+          <div className="relative" ref={catDropdownRef}>
+            <button
+              onClick={() => setIsCatDropdownOpen(!isCatDropdownOpen)}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-all min-w-[180px] justify-between shadow-sm"
+            >
+              <span className="truncate">
+                {visibleCategories.length === categories.length
+                  ? "Tất cả ngành hàng"
+                  : visibleCategories.length === 0
+                    ? "Chưa chọn NH"
+                    : `${visibleCategories.length}/${categories.length} NH`}
+              </span>
+              <ChevronDown size={14} className={cn("transition-transform text-slate-400", isCatDropdownOpen && "rotate-180")} />
+            </button>
+
+            {isCatDropdownOpen && (
+              <div className="absolute top-full right-0 mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[100] overflow-hidden">
+                <div className="p-3 border-b border-slate-100 bg-slate-50/50">
+                  <div className="relative">
+                    <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Tìm ngành hàng..."
+                      value={catSearchTerm}
+                      onChange={(e) => setCatSearchTerm(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold focus:ring-2 focus:ring-indigo-500 outline-none uppercase"
+                    />
+                  </div>
+                </div>
+                <div className="p-2 border-b border-slate-100 flex items-center justify-between px-4">
+                  <button
+                    onClick={() => setVisibleCategories([...categories])}
+                    className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-800 transition-colors"
+                  >
+                    Chọn tất cả
+                  </button>
+                  <button
+                    onClick={() => setVisibleCategories([])}
+                    className="text-[10px] font-black uppercase text-slate-500 hover:text-slate-700 transition-colors"
+                  >
+                    Bỏ chọn tất cả
+                  </button>
+                </div>
+                <div className="max-h-64 overflow-y-auto p-2">
+                  {filteredCatList.map(cat => (
+                    <label
+                      key={cat}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-indigo-50 cursor-pointer transition-colors group"
+                    >
+                      <div className={cn(
+                        "w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all",
+                        visibleCategories.includes(cat)
+                          ? "bg-indigo-600 border-indigo-600"
+                          : "border-slate-200 group-hover:border-slate-300 bg-white"
+                      )}>
+                        {visibleCategories.includes(cat) && <Check size={12} className="text-white stroke-[3px]" />}
+                      </div>
+                      <input
+                        type="checkbox"
+                        className="hidden"
+                        checked={visibleCategories.includes(cat)}
+                        onChange={() => toggleCategory(cat)}
+                      />
+                      <span className={cn(
+                        "text-[11px] font-black uppercase tracking-wider transition-colors",
+                        visibleCategories.includes(cat) ? "text-indigo-600" : "text-slate-600"
+                      )}>
+                        {cat}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           <button 
             onClick={handleCopyAll}
             className={cn(
@@ -308,12 +429,12 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       <div className="overflow-x-auto">
         <table className="w-full border-collapse table-fixed">
           <thead>
-            <tr className="text-slate-900 border-b border-slate-300 h-[70px]">
+            <tr className="text-slate-900 border-b border-slate-300 h-[105px]">
               <th className="px-2 py-2 text-xs font-black uppercase tracking-tight text-center border-r border-slate-300 bg-[#10b981] w-12">STT</th>
               <th className="px-4 py-2 text-xs font-black uppercase tracking-tight text-center border-r border-slate-300 bg-[#10b981] w-[250px]">NHÂN VIÊN</th>
               <th className="px-1 py-1 text-xs font-black uppercase tracking-tight text-center border-r border-slate-300 bg-[#10b981] w-[60px]">ĐẠT</th>
               <th className="px-1 py-1 text-xs font-black uppercase tracking-tight text-center border-r border-slate-300 bg-[#10b981] w-[60px]">TỶ LỆ</th>
-              {categories.map(catName => (
+              {categories.filter(catName => visibleCategories.includes(catName)).map(catName => (
                 <React.Fragment key={catName}>
                   <th className="px-1 py-1 text-xs font-black uppercase tracking-tight text-center border-r border-slate-300 bg-[#facc15] w-[60px] whitespace-normal break-words">{catName}</th>
                   {catName === 'MÁY LẠNH ĐẶC QUYỀN' && (
@@ -325,7 +446,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
           </thead>
           <tbody className="divide-y divide-slate-300">
             {filteredStaffMatrix.map((staff, index) => (
-              <tr key={staff.fullId} className={cn("hover:bg-slate-50 transition-colors h-[30px]", staff.displayName.includes('30016') ? 'border-b border-slate-300' : '')}>
+              <tr key={staff.fullId} className={cn("hover:bg-slate-50 transition-colors h-[45px]", staff.displayName.includes('30016') ? 'border-b border-slate-300' : '')}>
                 <td className="px-2 py-0 text-center border-r border-slate-300 bg-[#d1fae5] font-black text-xs truncate">
                   {index + 1}
                 </td>
@@ -344,17 +465,72 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                   </div>
                 </td>
                 <td className="px-1 py-0 text-xs font-black text-center border-r border-slate-300 bg-[#ecfdf5]">
-                  {staff.achieved}/{staff.totalCats}
+                  {(() => {
+                    const visibleAchieved = categories.reduce((count, catName, idx) => {
+                      if (!visibleCategories.includes(catName)) return count;
+                      const lkCat = luykeCategories.length > 0
+                        ? luykeCategories.find(c => c.name.toUpperCase() === catName.toUpperCase())
+                        : null;
+                      const targetPerStaff = lkCat
+                        ? lkCat.target / staffCount
+                        : (() => { const t = categoryTargets.find(t => t.name.toUpperCase() === catName.toUpperCase()); return t && staffCount > 0 ? t.target / staffCount : 0; })();
+                      const accumulated = staff.rawValues[idx] || 0;
+                      const projectedRate = targetPerStaff > 0 && daysPassed > 0
+                        ? (((accumulated) / daysPassed) * totalDays) / targetPerStaff * 100
+                        : 0;
+                      return Math.round(projectedRate) >= 100 ? count + 1 : count;
+                    }, 0);
+                    return `${visibleAchieved}/${visibleCategories.length}`;
+                  })()}
                 </td>
                 <td className={cn(
                   "px-1 py-0 text-xs font-black text-center border-r border-slate-300 bg-[#ecfdf5]",
-                  staff.rate < 0.5 ? "text-rose-600" : "text-slate-900"
+                  (() => {
+                    const visibleAchieved = categories.reduce((count, catName, idx) => {
+                      if (!visibleCategories.includes(catName)) return count;
+                      const lkCat = luykeCategories.length > 0
+                        ? luykeCategories.find(c => c.name.toUpperCase() === catName.toUpperCase())
+                        : null;
+                      const targetPerStaff = lkCat
+                        ? lkCat.target / staffCount
+                        : (() => { const t = categoryTargets.find(t => t.name.toUpperCase() === catName.toUpperCase()); return t && staffCount > 0 ? t.target / staffCount : 0; })();
+                      const accumulated = staff.rawValues[idx] || 0;
+                      const projectedRate = targetPerStaff > 0 && daysPassed > 0
+                        ? (((accumulated) / daysPassed) * totalDays) / targetPerStaff * 100
+                        : 0;
+                      return Math.round(projectedRate) >= 100 ? count + 1 : count;
+                    }, 0);
+                    const visibleRate = visibleCategories.length > 0 ? visibleAchieved / visibleCategories.length : 0;
+                    return visibleRate < 0.5 ? "text-rose-600" : "text-slate-900";
+                  })()
                 )}>
-                  {(staff.rate * 100).toFixed(1)}%
+                  {(() => {
+                    const visibleAchieved = categories.reduce((count, catName, idx) => {
+                      if (!visibleCategories.includes(catName)) return count;
+                      const lkCat = luykeCategories.length > 0
+                        ? luykeCategories.find(c => c.name.toUpperCase() === catName.toUpperCase())
+                        : null;
+                      const targetPerStaff = lkCat
+                        ? lkCat.target / staffCount
+                        : (() => { const t = categoryTargets.find(t => t.name.toUpperCase() === catName.toUpperCase()); return t && staffCount > 0 ? t.target / staffCount : 0; })();
+                      const accumulated = staff.rawValues[idx] || 0;
+                      const projectedRate = targetPerStaff > 0 && daysPassed > 0
+                        ? (((accumulated) / daysPassed) * totalDays) / targetPerStaff * 100
+                        : 0;
+                      return Math.round(projectedRate) >= 100 ? count + 1 : count;
+                    }, 0);
+                    const visibleRate = visibleCategories.length > 0 ? visibleAchieved / visibleCategories.length : 0;
+                    return `${(visibleRate * 100).toFixed(1)}%`;
+                  })()}
                 </td>
                 {categories.map((catName, idx) => {
-                  const target = categoryTargets.find(t => t.name === catName);
-                  const targetPerStaff = target && staffCount > 0 ? (target.adjustedTarget / staffCount) : 0;
+                  if (!visibleCategories.includes(catName)) return null;
+                  const lkCat = luykeCategories.length > 0
+                    ? luykeCategories.find(c => c.name.toUpperCase() === catName.toUpperCase())
+                    : null;
+                  const targetPerStaff = lkCat
+                    ? lkCat.target / staffCount
+                    : (() => { const t = categoryTargets.find(t => t.name.toUpperCase() === catName.toUpperCase()); return t && staffCount > 0 ? t.target / staffCount : 0; })();
                   const accumulated = staff.rawValues[idx] || 0;
                   const projectedRate = targetPerStaff > 0 && daysPassed > 0 
                       ? (((accumulated) / daysPassed) * totalDays) / targetPerStaff * 100
@@ -383,4 +559,4 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   );
 };
 
-export default SummaryThiDuaTable;
+export default React.memo(SummaryThiDuaTable);

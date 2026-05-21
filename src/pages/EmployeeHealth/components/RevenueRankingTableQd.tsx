@@ -7,7 +7,7 @@ import { cn } from '../../RTST/utils';
 interface RevenueRankingTableQdQProps {
   data: StaffData[];
   onCapture: () => void;
-  stTargetSauHeSo?: number;
+  stTargetQuyDoi?: number;
   daysPassed?: number;
   totalDays?: number;
   selectedStaffId?: string | null;
@@ -17,7 +17,7 @@ interface RevenueRankingTableQdQProps {
 const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({ 
   data, 
   onCapture, 
-  stTargetSauHeSo = 0,
+  stTargetQuyDoi = 0,
   daysPassed = 1,
   totalDays = 30,
   selectedStaffId = null,
@@ -42,8 +42,9 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
   const totalActual = sortedData.reduce((sum, staff) => sum + (staff.actualVal || 0), 0);
   const totalVirtual = sortedData.reduce((sum, staff) => sum + staff.virtualVal, 0);
   const totalEffQd = totalActual > 0 ? ((totalVirtual - totalActual) / totalActual) * 100 * 100 : 0;
-  const targetQdPerStaff = sortedData.length > 0 ? Math.round(stTargetSauHeSo / sortedData.length) : 0;
-  const totalTargetQd = targetQdPerStaff * sortedData.length;
+  // Lấy đúng giá trị từ cấu hình màn hình BC THÁNG -> THẺ TARGET QUY ĐỔI và chia cho số nhân viên
+  const targetQdPerStaff = sortedData.length > 0 ? stTargetQuyDoi / sortedData.length : 0;
+  const totalTargetQd = stTargetQuyDoi;
   const actualTotalTargetQd = totalTargetQd > 1000000 ? totalTargetQd : totalTargetQd * 1000000;
   const actualTotalActual = Math.abs(totalActual) > 1000000 ? totalActual : totalActual * 1000000;
   const totalPercentHT = (actualTotalTargetQd > 0 && daysPassed > 0) ? (((actualTotalActual / daysPassed) * totalDays) / actualTotalTargetQd) * 100 : 0;
@@ -78,7 +79,7 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                 <tr className="text-slate-900 font-utm-avo font-black text-[14px] uppercase tracking-tight h-[60px]">
                   <th className="bg-[#00965e] px-2 py-0 text-center text-white border-r border-white/10 w-[40px] h-[60px]">STT</th>
                   <th className="bg-[#00965e] px-4 py-0 text-center text-white border-r border-white/10 w-[300px] whitespace-normal break-words leading-tight">NHÂN VIÊN</th>
-                  <th className="bg-[#00965e] px-4 py-0 text-center text-white border-r border-white/10 w-[120px] whitespace-normal break-words leading-tight">TARGET QĐ (TR)</th>
+                  <th className="bg-[#00965e] px-4 py-0 text-center text-white border-r border-white/10 w-[120px] whitespace-normal break-words leading-tight">TARGET QĐ</th>
                   <th className="bg-[#ffcb05] px-4 py-0 text-center border-r border-white/10 w-[130px] whitespace-normal break-words leading-tight">DOANH THU QUY ĐỔI</th>
                   <th className="bg-[#ffcb05] px-4 py-0 text-center border-r border-white/10 w-[80px] whitespace-normal break-words leading-tight">% HT</th>
                   <th className="bg-[#ffcb05] px-4 py-0 text-center border-r border-white/10 w-[120px] whitespace-normal break-words leading-tight">HIỆU QUẢ QĐ</th>
@@ -88,7 +89,7 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
               <tbody className="divide-y divide-slate-200">
                 {sortedData.length > 0 ? (
                   sortedData.map((staff, index) => {
-                    const targetQdPerStaff = sortedData.length > 0 ? Math.round(stTargetSauHeSo / sortedData.length) : 0;
+                    // Uses targetQdPerStaff from outer scope
                     const effQd = (staff.effVal !== 0 
                       ? staff.effVal 
                       : ((staff.actualVal || 0) > 0 
@@ -107,10 +108,8 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                     const isStriped = index % 2 === 1;
 
                     return (
-                      <motion.tr 
+                      <tr 
                         key={staff.fullId}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
                         onClick={() => onSelectStaff && onSelectStaff(staff.fullId)}
                         className={cn(
                           "transition-colors h-[40px] cursor-pointer",
@@ -169,7 +168,7 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                             )}
                           </div>
                         </td>
-                      </motion.tr>
+                      </tr>
                     );
                   })
                 ) : (
@@ -214,4 +213,4 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
   );
 };
 
-export default RevenueRankingTableQd;
+export default React.memo(RevenueRankingTableQd);

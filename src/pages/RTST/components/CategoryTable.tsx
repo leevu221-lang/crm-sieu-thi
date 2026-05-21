@@ -99,18 +99,120 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
       return rateB - rateA;
     });
 
+  // Separate SL and DT categories
+  const slCats = filteredCats.filter(c => c.type === 'SL');
+  const dtCats = filteredCats.filter(c => c.type === 'DT');
+  const showSplit = catGroupFilter === 'ALL' && (slCats.length > 0 || dtCats.length > 0);
+
+  const sortedSlCats = slCats.sort((a, b) => {
+    let rA = 0, rB = 0;
+    if (mode === 'luyke') {
+      if (a.target > 0 && daysPassed > 0) rA = (((a.revenue / daysPassed) * totalDays) / a.target) * 100;
+      if (b.target > 0 && daysPassed > 0) rB = (((b.revenue / daysPassed) * totalDays) / b.target) * 100;
+    } else {
+      if (a.target > 0) rA = (a.revenue / a.target) * 100;
+      if (b.target > 0) rB = (b.revenue / b.target) * 100;
+    }
+    return rB - rA;
+  });
+
+  const sortedDtCats = dtCats.sort((a, b) => {
+    let rA = 0, rB = 0;
+    if (mode === 'luyke') {
+      if (a.target > 0 && daysPassed > 0) rA = (((a.revenue / daysPassed) * totalDays) / a.target) * 100;
+      if (b.target > 0 && daysPassed > 0) rB = (((b.revenue / daysPassed) * totalDays) / b.target) * 100;
+    } else {
+      if (a.target > 0) rA = (a.revenue / a.target) * 100;
+      if (b.target > 0) rB = (b.revenue / b.target) * 100;
+    }
+    return rB - rA;
+  });
+
+  const renderTable = (cats: CategoryData[], typeLabel: string) => {
+    const achievedCount = cats.filter(c => {
+      let rate = 0;
+      if (mode === 'luyke') {
+        if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
+      } else {
+        if (c.target > 0) rate = (c.revenue / c.target) * 100;
+      }
+      return rate >= 100;
+    }).length;
+
+    return (
+      <div className="border border-slate-300 overflow-hidden">
+        <div className="bg-white p-[15px]">
+          <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
+            <div className="p-4 flex flex-col items-center justify-center">
+              <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">NGÀNH HÀNG ({typeLabel})</h2>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                {mode === 'luyke' ? 'LUỸ KẾ THÁNG' : 'REALTIME'}
+              </span>
+            </div>
+            <div className="p-4 flex flex-col items-center justify-center">
+              <h2 className="text-xl font-black text-rose-600 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">DỰ KIẾN</h2>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                ĐẠT : {achievedCount}/{cats.length} || TGSD: {daysPassed}/{totalDays}
+              </span>
+            </div>
+          </div>
+          <div className="overflow-hidden">
+            <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300">
+              <thead>
+                <tr className="text-slate-900 h-[40px]">
+                  <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
+                  <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
+                  <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-[60px]">TARGET</th>
+                  <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">LUỸ KẾ</th>
+                  <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>
+                  <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">CÒN LẠI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cats.length === 0 ? (
+                  <tr><td colSpan={6} className="py-8 text-center text-slate-400 text-sm border-r border-b border-slate-300">Chưa có dữ liệu</td></tr>
+                ) : (
+                  cats.map((cat, idx) => {
+                    let rate = 0;
+                    if (cat.target > 0) {
+                      if (mode === 'luyke' && daysPassed > 0 && totalDays > 0) {
+                        rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
+                      } else {
+                        rate = (cat.revenue / cat.target) * 100;
+                      }
+                    }
+                    const remaining = cat.target - cat.revenue;
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50 transition-colors h-[40px]">
+                        <td className="px-2 py-0 text-[13px] font-extrabold text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
+                        <td className="px-2 py-0 text-[13px] font-extrabold uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
+                        <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
+                        <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                        <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${Math.round(rate) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(rate)}%</td>
+                        <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className={cn("bg-white rounded-2xl md:rounded-3xl border border-slate-200 shadow-sm", mode === 'luyke' ? "" : "overflow-hidden")}>
-      <div className="p-5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 md:gap-4">
+    <div className="bg-white rounded-2xl border border-slate-200">
+      {/* Toolbar - hidden in capture */}
+      <div className="p-5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 md:gap-4 no-capture">
         <div className="flex items-center gap-3">
           <div className="w-2 h-10 bg-black rounded-full" />
           <div>
-            <div className={cn("flex flex-wrap items-center gap-2", mode === 'luyke' ? "no-capture" : "")}>
-              <h3 className="text-sm sm:text-lg md:text-2xl font-black text-black uppercase tracking-tight">
-                📦 {title} {catMarketFilter !== 'ALL' ? `- ${catMarketFilter}` : ''} ({filteredCats.length})
-              </h3>
-            </div>
-            <p className={cn("text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider", mode === 'luyke' ? "no-capture" : "")}>Theo dõi tiến độ hoàn thành mục tiêu</p>
+            <h3 className="text-sm sm:text-lg md:text-2xl font-black text-black uppercase tracking-tight">
+              📦 {title} {catMarketFilter !== 'ALL' ? `- ${catMarketFilter}` : ''} ({filteredCats.length})
+            </h3>
+            <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">Theo dõi tiến độ hoàn thành mục tiêu</p>
           </div>
           <button 
             onClick={() => captureElement(captureRef, mode === 'luyke' ? 'NganhHang_LuyKe' : 'NganhHang_Realtime')}
@@ -145,7 +247,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
         </div>
       </div>
       
-      <div ref={captureRef} className={cn("bg-white", mode === 'luyke' ? "p-4 sm:p-8" : "p-2 sm:p-4")}>
+      <div ref={captureRef} className="bg-white p-4 sm:p-8">
         {showComment && (
           <div className="mb-4 no-capture">
             <textarea
@@ -156,137 +258,17 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
             />
           </div>
         )}
-        <div className={cn(
-          "w-full border border-slate-300 bg-white relative shadow-inner"
-        )}>
-          <table className="w-full text-left border-collapse border border-slate-300 table-auto">
-            <thead className="sticky top-0 z-40 shadow-sm">
-              <tr className="border-b border-slate-300 bg-white">
-                <th colSpan={2} className="sticky left-0 z-50 bg-white px-0.5 py-3 sm:px-2 sm:py-4 text-[clamp(12px,3vw,24px)] font-black uppercase tracking-tight border-r border-slate-300 text-black text-center whitespace-nowrap">
-                  {mode === 'luyke' ? 'BẢNG LUỸ KẾ NGÀNH HÀNG' : 'BẢNG TIẾN ĐỘ NGÀNH HÀNG'}
-                </th>
-                <th colSpan={4} className={cn(
-                  "px-0.5 py-3 sm:px-2 sm:py-4 text-[clamp(12px,3vw,24px)] font-black uppercase tracking-tight text-center whitespace-nowrap bg-white",
-                  mode === 'luyke' ? "text-rose-600" : "text-[#e11d48]"
-                )}>
-                  {mode === 'luyke' ? 'LUỸ KẾ' : 'TIẾN ĐỘ'}
-                </th>
-              </tr>
-              <tr className="border-b border-slate-300 bg-white">
-                <th colSpan={2} className="sticky left-0 z-50 bg-white px-0.5 py-2 sm:px-2 sm:py-2 text-[clamp(8px,1.8vw,13px)] font-bold text-slate-900 border-r border-slate-300 whitespace-nowrap">
-                  <div className="flex items-center justify-center gap-2">
-                    <Calendar size={14} className="text-blue-600" />
-                    <span className="uppercase tracking-widest">{mode === 'luyke' ? `LUỸ KẾ ĐẾN NGÀY : ${formatLuyKeDate()}` : `LUỸ KẾ : ${formatRealtimeDate()}`}</span>
-                  </div>
-                </th>
-                <th colSpan={4} className="px-0.5 py-2 sm:px-2 sm:py-2 text-[clamp(8px,1.8vw,13px)] font-bold text-slate-900 whitespace-nowrap bg-white">
-                  <div className="flex items-center justify-center gap-2">
-                    <Clock size={14} className="text-orange-600" />
-                    <span className="uppercase tracking-widest">
-                      {mode === 'luyke' ? `TGSD: ${getLuyKeProgress(daysPassed, totalDays)}` : `TGSD: ${getWorkingDayProgress().toFixed(0)}%`}
-                    </span>
-                  </div>
-                </th>
-              </tr>
-              <tr className="border-b border-slate-300">
-                <th rowSpan={2} className="sticky left-0 z-50 px-0.5 py-3 text-[clamp(8px,1.5vw,14px)] font-black text-white text-center border-r border-slate-300 bg-[#10b981] whitespace-nowrap">
-                  STT
-                </th>
-                <th rowSpan={2} className="sticky left-[40px] sm:left-[60px] z-50 px-1 sm:px-3 py-3 text-[clamp(8px,1.5vw,14px)] font-black text-white border-r border-slate-300 bg-[#10b981] text-center whitespace-nowrap">
-                  NGÀNH HÀNG
-                </th>
-                <th colSpan={3} className="px-0.5 py-3 text-[clamp(8px,1.5vw,14px)] font-black text-black text-center border-r border-slate-300 bg-[#facc15] whitespace-nowrap">
-                  DOANH THU (TRIỆU)
-                </th>
-                <th rowSpan={2} className="px-0.5 py-3 text-[clamp(8px,1.5vw,14px)] font-black text-white text-center bg-[#f97316] whitespace-nowrap">
-                  CÒN LẠI
-                </th>
-              </tr>
-              <tr className="border-b border-slate-300">
-                <th className="px-0.5 py-2 text-[clamp(7px,1.2vw,13px)] font-black text-black text-center border-r border-slate-300 bg-[#fde047] whitespace-nowrap">
-                  TARGET
-                </th>
-                <th className="px-0.5 py-2 text-[clamp(7px,1.2vw,13px)] font-black text-black text-center border-r border-slate-300 bg-[#fde047] whitespace-nowrap">
-                  {mode === 'luyke' ? 'LUỸ KẾ' : 'REAL'}
-                </th>
-                <th className="px-0.5 py-2 text-[clamp(7px,1.2vw,13px)] font-black text-black text-center border-r border-slate-300 bg-[#84cc16] whitespace-nowrap">
-                  %HT
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredCats.map((item, idx) => {
-                let rate = 0;
-                if (item.target > 0) {
-                  if (mode === 'luyke' && daysPassed > 0 && totalDays > 0) {
-                    const projectedRevenue = (item.revenue / daysPassed) * totalDays;
-                    rate = (projectedRevenue / item.target) * 100;
-                  } else {
-                    rate = (item.revenue / item.target) * 100;
-                  }
-                }
-                
-                const diff = item.revenue - item.target;
-                const remaining = mode === 'luyke' ? diff : (item.target - item.revenue);
-                
-                return (
-                  <tr 
-                    key={`${item.name}-${idx}`} 
-                    className="border-b border-slate-300 bg-white hover:bg-slate-50 transition-colors"
-                    style={{ height: '25pt' }}
-                  >
-                    <td className="sticky left-0 z-10 px-0.5 py-2 text-[clamp(8px,1.5vw,13px)] font-black text-black text-center border-r border-slate-300 bg-[#fef08a] whitespace-nowrap">
-                      {idx + 1}
-                    </td>
-                    <td className="sticky left-[40px] sm:left-[60px] z-10 px-2 sm:px-4 py-2 text-[clamp(8px,1.5vw,13px)] font-black border-r border-slate-300 text-[#2563eb] uppercase leading-tight whitespace-nowrap bg-white">
-                      <span className="mr-2">›</span>
-                      {mode === 'luyke' 
-                        ? (item.type === 'SL' || item.type === 'DT' 
-                            ? `${item.name} - ${item.type === 'SL' ? 'SLLK' : 'DTLK'}`
-                            : item.name)
-                        : (item.type === 'SL' || item.type === 'DT'
-                            ? `${item.name.toUpperCase()} - ${item.type}`
-                            : item.name.toUpperCase())
-                      }
-                    </td>
-                    <td className="px-0.5 py-2 text-[clamp(8px,1.5vw,13px)] text-center border-r border-slate-300 font-black text-slate-700 whitespace-nowrap">
-                      {Math.round(item.target)}
-                    </td>
-                    <td className="px-0.5 py-2 text-[clamp(8px,1.5vw,13px)] text-center border-r border-slate-300 font-black text-[#059669] whitespace-nowrap">
-                      {Math.round(item.revenue)}
-                    </td>
-                    <td className={cn(
-                      "px-0.5 py-2 text-[clamp(8px,1.5vw,13px)] text-center border-r border-slate-300 font-black whitespace-nowrap",
-                      rate < 100 ? "bg-red-100 text-red-600" : "text-[#059669]"
-                    )}>
-                      {Math.round(rate)}%
-                    </td>
-                    <td className={cn(
-                      "px-0.5 py-2 text-[clamp(8px,1.5vw,13px)] text-center font-black whitespace-nowrap",
-                      mode === 'luyke' 
-                        ? (remaining < 0 ? "bg-red-100 text-red-600" : "")
-                        : (remaining < 0 ? "text-[#dc2626]" : (remaining === 0 ? "" : "text-[#059669]"))
-                    )}>
-                      {mode === 'luyke' ? (
-                        remaining < 0 ? Math.round(remaining) : ""
-                      ) : (
-                        remaining > 0 ? (
-                          Math.round(remaining)
-                        ) : (remaining === 0 ? (
-                          <div className="flex justify-center">
-                            <Check size={14} className="text-[#059669] stroke-[4px]" />
-                          </div>
-                        ) : (
-                          Math.round(remaining)
-                        ))
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+
+        {showSplit ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {sortedSlCats.length > 0 && renderTable(sortedSlCats, 'SL')}
+            {sortedDtCats.length > 0 && renderTable(sortedDtCats, 'DT')}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {renderTable(filteredCats, catGroupFilter === 'SLLK' ? 'SL' : (catGroupFilter === 'DTLK' ? 'DT' : 'ALL'))}
+          </div>
+        )}
       </div>
     </div>
   );

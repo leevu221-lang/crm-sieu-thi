@@ -28,15 +28,21 @@ import {
   Save,
   Loader2,
   TrendingUp,
-  X
+  X,
+  Upload,
+  UploadCloud,
+  Target
 } from 'lucide-react';
 import { cn, formatShortCurrency } from '../utils';
+import { useNotification } from '../../../contexts/NotificationContext';
 
 interface InputSectionProps {
   marketInput: string;
   setMarketInput: (val: string) => void;
   categoryInput: string;
   setCategoryInput: (val: string) => void;
+  categoryTargetInput: string;
+  setCategoryTargetInput: (val: string) => void;
   categoryRevenueInput: string;
   setCategoryRevenueInput: (val: string) => void;
   manualAdjustment: number;
@@ -86,6 +92,7 @@ interface InputSectionProps {
   setCategoryTargets: (val: any[]) => void;
   stName: string;
   setStName: (val: string) => void;
+  isLuykeSynced?: boolean;
   stDtlk: number;
   setStDtlk: (val: number) => void;
   stDtqd: number;
@@ -101,6 +108,7 @@ interface InputSectionProps {
   stTargetSauHeSo: number;
   onSaveStoreRevenue: () => void;
   onLoadStoreRevenue: () => void;
+  updateStoreSettings?: (storeName: string, settings: any) => Promise<void>;
   isSavingStoreRevenue: boolean;
   isLoadingStoreRevenue?: boolean;
   isValidStoreName?: (name: string) => boolean;
@@ -109,11 +117,32 @@ interface InputSectionProps {
   isYcxDirty?: boolean;
   showAll?: boolean;
   activeTab: 'REALTIME' | 'LUY_KE' | 'THOI_GIAN' | 'NHAN_VIEN' | 'TARGET_NGANH_HANG' | 'TARGET_DOANH_THU' | 'RESOURCES';
+  availableMarkets?: string[];
+  onStoreChange?: (store: string) => void;
+  banKemNv?: string;
+  setBanKemNv?: (val: string) => void;
+  phucVu?: string;
+  setPhucVu?: (val: string) => void;
+  tragopMatran?: string;
+  setTragopMatran?: (val: string) => void;
+  tragopNv?: string;
+  setTragopNv?: (val: string) => void;
+  allStoresCache?: Record<string, {
+    staffInput: string;
+    staffCategoryInput: string;
+    banKemNv: string;
+    phucVu: string;
+    tragopMatran: string;
+    tragopNv: string;
+    stPercentTarget: number;
+    categoryTargets: any[];
+  }>;
 }
 
 const InputSection: React.FC<InputSectionProps> = ({
   marketInput, setMarketInput,
   categoryInput, setCategoryInput,
+  categoryTargetInput, setCategoryTargetInput,
   categoryRevenueInput, setCategoryRevenueInput,
   manualAdjustment, setManualAdjustment,
   selectedMonth, setSelectedMonth,
@@ -151,6 +180,15 @@ const InputSection: React.FC<InputSectionProps> = ({
   setStaffCategoryInput,
   categoryTargets,
   setCategoryTargets,
+  isLuykeSynced,
+  banKemNv,
+  setBanKemNv,
+  phucVu,
+  setPhucVu,
+  tragopMatran,
+  setTragopMatran,
+  tragopNv,
+  setTragopNv,
   stName, setStName,
   stDtlk, setStDtlk,
   stDtqd, setStDtqd,
@@ -161,6 +199,7 @@ const InputSection: React.FC<InputSectionProps> = ({
   stTargetSauHeSo,
   onSaveStoreRevenue,
   onLoadStoreRevenue,
+  updateStoreSettings,
   isSavingStoreRevenue,
   isLoadingStoreRevenue = false,
   isValidStoreName,
@@ -168,8 +207,130 @@ const InputSection: React.FC<InputSectionProps> = ({
   lastUpdatedRealtime,
   isYcxDirty,
   showAll = true,
-  activeTab
+  activeTab,
+  availableMarkets = [],
+  onStoreChange,
+  allStoresCache
 }) => {
+  const { showNotification } = useNotification();
+  const [innerTab, setInnerTab] = useState<'DU_LIEU_NGUON' | 'TARGET_DOANH_THU' | 'TARGET_THI_DUA'>('DU_LIEU_NGUON');
+
+  const handlePhucVuUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!stName || stName === 'ALL') {
+      showNotification('Vui lòng chọn một siêu thị cụ thể để tải dữ liệu Phục vụ!', 'error');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const buffer = event.target?.result as ArrayBuffer;
+        if (!buffer) throw new Error('Nội dung file rỗng hoặc không thể đọc');
+
+        let tsvOutput = '';
+        let workBook: XLSX.WorkBook | null = null;
+
+        try {
+          workBook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+        } catch (err) {
+          try {
+            const binary = new TextDecoder('latin1').decode(buffer);
+            workBook = XLSX.read(binary, { type: 'binary' });
+          } catch (e2) {
+            try {
+              const text = new TextDecoder('utf-8').decode(buffer);
+              workBook = XLSX.read(text, { type: 'string' });
+            } catch (e3) {
+              throw new Error('Định dạng file không được hỗ trợ hoặc file bị hỏng');
+            }
+          }
+        }
+
+        if (workBook && workBook.SheetNames.length > 0) {
+          const firstSheetName = workBook.SheetNames[0];
+          const worksheet = workBook.Sheets[firstSheetName];
+          const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
+
+          if (rows && rows.length > 0) {
+            tsvOutput = rows
+              .filter(row => Array.isArray(row))
+              .map(row => row.map(cell => {
+                const val = cell === null || cell === undefined ? '' : String(cell);
+                return val.replace(/\t|\n|\r/g, ' ').trim();
+              }).join('\t'))
+              .join('\n');
+          }
+        }
+
+        if (!tsvOutput || tsvOutput.trim() === '') throw new Error('Không tìm thấy dữ liệu hợp lệ trong file');
+        
+        console.log('[PhucVu Upload] stName:', stName, '| activeStore:', activeStore, '| setPhucVu type:', typeof setPhucVu, '| data length:', tsvOutput.length);
+        if (setPhucVu) {
+          try {
+            await Promise.resolve(setPhucVu(tsvOutput));
+            console.log('[PhucVu Upload] savePhucVu completed successfully');
+          } catch (saveErr: any) {
+            console.error('[PhucVu Upload] savePhucVu FAILED:', saveErr);
+            throw saveErr;
+          }
+        } else {
+          console.error('[PhucVu Upload] setPhucVu is NULL/UNDEFINED!');
+        }
+        showNotification('Tải file và lưu dữ liệu Phục vụ thành công!', 'success');
+      } catch (error: any) {
+        const finalErrorMsg = error?.message || (typeof error === 'string' ? error : 'Sai định dạng file');
+        showNotification(`Lỗi: ${finalErrorMsg}. Vui lòng kiểm tra lại file.`, 'error');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = '';
+  };
+
+  // Per-store config data for "CẤU HÌNH SIÊU THỊ" card
+  // tragop_matran and tragop_nv now come from Firebase via props
+  // Other fields still use localStorage as fallback
+  const storeConfigKey = (field: string) => `cauhinh_${activeStore}_${field}`;
+  const [storeConfig, setStoreConfig] = useState<Record<string, string>>({});
+
+  // Load per-store config when activeStore changes
+  React.useEffect(() => {
+    if (!activeStore || activeStore === 'ALL') return;
+    const localFields = ['bc_dt_nh_rt', 'bc_dt_nh_lk', 'bc_dt_nv_dt', 'bc_dt_nv_td', 'bc_dt_nv_hq'];
+    const loaded: Record<string, string> = {};
+    localFields.forEach(f => { loaded[f] = localStorage.getItem(storeConfigKey(f)) || ''; });
+    // tragop_matran and tragop_nv come from Firebase props
+    loaded['tragop_matran'] = tragopMatran || '';
+    loaded['tragop_nv'] = tragopNv || '';
+    setStoreConfig(loaded);
+  }, [activeStore, tragopMatran, tragopNv]);
+
+  const updateStoreConfig = (field: string, value: string) => {
+    setStoreConfig(prev => ({ ...prev, [field]: value }));
+    // tragop fields go to Firebase via props, others to localStorage
+    if (field === 'tragop_matran' && setTragopMatran) {
+      setTragopMatran(value);
+    } else if (field === 'tragop_nv' && setTragopNv) {
+      setTragopNv(value);
+    } else {
+      localStorage.setItem(storeConfigKey(field), value);
+    }
+  };
+
+  const clearStoreConfig = (field: string) => {
+    setStoreConfig(prev => ({ ...prev, [field]: '' }));
+    if (field === 'tragop_matran' && setTragopMatran) {
+      setTragopMatran('');
+    } else if (field === 'tragop_nv' && setTragopNv) {
+      setTragopNv('');
+    } else {
+      localStorage.removeItem(storeConfigKey(field));
+    }
+  };
+
   const [showTimeSettings, setShowTimeSettings] = useState(true);
   const [showRealtime, setShowRealtime] = useState(true);
   const [showClusterData, setShowClusterData] = useState(true);
@@ -179,6 +340,11 @@ const InputSection: React.FC<InputSectionProps> = ({
   const [expandedInput, setExpandedInput] = useState<string | null>(null);
   const toggleInput = (id: string) => setExpandedInput(prev => prev === id ? null : id);
   const [savingRow, setSavingRow] = useState<string | null>(null);
+
+  // Per-store data cache logic has been removed here because it was causing data leakage 
+  // between stores due to race conditions during React renders.
+  // We now rely entirely on the perfectly synchronized `allStoresCache` passed via props
+  // which is maintained by the Singleton Global Cache in useLuykeData.ts.
   const [globalPercent, setGlobalPercent] = useState(() => {
     const saved = localStorage.getItem('rtst_global_percent');
     return saved ? Number(saved) : 100;
@@ -279,12 +445,12 @@ const InputSection: React.FC<InputSectionProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {[
               { title: 'BÁO CÁO TỔNG HỢP', color: 'bg-slate-700', items: [
-                { id: 'rt_market', label: 'REALTIME', value: marketInput, onChange: setMarketInput, onBlur: () => onSaveRealtime(true), hasData: !!marketInput },
-                { id: 'rt_catrev', label: 'LUỸ KẾ', value: categoryRevenueInput, onChange: setCategoryRevenueInput, onBlur: () => onSaveRealtime(true), hasData: !!categoryRevenueInput, isLuyke: true },
+                { id: 'rt_market', label: 'REALTIME DT', value: marketInput, onChange: setMarketInput, onBlur: () => onSaveRealtime(false), hasData: !!marketInput },
+                { id: 'rt_catrev', label: 'LUỸ KẾ DT', value: clusterSummaryInput || categoryRevenueInput, onChange: (val: string) => { setCategoryRevenueInput(val); setClusterSummaryInput(val); }, onBlur: () => { onSaveRealtime(false); onSaveLuyke(false, 'auto'); }, hasData: !!(clusterSummaryInput || categoryRevenueInput), isLuyke: true },
               ]},
-              { title: 'THI ĐUA CỤM', color: 'bg-orange-500', hasYcx: true, items: [
-                { id: 'rt_cat', label: 'REALTIME', value: categoryInput, onChange: setCategoryInput, onBlur: () => onSaveRealtime(true), hasData: !!categoryInput },
-                { id: 'rt_catlk', label: 'LUỸ KẾ', value: clusterCategoryInput, onChange: setClusterCategoryInput, onBlur: () => onSaveLuyke(true,'auto'), hasData: !!clusterCategoryInput, isLuyke: true },
+              { title: 'THI ĐUA CỤM', color: 'bg-orange-500', hasYcx: false, items: [
+                { id: 'rt_cat', label: 'REALTIME TĐ', value: categoryInput, onChange: setCategoryInput, onBlur: () => onSaveRealtime(false), hasData: !!categoryInput },
+                { id: 'rt_catlk', label: 'LUỸ KẾ TĐ', value: categoryTargetInput || clusterCategoryInput, onChange: (val: string) => { setCategoryTargetInput(val); setClusterCategoryInput && setClusterCategoryInput(val); }, onBlur: () => { onSaveRealtime(false); onSaveLuyke && onSaveLuyke(false, 'auto'); }, hasData: !!(categoryTargetInput || clusterCategoryInput) },
               ]},
             ].map(group => (
               <div key={group.title}>
@@ -294,11 +460,10 @@ const InputSection: React.FC<InputSectionProps> = ({
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   {group.items.map(item => (
-                    <div key={item.id}>
-                      <button onClick={() => toggleInput(item.id)} className={cn(
+                    <div key={item.id} className="flex flex-col gap-2">
+                      <div className={cn(
                         "w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left",
-                        expandedInput === item.id ? "border-blue-400 bg-blue-50/50 shadow-md" :
-                        item.hasData ? "border-teal-200 bg-teal-50/30 hover:shadow-md" : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+                        item.hasData ? "border-teal-200 bg-teal-50/30 shadow-sm" : "border-slate-200 bg-white"
                       )}>
                         <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
                           item.hasData ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-400"
@@ -312,30 +477,26 @@ const InputSection: React.FC<InputSectionProps> = ({
                           )}
                         </div>
                         {item.hasData && (
-                          <div onClick={(e) => { e.stopPropagation(); clearField ? clearField(item.onChange) : item.onChange(''); }} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0" title="Xoá dữ liệu">
+                          <button onClick={(e) => { e.stopPropagation(); clearField ? clearField(item.onChange) : item.onChange(''); }} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0 cursor-pointer" title="Xoá dữ liệu">
                             <X size={14} />
-                          </div>
+                          </button>
                         )}
-                      </button>
-                      {expandedInput === item.id && (
-                        <textarea
-                          value={item.value}
-                          onChange={(e) => item.onChange(e.target.value)}
-                          onPaste={(e) => {
-                            e.preventDefault();
-                            const pastedText = e.clipboardData.getData('text');
-                            if (pastedText) {
-                              item.onChange(pastedText);
-                              setExpandedInput(null);
-                            }
-                          }}
-                          onBlur={item.onBlur}
-                          rows={3}
-                          autoFocus
-                          placeholder="Dán dữ liệu (Ctrl+V)..."
-                          className="w-full mt-2 bg-white border-2 border-blue-200 rounded-xl p-3 text-[11px] focus:ring-2 focus:ring-blue-400 outline-none resize-none font-mono shadow-inner"
-                        />
-                      )}
+                      </div>
+                      <textarea
+                        value={item.value}
+                        onChange={(e) => item.onChange(e.target.value)}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pastedText = e.clipboardData.getData('text');
+                          if (pastedText) {
+                            item.onChange(pastedText);
+                          }
+                        }}
+                        onBlur={item.onBlur}
+                        rows={3}
+                        placeholder="Dán dữ liệu (Ctrl+V)..."
+                        className="w-full bg-white border-2 border-slate-200 focus:border-blue-400 rounded-xl p-3 text-[11px] focus:ring-4 focus:ring-blue-100 outline-none resize-none font-mono transition-all"
+                      />
                     </div>
                   ))}
                 </div>
@@ -363,9 +524,371 @@ const InputSection: React.FC<InputSectionProps> = ({
 
 
 
-      {/* Time Settings Container */}
+      {/* CẤU HÌNH SIÊU THỊ - New Independent Card */}
       {activeTab === 'REALTIME' && (
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-7 rounded-full bg-slate-700" />
+              <h2 className="text-[15px] font-black text-slate-700 uppercase tracking-tight">CẤU HÌNH SIÊU THỊ</h2>
+            </div>
+            {availableMarkets.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+              <button
+                onClick={() => onStoreChange?.('ALL')}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all active:scale-95",
+                  activeStore === 'ALL'
+                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
+                    : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
+                )}
+              >
+                <LayoutGrid size={14} />
+                TẤT CẢ
+              </button>
+              {(() => {
+                const prefixOrder = ['ĐML', 'ĐMM', 'TGD', 'ĐMS', 'ĐM3'];
+                const getPrefixRank = (name: string) => {
+                  const upper = name.toUpperCase();
+                  for (let i = 0; i < prefixOrder.length; i++) {
+                    if (upper.startsWith(prefixOrder[i])) return i;
+                  }
+                  return prefixOrder.length;
+                };
+                return [...availableMarkets]
+                  .filter(name => !name.toUpperCase().includes('KHO BÁN HÀNG LƯU ĐỘNG'))
+                  .sort((a, b) => getPrefixRank(a) - getPrefixRank(b))
+                  .map(name => (
+                <button
+                  key={name}
+                  onClick={() => onStoreChange?.(name)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all active:scale-95",
+                    activeStore === name
+                      ? "bg-teal-600 text-white shadow-lg shadow-teal-200"
+                      : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
+                  )}
+                >
+                  <Store size={14} />
+                  {name}
+                </button>
+              ));
+              })()}
+            </div>
+            )}
+          </div>
+        </div>
+
+        {/* Inner Tabs */}
+        {/* Single tab - no tab switcher needed */}
+
+        {/* Per-store cards side by side */}
+        <div className="p-6">
+          {(availableMarkets || []).filter(m => m !== 'ALL').length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-sm text-slate-400">Chưa có siêu thị nào. Vui lòng nhập dữ liệu tại "BÁO CÁO TỔNG HỢP" hoặc "THI ĐUA CỤM" trước.</p>
+            </div>
+          ) : (
+          <div className={cn(
+            "grid gap-6",
+            (availableMarkets || []).filter(m => m !== 'ALL').length === 1 ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-2"
+          )}>
+            {(() => {
+              const LEFT_PREFIXES = ['ĐML', 'ĐMM', 'TGD', 'ĐMS'];
+              const stores = (availableMarkets || []).filter(m => m !== 'ALL');
+              const sorted = [...stores].sort((a, b) => {
+                const aUpper = a.toUpperCase();
+                const bUpper = b.toUpperCase();
+                const aIdx = LEFT_PREFIXES.findIndex(p => aUpper.startsWith(p));
+                const bIdx = LEFT_PREFIXES.findIndex(p => bUpper.startsWith(p));
+                // Both have priority prefix → sort by prefix order
+                if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+                // Only a has prefix → a first (left)
+                if (aIdx !== -1) return -1;
+                // Only b has prefix → b first (left)
+                if (bIdx !== -1) return 1;
+                // Neither has prefix → keep original order
+                return 0;
+              });
+              return sorted;
+            })().map((storeName, storeIdx) => {
+              const cardColors = [
+                { border: 'from-pink-400 via-purple-400 to-indigo-400', activeBadge: 'bg-indigo-600 text-white' },
+                { border: 'from-cyan-400 via-blue-400 to-indigo-400', activeBadge: 'bg-blue-600 text-white' },
+                { border: 'from-amber-400 via-orange-400 to-rose-400', activeBadge: 'bg-orange-600 text-white' },
+                { border: 'from-emerald-400 via-teal-400 to-cyan-400', activeBadge: 'bg-teal-600 text-white' },
+              ];
+              const color = cardColors[storeIdx % cardColors.length];
+              const isActiveCard = activeStore === storeName;
+
+              // Per-store data: active card uses live state, inactive card uses the global allStoresCache
+              const cachedData = allStoresCache?.[storeName];
+              const cardStaffInput = isActiveCard ? staffInput : (cachedData?.staffInput || '');
+              const cardStaffCategoryInput = isActiveCard ? staffCategoryInput : (cachedData?.staffCategoryInput || '');
+              const cardBanKemNv = isActiveCard ? (banKemNv || '') : (cachedData?.banKemNv || '');
+              const cardTragopMatran = isActiveCard ? (storeConfig['tragop_matran'] || '') : (cachedData?.tragopMatran || '');
+              const cardTragopNv = isActiveCard ? (storeConfig['tragop_nv'] || '') : (cachedData?.tragopNv || '');
+              const cardPhucVu = isActiveCard ? (phucVu || '') : (cachedData?.phucVu || '');
+              const cardPercentTarget = isActiveCard ? stPercentTarget : (cachedData?.stPercentTarget || 0);
+              const cardCategoryTargets = isActiveCard ? categoryTargets : (cachedData?.categoryTargets || []);
+
+              const handleCardActivate = () => {
+                if (!isActiveCard && onStoreChange) {
+                  onStoreChange(storeName);
+                }
+              };
+
+              const storeFields = [
+                { key: `${storeName}_dt_nv`, label: 'DOANH THU NV', value: cardStaffInput, setter: isActiveCard ? setStaffInput : undefined, biLink: 'https://bi.thegioididong.com/sieu-thi-con?id=16500&tab=bcdtnv&rt=2&dm=1' },
+                { key: `${storeName}_td_nv`, label: 'THI ĐUA NV', value: cardStaffCategoryInput, setter: isActiveCard ? setStaffCategoryInput : undefined },
+                { key: `${storeName}_hq_nv`, label: 'HQ BÁN KÈM NV', value: cardBanKemNv, setter: isActiveCard ? setBanKemNv : undefined },
+                { key: `${storeName}_matran`, label: 'MA TRẬN NH', value: cardTragopMatran, isConfig: true, configKey: 'tragop_matran' },
+                { key: `${storeName}_tragop`, label: 'TRẢ GÓP NV', value: cardTragopNv, isConfig: true, configKey: 'tragop_nv' },
+              ];
+
+              return (
+                <div 
+                  key={storeName} 
+                  className={cn(
+                    "rounded-2xl overflow-hidden bg-white transition-all",
+                    isActiveCard 
+                      ? "shadow-sm border border-slate-200" 
+                      : "shadow-sm border border-slate-200 cursor-pointer opacity-60 hover:opacity-100"
+                  )}
+                  onClick={!isActiveCard ? handleCardActivate : undefined}
+                >
+                  {/* Thin gradient top border */}
+                  <div className={cn("h-1 bg-gradient-to-r", color.border)} />
+
+                  {/* Store Card Header — clean white */}
+                  <div className="px-5 py-4 flex items-center justify-between border-b border-slate-100">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">{storeName}</h3>
+                      <p className="text-[10px] text-slate-400 font-medium">Thống kê dữ liệu siêu thị.</p>
+                    </div>
+                    {isActiveCard ? (
+                      <span className={cn("text-[9px] font-black px-3 py-1.5 rounded-lg", color.activeBadge)}>ĐANG CHỌN</span>
+                    ) : (
+                      <span className="text-[9px] font-bold text-slate-400 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50">BẤM ĐỂ CHỌN</span>
+                    )}
+                  </div>
+
+                  {/* Store Card Body */}
+                  <div className="p-4 space-y-2 bg-white">
+                    {storeFields.map(item => {
+                      const val = item.value || '';
+                      const hasData = !!val;
+                      const handleChange = (v: string) => {
+                        if (!isActiveCard) { handleCardActivate(); return; }
+                        if (item.isConfig && item.configKey) {
+                          updateStoreConfig(item.configKey, v);
+                        } else if (item.setter) {
+                          item.setter(v);
+                        }
+                      };
+                      const handleClear = () => {
+                        if (!isActiveCard) return;
+                        if (item.isConfig && item.configKey) {
+                          clearStoreConfig(item.configKey);
+                          // Config fields also need DB save
+                          setTimeout(() => onSaveLuyke(true, 'auto'), 200);
+                        } else if (item.setter) {
+                          if (clearField) clearField(item.setter);
+                          else item.setter('');
+                          // clearField now handles DB save internally via saveLuykeDataRef
+                        }
+                      };
+
+                      return (
+                        <div key={item.key}>
+                          <button 
+                            onClick={() => { handleCardActivate(); toggleInput(item.key); }}
+                            className={cn(
+                              "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 border-dashed transition-all text-left",
+                              expandedInput === item.key ? "border-blue-400 bg-blue-50/50 shadow-md" :
+                              hasData ? "border-teal-200 bg-teal-50/30 hover:shadow-md" : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+                            )}
+                          >
+                            <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0", hasData ? "bg-teal-100 text-teal-600" : "bg-slate-100 text-slate-400")}>
+                              <Upload size={13} />
+                            </div>
+                            <span className={cn("text-[11px] font-black uppercase tracking-wide flex-1", hasData ? "text-teal-700" : "text-slate-500")}>{item.label}</span>
+                            {(item as any).biLink && (
+                              <a href={(item as any).biLink} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-amber-500 hover:text-amber-600 shrink-0" title="Mở BI">
+                                <ExternalLink size={12} />
+                              </a>
+                            )}
+                            {hasData && (
+                              <div onClick={(e) => { e.stopPropagation(); handleClear(); }} className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0" title="Xoá dữ liệu">
+                                <X size={12} />
+                              </div>
+                            )}
+                          </button>
+                          {expandedInput === item.key && isActiveCard && (
+                            <textarea 
+                              value={val} 
+                              onChange={(e) => handleChange(e.target.value)} 
+                              onPaste={(e) => { e.preventDefault(); const t = e.clipboardData.getData('text'); if (t) { handleChange(t); onSaveLuyke(false, 'auto'); }}} 
+                              onBlur={() => onSaveLuyke(false, 'auto')} 
+                              rows={3} 
+                              autoFocus 
+                              placeholder="Dán dữ liệu (Ctrl+V)..." 
+                              className="w-full mt-1.5 bg-white border-2 border-blue-200 rounded-xl p-2.5 text-[10px] focus:ring-2 focus:ring-blue-400 outline-none resize-none font-mono shadow-inner" 
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Phục vụ upload */}
+                    <div className={cn(
+                      "w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border-2 border-dashed transition-all group relative",
+                      !isActiveCard ? "cursor-pointer" : "cursor-pointer",
+                      cardPhucVu ? "border-teal-200 bg-teal-50/30 hover:shadow-md" : "border-slate-200 bg-slate-50 hover:border-indigo-300 hover:bg-slate-100"
+                    )}>
+                      <div className="flex items-center gap-3">
+                        <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0", cardPhucVu ? "bg-teal-100 text-teal-600" : "bg-indigo-100 text-indigo-600")}>
+                          <UploadCloud size={13} />
+                        </div>
+                        <span className={cn("text-[11px] font-black uppercase tracking-wide", cardPhucVu ? "text-teal-700" : "text-slate-700")}>
+                          {cardPhucVu ? 'ĐÃ TẢI DỮ LIỆU' : 'CHỌN FILE DỮ LIỆU'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-md border", cardPhucVu ? "text-teal-500 bg-white border-teal-200" : "text-slate-400 bg-white border-slate-200")}>
+                          BÁO CÁO PHỤC VỤ
+                        </div>
+                        {cardPhucVu && isActiveCard && (
+                          <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (setPhucVu) setPhucVu(''); }} className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0 z-20 relative cursor-pointer" title="Xoá dữ liệu">
+                            <X size={12} />
+                          </div>
+                        )}
+                      </div>
+                      {isActiveCard && (
+                        <input type="file" onChange={handlePhucVuUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" title={cardPhucVu ? "Nhấn để tải đè file mới" : "Nhấn để chọn file"} />
+                      )}
+                    </div>
+
+                    {/* % TARGET input — per-store */}
+                    <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border-2 border-dashed border-slate-200 bg-white">
+                      <div className="flex items-center gap-3">
+                        <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0", cardPercentTarget ? "bg-teal-100 text-teal-600" : "bg-slate-100 text-slate-400")}>
+                          <Target size={13} />
+                        </div>
+                        <span className={cn("text-[11px] font-black uppercase tracking-wide", cardPercentTarget ? "text-teal-700" : "text-slate-500")}>% TARGET</span>
+                      </div>
+                      <input 
+                        type="number" 
+                        value={cardPercentTarget || ''} 
+                        onChange={(e) => { if (isActiveCard) setStPercentTarget(Number(e.target.value)); else handleCardActivate(); }}
+                        onBlur={() => { 
+                          if (isActiveCard) {
+                            if (updateStoreSettings) {
+                              updateStoreSettings(storeName, { stPercentTarget: cardPercentTarget });
+                            } else {
+                              onSaveStoreRevenue(); 
+                            }
+                          }
+                        }}
+                        onKeyDown={(e) => { 
+                          if (e.key === 'Enter') {
+                            e.currentTarget.blur(); 
+                          }
+                        }}
+                        placeholder="0" 
+                        disabled={!isActiveCard}
+                        className={cn(
+                          "w-20 border rounded-lg p-1.5 text-xs font-bold text-center outline-none transition-all",
+                          isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400"
+                        )} 
+                      />
+                    </div>
+
+                    {/* TARGET THI ĐUA — per-store, collapsible */}
+                    {cardCategoryTargets.length > 0 && (
+                    <div className="mt-1 border-2 border-dashed border-violet-200 rounded-xl overflow-hidden">
+                      <button 
+                        onClick={() => toggleInput(`${storeName}_thidua`)}
+                        className={cn(
+                          "w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left transition-all",
+                          expandedInput === `${storeName}_thidua` ? "bg-violet-50" : "bg-white hover:bg-violet-50/50"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-violet-100 text-violet-600">
+                            <Zap size={13} />
+                          </div>
+                          <span className="text-[11px] font-black uppercase tracking-wide text-violet-700">TARGET THI ĐUA</span>
+                        </div>
+                        <ChevronDown size={14} className={cn("text-violet-400 transition-transform", expandedInput === `${storeName}_thidua` && "rotate-180")} />
+                      </button>
+                      {expandedInput === `${storeName}_thidua` && (
+                        <div className="p-3 border-t border-violet-100 space-y-4">
+                          {/* Toolbar — only for active card */}
+                          {isActiveCard && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button onClick={onAnalyze} className="px-3 py-1.5 bg-violet-50 text-violet-600 border border-violet-100 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-violet-100 transition-all active:scale-95 flex items-center gap-1">
+                              <Zap size={10} /> ĐỒNG BỘ
+                            </button>
+                            <input type="number" value={globalPercent} onChange={(e) => handleGlobalPercentChange(Number(e.target.value))} className="w-16 bg-white border border-slate-200 rounded-lg p-1.5 text-[10px] font-bold text-center" placeholder="%" />
+                            <button onClick={() => { const nt = categoryTargets.map(item => ({ ...item, percent: globalPercent, adjustedTarget: item.target * (globalPercent / 100) })); setCategoryTargets(nt); onSaveLuyke(false, 'targets', undefined, nt); }} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[9px] font-black uppercase hover:bg-indigo-700 transition-all active:scale-95">ÁP DỤNG ALL</button>
+                            <button onClick={() => onSaveLuyke(false, 'targets')} disabled={isSavingTargets} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[9px] font-black uppercase hover:bg-emerald-700 transition-all active:scale-95 flex items-center gap-1 disabled:opacity-50">
+                              {isSavingTargets ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />} LƯU
+                            </button>
+                          </div>
+                          )}
+                          {/* Tables */}
+                          {['SL', 'DT'].map(type => {
+                            const items = cardCategoryTargets.filter(item => type === 'SL' ? item.type === 'SL' : item.type !== 'SL');
+                            if (items.length === 0) return null;
+                            return (
+                              <div key={type}>
+                                <h4 className="text-[10px] font-bold text-slate-400 mb-2 uppercase">Ngành hàng ({type})</h4>
+                                <table className="w-full text-left border-collapse">
+                                  <thead>
+                                    <tr className="text-[9px] text-slate-400 uppercase tracking-widest">
+                                      <th className="p-1.5">Tên NH</th>
+                                      <th className="p-1.5">Target</th>
+                                      <th className="p-1.5">Sau ĐC</th>
+                                      <th className="p-1.5 text-center">%</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {items.map(item => (
+                                      <tr key={item.name} className="border-t border-slate-100">
+                                        <td className="p-1.5 text-[10px] font-bold">{item.name}</td>
+                                        <td className="p-1.5 text-[10px]">{item.target.toLocaleString()}</td>
+                                        <td className="p-1.5 text-[10px] font-bold text-indigo-600">{item.adjustedTarget.toLocaleString()}</td>
+                                        <td className="p-1.5 text-center">
+                                          <input type="number" value={item.percent} onChange={(e) => { if (!isActiveCard) return; const nv = Number(e.target.value); const nt = categoryTargets.map(t => t.name === item.name ? { ...t, percent: nv, adjustedTarget: t.target * (nv / 100) } : t); setCategoryTargets(nt); }} disabled={!isActiveCard} className={cn("w-14 border rounded p-1 text-[10px] text-center font-bold outline-none", isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400")} />
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          )}
+        </div>
+
+      </div>
+      )}
+
+      {/* Time Settings Container */}
+      {activeTab === 'REALTIME' && (
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm">
         <div className="px-6 py-4 flex items-center justify-between bg-slate-50 border-b border-slate-200">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
@@ -382,18 +905,84 @@ const InputSection: React.FC<InputSectionProps> = ({
         </div>
         
         {showAll && showTimeSettings && (
-          <div className="p-4 md:p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="p-4 md:p-6" style={{ overflow: 'visible' }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6" style={{ overflow: 'visible' }}>
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                   <Calendar size={14} className="text-indigo-500" /> THÁNG BÁO CÁO
                 </label>
-                <input 
-                  type="month"
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-black text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all"
-                />
+                {(() => {
+                  const MONTHS = ['Th1', 'Th2', 'Th3', 'Th4', 'Th5', 'Th6', 'Th7', 'Th8', 'Th9', 'Th10', 'Th11', 'Th12'];
+                  const [showPicker, setShowPicker] = React.useState(false);
+                  const [pickerYear, setPickerYear] = React.useState(() => {
+                    const [y] = (selectedMonth || '').split('-').map(Number);
+                    return y || new Date().getFullYear();
+                  });
+                  const selectedYear = selectedMonth ? Number(selectedMonth.split('-')[0]) : 0;
+                  const selectedMon = selectedMonth ? Number(selectedMonth.split('-')[1]) : 0;
+                  const displayLabel = selectedMonth ? `Tháng ${selectedMon}/${selectedYear}` : 'Chọn tháng...';
+                  const pickerRef = React.useRef<HTMLDivElement>(null);
+                  
+                  React.useEffect(() => {
+                    const handler = (e: MouseEvent) => {
+                      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setShowPicker(false);
+                    };
+                    document.addEventListener('mousedown', handler);
+                    return () => document.removeEventListener('mousedown', handler);
+                  }, []);
+
+                  return (
+                    <div ref={pickerRef} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => { setShowPicker(!showPicker); setPickerYear(selectedYear || new Date().getFullYear()); }}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-black text-slate-700 text-left flex items-center justify-between hover:bg-white hover:border-indigo-300 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Calendar size={16} className="text-indigo-500" />
+                          {displayLabel}
+                        </span>
+                        <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 ${showPicker ? 'rotate-180' : ''}`} />
+                      </button>
+                      {showPicker && (
+                        <div className="absolute z-50 bottom-full mb-2 left-0 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <button type="button" onClick={() => setPickerYear(y => y - 1)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-slate-500 font-bold transition-all">&lt;</button>
+                            <span className="text-sm font-black text-slate-700">{pickerYear}</span>
+                            <button type="button" onClick={() => setPickerYear(y => y + 1)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-slate-500 font-bold transition-all">&gt;</button>
+                          </div>
+                          <div className="grid grid-cols-4 gap-2">
+                            {MONTHS.map((m, i) => {
+                              const mon = i + 1;
+                              const isSelected = pickerYear === selectedYear && mon === selectedMon;
+                              const now = new Date();
+                              const isCurrent = pickerYear === now.getFullYear() && mon === (now.getMonth() + 1);
+                              return (
+                                <button
+                                  key={mon}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedMonth(`${pickerYear}-${String(mon).padStart(2, '0')}`);
+                                    setShowPicker(false);
+                                  }}
+                                  className={`py-2 px-1 rounded-xl text-xs font-bold transition-all ${
+                                    isSelected
+                                      ? 'bg-indigo-600 text-white shadow-md'
+                                      : isCurrent
+                                        ? 'bg-indigo-50 text-indigo-600 border border-indigo-200'
+                                        : 'hover:bg-slate-100 text-slate-600'
+                                  }`}
+                                >
+                                  {m}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
@@ -423,438 +1012,11 @@ const InputSection: React.FC<InputSectionProps> = ({
       </div>
       )}
 
-      {/* DATA NHÂN VIÊN Container */}
-      {activeTab === 'REALTIME' && (
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 flex items-center justify-between bg-slate-50 border-b border-slate-200">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-amber-100">
-              <Users size={20} />
-            </div>
-            <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">DATA NHÂN VIÊN</h3>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="hidden md:flex items-center gap-2 mr-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100">
-              {(isProcessingLuyke || isLoadingLuyke) ? (
-                <Loader2 size={12} className="animate-spin text-emerald-500" />
-              ) : (
-                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              )}
-              <span className="text-[10px] font-black uppercase tracking-widest">
-                {isProcessingLuyke ? "ĐANG LƯU..." : isLoadingLuyke ? "ĐANG TẢI..." : "TỰ ĐỘNG LƯU"}
-              </span>
-            </div>
-            <button 
-              onClick={() => onSaveLuyke(false, 'staff')}
-              disabled={isSavingStaff}
-              className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
-            >
-              {isSavingStaff ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-              {isSavingStaff ? "ĐANG LƯU..." : "LƯU NGAY"}
-            </button>
-            <button 
-              onClick={() => setShowStaffData(!showStaffData)}
-              className="w-10 h-10 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all ml-2"
-            >
-              <ChevronDown size={20} className={cn("transition-transform duration-300", showStaffData && "rotate-180")} />
-            </button>
-          </div>
-        </div>
-        
-        {showAll && showStaffData && (
-          <div className="p-4 md:p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              <section className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm border-t-4 border-t-amber-500 relative">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-[10px] font-black text-slate-400 flex items-center gap-2 uppercase tracking-widest">
-                      <Zap size={14} className="text-amber-500" /> 1. DOANH THU NV
-                    </h2>
-                    <a 
-                      href="https://bi.thegioididong.com/sieu-thi-con?id=16500&tab=bcdtnv&rt=2&dm=1" 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="text-amber-500 hover:text-amber-600 ml-2"
-                      title="Mở BC Doanh thu NV"
-                    >
-                      <ExternalLink size={14} />
-                    </a>
-                  </div>
-                </div>
-                <textarea 
-                  value={staffInput}
-                  onChange={(e) => setStaffInput(e.target.value)}
-                  onBlur={() => onSaveLuyke(true, 'auto')}
-                  rows={3}
-                  placeholder="Dán dữ liệu doanh thu nhân viên..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:ring-2 focus:ring-amber-500 focus:bg-white outline-none transition-all resize-none font-mono"
-                />
-              </section>
 
-              <section className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm border-t-4 border-t-orange-500 relative">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-[10px] font-black text-slate-400 flex items-center gap-2 uppercase tracking-widest">
-                    <LayoutDashboard size={14} className="text-orange-500" /> 2. TỔNG HỢP THI ĐUA
-                  </h2>
-                </div>
-                <textarea 
-                  value={staffCategoryInput}
-                  onChange={(e) => setStaffCategoryInput(e.target.value)}
-                  onBlur={() => onSaveLuyke(true, 'auto')}
-                  rows={3}
-                  placeholder="Dán dữ liệu thi đua nhân viên..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs focus:ring-2 focus:ring-orange-500 focus:bg-white outline-none transition-all resize-none font-mono"
-                />
-              </section>
-            </div>
-          </div>
-        )}
-      </div>
-      )}
 
-      {/* CÀI ĐẶT TARGET NGÀNH HÀNG Container */}
-      {activeTab === 'REALTIME' && (
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 border-b border-slate-200 gap-4">
-          <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">CÀI ĐẶT TARGET NGÀNH HÀNG</h3>
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={onAnalyze}
-              className="px-4 py-2 bg-violet-50 text-violet-600 border border-violet-100 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-violet-100 transition-all active:scale-95 flex items-center gap-2"
-              title="Đồng bộ dữ liệu Target từ BC Ngành Hàng Cụm"
-            >
-              <Zap size={12} />
-              ĐỒNG BỘ DATA
-            </button>
-            <div className="h-6 w-px bg-slate-200 mx-1" />
-            <input 
-              type="number"
-              value={globalPercent}
-              onChange={(e) => handleGlobalPercentChange(Number(e.target.value))}
-              className="w-20 bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold text-center"
-              placeholder="%"
-            />
-            <button 
-              onClick={() => {
-                const newTargets = categoryTargets.map(item => ({
-                  ...item,
-                  percent: globalPercent,
-                  adjustedTarget: item.target * (globalPercent / 100)
-                }));
-                setCategoryTargets(newTargets);
-                onSaveLuyke(false, 'targets', undefined, newTargets);
-              }}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all active:scale-95"
-            >
-              ÁP DỤNG ALL
-            </button>
-            <div className="hidden md:flex items-center gap-2 mr-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg border border-emerald-100">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              <span className="text-[10px] font-black uppercase tracking-widest">TỰ ĐỘNG LƯU</span>
-            </div>
-            <button 
-              onClick={() => onSaveLuyke(false, 'targets')}
-              disabled={isSavingTargets}
-              className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
-            >
-              {isSavingTargets ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-              {isSavingTargets ? "ĐANG LƯU..." : "LƯU NGAY"}
-            </button>
-            <button 
-              onClick={() => setShowTargetData(!showTargetData)}
-              className="w-10 h-10 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all ml-2"
-            >
-              <ChevronDown size={20} className={cn("transition-transform duration-300", showTargetData && "rotate-180")} />
-            </button>
-          </div>
-        </div>
-        {showAll && showTargetData && (
-          <div className="p-4 md:p-6 overflow-x-auto space-y-8">
-            {/* Table SL */}
-            <div>
-              <h4 className="text-xs font-bold text-slate-500 mb-4 uppercase">Ngành hàng (SL)</h4>
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="text-[10px] text-slate-400 uppercase tracking-widest">
-                    <th className="p-2">Tên ngành hàng</th>
-                    <th className="p-2">Target</th>
-                    <th className="p-2">Target sau điều chỉnh</th>
-                    <th className="p-2 text-center">% Target</th>
-                    <th className="p-2 text-right">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {categoryTargets.filter(item => item.type === 'SL').map((item, index) => (
-                    <tr key={item.name} className="border-t border-slate-100 group">
-                      <td className="p-2 text-xs font-bold">{item.name}</td>
-                      <td className="p-2 text-xs">{item.target.toLocaleString()}</td>
-                      <td className="p-2 text-xs font-bold text-indigo-600">{item.adjustedTarget.toLocaleString()}</td>
-                      <td className="p-2 text-center">
-                        <input 
-                          type="number"
-                          value={item.percent}
-                          onChange={(e) => {
-                            const newVal = Number(e.target.value);
-                            const newTargets = categoryTargets.map((t) => 
-                              t.name === item.name 
-                                ? { ...t, percent: newVal, adjustedTarget: t.target * (newVal / 100) }
-                                : t
-                            );
-                            setCategoryTargets(newTargets);
-                          }}
-                          className="w-20 bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-center font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                        />
-                      </td>
-                      <td className="p-2 text-right">
-                        <button 
-                          onClick={async () => {
-                            setSavingRow(item.name);
-                            await onSaveLuyke(false, 'targets', undefined, categoryTargets);
-                            setTimeout(() => setSavingRow(null), 1500);
-                          }}
-                          disabled={savingRow === item.name}
-                          className={cn(
-                            "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 border",
-                            savingRow === item.name 
-                              ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
-                              : "bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-600 hover:text-white"
-                          )}
-                        >
-                          {savingRow === item.name ? "ĐÃ LƯU" : "ÁP DỤNG"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
 
-            {/* Table DT */}
-            <div>
-              <h4 className="text-xs font-bold text-slate-500 mb-4 uppercase">Ngành hàng (DT)</h4>
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="text-[10px] text-slate-400 uppercase tracking-widest">
-                    <th className="p-2">Tên ngành hàng</th>
-                    <th className="p-2">Target</th>
-                    <th className="p-2">Target sau điều chỉnh</th>
-                    <th className="p-2 text-center">% Target</th>
-                    <th className="p-2 text-right">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {categoryTargets.filter(item => item.type !== 'SL').map((item, index) => (
-                    <tr key={item.name} className="border-t border-slate-100 group">
-                      <td className="p-2 text-xs font-bold">{item.name}</td>
-                      <td className="p-2 text-xs">{item.target.toLocaleString()}</td>
-                      <td className="p-2 text-xs font-bold text-indigo-600">{item.adjustedTarget.toLocaleString()}</td>
-                      <td className="p-2 text-center">
-                        <input 
-                          type="number"
-                          value={item.percent}
-                          onChange={(e) => {
-                            const newVal = Number(e.target.value);
-                            const newTargets = categoryTargets.map((t) => 
-                              t.name === item.name 
-                                ? { ...t, percent: newVal, adjustedTarget: t.target * (newVal / 100) }
-                                : t
-                            );
-                            setCategoryTargets(newTargets);
-                          }}
-                          className="w-20 bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs text-center font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                        />
-                      </td>
-                      <td className="p-2 text-right">
-                        <button 
-                          onClick={async () => {
-                            setSavingRow(item.name);
-                            await onSaveLuyke(false, 'targets', undefined, categoryTargets);
-                            setTimeout(() => setSavingRow(null), 1500);
-                          }}
-                          disabled={savingRow === item.name}
-                          className={cn(
-                            "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 border",
-                            savingRow === item.name 
-                              ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
-                              : "bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-600 hover:text-white"
-                          )}
-                        >
-                          {savingRow === item.name ? "ĐÃ LƯU" : "ÁP DỤNG"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
-      )}
 
-      {/* CÀI ĐẶT DOANH THU SIÊU THỊ Container */}
-      {activeTab === 'REALTIME' && (
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 flex items-center justify-between bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
-              <Store size={20} />
-            </div>
-            <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">CÀI ĐẶT DOANH THU SIÊU THỊ</h3>
-          </div>
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={onLoadStoreRevenue}
-              disabled={isLoadingStoreRevenue}
-              className="flex items-center gap-2 mr-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-all active:scale-95 disabled:opacity-50"
-              title="Tải lại dữ liệu từ Database"
-            >
-              {isLoadingStoreRevenue ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-              <span className="text-[10px] font-black uppercase tracking-widest">TẢI LẠI DB</span>
-            </button>
-            <div className="hidden md:flex items-center gap-2 mr-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100">
-              <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
-              <span className="text-[10px] font-black uppercase tracking-widest">TỰ ĐỘNG LƯU</span>
-            </div>
-            <button 
-              onClick={onSaveStoreRevenue}
-              disabled={isSavingStoreRevenue}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-100"
-            >
-              {isSavingStoreRevenue ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {isSavingStoreRevenue ? "ĐANG LƯU..." : "LƯU NGAY"}
-            </button>
-            <button 
-              onClick={() => setShowStoreRevenueData(!showStoreRevenueData)}
-              className="w-10 h-10 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all ml-2"
-            >
-              <ChevronDown size={20} className={cn("transition-transform duration-300", showStoreRevenueData && "rotate-180")} />
-            </button>
-          </div>
-        </div>
-        {showAll && showStoreRevenueData && (
-          <div className="p-4 md:p-6 overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[800px]">
-            <thead>
-              <tr className="text-[10px] text-slate-400 uppercase tracking-widest">
-                <th className="p-2 border-b border-slate-100">Tên siêu thị</th>
-                <th className="p-2 border-b border-slate-100 text-center">DTLK</th>
-                <th className="p-2 border-b border-slate-100 text-center">DTQĐ</th>
-                <th className="p-2 border-b border-slate-100 text-center">DT Dự Kiến (QĐ)</th>
-                <th className="p-2 border-b border-slate-100 text-center">% HT Target Dự Kiến (QĐ)</th>
-                <th className="p-2 border-b border-slate-100 text-center">TAGET QUY ĐỔI</th>
-                <th className="p-2 border-b border-slate-100 text-center">% TARGET</th>
-                <th className="p-2 border-b border-slate-100 text-center">TAGET SAU X HỆ SỐ</th>
-                <th className="p-2 border-b border-slate-100 text-center">%HT sau x hệ số</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-t border-slate-50">
-                <td className="p-2">
-                  <div className="space-y-1">
 
-                    <input 
-                      type="text" 
-                      value={stName} 
-                      readOnly
-                      disabled
-                      placeholder="Tên siêu thị (Tự động đồng bộ)..."
-                      className={cn(
-                        "w-full bg-slate-100 border rounded-lg p-2 text-xs font-black text-slate-500 cursor-not-allowed outline-none transition-all",
-                        stName && isValidStoreName && !isValidStoreName(stName) 
-                          ? "border-red-300 bg-red-50" 
-                          : "border-slate-200"
-                      )}
-                    />
-                    <p className="text-[8px] font-bold text-indigo-500 uppercase tracking-widest">
-                      {stName ? "✓ Đã đồng bộ từ BC Tổng hợp cụm" : "⚠ Chờ đồng bộ dữ liệu..."}
-                    </p>
-                    {stName && isValidStoreName && !isValidStoreName(stName) && (
-                      <p className="text-[9px] text-red-500 font-bold px-1">
-                        Phải bắt đầu bằng: {VALID_STORE_PREFIXES.join(', ')}
-                      </p>
-                    )}
-                  </div>
-                </td>
-                <td className="p-2">
-                  <input 
-                    type="number" 
-                    value={stDtlk || ''} 
-                    readOnly
-                    disabled
-                    placeholder="0"
-                    className="w-full bg-slate-100 border border-slate-200 rounded-lg p-2 text-xs font-mono text-center text-slate-500 cursor-not-allowed outline-none transition-all"
-                  />
-                </td>
-                <td className="p-2">
-                  <input 
-                    type="number" 
-                    value={stDtqd || ''} 
-                    readOnly
-                    disabled
-                    placeholder="0"
-                    className="w-full bg-slate-100 border border-slate-200 rounded-lg p-2 text-xs font-mono text-center text-slate-500 cursor-not-allowed outline-none transition-all"
-                  />
-                </td>
-                <td className="p-2">
-                  <input 
-                    type="number" 
-                    value={stDtDuKienQD || ''} 
-                    readOnly
-                    disabled
-                    placeholder="0"
-                    className="w-full bg-slate-100 border border-slate-200 rounded-lg p-2 text-xs font-mono text-center text-slate-500 cursor-not-allowed outline-none transition-all"
-                  />
-                </td>
-                <td className="p-2">
-                  <div className="relative flex items-center justify-center">
-                    <input 
-                      type="number" 
-                      value={stPercentHTTargetDuKienQD || ''} 
-                      readOnly
-                      disabled
-                      placeholder="0"
-                      className="w-full bg-slate-100 border border-slate-200 rounded-lg p-2 text-xs font-mono text-center text-slate-500 cursor-not-allowed outline-none transition-all pr-6"
-                    />
-                    <span className="absolute right-2 text-[10px] text-slate-400 font-mono">%</span>
-                  </div>
-                </td>
-                <td className="p-2">
-                  <input 
-                    type="number" 
-                    value={stTargetQuyDoi || ''} 
-                    readOnly
-                    disabled
-                    placeholder="0"
-                    className="w-full bg-slate-100 border border-slate-200 rounded-lg p-2 text-xs font-mono font-black text-indigo-400 text-center cursor-not-allowed outline-none transition-all"
-                  />
-                </td>
-                <td className="p-2 text-center">
-                  <input 
-                    type="number" 
-                    value={stPercentTarget || ''} 
-                    onChange={(e) => setStPercentTarget(Number(e.target.value))}
-                    placeholder="0"
-                    className="w-20 bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs font-bold text-center focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                  />
-                </td>
-                <td className="p-2 text-center">
-                  <div className="w-full bg-indigo-50 border border-indigo-100 rounded-lg p-2 text-xs font-black text-indigo-700 text-center">
-                    {stTargetSauHeSo}
-                  </div>
-                </td>
-                <td className="p-2 text-center">
-                  <div className="w-full bg-emerald-50 border border-emerald-100 rounded-lg p-2 text-xs font-black text-emerald-700 text-center">
-                    {stTargetSauHeSo > 0 ? Math.round((stDtDuKienQD / stTargetSauHeSo) * 100) : 0}%
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        )}
-      </div>
-      )}
 
       {/* Resources Tab */}
       {activeTab === 'RESOURCES' && (
@@ -897,6 +1059,13 @@ const InputSection: React.FC<InputSectionProps> = ({
           </div>
         </div>
       )}
+
+      {/* Copyright Footer */}
+      <div className="text-center py-6 mt-4">
+        <p className="text-xs font-semibold text-slate-400 tracking-widest uppercase">
+          © LINH VU
+        </p>
+      </div>
     </div>
   );
 };

@@ -3,8 +3,10 @@ import { Database, BarChart3, Activity, HeartPulse, LogOut, User, Store, Loader2
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from './contexts/AuthContext';
 import { useSettings } from './contexts/SettingsContext';
-import { useMarket } from './contexts/MarketContext';
+import { useStore } from './contexts/StoreContext';
+import { LuykeDataProvider } from './contexts/LuykeDataContext';
 import Login from './pages/Login';
+import StoreDeclaration from './pages/StoreDeclaration';
 import { testSupabaseConnection } from './supabaseClient';
 
 // Lazy load pages for better performance
@@ -14,7 +16,6 @@ const EmployeeHealth = lazy(() => import('./pages/SucKhoeNhanVien'));
 const KhaiBao = lazy(() => import('./pages/KhaiBao'));
 const LuyKe = lazy(() => import('./pages/LuyKe'));
 const ToolHoTro = lazy(() => import('./pages/ToolHoTro'));
-const TnbDm7611 = lazy(() => import('./pages/TnbDm7611'));
 
 const LoadingSpinner = () => (
   <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
@@ -27,16 +28,22 @@ const LoadingSpinner = () => (
 );
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro' | 'tnb_dm_7611'>('realtime');
+  const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro'>('realtime');
   const { userProfile, logout } = useAuth();
+  const [declarationCompleted, setDeclarationCompleted] = useState(() => {
+    const justLoggedIn = sessionStorage.getItem('justLoggedIn');
+    // If justLoggedIn is null or not 'true', it means they refreshed (F5) the page.
+    // So we do not show the Store Declaration page again.
+    return justLoggedIn !== 'true';
+  });
   const { fontSize, setFontSize, fontFamily, setFontFamily } = useSettings();
-  const { marketFilter, setMarketFilter, availableMarkets } = useMarket();
+  const { marketFilter, setMarketFilter, availableMarkets } = useStore();
   const [showSettings, setShowSettings] = useState(false);
   const [isDesktopView, setIsDesktopView] = useState(true);
 
   // Hard Rule implementation for fallback if userProfile has missing userPermissions (legacy session)
   const isSuperAdminHardcoded = userProfile?.username === '43751' || userProfile?.username === 'ADMIN';
-  const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_dm_7611'];
+  const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users'];
   
   // Compute allowed pages
   const canEditUser = userProfile?.userPermissions?.canEditUser ?? isSuperAdminHardcoded;
@@ -100,6 +107,12 @@ export default function App() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!userProfile) {
+      setDeclarationCompleted(false);
+    }
+  }, [userProfile]);
+
 
 
   // Removed the blocking error screen to allow fallback login
@@ -110,6 +123,15 @@ export default function App() {
       <>
         <Login />
       </>
+    );
+  }
+
+  if (!declarationCompleted) {
+    return (
+      <StoreDeclaration onComplete={() => {
+        sessionStorage.setItem('justLoggedIn', 'false');
+        setDeclarationCompleted(true);
+      }} />
     );
   }
 
@@ -132,7 +154,6 @@ export default function App() {
     { id: 'khaibao', label: 'Khai báo', icon: Database, color: 'indigo' },
     { id: 'health', label: 'Sức khỏe', icon: HeartPulse, color: 'rose' },
     { id: 'toolhotro', label: 'Tool Hỗ Trợ', icon: Wrench, color: 'amber' },
-    { id: 'tnb_dm_7611', label: 'TNB_DM_7611', icon: Globe, color: 'indigo' },
   ];
   
   const NAV_ITEMS = BASE_NAV_ITEMS.filter(item => effectiveAllowedPages.includes(item.id));
@@ -201,7 +222,20 @@ export default function App() {
                         );
                       })()}
                       
-                      {availableMarkets.map(m => {
+                      {(() => {
+                        const prefixOrder = ['ĐML', 'ĐMM', 'TGD', 'ĐMS', 'ĐM3'];
+                        const getPrefixRank = (name: string) => {
+                          const upper = name.toUpperCase();
+                          // Check ĐMS3 before ĐMS to avoid false match
+                          for (let i = 0; i < prefixOrder.length; i++) {
+                            if (upper.startsWith(prefixOrder[i])) return i;
+                          }
+                          return prefixOrder.length;
+                        };
+                        return availableMarkets
+                          .filter(m => !m.name.toUpperCase().includes('KHO BÁN HÀNG LƯU ĐỘNG'))
+                          .sort((a, b) => getPrefixRank(a.name) - getPrefixRank(b.name))
+                          .map(m => {
                         const theme = getMarketTheme(m.name);
                         const Icon = theme.icon;
                         const isActive = marketFilter === m.name;
@@ -220,7 +254,8 @@ export default function App() {
                             {m.name}
                           </button>
                         );
-                      })}
+                      });
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -251,6 +286,14 @@ export default function App() {
                   <Users size={20} />
                 </button>
               )}
+
+              <button 
+                onClick={() => setDeclarationCompleted(false)}
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                title="Khai báo siêu thị"
+              >
+                <Store size={20} />
+              </button>
 
               <button 
                 onClick={() => setShowSettings(true)}
@@ -297,6 +340,7 @@ export default function App() {
       </motion.div>
 
       <main className="flex-1 relative">
+        <LuykeDataProvider>
         <AnimatePresence mode="wait">
           <motion.div
             key={currentPage}
@@ -312,7 +356,6 @@ export default function App() {
                 {currentPage === 'khaibao' && effectiveAllowedPages.includes('khaibao') && <KhaiBao />}
                 {currentPage === 'luyke' && effectiveAllowedPages.includes('luyke') && <LuyKe />}
                 {currentPage === 'toolhotro' && effectiveAllowedPages.includes('toolhotro') && <ToolHoTro />}
-                {currentPage === 'tnb_dm_7611' && effectiveAllowedPages.includes('tnb_dm_7611') && <TnbDm7611 />}
                 {currentPage === 'users' && effectiveAllowedPages.includes('users') && <UserManagement onBack={() => {
                   const firstAllowedNavPage = effectiveAllowedPages.find(p => p !== 'users');
                   setCurrentPage((firstAllowedNavPage || 'realtime') as any);
@@ -322,6 +365,7 @@ export default function App() {
             </Suspense>
           </motion.div>
         </AnimatePresence>
+        </LuykeDataProvider>
       </main>
 
       {/* Mobile Bottom Navigation Bar */}

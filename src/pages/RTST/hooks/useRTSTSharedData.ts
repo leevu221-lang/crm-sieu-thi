@@ -3,14 +3,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { STORAGE_KEYS } from '../types';
 import { supabase } from '../../../supabaseClient';
 import { useNotification } from '../../../contexts/NotificationContext';
+import { useStore, getStoreItem, setStoreItem } from '../../../contexts/StoreContext';
 import { isValidStoreName as isValidStoreNameUtil, normalize, safeSetItem } from '../utils';
+
+const globalAllStoreTargets: Record<string, any> = {};
 
 export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getItem('RTST_YCX_DIRTY') === 'true') => {
   const { showNotification } = useNotification();
+  const { currentStoreId, isStoreReady } = useStore();
+
   const [manualAdjustment, setManualAdjustment] = useState(() => Number(localStorage.getItem('BI_REAL_ADJUST_V1')) || 0);
   const [ycxFileName, setYcxFileName] = useState(() => localStorage.getItem(STORAGE_KEYS.YCX_FILE_NAME) || '');
   const [linkBcTongHop, setLinkBcTongHop] = useState(() => localStorage.getItem(STORAGE_KEYS.LINK_BC_TONG_HOP) || '');
@@ -43,48 +48,68 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     return saved ? JSON.parse(saved) : {};
   });
   const [staffListFileName, setStaffListFileName] = useState(() => localStorage.getItem('BI_REAL_STAFF_LIST_FILE_V1') || '');
-  const [stName, setStName] = useState(() => localStorage.getItem('ST_NAME_V1') || '');
-  const [stDtlk, setStDtlk] = useState(() => Number(localStorage.getItem('ST_DTLK_V1')) || 0);
-  const [stDtqd, setStDtqd] = useState(() => Number(localStorage.getItem('ST_DTQD_V1')) || 0);
-  const [stDtDuKienQD, setStDtDuKienQD] = useState(() => Number(localStorage.getItem('ST_DT_DU_KIEN_QD_V1')) || 0);
-  const [stPercentHTTargetDuKienQD, setStPercentHTTargetDuKienQD] = useState(() => Number(localStorage.getItem('ST_PERCENT_HT_TARGET_DU_KIEN_QD_V1')) || 0);
-  const [stTargetQuyDoi, setStTargetQuyDoi] = useState(() => Number(localStorage.getItem('ST_TARGET_QUY_DOI_V1')) || 0);
+  const cachedStoreKey = currentStoreId ? Object.keys(globalAllStoreTargets).find(k => normalize(k) === normalize(currentStoreId)) : null;
+  const cachedStore = cachedStoreKey ? globalAllStoreTargets[cachedStoreKey] : {};
+
+  const [stName, setStName] = useState(() => cachedStore.stName || getStoreItem('ST_NAME_V1', currentStoreId) || '');
+  const [stDtlk, setStDtlk] = useState(() => cachedStore.stDtlk !== undefined ? cachedStore.stDtlk : (Number(getStoreItem('ST_DTLK_V1', currentStoreId)) || 0));
+  const [stDtqd, setStDtqd] = useState(() => cachedStore.stDtqd !== undefined ? cachedStore.stDtqd : (Number(getStoreItem('ST_DTQD_V1', currentStoreId)) || 0));
+  const [stDtDuKienQD, setStDtDuKienQD] = useState(() => cachedStore.stDtDuKienQD !== undefined ? cachedStore.stDtDuKienQD : (Number(getStoreItem('ST_DT_DU_KIEN_QD_V1', currentStoreId)) || 0));
+  const [stPercentHTTargetDuKienQD, setStPercentHTTargetDuKienQD] = useState(() => cachedStore.stPercentHTTargetDuKienQD !== undefined ? cachedStore.stPercentHTTargetDuKienQD : (Number(getStoreItem('ST_PERCENT_HT_TARGET_DU_KIEN_QD_V1', currentStoreId)) || 0));
+  const [stTargetQuyDoi, setStTargetQuyDoi] = useState(() => cachedStore.stTargetQuyDoi !== undefined ? cachedStore.stTargetQuyDoi : (Number(getStoreItem('ST_TARGET_QUY_DOI_V1', currentStoreId)) || 0));
   const [stPercentTarget, setStPercentTarget] = useState(() => {
-    const saved = localStorage.getItem('ST_PERCENT_TARGET_V1');
+    if (cachedStore.stPercentTarget !== undefined) return cachedStore.stPercentTarget;
+    const saved = getStoreItem('ST_PERCENT_TARGET_V1', currentStoreId);
     return saved !== null ? Number(saved) : 100;
   });
-  const [stTargetSauHeSo, setStTargetSauHeSo] = useState(() => Number(localStorage.getItem('ST_TARGET_SAU_HE_SO_V1')) || 0);
-  const [allStoreTargets, setAllStoreTargets] = useState<Record<string, any>>({});
+  const [stTargetSauHeSo, setStTargetSauHeSo] = useState(() => cachedStore.stTargetSauHeSo !== undefined ? cachedStore.stTargetSauHeSo : (Number(getStoreItem('ST_TARGET_SAU_HE_SO_V1', currentStoreId)) || 0));
+  const [allStoreTargets, setAllStoreTargets] = useState<Record<string, any>>(() => globalAllStoreTargets);
+
+  const updateAllStoreTargets = useCallback((updater: any) => {
+    setAllStoreTargets(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      // Merge into global cache
+      Object.assign(globalAllStoreTargets, next);
+      return next;
+    });
+  }, []);
+
   const [isSavingStoreRevenue, setIsSavingStoreRevenue] = useState(false);
   const [isLoadingStoreRevenue, setIsLoadingStoreRevenue] = useState(false);
   const [lastLoadedMaKho, setLastLoadedMaKho] = useState<string | null>(null);
 
-  // Set up Supabase Realtime subscription for store_luyke shared settings
+  // PERF: Ref for stName to use in subscription callback without re-subscribing
+  const stNameRef = useRef(stName);
+  useEffect(() => { stNameRef.current = stName; }, [stName]);
+
+  // PERF: Ref for saveStoreRevenue to use in auto-save without dependency cascade
+  const saveStoreRevenueRef = useRef<((maKho: string, activeStore: string, silent?: boolean) => Promise<void>) | null>(null);
+
+  // Set up Supabase Realtime subscription for store shared settings
+  // PERF: Removed stName from deps — uses stNameRef instead to avoid re-subscribing on every name change
   useEffect(() => {
     if (!maKho) return;
 
     console.log(`[SharedData] Subscribing to realtime updates for warehouse: ${maKho}`);
     
     const channel = supabase
-      .channel(`public:store_luyke_shared:warehouse_code=eq.${maKho}`)
+      .channel(`public:store_shared:warehouse_code=eq.${maKho}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'store_luyke',
+          table: 'store',
           filter: `warehouse_code=eq.${maKho}`
         },
-        (payload) => {
-          console.log('[SharedData] Realtime update received:', payload);
+        (payload: any) => {
           if (payload.new) {
             const record = payload.new as any;
             const settings = record.taget_doanh_thu;
             const storeName = record.ten_sieu_thi;
             
             if (storeName && settings) {
-              // Update the map of all targets
-              setAllStoreTargets(prev => ({
+              updateAllStoreTargets((prev: any) => ({
                 ...prev,
                 [storeName.toUpperCase()]: {
                   ...settings,
@@ -92,13 +117,11 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
                 }
               }));
               
-              // If this record matches our current active store, update top-level state
-              // Use robust normalization for matching
-              const normActive = normalize(stName || localStorage.getItem('ST_NAME_V1') || '');
+              // PERF: Use stNameRef instead of stName to avoid re-subscribing
+              const normActive = normalize(stNameRef.current || localStorage.getItem('ST_NAME_V1') || '');
               const normUpdate = normalize(storeName);
               
               if (normUpdate && normActive && (normUpdate === normActive || normUpdate.includes(normActive) || normActive.includes(normUpdate))) {
-                console.log('[SharedData] Updating active store state from realtime:', storeName);
                 if (settings.stName) setStName(settings.stName);
                 if (settings.stTargetSauHeSo !== undefined) setStTargetSauHeSo(settings.stTargetSauHeSo);
                 if (settings.stTargetQuyDoi !== undefined) setStTargetQuyDoi(settings.stTargetQuyDoi);
@@ -109,8 +132,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
                 if (settings.stDtqd !== undefined) setStDtqd(settings.stDtqd);
                 if (settings.manualAdjustment !== undefined) setManualAdjustment(settings.manualAdjustment);
                 if (settings.selectedMonth) setSelectedMonth(settings.selectedMonth);
-                if (settings.daysPassed !== undefined) setDaysPassed(settings.daysPassed);
-                if (settings.totalDays !== undefined) setTotalDays(settings.totalDays);
+                // daysPassed & totalDays are auto-calculated from selectedMonth, not loaded from DB
               }
             }
           }
@@ -119,10 +141,9 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       .subscribe();
 
     return () => {
-      console.log(`[SharedData] Unsubscribing from realtime updates for ${maKho}`);
       supabase.removeChannel(channel);
     };
-  }, [maKho, stName]);
+  }, [maKho]); // PERF: Only re-subscribe when warehouse changes, not on every stName change
 
   const VALID_STORE_PREFIXES = ['ĐML', 'ĐMM', 'ĐMS', 'ĐMS3', 'TGD', 'AAR', 'DML', 'DMM', 'DMS', 'DMS3', 'ÐML', 'ÐMM', 'ÐMS', 'ÐMS3'];
   const PRETTY_PREFIXES = ['ĐML', 'ĐMM', 'ĐMS', 'ĐMS3', 'TGD', 'AAR'];
@@ -154,28 +175,44 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     }
   }, [selectedMonth]);
 
-  useEffect(() => {
-    safeSetItem('BI_REAL_ADJUST_V1', manualAdjustment.toString());
-    safeSetItem(STORAGE_KEYS.YCX_FILE_NAME, ycxFileName);
-    safeSetItem(STORAGE_KEYS.LINK_BC_TONG_HOP, linkBcTongHop);
-    safeSetItem(STORAGE_KEYS.LINK_NGANH_HANG_TONG_HOP, linkNganhHangTongHop);
-    safeSetItem('BI_REAL_SEL_MONTH_V1', selectedMonth);
-    safeSetItem('BI_REAL_DAYS_PASSED_V1', daysPassed.toString());
-    safeSetItem('BI_REAL_TOTAL_DAYS_V1', totalDays.toString());
-    safeSetItem('BI_REAL_EXCLUDED_V1', JSON.stringify(excludedStaffIds));
-    safeSetItem('BI_REAL_STORE_SETTINGS_V1', JSON.stringify(storeSettings));
-    safeSetItem('BI_REAL_STAFF_LIST_FILE_V1', staffListFileName);
-    safeSetItem('ST_NAME_V1', stName);
-    safeSetItem('ST_DTLK_V1', stDtlk.toString());
-    safeSetItem('ST_DTQD_V1', stDtqd.toString());
-    safeSetItem('ST_DT_DU_KIEN_QD_V1', stDtDuKienQD.toString());
-    safeSetItem('ST_PERCENT_HT_TARGET_DU_KIEN_QD_V1', stPercentHTTargetDuKienQD.toString());
-    safeSetItem('ST_TARGET_QUY_DOI_V1', stTargetQuyDoi.toString());
-    safeSetItem('ST_PERCENT_TARGET_V1', stPercentTarget.toString());
-    safeSetItem('ST_TARGET_SAU_HE_SO_V1', stTargetSauHeSo.toString());
-  }, [manualAdjustment, ycxFileName, linkBcTongHop, linkNganhHangTongHop, selectedMonth, daysPassed, totalDays, excludedStaffIds, storeSettings, staffListFileName, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo]);
-
   const hasLoadedFromDB = useRef(false);
+
+  // PERF: Debounce localStorage writes — previously 17 synchronous writes on every state change
+  // MULTI-STORE: Per-store fields use prefixed keys via setStoreItem
+  const localStorageTimerRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (localStorageTimerRef.current) clearTimeout(localStorageTimerRef.current);
+    // Guard: don't write transitional/cleared values to localStorage during store switch
+    if (!hasLoadedFromDB.current) return;
+    const storeId = currentStoreId;
+    localStorageTimerRef.current = setTimeout(() => {
+      // Global/shared keys (not per-store)
+      safeSetItem('BI_REAL_ADJUST_V1', manualAdjustment.toString());
+      safeSetItem(STORAGE_KEYS.YCX_FILE_NAME, ycxFileName);
+      safeSetItem(STORAGE_KEYS.LINK_BC_TONG_HOP, linkBcTongHop);
+      safeSetItem(STORAGE_KEYS.LINK_NGANH_HANG_TONG_HOP, linkNganhHangTongHop);
+      safeSetItem('BI_REAL_SEL_MONTH_V1', selectedMonth);
+      safeSetItem('BI_REAL_DAYS_PASSED_V1', daysPassed.toString());
+      safeSetItem('BI_REAL_TOTAL_DAYS_V1', totalDays.toString());
+      safeSetItem('BI_REAL_EXCLUDED_V1', JSON.stringify(excludedStaffIds));
+      safeSetItem('BI_REAL_STORE_SETTINGS_V1', JSON.stringify(storeSettings));
+      safeSetItem('BI_REAL_STAFF_LIST_FILE_V1', staffListFileName);
+      // Per-store keys — prefixed with currentStoreId
+      if (storeId && storeId !== 'ALL') {
+        setStoreItem('ST_NAME_V1', storeId, stName);
+        setStoreItem('ST_DTLK_V1', storeId, stDtlk.toString());
+        setStoreItem('ST_DTQD_V1', storeId, stDtqd.toString());
+        setStoreItem('ST_DT_DU_KIEN_QD_V1', storeId, stDtDuKienQD.toString());
+        setStoreItem('ST_PERCENT_HT_TARGET_DU_KIEN_QD_V1', storeId, stPercentHTTargetDuKienQD.toString());
+        setStoreItem('ST_TARGET_QUY_DOI_V1', storeId, stTargetQuyDoi.toString());
+        setStoreItem('ST_PERCENT_TARGET_V1', storeId, stPercentTarget.toString());
+        setStoreItem('ST_TARGET_SAU_HE_SO_V1', storeId, stTargetSauHeSo.toString());
+      }
+    }, 300); // Batch all localStorage writes with 300ms debounce
+    return () => { if (localStorageTimerRef.current) clearTimeout(localStorageTimerRef.current); };
+  }, [manualAdjustment, ycxFileName, linkBcTongHop, linkNganhHangTongHop, selectedMonth, daysPassed, totalDays, excludedStaffIds, storeSettings, staffListFileName, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, currentStoreId]);
+
+
 
   const saveStoreRevenue = useCallback(async (maKho: string, activeStore: string, silent = false) => {
     // Prioritize a valid store name over the warehouse code
@@ -207,16 +244,18 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       const cleanMaKho = maKho.trim();
       const cleanStore = (storeToSave || maKho).trim();
 
-      // Ensure we are saving the most up-to-date calculated target
-      const currentTargetSauHeSo = Math.round(stTargetQuyDoi * (stPercentTarget / 100));
+      // Use the actual stTargetSauHeSo value — no recalculation
 
-      // 1. Fetch existing data to merge for this SPECIFIC store
+      // 1. Fetch existing data directly using cleanStore (the supermarket name) as the unique document ID
       const { data: existingData } = await supabase
-        .from('store_luyke')
-        .select('taget_doanh_thu, warehouse_code, ten_sieu_thi')
-        .eq('warehouse_code', cleanMaKho)
-        .eq('ten_sieu_thi', cleanStore)
+        .from('store')
+        .select('taget_doanh_thu, category_targets, lk_dt_nv, lk_td_nv, ban_kem_nv, ds_nhan_vien, dt_gio_cong, data_phan_ca, tragop_matran, tragop_nv, phuc_vu, lk_bi_tong_quan, lk_nh_sieu_thi')
+        .eq('id', cleanStore.trim())
         .maybeSingle();
+
+      // Preserve stTargetSauHeSo from the existing DB record for THIS store
+      // to prevent cross-contamination during store switching
+      const preservedTargetSauHeSo = existingData?.taget_doanh_thu?.stTargetSauHeSo ?? stTargetSauHeSo;
 
       const newTargetData = {
         stName,
@@ -226,7 +265,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         stPercentHTTargetDuKienQD,
         stTargetQuyDoi,
         stPercentTarget,
-        stTargetSauHeSo: currentTargetSauHeSo, // Always use calculated value
+        stTargetSauHeSo: preservedTargetSauHeSo,
         manualAdjustment,
         selectedMonth,
         daysPassed,
@@ -240,18 +279,25 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         updated_at: new Date().toISOString()
       };
 
-      // 2. Prepare payload: preserve other fields from existing record
+      // 2. Prepare payload: only include fields we are modifying or need to preserve
+      // CRITICAL: We MUST spread existingData first to prevent Supabase from wiping out other columns (like lk_bi_tong_quan) with NULL!
       const payload: any = {
         ...(existingData || {}),
+        id: cleanStore.trim(), // The Supermarket Name as the unique Document ID / Primary Key!
         warehouse_code: cleanMaKho,
         ten_sieu_thi: cleanStore,
         taget_doanh_thu: newTargetData,
         updated_at: new Date().toISOString()
       };
 
+      updateAllStoreTargets((prev: any) => ({
+        ...prev,
+        [cleanStore.toUpperCase()]: newTargetData
+      }));
+
       const { error } = await supabase
-        .from('store_luyke')
-        .upsert(payload, { onConflict: 'warehouse_code,ten_sieu_thi' });
+        .from('store')
+        .upsert(payload, { onConflict: 'id' });
 
       if (error) {
         console.error('[SharedData] Upsert error:', error);
@@ -275,55 +321,46 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     const shortMaKho = cleanMaKho.replace(/^0+/, '');
     const paddedMaKho = shortMaKho.padStart(7, '0');
     
-    setIsLoadingStoreRevenue(true);
+    // Cache-first approach: don't block UI if we already have local target data
+    const hasCachedData = !!localStorage.getItem('ST_TARGET_SAU_HE_SO_V1');
+    if (!hasCachedData) {
+      setIsLoadingStoreRevenue(true);
+    }
+
+    // Fallback: forcefully remove loading state after 2 seconds
+    const fallbackTimeout = setTimeout(() => {
+      setIsLoadingStoreRevenue(false);
+    }, 2000);
+
     console.log('[useRTSTSharedData] Loading shared settings for warehouse:', cleanMaKho);
     try {
-      // Always fetch all stores for this warehouse to populate allStoreTargets
-      const { data, error } = await supabase
-        .from('store_luyke')
-        .select('taget_doanh_thu, ten_sieu_thi, warehouse_code')
-        .in('warehouse_code', [cleanMaKho, shortMaKho, paddedMaKho])
-        .order('updated_at', { ascending: false })
-        .limit(200);
+      const targetStore = storeName || stName || cleanMaKho;
+      const { data: record, error } = await supabase
+        .from('store')
+        .select('taget_doanh_thu, ten_sieu_thi, warehouse_code, updated_at')
+        .eq('id', targetStore.trim())
+        .maybeSingle();
 
       if (error) throw error;
       
-      if (data && data.length > 0) {
+      if (record) {
         // Map all store targets
         const targetMap: Record<string, any> = {};
-        data.forEach(item => {
-          if (item.ten_sieu_thi && item.taget_doanh_thu) {
-            targetMap[item.ten_sieu_thi.toUpperCase()] = {
-              ...item.taget_doanh_thu,
-              warehouse_code: item.warehouse_code
-            };
-          }
-        });
-        setAllStoreTargets(targetMap);
+        if (record.ten_sieu_thi && record.taget_doanh_thu) {
+          targetMap[record.ten_sieu_thi.toUpperCase()] = {
+            ...record.taget_doanh_thu,
+            warehouse_code: record.warehouse_code
+          };
+        }
+        updateAllStoreTargets(targetMap);
 
         // Find the specific store settings for top-level state
-        let settings = null;
-        let foundStoreName = '';
-
-        if (storeName) {
-          const normSearch = normalize(storeName);
-          const match = data.find(item => normalize(item.ten_sieu_thi) === normSearch);
-          if (match) {
-            settings = match.taget_doanh_thu;
-            foundStoreName = match.ten_sieu_thi;
-          }
-        }
-
-        // Fallback to the most recently updated if no specific store match
-        if (!settings) {
-          settings = data[0].taget_doanh_thu;
-          foundStoreName = data[0].ten_sieu_thi;
-        }
+        const settings = record.taget_doanh_thu;
 
         if (settings) {
-          console.log('[useRTSTSharedData] Found settings in DB for', foundStoreName, ':', settings);
+          console.log('[useRTSTSharedData] ✓ Found settings in DB for', record.ten_sieu_thi);
           if (settings.stName) setStName(settings.stName);
-          else if (foundStoreName) setStName(foundStoreName);
+          else if (record.ten_sieu_thi) setStName(record.ten_sieu_thi);
           
           if (settings.stDtlk !== undefined) setStDtlk(settings.stDtlk);
           if (settings.stDtqd !== undefined) setStDtqd(settings.stDtqd);
@@ -335,22 +372,41 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           
           if (settings.manualAdjustment !== undefined) setManualAdjustment(settings.manualAdjustment);
           if (settings.selectedMonth) setSelectedMonth(settings.selectedMonth);
-          if (settings.daysPassed !== undefined) setDaysPassed(settings.daysPassed);
-          if (settings.totalDays !== undefined) setTotalDays(settings.totalDays);
+          // daysPassed & totalDays are auto-calculated from selectedMonth, not loaded from DB
           if (settings.ycxFileName && !isYcxDirty) setYcxFileName(settings.ycxFileName);
           if (settings.linkBcTongHop) setLinkBcTongHop(settings.linkBcTongHop);
           if (settings.linkNganhHangTongHop) setLinkNganhHangTongHop(settings.linkNganhHangTongHop);
           if (settings.staffListFileName) setStaffListFileName(settings.staffListFileName);
           if (settings.excludedStaffIds) setExcludedStaffIds(settings.excludedStaffIds);
           if (settings.storeSettings) setStoreSettings(settings.storeSettings);
+        } else {
+          // STRICT ISOLATION: Do NOT fallback to another store's data if no match is found
+          console.log('[useRTSTSharedData] ✗ No settings found for', record.ten_sieu_thi, '- Enforcing strict isolation (clearing values)');
+          setStDtlk(0);
+          setStDtqd(0);
+          setStDtDuKienQD(0);
+          setStPercentHTTargetDuKienQD(0);
+          setStTargetQuyDoi(0);
+          setStPercentTarget(100);
+          setStTargetSauHeSo(0);
+          setManualAdjustment(0);
         }
       } else {
         console.log('[useRTSTSharedData] No settings found in DB for warehouse', cleanMaKho);
+        setStDtlk(0);
+        setStDtqd(0);
+        setStDtDuKienQD(0);
+        setStPercentHTTargetDuKienQD(0);
+        setStTargetQuyDoi(0);
+        setStPercentTarget(100);
+        setStTargetSauHeSo(0);
+        setManualAdjustment(0);
       }
       hasLoadedFromDB.current = true;
     } catch (error) {
       console.error('Lỗi tải cài đặt:', error);
     } finally {
+      clearTimeout(fallbackTimeout);
       setIsLoadingStoreRevenue(false);
     }
   }, [isYcxDirty]);
@@ -359,7 +415,8 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     if (maKho && (maKho !== lastLoadedMaKho)) {
       console.log('[SharedData] maKho changed, resetting state for:', maKho);
       hasLoadedFromDB.current = false;
-      setAllStoreTargets({}); // Clear stale targets
+      // DO NOT clear stale targets, keep them in cache for fast switching!
+      // setAllStoreTargets({});
       
       loadStoreRevenue(maKho, stName).then(() => {
         setLastLoadedMaKho(maKho);
@@ -367,17 +424,119 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     }
   }, [maKho, lastLoadedMaKho, loadStoreRevenue, stName]);
 
+  // AUTO-CALCULATION: Target Quy Đổi
+  useEffect(() => {
+    if (stPercentHTTargetDuKienQD > 0) {
+      const calculated = Math.round(stDtDuKienQD / (stPercentHTTargetDuKienQD / 100));
+      if (stTargetQuyDoi !== calculated) setStTargetQuyDoi(calculated);
+    } else {
+      if (stTargetQuyDoi !== 0) setStTargetQuyDoi(0);
+    }
+  }, [stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi]);
+
+  // AUTO-CALCULATION: Target Sau Hệ Số (TARGET THỰC TẾ)
+  useEffect(() => {
+    const calculated = Math.round(stTargetQuyDoi * (stPercentTarget / 100));
+    if (stTargetSauHeSo !== calculated) setStTargetSauHeSo(calculated);
+  }, [stTargetQuyDoi, stPercentTarget, stTargetSauHeSo]);
+
+  // Ref to access latest allStoreTargets in AUTO-REACT without stale closure
+  const allStoreTargetsRef = useRef(allStoreTargets);
+  useEffect(() => { allStoreTargetsRef.current = allStoreTargets; }, [allStoreTargets]);
+
+  // Synchronize component state to global cache immediately when user types
+  // This prevents data loss (e.g. %TARGET resetting) if they switch tabs before the 2s auto-save
+  useEffect(() => {
+    if (!currentStoreId || currentStoreId === 'ALL') return;
+    if (!hasLoadedFromDB.current) return; // Guard against overwriting cache with cleared transition state
+
+    updateAllStoreTargets((prev: any) => {
+      const storeKey = currentStoreId.toUpperCase();
+      const existing = prev[storeKey] || {};
+      
+      // Only update if there's an actual change to avoid infinite loops
+      if (
+        existing.stName === stName &&
+        existing.stDtlk === stDtlk &&
+        existing.stDtqd === stDtqd &&
+        existing.stDtDuKienQD === stDtDuKienQD &&
+        existing.stPercentHTTargetDuKienQD === stPercentHTTargetDuKienQD &&
+        existing.stTargetQuyDoi === stTargetQuyDoi &&
+        existing.stPercentTarget === stPercentTarget &&
+        existing.stTargetSauHeSo === stTargetSauHeSo
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [storeKey]: {
+          ...existing,
+          stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD,
+          stTargetQuyDoi, stPercentTarget, stTargetSauHeSo
+        }
+      };
+    });
+  }, [
+    stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, 
+    stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, currentStoreId, updateAllStoreTargets
+  ]);
+
+  // AUTO-REACT: When global currentStoreId changes, reload per-store settings from DB
+  // This ensures store revenue/target data updates instantly when switching stores
+  const prevSharedStoreRef = useRef(currentStoreId);
+  useEffect(() => {
+    if (!currentStoreId || currentStoreId === 'ALL' || !maKho) return;
+    if (prevSharedStoreRef.current === currentStoreId) return;
+    prevSharedStoreRef.current = currentStoreId;
+    
+    console.log(`[SharedData] AUTO-REACT: currentStoreId changed → "${currentStoreId}"`);
+    // Block auto-save during transition to prevent saving cleared values to DB
+    hasLoadedFromDB.current = false;
+    
+    // Use cached per-store values from allStoreTargets (populated on initial load)
+    // This avoids resetting to 0/100 and then flashing to DB values
+    const cachedKey = Object.keys(allStoreTargetsRef.current || {}).find(k => normalize(k) === normalize(currentStoreId));
+    const cached = cachedKey ? allStoreTargetsRef.current[cachedKey] : null;
+    
+    setStName(cached?.stName || currentStoreId);
+    setStDtlk(cached?.stDtlk ?? 0);
+    setStDtqd(cached?.stDtqd ?? 0);
+    setStDtDuKienQD(cached?.stDtDuKienQD ?? 0);
+    setStPercentHTTargetDuKienQD(cached?.stPercentHTTargetDuKienQD ?? 0);
+    setStTargetQuyDoi(cached?.stTargetQuyDoi ?? 0);
+    setStPercentTarget(cached?.stPercentTarget ?? 100);
+    setStTargetSauHeSo(cached?.stTargetSauHeSo ?? 0);
+    
+    // Reload from DB for the new store (sets hasLoadedFromDB = true on completion)
+    loadStoreRevenue(maKho, currentStoreId);
+  }, [currentStoreId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // PERF: Keep saveStoreRevenue ref up-to-date to avoid it as a dependency in auto-save
+  useEffect(() => { saveStoreRevenueRef.current = saveStoreRevenue; }, [saveStoreRevenue]);
+
   // Auto-save when shared settings change
+  // PERF: Uses saveStoreRevenueRef instead of saveStoreRevenue to avoid dependency cascade
+  // (saveStoreRevenue changes on every state change → would retrigger this effect)
+  // MULTI-STORE GUARD: Block auto-save when isStoreReady=false
+  const prevStNameRef = useRef(stName);
   useEffect(() => {
     if (!maKho || !hasLoadedFromDB.current) return;
+    if (!isStoreReady) return; // ← GUARD: Don't save during store switch
+
+    // Skip auto-save when only stName changed (store is switching, data is stale)
+    if (prevStNameRef.current !== stName) {
+      prevStNameRef.current = stName;
+      return;
+    }
 
     const timeoutId = setTimeout(() => {
-      console.log('[AutoSave] Saving Shared settings...');
-      saveStoreRevenue(maKho, stName, true);
+      console.log('[AutoSave] Saving Shared settings for:', stName);
+      saveStoreRevenueRef.current?.(maKho, stName, true);
     }, 2000); // 2s debounce
 
     return () => clearTimeout(timeoutId);
-  }, [maKho, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, ycxFileName, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, saveStoreRevenue]);
+  }, [maKho, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, ycxFileName, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, isStoreReady]);
 
   return {
     manualAdjustment, setManualAdjustment,
@@ -405,28 +564,27 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       const cleanStore = storeName.trim();
       
       try {
-        // 1. Fetch existing data to merge
         const { data: existingData } = await supabase
-          .from('store_luyke')
-          .select('taget_doanh_thu, warehouse_code, ten_sieu_thi')
-          .eq('warehouse_code', cleanMaKho)
-          .eq('ten_sieu_thi', cleanStore)
+          .from('store')
+          .select('taget_doanh_thu, warehouse_code, ten_sieu_thi, category_targets, lk_dt_nv, lk_td_nv, ban_kem_nv, ds_nhan_vien, dt_gio_cong, data_phan_ca, tragop_matran, tragop_nv, phuc_vu, lk_bi_tong_quan, lk_nh_sieu_thi')
+          .eq('id', cleanStore)
           .maybeSingle();
 
         const currentTargetQD = settings.stTargetQuyDoi || (existingData?.taget_doanh_thu?.stTargetQuyDoi) || 0;
         const currentPercent = settings.stPercentTarget !== undefined ? settings.stPercentTarget : (existingData?.taget_doanh_thu?.stPercentTarget ?? 100);
-        const calculatedTarget = Math.round(currentTargetQD * (currentPercent / 100));
+        // Use existing stTargetSauHeSo from DB — no recalculation
+        const existingTargetSauHeSo = settings.stTargetSauHeSo || existingData?.taget_doanh_thu?.stTargetSauHeSo || Math.round(currentTargetQD * (currentPercent / 100));
 
         const newTargetData = {
           ...(existingData?.taget_doanh_thu || {}),
           ...settings,
-          stTargetSauHeSo: calculatedTarget,
+          stTargetSauHeSo: existingTargetSauHeSo,
           warehouse_code: cleanMaKho,
           updated_at: new Date().toISOString()
         };
 
         // Update local map immediately for responsiveness
-        setAllStoreTargets(prev => ({
+        updateAllStoreTargets((prev: any) => ({
           ...prev,
           [cleanStore.toUpperCase()]: newTargetData
         }));
@@ -443,11 +601,12 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         // If this is the active store, update top-level state too
         if (normalize(storeName) === normalize(stName)) {
           if (settings.stPercentTarget !== undefined) setStPercentTarget(settings.stPercentTarget);
-          setStTargetSauHeSo(calculatedTarget);
+          setStTargetSauHeSo(existingTargetSauHeSo);
         }
 
-        const payload = {
+        const payload: any = {
           ...(existingData || {}),
+          id: cleanStore,
           warehouse_code: cleanMaKho,
           ten_sieu_thi: cleanStore,
           taget_doanh_thu: newTargetData,
@@ -455,10 +614,11 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         };
 
         const { error } = await supabase
-          .from('store_luyke')
-          .upsert(payload, { onConflict: 'warehouse_code,ten_sieu_thi' });
+          .from('store')
+          .upsert(payload, { onConflict: 'id' });
 
         if (error) throw error;
+        showNotification('Đã cập nhật % TARGET siêu thị thành công!', 'success');
       } catch (error) {
         console.error('Error updating store settings:', error);
       }

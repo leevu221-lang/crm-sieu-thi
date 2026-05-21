@@ -8,6 +8,7 @@ interface AuthContextType {
   login: (username: string, maKho: string, password?: string) => Promise<{ success: boolean; message: string }>;
   register: (username: string, maKho: string, password?: string) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
+  updateStoreName: (newStoreName: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -63,6 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ten_sieu_thi: `Siêu thị ${maKho} (Offline Mode)`
           };
           localStorage.setItem('userProfile', JSON.stringify(profile));
+          sessionStorage.setItem('justLoggedIn', 'true');
           setTimeout(() => {
             setUserProfile(profile);
           }, 1500);
@@ -86,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       const isSuperAdmin = username === '43751';
-      const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_dm_7611'];
+      const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users'];
 
       const profile: UserProfile = {
         username: data.username,
@@ -101,6 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ten_sieu_thi: storeData?.ten_kho || data.storeCode
       };
       localStorage.setItem('userProfile', JSON.stringify(profile));
+      sessionStorage.setItem('justLoggedIn', 'true');
       
       // Delay setting user profile to allow success message to be shown
       setTimeout(() => {
@@ -126,6 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ten_sieu_thi: `Siêu thị ${maKho} (Offline Mode)`
         };
         localStorage.setItem('userProfile', JSON.stringify(profile));
+        sessionStorage.setItem('justLoggedIn', 'true');
         setTimeout(() => {
           setUserProfile(profile);
         }, 1500);
@@ -222,6 +226,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   function logout() {
     setUserProfile(null);
     localStorage.removeItem('userProfile');
+    sessionStorage.removeItem('justLoggedIn');
+  }
+
+  function updateStoreName(newStoreName: string) {
+    if (userProfile) {
+      const updatedProfile = { ...userProfile, ten_sieu_thi: newStoreName };
+      setUserProfile(updatedProfile);
+      localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
+    }
   }
 
   const value = {
@@ -229,7 +242,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading,
     login,
     register,
-    logout
+    logout,
+    updateStoreName
   };
 
   return (

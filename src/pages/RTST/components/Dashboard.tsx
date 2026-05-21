@@ -6,7 +6,7 @@
 import React from 'react';
 import { Target, TrendingUp, BarChart3, Zap, Smartphone, PieChart } from 'lucide-react';
 import { MarketInfo } from '../types';
-import { cn } from '../utils';
+import { cn, normalize } from '../utils';
 
 interface DashboardProps {
   markets: MarketInfo[];
@@ -19,7 +19,11 @@ const Dashboard: React.FC<DashboardProps> = ({ markets, marketFilter, title = ''
   const isValidStore = (name: string) => allowedPrefixes.some(prefix => name.toUpperCase().includes(prefix));
 
   const validMarkets = markets.filter(m => isValidStore(m.name) && m.name.trim() !== '104');
-  const filteredMarkets = validMarkets.filter(m => (marketFilter === 'ALL' || m.name === marketFilter));
+  const filteredMarkets = validMarkets.filter(m => 
+    marketFilter === 'ALL' || 
+    normalize(m.name).includes(normalize(marketFilter)) || 
+    normalize(marketFilter).includes(normalize(m.name))
+  );
 
   if (filteredMarkets.length === 0) return null;
 

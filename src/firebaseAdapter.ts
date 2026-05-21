@@ -24,6 +24,7 @@ import { db } from "./firebaseConfig";
 class FirebaseQueryBuilder {
   private tableName: string;
   private constraints: any[] = [];
+  private idValue?: string;
   private orderColumn?: string;
   private orderDirection: 'asc' | 'desc' = 'asc';
   private limitCount?: number;
@@ -37,7 +38,11 @@ class FirebaseQueryBuilder {
   }
 
   eq(column: string, value: any) {
-    this.constraints.push(where(column, '==', value));
+    if (column === 'id') {
+      this.idValue = value;
+    } else {
+      this.constraints.push(where(column, '==', value));
+    }
     return this;
   }
 
@@ -94,6 +99,18 @@ class FirebaseQueryBuilder {
   }
 
   async single() {
+    if (this.idValue) {
+      try {
+        const docRef = doc(db, this.tableName, String(this.idValue));
+        const docSnap = await getDoc(docRef);
+        if (!docSnap.exists()) {
+          return { data: null, error: { code: 'PGRST116', message: 'Not found' } };
+        }
+        return { data: { id: docSnap.id, ...docSnap.data() }, error: null };
+      } catch (error: any) {
+        return { data: null, error };
+      }
+    }
     const q = this.buildQuery();
     const querySnapshot = await getDocs(q);
     if (querySnapshot.empty) {
@@ -103,6 +120,18 @@ class FirebaseQueryBuilder {
   }
 
   async maybeSingle() {
+    if (this.idValue) {
+      try {
+        const docRef = doc(db, this.tableName, String(this.idValue));
+        const docSnap = await getDoc(docRef);
+        if (!docSnap.exists()) {
+          return { data: null, error: null };
+        }
+        return { data: { id: docSnap.id, ...docSnap.data() }, error: null };
+      } catch (error: any) {
+        return { data: null, error };
+      }
+    }
     const q = this.buildQuery();
     const querySnapshot = await getDocs(q);
     if (querySnapshot.empty) {
@@ -140,15 +169,43 @@ class FirebaseQueryBuilder {
         // Find ID from onConflict or item.id
         let id = item.id;
         if (!id && onConflict) {
-          const conflictFields = onConflict.split(',');
-          // If multi-column conflict, we might need to find the doc first
+          const conflictFields = onConflict.split(',').map((f: string) => f.trim());
+          // If multi-column conflict, we need to find the doc first
           if (conflictFields.length > 0) {
-             let q = query(collection(db, this.tableName));
-             conflictFields.forEach(field => {
-               if (item[field] !== undefined) q = query(q, where(field, '==', item[field]));
-             });
-             const snap = await getDocs(q);
-             if (!snap.empty) id = snap.docs[0].id;
+            // Try exact match first
+            let q = query(collection(db, this.tableName));
+            conflictFields.forEach(field => {
+              if (item[field] !== undefined) q = query(q, where(field, '==', item[field]));
+            });
+            let snap = await getDocs(q);
+            
+            // If not found and a field has a numeric value, try alternate type
+            // Firestore is type-strict: '1841' !== 1841
+            if (snap.empty) {
+              const hasNumericField = conflictFields.some(field => {
+                const val = item[field];
+                return val !== undefined && !isNaN(Number(val));
+              });
+              
+              if (hasNumericField) {
+                // Try with alternate numeric types
+                q = query(collection(db, this.tableName));
+                conflictFields.forEach(field => {
+                  const val = item[field];
+                  if (val === undefined) return;
+                  if (!isNaN(Number(val)) && String(val).trim() !== '') {
+                    // If original is string, try number; if number, try string
+                    const altVal = typeof val === 'string' ? Number(val) : String(val);
+                    q = query(q, where(field, '==', altVal));
+                  } else {
+                    q = query(q, where(field, '==', val));
+                  }
+                });
+                snap = await getDocs(q);
+              }
+            }
+            
+            if (!snap.empty) id = snap.docs[0].id;
           }
         }
         
@@ -183,6 +240,14 @@ class FirebaseQueryBuilder {
 
   private async executeUpdate() {
     try {
+      if (this.idValue) {
+        const docRef = doc(db, this.tableName, String(this.idValue));
+        await updateDoc(docRef, {
+          ...this.pendingUpdate,
+          updated_at: serverTimestamp()
+        });
+        return { data: [{ id: this.idValue, ...this.pendingUpdate }], error: null };
+      }
       const q = this.buildQuery();
       const querySnapshot = await getDocs(q);
       
@@ -203,6 +268,10 @@ class FirebaseQueryBuilder {
 
   private async executeDelete() {
     try {
+      if (this.idValue) {
+        await deleteDoc(doc(db, this.tableName, String(this.idValue)));
+        return { error: null };
+      }
       const q = this.buildQuery();
       const querySnapshot = await getDocs(q);
       
@@ -225,10 +294,17 @@ class FirebaseQueryBuilder {
       } else if (this.pendingDelete) {
         result = await this.executeDelete();
       } else {
-        const q = this.buildQuery();
-        const querySnapshot = await getDocs(q);
-        const data = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        result = { data, error: null };
+        if (this.idValue) {
+          const docRef = doc(db, this.tableName, String(this.idValue));
+          const docSnap = await getDoc(docRef);
+          const data = docSnap.exists() ? [{ id: docSnap.id, ...docSnap.data() }] : [];
+          result = { data, error: null };
+        } else {
+          const q = this.buildQuery();
+          const querySnapshot = await getDocs(q);
+          const data = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          result = { data, error: null };
+        }
       }
       
       return onfulfilled ? onfulfilled(result) : result;

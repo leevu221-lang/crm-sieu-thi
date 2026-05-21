@@ -5,7 +5,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { NotificationProvider } from './contexts/NotificationContext';
-import { MarketProvider } from './contexts/MarketContext';
+import { StoreProvider } from './contexts/StoreContext';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
@@ -14,9 +14,9 @@ createRoot(document.getElementById('root')!).render(
       <SettingsProvider>
         <AuthProvider>
           <NotificationProvider>
-            <MarketProvider>
+            <StoreProvider>
               <App />
-            </MarketProvider>
+            </StoreProvider>
           </NotificationProvider>
         </AuthProvider>
       </SettingsProvider>

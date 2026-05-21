@@ -5,7 +5,7 @@ import * as htmlToImage from 'html-to-image';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { cn } from '../../RTST/utils';
-import { StaffMatrixData } from '../../RTST/types';
+import { StaffMatrixData, CategoryData } from '../../RTST/types';
 
 interface CategoryDetailByStaffTableProps {
   luyKeNganhHang: string;
@@ -15,9 +15,10 @@ interface CategoryDetailByStaffTableProps {
   totalDays: number;
   categoryTargets: any[];
   selectedStaffIds?: string[];
+  luykeCategories?: CategoryData[];
 }
 
-const parseStaffMatrixDataRefined = (input: string, staffCount: number, categoryTargets: any[], daysPassed: number, totalDays: number): { results: StaffMatrixData[], categories: string[] } => {
+const parseStaffMatrixDataRefined = (input: string, staffCount: number, categoryTargets: any[], luykeCategories: CategoryData[], daysPassed: number, totalDays: number): { results: StaffMatrixData[], categories: string[] } => {
   const raw = input.trim();
   if (!raw) return { results: [], categories: [] };
   const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -48,26 +49,30 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
   const dataLines = lines.slice(dataStartIdx);
 
   const targetPerStaffPerCat: Record<string, number> = {};
-  categoryTargets.forEach(cat => { targetPerStaffPerCat[cat.name] = cat.adjustedTarget / staffCount; });
+  if (luykeCategories && luykeCategories.length > 0) {
+    luykeCategories.forEach(cat => { targetPerStaffPerCat[cat.name.toUpperCase()] = cat.target / staffCount; });
+  } else {
+    categoryTargets.forEach(cat => { targetPerStaffPerCat[cat.name.toUpperCase()] = (cat.target || 0) / staffCount; });
+  }
 
   for (const line of dataLines) {
     const parts = line.split(/\t|\s{2,}/).map(p => p.trim()).filter(p => p.length > 0);
     const namePart = parts[0];
-    
+
     if (!namePart) continue;
     if (excludedKeywords.some(ex => namePart.includes(ex))) continue;
 
     const nameIdParts = namePart.split(' - ').map(s => s.trim());
     if (nameIdParts.length < 2) continue;
-    
+
     const name = nameIdParts[0];
     const id = nameIdParts[1];
-    
+
     let dataStartIndex = 1;
     if (parts.length > 1 && isNaN(parseFloat(parts[1].replace(/,/g, '')))) {
-        dataStartIndex = 2;
+      dataStartIndex = 2;
     }
-    
+
     const rawValues = parts.slice(dataStartIndex).map(v => {
       const clean = v.replace(/,/g, '');
       const num = parseFloat(clean);
@@ -81,13 +86,13 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
     const projectedRates: number[] = [];
 
     categories.forEach((catName, catIdx) => {
-      const target = targetPerStaffPerCat[catName] || 0;
+      const target = targetPerStaffPerCat[catName.toUpperCase()] || 0;
       let projectedRate = 0;
-      
+
       if (target > 0 && daysPassed > 0) {
         projectedRate = (((values[catIdx] || 0) / daysPassed) * totalDays) / target * 100;
       }
-      
+
       projectedRates.push(projectedRate);
       if (Math.round(projectedRate) >= 100) achieved++;
     });
@@ -112,12 +117,13 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   daysPassed,
   totalDays,
   categoryTargets,
-  selectedStaffIds = []
+  selectedStaffIds = [],
+  luykeCategories = []
 }) => {
-  const { results: allStaffMatrix, categories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, daysPassed, totalDays);
-  
+  const { results: allStaffMatrix, categories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays);
+
   // Filter staff matrix based on selectedStaffIds from parent
-  const staffMatrix = selectedStaffIds.length > 0 
+  const staffMatrix = selectedStaffIds.length > 0
     ? allStaffMatrix.filter(s => selectedStaffIds.includes(s.fullId))
     : allStaffMatrix;
 
@@ -154,7 +160,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   if (categories.length === 0) return null;
 
   const toggleCategory = (cat: string) => {
-    setSelectedCategories(prev => 
+    setSelectedCategories(prev =>
       prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
     );
   };
@@ -162,8 +168,8 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   const handleExport = async (catName: string, elementId: string) => {
     const element = document.getElementById(elementId);
     if (element) {
-      const dataUrl = await htmlToImage.toPng(element, { 
-        backgroundColor: '#ffffff', 
+      const dataUrl = await htmlToImage.toPng(element, {
+        backgroundColor: '#ffffff',
         pixelRatio: 2,
       });
       const link = document.createElement('a');
@@ -183,8 +189,8 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
         const elementId = `cat-detail-${catName.replace(/\s+/g, '-')}`;
         const element = document.getElementById(elementId);
         if (element) {
-          const dataUrl = await htmlToImage.toPng(element, { 
-            backgroundColor: '#ffffff', 
+          const dataUrl = await htmlToImage.toPng(element, {
+            backgroundColor: '#ffffff',
             pixelRatio: 2,
           });
           const base64Data = dataUrl.split(',')[1];
@@ -205,27 +211,27 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
 
     const totalStaff = rowData.length;
     const count = Math.max(1, Math.round(totalStaff * 0.2));
-    
+
     const top = rowData.slice(0, count);
     const bot = rowData.slice(-count).reverse();
 
     const text = `🌟 TOP 20% NHÂN VIÊN XUẤT SẮC:
 ${top.map((s) => {
-  const parts = s.staffName.split(' - ');
-  const id = parts[0].trim();
-  const name = parts.length > 1 ? parts[1].trim() : '';
-  const shortName = name.split(' ').pop() || '';
-  return `${id} - ${shortName.toUpperCase()} (${Math.round(s.projectedRate)}%)`;
-}).join('\n')}
+      const parts = s.staffName.split(' - ');
+      const id = parts[0].trim();
+      const name = parts.length > 1 ? parts[1].trim() : '';
+      const shortName = name.split(' ').pop() || '';
+      return `${id} - ${shortName.toUpperCase()} (${Math.round(s.projectedRate)}%)`;
+    }).join('\n')}
 
 ⚠️ NHÓM BOTTOM 20% CẦN ĐẨY MẠNH TIẾN ĐỘ:
 ${bot.map((s) => {
-  const parts = s.staffName.split(' - ');
-  const id = parts[0].trim();
-  const name = parts.length > 1 ? parts[1].trim() : '';
-  const shortName = name.split(' ').pop() || '';
-  return `${id} - ${shortName.toUpperCase()} (${Math.round(s.projectedRate)}%)`;
-}).join('\n')}
+      const parts = s.staffName.split(' - ');
+      const id = parts[0].trim();
+      const name = parts.length > 1 ? parts[1].trim() : '';
+      const shortName = name.split(' ').pop() || '';
+      return `${id} - ${shortName.toUpperCase()} (${Math.round(s.projectedRate)}%)`;
+    }).join('\n')}
 
 Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu ngành hàng nhé! 💪`;
 
@@ -237,7 +243,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
     });
   };
 
-  const filteredCategories = categories.filter(cat => 
+  const filteredCategories = categories.filter(cat =>
     cat.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -251,10 +257,10 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
             className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-700 shadow-sm hover:bg-slate-50 transition-all"
           >
             <span className="truncate">
-              {selectedCategories.length === 0 
-                ? "Chọn ngành hàng chi tiết" 
-                : selectedCategories.length === categories.length 
-                  ? "Tất cả ngành hàng" 
+              {selectedCategories.length === 0
+                ? "Chọn ngành hàng chi tiết"
+                : selectedCategories.length === categories.length
+                  ? "Tất cả ngành hàng"
                   : `Đã chọn ${selectedCategories.length} ngành hàng`}
             </span>
             <ChevronDown size={18} className={cn("transition-transform text-slate-400", isDropdownOpen && "rotate-180")} />
@@ -329,8 +335,8 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
             disabled={isCapturingAll}
             className={cn(
               "flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-sm active:scale-95",
-              isCapturingAll 
-                ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
+              isCapturingAll
+                ? "bg-slate-100 text-slate-400 cursor-not-allowed"
                 : "bg-indigo-600 text-white hover:bg-indigo-700"
             )}
           >
@@ -345,14 +351,18 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
         {selectedCategories.length > 0 ? (
           selectedCategories.map((catName) => {
             const catIdx = categories.indexOf(catName);
-            const targetObj = categoryTargets.find(t => t.name === catName);
-            const targetPerStaff = targetObj ? targetObj.adjustedTarget / staffCount : 0;
+            const lkCat = luykeCategories.length > 0
+              ? luykeCategories.find(c => c.name.toUpperCase() === catName.toUpperCase())
+              : null;
+            const targetPerStaff = lkCat
+              ? lkCat.target / staffCount
+              : (() => { const t = categoryTargets.find(t => t.name.toUpperCase() === catName.toUpperCase()); return t ? (t.target || 0) / staffCount : 0; })();
             const elementId = `cat-detail-${catName.replace(/\s+/g, '-')}`;
 
             const rowData = staffMatrix.map(staff => {
               const accumulated = staff.rawValues[catIdx] || 0;
               const projectedRate = staff.projectedRates[catIdx] || 0;
-              
+
               return {
                 staffName: staff.displayName,
                 target: targetPerStaff,
@@ -371,19 +381,19 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   <div className="p-4 flex flex-col items-center justify-center">
                     <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center whitespace-nowrap">NGÀNH HÀNG</h2>
                     <div className="flex items-center gap-2 text-slate-600">
-                      <button 
+                      <button
                         onClick={() => handleExport(catName, elementId)}
                         className="hover:bg-slate-100 p-1 rounded-full transition-colors"
                         title="Xuất ảnh"
                       >
                         <Camera size={14} className="text-indigo-600" />
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleCopyFeedback(catName, rowData)}
                         className={cn(
                           "flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border",
-                          copiedCat === catName 
-                            ? "bg-emerald-50 text-emerald-600 border-emerald-200" 
+                          copiedCat === catName
+                            ? "bg-emerald-50 text-emerald-600 border-emerald-200"
                             : "bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100"
                         )}
                       >
@@ -411,43 +421,41 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                 <div className="overflow-hidden">
                   <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300">
                     <thead>
-                      <tr className="text-slate-900 h-[40px]">
-                        <th className="px-1 py-0 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
-                        <th className="px-2 py-0 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#10b981] w-[150px]">NHÂN VIÊN</th>
-                        <th className="px-1 py-0 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#facc15] w-[54px]">TARGET</th>
-                        <th className="px-1 py-0 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#facc15] w-[54px]">LUỸ KẾ</th>
-                        <th className="px-1 py-0 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#facc15] w-[54px]">%HT (DỰ KIẾN)</th>
+                      <tr className="text-slate-900 h-[53px]">
+                        <th className="px-1 py-2.5 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
+                        <th className="px-2 py-2.5 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#10b981] w-[150px]">NHÂN VIÊN</th>
+                        <th className="px-1 py-2.5 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#facc15] w-[54px]">TARGET</th>
+                        <th className="px-1 py-2.5 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#facc15] w-[54px]">LUỸ KẾ</th>
+                        <th className="px-1 py-2.5 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#facc15] w-[54px]">%HT (DỰ KIẾN)</th>
                       </tr>
                     </thead>
                     <tbody>
                       {rowData.map((row, index) => {
                         const roundedRate = Math.round(row.projectedRate);
                         return (
-                          <motion.tr 
+                          <tr
                             key={row.staffName}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="hover:bg-slate-50 transition-colors h-[40px]"
+                            className="hover:bg-slate-50 transition-colors h-[53px]"
                           >
-                        <td className="px-1 py-0 text-[13px] font-utm-avo font-bold text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a] h-full">
+                            <td className="px-1 py-2.5 text-[13px] font-utm-avo font-bold text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a] h-full">
                               {index + 1}
                             </td>
-                            <td className="px-2 py-0 text-[13px] font-utm-avo font-bold uppercase border-r border-b border-slate-300 text-slate-700 truncate max-w-[150px] h-full">
+                            <td className="px-2 py-2.5 text-[13px] font-utm-avo font-bold uppercase border-r border-b border-slate-300 text-slate-700 truncate max-w-[150px] h-full">
                               {row.staffName}
                             </td>
-                            <td className="px-1 py-0 text-[13px] font-utm-avo font-bold text-center border-r border-b border-slate-300 text-slate-800 h-full">
+                            <td className="px-1 py-2.5 text-[13px] font-utm-avo font-bold text-center border-r border-b border-slate-300 text-slate-800 h-full">
                               {row.target.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
                             </td>
-                            <td className="px-1 py-0 text-[13px] font-utm-avo font-bold text-center border-r border-b border-slate-300 text-emerald-700 h-full">
+                            <td className="px-1 py-2.5 text-[13px] font-utm-avo font-bold text-center border-r border-b border-slate-300 text-emerald-700 h-full">
                               {row.accumulated.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
                             </td>
                             <td className={cn(
-                              "px-1 py-0 text-[13px] font-utm-avo font-bold text-center border-r border-b border-slate-300 h-full",
+                              "px-1 py-2.5 text-[13px] font-utm-avo font-bold text-center border-r border-b border-slate-300 h-full",
                               roundedRate >= 100 ? "text-emerald-600" : roundedRate >= 50 ? "text-amber-600" : "text-rose-600"
                             )}>
                               {roundedRate}%
                             </td>
-                          </motion.tr>
+                          </tr>
                         );
                       })}
                     </tbody>
@@ -468,4 +476,4 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
   );
 };
 
-export default CategoryDetailByStaffTable;
+export default React.memo(CategoryDetailByStaffTable);
