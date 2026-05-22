@@ -627,11 +627,11 @@ export default function NewRealtimePage() {
     if (!luykeProcessedData?.categories) return map;
 
     luykeProcessedData.categories
-      .filter(cat => marketFilter === 'ALL' || !cat.marketName || 
+      .filter((cat: any) => marketFilter === 'ALL' || !cat.marketName || 
         normalize(cat.marketName).includes(normalize(marketFilter)) ||
         normalize(marketFilter).includes(normalize(cat.marketName))
       )
-      .forEach(cat => {
+      .forEach((cat: any) => {
         const name = cat.name.trim().toUpperCase();
         const type = cat.type;
         const key = `${name}_${type}`;
@@ -649,11 +649,11 @@ export default function NewRealtimePage() {
     if (!luykeProcessedData?.categories) return map;
 
     luykeProcessedData.categories
-      .filter(cat => marketFilter === 'ALL' || !cat.marketName || 
+      .filter((cat: any) => marketFilter === 'ALL' || !cat.marketName || 
         normalize(cat.marketName).includes(normalize(marketFilter)) ||
         normalize(marketFilter).includes(normalize(cat.marketName))
       )
-      .forEach(cat => {
+      .forEach((cat: any) => {
         const name = cat.name.trim().toUpperCase();
         const type = cat.type;
         const key = `${name}_${type}`;
@@ -957,6 +957,8 @@ export default function NewRealtimePage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const categoriesRef = useRef<HTMLDivElement>(null);
   const overviewRef = useRef<HTMLDivElement>(null);
+  const categorySLRef = useRef<HTMLDivElement>(null);
+  const categoryDTRef = useRef<HTMLDivElement>(null);
   const [stores, setStores] = useState<{ warehouse_code: string, ten_sieu_thi: string }[]>([]);
   const [isStoreSelectorOpen, setIsStoreSelectorOpen] = useState(false);
 
@@ -1157,6 +1159,28 @@ export default function NewRealtimePage() {
         link.click();
       } catch (error) {
         console.error('Lỗi khi chụp ảnh:', error);
+      } finally {
+        document.body.classList.remove('capturing-screenshot');
+      }
+    }
+  };
+
+  const captureElement = async (ref: React.RefObject<HTMLDivElement | null>, filename: string) => {
+    if (ref.current) {
+      try {
+        document.body.classList.add('capturing-screenshot');
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        const dataUrl = await domToPng(ref.current, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+        });
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = `${filename}_${userProfile?.ma_kho || 'Report'}.png`;
+        link.click();
+      } catch (error) {
+        console.error(`Lỗi khi chụp ảnh ${filename}:`, error);
       } finally {
         document.body.classList.remove('capturing-screenshot');
       }
@@ -1658,12 +1682,21 @@ export default function NewRealtimePage() {
               <div ref={categoriesRef} className="bg-white rounded-3xl overflow-hidden border border-slate-200">
                 <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Left Table: SLLK */}
-                  <div className="border border-slate-300 overflow-hidden">
+                  <div ref={categorySLRef} className="border border-slate-300 overflow-hidden">
                     <div className="bg-white p-[15px]">
                       <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
                         <div className="p-4 flex flex-col items-center justify-center">
                           <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">NGÀNH HÀNG (SL)</h2>
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">REALTIME</span>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">REALTIME</span>
+                            <button
+                              onClick={() => captureElement(categorySLRef, 'NganhHang_SL_Realtime')}
+                              className="no-capture p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                              title="Chụp ảnh bảng Ngành hàng SL"
+                            >
+                              <Camera size={12} />
+                            </button>
+                          </div>
                         </div>
                         <div className="p-4 flex flex-col items-center justify-center">
                           <h2 className="text-xl font-black text-rose-600 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">DỰ KIẾN</h2>
@@ -1733,12 +1766,21 @@ export default function NewRealtimePage() {
                   </div>
 
                   {/* Right Table: DTLK */}
-                  <div className="border border-slate-300 overflow-hidden">
+                  <div ref={categoryDTRef} className="border border-slate-300 overflow-hidden">
                     <div className="bg-white p-[15px]">
                       <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
                         <div className="p-4 flex flex-col items-center justify-center">
                           <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">NGÀNH HÀNG (DT)</h2>
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">REALTIME</span>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">REALTIME</span>
+                            <button
+                              onClick={() => captureElement(categoryDTRef, 'NganhHang_DT_Realtime')}
+                              className="no-capture p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                              title="Chụp ảnh bảng Ngành hàng DT"
+                            >
+                              <Camera size={12} />
+                            </button>
+                          </div>
                         </div>
                         <div className="p-4 flex flex-col items-center justify-center">
                           <h2 className="text-xl font-black text-rose-600 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">DỰ KIẾN</h2>
