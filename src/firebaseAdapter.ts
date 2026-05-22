@@ -46,6 +46,11 @@ class FirebaseQueryBuilder {
     return this;
   }
 
+  ilike(column: string, value: string) {
+    this.constraints.push(where(column, '==', value));
+    return this;
+  }
+
   in(column: string, values: any[]) {
     // Include both string and number versions for type-flexible matching
     const expanded: any[] = [];
@@ -347,7 +352,20 @@ export const firebaseAdapter = {
         if (filterStr) {
           try {
             const [col, valPart] = filterStr.split('=eq.');
-            q = query(q, where(col, '==', valPart));
+            if (valPart !== undefined) {
+              const cleanVal = valPart.trim();
+              const values: any[] = [cleanVal];
+              const num = Number(cleanVal);
+              if (!isNaN(num) && cleanVal !== '') {
+                values.push(num);
+              }
+              const uniqueValues = [...new Set(values)];
+              if (uniqueValues.length > 1) {
+                q = query(q, where(col, 'in', uniqueValues));
+              } else {
+                q = query(q, where(col, '==', uniqueValues[0]));
+              }
+            }
           } catch(e) {}
         }
 

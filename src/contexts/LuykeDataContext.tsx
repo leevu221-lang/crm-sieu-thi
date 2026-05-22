@@ -21,6 +21,7 @@ import {
   extractSection,
   isValidStoreName,
   normalize,
+  isKhoLuuDong,
   safeSetItem
 } from '../pages/RTST/utils';
 
@@ -61,6 +62,33 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [categoryTargets, setCategoryTargets] = useState<any[]>([]);
   const [activeStore, setActiveStore] = useState<string>(maKho);
   const [allStoresCache, setAllStoresCache] = useState(() => globalAllStoresCache);
+
+  const [processedData, setProcessedData] = useState<{
+    markets: MarketInfo[];
+    categories: CategoryData[];
+    staff: any[];
+  }>({
+    markets: [],
+    categories: [],
+    staff: []
+  });
+
+  const [isSavingStaff, setIsSavingStaff] = useState(false);
+  const [isSavingTargets, setIsSavingTargets] = useState(false);
+  const [isProcessingSave, setIsProcessingSave] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadedFromDB, setHasLoadedFromDB] = useState(false);
+  const skipSubscriptionRef = useRef(0); // Timestamp: ignore subscription until this time
+  const skipAutoSaveRef = useRef(false);
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const documentIdsRef = useRef<Record<string, string>>({});
+  // Store DB-loaded targets so the auto-process useEffect can use them
+  // instead of relying on stale closure from setTimeout
+  const dbLoadedTargetsRef = useRef<any[] | null>(null);
+  // Ref always pointing to the LATEST saveLuykeData to avoid stale closures
+  // (critical for clearField which needs to save AFTER state update)
+  const saveLuykeDataRef = useRef<((isSilent?: boolean, source?: 'staff' | 'targets' | 'auto' | string, storeName?: string, overrideTargets?: any[], fieldName?: string) => Promise<void>) | null>(null);
+
 
   const updateAllStoresCache = useCallback((updater: any) => {
     setAllStoresCache(prev => {
@@ -127,35 +155,10 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     console.log(`[LuykeData] AUTO-REACT: currentStoreId changed → "${currentStoreId}"`);
     setActiveStore(currentStoreId);
     loadData(currentStoreId);
-  }, [currentStoreId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentStoreId, rawMaKho, hasLoadedFromDB]);
 
-  const [processedData, setProcessedData] = useState<{
-    markets: MarketInfo[];
-    categories: CategoryData[];
-    staff: any[];
-  }>({
-    markets: [],
-    categories: [],
-    staff: []
-  });
 
-  const [isSavingStaff, setIsSavingStaff] = useState(false);
-  const [isSavingTargets, setIsSavingTargets] = useState(false);
-  const [isProcessingSave, setIsProcessingSave] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasLoadedFromDB, setHasLoadedFromDB] = useState(false);
-  const skipSubscriptionRef = useRef(0); // Timestamp: ignore subscription until this time
-  const skipAutoSaveRef = useRef(false);
-  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const documentIdsRef = useRef<Record<string, string>>({});
-  // Store DB-loaded targets so the auto-process useEffect can use them
-  // instead of relying on stale closure from setTimeout
-  const dbLoadedTargetsRef = useRef<any[] | null>(null);
-  // Ref always pointing to the LATEST saveLuykeData to avoid stale closures
-  // (critical for clearField which needs to save AFTER state update)
-  const saveLuykeDataRef = useRef<((isSilent?: boolean, source?: 'staff' | 'targets' | 'auto', storeName?: string, overrideTargets?: any[]) => Promise<void>) | null>(null);
-
-  const saveLuykeData = useCallback(async (isSilent: boolean = false, source: 'staff' | 'targets' | 'auto' = 'auto', storeName?: string, overrideTargets?: any[]) => {
+  const saveLuykeData = useCallback(async (isSilent: boolean = false, source: 'staff' | 'targets' | 'auto' | string = 'auto', storeName?: string, overrideTargets?: any[], fieldName?: string) => {
     const cleanStore = (storeName || activeStore || '').trim();
 
     if (!rawMaKho || !cleanStore || !isValidStoreName(cleanStore)) {
@@ -174,17 +177,9 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     globalPendingSaves.add(cleanStore);
 
     try {
-      // 1. Fetch existing data directly using active store name as the unique document ID
-      const { data: existingData } = await supabase
-        .from('store')
-        .select('*')
-        .eq('id', cleanStore.trim())
-        .maybeSingle();
-
       const targetsToSave = overrideTargets || categoryTargetsRef.current;
 
       const payload: any = {
-        ...(existingData || {}),
         id: cleanStore.trim(), // The Supermarket Name as the unique Document ID / Primary Key!
         warehouse_code: shortMaKho,
         ten_sieu_thi: cleanStore,
@@ -199,23 +194,11 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (staffCategoryInputRef.current !== undefined) payload.lk_td_nv = staffCategoryInputRef.current;
       if (staffListInputRef.current !== undefined) payload.ds_nhan_vien = staffListInputRef.current;
       
-      // Only include these other fields if they were loaded and set in active state or exist in existingData
+      // Only include these other fields if they were loaded and set in active state
       if (dtGioCongRef.current !== undefined && dtGioCongRef.current !== '') payload.dt_gio_cong = dtGioCongRef.current;
-      else if (existingData?.dt_gio_cong) payload.dt_gio_cong = existingData.dt_gio_cong;
-
       if (dataPhanCaRef.current !== undefined && dataPhanCaRef.current !== null) payload.data_phan_ca = dataPhanCaRef.current;
-      else if (existingData?.data_phan_ca) payload.data_phan_ca = existingData.data_phan_ca;
-
-      if (tragopMatranRef.current) payload.tragop_matran = tragopMatranRef.current;
-      else if (existingData?.tragop_matran) payload.tragop_matran = existingData.tragop_matran;
-
-      if (tragopNvRef.current) payload.tragop_nv = tragopNvRef.current;
-      else if (existingData?.tragop_nv) payload.tragop_nv = existingData.tragop_nv;
-
-      // Preserve other context-loaded fields without ever overwriting with null
-      if (existingData?.taget_doanh_thu) payload.taget_doanh_thu = existingData.taget_doanh_thu;
-      if (existingData?.ban_kem_nv) payload.ban_kem_nv = existingData.ban_kem_nv;
-      if (existingData?.phuc_vu) payload.phuc_vu = existingData.phuc_vu;
+      if (tragopMatranRef.current !== undefined && tragopMatranRef.current !== '') payload.tragop_matran = tragopMatranRef.current;
+      if (tragopNvRef.current !== undefined && tragopNvRef.current !== '') payload.tragop_nv = tragopNvRef.current;
 
       const { error } = await supabase
         .from('store')
@@ -262,10 +245,13 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return newCache;
       });
 
-      if (!isSilent) showNotification('Lưu dữ liệu Luỹ kế thành công!', 'success');
+      if (!isSilent) {
+        const msg = fieldName ? `Lưu dữ liệu ${fieldName} thành công!` : 'Lưu dữ liệu Luỹ kế thành công!';
+        showNotification(msg, 'success');
+      }
     } catch (error: any) {
       console.error('Lỗi lưu dữ liệu Luỹ kế:', error);
-      let message = `Lỗi lưu dữ liệu Luỹ kế: ${error.message}`;
+      let message = fieldName ? `Lỗi lưu dữ liệu ${fieldName}: ${error.message}` : `Lỗi lưu dữ liệu Luỹ kế: ${error.message}`;
       if (error.message?.includes('violates row-level security policy')) {
         message = 'Lỗi bảo mật (RLS): Bạn không có quyền lưu dữ liệu cho siêu thị này hoặc cấu hình Supabase chưa cho phép ghi dữ liệu.';
       }
@@ -279,7 +265,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setIsProcessingSave(false);
       globalPendingSaves.delete(cleanStore);
     }
-  }, [rawMaKho, shortMaKho, warehouseCodes, activeStore, clusterSummaryInput, clusterCategoryInput, staffInput, staffCategoryInput, staffListInput, dtGioCong, dataPhanCa, tragopMatran, tragopNv, categoryTargets, showNotification]);
+  }, [rawMaKho, shortMaKho, warehouseCodes, activeStore, showNotification]);
 
   // Keep the ref always pointing to the LATEST saveLuykeData
   useEffect(() => {
@@ -306,15 +292,32 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           dtHomQua: 0, percentHT: 0, isExplicitTarget: false 
         } as MarketInfo] : []);
       
-      // Parse category data from both inputs in LUYKE mode
-      // Targets and Revenues from the detail tables are ALWAYS per-store. 
-      // Force the activeStore to ensure correct marketName association, circumventing the cluster list.
-      const targetMarkets = activeStore && activeStore !== 'ALL' 
-        ? [{ name: activeStore, targetST: 0, actualReal: 0, actualVirtual: 0, dtHomQua: 0, percentHT: 0, isExplicitTarget: false } as MarketInfo]
-        : effectiveMarkets;
+      // Parse category data from both inputs in LUYKE mode.
+      // We pass the full list of effective markets in the cluster, but with activeStore prioritized at index 0
+      // to act as the default fallback for parseCategoryData when no header matches. This allows the parser
+      // to correctly detect headers for and group categories by their respective cluster stores, rather than
+      // forcing everything into a single active store.
+      const marketsForParsing = [...effectiveMarkets];
+      if (activeStore && activeStore !== 'ALL') {
+        const activeIdx = marketsForParsing.findIndex(m => normalize(m.name) === normalize(activeStore));
+        if (activeIdx !== -1) {
+          const [activeMarket] = marketsForParsing.splice(activeIdx, 1);
+          marketsForParsing.unshift(activeMarket);
+        } else {
+          marketsForParsing.unshift({
+            name: activeStore,
+            targetST: 0,
+            actualReal: 0,
+            actualVirtual: 0,
+            dtHomQua: 0,
+            percentHT: 0,
+            isExplicitTarget: false
+          } as MarketInfo);
+        }
+      }
         
-      const categoriesRev = parseCategoryData(summaryToUse, 0, 30, targetMarkets, 'LUYKE');
-      const categoriesTarget = parseCategoryData(categoryToUse, 0, 30, targetMarkets, 'LUYKE');
+      const categoriesRev = parseCategoryData(summaryToUse, 0, 30, marketsForParsing, 'LUYKE');
+      const categoriesTarget = parseCategoryData(categoryToUse, 0, 30, marketsForParsing, 'LUYKE');
       
       console.log(`[DEBUG] handleProcess categoriesRev parsed: ${categoriesRev.length}`, categoriesRev.slice(0, 3));
       console.log(`[DEBUG] handleProcess categoriesTarget parsed: ${categoriesTarget.length}`, categoriesTarget.slice(0, 3));
@@ -335,9 +338,12 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       const staff = staffToUse ? parseStaffRankData(staffToUse) : [];
 
+      const filteredMarkets = markets.filter(m => !isKhoLuuDong(m.name));
+      const filteredCategories = categories.filter(c => !c.marketName || !isKhoLuuDong(c.marketName));
+
       setProcessedData({
-        markets,
-        categories,
+        markets: filteredMarkets,
+        categories: filteredCategories,
         staff
       });
 
@@ -588,20 +594,13 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         cachedData.staffInput || ''
       );
     } else {
-      setClusterSummaryInput('');
-      setClusterCategoryInput('');
-      setStaffInput('');
-      setStaffCategoryInput('');
-      setStaffListInput('');
-      setDtGioCong('');
-      setDataPhanCa(null);
-      setTragopMatran('');
-      setTragopNv('');
-      setCategoryTargets([]);
+      // Keep previous data during fetch to prevent layout collapse/flicker.
+      // Fields will be updated or cleared once the Supabase query resolves.
     }
     
     // Block auto-save + cancel pending
     setIsLoading(true);
+    setHasLoadedFromDB(false);
     if (autoSaveTimeoutRef.current) { clearTimeout(autoSaveTimeoutRef.current); autoSaveTimeoutRef.current = null; }
     skipAutoSaveRef.current = true;
     skipSubscriptionRef.current = Date.now() + 2000;
@@ -611,11 +610,41 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     
     try {
       // Query directly using the selected store name as the unique document ID
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('store')
         .select('id, lk_bi_tong_quan, lk_nh_sieu_thi, lk_dt_nv, lk_td_nv, ds_nhan_vien, dt_gio_cong, data_phan_ca, tragop_matran, tragop_nv, category_targets, ten_sieu_thi, updated_at, taget_doanh_thu, ban_kem_nv, phuc_vu')
         .eq('id', targetStore.trim())
         .maybeSingle();
+      
+      // FALLBACK: If no document found by ID, try querying by warehouse_code + match ten_sieu_thi
+      // This handles old documents with warehouse_code as ID, or different naming formats
+      if (!data && rawMaKho) {
+        console.log(`[LuykeData] ⚠️ No doc found by ID="${targetStore}", trying warehouse_code fallback...`);
+        const maKhoNum = parseInt(rawMaKho, 10);
+        const { data: allStoreData } = await supabase
+          .from('store')
+          .select('id, lk_bi_tong_quan, lk_nh_sieu_thi, lk_dt_nv, lk_td_nv, ds_nhan_vien, dt_gio_cong, data_phan_ca, tragop_matran, tragop_nv, category_targets, ten_sieu_thi, updated_at, taget_doanh_thu, ban_kem_nv, phuc_vu')
+          .or(!isNaN(maKhoNum) 
+            ? `warehouse_code.eq.${rawMaKho},warehouse_code.eq.${maKhoNum}`
+            : `warehouse_code.eq.${rawMaKho}`);
+        if (allStoreData) {
+          const arr = Array.isArray(allStoreData) ? allStoreData : [allStoreData];
+          const cleanTarget = targetStore.trim().toUpperCase();
+          // First try exact match on ten_sieu_thi or id
+          const exactMatch = arr.find(d => 
+            (d.ten_sieu_thi || '').trim().toUpperCase() === cleanTarget ||
+            (d.id || '').trim().toUpperCase() === cleanTarget
+          );
+          // Fallback: partial match (store name contains target prefix or vice versa)
+          const partialMatch = !exactMatch && arr.find(d =>
+            cleanTarget.includes((d.ten_sieu_thi || d.id || '').trim().toUpperCase().split(' - ')[0]) ||
+            (d.ten_sieu_thi || d.id || '').trim().toUpperCase().includes(cleanTarget.split(' - ')[0])
+          );
+          data = exactMatch || partialMatch || (arr.length === 1 ? arr[0] : null);
+          if (data) console.log(`[LuykeData] ✓ Fallback found doc: "${data.id || data.ten_sieu_thi}"`);
+          else console.log(`[LuykeData] ✗ No match found in ${arr.length} warehouse docs`);
+        }
+      }
       
       if (error) console.error('[LuykeData] Query error:', error);
       
@@ -796,9 +825,14 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 });
               }
               if (record.category_targets && Array.isArray(record.category_targets)) {
-                setCategoryTargets(record.category_targets);
+                setCategoryTargets((prev) => {
+                  if (JSON.stringify(prev) !== JSON.stringify(record.category_targets)) {
+                    return record.category_targets;
+                  }
+                  return prev;
+                });
               } else if (record.category_targets === null) {
-                setCategoryTargets([]);
+                setCategoryTargets((prev) => prev.length === 0 ? prev : []);
               }
           }
         }

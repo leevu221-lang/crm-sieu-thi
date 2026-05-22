@@ -3,8 +3,9 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const getEnvVar = (name: string) => {
-  const viteVar = (import.meta as any).env[`VITE_${name}`];
-  const directVar = (import.meta as any).env[name];
+  const envObj = (import.meta as any).env || {};
+  const viteVar = envObj[`VITE_${name}`];
+  const directVar = envObj[name];
   const processVar = typeof process !== 'undefined' ? process.env[`VITE_${name}`] || process.env[name] : undefined;
   
   return (viteVar || directVar || processVar || '').trim();

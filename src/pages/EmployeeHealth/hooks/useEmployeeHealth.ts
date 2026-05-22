@@ -43,27 +43,68 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         ? `warehouse_code.eq.${maKho},warehouse_code.eq.${maKhoNum}`
         : `warehouse_code.eq.${maKho}`;
 
-      let rtQuery = supabase
-        .from('store')
-        .select('ycx_rt, ten_sieu_thi, updated_at')
-        .or(warehouseFilter);
-        
-      const targetStore = storeName || maKho;
-      let lkQuery = supabase
-        .from('store')
-        .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, ten_sieu_thi, updated_at')
-        .eq('id', targetStore.trim());
+      let rtQuery;
+      let lkQuery;
 
-      // PERF: Fetch exact store data if available to prevent downloading megabytes of data for the whole cluster
       if (storeName && storeName !== 'ALL') {
+        // Single store mode: query directly by store name (document ID / ten_sieu_thi)
+        // This avoids composite index requirements and case-sensitive ilike issues
         const cleanStore = storeName.trim();
-        rtQuery = rtQuery.ilike('ten_sieu_thi', cleanStore);
+        rtQuery = supabase
+          .from('store')
+          .select('ycx_rt, ten_sieu_thi, updated_at')
+          .eq('ten_sieu_thi', cleanStore);
+        lkQuery = supabase
+          .from('store')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, ten_sieu_thi, updated_at')
+          .eq('id', cleanStore);
+      } else {
+        // ALL stores mode: query by warehouse_code
+        rtQuery = supabase
+          .from('store')
+          .select('ycx_rt, ten_sieu_thi, updated_at')
+          .or(warehouseFilter);
+        lkQuery = supabase
+          .from('store')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, ten_sieu_thi, updated_at')
+          .or(warehouseFilter);
       }
+
+      console.log(`[EmployeeHealth] fetchAndMergeData → storeName="${storeName}", maKho="${maKho}"`);
 
       const [
         { data: rtDataArrRaw, error: rtError }, 
         { data: lkDataArrRaw, error: lkError }
       ] = await Promise.all([rtQuery, lkQuery]);
+
+      console.log(`[EmployeeHealth] rtDataArrRaw:`, rtDataArrRaw, 'rtError:', rtError);
+      console.log(`[EmployeeHealth] lkDataArrRaw:`, lkDataArrRaw, 'lkError:', lkError);
+
+      // Normalize: maybeSingle() returns object, query returns array - handle both
+      const normalizeToArray = (d: any): any[] => {
+        if (!d) return [];
+        if (Array.isArray(d)) return d;
+        return [d];
+      };
+
+      // Fallback: if single-store lk query returned nothing, query by warehouse_code
+      // This handles edge cases where document doesn't exist or ID mismatch
+      let effectiveLkDataArr = normalizeToArray(lkDataArrRaw);
+      if (storeName && storeName !== 'ALL' && effectiveLkDataArr.length === 0) {
+        console.log(`[EmployeeHealth] lkQuery by ID returned empty, falling back to warehouse_code query...`);
+        const { data: fallbackData } = await supabase
+          .from('store')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, ten_sieu_thi, updated_at')
+          .or(warehouseFilter);
+        console.log(`[EmployeeHealth] Fallback lk data:`, fallbackData);
+        if (fallbackData) {
+          const arr = normalizeToArray(fallbackData);
+          const cleanStore = storeName.trim().toUpperCase();
+          const match = arr.filter(d => (d.ten_sieu_thi || d.id || '').trim().toUpperCase() === cleanStore);
+          effectiveLkDataArr = match.length > 0 ? match : arr;
+          console.log(`[EmployeeHealth] Using fallback data (${effectiveLkDataArr.length} records)`);
+        }
+      }
 
       // Sort client-side by updated_at descending
       const sortByUpdated = (arr: any[]) => [...arr].sort((a: any, b: any) => {
@@ -71,8 +112,12 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         const bTime = b.updated_at ? new Date(b.updated_at).getTime() : 0;
         return bTime - aTime;
       });
-      const rtDataArr = rtDataArrRaw ? sortByUpdated(rtDataArrRaw) : null;
-      const lkDataArr = lkDataArrRaw ? sortByUpdated(lkDataArrRaw) : null;
+
+      const rtDataArr = sortByUpdated(normalizeToArray(rtDataArrRaw));
+      const lkDataArr = sortByUpdated(effectiveLkDataArr);
+
+      console.log(`[EmployeeHealth] rtDataArr (${rtDataArr.length}):`, rtDataArr.map(r => r.ten_sieu_thi));
+      console.log(`[EmployeeHealth] lkDataArr (${lkDataArr.length}):`, lkDataArr.map(r => r.id || r.ten_sieu_thi));
 
       // Pick the correct store record from the results
       let lkData: any = null;
@@ -85,24 +130,45 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       }
 
       if (rtDataArr && rtDataArr.length > 0) {
-        if (storeName && storeName !== 'ALL') {
-          const normStore = storeName.trim().toUpperCase();
-          rtData = rtDataArr.find((r: any) => (r.ten_sieu_thi || '').trim().toUpperCase() === normStore) || rtDataArr[0];
-        } else {
-          rtData = rtDataArr[0];
-        }
+        // In single-store mode, the query already filtered by ten_sieu_thi, so just take first result
+        // In ALL mode, take first (most recently updated)
+        rtData = rtDataArr[0];
       }
 
       if (rtError) console.error('[EmployeeHealth] RT Error:', rtError);
       if (lkError) console.error('[EmployeeHealth] LK Error:', lkError);
       
-      const ycxRaw = rtData?.ycx_rt || '';
-      const lkRaw = lkData?.lk_dt_nv || '';
-      const lkNhRaw = globalLuyKe?.lk_nh_sieu_thi || lkDataArr?.find((r: any) => r.lk_nh_sieu_thi)?.lk_nh_sieu_thi || ''; // fallback to legacy
-      const lkTdRaw = lkData?.lk_td_nv || '';
-      const phucVuRaw = lkData?.phuc_vu || '';
-      const banKemNvRaw = lkData?.ban_kem_nv || '';
-      const tenSieuThiVal = lkData?.ten_sieu_thi || rtData?.ten_sieu_thi || storeName || '';
+      const isAllMode = !storeName || storeName === 'ALL';
+
+      const ycxRaw = isAllMode
+        ? (rtDataArr || []).map(r => r.ycx_rt || '').filter(Boolean).join('\n')
+        : (rtData?.ycx_rt || '');
+
+      const lkRaw = isAllMode
+        ? (lkDataArr || []).map(r => r.lk_dt_nv || '').filter(Boolean).join('\n')
+        : (lkData?.lk_dt_nv || '');
+
+      const lkNhRaw = isAllMode
+        ? (lkDataArr || []).map(r => r.lk_nh_sieu_thi || '').filter(Boolean).join('\n')
+        : (globalLuyKe?.lk_nh_sieu_thi || lkDataArr?.find((r: any) => r.lk_nh_sieu_thi)?.lk_nh_sieu_thi || '');
+
+      const lkTdRaw = isAllMode
+        ? (lkDataArr || []).map(r => r.lk_td_nv || '').filter(Boolean).join('\n')
+        : (lkData?.lk_td_nv || '');
+
+      const phucVuRaw = isAllMode
+        ? (lkDataArr || []).map(r => r.phuc_vu || '').filter(Boolean).join('\n')
+        : (lkData?.phuc_vu || '');
+
+      const banKemNvRaw = isAllMode
+        ? (lkDataArr || []).map(r => r.ban_kem_nv || '').filter(Boolean).join('\n')
+        : (lkData?.ban_kem_nv || '');
+
+      const tenSieuThiVal = isAllMode
+        ? 'TẤT CẢ SIÊU THỊ'
+        : (lkData?.ten_sieu_thi || rtData?.ten_sieu_thi || storeName || '');
+
+      console.log(`[EmployeeHealth] lkRaw length: ${lkRaw.length}, ycxRaw length: ${ycxRaw.length}, lkNhRaw: ${lkNhRaw.length}`);
 
       setLuyKeNganhHang(lkNhRaw);
       setThiDuaNv(lkTdRaw);
@@ -134,10 +200,14 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         return staff;
       });
 
+      console.log(`[EmployeeHealth] biData: ${biData.length} staff, mergedBiData: ${mergedBiData.length} staff`);
+
       // Update global cache
       const tKey = storeName || maKho;
       globalHealthCache[tKey] = {
         biRevenueData: mergedBiData,
+        ycxRaw,
+        lkRaw,
         luyKeNganhHang: lkNhRaw,
         thiDuaNv: lkTdRaw,
         phucVu: phucVuRaw,
@@ -169,6 +239,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     }, 500); // 500ms debounce for fast sync
   }, []);
 
+  // Effect 1: Cache-first UI update and immediate fetch on store name changes
   useEffect(() => {
     if (!maKho) return;
     
@@ -184,49 +255,65 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       setTenSieuThi(cached.tenSieuThi);
       if (!banKemDirtyRef.current) setBanKemNvInternal(cached.banKemNv);
     } else {
-      // Clear state immediately to prevent stale data flash during store switch
-      setBiRevenueData([]);
-      setLuyKeNganhHang('');
-      setThiDuaNv('');
-      setPhucVu('');
-      setTenSieuThi('');
-      if (!banKemDirtyRef.current) setBanKemNvInternal('');
+      // Keep previous data during fetch to prevent layout collapse/flicker.
+      // Fields will be updated or cleared once the Supabase query resolves.
     }
     
     // Reset dirty flag when switching stores to avoid stale banKemNv
     banKemDirtyRef.current = false;
     hasLoadedRef.current = false;
-    fetchRef.current();
+    
+    // Execute data fetch directly with latest closure
+    fetchAndMergeData();
+  }, [maKho, storeName, fetchAndMergeData]);
+
+  // Effect 2: Manage realtime subscription channel for the current store
+  useEffect(() => {
+    if (!maKho) return;
 
     const cleanMaKho = maKho.trim().replace(/^0+/, '');
 
-    // PERF: Add warehouse_code filter to subscriptions (previously listened to ALL table changes)
-    const rtChannel = supabase
+    // PERF: Subscriptions consolidated and filtered by specific columns we monitor
+    const ehChannel = supabase
       .channel(`eh_store_${cleanMaKho}_${storeName || 'all'}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'store', filter: `warehouse_code=eq.${cleanMaKho}` },
-        () => {
-          debouncedRefetch();
-        }
-      )
-      .subscribe();
+        (payload: any) => {
+          if (payload.new) {
+            const record = payload.new as any;
+            const recordStore = record.ten_sieu_thi || '';
+            const normRecordStore = recordStore.trim().toUpperCase();
+            const normActiveStore = (storeName || '').trim().toUpperCase();
+            if (normRecordStore && normActiveStore && normRecordStore !== normActiveStore) return;
 
-    const lkChannel = supabase
-      .channel(`eh_store_${cleanMaKho}_${storeName || 'all'}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'store', filter: `warehouse_code=eq.${cleanMaKho}` },
-        () => {
-          debouncedRefetch();
+            const tKey = storeName || maKho;
+            const cached = globalHealthCache[tKey];
+            if (!cached) {
+              debouncedRefetch();
+              return;
+            }
+
+            const hasChanged = 
+              (record.ycx_rt !== undefined && record.ycx_rt !== (cached.ycxRaw || '')) ||
+              (record.lk_dt_nv !== undefined && record.lk_dt_nv !== (cached.lkRaw || '')) ||
+              (record.lk_nh_sieu_thi !== undefined && record.lk_nh_sieu_thi !== (cached.luyKeNganhHang || '')) ||
+              (record.lk_td_nv !== undefined && record.lk_td_nv !== (cached.thiDuaNv || '')) ||
+              (record.phuc_vu !== undefined && record.phuc_vu !== (cached.phucVu || '')) ||
+              (!banKemDirtyRef.current && record.ban_kem_nv !== undefined && record.ban_kem_nv !== (cached.banKemNv || ''));
+
+            if (hasChanged) {
+              console.log('[EmployeeHealth] Monitored column change detected, refetching...');
+              debouncedRefetch();
+            }
+          }
         }
       )
       .subscribe();
 
     return () => {
       if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
-      supabase.removeChannel(rtChannel);
-      supabase.removeChannel(lkChannel);
+      supabase.removeChannel(ehChannel);
     };
   }, [maKho, storeName, debouncedRefetch]);
 

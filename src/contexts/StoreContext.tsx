@@ -93,10 +93,14 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [availableStores, setAvailableStoresRaw] = useState<StoreInfo[]>([]);
   const [storeVersion, setStoreVersion] = useState(0);
 
+  // Keep a mutable ref to track currently loaded store names to skip redundant state changes
+  const currentStoresRef = useRef<string[]>([]);
+
   // Load declared stores from database based on warehouseCode
   useEffect(() => {
     if (!warehouseCode) {
       setAvailableStoresRaw([]);
+      currentStoresRef.current = [];
       return;
     }
 
@@ -142,9 +146,20 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             .filter((name: string) => name && name.trim() && isValidStoreName(name))
             .map((name: string) => ({ name: name.trim() }));
 
-          console.log('[StoreContext] Successfully loaded declared stores from DB:', uniqueStores);
-          setAvailableStoresRaw(uniqueStores);
+          const uniqueNames = uniqueStores.map(s => s.name);
+          currentStoresRef.current = uniqueNames;
+
+          console.log('[StoreContext] Loaded declared stores from DB:', uniqueStores);
+          setAvailableStoresRaw(prev => {
+            const hasChanged = prev.length !== uniqueStores.length ||
+              prev.some((store, idx) => store.name !== uniqueStores[idx].name);
+            if (hasChanged) {
+              return uniqueStores;
+            }
+            return prev;
+          });
         } else {
+          currentStoresRef.current = [];
           setAvailableStoresRaw([]);
         }
       } catch (err) {
@@ -165,9 +180,22 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           table: 'store',
           filter: `warehouse_code=eq.${cleanMaKho}`
         },
-        () => {
-          console.log('[StoreContext] Real-time change detected in store, refetching...');
-          fetchDeclaredStores();
+        (payload) => {
+          const { eventType, new: newRow } = payload;
+          if (eventType === 'INSERT' || eventType === 'DELETE') {
+            console.log('[StoreContext] Real-time structural change (INSERT/DELETE), refetching...');
+            fetchDeclaredStores();
+          } else if (eventType === 'UPDATE') {
+            const newDeclared = newRow?.declared_stores;
+            if (Array.isArray(newDeclared)) {
+              const hasChanged = newDeclared.length !== currentStoresRef.current.length ||
+                newDeclared.some((val, idx) => val !== currentStoresRef.current[idx]);
+              if (hasChanged) {
+                console.log('[StoreContext] Real-time declared_stores update detected, refetching...');
+                fetchDeclaredStores();
+              }
+            }
+          }
         }
       )
       .subscribe();

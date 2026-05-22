@@ -6,7 +6,7 @@
 import React from 'react';
 import { Camera, Target, TrendingUp, BarChart3, Zap, Store, Smartphone, Watch, Monitor, Globe } from 'lucide-react';
 import { MarketInfo } from '../types';
-import { formatRealtimeDate, cn, formatShortCurrency, isValidStoreName, normalize } from '../utils';
+import { formatRealtimeDate, cn, formatShortCurrency, isValidStoreName, normalize, isKhoLuuDong } from '../utils';
 import Dashboard from './Dashboard';
 
 import CategoryTable from './CategoryTable';
@@ -69,7 +69,11 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
     return <Store size={20} />;
   };
 
-  const validMarkets = markets.filter(m => isValidStoreName(m.name) && m.name.trim() !== '104');
+  const validMarkets = markets.filter(m => 
+    isValidStoreName(m.name) && 
+    m.name.trim() !== '104' && 
+    !normalize(m.name || '').includes('kho ban hang luu dong')
+  );
   const filteredMarkets = validMarkets.filter(m => 
     marketFilter === 'ALL' || 
     normalize(m.name).includes(normalize(marketFilter)) || 

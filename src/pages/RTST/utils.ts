@@ -223,6 +223,25 @@ export const normalize = (s: string) => {
   return basic.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
 };
 
+export const isKhoLuuDong = (name: string): boolean => {
+  if (!name) return false;
+  const n = name.toLowerCase();
+  if (
+    n.includes('lưu động') ||
+    n.includes('luu dong') ||
+    n.includes('kho bán hàng') ||
+    n.includes('kho ban hang')
+  ) {
+    return true;
+  }
+  const norm = normalize(name);
+  return (
+    norm.includes('kho ban hang luu dong') ||
+    norm.includes('luu dong') ||
+    norm.includes('kho ban hang')
+  );
+};
+
 export const cleanNum = (s: string | number | null | undefined): number => {
   if (s === null || s === undefined) return 0;
   if (typeof s === 'number') return s;
@@ -801,7 +820,11 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
   });
   
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    let line = lines[i];
+    // Strip leading row numbers (like "1.", "1. ", "1\t", "1 ") safely
+    line = line.replace(/^\d+[\.\t]\s*/, '');
+    line = line.replace(/^\d+\s+(?!\d)/, '');
+    
     const normLine = normalize(line);
     const cols = line.split(/\t|\s{2,}/).map(c => c.trim());
     

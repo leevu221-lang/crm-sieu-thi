@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
-import { Store, ArrowRight, Save, Loader2, Sparkles, LayoutGrid } from 'lucide-react';
+import { Store, ArrowRight, Save, Loader2, Sparkles, LayoutGrid, Info, CheckCircle2, Copy, Check } from 'lucide-react';
 import { isValidStoreName } from './RTST/utils';
 
 interface StoreDeclarationProps {
@@ -20,6 +20,13 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyExample = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   // Load existing declared stores on mount
   useEffect(() => {
@@ -208,139 +215,232 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4 font-sans selection:bg-indigo-100 selection:text-indigo-900">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4 sm:p-6 md:p-8 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       <motion.div 
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', damping: 25, stiffness: 120 }}
-        className="w-full max-w-lg bg-white rounded-[32px] shadow-2xl shadow-indigo-100/50 p-8 sm:p-10 border border-slate-100 relative overflow-hidden"
+        className="w-full max-w-4xl bg-white rounded-[32px] shadow-2xl shadow-indigo-100/50 p-6 sm:p-8 md:p-10 border border-slate-100 relative overflow-hidden"
       >
         {/* Background decorative glow */}
-        <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-50 rounded-full blur-3xl -z-10 opacity-70" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-50 rounded-full blur-3xl -z-10 opacity-50" />
+        <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-50/70 rounded-full blur-3xl -z-10" />
+        <div className="absolute bottom-0 left-0 w-72 h-72 bg-emerald-50/50 rounded-full blur-3xl -z-10" />
 
-        <div className="text-center mb-8">
-          <div className="inline-flex p-3.5 bg-indigo-50 text-indigo-600 rounded-2xl mb-4 shadow-inner">
-            <Store size={26} strokeWidth={2.2} />
-          </div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight uppercase">
-            Khai báo tên siêu thị
-          </h1>
-          <p className="text-xs text-slate-400 font-semibold tracking-wider uppercase mt-2">
-            Mã kho đăng nhập: <span className="text-indigo-600 font-black">{maKho}</span>
-          </p>
-        </div>
-
-        {statusMessage && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            className={`mb-6 p-4 rounded-2xl border flex items-start gap-3 text-sm font-bold ${
-              statusMessage.type === 'success' 
-                ? 'bg-emerald-50 border-emerald-100 text-emerald-600' 
-                : 'bg-red-50 border-red-100 text-red-600'
-            }`}
-          >
-            {statusMessage.type === 'success' ? (
-              <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5 animate-bounce">
-                <svg className="w-3 h-3 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                </svg>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+          {/* Left Column: Guidance (5 cols) */}
+          <div className="lg:col-span-5 bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-2xl p-6 border border-slate-200/60 flex flex-col justify-between relative overflow-hidden">
+            {/* Top decorative gradient bar */}
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600" />
+            
+            <div className="space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-100/60 text-indigo-600 rounded-xl">
+                  <Sparkles size={20} className="animate-pulse" />
+                </div>
+                <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider">
+                  Hướng dẫn khai báo
+                </h2>
               </div>
-            ) : (
-              <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
-                <span className="text-xs font-black">!</span>
-              </div>
-            )}
-            <p>{statusMessage.text}</p>
-          </motion.div>
-        )}
 
-        <div className="space-y-5">
-          {/* Siêu thị 1 */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-center px-1">
-              <label className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                Siêu thị 1 <span className="text-indigo-500 font-black">*</span>
-              </label>
-              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase">Cơ sở chính</span>
+              <div className="space-y-5">
+                <div className="p-5 bg-red-50/40 rounded-2xl border border-red-200/80 shadow-sm relative group hover:border-red-300 transition-colors duration-300">
+                  <div className="absolute -top-3 left-4 bg-red-600 text-white text-[10px] sm:text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
+                    <Info size={12} className="shrink-0" />
+                    <span>Lưu ý quan trọng</span>
+                  </div>
+                  <p className="text-sm sm:text-base md:text-lg font-black text-red-700 leading-relaxed mt-1">
+                    Anh / chị vui lòng nhập đúng tên siêu thị trên BI hoặc mở BC Tổng Hợp copy tên siêu thị dán vào ạ.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-wider pl-1">
+                    Cú pháp chuẩn trên BI
+                  </h3>
+                  <div className="p-4 bg-slate-900 text-slate-100 rounded-2xl font-mono text-[11px] sm:text-xs relative group overflow-hidden border border-slate-800">
+                    <div className="flex justify-between items-center mb-2 text-[10px] text-slate-500 font-sans font-bold uppercase tracking-wider">
+                      <span>Ví dụ mẫu</span>
+                      <span className="text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 size={10} />
+                        Hợp lệ
+                      </span>
+                    </div>
+                    <code className="block text-indigo-300 font-bold select-all whitespace-pre-wrap break-all leading-relaxed">
+                      ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH
+                    </code>
+                    
+                    <button
+                      onClick={() => handleCopyExample('ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH')}
+                      className="absolute right-3 top-3 p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded-lg transition-colors border border-slate-700/60"
+                      title="Sao chép tên ví dụ"
+                    >
+                      {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                    </button>
+                    
+                    {copied && (
+                      <span className="absolute right-12 top-4 text-[9px] font-bold text-emerald-400 bg-slate-800 px-2 py-0.5 rounded shadow border border-slate-700/40">
+                        Đã sao chép!
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-wider pl-1">
+                    Các lưu ý cần biết
+                  </h3>
+                  <ul className="space-y-3 text-xs font-semibold text-slate-500 leading-normal">
+                    <li className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0" />
+                      <span>Không tự ý viết tắt tên tỉnh thành hoặc bỏ bớt địa chỉ.</span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0" />
+                      <span>Mở BC Tổng Hợp để copy chính xác từng khoảng trắng và ký tự đặc biệt.</span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0" />
+                      <span>Có thể nhập từ 1 đến tối đa 3 siêu thị thuộc quyền quản lý của anh/chị.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
-                <Store size={18} />
-              </div>
-              <input
-                type="text"
-                value={store1}
-                onChange={(e) => setStore1(e.target.value)}
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-medium placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
-                placeholder="Nhập tên siêu thị đúng cú pháp trên Bi VD : ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH"
-              />
-            </div>
-          </div>
 
-          {/* Siêu thị 2 */}
-          <div className="space-y-2">
-            <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
-              Siêu thị 2
-            </label>
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
-                <Store size={18} />
-              </div>
-              <input
-                type="text"
-                value={store2}
-                onChange={(e) => setStore2(e.target.value)}
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-medium placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
-                placeholder="Nhập tên siêu thị đúng cú pháp trên Bi VD : ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH"
-              />
-            </div>
-          </div>
-
-          {/* Siêu thị 3 */}
-          <div className="space-y-2">
-            <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
-              Siêu thị 3
-            </label>
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
-                <Store size={18} />
-              </div>
-              <input
-                type="text"
-                value={store3}
-                onChange={(e) => setStore3(e.target.value)}
-                className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-medium placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
-                placeholder="Nhập tên siêu thị đúng cú pháp trên Bi VD : ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH"
-              />
+            <div className="mt-6 pt-4 border-t border-slate-200/60 flex items-center gap-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Hệ thống hỗ trợ đồng bộ 24/7</span>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 pt-6">
-            <button
-              onClick={() => handleSave(true)}
-              disabled={isSaving}
-              className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 transition-all active:scale-[0.98] disabled:opacity-75 tracking-wider uppercase text-xs"
-            >
-              {isSaving ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <>
-                  <Save size={16} />
-                  <span>Cập nhật & Tiếp tục</span>
-                </>
+          {/* Right Column: Form (7 cols) */}
+          <div className="lg:col-span-7 flex flex-col justify-between space-y-6">
+            <div>
+              <div className="text-center lg:text-left mb-6">
+                <div className="inline-flex p-3 bg-indigo-50 text-indigo-600 rounded-2xl mb-4 shadow-inner">
+                  <Store size={24} strokeWidth={2.2} />
+                </div>
+                <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight uppercase">
+                  Khai báo tên siêu thị
+                </h1>
+                <p className="text-xs text-slate-400 font-semibold tracking-wider uppercase mt-1.5">
+                  Mã kho đăng nhập: <span className="text-indigo-600 font-black">{maKho}</span>
+                </p>
+              </div>
+
+              {statusMessage && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className={`mb-6 p-4 rounded-2xl border flex items-start gap-3 text-sm font-bold ${
+                    statusMessage.type === 'success' 
+                      ? 'bg-emerald-50 border-emerald-100 text-emerald-600' 
+                      : 'bg-red-50 border-red-100 text-red-600'
+                  }`}
+                >
+                  {statusMessage.type === 'success' ? (
+                    <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5 animate-bounce">
+                      <svg className="w-3 h-3 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  ) : (
+                    <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="text-xs font-black">!</span>
+                    </div>
+                  )}
+                  <p>{statusMessage.text}</p>
+                </motion.div>
               )}
-            </button>
 
-            <button
-              onClick={onComplete}
-              disabled={isSaving}
-              className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black flex items-center justify-center gap-2 transition-all active:scale-[0.98] tracking-wider uppercase text-xs border border-slate-200"
-            >
-              <span>Tiếp tục vào App</span>
-              <ArrowRight size={16} />
-            </button>
+              <div className="space-y-5">
+                {/* Siêu thị 1 */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center px-1">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                      Siêu thị 1 <span className="text-indigo-500 font-black">*</span>
+                    </label>
+                    <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase">Cơ sở chính</span>
+                  </div>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
+                      <Store size={18} />
+                    </div>
+                    <input
+                      type="text"
+                      value={store1}
+                      onChange={(e) => setStore1(e.target.value)}
+                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-medium placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
+                      placeholder="Nhập tên siêu thị đúng cú pháp trên Bi VD : ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH"
+                    />
+                  </div>
+                </div>
+
+                {/* Siêu thị 2 */}
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
+                    Siêu thị 2
+                  </label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
+                      <Store size={18} />
+                    </div>
+                    <input
+                      type="text"
+                      value={store2}
+                      onChange={(e) => setStore2(e.target.value)}
+                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-medium placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
+                      placeholder="Nhập tên siêu thị đúng cú pháp trên Bi VD : ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH"
+                    />
+                  </div>
+                </div>
+
+                {/* Siêu thị 3 */}
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
+                    Siêu thị 3
+                  </label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
+                      <Store size={18} />
+                    </div>
+                    <input
+                      type="text"
+                      value={store3}
+                      onChange={(e) => setStore3(e.target.value)}
+                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-medium placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
+                      placeholder="Nhập tên siêu thị đúng cú pháp trên Bi VD : ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-6">
+              <button
+                onClick={() => handleSave(true)}
+                disabled={isSaving}
+                className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 transition-all active:scale-[0.98] disabled:opacity-75 tracking-wider uppercase text-xs"
+              >
+                {isSaving ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <>
+                    <Save size={16} />
+                    <span>Cập nhật & Tiếp tục</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={onComplete}
+                disabled={isSaving}
+                className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black flex items-center justify-center gap-2 transition-all active:scale-[0.98] tracking-wider uppercase text-xs border border-slate-200"
+              >
+                <span>Tiếp tục vào App</span>
+                <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
         </div>
       </motion.div>

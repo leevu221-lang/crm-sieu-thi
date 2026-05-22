@@ -18,7 +18,11 @@ const Dashboard: React.FC<DashboardProps> = ({ markets, marketFilter, title = ''
   const allowedPrefixes = ["ĐML", "ĐMM", "ĐMS", "ĐMS3", "TGD", "AAR"];
   const isValidStore = (name: string) => allowedPrefixes.some(prefix => name.toUpperCase().includes(prefix));
 
-  const validMarkets = markets.filter(m => isValidStore(m.name) && m.name.trim() !== '104');
+  const validMarkets = markets.filter(m => 
+    isValidStore(m.name) && 
+    m.name.trim() !== '104' && 
+    !normalize(m.name || '').includes('kho ban hang luu dong')
+  );
   const filteredMarkets = validMarkets.filter(m => 
     marketFilter === 'ALL' || 
     normalize(m.name).includes(normalize(marketFilter)) || 

@@ -40,6 +40,7 @@ export const useRealtimeData = (maKho: string) => {
   const [categoryTargetInput, setCategoryTargetInput] = useState(() => localStorage.getItem('RTST_CATEGORY_TARGET_INPUT') || '');
   const [activeStore, setActiveStore] = useState<string>(maKho);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [hasLoadedFromDB, setHasLoadedFromDB] = useState(false);
   const [conversionRates, setConversionRates] = useState<Record<string, { normal: number, installment: number }>>(CONVERSION_RATES);
 
   // Keep refs of inputs to prevent stale closures during saving
@@ -65,7 +66,7 @@ export const useRealtimeData = (maKho: string) => {
     if (prevStoreIdRef.current === currentStoreId && activeStore === currentStoreId) return;
 
     // FORCE SAVE the old store's data before we switch away from it
-    if (prevStoreIdRef.current && prevStoreIdRef.current !== 'ALL') {
+    if (prevStoreIdRef.current && prevStoreIdRef.current !== 'ALL' && hasLoadedFromDB) {
       if (saveRealtimeDataRef.current) {
         console.log(`[RealtimeData] AUTO-REACT: Force saving OLD store before switch → "${prevStoreIdRef.current}"`);
         saveRealtimeDataRef.current(true);
@@ -76,7 +77,7 @@ export const useRealtimeData = (maKho: string) => {
     console.log(`[RealtimeData] AUTO-REACT: currentStoreId changed → "${currentStoreId}"`);
     setActiveStore(currentStoreId);
     loadData(currentStoreId);
-  }, [currentStoreId]);
+  }, [currentStoreId, normalizedMaKho, hasLoadedFromDB]);
 
   const [excludedYcxStaffNames, setExcludedYcxStaffNames] = useState<string[]>([]);
 
@@ -211,16 +212,9 @@ export const useRealtimeData = (maKho: string) => {
       //   marketLength: marketInput?.length || 0
       // });
 
-      const { data: existingData } = await supabase
-        .from('store')
-        .select('*')
-        .eq('id', cleanStore)
-        .maybeSingle();
-
       const { error: upsertError } = await supabase
         .from('store')
         .upsert({
-          ...(existingData || {}),
           id: cleanStore, // Supermarket Name!
           warehouse_code: cleanMaKho,
           ten_sieu_thi: cleanStore,
@@ -306,6 +300,7 @@ export const useRealtimeData = (maKho: string) => {
 
     // Cancel pending auto-saves and block current triggers
     setIsLoadingRealtime(true);
+    setHasLoadedFromDB(false);
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
       autoSaveTimeoutRef.current = null;
@@ -355,6 +350,7 @@ export const useRealtimeData = (maKho: string) => {
       console.error('[RTST] Unexpected error in loadData:', err);
     } finally {
       setIsLoadingRealtime(false);
+      setHasLoadedFromDB(true);
     }
   }, [normalizedMaKho, activeStore]);
 

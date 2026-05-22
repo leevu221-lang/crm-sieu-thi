@@ -68,7 +68,7 @@ interface InputSectionProps {
   onAnalyze: () => void;
   onSaveRealtime: (silent?: boolean) => void;
   clearField?: (setter: (val: string) => void) => void;
-  onSaveLuyke: (isSilent?: boolean, source?: 'staff' | 'targets' | 'auto', storeName?: string, overrideTargets?: any[]) => void;
+  onSaveLuyke: (isSilent?: boolean, source?: 'staff' | 'targets' | 'auto' | string, storeName?: string, overrideTargets?: any[], fieldName?: string) => void;
   onSyncRealtime: () => void;
   activeStore: string;
   onSyncFromRealtime: () => void;
@@ -214,6 +214,47 @@ const InputSection: React.FC<InputSectionProps> = ({
 }) => {
   const { showNotification } = useNotification();
   const [innerTab, setInnerTab] = useState<'DU_LIEU_NGUON' | 'TARGET_DOANH_THU' | 'TARGET_THI_DUA'>('DU_LIEU_NGUON');
+
+  const handleResetAllData = () => {
+    if (!window.confirm("Bạn có chắc chắn muốn reset toàn bộ dữ liệu khai báo của siêu thị này?")) return;
+
+    // Clear all inputs
+    setMarketInput('');
+    setCategoryInput('');
+    setCategoryTargetInput('');
+    setCategoryRevenueInput('');
+    setClusterSummaryInput('');
+    if (setClusterCategoryInput) setClusterCategoryInput('');
+    setYcxData('');
+    setYcxFileName('');
+    setStaffInput('');
+    setStaffCategoryInput('');
+    setStaffListInput('');
+    setStaffListFileName('');
+    setCategoryTargets([]);
+
+    if (setBanKemNv) setBanKemNv('');
+    if (setPhucVu) setPhucVu('');
+    if (setTragopMatran) setTragopMatran('');
+    if (setTragopNv) setTragopNv('');
+
+    // Clear localStorage
+    localStorage.removeItem('rtst_market_input');
+    localStorage.removeItem('rtst_category_input');
+    localStorage.removeItem('rtst_ycx_data');
+    localStorage.removeItem('rtst_ycx_file_name');
+    localStorage.removeItem('rtst_cluster_summary_input');
+    localStorage.removeItem('rtst_cluster_category_input');
+    localStorage.removeItem('rtst_category_revenue_input');
+    localStorage.removeItem('RTST_CATEGORY_TARGET_INPUT');
+
+    // Trigger save to Supabase
+    setTimeout(() => {
+      onSaveRealtime(true);
+      if (onSaveLuyke) onSaveLuyke(true, 'auto');
+      showNotification('Đã reset toàn bộ dữ liệu khai báo thành công!', 'success');
+    }, 200);
+  };
 
   const handlePhucVuUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -431,12 +472,22 @@ const InputSection: React.FC<InputSectionProps> = ({
             <h1 className="text-[28px] font-black text-slate-700 tracking-tight">CẬP NHẬT DỮ LIỆU</h1>
             <p className="text-[12px] text-slate-400 mt-1">Bấm vào các ô và dán dữ liệu (Ctrl+V) từ báo cáo BI.</p>
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleResetAllData}
+              className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer active:scale-95 shadow-sm"
+              title="Reset toàn bộ dữ liệu khai báo"
+            >
+              <RefreshCw size={12} className={cn((isSavingRealtime || isLoadingRealtime) && "animate-spin")} />
+              <span>RESET DỮ LIỆU</span>
+            </button>
+            <div className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl">
               <div className={cn("w-2.5 h-2.5 rounded-full", (isSavingRealtime || isLoadingRealtime) ? "bg-amber-400 animate-pulse" : "bg-emerald-500")} />
               <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider">
                 {isSavingRealtime ? "Đang lưu..." : isLoadingRealtime ? "Đang tải..." : lastUpdatedRealtime ? `Dữ liệu đã cập nhật ${lastUpdatedRealtime.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})}` : "Sẵn sàng"}
               </span>
             </div>
+          </div>
         </div>
 
         {showAll && showRealtime && (
@@ -446,11 +497,11 @@ const InputSection: React.FC<InputSectionProps> = ({
             {[
               { title: 'BÁO CÁO TỔNG HỢP', color: 'bg-slate-700', items: [
                 { id: 'rt_market', label: 'REALTIME DT', value: marketInput, onChange: setMarketInput, onBlur: () => onSaveRealtime(false), hasData: !!marketInput },
-                { id: 'rt_catrev', label: 'LUỸ KẾ DT', value: clusterSummaryInput || categoryRevenueInput, onChange: (val: string) => { setCategoryRevenueInput(val); setClusterSummaryInput(val); }, onBlur: () => { onSaveRealtime(false); onSaveLuyke(false, 'auto'); }, hasData: !!(clusterSummaryInput || categoryRevenueInput), isLuyke: true },
+                { id: 'rt_catrev', label: 'LUỸ KẾ DT', value: clusterSummaryInput || categoryRevenueInput, onChange: (val: string) => { setCategoryRevenueInput(val); setClusterSummaryInput(val); }, onBlur: () => { onSaveRealtime(false); onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ DT'); }, hasData: !!(clusterSummaryInput || categoryRevenueInput), isLuyke: true },
               ]},
               { title: 'THI ĐUA CỤM', color: 'bg-orange-500', hasYcx: false, items: [
                 { id: 'rt_cat', label: 'REALTIME TĐ', value: categoryInput, onChange: setCategoryInput, onBlur: () => onSaveRealtime(false), hasData: !!categoryInput },
-                { id: 'rt_catlk', label: 'LUỸ KẾ TĐ', value: categoryTargetInput || clusterCategoryInput, onChange: (val: string) => { setCategoryTargetInput(val); setClusterCategoryInput && setClusterCategoryInput(val); }, onBlur: () => { onSaveRealtime(false); onSaveLuyke && onSaveLuyke(false, 'auto'); }, hasData: !!(categoryTargetInput || clusterCategoryInput) },
+                { id: 'rt_catlk', label: 'LUỸ KẾ TĐ', value: categoryTargetInput || clusterCategoryInput, onChange: (val: string) => { setCategoryTargetInput(val); setClusterCategoryInput && setClusterCategoryInput(val); }, onBlur: () => { onSaveRealtime(false); onSaveLuyke && onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ TĐ'); }, hasData: !!(categoryTargetInput || clusterCategoryInput) },
               ]},
             ].map(group => (
               <div key={group.title}>
@@ -472,7 +523,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                         </div>
                         <div className="min-w-0 flex-1">
                           <span className={cn("text-[12px] font-black uppercase tracking-wide", item.hasData ? "text-teal-700" : "text-slate-500")}>{item.label}</span>
-                          {item.hasData && lastUpdatedRealtime && item.isLuyke && (
+                          {item.hasData && lastUpdatedRealtime && ('isLuyke' in item && (item as any).isLuyke) && (
                             <p className="text-[9px] text-slate-400 flex items-center gap-1 mt-0.5"><Calendar size={8} /> {lastUpdatedRealtime.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})} {lastUpdatedRealtime.toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'})}</p>
                           )}
                         </div>
@@ -558,7 +609,10 @@ const InputSection: React.FC<InputSectionProps> = ({
                   return prefixOrder.length;
                 };
                 return [...availableMarkets]
-                  .filter(name => !name.toUpperCase().includes('KHO BÁN HÀNG LƯU ĐỘNG'))
+                  .filter(name => {
+                    const normName = (name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase();
+                    return !normName.includes('kho ban hang luu dong');
+                  })
                   .sort((a, b) => getPrefixRank(a) - getPrefixRank(b))
                   .map(name => (
                 <button
@@ -730,8 +784,8 @@ const InputSection: React.FC<InputSectionProps> = ({
                             <textarea 
                               value={val} 
                               onChange={(e) => handleChange(e.target.value)} 
-                              onPaste={(e) => { e.preventDefault(); const t = e.clipboardData.getData('text'); if (t) { handleChange(t); onSaveLuyke(false, 'auto'); }}} 
-                              onBlur={() => onSaveLuyke(false, 'auto')} 
+                              onPaste={(e) => { e.preventDefault(); const t = e.clipboardData.getData('text'); if (t) { handleChange(t); onSaveLuyke(false, 'auto', undefined, undefined, item.label); }}} 
+                              onBlur={() => onSaveLuyke(false, 'auto', undefined, undefined, item.label)} 
                               rows={3} 
                               autoFocus 
                               placeholder="Dán dữ liệu (Ctrl+V)..." 
@@ -833,8 +887,8 @@ const InputSection: React.FC<InputSectionProps> = ({
                               <Zap size={10} /> ĐỒNG BỘ
                             </button>
                             <input type="number" value={globalPercent} onChange={(e) => handleGlobalPercentChange(Number(e.target.value))} className="w-16 bg-white border border-slate-200 rounded-lg p-1.5 text-[10px] font-bold text-center" placeholder="%" />
-                            <button onClick={() => { const nt = categoryTargets.map(item => ({ ...item, percent: globalPercent, adjustedTarget: item.target * (globalPercent / 100) })); setCategoryTargets(nt); onSaveLuyke(false, 'targets', undefined, nt); }} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[9px] font-black uppercase hover:bg-indigo-700 transition-all active:scale-95">ÁP DỤNG ALL</button>
-                            <button onClick={() => onSaveLuyke(false, 'targets')} disabled={isSavingTargets} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[9px] font-black uppercase hover:bg-emerald-700 transition-all active:scale-95 flex items-center gap-1 disabled:opacity-50">
+                             <button onClick={() => { const nt = categoryTargets.map(item => ({ ...item, percent: globalPercent, adjustedTarget: item.target * (globalPercent / 100) })); setCategoryTargets(nt); onSaveLuyke(false, 'targets', undefined, nt, 'TARGET THI ĐUA'); }} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[9px] font-black uppercase hover:bg-indigo-700 transition-all active:scale-95">ÁP DỤNG ALL</button>
+                            <button onClick={() => onSaveLuyke(false, 'targets', undefined, undefined, 'TARGET THI ĐUA')} disabled={isSavingTargets} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[9px] font-black uppercase hover:bg-emerald-700 transition-all active:scale-95 flex items-center gap-1 disabled:opacity-50">
                               {isSavingTargets ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />} LƯU
                             </button>
                           </div>

@@ -109,13 +109,21 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
             const storeName = record.ten_sieu_thi;
             
             if (storeName && settings) {
-              updateAllStoreTargets((prev: any) => ({
-                ...prev,
-                [storeName.toUpperCase()]: {
+              updateAllStoreTargets((prev: any) => {
+                const key = storeName.toUpperCase();
+                const existing = prev[key];
+                const incoming = {
                   ...settings,
                   warehouse_code: record.warehouse_code
+                };
+                if (existing && JSON.stringify(existing) === JSON.stringify(incoming)) {
+                  return prev;
                 }
-              }));
+                return {
+                  ...prev,
+                  [key]: incoming
+                };
+              });
               
               // PERF: Use stNameRef instead of stName to avoid re-subscribing
               const normActive = normalize(stNameRef.current || localStorage.getItem('ST_NAME_V1') || '');
@@ -246,17 +254,6 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
 
       // Use the actual stTargetSauHeSo value — no recalculation
 
-      // 1. Fetch existing data directly using cleanStore (the supermarket name) as the unique document ID
-      const { data: existingData } = await supabase
-        .from('store')
-        .select('taget_doanh_thu, category_targets, lk_dt_nv, lk_td_nv, ban_kem_nv, ds_nhan_vien, dt_gio_cong, data_phan_ca, tragop_matran, tragop_nv, phuc_vu, lk_bi_tong_quan, lk_nh_sieu_thi')
-        .eq('id', cleanStore.trim())
-        .maybeSingle();
-
-      // Preserve stTargetSauHeSo from the existing DB record for THIS store
-      // to prevent cross-contamination during store switching
-      const preservedTargetSauHeSo = existingData?.taget_doanh_thu?.stTargetSauHeSo ?? stTargetSauHeSo;
-
       const newTargetData = {
         stName,
         stDtlk,
@@ -265,7 +262,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         stPercentHTTargetDuKienQD,
         stTargetQuyDoi,
         stPercentTarget,
-        stTargetSauHeSo: preservedTargetSauHeSo,
+        stTargetSauHeSo,
         manualAdjustment,
         selectedMonth,
         daysPassed,
@@ -279,10 +276,8 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         updated_at: new Date().toISOString()
       };
 
-      // 2. Prepare payload: only include fields we are modifying or need to preserve
-      // CRITICAL: We MUST spread existingData first to prevent Supabase from wiping out other columns (like lk_bi_tong_quan) with NULL!
+      // 2. Prepare payload: only include fields we are modifying
       const payload: any = {
-        ...(existingData || {}),
         id: cleanStore.trim(), // The Supermarket Name as the unique Document ID / Primary Key!
         warehouse_code: cleanMaKho,
         ten_sieu_thi: cleanStore,

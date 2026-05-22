@@ -232,8 +232,11 @@ export default function App() {
                           }
                           return prefixOrder.length;
                         };
-                        return availableMarkets
-                          .filter(m => !m.name.toUpperCase().includes('KHO BÁN HÀNG LƯU ĐỘNG'))
+                         return availableMarkets
+                           .filter(m => {
+                             const normName = (m.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase();
+                             return !normName.includes('kho ban hang luu dong');
+                           })
                           .sort((a, b) => getPrefixRank(a.name) - getPrefixRank(b.name))
                           .map(m => {
                         const theme = getMarketTheme(m.name);

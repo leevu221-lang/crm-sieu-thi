@@ -59,14 +59,16 @@ const EmployeeHealth: React.FC = () => {
     thiDuaNv: dbThiDuaNv,
     phucVu,
     banKemNv,
-    isLoading,
+    isLoading: isHealthLoading,
     isSaving,
     refresh,
     savePhucVu,
     saveBanKemNv
   } = useEmployeeHealth(maKho, marketFilter !== 'ALL' ? marketFilter : undefined);
   const { stTargetSauHeSo, stTargetQuyDoi, stPercentTarget, daysPassed, totalDays } = useRTSTSharedData(maKho);
-  const { categoryTargets, processedData, staffInput, staffCategoryInput, loadData: loadLuykeData } = useLuykeData(maKho);
+  const { categoryTargets, processedData, staffInput, staffCategoryInput, loadData: loadLuykeData, isLoading: isLuykeLoading } = useLuykeData(maKho);
+
+  const isDataLoading = isHealthLoading || isLuykeLoading;
 
   // Note: stTargetSauHeSo is now globally synced and calculated automatically in useRTSTSharedData
   // No manual recalculation is needed here.
@@ -160,22 +162,31 @@ const EmployeeHealth: React.FC = () => {
   };
 
   // Default to check all when data is loaded or STORE changes
-  // Key: must use marketFilter (store name), not just maKho (same for all stores in cluster)
+  // KEY FIX: marketFilter is NOT in deps — only biRevenueData change triggers this.
+  // When marketFilter changes, we do NOT clear selectedStaffIds immediately to prevent layout shift (shaking/flicker).
+  // Instead, we wait for biRevenueData to load. Once it loads:
+  // - If it is empty, we clear selectedStaffIds and update initializedRef.
+  // - If it is not empty, we initialize selectedStaffIds to all staff.
   useEffect(() => {
+    if (!maKho) return;
     const storeKey = `${maKho}_${marketFilter}`;
-    if (maKho && biRevenueData.length > 0 && initializedRef.current !== storeKey) {
-      setSelectedStaffIds(biRevenueData.map(s => s.fullId));
+
+    if (biRevenueData.length === 0) {
+      if (initializedRef.current !== storeKey) {
+        setSelectedStaffIds([]);
+        initializedRef.current = storeKey;
+      }
+      return;
+    }
+
+    const validIds = biRevenueData.map(s => s.fullId);
+    const hasValidSelection = selectedStaffIds.length > 0 && selectedStaffIds.some(id => validIds.includes(id));
+    if (initializedRef.current !== storeKey || !hasValidSelection) {
+      setSelectedStaffIds(validIds);
       initializedRef.current = storeKey;
     }
-  }, [maKho, marketFilter, biRevenueData]);
-
-  // Clear selectedStaffIds immediately when store switches to prevent stale filter
-  useEffect(() => {
-    if (marketFilter && marketFilter !== 'ALL') {
-      setSelectedStaffIds([]);
-      initializedRef.current = null; // Force re-initialize on next data load
-    }
-  }, [marketFilter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maKho, biRevenueData]); // intentionally omit marketFilter & selectedStaffIds to avoid race condition
 
   // Close filter when clicking outside
   useEffect(() => {
@@ -338,6 +349,25 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
   };
 
 
+
+  const renderLoadingOverlay = () => {
+    if (!isDataLoading) return null;
+    return (
+      <div className="absolute top-0 left-0 right-0 h-1 overflow-hidden z-[60] rounded-t-[32px]">
+        <motion.div
+          className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600"
+          initial={{ x: '-100%' }}
+          animate={{ x: '100%' }}
+          transition={{
+            repeat: Infinity,
+            duration: 1.2,
+            ease: "easeInOut"
+          }}
+          style={{ width: '50%' }}
+        />
+      </div>
+    );
+  };
 
   const menuItems = [
     { id: 'DOANH_THU', label: 'DOANH THU NV', icon: TrendingUp },
@@ -535,8 +565,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="bg-white rounded-[32px] p-2 md:p-4 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-5xl mx-auto"
+                  className="bg-white rounded-[32px] p-2 md:p-4 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-5xl mx-auto relative overflow-hidden"
                 >
+                  {renderLoadingOverlay()}
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
@@ -612,8 +643,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="bg-white rounded-[32px] p-2 md:p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-full mx-auto space-y-6"
+                  className="bg-white rounded-[32px] p-2 md:p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-full mx-auto space-y-6 relative overflow-hidden"
                 >
+                  {renderLoadingOverlay()}
                   {/* Export All Button */}
                   {selectedStaffIds.length > 0 && (
                     <div className="flex justify-center my-6">
@@ -710,7 +742,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
+                  className="relative overflow-hidden rounded-[16px]"
                 >
+                  {renderLoadingOverlay()}
                   <SummaryThiDuaTable
                     luyKeNganhHang={luyKeNganhHang}
                     thiDuaNv={thiDuaNv}
@@ -735,8 +769,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="max-w-[calc(100%-1px)] mx-auto"
+                  className="max-w-[calc(100%-1px)] mx-auto relative overflow-hidden rounded-[16px]"
                 >
+                  {renderLoadingOverlay()}
                   <CategoryDetailByStaffTable
                     luyKeNganhHang={luyKeNganhHang}
                     thiDuaNv={thiDuaNv}
@@ -761,8 +796,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="bg-white rounded-[32px] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 min-h-[400px] flex flex-col items-center justify-center text-center"
+                  className="bg-white rounded-[32px] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 min-h-[400px] flex flex-col items-center justify-center text-center relative overflow-hidden"
                 >
+                  {renderLoadingOverlay()}
                   <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mb-6">
                     <Users size={40} />
                   </div>
@@ -1008,8 +1044,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-[1260px] mx-auto w-full"
+                  className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-[1260px] mx-auto w-full relative overflow-hidden"
                 >
+                  {renderLoadingOverlay()}
                   <div className="hidden">
                     <textarea
                       value={banKemNv}
@@ -1097,8 +1134,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="w-full"
+                  className="w-full relative overflow-hidden rounded-[24px]"
                 >
+                  {renderLoadingOverlay()}
                   <div className="space-y-5">
                     {/* TOP ROW - Two input panels side by side */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1322,8 +1360,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-4xl mx-auto w-full"
+                  className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-4xl mx-auto w-full relative overflow-hidden"
                 >
+                  {renderLoadingOverlay()}
                   <div className="flex items-center justify-between mb-6 border-b-2 border-blue-400 pb-4">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-slate-50 text-slate-500 rounded-xl">

@@ -15,13 +15,13 @@ import OverviewDashboard from './RTST/components/OverviewDashboard';
 import CategoryTable from './RTST/components/CategoryTable';
 
 import { ConfirmationModal } from './RTST/components/Modals';
-import { normalize } from './RTST/utils';
+import { normalize, isKhoLuuDong } from './RTST/utils';
 
 const LuyKe: React.FC = () => {
   const { userProfile } = useAuth();
   const { marketFilter, setMarketFilter, availableMarkets } = useMarket();
   const filteredMarkets = React.useMemo(() => {
-    return (availableMarkets || []).filter(m => !m.name.toUpperCase().includes('KHO BÁN HÀNG LƯU ĐỘNG'));
+    return (availableMarkets || []).filter(m => !isKhoLuuDong(m.name));
   }, [availableMarkets]);
   const [maKho, setMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
   const [activeTab, setActiveTab] = useState<'summary' | 'efficiency'>('summary');
@@ -142,13 +142,24 @@ const LuyKe: React.FC = () => {
     return {
       ...displayData,
       markets: (displayData.markets || []).filter(
-        m => !m.name.toUpperCase().includes('KHO BÁN HÀNG LƯU ĐỘNG')
+        m => !isKhoLuuDong(m.name)
       ),
       categories: (displayData.categories || []).filter(
-        c => !c.marketName || !c.marketName.toUpperCase().includes('KHO BÁN HÀNG LƯU ĐỘNG')
+        c => !c.marketName || !isKhoLuuDong(c.marketName)
       )
     };
   }, [displayData]);
+
+  // Pre-filter markets by the current store filter so the overview dashboard
+  // only shows the store(s) matching the selected bộ lọc
+  const marketsForDashboard = React.useMemo(() => {
+    if (marketFilter === 'ALL') return filteredDisplayData.markets;
+    const normFilter = normalize(marketFilter);
+    return filteredDisplayData.markets.filter(m => {
+      const normName = normalize(m.name);
+      return normName.includes(normFilter) || normFilter.includes(normName);
+    });
+  }, [filteredDisplayData.markets, marketFilter]);
 
   // Categories from LUỸ KẾ TĐ already have correct data:
   // cat.target = Column 3 (TARGET) and cat.revenue = Column 2 (LUỸ KẾ)
@@ -345,7 +356,7 @@ const LuyKe: React.FC = () => {
               >
           <div ref={captureRefs.fullDashboard}>
             <OverviewDashboard 
-              markets={filteredDisplayData.markets}
+              markets={marketsForDashboard}
               marketFilter={marketFilter}
               setMarketFilter={setMarketFilter}
               captureRef={captureRefs.overviewInternal}
