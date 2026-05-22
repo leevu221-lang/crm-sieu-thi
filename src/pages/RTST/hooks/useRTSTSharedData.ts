@@ -130,16 +130,16 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
               const normUpdate = normalize(storeName);
               
               if (normUpdate && normActive && (normUpdate === normActive || normUpdate.includes(normActive) || normActive.includes(normUpdate))) {
-                if (settings.stName) setStName(settings.stName);
-                if (settings.stTargetSauHeSo !== undefined) setStTargetSauHeSo(settings.stTargetSauHeSo);
-                if (settings.stTargetQuyDoi !== undefined) setStTargetQuyDoi(settings.stTargetQuyDoi);
-                if (settings.stPercentTarget !== undefined) setStPercentTarget(settings.stPercentTarget);
-                if (settings.stDtDuKienQD !== undefined) setStDtDuKienQD(settings.stDtDuKienQD);
-                if (settings.stPercentHTTargetDuKienQD !== undefined) setStPercentHTTargetDuKienQD(settings.stPercentHTTargetDuKienQD);
-                if (settings.stDtlk !== undefined) setStDtlk(settings.stDtlk);
-                if (settings.stDtqd !== undefined) setStDtqd(settings.stDtqd);
-                if (settings.manualAdjustment !== undefined) setManualAdjustment(settings.manualAdjustment);
-                if (settings.selectedMonth) setSelectedMonth(settings.selectedMonth);
+                if (settings.stName) setStName((prev: string) => prev !== settings.stName ? settings.stName : prev);
+                if (settings.stTargetSauHeSo !== undefined) setStTargetSauHeSo((prev: number) => prev !== settings.stTargetSauHeSo ? settings.stTargetSauHeSo : prev);
+                if (settings.stTargetQuyDoi !== undefined) setStTargetQuyDoi((prev: number) => prev !== settings.stTargetQuyDoi ? settings.stTargetQuyDoi : prev);
+                if (settings.stPercentTarget !== undefined) setStPercentTarget((prev: number) => prev !== settings.stPercentTarget ? settings.stPercentTarget : prev);
+                if (settings.stDtDuKienQD !== undefined) setStDtDuKienQD((prev: number) => prev !== settings.stDtDuKienQD ? settings.stDtDuKienQD : prev);
+                if (settings.stPercentHTTargetDuKienQD !== undefined) setStPercentHTTargetDuKienQD((prev: number) => prev !== settings.stPercentHTTargetDuKienQD ? settings.stPercentHTTargetDuKienQD : prev);
+                if (settings.stDtlk !== undefined) setStDtlk((prev: number) => prev !== settings.stDtlk ? settings.stDtlk : prev);
+                if (settings.stDtqd !== undefined) setStDtqd((prev: number) => prev !== settings.stDtqd ? settings.stDtqd : prev);
+                if (settings.manualAdjustment !== undefined) setManualAdjustment((prev: number) => prev !== settings.manualAdjustment ? settings.manualAdjustment : prev);
+                if (settings.selectedMonth) setSelectedMonth((prev: string) => prev !== settings.selectedMonth ? settings.selectedMonth : prev);
                 // daysPassed & totalDays are auto-calculated from selectedMonth, not loaded from DB
               }
             }
@@ -291,8 +291,8 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       }));
 
       const { error } = await supabase
-        .from('store')
-        .upsert(payload, { onConflict: 'id' });
+          .from('store')
+          .upsert(payload, { onConflict: 'id' });
 
       if (error) {
         console.error('[SharedData] Upsert error:', error);
@@ -528,7 +528,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     const timeoutId = setTimeout(() => {
       console.log('[AutoSave] Saving Shared settings for:', stName);
       saveStoreRevenueRef.current?.(maKho, stName, true);
-    }, 2000); // 2s debounce
+    }, 4000); // 4s debounce
 
     return () => clearTimeout(timeoutId);
   }, [maKho, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, ycxFileName, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, isStoreReady]);

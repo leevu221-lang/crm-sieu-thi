@@ -13,7 +13,7 @@ try {
     commit: process.env.CF_PAGES_COMMIT_SHA || 'dev-' + Math.random().toString(36).substring(2, 8),
     builtAt: new Date().toISOString()
   };
-  const publicDir = path.resolve(__dirname, 'public');
+  const publicDir = path.resolve(process.cwd(), 'public');
   if (!fs.existsSync(publicDir)) {
     fs.mkdirSync(publicDir, { recursive: true });
   }
@@ -33,12 +33,11 @@ export default defineConfig(({mode}) => {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(process.cwd(), '.'),
       },
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       allowedHosts: ['43751-crm.local'],
       ...(certExists && {

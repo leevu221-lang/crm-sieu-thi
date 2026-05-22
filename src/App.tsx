@@ -8,6 +8,7 @@ import { LuykeDataProvider } from './contexts/LuykeDataContext';
 import Login from './pages/Login';
 import StoreDeclaration from './pages/StoreDeclaration';
 import { testSupabaseConnection } from './supabaseClient';
+import VersionUpdateNotifier from './components/VersionUpdateNotifier';
 
 // Lazy load pages for better performance
 const NewRealtimePage = lazy(() => import('./pages/RealtimePage'));
@@ -160,6 +161,7 @@ export default function App() {
 
   return (
     <div className={`min-h-screen flex flex-col pb-24 md:pb-0 bg-slate-50 selection:bg-indigo-100 selection:text-indigo-900`}>
+      <VersionUpdateNotifier />
       {/* Firebase Error Banner */}
       <AnimatePresence>
         {supabaseError && (

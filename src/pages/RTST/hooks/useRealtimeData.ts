@@ -273,7 +273,7 @@ export const useRealtimeData = (maKho: string) => {
 
     autoSaveTimeoutRef.current = setTimeout(() => {
       saveRealtimeDataRef.current?.(true);
-    }, 1000); // 1 second debounce
+    }, 4000); // 4 seconds debounce
 
     return () => {
       if (autoSaveTimeoutRef.current) {

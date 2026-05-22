@@ -11,3 +11,7 @@ coverage/
 
 # Local Netlify folder
 .netlify
+
+# Build version file
+public/version.json
+

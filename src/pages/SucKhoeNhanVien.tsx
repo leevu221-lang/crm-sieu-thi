@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { HeartPulse, Camera, TrendingUp, Search, ChevronDown, Check, MessageSquare, FileText, ChevronRight, LayoutGrid, Info, Users, Printer, UploadCloud, Trophy, TrendingDown, Gift, Target } from 'lucide-react';
+import { HeartPulse, Camera, TrendingUp, Search, ChevronDown, Check, MessageSquare, FileText, ChevronRight, LayoutGrid, Info, Users, Printer, UploadCloud, Trophy, TrendingDown, Gift, Target, RefreshCw } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { motion, AnimatePresence } from 'motion/react';
 import * as htmlToImage from 'html-to-image';
@@ -159,6 +159,106 @@ const EmployeeHealth: React.FC = () => {
       saveThuongToDb(updated);
       return updated;
     });
+  };
+
+  const handleDistribute = (field: 'truoc' | 'hientai') => {
+    const firstStaff = filteredBiData[0];
+    if (!firstStaff) {
+      showNotification('Không tìm thấy nhân viên nào để phân bổ!', 'error');
+      return;
+    }
+    const sourceText = thuongData[firstStaff.fullId]?.[field] || '';
+    if (!sourceText.trim()) {
+      showNotification('Vui lòng dán dữ liệu vào ô nhân viên đầu tiên trước!', 'error');
+      return;
+    }
+
+    const lines = sourceText.split('\n');
+    
+    // 1. Find the header line in the source text if it exists
+    let headerLine = '';
+    for (const line of lines) {
+      const parts = line.split('\t').map(p => p.trim());
+      const hasThucLanh = parts.some(p => {
+        const clean = p.toLowerCase();
+        return clean.includes('điểm thực lãnh') || 
+               clean.includes('diem thuc lanh') || 
+               clean.includes('thực lãnh') || 
+               clean.includes('thuc lanh');
+      });
+      if (hasThucLanh) {
+        headerLine = line;
+        break;
+      }
+    }
+
+    const matchStaffId = (line: string, staffId: string) => {
+      const parts = line.split('\t').map(p => p.trim());
+      return parts.some(part => {
+        if (part === staffId) return true;
+        const reg = new RegExp('^' + staffId + '\\b');
+        return reg.test(part);
+      });
+    };
+
+    const updated = { ...thuongData };
+    let count = 0;
+
+    filteredBiData.forEach(staff => {
+      const staffId = staff.fullId;
+      let staffLines: string[] = [];
+      let found = false;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (matchStaffId(line, staffId)) {
+          found = true;
+          staffLines = [line];
+          
+          for (let j = i + 1; j < lines.length; j++) {
+            const subLine = lines[j];
+            staffLines.push(subLine);
+            const subParts = subLine.split('\t').map(p => p.trim());
+            const label = subParts[0]?.toLowerCase() || '';
+            if (
+              label === 'tổng cộng' || 
+              label === 'tong cong' || 
+              label === 'tổng' || 
+              label === 'tong' || 
+              label.startsWith('tổng cộng') || 
+              label.startsWith('tổng ') || 
+              label.startsWith('tổng:') || 
+              label.includes('tổng cộng') || 
+              label.includes('tổng')
+            ) {
+              break;
+            }
+          }
+          break;
+        }
+      }
+
+      if (found && staffLines.length > 0) {
+        // Prepend header if not already present
+        const hasHeader = staffLines[0].toLowerCase().includes('thực lãnh') || staffLines[0].toLowerCase().includes('thực nhận');
+        if (headerLine && !hasHeader) {
+          staffLines.unshift(headerLine);
+        }
+        updated[staffId] = {
+          ...updated[staffId],
+          [field]: staffLines.join('\n')
+        };
+        count++;
+      }
+    });
+
+    if (count > 0) {
+      setThuongData(updated);
+      saveThuongToDb(updated);
+      showNotification(`Đã phân bổ dữ liệu thành công cho ${count} nhân viên!`, 'success');
+    } else {
+      showNotification('Không tìm thấy dữ liệu khớp với mã nhân viên nào trong danh sách!', 'error');
+    }
   };
 
   // Default to check all when data is loaded or STORE changes
@@ -1142,14 +1242,24 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Tháng trước */}
                       <div className="bg-white rounded-[20px] p-4 shadow-lg border border-slate-200/80">
-                        <div className="flex items-center gap-2.5 pb-3 mb-3 border-b border-slate-200">
-                          <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center">
-                            <Gift size={14} className="text-slate-500" />
+                        <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center">
+                              <Gift size={14} className="text-slate-500" />
+                            </div>
+                            <div>
+                              <h3 className="text-xs font-black text-slate-700 uppercase tracking-tight">Thưởng tháng trước</h3>
+                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Dán dữ liệu từ BI</p>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="text-xs font-black text-slate-700 uppercase tracking-tight">Thưởng tháng trước</h3>
-                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Dán dữ liệu từ BI</p>
-                          </div>
+                          <button
+                            onClick={() => handleDistribute('truoc')}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm"
+                            title="Cập nhật dữ liệu cho các nhân viên bên dưới từ ô nhân viên đầu tiên phía trên"
+                          >
+                            <RefreshCw size={10} className="text-slate-500" />
+                            Cập nhật từ ô NV phía trên
+                          </button>
                         </div>
                         <div className="space-y-2.5">
                           {filteredBiData.map((staff) => (
@@ -1171,14 +1281,24 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                       {/* Tháng hiện tại */}
                       <div className="bg-white rounded-[20px] p-4 shadow-lg border border-purple-200/80">
-                        <div className="flex items-center gap-2.5 pb-3 mb-3 border-b border-purple-200">
-                          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-sm shadow-purple-200/50">
-                            <Gift size={14} className="text-white" />
+                        <div className="flex items-center justify-between pb-3 mb-3 border-b border-purple-200">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-sm shadow-purple-200/50">
+                              <Gift size={14} className="text-white" />
+                            </div>
+                            <div>
+                              <h3 className="text-xs font-black text-purple-700 uppercase tracking-tight">Thưởng hiện tại</h3>
+                              <p className="text-[9px] text-purple-400 font-bold uppercase tracking-widest">Dán dữ liệu từ BI</p>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="text-xs font-black text-purple-700 uppercase tracking-tight">Thưởng hiện tại</h3>
-                            <p className="text-[9px] text-purple-400 font-bold uppercase tracking-widest">Dán dữ liệu từ BI</p>
-                          </div>
+                          <button
+                            onClick={() => handleDistribute('hientai')}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 hover:text-purple-900 border border-purple-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm"
+                            title="Cập nhật dữ liệu cho các nhân viên bên dưới từ ô nhân viên đầu tiên phía trên"
+                          >
+                            <RefreshCw size={10} className="text-purple-500" />
+                            Cập nhật từ ô NV phía trên
+                          </button>
                         </div>
                         <div className="space-y-2.5">
                           {filteredBiData.map((staff) => (
@@ -1245,24 +1365,59 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               const parseBonusData = (text: string) => {
                                 if (!text) return { tong: 0 };
                                 const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                                
+                                // Step 1: Find column index of "Điểm thực lãnh" in headers
+                                let thucLanhColIdx = 8; // Default fallback to index 8 (9th column)
+                                for (const line of lines) {
+                                  const parts = line.split('\t').map(p => p.trim());
+                                  const idx = parts.findIndex(p => {
+                                    const clean = p.toLowerCase();
+                                    return clean.includes('điểm thực lãnh') || 
+                                           clean.includes('diem thuc lanh') || 
+                                           clean.includes('thực lãnh') || 
+                                           clean.includes('thuc lanh');
+                                  });
+                                  if (idx !== -1) {
+                                    thucLanhColIdx = idx;
+                                    break;
+                                  }
+                                }
+
                                 let tong = 0;
                                 for (const line of lines) {
                                   const parts = line.split(/\t/).map(p => p.trim());
                                   const label = parts[0]?.toLowerCase() || '';
                                   
-                                  // Tìm dòng "Tổng cộng" hoặc "Tổng"
-                                  if (label === 'tổng cộng' || label === 'tong cong' || label === 'tổng' || label === 'tong' || label.startsWith('tổng cộng') || label.startsWith('tổng ') || label.startsWith('tổng:') || label.includes('tổng cộng') || label.includes('tổng')) {
-                                    const COL_INDEX = 8;
-                                    if (COL_INDEX < parts.length) {
-                                      const raw = parts[COL_INDEX].replace(/[,.\s]/g, '').replace(/đ$/i, '');
+                                  // Find "Tổng cộng" or "Tổng" row
+                                  if (
+                                    label === 'tổng cộng' || 
+                                    label === 'tong cong' || 
+                                    label === 'tổng' || 
+                                    label === 'tong' || 
+                                    label.startsWith('tổng cộng') || 
+                                    label.startsWith('tổng ') || 
+                                    label.startsWith('tổng:') || 
+                                    label.includes('tổng cộng') || 
+                                    label.includes('tổng')
+                                  ) {
+                                    if (thucLanhColIdx < parts.length) {
+                                      const raw = parts[thucLanhColIdx].replace(/[,.\s]/g, '').replace(/đ$/i, '');
                                       const num = parseFloat(raw);
                                       tong = isNaN(num) ? 0 : num;
                                     } else {
-                                      // Fallback: try the last numeric value
-                                      for (let i = parts.length - 1; i >= 1; i--) {
-                                        const clean = parts[i].replace(/[,.\s]/g, '').replace(/đ$/i, '');
-                                        const n = parseFloat(clean);
-                                        if (!isNaN(n) && n > 0) { tong = n; break; }
+                                      // Fallback: try index 8
+                                      const fallbackIdx = 8;
+                                      if (fallbackIdx < parts.length) {
+                                        const raw = parts[fallbackIdx].replace(/[,.\s]/g, '').replace(/đ$/i, '');
+                                        const num = parseFloat(raw);
+                                        tong = isNaN(num) ? 0 : num;
+                                      } else {
+                                        // Fallback: try the last numeric value
+                                        for (let i = parts.length - 1; i >= 1; i--) {
+                                          const clean = parts[i].replace(/[,.\s]/g, '').replace(/đ$/i, '');
+                                          const n = parseFloat(clean);
+                                          if (!isNaN(n) && n > 0) { tong = n; break; }
+                                        }
                                       }
                                     }
                                     break;

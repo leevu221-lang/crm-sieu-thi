@@ -411,6 +411,20 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             });
           });
 
+          // Structural equality check to avoid reference changes when values are identical
+          const isSame = prev && prev.length === newTargets.length && newTargets.every((nt, idx) => {
+            const pt = prev[idx];
+            return pt && 
+                   pt.name === nt.name && 
+                   pt.target === nt.target && 
+                   pt.adjustedTarget === nt.adjustedTarget && 
+                   pt.percent === nt.percent && 
+                   pt.type === nt.type;
+          });
+          if (isSame) {
+            return prev;
+          }
+
           // Mark that targets were freshly processed from cluster data
           // → the dedicated effect below will auto-save them for the active store
           if (newTargets.length > 0) {
@@ -420,7 +434,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           return newTargets;
         });
       } else {
-        setCategoryTargets([]);
+        setCategoryTargets(prev => prev.length === 0 ? prev : []);
       }
     } catch (error) {
       console.error('Error processing luyke data:', error);
@@ -497,7 +511,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     autoSaveTimeoutRef.current = setTimeout(() => {
       saveLuykeData(true, 'auto');
       autoSaveTimeoutRef.current = null;
-    }, 2000);
+    }, 4000);
 
     return () => {
       if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);

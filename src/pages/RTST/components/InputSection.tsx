@@ -784,7 +784,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                             <textarea 
                               value={val} 
                               onChange={(e) => handleChange(e.target.value)} 
-                              onPaste={(e) => { e.preventDefault(); const t = e.clipboardData.getData('text'); if (t) { handleChange(t); onSaveLuyke(false, 'auto', undefined, undefined, item.label); }}} 
+                              onPaste={(e) => { e.preventDefault(); const t = e.clipboardData.getData('text'); if (t) { handleChange(t); } }} 
                               onBlur={() => onSaveLuyke(false, 'auto', undefined, undefined, item.label)} 
                               rows={3} 
                               autoFocus 
