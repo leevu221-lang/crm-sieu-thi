@@ -22,8 +22,9 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       headerStartIdx = i;
       continue;
     }
-    if (headerStartIdx !== -1 && (lines[i].startsWith('DTLK') || lines[i].startsWith('SLLK'))) {
-      dataStartIdx = i + 1;
+    const isEmployeeLine = /[-–—]\s*\d{5,8}\b/.test(lines[i]) || /\b\d{5,8}\s*[-–—]/.test(lines[i]);
+    if (headerStartIdx !== -1 && isEmployeeLine) {
+      dataStartIdx = i;
       break;
     }
     if (headerStartIdx !== -1) {

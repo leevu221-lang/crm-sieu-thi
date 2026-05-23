@@ -979,9 +979,28 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
     let extractedName = currentCatName;
     
     if (extractedName) {
-      extractedName = extractedName.split(/SLLK|DTLK/i)[0].trim();
-      extractedName = extractedName.split(/SL REALTIME|DT REALTIME/i)[0].trim();
-      extractedName = extractedName.replace(/[-_]+$/, '').trim();
+      const trimmedUpper = extractedName.trim().toUpperCase();
+      if (trimmedUpper === 'DTLK' || trimmedUpper === 'SLLK') {
+        extractedName = trimmedUpper;
+      } else {
+        if (/^(DTLK|SLLK)\b/i.test(extractedName)) {
+          extractedName = extractedName.replace(/^(DTLK|SLLK)\s*[-_]*\s*/i, '').trim();
+        }
+        if (/\b(DTLK|SLLK)$/i.test(extractedName)) {
+          extractedName = extractedName.replace(/\s*[-_]*\s*(DTLK|SLLK)$/i, '').trim();
+        }
+        if (extractedName.match(/SLLK|DTLK/i)) {
+          const parts = extractedName.split(/SLLK|DTLK/i);
+          const firstPart = parts[0].trim();
+          if (firstPart) {
+            extractedName = firstPart;
+          } else {
+            extractedName = parts.slice(1).join(' ').trim();
+          }
+        }
+      }
+      extractedName = extractedName.replace(/SL REALTIME|DT REALTIME/gi, '').trim();
+      extractedName = extractedName.replace(/^[-_]+|[-_]+$/g, '').trim();
       
       if (extractedName && extractedName !== "Miền của tôi") {
         results.push({
