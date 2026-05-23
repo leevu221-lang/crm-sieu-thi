@@ -1002,6 +1002,11 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
       extractedName = extractedName.replace(/SL REALTIME|DT REALTIME/gi, '').trim();
       extractedName = extractedName.replace(/^[-_]+|[-_]+$/g, '').trim();
       
+      const targetMatch = extractedName.match(/(.+?)\bTARGET\b/i);
+      if (targetMatch) {
+        extractedName = targetMatch[1].trim();
+      }
+      
       if (extractedName && extractedName !== "Miền của tôi") {
         results.push({
           name: extractedName,

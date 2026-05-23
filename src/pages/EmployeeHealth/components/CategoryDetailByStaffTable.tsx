@@ -39,7 +39,12 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       break;
     }
     if (headerStartIdx !== -1) {
-      allCategories.push(lines[i]);
+      let catName = lines[i];
+      const targetMatch = catName.match(/(.+?)\bTARGET\b/i);
+      if (targetMatch) {
+        catName = targetMatch[1].trim();
+      }
+      allCategories.push(catName);
     }
   }
 

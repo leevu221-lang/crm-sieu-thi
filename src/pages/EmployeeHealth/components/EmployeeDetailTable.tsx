@@ -17,7 +17,12 @@ export const removeAccents = (str: string): string => {
 
 export const cleanCategoryName = (name: string): string => {
   if (!name) return '';
-  let clean = removeAccents(name).trim();
+  let namePart = name;
+  const targetMatch = namePart.match(/(.+?)\bTARGET\b/i);
+  if (targetMatch) {
+    namePart = targetMatch[1];
+  }
+  let clean = removeAccents(namePart).trim();
   
   // Replace abbreviations
   clean = clean.replace(/\b(bao hiem)\b/g, 'bh');
@@ -73,7 +78,12 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       break;
     }
     if (headerStartIdx !== -1) {
-      allCategories.push(lines[i]);
+      let catName = lines[i];
+      const targetMatch = catName.match(/(.+?)\bTARGET\b/i);
+      if (targetMatch) {
+        catName = targetMatch[1].trim();
+      }
+      allCategories.push(catName);
     }
   }
 
