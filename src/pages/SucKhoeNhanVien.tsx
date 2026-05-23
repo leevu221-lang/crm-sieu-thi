@@ -1449,22 +1449,15 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               const truoc = thuongData[staff.fullId]?.truoc || '';
                               const hientai = thuongData[staff.fullId]?.hientai || '';
                               
-                              // Parse: dòng "Tổng cộng" → cột "Điểm thực lãnh" (hoặc các tên tương đương)
-                              // Chỉ lấy dữ liệu hiển thị trực tiếp, CẤM lấy từ nguồn DB khác
                               const parseBonusData = (text: string) => {
                                 if (!text || text.trim().length === 0) return { tong: null };
                                 const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-                                
-                                // Clean store name for matching
                                 const currentStoreClean = marketFilter && marketFilter !== 'ALL' 
                                   ? removeAccents(marketFilter).replace(/^(dml|dms3|dms|dmm|tgd|aar|bhx)\s+/, '').trim()
                                   : '';
-
-                                // Get employee ID and clean name
                                 const staffId = staff.fullId;
                                 const staffNameClean = removeAccents(staff.displayName.split('-').pop() || '').trim();
 
-                                // Helper to check if a line is a supermarket header
                                 const getStoreHeader = (line: string): string | null => {
                                   const cleanLine = removeAccents(line).trim();
                                   const hasStoreKeyword = cleanLine.includes('sieu thi') || 
@@ -1475,11 +1468,17 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                   return hasStoreKeyword ? cleanLine : null;
                                 };
 
-                                // Step 1: Find column index of "Điểm thực lãnh" or equivalents in headers
+                                const splitLine = (l: string): string[] => {
+                                  if (l.includes('\t')) {
+                                    return l.split('\t').map(p => p.trim());
+                                  }
+                                  return l.split(/\t|\s{2,}/).map(p => p.trim());
+                                };
+
                                 let thucLanhColIdx = -1;
                                 let headerColCount = -1;
                                 for (const line of lines) {
-                                  const parts = line.split(/\t|\s{2,}/).map(p => p.trim());
+                                  const parts = splitLine(line);
                                   const idx = parts.findIndex(p => {
                                     const clean = removeAccents(p);
                                     return clean.includes('diem thuc lanh') || 
@@ -1495,7 +1494,6 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                   }
                                 }
 
-                                // Step 2: Find the correct section of lines
                                 let foundStaff = false;
                                 let targetLines: string[] = [];
                                 const hasAnyHeader = lines.some(l => getStoreHeader(l) !== null);
@@ -1503,10 +1501,8 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                 for (let i = 0; i < lines.length; i++) {
                                   const line = lines[i];
                                   const cleanLine = removeAccents(line);
-
                                   const matchStaff = cleanLine.includes(staffId) || (staffNameClean && cleanLine.includes(staffNameClean));
                                   if (matchStaff) {
-                                    // Look upwards for nearest store header
                                     let nearestStoreHeader: string | null = null;
                                     for (let k = i - 1; k >= 0; k--) {
                                       const header = getStoreHeader(lines[k]);
@@ -1515,46 +1511,23 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                         break;
                                       }
                                     }
-
-                                    // Check store compatibility
                                     let storeCompatible = true;
-                                    if (currentStoreClean) {
-                                      if (hasAnyHeader) {
-                                        if (nearestStoreHeader) {
-                                          storeCompatible = nearestStoreHeader.includes(currentStoreClean);
-                                        } else {
-                                          storeCompatible = false;
-                                        }
-                                      }
+                                    if (currentStoreClean && hasAnyHeader) {
+                                      storeCompatible = nearestStoreHeader !== null && nearestStoreHeader.includes(currentStoreClean);
                                     }
-
                                     if (storeCompatible) {
                                       foundStaff = true;
                                       targetLines = [line];
                                       for (let j = i + 1; j < lines.length; j++) {
                                         const subLine = lines[j];
-                                        
-                                        if (getStoreHeader(subLine) !== null) {
-                                          break;
-                                        }
-
+                                        if (getStoreHeader(subLine) !== null) break;
                                         targetLines.push(subLine);
-
-                                        const subParts = subLine.split(/\t|\s{2,}/).map(p => p.trim());
+                                        const subParts = splitLine(subLine);
                                         const hasTotalLabel = subParts.some(part => {
                                           const clean = removeAccents(part);
-                                          return clean === 'tong cong' || 
-                                                 clean === 'tong' || 
-                                                 clean.startsWith('tong cong') || 
-                                                 clean.startsWith('tong ') || 
-                                                 clean.startsWith('tong:') ||
-                                                 clean.includes('tong cong') || 
-                                                 clean.includes('tong');
+                                          return clean === 'tong cong' || clean === 'tong' || clean.includes('tong cong') || clean.includes('tong');
                                         });
-
-                                        if (hasTotalLabel) {
-                                          break;
-                                        }
+                                        if (hasTotalLabel) break;
                                       }
                                       break;
                                     }
@@ -1566,7 +1539,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                 let foundRow = false;
                                 let tong = 0;
                                 for (const line of linesToParse) {
-                                  const parts = line.split(/\t|\s{2,}/).map(p => p.trim());
+                                  const parts = splitLine(line);
                                   
                                   // Kiểm tra xem dòng này có phải là dòng Tổng cộng/Tổng công hay không
                                   const hasTotalLabel = parts.some(part => {
