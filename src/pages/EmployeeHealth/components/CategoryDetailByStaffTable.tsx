@@ -39,7 +39,33 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       break;
     }
     if (headerStartIdx !== -1) {
-      let catName = lines[i];
+      let catName = lines[i].trim();
+      
+      // Loại bỏ dòng rác (không phải tên ngành hàng)
+      const isColumnTypesLine = /^(DTLK|SLLK|SL|DT|Realtime|REALTIME|\s)+$/i.test(catName);
+      const numbers = catName.match(/-?[\d,.]+/g) || [];
+      const hasManyNumbers = numbers.length >= 2;
+      const lowerCatName = catName.toLowerCase();
+      const isExcluded = [
+        'tổng', 'tong',
+        'bp all in one',
+        'bp trưởng ca', 'bp truong ca',
+        'hỗ trợ bi', 'ho tro bi',
+        'copyright',
+        'dashboard',
+        'bc ',
+        'hd sử dụng', 'hd su dung',
+        'trang chủ', 'trang chu',
+        'báo cáo', 'bao cao',
+        'khối kinh doanh', 'khoi kinh doanh',
+        'logo bi',
+        'avatar'
+      ].some(ex => lowerCatName.includes(ex));
+
+      if (isColumnTypesLine || hasManyNumbers || isExcluded) {
+        continue;
+      }
+
       const targetMatch = catName.match(/(.+?)\bTARGET\b/i);
       if (targetMatch) {
         catName = targetMatch[1].trim();
