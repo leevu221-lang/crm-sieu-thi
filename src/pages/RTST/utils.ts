@@ -901,9 +901,9 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
              const cleanCatName = potentialCatName.replace(/^\d+\.\s*/, '').trim();
              if (cleanCatName && !cleanCatName.toLowerCase().startsWith('tổng')) {
                currentCatName = cleanCatName;
-               if (currentCatName.match(/SL Realtime|SL REALTIME|SLLK|\bSL\b/i)) {
+               if (currentCatName.match(/SL Realtime|SL REALTIME|SLLK|\bSL\b|số lượng|so luong|quantity/i)) {
                  currentCatType = 'SL';
-               } else if (currentCatName.match(/DT Realtime|DT REALTIME|DTLK|\bDT\b/i)) {
+               } else if (currentCatName.match(/DT Realtime|DT REALTIME|DTLK|\bDT\b|doanh thu|revenue/i)) {
                  currentCatType = 'DT';
                }
                // If no explicit SL/DT tag is found in the name, preserve currentCatType
@@ -921,8 +921,8 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
         let catType: 'SL' | 'DT' | 'ALL' = 'ALL';
         
         // Determine type based on keywords, inherit from currentCatType if unknown
-        if (catName.match(/SL Realtime|SL REALTIME|SLLK|\bSL\b/i)) catType = 'SL';
-        else if (catName.match(/DT Realtime|DT REALTIME|DTLK|\bDT\b/i)) catType = 'DT';
+        if (catName.match(/SL Realtime|SL REALTIME|SLLK|\bSL\b|số lượng|so luong|quantity/i)) catType = 'SL';
+        else if (catName.match(/DT Realtime|DT REALTIME|DTLK|\bDT\b|doanh thu|revenue/i)) catType = 'DT';
         else catType = currentCatType;
 
         const normCat = normalize(catName);
