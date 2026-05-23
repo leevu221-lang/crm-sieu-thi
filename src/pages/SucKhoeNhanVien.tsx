@@ -106,25 +106,23 @@ const EmployeeHealth: React.FC = () => {
     const market = allowedMarkets.find((m: any) => m.name === marketFilter);
     if (!market) return;
 
-    setStName(market.name);
-    setStDtlk(market.actualReal || 0);
-    setStDtqd(market.actualVirtual || 0);
+    if (stName !== market.name) setStName(market.name);
+    if (stDtlk !== (market.actualReal || 0)) setStDtlk(market.actualReal || 0);
+    if (stDtqd !== (market.actualVirtual || 0)) setStDtqd(market.actualVirtual || 0);
 
     const dtDuKienQD = market.targetQD || 0;
     const percentHT = market.percentHT || 0;
-    setStDtDuKienQD(dtDuKienQD);
-    setStPercentHTTargetDuKienQD(percentHT);
-
-    const computedTargetQuyDoi = percentHT > 0 ? Math.round(dtDuKienQD / (percentHT / 100)) : 0;
-    setStTargetQuyDoi(computedTargetQuyDoi);
+    if (stDtDuKienQD !== dtDuKienQD) setStDtDuKienQD(dtDuKienQD);
+    if (stPercentHTTargetDuKienQD !== percentHT) setStPercentHTTargetDuKienQD(percentHT);
 
     const targetDataKey = Object.keys(allStoreTargets || {}).find((k: string) => removeAccents(k) === removeAccents(market.name));
     const targetData = targetDataKey ? allStoreTargets[targetDataKey] : null;
     if (targetData) {
-      if (targetData.stPercentTarget !== undefined) setStPercentTarget(targetData.stPercentTarget);
-      if (targetData.stTargetSauHeSo !== undefined) setStTargetSauHeSo(targetData.stTargetSauHeSo);
+      if (targetData.stPercentTarget !== undefined && stPercentTarget !== targetData.stPercentTarget) {
+        setStPercentTarget(targetData.stPercentTarget);
+      }
     }
-  }, [marketFilter, allowedMarkets, allStoreTargets, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD, setStTargetQuyDoi, setStPercentTarget, setStTargetSauHeSo]);
+  }, [marketFilter, allowedMarkets, allStoreTargets, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stPercentTarget, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD, setStPercentTarget]);
 
   // NOTE: Luyke data auto-loads when currentStoreId changes (centralized in useLuykeData)
 

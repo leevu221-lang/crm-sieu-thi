@@ -92,6 +92,7 @@ const LuyKe: React.FC = () => {
   }, [filteredMarkets, maKho]);
 
   // PERF: Sync stName and revenue fields when marketFilter or data changes
+  // PERF: Sync stName and revenue fields when marketFilter or data changes
   // Only trigger on external changes (marketFilter, filteredMarkets, allStoreTargets)
   // NOT on the values we set — avoids re-render cascade
   useEffect(() => {
@@ -99,27 +100,24 @@ const LuyKe: React.FC = () => {
     const market = filteredMarkets.find(m => m.name === marketFilter);
     if (!market) return;
 
-    // Batch all state updates — React batches these within a single effect
-    setStName(market.name);
-    setStDtlk(market.actualReal || 0);
-    setStDtqd(market.actualVirtual || 0);
+    if (stName !== market.name) setStName(market.name);
+    if (stDtlk !== (market.actualReal || 0)) setStDtlk(market.actualReal || 0);
+    if (stDtqd !== (market.actualVirtual || 0)) setStDtqd(market.actualVirtual || 0);
 
     const dtDuKienQD = market.targetQD || 0;
     const percentHT = market.percentHT || 0;
-    setStDtDuKienQD(dtDuKienQD);
-    setStPercentHTTargetDuKienQD(percentHT);
-
-    const computedTargetQuyDoi = percentHT > 0 ? Math.round(dtDuKienQD / (percentHT / 100)) : 0;
-    setStTargetQuyDoi(computedTargetQuyDoi);
+    if (stDtDuKienQD !== dtDuKienQD) setStDtDuKienQD(dtDuKienQD);
+    if (stPercentHTTargetDuKienQD !== percentHT) setStPercentHTTargetDuKienQD(percentHT);
 
     // Sync from DB cache (allStoreTargets) using normalized keys to prevent spacing/underscore mismatches
     const targetDataKey = Object.keys(allStoreTargets || {}).find(k => normalize(k) === normalize(market.name));
     const targetData = targetDataKey ? allStoreTargets[targetDataKey] : null;
     if (targetData) {
-      if (targetData.stPercentTarget !== undefined) setStPercentTarget(targetData.stPercentTarget);
-      if (targetData.stTargetSauHeSo !== undefined) setStTargetSauHeSo(targetData.stTargetSauHeSo);
+      if (targetData.stPercentTarget !== undefined && stPercentTarget !== targetData.stPercentTarget) {
+        setStPercentTarget(targetData.stPercentTarget);
+      }
     }
-  }, [marketFilter, filteredMarkets, allStoreTargets]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [marketFilter, filteredMarkets, allStoreTargets, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stPercentTarget, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD, setStPercentTarget]);
 
   // Sync marketFilter when filteredMarkets changes
   useEffect(() => {
