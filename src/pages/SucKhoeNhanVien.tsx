@@ -39,6 +39,8 @@ const splitLine = (l: string): string[] => {
   return l.split(/\t|\s{2,}/).map(p => p.trim());
 };
 
+const CAT_GROUPS = ['Tổng cộng', 'Điện thoại', 'Phụ kiện tiện ích', 'Laptop', 'Wearable', 'VAS', 'Phụ kiện trang trí', 'Dịch vụ sim'];
+
 const EmployeeHealth: React.FC = () => {
   const { userProfile } = useAuth();
   const { showNotification } = useNotification();
@@ -1444,256 +1446,379 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                       </div>
 
                       {/* Table Content */}
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="bg-slate-50 border-b-2 border-slate-200">
-                              <th className="px-3 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest text-left w-10">STT</th>
-                              <th className="px-3 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest text-left">Nhân viên</th>
-                              <th className="px-3 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-l border-slate-200">Thưởng T.Trước</th>
-                              <th className="px-3 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-l border-slate-200">Thưởng Hiện tại</th>
-                              <th className="px-3 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center border-l border-slate-200">Xu hướng</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {filteredBiData.map((staff, idx) => {
-                              const truoc = thuongData[staff.fullId]?.truoc || '';
-                              const hientai = thuongData[staff.fullId]?.hientai || '';
-                              
-                              const parseBonusData = (text: string) => {
-                                if (!text || text.trim().length === 0) return { tong: null };
-                                const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-                                const currentStoreClean = marketFilter && marketFilter !== 'ALL' 
-                                  ? removeAccents(marketFilter).replace(/^(dml|dms3|dms|dmm|tgd|aar|bhx)\s+/, '').trim()
-                                  : '';
-                                const staffId = staff.fullId;
-                                const staffNameClean = removeAccents(staff.displayName.split('-').pop() || '').trim();
+                      <div className="overflow-x-auto scrollbar-thin select-none">
+                        {(() => {
+                          const parseBonusData = (text: string, staffObj: any) => {
+                            if (!text || text.trim().length === 0) return { tong: null, details: Array(8).fill(null) };
+                            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                            const currentStoreClean = marketFilter && marketFilter !== 'ALL' 
+                              ? removeAccents(marketFilter).replace(/^(dml|dms3|dms|dmm|tgd|aar|bhx)\s+/, '').trim()
+                              : '';
+                            const staffId = staffObj.fullId;
+                            const staffNameClean = removeAccents(staffObj.displayName.split('-').pop() || '').trim();
 
-                                const getStoreHeader = (line: string): string | null => {
-                                  const cleanLine = removeAccents(line).trim();
-                                  const hasStoreKeyword = cleanLine.includes('sieu thi') || 
-                                                          cleanLine.includes('cua hang') ||
-                                                          cleanLine.includes('dien may xanh') ||
-                                                          cleanLine.includes('the gioi di dong') ||
-                                                          /^(dml|dms3|dms|dmm|tgd|aar|bhx)\b/.test(cleanLine);
-                                  return hasStoreKeyword ? cleanLine : null;
-                                };
+                            const getStoreHeader = (line: string): string | null => {
+                              const cleanLine = removeAccents(line).trim();
+                              const hasStoreKeyword = cleanLine.includes('sieu thi') || 
+                                                      cleanLine.includes('cua hang') ||
+                                                      cleanLine.includes('dien may xanh') ||
+                                                      cleanLine.includes('the gioi di dong') ||
+                                                      /^(dml|dms3|dms|dmm|tgd|aar|bhx)\b/.test(cleanLine);
+                              return hasStoreKeyword ? cleanLine : null;
+                            };
 
-                                const splitLine = (l: string): string[] => {
-                                  if (l.includes('\t')) {
-                                    return l.split('\t').map(p => p.trim());
-                                  }
-                                  return l.split(/\t|\s{2,}/).map(p => p.trim());
-                                };
+                            let thucLanhColIndices: number[] = [];
+                            let headerColCount = -1;
+                            for (const line of lines) {
+                              const parts = splitLine(line);
+                              const indices: number[] = [];
+                              parts.forEach((p, idx) => {
+                                const clean = removeAccents(p);
+                                const isThucLanh = clean.includes('diem thuc lanh') || 
+                                                   clean.includes('thuc lanh') ||
+                                                   clean.includes('thuc nhan') ||
+                                                   clean.includes('thuc linh') ||
+                                                   clean.includes('thuc tra');
+                                if (isThucLanh) {
+                                  indices.push(idx);
+                                }
+                              });
+                              if (indices.length > 0) {
+                                thucLanhColIndices = indices;
+                                headerColCount = parts.length;
+                                break;
+                              }
+                            }
 
-                                let thucLanhColIdx = -1;
-                                let headerColCount = -1;
-                                for (const line of lines) {
-                                  const parts = splitLine(line);
-                                  const idx = parts.findIndex(p => {
-                                    const clean = removeAccents(p);
-                                    return clean.includes('diem thuc lanh') || 
-                                           clean.includes('thuc lanh') ||
-                                           clean.includes('thuc nhan') ||
-                                           clean.includes('thuc linh') ||
-                                           clean.includes('thuc tra');
-                                  });
-                                  if (idx !== -1) {
-                                    thucLanhColIdx = idx;
-                                    headerColCount = parts.length;
+                            let foundStaff = false;
+                            let targetLines: string[] = [];
+                            const hasAnyHeader = lines.some(l => getStoreHeader(l) !== null);
+
+                            for (let i = 0; i < lines.length; i++) {
+                              const line = lines[i];
+                              const cleanLine = removeAccents(line);
+                              const matchStaff = cleanLine.includes(staffId) || (staffNameClean && cleanLine.includes(staffNameClean));
+                              if (matchStaff) {
+                                let nearestStoreHeader: string | null = null;
+                                for (let k = i - 1; k >= 0; k--) {
+                                  const header = getStoreHeader(lines[k]);
+                                  if (header) {
+                                    nearestStoreHeader = header;
                                     break;
                                   }
                                 }
-
-                                let foundStaff = false;
-                                let targetLines: string[] = [];
-                                const hasAnyHeader = lines.some(l => getStoreHeader(l) !== null);
-
-                                for (let i = 0; i < lines.length; i++) {
-                                  const line = lines[i];
-                                  const cleanLine = removeAccents(line);
-                                  const matchStaff = cleanLine.includes(staffId) || (staffNameClean && cleanLine.includes(staffNameClean));
-                                  if (matchStaff) {
-                                    let nearestStoreHeader: string | null = null;
-                                    for (let k = i - 1; k >= 0; k--) {
-                                      const header = getStoreHeader(lines[k]);
-                                      if (header) {
-                                        nearestStoreHeader = header;
-                                        break;
-                                      }
-                                    }
-                                    let storeCompatible = true;
-                                    if (currentStoreClean && hasAnyHeader) {
-                                      storeCompatible = nearestStoreHeader !== null && nearestStoreHeader.includes(currentStoreClean);
-                                    }
-                                    if (storeCompatible) {
-                                      foundStaff = true;
-                                      targetLines = [line];
-                                      for (let j = i + 1; j < lines.length; j++) {
-                                        const subLine = lines[j];
-                                        if (getStoreHeader(subLine) !== null) break;
-                                        targetLines.push(subLine);
-                                        const subParts = splitLine(subLine);
-                                        const hasTotalLabel = subParts.some(part => {
-                                          const clean = removeAccents(part);
-                                          return clean === 'tong cong' || clean === 'tong' || clean.includes('tong cong') || clean.includes('tong');
-                                        });
-                                        if (hasTotalLabel) break;
-                                      }
-                                      break;
-                                    }
-                                  }
+                                let storeCompatible = true;
+                                if (currentStoreClean && hasAnyHeader) {
+                                  storeCompatible = nearestStoreHeader !== null && nearestStoreHeader.includes(currentStoreClean);
                                 }
+                                if (storeCompatible) {
+                                  foundStaff = true;
+                                  targetLines = [line];
+                                  for (let j = i + 1; j < lines.length; j++) {
+                                    const subLine = lines[j];
+                                    if (getStoreHeader(subLine) !== null) break;
+                                    targetLines.push(subLine);
+                                    const subParts = splitLine(subLine);
+                                    const hasTotalLabel = subParts.some(part => {
+                                      const clean = removeAccents(part);
+                                      return clean === 'tong cong' || clean === 'tong' || clean.includes('tong cong') || clean.includes('tong');
+                                    });
+                                    if (hasTotalLabel) break;
+                                  }
+                                  break;
+                                }
+                              }
+                            }
 
-                                const linesToParse = foundStaff ? targetLines : lines;
+                            const linesToParse = foundStaff ? targetLines : lines;
 
-                                let foundRow = false;
-                                let tong = 0;
-                                for (const line of linesToParse) {
-                                  const parts = splitLine(line);
-                                  
-                                  const hasTotalLabel = parts.some(part => {
-                                    const clean = removeAccents(part);
-                                    return clean === 'tong cong' || 
-                                           clean === 'tong' || 
-                                           clean.startsWith('tong cong') || 
-                                           clean.startsWith('tong ') || 
-                                           clean.startsWith('tong:') ||
-                                           clean.includes('tong cong') || 
-                                           clean.includes('tong');
-                                  });
+                            let foundRow = false;
+                            let tong = 0;
+                            const details: (number | null)[] = Array(8).fill(null);
 
-                                  const hasNumericData = parts.some(part => {
-                                    const clean = part.replace(/[^\d-]/g, '');
-                                    return clean.length > 0 && !isNaN(parseInt(clean, 10));
-                                  });
-                                  
-                                  if (hasTotalLabel && hasNumericData) {
-                                    foundRow = true;
+                            for (const line of linesToParse) {
+                              const parts = splitLine(line);
+                              
+                              const hasTotalLabel = parts.some(part => {
+                                const clean = removeAccents(part);
+                                return clean === 'tong cong' || 
+                                       clean === 'tong' || 
+                                       clean.startsWith('tong cong') || 
+                                       clean.startsWith('tong ') || 
+                                       clean.startsWith('tong:') ||
+                                       clean.includes('tong cong') || 
+                                       clean.includes('tong');
+                              });
+
+                              const hasNumericData = parts.some(part => {
+                                const clean = part.replace(/[^\d-]/g, '');
+                                return clean.length > 0 && !isNaN(parseInt(clean, 10));
+                              });
+                              
+                              if (hasTotalLabel && hasNumericData) {
+                                foundRow = true;
+                                
+                                if (thucLanhColIndices.length > 0 && headerColCount !== -1) {
+                                  if (thucLanhColIndices.length === 1) {
+                                    const headerIdx = thucLanhColIndices[0];
                                     let targetIdx = -1;
-                                    
-                                    if (thucLanhColIdx !== -1 && headerColCount !== -1) {
-                                      if (parts.length === headerColCount) {
-                                        targetIdx = thucLanhColIdx;
-                                      } else if (parts.length === headerColCount + 1) {
-                                        targetIdx = thucLanhColIdx + 1;
-                                      } else {
-                                        // Right-aligned column mapping for merged cells in the total row
-                                        const distFromRight = headerColCount - 1 - thucLanhColIdx;
-                                        const mappedIdx = parts.length - 1 - distFromRight;
-                                        if (mappedIdx >= 0 && mappedIdx < parts.length) {
-                                          targetIdx = mappedIdx;
-                                        }
+                                    if (parts.length === headerColCount) {
+                                      targetIdx = headerIdx;
+                                    } else if (parts.length === headerColCount + 1) {
+                                      targetIdx = headerIdx + 1;
+                                    } else {
+                                      const distFromRight = headerColCount - 1 - headerIdx;
+                                      const mappedIdx = parts.length - 1 - distFromRight;
+                                      if (mappedIdx >= 0 && mappedIdx < parts.length) {
+                                        targetIdx = mappedIdx;
                                       }
                                     }
                                     
-                                    if (targetIdx !== -1) {
+                                    if (targetIdx !== -1 && targetIdx < parts.length) {
                                       const raw = parts[targetIdx];
                                       const clean = raw.replace(/[^\d-]/g, '');
                                       const num = parseInt(clean, 10);
-                                      tong = isNaN(num) ? 0 : num;
-                                    } else {
-                                      // Fallback: Thử lấy giá trị số cuối cùng của dòng này
-                                      let foundNum = false;
-                                      for (let i = parts.length - 1; i >= 0; i--) {
-                                        const raw = parts[i];
-                                        const clean = raw.replace(/[^\d-]/g, '');
-                                        const n = parseInt(clean, 10);
-                                        if (!isNaN(n) && n > 0) { 
-                                          tong = n; 
-                                          foundNum = true;
-                                          break; 
+                                      const val = isNaN(num) ? 0 : num;
+                                      tong = val;
+                                      details[0] = val;
+                                    }
+                                  } else {
+                                    for (let i = 0; i < 8; i++) {
+                                      if (i < thucLanhColIndices.length) {
+                                        const headerIdx = thucLanhColIndices[i];
+                                        let targetIdx = -1;
+                                        if (parts.length === headerColCount) {
+                                          targetIdx = headerIdx;
+                                        } else if (parts.length === headerColCount + 1) {
+                                          targetIdx = headerIdx + 1;
+                                        } else {
+                                          const distFromRight = headerColCount - 1 - headerIdx;
+                                          const mappedIdx = parts.length - 1 - distFromRight;
+                                          if (mappedIdx >= 0 && mappedIdx < parts.length) {
+                                            targetIdx = mappedIdx;
+                                          }
+                                        }
+                                        
+                                        if (targetIdx !== -1 && targetIdx < parts.length) {
+                                          const raw = parts[targetIdx];
+                                          const clean = raw.replace(/[^\d-]/g, '');
+                                          const num = parseInt(clean, 10);
+                                          const val = isNaN(num) ? 0 : num;
+                                          details[i] = val;
+                                          if (i === 0) {
+                                            tong = val;
+                                          }
                                         }
                                       }
-                                      if (!foundNum) {
-                                        tong = 0;
-                                      }
                                     }
-                                    break;
                                   }
+                                } else {
+                                  let foundNum = false;
+                                  let lastNum = 0;
+                                  for (let i = parts.length - 1; i >= 0; i--) {
+                                    const raw = parts[i];
+                                    const clean = raw.replace(/[^\d-]/g, '');
+                                    const n = parseInt(clean, 10);
+                                    if (!isNaN(n) && n > 0) { 
+                                      lastNum = n; 
+                                      foundNum = true;
+                                      break; 
+                                    }
+                                  }
+                                  tong = foundNum ? lastNum : 0;
+                                  details[0] = tong;
                                 }
-                                return { tong: foundRow ? tong : null };
-                              };
-                              
-                              const truocData = parseBonusData(truoc);
-                              const hientaiData = parseBonusData(hientai);
-                              
-                              const valTruoc = truocData.tong !== null ? truocData.tong : 0;
-                              const valHientai = hientaiData.tong !== null ? hientaiData.tong : 0;
-                              const tongDiff = valHientai - valTruoc;
- 
-                              return (
-                                <tr key={staff.fullId} className="hover:bg-purple-50/30 transition-colors">
-                                  <td className="px-3 py-3">
-                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-slate-100 text-[10px] font-black text-slate-500">
-                                      {idx + 1}
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-3">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center flex-shrink-0">
-                                        <span className="text-[10px] font-black text-purple-600">
-                                          {staff.displayName.split(' ').pop()?.charAt(0) || '?'}
-                                        </span>
-                                      </div>
-                                      <p className="text-[11px] font-bold text-slate-800 truncate max-w-[180px]">{staff.displayName}</p>
-                                    </div>
-                                  </td>
-                                  {/* Thưởng T.Trước */}
-                                  <td className="px-3 py-3 text-center border-l border-slate-100">
-                                    {truocData.tong !== null ? (
-                                      <span className="inline-flex px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-bold text-slate-700">{truocData.tong.toLocaleString('vi-VN')}</span>
-                                    ) : (
-                                      <span className="text-[10px] text-slate-300 font-bold">—</span>
-                                    )}
-                                  </td>
-                                  {/* Thưởng Hiện tại */}
-                                  <td className="px-3 py-3 text-center border-l border-slate-100">
-                                    {hientaiData.tong !== null ? (
-                                      <span className="inline-flex px-2.5 py-1 rounded-lg bg-purple-100 text-xs font-bold text-purple-700">{hientaiData.tong.toLocaleString('vi-VN')}</span>
-                                    ) : (
-                                      <span className="text-[10px] text-slate-300 font-bold">—</span>
-                                    )}
-                                  </td>
-                                  {/* Xu hướng */}
-                                  <td className="px-3 py-3 text-center border-l border-slate-100">
-                                    {truocData.tong !== null || hientaiData.tong !== null ? (
-                                      <div className="flex items-center justify-center">
-                                        {tongDiff > 0 ? (
-                                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase">
-                                            <TrendingUp size={11} strokeWidth={3} /> Tăng
-                                          </span>
-                                        ) : tongDiff < 0 ? (
-                                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 text-rose-600 text-[9px] font-black uppercase">
-                                            <TrendingDown size={11} strokeWidth={3} /> Giảm
-                                          </span>
-                                        ) : (
-                                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 text-amber-600 text-[9px] font-black uppercase">
-                                            <Check size={11} strokeWidth={3} /> Ổn định
-                                          </span>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <span className="inline-flex items-center px-2 py-1 rounded-lg bg-slate-50 text-slate-400 text-[9px] font-black uppercase">
-                                        Chưa có DL
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
+                                break;
+                              }
+                            }
+                            return { tong: foundRow ? tong : null, details: foundRow ? details : Array(8).fill(null) };
+                          };
 
-                        {filteredBiData.length === 0 && (
-                          <div className="flex flex-col items-center justify-center py-16 text-center">
-                            <div className="w-16 h-16 rounded-3xl bg-slate-100 flex items-center justify-center mb-4">
-                              <Gift size={28} className="text-slate-300" />
-                            </div>
-                            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Chưa có nhân viên</h3>
-                            <p className="text-xs text-slate-300 font-medium mt-1">Chọn siêu thị và nhân viên để xem bảng thưởng</p>
-                          </div>
-                        )}
+                          // Tính toán hàng Tổng cho Footer
+                          const colTotalsT = Array(8).fill(0);
+                          const colTotalsH = Array(8).fill(0);
+                          let hasAnyDataT = false;
+                          let hasAnyDataH = false;
+
+                          filteredBiData.forEach(staff => {
+                            const truoc = thuongData[staff.fullId]?.truoc || '';
+                            const hientai = thuongData[staff.fullId]?.hientai || '';
+                            const tD = parseBonusData(truoc, staff);
+                            const hD = parseBonusData(hientai, staff);
+                            
+                            for (let i = 0; i < 8; i++) {
+                              if (tD.details[i] !== null) {
+                                colTotalsT[i] += tD.details[i] || 0;
+                                hasAnyDataT = true;
+                              }
+                              if (hD.details[i] !== null) {
+                                colTotalsH[i] += hD.details[i] || 0;
+                                hasAnyDataH = true;
+                              }
+                            }
+                          });
+
+                          return (
+                            <>
+                              <table className="w-full border-collapse border border-slate-200">
+                                <thead>
+                                  <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                    <th rowSpan={2} className="px-3 py-4 text-left w-10 border-b border-slate-200 border-r border-slate-200">STT</th>
+                                    <th rowSpan={2} className="px-3 py-4 text-left border-b border-slate-200 border-r border-slate-200 min-w-[160px]">Nhân viên</th>
+                                    {CAT_GROUPS.map((cat, idx) => (
+                                      <th key={idx} colSpan={2} className="px-3 py-2 text-center border-r border-slate-200 border-b border-slate-200">
+                                        {cat}
+                                      </th>
+                                    ))}
+                                    <th rowSpan={2} className="px-3 py-4 text-center border-b border-slate-200 min-w-[80px]">Xu hướng</th>
+                                  </tr>
+                                  <tr className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                                    {CAT_GROUPS.map((_, idx) => (
+                                      <React.Fragment key={idx}>
+                                        <th className="px-2 py-2 text-center border-r border-slate-200 border-b border-slate-200 min-w-[80px]">T.Trước</th>
+                                        <th className="px-2 py-2 text-center border-r border-slate-200 border-b border-slate-200 min-w-[80px]">H.Tại</th>
+                                      </React.Fragment>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  {filteredBiData.map((staff, idx) => {
+                                    const truoc = thuongData[staff.fullId]?.truoc || '';
+                                    const hientai = thuongData[staff.fullId]?.hientai || '';
+                                    
+                                    const truocData = parseBonusData(truoc, staff);
+                                    const hientaiData = parseBonusData(hientai, staff);
+                                    
+                                    const valTruoc = truocData.tong !== null ? truocData.tong : 0;
+                                    const valHientai = hientaiData.tong !== null ? hientaiData.tong : 0;
+                                    const tongDiff = valHientai - valTruoc;
+
+                                    return (
+                                      <tr key={staff.fullId} className="hover:bg-purple-50/30 transition-colors">
+                                        <td className="px-3 py-3 border-r border-slate-200 text-center">
+                                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-slate-100 text-[10px] font-black text-slate-500">
+                                            {idx + 1}
+                                          </span>
+                                        </td>
+                                        <td className="px-3 py-3 border-r border-slate-200">
+                                          <div className="flex items-center gap-2">
+                                            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center flex-shrink-0">
+                                              <span className="text-[10px] font-black text-purple-600">
+                                                {staff.displayName.split(' ').pop()?.charAt(0) || '?'}
+                                              </span>
+                                            </div>
+                                            <p className="text-[11px] font-bold text-slate-800 truncate max-w-[140px]" title={staff.displayName}>{staff.displayName}</p>
+                                          </div>
+                                        </td>
+                                        {CAT_GROUPS.map((_, gIdx) => {
+                                          const valT = truocData.details[gIdx];
+                                          const valH = hientaiData.details[gIdx];
+                                          return (
+                                            <React.Fragment key={gIdx}>
+                                              <td className="px-2 py-3 text-center border-r border-slate-200">
+                                                {valT !== null ? (
+                                                  <span className="inline-flex px-2 py-0.5 rounded bg-slate-100 text-[11px] font-bold text-slate-600">
+                                                    {valT.toLocaleString('vi-VN')}
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-[10px] text-slate-300 font-bold">—</span>
+                                                )}
+                                              </td>
+                                              <td className="px-2 py-3 text-center border-r border-slate-200">
+                                                {valH !== null ? (
+                                                  <span className="inline-flex px-2 py-0.5 rounded bg-purple-100 text-[11px] font-bold text-purple-700">
+                                                    {valH.toLocaleString('vi-VN')}
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-[10px] text-slate-300 font-bold">—</span>
+                                                )}
+                                              </td>
+                                            </React.Fragment>
+                                          );
+                                        })}
+                                        <td className="px-3 py-3 text-center">
+                                          {truocData.tong !== null || hientaiData.tong !== null ? (
+                                            <div className="flex items-center justify-center">
+                                              {tongDiff > 0 ? (
+                                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase">
+                                                  <TrendingUp size={10} strokeWidth={3} /> Tăng
+                                                </span>
+                                              ) : tongDiff < 0 ? (
+                                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 text-[9px] font-black uppercase">
+                                                  <TrendingDown size={10} strokeWidth={3} /> Giảm
+                                                </span>
+                                              ) : (
+                                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 text-[9px] font-black uppercase">
+                                                  <Check size={10} strokeWidth={3} /> Ổn định
+                                                </span>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-50 text-slate-400 text-[9px] font-black uppercase">
+                                              Chưa có DL
+                                            </span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                                <tfoot className="bg-slate-50 font-black text-slate-700 text-[11px] border-t-2 border-slate-200">
+                                  <tr>
+                                    <td colSpan={2} className="px-3 py-3 text-right uppercase tracking-wider border-r border-slate-200">Tổng cộng</td>
+                                    {CAT_GROUPS.map((_, gIdx) => {
+                                      const totalT = colTotalsT[gIdx];
+                                      const totalH = colTotalsH[gIdx];
+                                      return (
+                                        <React.Fragment key={gIdx}>
+                                          <td className="px-2 py-3 text-center border-r border-slate-200 bg-slate-100/50">
+                                            {hasAnyDataT ? (
+                                              <span className="text-slate-800 font-bold">{totalT.toLocaleString('vi-VN')}</span>
+                                            ) : (
+                                              <span className="text-slate-300">—</span>
+                                            )}
+                                          </td>
+                                          <td className="px-2 py-3 text-center border-r border-slate-200 bg-purple-50/30">
+                                            {hasAnyDataH ? (
+                                              <span className="text-purple-700 font-bold">{totalH.toLocaleString('vi-VN')}</span>
+                                            ) : (
+                                              <span className="text-slate-300">—</span>
+                                            )}
+                                          </td>
+                                        </React.Fragment>
+                                      );
+                                    })}
+                                    <td className="px-3 py-3 text-center bg-slate-100/30">
+                                      {hasAnyDataT && hasAnyDataH ? (
+                                        <div className="flex items-center justify-center">
+                                          {colTotalsH[0] - colTotalsT[0] > 0 ? (
+                                            <span className="text-emerald-600 text-[9px] font-black uppercase">Tăng</span>
+                                          ) : colTotalsH[0] - colTotalsT[0] < 0 ? (
+                                            <span className="text-rose-600 text-[9px] font-black uppercase">Giảm</span>
+                                          ) : (
+                                            <span className="text-amber-600 text-[9px] font-black uppercase">Ổn định</span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className="text-slate-300">—</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                </tfoot>
+                              </table>
+
+                              {filteredBiData.length === 0 && (
+                                <div className="flex flex-col items-center justify-center py-16 text-center">
+                                  <div className="w-16 h-16 rounded-3xl bg-slate-100 flex items-center justify-center mb-4">
+                                    <Gift size={28} className="text-slate-300" />
+                                  </div>
+                                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Chưa có nhân viên</h3>
+                                  <p className="text-xs text-slate-300 font-medium mt-1">Chọn siêu thị và nhân viên để xem bảng thưởng</p>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>

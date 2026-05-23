@@ -8,7 +8,7 @@ const removeAccents = (str) => {
 };
 
 const parseBonusData = (text, staff, marketFilter) => {
-  if (!text || text.trim().length === 0) return { tong: null };
+  if (!text || text.trim().length === 0) return { tong: null, details: Array(8).fill(null) };
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   
   // Clean store name for matching
@@ -31,21 +31,32 @@ const parseBonusData = (text, staff, marketFilter) => {
     return hasStoreKeyword ? cleanLine : null;
   };
 
-  // Step 1: Detect the column index of "Điểm thực lãnh" or equivalents
-  let thucLanhColIdx = -1;
+  const splitLine = (line) => {
+    if (line.includes('\t')) {
+      return line.split('\t').map(p => p.trim());
+    }
+    return line.split(/\s{2,}/).map(p => p.trim());
+  };
+
+  // Step 1: Detect all column indices of "Điểm thực lãnh" or equivalents
+  let thucLanhColIndices = [];
   let headerColCount = -1;
   for (const line of lines) {
-    const parts = line.split(/\t|\s{2,}/).map(p => p.trim());
-    const idx = parts.findIndex(p => {
+    const parts = splitLine(line);
+    const indices = [];
+    parts.forEach((p, idx) => {
       const clean = removeAccents(p);
-      return clean.includes('diem thuc lanh') || 
-             clean.includes('thuc lanh') ||
-             clean.includes('thuc nhan') ||
-             clean.includes('thuc linh') ||
-             clean.includes('thuc tra');
+      const isThucLanh = clean.includes('diem thuc lanh') || 
+                         clean.includes('thuc lanh') ||
+                         clean.includes('thuc nhan') ||
+                         clean.includes('thuc linh') ||
+                         clean.includes('thuc tra');
+      if (isThucLanh) {
+        indices.push(idx);
+      }
     });
-    if (idx !== -1) {
-      thucLanhColIdx = idx;
+    if (indices.length > 0) {
+      thucLanhColIndices = indices;
       headerColCount = parts.length;
       break;
     }
@@ -98,7 +109,7 @@ const parseBonusData = (text, staff, marketFilter) => {
 
           targetLines.push(subLine);
 
-          const subParts = subLine.split(/\t|\s{2,}/).map(p => p.trim());
+          const subParts = splitLine(subLine);
           const hasTotalLabel = subParts.some(part => {
             const clean = removeAccents(part);
             return clean === 'tong cong' || 
@@ -123,9 +134,10 @@ const parseBonusData = (text, staff, marketFilter) => {
 
   let foundRow = false;
   let tong = 0;
+  const details = Array(8).fill(null);
 
   for (const line of linesToParse) {
-    const parts = line.split(/\t|\s{2,}/).map(p => p.trim());
+    const parts = splitLine(line);
     const hasTotalLabel = parts.some(part => {
       const clean = removeAccents(part);
       return clean === 'tong cong' || 
@@ -137,48 +149,92 @@ const parseBonusData = (text, staff, marketFilter) => {
              clean.includes('tong');
     });
 
-    if (hasTotalLabel) {
+    const hasNumericData = parts.some(part => {
+      const clean = part.replace(/[^\d-]/g, '');
+      return clean.length > 0 && !isNaN(parseInt(clean, 10));
+    });
+
+    if (hasTotalLabel && hasNumericData) {
       foundRow = true;
-      let targetIdx = -1;
       
-      if (thucLanhColIdx !== -1 && headerColCount !== -1) {
-        if (parts.length === headerColCount) {
-          targetIdx = thucLanhColIdx;
+      if (thucLanhColIndices.length > 0 && headerColCount !== -1) {
+        if (thucLanhColIndices.length === 1) {
+          // Backward compatibility for single-column bonus data
+          const headerIdx = thucLanhColIndices[0];
+          let targetIdx = -1;
+          if (parts.length === headerColCount) {
+            targetIdx = headerIdx;
+          } else if (parts.length === headerColCount + 1) {
+            targetIdx = headerIdx + 1;
+          } else {
+            const distFromRight = headerColCount - 1 - headerIdx;
+            const mappedIdx = parts.length - 1 - distFromRight;
+            if (mappedIdx >= 0 && mappedIdx < parts.length) {
+              targetIdx = mappedIdx;
+            }
+          }
+          
+          if (targetIdx !== -1 && targetIdx < parts.length) {
+            const raw = parts[targetIdx];
+            const clean = raw.replace(/[^\d-]/g, '');
+            const num = parseInt(clean, 10);
+            const val = isNaN(num) ? 0 : num;
+            tong = val;
+            details[0] = val;
+          }
         } else {
-          const distFromRight = headerColCount - 1 - thucLanhColIdx;
-          const mappedIdx = parts.length - 1 - distFromRight;
-          if (mappedIdx >= 0 && mappedIdx < parts.length) {
-            targetIdx = mappedIdx;
+          // Multicolumn bonus data
+          for (let i = 0; i < 8; i++) {
+            if (i < thucLanhColIndices.length) {
+              const headerIdx = thucLanhColIndices[i];
+              let targetIdx = -1;
+              if (parts.length === headerColCount) {
+                targetIdx = headerIdx;
+              } else if (parts.length === headerColCount + 1) {
+                targetIdx = headerIdx + 1;
+              } else {
+                const distFromRight = headerColCount - 1 - headerIdx;
+                const mappedIdx = parts.length - 1 - distFromRight;
+                if (mappedIdx >= 0 && mappedIdx < parts.length) {
+                  targetIdx = mappedIdx;
+                }
+              }
+              
+              if (targetIdx !== -1 && targetIdx < parts.length) {
+                const raw = parts[targetIdx];
+                const clean = raw.replace(/[^\d-]/g, '');
+                const num = parseInt(clean, 10);
+                const val = isNaN(num) ? 0 : num;
+                details[i] = val;
+                if (i === 0) {
+                  tong = val;
+                }
+              }
+            }
           }
         }
-      }
-      
-      if (targetIdx !== -1) {
-        const raw = parts[targetIdx];
-        const clean = raw.replace(/[^\d-]/g, '');
-        const num = parseInt(clean, 10);
-        tong = isNaN(num) ? 0 : num;
       } else {
+        // Fallback to searching the last numeric value
         let foundNum = false;
+        let lastNum = 0;
         for (let i = parts.length - 1; i >= 0; i--) {
           const raw = parts[i];
           const clean = raw.replace(/[^\d-]/g, '');
           const n = parseInt(clean, 10);
           if (!isNaN(n) && n > 0) { 
-            tong = n; 
+            lastNum = n; 
             foundNum = true;
             break; 
           }
         }
-        if (!foundNum) {
-          tong = 0;
-        }
+        tong = foundNum ? lastNum : 0;
+        details[0] = tong;
       }
       break;
     }
   }
 
-  return { tong: foundRow ? tong : null };
+  return { tong: foundRow ? tong : null, details: foundRow ? details : Array(8).fill(null) };
 };
 
 // Test script
@@ -223,4 +279,15 @@ Tổng cộng\t\t\t6.345.314
 `;
 const res4 = parseBonusData(singlePaste, staff, "ĐML HÓA AN");
 console.log("Result (expected 6345314):", res4.tong);
+
+console.log("\nTEST 5 - New Daily Bonus Report with 'Tổng cộng' in headers (as in image):");
+const newReportPaste = `
+Tổng cộng	Điện thoại	Phụ kiện tiện ích	Laptop	Wearable	VAS	Phụ kiện trang trí	Dịch vụ sim
+Số lượng	Điểm tích lũy	Điểm nhập trả	Thưởng nóng	Điểm trả góp	Điểm nhân dân MDMH	Thưởng nóng SBH	Điểm thực lãnh	Số lượng	Điểm tích lũy	Điểm nhập trả	Điểm thực lãnh	Số lượng	Điểm tích lũy	Điểm nhập trả	Điểm thực lãnh	Số lượng	Điểm tích lũy	Điểm nhập trả	Điểm thực lãnh	Số lượng	Điểm tích lũy	Điểm nhập trả	Điểm thực lãnh	Số lượng	Điểm tích lũy	Điểm nhập trả	Điểm thực lãnh	Số lượng	Điểm tích lũy	Điểm nhập trả	Điểm thực lãnh	Số lượng	Điểm tích lũy	Điểm nhập trả	Điểm thực lãnh
+Tổng cộng	2.513.460	242.496	2.303.600				4.574.564	187	189.249	5.207	184.042	657	422.632	3.057	419.575	7	37.102	760	36.342	3	2.940		2.940	46	89.315		89.315	103	40.688		40.688	2	51		51
+01/05/2026	280	181.073		342.000				523.073	15	4.523		4.523	48	6.928		6.928
+`;
+const res5 = parseBonusData(newReportPaste, staff, "ĐML HÓA AN");
+console.log("Result (expected 4574564):", res5.tong);
+console.log("Details breakdown (expected: [4574564, 184042, 419575, 36342, 2940, 89315, 40688, 51]):", res5.details);
 
