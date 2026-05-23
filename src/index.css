@@ -93,3 +93,17 @@ body.capturing-screenshot .screenshot-comment {
   height: auto !important;
   overflow: visible !important;
 }
+
+body.capturing-screenshot .capturing-target {
+  display: inline-block !important;
+  width: max-content !important;
+  max-width: 100% !important;
+  border: 16px solid #ffffff !important;
+  background-color: #ffffff !important;
+  box-sizing: border-box !important;
+}
+
+body.capturing-screenshot .capturing-target > div {
+  border: 1px solid #cbd5e1 !important;
+}
+

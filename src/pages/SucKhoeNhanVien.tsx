@@ -23,6 +23,15 @@ import SummaryThiDuaTable from './EmployeeHealth/components/SummaryThiDuaTable';
 import CategoryDetailByStaffTable from './EmployeeHealth/components/CategoryDetailByStaffTable';
 import { cn, parseStaffRankData, parseYcxData } from './RTST/utils';
 
+const removeAccents = (str: string): string => {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase();
+};
+
 const EmployeeHealth: React.FC = () => {
   const { userProfile } = useAuth();
   const { showNotification } = useNotification();
@@ -65,13 +74,57 @@ const EmployeeHealth: React.FC = () => {
     savePhucVu,
     saveBanKemNv
   } = useEmployeeHealth(maKho, marketFilter !== 'ALL' ? marketFilter : undefined);
-  const { stTargetSauHeSo, stTargetQuyDoi, stPercentTarget, daysPassed, totalDays } = useRTSTSharedData(maKho);
+  const { 
+    stTargetSauHeSo, setStTargetSauHeSo,
+    stTargetQuyDoi, setStTargetQuyDoi,
+    stPercentTarget, setStPercentTarget,
+    daysPassed,
+    totalDays,
+    stName, setStName,
+    stDtlk, setStDtlk,
+    stDtqd, setStDtqd,
+    stDtDuKienQD, setStDtDuKienQD,
+    stPercentHTTargetDuKienQD, setStPercentHTTargetDuKienQD,
+    allStoreTargets
+  } = useRTSTSharedData(maKho);
   const { categoryTargets, processedData, staffInput, staffCategoryInput, loadData: loadLuykeData, isLoading: isLuykeLoading } = useLuykeData(maKho);
 
   const isDataLoading = isHealthLoading || isLuykeLoading;
 
-  // Note: stTargetSauHeSo is now globally synced and calculated automatically in useRTSTSharedData
-  // No manual recalculation is needed here.
+  // Filter processed markets
+  const allowedMarkets = useMemo(() => {
+    if (!processedData.markets) return [];
+    const allowedPrefixes = ["ĐML", "ĐMM", "ĐMS", "ĐMS3", "TGD", "AAR"];
+    return processedData.markets.filter((m: any) =>
+      allowedPrefixes.some((prefix: string) => m.name.toUpperCase().startsWith(prefix))
+    );
+  }, [processedData.markets]);
+
+  // Sync stName and target fields when marketFilter or data changes (consistent with Lũy Kế page)
+  useEffect(() => {
+    if (marketFilter === 'ALL') return;
+    const market = allowedMarkets.find((m: any) => m.name === marketFilter);
+    if (!market) return;
+
+    setStName(market.name);
+    setStDtlk(market.actualReal || 0);
+    setStDtqd(market.actualVirtual || 0);
+
+    const dtDuKienQD = market.targetQD || 0;
+    const percentHT = market.percentHT || 0;
+    setStDtDuKienQD(dtDuKienQD);
+    setStPercentHTTargetDuKienQD(percentHT);
+
+    const computedTargetQuyDoi = percentHT > 0 ? Math.round(dtDuKienQD / (percentHT / 100)) : 0;
+    setStTargetQuyDoi(computedTargetQuyDoi);
+
+    const targetDataKey = Object.keys(allStoreTargets || {}).find((k: string) => removeAccents(k) === removeAccents(market.name));
+    const targetData = targetDataKey ? allStoreTargets[targetDataKey] : null;
+    if (targetData) {
+      if (targetData.stPercentTarget !== undefined) setStPercentTarget(targetData.stPercentTarget);
+      if (targetData.stTargetSauHeSo !== undefined) setStTargetSauHeSo(targetData.stTargetSauHeSo);
+    }
+  }, [marketFilter, allowedMarkets, allStoreTargets, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD, setStTargetQuyDoi, setStPercentTarget, setStTargetSauHeSo]);
 
   // NOTE: Luyke data auto-loads when currentStoreId changes (centralized in useLuykeData)
 
@@ -91,8 +144,8 @@ const EmployeeHealth: React.FC = () => {
   useEffect(() => {
     if (processedData.markets.length > 0) {
       const allowedPrefixes = ["ĐML", "ĐMM", "ĐMS", "ĐMS3", "TGD", "AAR"];
-      const filtered = processedData.markets.filter(m =>
-        allowedPrefixes.some(prefix => m.name.toUpperCase().startsWith(prefix))
+      const filtered = processedData.markets.filter((m: any) =>
+        allowedPrefixes.some((prefix: string) => m.name.toUpperCase().startsWith(prefix))
       );
       if (filtered.length > 0) {
         setAvailableMarkets(filtered);
@@ -175,16 +228,33 @@ const EmployeeHealth: React.FC = () => {
 
     const lines = sourceText.split('\n');
     
-    // 1. Find the header line in the source text if it exists
+    // Clean store name for matching
+    const currentStoreClean = marketFilter && marketFilter !== 'ALL' 
+      ? removeAccents(marketFilter).replace(/^(dml|dms3|dms|dmm|tgd|aar|bhx)\s+/, '').trim()
+      : '';
+
+    // Helper to check if a line is a supermarket header
+    const getStoreHeader = (line: string): string | null => {
+      const cleanLine = removeAccents(line).trim();
+      const hasStoreKeyword = cleanLine.includes('sieu thi') || 
+                              cleanLine.includes('cua hang') ||
+                              cleanLine.includes('dien may xanh') ||
+                              cleanLine.includes('the gioi di dong') ||
+                              /^(dml|dms3|dms|dmm|tgd|aar|bhx)\b/.test(cleanLine);
+      return hasStoreKeyword ? cleanLine : null;
+    };
+
+    // Find the header line in the source text if it exists
     let headerLine = '';
     for (const line of lines) {
-      const parts = line.split('\t').map(p => p.trim());
+      const parts = line.split(/\t|\s{2,}/).map(p => p.trim());
       const hasThucLanh = parts.some(p => {
-        const clean = p.toLowerCase();
-        return clean.includes('điểm thực lãnh') || 
-               clean.includes('diem thuc lanh') || 
-               clean.includes('thực lãnh') || 
-               clean.includes('thuc lanh');
+        const clean = removeAccents(p);
+        return clean.includes('diem thuc lanh') || 
+               clean.includes('thuc lanh') ||
+               clean.includes('thuc nhan') ||
+               clean.includes('thuc linh') ||
+               clean.includes('thuc tra');
       });
       if (hasThucLanh) {
         headerLine = line;
@@ -192,56 +262,79 @@ const EmployeeHealth: React.FC = () => {
       }
     }
 
-    const matchStaffId = (line: string, staffId: string) => {
-      const parts = line.split('\t').map(p => p.trim());
-      return parts.some(part => {
-        if (part === staffId) return true;
-        const reg = new RegExp('^' + staffId + '\\b');
-        return reg.test(part);
-      });
-    };
-
     const updated = { ...thuongData };
     let count = 0;
+    const hasAnyHeader = lines.some(l => getStoreHeader(l) !== null);
 
     filteredBiData.forEach(staff => {
       const staffId = staff.fullId;
+      const staffNameClean = removeAccents(staff.displayName.split('-').pop() || '').trim();
       let staffLines: string[] = [];
       let found = false;
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        if (matchStaffId(line, staffId)) {
-          found = true;
-          staffLines = [line];
-          
-          for (let j = i + 1; j < lines.length; j++) {
-            const subLine = lines[j];
-            staffLines.push(subLine);
-            const subParts = subLine.split('\t').map(p => p.trim());
-            const label = subParts[0]?.toLowerCase() || '';
-            if (
-              label === 'tổng cộng' || 
-              label === 'tong cong' || 
-              label === 'tổng' || 
-              label === 'tong' || 
-              label.startsWith('tổng cộng') || 
-              label.startsWith('tổng ') || 
-              label.startsWith('tổng:') || 
-              label.includes('tổng cộng') || 
-              label.includes('tổng')
-            ) {
+        const cleanLine = removeAccents(line);
+
+        const matchStaff = cleanLine.includes(staffId) || (staffNameClean && cleanLine.includes(staffNameClean));
+        if (matchStaff) {
+          // Look upwards for nearest store header
+          let nearestStoreHeader: string | null = null;
+          for (let k = i - 1; k >= 0; k--) {
+            const header = getStoreHeader(lines[k]);
+            if (header) {
+              nearestStoreHeader = header;
               break;
             }
           }
-          break;
+
+          // Check store compatibility
+          let storeCompatible = true;
+          if (currentStoreClean) {
+            if (hasAnyHeader) {
+              if (nearestStoreHeader) {
+                storeCompatible = nearestStoreHeader.includes(currentStoreClean);
+              } else {
+                storeCompatible = false;
+              }
+            }
+          }
+
+          if (storeCompatible) {
+            found = true;
+            staffLines = [line];
+            
+            for (let j = i + 1; j < lines.length; j++) {
+              const subLine = lines[j];
+
+              if (getStoreHeader(subLine) !== null) {
+                break;
+              }
+
+              staffLines.push(subLine);
+              const subParts = subLine.split(/\t|\s{2,}/).map(p => p.trim());
+              const hasTotalLabel = subParts.some(part => {
+                const clean = removeAccents(part);
+                return clean === 'tong cong' ||
+                       clean === 'tong' ||
+                       clean.startsWith('tong cong') ||
+                       clean.startsWith('tong ') ||
+                       clean.startsWith('tong:') ||
+                       clean.includes('tong cong') ||
+                       clean.includes('tong');
+              });
+              if (hasTotalLabel) {
+                break;
+              }
+            }
+            break;
+          }
         }
       }
 
       if (found && staffLines.length > 0) {
         // Prepend header if not already present
-        const hasHeader = staffLines[0].toLowerCase().includes('thực lãnh') || staffLines[0].toLowerCase().includes('thực nhận');
-        if (headerLine && !hasHeader) {
+        if (headerLine && staffLines[0] !== headerLine) {
           staffLines.unshift(headerLine);
         }
         updated[staffId] = {
@@ -1357,79 +1450,190 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             {filteredBiData.map((staff, idx) => {
                               const truoc = thuongData[staff.fullId]?.truoc || '';
                               const hientai = thuongData[staff.fullId]?.hientai || '';
-                              const hasTruoc = truoc.trim().length > 0;
-                              const hasHientai = hientai.trim().length > 0;
                               
-                              // Parse: dòng "Tổng cộng" → cột thứ 9 (index 8) = "Điểm thực lãnh"
+                              // Parse: dòng "Tổng cộng" → cột "Điểm thực lãnh" (hoặc các tên tương đương)
                               // Chỉ lấy dữ liệu hiển thị trực tiếp, CẤM lấy từ nguồn DB khác
                               const parseBonusData = (text: string) => {
-                                if (!text) return { tong: 0 };
+                                if (!text || text.trim().length === 0) return { tong: null };
                                 const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
                                 
-                                // Step 1: Find column index of "Điểm thực lãnh" in headers
-                                let thucLanhColIdx = 8; // Default fallback to index 8 (9th column)
+                                // Clean store name for matching
+                                const currentStoreClean = marketFilter && marketFilter !== 'ALL' 
+                                  ? removeAccents(marketFilter).replace(/^(dml|dms3|dms|dmm|tgd|aar|bhx)\s+/, '').trim()
+                                  : '';
+
+                                // Get employee ID and clean name
+                                const staffId = staff.fullId;
+                                const staffNameClean = removeAccents(staff.displayName.split('-').pop() || '').trim();
+
+                                // Helper to check if a line is a supermarket header
+                                const getStoreHeader = (line: string): string | null => {
+                                  const cleanLine = removeAccents(line).trim();
+                                  const hasStoreKeyword = cleanLine.includes('sieu thi') || 
+                                                          cleanLine.includes('cua hang') ||
+                                                          cleanLine.includes('dien may xanh') ||
+                                                          cleanLine.includes('the gioi di dong') ||
+                                                          /^(dml|dms3|dms|dmm|tgd|aar|bhx)\b/.test(cleanLine);
+                                  return hasStoreKeyword ? cleanLine : null;
+                                };
+
+                                // Step 1: Find column index of "Điểm thực lãnh" or equivalents in headers
+                                let thucLanhColIdx = -1;
+                                let headerColCount = -1;
                                 for (const line of lines) {
-                                  const parts = line.split('\t').map(p => p.trim());
+                                  const parts = line.split(/\t|\s{2,}/).map(p => p.trim());
                                   const idx = parts.findIndex(p => {
-                                    const clean = p.toLowerCase();
-                                    return clean.includes('điểm thực lãnh') || 
-                                           clean.includes('diem thuc lanh') || 
-                                           clean.includes('thực lãnh') || 
-                                           clean.includes('thuc lanh');
+                                    const clean = removeAccents(p);
+                                    return clean.includes('diem thuc lanh') || 
+                                           clean.includes('thuc lanh') ||
+                                           clean.includes('thuc nhan') ||
+                                           clean.includes('thuc linh') ||
+                                           clean.includes('thuc tra');
                                   });
                                   if (idx !== -1) {
                                     thucLanhColIdx = idx;
+                                    headerColCount = parts.length;
                                     break;
                                   }
                                 }
 
+                                // Step 2: Find the correct section of lines
+                                let foundStaff = false;
+                                let targetLines: string[] = [];
+                                const hasAnyHeader = lines.some(l => getStoreHeader(l) !== null);
+
+                                for (let i = 0; i < lines.length; i++) {
+                                  const line = lines[i];
+                                  const cleanLine = removeAccents(line);
+
+                                  const matchStaff = cleanLine.includes(staffId) || (staffNameClean && cleanLine.includes(staffNameClean));
+                                  if (matchStaff) {
+                                    // Look upwards for nearest store header
+                                    let nearestStoreHeader: string | null = null;
+                                    for (let k = i - 1; k >= 0; k--) {
+                                      const header = getStoreHeader(lines[k]);
+                                      if (header) {
+                                        nearestStoreHeader = header;
+                                        break;
+                                      }
+                                    }
+
+                                    // Check store compatibility
+                                    let storeCompatible = true;
+                                    if (currentStoreClean) {
+                                      if (hasAnyHeader) {
+                                        if (nearestStoreHeader) {
+                                          storeCompatible = nearestStoreHeader.includes(currentStoreClean);
+                                        } else {
+                                          storeCompatible = false;
+                                        }
+                                      }
+                                    }
+
+                                    if (storeCompatible) {
+                                      foundStaff = true;
+                                      targetLines = [line];
+                                      for (let j = i + 1; j < lines.length; j++) {
+                                        const subLine = lines[j];
+                                        
+                                        if (getStoreHeader(subLine) !== null) {
+                                          break;
+                                        }
+
+                                        targetLines.push(subLine);
+
+                                        const subParts = subLine.split(/\t|\s{2,}/).map(p => p.trim());
+                                        const hasTotalLabel = subParts.some(part => {
+                                          const clean = removeAccents(part);
+                                          return clean === 'tong cong' || 
+                                                 clean === 'tong' || 
+                                                 clean.startsWith('tong cong') || 
+                                                 clean.startsWith('tong ') || 
+                                                 clean.startsWith('tong:') ||
+                                                 clean.includes('tong cong') || 
+                                                 clean.includes('tong');
+                                        });
+
+                                        if (hasTotalLabel) {
+                                          break;
+                                        }
+                                      }
+                                      break;
+                                    }
+                                  }
+                                }
+
+                                const linesToParse = foundStaff ? targetLines : lines;
+
+                                let foundRow = false;
                                 let tong = 0;
-                                for (const line of lines) {
-                                  const parts = line.split(/\t/).map(p => p.trim());
-                                  const label = parts[0]?.toLowerCase() || '';
+                                for (const line of linesToParse) {
+                                  const parts = line.split(/\t|\s{2,}/).map(p => p.trim());
                                   
-                                  // Find "Tổng cộng" or "Tổng" row
-                                  if (
-                                    label === 'tổng cộng' || 
-                                    label === 'tong cong' || 
-                                    label === 'tổng' || 
-                                    label === 'tong' || 
-                                    label.startsWith('tổng cộng') || 
-                                    label.startsWith('tổng ') || 
-                                    label.startsWith('tổng:') || 
-                                    label.includes('tổng cộng') || 
-                                    label.includes('tổng')
-                                  ) {
-                                    if (thucLanhColIdx < parts.length) {
-                                      const raw = parts[thucLanhColIdx].replace(/[,.\s]/g, '').replace(/đ$/i, '');
-                                      const num = parseFloat(raw);
+                                  // Kiểm tra xem dòng này có phải là dòng Tổng cộng/Tổng công hay không
+                                  const hasTotalLabel = parts.some(part => {
+                                    const clean = removeAccents(part);
+                                    return clean === 'tong cong' || 
+                                           clean === 'tong' || 
+                                           clean.startsWith('tong cong') || 
+                                           clean.startsWith('tong ') || 
+                                           clean.startsWith('tong:') ||
+                                           clean.includes('tong cong') || 
+                                           clean.includes('tong');
+                                  });
+                                  
+                                  if (hasTotalLabel) {
+                                    foundRow = true;
+                                    let targetIdx = -1;
+                                    
+                                    if (thucLanhColIdx !== -1 && headerColCount !== -1) {
+                                      if (parts.length === headerColCount) {
+                                        targetIdx = thucLanhColIdx;
+                                      } else {
+                                        // Right-aligned column mapping for merged cells in the total row
+                                        const distFromRight = headerColCount - 1 - thucLanhColIdx;
+                                        const mappedIdx = parts.length - 1 - distFromRight;
+                                        if (mappedIdx >= 0 && mappedIdx < parts.length) {
+                                          targetIdx = mappedIdx;
+                                        }
+                                      }
+                                    }
+                                    
+                                    if (targetIdx !== -1) {
+                                      const raw = parts[targetIdx];
+                                      const clean = raw.replace(/[^\d-]/g, '');
+                                      const num = parseInt(clean, 10);
                                       tong = isNaN(num) ? 0 : num;
                                     } else {
-                                      // Fallback: try index 8
-                                      const fallbackIdx = 8;
-                                      if (fallbackIdx < parts.length) {
-                                        const raw = parts[fallbackIdx].replace(/[,.\s]/g, '').replace(/đ$/i, '');
-                                        const num = parseFloat(raw);
-                                        tong = isNaN(num) ? 0 : num;
-                                      } else {
-                                        // Fallback: try the last numeric value
-                                        for (let i = parts.length - 1; i >= 1; i--) {
-                                          const clean = parts[i].replace(/[,.\s]/g, '').replace(/đ$/i, '');
-                                          const n = parseFloat(clean);
-                                          if (!isNaN(n) && n > 0) { tong = n; break; }
+                                      // Fallback: Thử lấy giá trị số cuối cùng của dòng này
+                                      let foundNum = false;
+                                      for (let i = parts.length - 1; i >= 0; i--) {
+                                        const raw = parts[i];
+                                        const clean = raw.replace(/[^\d-]/g, '');
+                                        const n = parseInt(clean, 10);
+                                        if (!isNaN(n) && n > 0) { 
+                                          tong = n; 
+                                          foundNum = true;
+                                          break; 
                                         }
+                                      }
+                                      if (!foundNum) {
+                                        tong = 0;
                                       }
                                     }
                                     break;
                                   }
                                 }
-                                return { tong };
+                                return { tong: foundRow ? tong : null };
                               };
                               
                               const truocData = parseBonusData(truoc);
                               const hientaiData = parseBonusData(hientai);
-                              const tongDiff = hientaiData.tong - truocData.tong;
-
+                              
+                              const valTruoc = truocData.tong !== null ? truocData.tong : 0;
+                              const valHientai = hientaiData.tong !== null ? hientaiData.tong : 0;
+                              const tongDiff = valHientai - valTruoc;
+ 
                               return (
                                 <tr key={staff.fullId} className="hover:bg-purple-50/30 transition-colors">
                                   <td className="px-3 py-3">
@@ -1449,7 +1653,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                   </td>
                                   {/* Thưởng T.Trước */}
                                   <td className="px-3 py-3 text-center border-l border-slate-100">
-                                    {hasTruoc && truocData.tong > 0 ? (
+                                    {truocData.tong !== null ? (
                                       <span className="inline-flex px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-bold text-slate-700">{truocData.tong.toLocaleString('vi-VN')}</span>
                                     ) : (
                                       <span className="text-[10px] text-slate-300 font-bold">—</span>
@@ -1457,7 +1661,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                   </td>
                                   {/* Thưởng Hiện tại */}
                                   <td className="px-3 py-3 text-center border-l border-slate-100">
-                                    {hasHientai && hientaiData.tong > 0 ? (
+                                    {hientaiData.tong !== null ? (
                                       <span className="inline-flex px-2.5 py-1 rounded-lg bg-purple-100 text-xs font-bold text-purple-700">{hientaiData.tong.toLocaleString('vi-VN')}</span>
                                     ) : (
                                       <span className="text-[10px] text-slate-300 font-bold">—</span>
@@ -1465,7 +1669,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                   </td>
                                   {/* Xu hướng */}
                                   <td className="px-3 py-3 text-center border-l border-slate-100">
-                                    {(hasTruoc && truocData.tong > 0) || (hasHientai && hientaiData.tong > 0) ? (
+                                    {truocData.tong !== null || hientaiData.tong !== null ? (
                                       <div className="flex items-center justify-center">
                                         {tongDiff > 0 ? (
                                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase">

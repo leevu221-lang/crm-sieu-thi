@@ -1168,6 +1168,7 @@ export default function NewRealtimePage() {
   const captureElement = async (ref: React.RefObject<HTMLDivElement | null>, filename: string) => {
     if (ref.current) {
       try {
+        ref.current.classList.add('capturing-target');
         document.body.classList.add('capturing-screenshot');
         await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -1183,6 +1184,9 @@ export default function NewRealtimePage() {
         console.error(`Lỗi khi chụp ảnh ${filename}:`, error);
       } finally {
         document.body.classList.remove('capturing-screenshot');
+        if (ref.current) {
+          ref.current.classList.remove('capturing-target');
+        }
       }
     }
   };
