@@ -62,8 +62,8 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
   if (!raw) return { results: [], categories: [] };
   const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-  // Find categories: lines between "Phòng ban" and the first line starting with "DTLK" or "SLLK"
-  let allCategories: string[] = [];
+  // 1. Quét tên các ngành hàng có trong dữ liệu dán (thiDuaNv) - dùng để mapping cột
+  let inputCategories: string[] = [];
   let headerStartIdx = -1;
   let dataStartIdx = -1;
 
@@ -109,24 +109,39 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       if (targetMatch) {
         catName = targetMatch[1].trim();
       }
-      allCategories.push(catName);
+      inputCategories.push(catName);
     }
   }
 
-  const categories = allCategories;
+  // 2. Xác định danh sách ngành hàng hiển thị (lấy từ luykeCategories - BC Tháng)
+  // Nếu không có luykeCategories, dùng fallback là inputCategories
+  let displayCategories: string[] = [];
+  if (luykeCategories && luykeCategories.length > 0) {
+    const seen = new Set<string>();
+    luykeCategories.forEach(c => {
+      const clean = cleanCategoryName(c.name);
+      if (clean && !seen.has(clean)) {
+        seen.add(clean);
+        displayCategories.push(c.name);
+      }
+    });
+  } else {
+    displayCategories = inputCategories;
+  }
 
   const results: StaffMatrixData[] = [];
   const excludedKeywords = ['Tổng', 'BP All In One', 'BP Trưởng Ca', 'Hỗ trợ BI', 'Copyright', 'Dashboard', 'BC ', 'HD sử dụng', 'Trang chủ', 'Báo cáo', 'Khối kinh doanh', 'Logo BI', 'avatar'];
   const dataLines = lines.slice(dataStartIdx);
 
   const targetPerStaffPerCat: Record<string, number> = {};
-  // Priority: use luykeCategories (BC THÁNG displayed data) first, fallback to categoryTargets
   if (luykeCategories && luykeCategories.length > 0) {
     luykeCategories.forEach(cat => {
       targetPerStaffPerCat[cleanCategoryName(cat.name)] = cat.target / staffCount;
     });
   } else {
-    categoryTargets.forEach(cat => { targetPerStaffPerCat[cleanCategoryName(cat.name)] = cat.target / staffCount; });
+    categoryTargets.forEach(cat => {
+      targetPerStaffPerCat[cleanCategoryName(cat.name)] = (cat.target || 0) / staffCount;
+    });
   }
 
   for (const line of dataLines) {
@@ -147,25 +162,27 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
         dataStartIndex = 2;
     }
     
-    const rawValues = parts.slice(dataStartIndex).map(v => {
+    const rawInputValues = parts.slice(dataStartIndex).map(v => {
       const clean = v.replace(/,/g, '');
       const num = parseFloat(clean);
       return isNaN(num) ? 0 : num;
     });
 
-    const values = rawValues;
-
-    let achieved = 0;
+    const values: number[] = [];
     const projectedRates: number[] = [];
+    let achieved = 0;
 
-    categories.forEach((catName, catIdx) => {
+    displayCategories.forEach((catName) => {
+      // Tìm index của ngành hàng này trong inputCategories của dữ liệu dán
+      const inputIdx = inputCategories.findIndex(ic => cleanCategoryName(ic) === cleanCategoryName(catName));
+      const val = inputIdx !== -1 ? (rawInputValues[inputIdx] || 0) : 0;
+      values.push(val);
+
       const target = targetPerStaffPerCat[cleanCategoryName(catName)] || 0;
       let projectedRate = 0;
-      
       if (target > 0 && daysPassed > 0) {
-        projectedRate = (((values[catIdx] || 0) / daysPassed) * totalDays) / target * 100;
+        projectedRate = ((val / daysPassed) * totalDays) / target * 100;
       }
-      
       projectedRates.push(projectedRate);
       if (Math.round(projectedRate) >= 100) achieved++;
     });
@@ -174,13 +191,14 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       displayName: `${id} - ${name.toUpperCase()}`,
       fullId: id,
       achieved,
-      totalCats: categories.length,
-      rate: categories.length > 0 ? achieved / categories.length : 0,
+      totalCats: displayCategories.length,
+      rate: displayCategories.length > 0 ? achieved / displayCategories.length : 0,
       rawValues: values,
       projectedRates
     });
   }
-  return { results, categories: categories };
+
+  return { results, categories: displayCategories };
 };
 
 // Reusable mini table for a single section (SLLK or DTLK)
@@ -310,7 +328,10 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
       const targetObj = categoryTargets.find(t => cleanCategoryName(t.name) === cleanCategoryName(catName));
       target = targetObj ? targetObj.target / staffCount : 0;
     }
+    
+    // Giá trị thực đạt đã được khớp đúng vị trí cột từ parseStaffMatrixDataRefined
     const accumulated = staffData.rawValues[index] || 0;
+
     const percentHT = (target > 0 && daysPassed > 0) 
       ? (((accumulated / daysPassed) * totalDays) / target) * 100 
       : 0;

@@ -24,7 +24,8 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
   if (!raw) return { results: [], categories: [] };
   const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-  let allCategories: string[] = [];
+  // 1. Quét tên các ngành hàng có trong dữ liệu dán (thiDuaNv) - dùng để mapping cột
+  let inputCategories: string[] = [];
   let headerStartIdx = -1;
   let dataStartIdx = -1;
 
@@ -70,12 +71,24 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       if (targetMatch) {
         catName = targetMatch[1].trim();
       }
-      allCategories.push(catName);
+      inputCategories.push(catName);
     }
   }
 
-  // Use all categories without filtering
-  const categories = allCategories;
+  // 2. Xác định danh sách ngành hàng hiển thị (lấy từ luykeCategories - BC Tháng)
+  let displayCategories: string[] = [];
+  if (luykeCategories && luykeCategories.length > 0) {
+    const seen = new Set<string>();
+    luykeCategories.forEach(c => {
+      const clean = cleanCategoryName(c.name);
+      if (clean && !seen.has(clean)) {
+        seen.add(clean);
+        displayCategories.push(c.name);
+      }
+    });
+  } else {
+    displayCategories = inputCategories;
+  }
 
   const results: StaffMatrixData[] = [];
   const excludedKeywords = ['Tổng', 'BP All In One', 'BP Trưởng Ca', 'Hỗ trợ BI', 'Copyright', 'Dashboard', 'BC ', 'HD sử dụng', 'Trang chủ', 'Báo cáo', 'Khối kinh doanh', 'Logo BI', 'avatar'];
@@ -83,9 +96,13 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
 
   const targetPerStaffPerCat: Record<string, number> = {};
   if (luykeCategories && luykeCategories.length > 0) {
-    luykeCategories.forEach(cat => { targetPerStaffPerCat[cleanCategoryName(cat.name)] = cat.target / staffCount; });
+    luykeCategories.forEach(cat => {
+      targetPerStaffPerCat[cleanCategoryName(cat.name)] = cat.target / staffCount;
+    });
   } else {
-    categoryTargets.forEach(cat => { targetPerStaffPerCat[cleanCategoryName(cat.name)] = (cat.target || 0) / staffCount; });
+    categoryTargets.forEach(cat => {
+      targetPerStaffPerCat[cleanCategoryName(cat.name)] = (cat.target || 0) / staffCount;
+    });
   }
 
   for (const line of dataLines) {
@@ -106,24 +123,26 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       dataStartIndex = 2;
     }
 
-    const rawValues = parts.slice(dataStartIndex).map(v => {
+    const rawInputValues = parts.slice(dataStartIndex).map(v => {
       const clean = v.replace(/,/g, '');
       const num = parseFloat(clean);
       return isNaN(num) ? 0 : num;
     });
 
-    // Use all values
-    const values = rawValues;
-
-    let achieved = 0;
+    const values: number[] = [];
     const projectedRates: number[] = [];
+    let achieved = 0;
 
-    categories.forEach((catName, catIdx) => {
+    displayCategories.forEach((catName) => {
+      const inputIdx = inputCategories.findIndex(ic => cleanCategoryName(ic) === cleanCategoryName(catName));
+      const val = inputIdx !== -1 ? (rawInputValues[inputIdx] || 0) : 0;
+      values.push(val);
+
       const target = targetPerStaffPerCat[cleanCategoryName(catName)] || 0;
       let projectedRate = 0;
 
       if (target > 0 && daysPassed > 0) {
-        projectedRate = (((values[catIdx] || 0) / daysPassed) * totalDays) / target * 100;
+        projectedRate = ((val / daysPassed) * totalDays) / target * 100;
       }
 
       projectedRates.push(projectedRate);
@@ -134,13 +153,13 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       displayName: `${id} - ${name.toUpperCase()}`,
       fullId: id,
       achieved,
-      totalCats: categories.length,
-      rate: categories.length > 0 ? achieved / categories.length : 0,
+      totalCats: displayCategories.length,
+      rate: displayCategories.length > 0 ? achieved / displayCategories.length : 0,
       rawValues: values,
       projectedRates
     });
   }
-  return { results, categories };
+  return { results, categories: displayCategories };
 };
 
 const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({

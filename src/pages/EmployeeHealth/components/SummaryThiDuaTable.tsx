@@ -13,7 +13,8 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
   if (!raw) return { staffMatrix: [], categories: [] };
   const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-  let allCategories: string[] = [];
+  // 1. Quét tên các ngành hàng có trong dữ liệu dán (thiDuaNv) - dùng để mapping cột
+  let inputCategories: string[] = [];
   let headerStartIdx = -1;
   let dataStartIdx = -1;
 
@@ -59,12 +60,24 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       if (targetMatch) {
         catName = targetMatch[1].trim();
       }
-      allCategories.push(catName);
+      inputCategories.push(catName);
     }
   }
 
-  // Use all categories without filtering
-  const categories = allCategories;
+  // 2. Xác định danh sách ngành hàng hiển thị (lấy từ luykeCategories - BC Tháng)
+  let displayCategories: string[] = [];
+  if (luykeCategories && luykeCategories.length > 0) {
+    const seen = new Set<string>();
+    luykeCategories.forEach(c => {
+      const clean = cleanCategoryName(c.name);
+      if (clean && !seen.has(clean)) {
+        seen.add(clean);
+        displayCategories.push(c.name);
+      }
+    });
+  } else {
+    displayCategories = inputCategories;
+  }
 
   const results: StaffMatrixData[] = [];
   const excludedKeywords = ['Tổng', 'BP All In One', 'BP Trưởng Ca', 'Hỗ trợ BI', 'Copyright', 'Dashboard', 'BC ', 'HD sử dụng', 'Trang chủ', 'Báo cáo', 'Khối kinh doanh', 'Logo BI', 'avatar'];
@@ -92,27 +105,28 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
         dataStartIndex = 2;
     }
     
-    const rawValues = parts.slice(dataStartIndex).map(v => {
+    const rawInputValues = parts.slice(dataStartIndex).map(v => {
       const clean = v.replace(/,/g, '');
       const num = parseFloat(clean);
       return isNaN(num) ? 0 : num;
     });
 
-    // Use all values
-    const values = rawValues;
-
+    const values: number[] = [];
     const projectedRates: number[] = [];
     const actualPercentHTs: number[] = [];
-    let achievedCount = 0; // Track categories >= 100% (based on projected)
+    let achievedCount = 0;
 
-    categories.forEach((catName, catIdx) => {
+    displayCategories.forEach((catName) => {
+      const inputIdx = inputCategories.findIndex(ic => cleanCategoryName(ic) === cleanCategoryName(catName));
+      const accumulated = inputIdx !== -1 ? (rawInputValues[inputIdx] || 0) : 0;
+      values.push(accumulated);
+
       const lkCat = luykeCategories.length > 0
         ? luykeCategories.find(c => cleanCategoryName(c.name) === cleanCategoryName(catName))
         : null;
       const target = lkCat
         ? lkCat.target / staffCount
         : (() => { const t = categoryTargets.find(t => cleanCategoryName(t.name) === cleanCategoryName(catName)); return t ? t.target / staffCount : 0; })();
-      const accumulated = values[catIdx] || 0;
       
       // Actual
       let actualRate = target > 0 ? (accumulated / target) * 100 : 0;
@@ -121,11 +135,10 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       // Projected
       let projectedRate = 0;
       if (target > 0 && daysPassed > 0) {
-        projectedRate = (((accumulated) / daysPassed) * totalDays) / target * 100;
+        projectedRate = ((accumulated / daysPassed) * totalDays) / target * 100;
       }
       projectedRates.push(projectedRate);
       
-      // Count if projected rate >= 100% (visual count)
       if (Math.round(projectedRate) >= 100) achievedCount++;
     });
 
@@ -134,14 +147,14 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       fullId: id,
       shortName: `${id} - ${shortName}`,
       achieved: achievedCount,
-      totalCats: categories.length,
-      rate: categories.length > 0 ? achievedCount / categories.length : 0, 
+      totalCats: displayCategories.length,
+      rate: displayCategories.length > 0 ? achievedCount / displayCategories.length : 0, 
       rawValues: values,
       projectedRates,
       actualPercentHTs
     });
   }
-  return { staffMatrix: results, categories };
+  return { staffMatrix: results, categories: displayCategories };
 };
 
 interface SummaryThiDuaTableProps {
