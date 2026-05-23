@@ -929,6 +929,12 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
         const isMarket = sortedMarkets.some(m => {
           const normName = normalize(m.name);
           const nameWithoutPrefix = normalize(m.name.replace(/^(ĐML|ĐMM|ĐMS3|ĐMS|TGD|AAR)\s*-\s*/i, ''));
+          
+          // Nếu dòng chứa từ khóa của ngành hàng bảo hiểm thì không thể là siêu thị
+          if (normCat.includes('bao hiem') || normCat.includes('bh') || normCat.startsWith('bh ')) {
+            return false;
+          }
+          
           return normCat.includes(normName) || normCat.includes(nameWithoutPrefix) || (normCat.includes('-') && normName.includes(normCat));
         });
         
