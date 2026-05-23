@@ -32,6 +32,13 @@ const removeAccents = (str: string): string => {
     .toLowerCase();
 };
 
+const splitLine = (l: string): string[] => {
+  if (l.includes('\t')) {
+    return l.split('\t').map(p => p.trim());
+  }
+  return l.split(/\t|\s{2,}/).map(p => p.trim());
+};
+
 const EmployeeHealth: React.FC = () => {
   const { userProfile } = useAuth();
   const { showNotification } = useNotification();
@@ -245,7 +252,7 @@ const EmployeeHealth: React.FC = () => {
     // Find the header line in the source text if it exists
     let headerLine = '';
     for (const line of lines) {
-      const parts = line.split(/\t|\s{2,}/).map(p => p.trim());
+      const parts = splitLine(line);
       const hasThucLanh = parts.some(p => {
         const clean = removeAccents(p);
         return clean.includes('diem thuc lanh') || 
@@ -310,7 +317,7 @@ const EmployeeHealth: React.FC = () => {
               }
 
               staffLines.push(subLine);
-              const subParts = subLine.split(/\t|\s{2,}/).map(p => p.trim());
+              const subParts = splitLine(subLine);
               const hasTotalLabel = subParts.some(part => {
                 const clean = removeAccents(part);
                 return clean === 'tong cong' ||
@@ -321,7 +328,11 @@ const EmployeeHealth: React.FC = () => {
                        clean.includes('tong cong') ||
                        clean.includes('tong');
               });
-              if (hasTotalLabel) {
+              const hasNumericData = subParts.some(part => {
+                const clean = part.replace(/[^\d-]/g, '');
+                return clean.length > 0 && !isNaN(parseInt(clean, 10));
+              });
+              if (hasTotalLabel && hasNumericData) {
                 break;
               }
             }
@@ -1541,7 +1552,6 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                 for (const line of linesToParse) {
                                   const parts = splitLine(line);
                                   
-                                  // Kiểm tra xem dòng này có phải là dòng Tổng cộng/Tổng công hay không
                                   const hasTotalLabel = parts.some(part => {
                                     const clean = removeAccents(part);
                                     return clean === 'tong cong' || 
@@ -1565,6 +1575,8 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                     if (thucLanhColIdx !== -1 && headerColCount !== -1) {
                                       if (parts.length === headerColCount) {
                                         targetIdx = thucLanhColIdx;
+                                      } else if (parts.length === headerColCount + 1) {
+                                        targetIdx = thucLanhColIdx + 1;
                                       } else {
                                         // Right-aligned column mapping for merged cells in the total row
                                         const distFromRight = headerColCount - 1 - thucLanhColIdx;
