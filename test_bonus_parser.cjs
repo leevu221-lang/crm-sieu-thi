@@ -38,27 +38,49 @@ const parseBonusData = (text, staff, marketFilter) => {
     return line.split(/\s{2,}/).map(p => p.trim());
   };
 
-  // Step 1: Detect all column indices of "Điểm thực lãnh" or equivalents
-  let thucLanhColIndices = [];
+  // Step 1: Detect all 8 column indices of interest in the header
+  const colIndices = Array(8).fill(-1);
   let headerColCount = -1;
+  let isMultiCol = false;
+
   for (const line of lines) {
     const parts = splitLine(line);
-    const indices = [];
-    parts.forEach((p, idx) => {
-      const clean = removeAccents(p);
-      const isThucLanh = clean.includes('diem thuc lanh') || 
-                         clean.includes('thuc lanh') ||
-                         clean.includes('thuc nhan') ||
-                         clean.includes('thuc linh') ||
-                         clean.includes('thuc tra');
-      if (isThucLanh) {
-        indices.push(idx);
-      }
-    });
-    if (indices.length > 0) {
-      thucLanhColIndices = indices;
+    const cleanParts = parts.map(p => removeAccents(p));
+    const hasSoLuong = cleanParts.some(p => p.includes('so luong'));
+    const hasThucLanh = cleanParts.some(p => p.includes('thuc lanh'));
+    
+    if (hasSoLuong && hasThucLanh) {
+      isMultiCol = true;
       headerColCount = parts.length;
+      colIndices[0] = cleanParts.findIndex(p => p.includes('so luong'));
+      colIndices[1] = cleanParts.findIndex(p => p.includes('tich luy'));
+      colIndices[2] = cleanParts.findIndex(p => p.includes('nhap tra'));
+      colIndices[3] = cleanParts.findIndex(p => p.includes('thuong nong') && !p.includes('sbh'));
+      colIndices[4] = cleanParts.findIndex(p => p.includes('tra gop'));
+      colIndices[5] = cleanParts.findIndex(p => p.includes('mdmh') || p.includes('nhan dan'));
+      colIndices[6] = cleanParts.findIndex(p => p.includes('sbh'));
+      colIndices[7] = cleanParts.findIndex(p => p.includes('thuc lanh'));
       break;
+    }
+  }
+
+  // Tương thích ngược: Nếu báo cáo cũ chỉ có 1 cột điểm thực lãnh
+  if (!isMultiCol) {
+    for (const line of lines) {
+      const parts = splitLine(line);
+      const cleanParts = parts.map(p => removeAccents(p));
+      const idx = cleanParts.findIndex(p => {
+        return p.includes('diem thuc lanh') || 
+               p.includes('thuc lanh') ||
+               p.includes('thuc nhan') ||
+               p.includes('thuc linh') ||
+               p.includes('thuc tra');
+      });
+      if (idx !== -1) {
+        headerColCount = parts.length;
+        colIndices[7] = idx;
+        break;
+      }
     }
   }
 
@@ -157,10 +179,9 @@ const parseBonusData = (text, staff, marketFilter) => {
     if (hasTotalLabel && hasNumericData) {
       foundRow = true;
       
-      if (thucLanhColIndices.length > 0 && headerColCount !== -1) {
-        if (thucLanhColIndices.length === 1) {
-          // Backward compatibility for single-column bonus data
-          const headerIdx = thucLanhColIndices[0];
+      for (let i = 0; i < 8; i++) {
+        const headerIdx = colIndices[i];
+        if (headerIdx !== -1 && headerColCount !== -1) {
           let targetIdx = -1;
           if (parts.length === headerColCount) {
             targetIdx = headerIdx;
@@ -177,42 +198,18 @@ const parseBonusData = (text, staff, marketFilter) => {
           if (targetIdx !== -1 && targetIdx < parts.length) {
             const raw = parts[targetIdx];
             const clean = raw.replace(/[^\d-]/g, '');
-            const num = parseInt(clean, 10);
-            const val = isNaN(num) ? 0 : num;
-            tong = val;
-            details[0] = val;
-          }
-        } else {
-          // Multicolumn bonus data
-          for (let i = 0; i < 8; i++) {
-            if (i < thucLanhColIndices.length) {
-              const headerIdx = thucLanhColIndices[i];
-              let targetIdx = -1;
-              if (parts.length === headerColCount) {
-                targetIdx = headerIdx;
-              } else if (parts.length === headerColCount + 1) {
-                targetIdx = headerIdx + 1;
-              } else {
-                const distFromRight = headerColCount - 1 - headerIdx;
-                const mappedIdx = parts.length - 1 - distFromRight;
-                if (mappedIdx >= 0 && mappedIdx < parts.length) {
-                  targetIdx = mappedIdx;
-                }
-              }
-              
-              if (targetIdx !== -1 && targetIdx < parts.length) {
-                const raw = parts[targetIdx];
-                const clean = raw.replace(/[^\d-]/g, '');
-                const num = parseInt(clean, 10);
-                const val = isNaN(num) ? 0 : num;
-                details[i] = val;
-                if (i === 0) {
-                  tong = val;
-                }
-              }
+            if (clean.length > 0) {
+              const num = parseInt(clean, 10);
+              details[i] = isNaN(num) ? 0 : num;
+            } else {
+              details[i] = 0;
             }
           }
         }
+      }
+      
+      if (colIndices[7] !== -1) {
+        tong = details[7] !== null ? details[7] : 0;
       } else {
         // Fallback to searching the last numeric value
         let foundNum = false;
@@ -228,7 +225,7 @@ const parseBonusData = (text, staff, marketFilter) => {
           }
         }
         tong = foundNum ? lastNum : 0;
-        details[0] = tong;
+        details[7] = tong;
       }
       break;
     }
@@ -289,5 +286,5 @@ Tổng cộng	2.513.460	242.496	2.303.600				4.574.564	187	189.249	5.207	184.042
 `;
 const res5 = parseBonusData(newReportPaste, staff, "ĐML HÓA AN");
 console.log("Result (expected 4574564):", res5.tong);
-console.log("Details breakdown (expected: [4574564, 184042, 419575, 36342, 2940, 89315, 40688, 51]):", res5.details);
+console.log("Details breakdown (expected: [0, 2513460, 242496, 2303600, 0, 0, 0, 4574564]):", res5.details);
 
