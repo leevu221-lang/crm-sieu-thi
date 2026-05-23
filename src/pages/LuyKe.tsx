@@ -192,9 +192,6 @@ const LuyKe: React.FC = () => {
     // Dedup by name + type (prevent duplicate category rows from broad matching)
     const seen = new Set<string>();
     return cats.filter(c => {
-      // User request: "CHỈ LẤY NHỮNG DÒNG TÊN NGÀNH HÀNG CÓ TARGET"
-      if (!c.target || c.target <= 0) return false;
-
       const key = `${(c.name || '').trim().toUpperCase()}__${c.type || ''}`;
       if (seen.has(key)) return false;
       seen.add(key);
