@@ -1579,8 +1579,13 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                            clean.includes('tong cong') || 
                                            clean.includes('tong');
                                   });
+
+                                  const hasNumericData = parts.some(part => {
+                                    const clean = part.replace(/[^\d-]/g, '');
+                                    return clean.length > 0 && !isNaN(parseInt(clean, 10));
+                                  });
                                   
-                                  if (hasTotalLabel) {
+                                  if (hasTotalLabel && hasNumericData) {
                                     foundRow = true;
                                     let targetIdx = -1;
                                     
