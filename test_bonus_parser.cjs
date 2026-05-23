@@ -179,23 +179,22 @@ const parseBonusData = (text, staff, marketFilter) => {
     if (hasTotalLabel && hasNumericData) {
       foundRow = true;
       
+      let offset = 0;
+      if (parts.length === headerColCount + 1) {
+        offset = 1;
+      } else if (parts.length === headerColCount) {
+        offset = 0;
+      } else {
+        const cleanFirst = parts[0].replace(/[^\d-]/g, '');
+        const isFirstNumeric = cleanFirst !== '' && !isNaN(parseInt(cleanFirst, 10));
+        offset = isFirstNumeric ? 0 : 1;
+      }
+
       for (let i = 0; i < 8; i++) {
         const headerIdx = colIndices[i];
-        if (headerIdx !== -1 && headerColCount !== -1) {
-          let targetIdx = -1;
-          if (parts.length === headerColCount) {
-            targetIdx = headerIdx;
-          } else if (parts.length === headerColCount + 1) {
-            targetIdx = headerIdx + 1;
-          } else {
-            const distFromRight = headerColCount - 1 - headerIdx;
-            const mappedIdx = parts.length - 1 - distFromRight;
-            if (mappedIdx >= 0 && mappedIdx < parts.length) {
-              targetIdx = mappedIdx;
-            }
-          }
-          
-          if (targetIdx !== -1 && targetIdx < parts.length) {
+        if (headerIdx !== -1) {
+          const targetIdx = headerIdx + offset;
+          if (targetIdx >= 0 && targetIdx < parts.length) {
             const raw = parts[targetIdx];
             const clean = raw.replace(/[^\d-]/g, '');
             if (clean.length > 0) {
