@@ -6,6 +6,7 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { cn } from '../../RTST/utils';
 import { StaffMatrixData, CategoryData } from '../../RTST/types';
+import { cleanCategoryName } from './EmployeeDetailTable';
 
 interface CategoryDetailByStaffTableProps {
   luyKeNganhHang: string;
@@ -50,9 +51,9 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
 
   const targetPerStaffPerCat: Record<string, number> = {};
   if (luykeCategories && luykeCategories.length > 0) {
-    luykeCategories.forEach(cat => { targetPerStaffPerCat[cat.name.toUpperCase()] = cat.target / staffCount; });
+    luykeCategories.forEach(cat => { targetPerStaffPerCat[cleanCategoryName(cat.name)] = cat.target / staffCount; });
   } else {
-    categoryTargets.forEach(cat => { targetPerStaffPerCat[cat.name.toUpperCase()] = (cat.target || 0) / staffCount; });
+    categoryTargets.forEach(cat => { targetPerStaffPerCat[cleanCategoryName(cat.name)] = (cat.target || 0) / staffCount; });
   }
 
   for (const line of dataLines) {
@@ -86,7 +87,7 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
     const projectedRates: number[] = [];
 
     categories.forEach((catName, catIdx) => {
-      const target = targetPerStaffPerCat[catName.toUpperCase()] || 0;
+      const target = targetPerStaffPerCat[cleanCategoryName(catName)] || 0;
       let projectedRate = 0;
 
       if (target > 0 && daysPassed > 0) {
@@ -352,11 +353,11 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
           selectedCategories.map((catName) => {
             const catIdx = categories.indexOf(catName);
             const lkCat = luykeCategories.length > 0
-              ? luykeCategories.find(c => c.name.toUpperCase() === catName.toUpperCase())
+              ? luykeCategories.find(c => cleanCategoryName(c.name) === cleanCategoryName(catName))
               : null;
             const targetPerStaff = lkCat
               ? lkCat.target / staffCount
-              : (() => { const t = categoryTargets.find(t => t.name.toUpperCase() === catName.toUpperCase()); return t ? (t.target || 0) / staffCount : 0; })();
+              : (() => { const t = categoryTargets.find(t => cleanCategoryName(t.name) === cleanCategoryName(catName)); return t ? (t.target || 0) / staffCount : 0; })();
             const elementId = `cat-detail-${catName.replace(/\s+/g, '-')}`;
 
             const rowData = staffMatrix.map(staff => {

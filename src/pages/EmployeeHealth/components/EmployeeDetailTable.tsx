@@ -6,6 +6,37 @@ import { parseCategoryData } from '../../RTST/utils';
 import { cn } from '../../RTST/utils';
 import { CategoryData, StaffMatrixData } from '../../RTST/types';
 
+export const removeAccents = (str: string): string => {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase();
+};
+
+export const cleanCategoryName = (name: string): string => {
+  if (!name) return '';
+  let clean = removeAccents(name).trim();
+  
+  // Replace abbreviations
+  clean = clean.replace(/\b(bao hiem)\b/g, 'bh');
+  clean = clean.replace(/\b(dien may xanh)\b/g, 'dmx');
+  clean = clean.replace(/\b(the gioi di dong)\b/g, 'tgdd');
+  clean = clean.replace(/\b(gia dung)\b/g, 'gd');
+  clean = clean.replace(/\b(phu kien)\b/g, 'pk');
+  
+  // Also replace inline occurrences
+  clean = clean.replace(/bao\s+hiem/g, 'bh');
+  clean = clean.replace(/dien\s+may\s+xanh/g, 'dmx');
+  clean = clean.replace(/the\s+gioi\s+di\s+dong/g, 'tgdd');
+  clean = clean.replace(/gia\s+dung/g, 'gd');
+  clean = clean.replace(/phu\s+kien/g, 'pk');
+
+  // Strip all non-alphanumeric characters
+  return clean.replace(/[^a-z0-9]/g, '');
+};
+
 interface EmployeeDetailTableProps {
   staffName: string;
   luyKeNganhHang: string;
@@ -55,10 +86,10 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
   // Priority: use luykeCategories (BC THÁNG displayed data) first, fallback to categoryTargets
   if (luykeCategories && luykeCategories.length > 0) {
     luykeCategories.forEach(cat => {
-      targetPerStaffPerCat[cat.name.toUpperCase()] = cat.target / staffCount;
+      targetPerStaffPerCat[cleanCategoryName(cat.name)] = cat.target / staffCount;
     });
   } else {
-    categoryTargets.forEach(cat => { targetPerStaffPerCat[cat.name.toUpperCase()] = cat.target / staffCount; });
+    categoryTargets.forEach(cat => { targetPerStaffPerCat[cleanCategoryName(cat.name)] = cat.target / staffCount; });
   }
 
   for (const line of dataLines) {
@@ -91,7 +122,7 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
     const projectedRates: number[] = [];
 
     categories.forEach((catName, catIdx) => {
-      const target = targetPerStaffPerCat[catName.toUpperCase()] || 0;
+      const target = targetPerStaffPerCat[cleanCategoryName(catName)] || 0;
       let projectedRate = 0;
       
       if (target > 0 && daysPassed > 0) {
@@ -229,17 +260,17 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
   // Build a lookup for category type from luykeCategories (BC THÁNG → CHI TIẾT NGÀNH HÀNG)
   const catTypeLookup: Record<string, 'SL' | 'DT' | 'ALL'> = {};
   luykeCategories.forEach(cat => {
-    catTypeLookup[cat.name.toUpperCase()] = cat.type || 'ALL';
+    catTypeLookup[cleanCategoryName(cat.name)] = cat.type || 'ALL';
   });
 
   // Prepare all row data
   const allRowData = detailCategories.map((catName, index) => {
     let target = 0;
     if (luykeCategories && luykeCategories.length > 0) {
-      const lkCat = luykeCategories.find(c => c.name.toUpperCase() === catName.toUpperCase());
+      const lkCat = luykeCategories.find(c => cleanCategoryName(c.name) === cleanCategoryName(catName));
       target = lkCat ? lkCat.target / staffCount : 0;
     } else {
-      const targetObj = categoryTargets.find(t => t.name.toUpperCase() === catName.toUpperCase());
+      const targetObj = categoryTargets.find(t => cleanCategoryName(t.name) === cleanCategoryName(catName));
       target = targetObj ? targetObj.target / staffCount : 0;
     }
     const accumulated = staffData.rawValues[index] || 0;
@@ -247,7 +278,7 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
       ? (((accumulated / daysPassed) * totalDays) / target) * 100 
       : 0;
     const remainingVal = accumulated - target;
-    const catType = catTypeLookup[catName.toUpperCase()] || 'ALL';
+    const catType = catTypeLookup[cleanCategoryName(catName)] || 'ALL';
     
     return {
       name: catName,
