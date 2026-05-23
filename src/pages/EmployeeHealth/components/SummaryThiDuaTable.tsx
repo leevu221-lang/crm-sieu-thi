@@ -33,7 +33,7 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       
       // Loại bỏ dòng rác (không phải tên ngành hàng)
       const isColumnTypesLine = /^(DTLK|SLLK|SL|DT|Realtime|REALTIME|\s)+$/i.test(catName);
-      const numbers = catName.match(/-?[\d,.]+/g) || [];
+      const numbers = catName.match(/-?\d+[\d,.]*/g) || [];
       const hasManyNumbers = numbers.length >= 2;
       const lowerCatName = catName.toLowerCase();
       const isExcluded = [
