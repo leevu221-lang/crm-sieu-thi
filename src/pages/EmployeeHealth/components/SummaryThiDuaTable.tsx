@@ -100,10 +100,9 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
     const nameParts = name.trim().split(' ');
     const shortName = nameParts[nameParts.length - 1].toUpperCase();
     
-    let dataStartIndex = 1;
-    if (parts.length > 1 && isNaN(parseFloat(parts[1].replace(/,/g, '')))) {
-        dataStartIndex = 2;
-    }
+    // Theo nguyên lý dữ liệu thi đua nhân viên: Cột 1 là Nhân viên, Cột 2 là cột phụ (phòng ban hoặc điểm số) cần bỏ qua,
+    // Số liệu ngành hàng thực tế bắt đầu từ Cột 3 (index 2).
+    const dataStartIndex = 2;
     
     const rawInputValues = parts.slice(dataStartIndex).map(v => {
       const clean = v.replace(/,/g, '');
