@@ -32,7 +32,10 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
   const setBanKemNv = useCallback((val: string) => {
     banKemDirtyRef.current = true;
     setBanKemNvInternal(val);
-  }, []);
+    if (globalHealthCache[targetKey]) {
+      globalHealthCache[targetKey].banKemNv = val;
+    }
+  }, [targetKey]);
 
   const fetchAndMergeData = useCallback(async () => {
     if (!maKho) return;
@@ -354,8 +357,25 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
 
     return () => {
       if (banKemAutoSaveRef.current) clearTimeout(banKemAutoSaveRef.current);
+      if (banKemDirtyRef.current) {
+        const cleanStoreVal = (storeName || tenSieuThi || '').trim();
+        if (cleanStoreVal && maKho) {
+          supabase
+            .from('store')
+            .upsert({
+              id: cleanStoreVal,
+              warehouse_code: maKho.trim(),
+              ten_sieu_thi: cleanStoreVal,
+              ban_kem_nv: banKemNv,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'id' })
+            .then((res: any) => {
+              if (res.error) console.error('[EmployeeHealth] Auto-save on unmount error:', res.error);
+            });
+        }
+      }
     };
-  }, [banKemNv, maKho, storeName, tenSieuThi]);
+  }, [banKemNv, maKho, storeName, tenSieuThi, isStoreReady]);
 
   const refresh = useCallback(() => {
     fetchAndMergeData();

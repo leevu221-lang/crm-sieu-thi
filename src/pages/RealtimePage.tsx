@@ -946,11 +946,156 @@ export default function NewRealtimePage() {
     };
   }, [rawYcxRows, filteredRawYcxRows, selectedStaffs, compareMode]);
 
+  const staffKhaiThacStats = useMemo(() => {
+    if (rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return [];
+
+    const headers = rawYcxRows[0].map(h => String(h || '').trim());
+    const findIdx = (names: string[], defaultIdx: number) => {
+      const idx = headers.findIndex(h => names.some(n => h.toLowerCase().includes(n.toLowerCase())));
+      return idx !== -1 ? idx : defaultIdx;
+    };
+
+    const idxStaff = findIdx(['người tạo'], 23);
+    const idxQty = findIdx(['số lượng'], 35);
+    const idxRevenue = findIdx(['phải thu', 'doanh thu', 'tổng tiền', 'thành tiền', 'giá bán'], 37);
+    const idxCategory = findIdx(['nhóm ngành hàng', 'nhóm hàng'], 40);
+    const idxSmallCat = findIdx(['nhóm hàng nhỏ'], -1);
+
+    const statsMap = new Map<string, {
+      staffName: string;
+      staffId: number;
+      ictQty: number;
+      ictRev: number;
+      ceQty: number;
+      ceRev: number;
+      dgdQty: number;
+      dgdRev: number;
+      spChinhTotalQty: number;
+      spChinhTotalRev: number;
+      bhQty: number;
+      bhRev: number;
+      simQty: number;
+      simRev: number;
+      dhQty: number;
+      dhRev: number;
+      pkCamQty: number;
+      pkLoaQty: number;
+      pkPinQty: number;
+      pkTnQty: number;
+      pkTotalQty: number;
+      pkRev: number;
+      gdQty: number;
+      gdRev: number;
+    }>();
+
+    const isSystemName = (n: string) =>
+      !n || n.toLowerCase().includes('người tạo') || n.toLowerCase() === 'admin' || n.toLowerCase() === 'administrator';
+
+    for (const row of filteredRawYcxRows) {
+      const staffName = String(row[idxStaff] || '').trim();
+      if (isSystemName(staffName)) continue;
+
+      const category = String(row[idxCategory] || '').trim();
+      const nhomLarge = NHOM_HANG_MAP[category]?.large || '';
+      const nhomSmallFromMap = NHOM_HANG_MAP[category]?.small || '';
+      const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
+      const nhomSmall = nhomSmallValue || nhomSmallFromMap.toUpperCase();
+
+      const qty = Math.round(parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0);
+      const revenue = Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0);
+
+      if (!statsMap.has(staffName)) {
+        const match = staffName.match(/^(\d+)/);
+        const staffId = match ? parseInt(match[1]) : 999999;
+        statsMap.set(staffName, {
+          staffName,
+          staffId,
+          ictQty: 0,
+          ictRev: 0,
+          ceQty: 0,
+          ceRev: 0,
+          dgdQty: 0,
+          dgdRev: 0,
+          spChinhTotalQty: 0,
+          spChinhTotalRev: 0,
+          bhQty: 0,
+          bhRev: 0,
+          simQty: 0,
+          simRev: 0,
+          dhQty: 0,
+          dhRev: 0,
+          pkCamQty: 0,
+          pkLoaQty: 0,
+          pkPinQty: 0,
+          pkTnQty: 0,
+          pkTotalQty: 0,
+          pkRev: 0,
+          gdQty: 0,
+          gdRev: 0,
+        });
+      }
+
+      const item = statsMap.get(staffName)!;
+
+      if (nhomLarge === 'ICT') {
+        item.ictQty += qty;
+        item.ictRev += revenue;
+        item.spChinhTotalQty += qty;
+        item.spChinhTotalRev += revenue;
+      } else if (nhomLarge === 'CE') {
+        item.ceQty += qty;
+        item.ceRev += revenue;
+        item.spChinhTotalQty += qty;
+        item.spChinhTotalRev += revenue;
+      } else if (nhomLarge === 'ĐIỆN GD') {
+        item.dgdQty += qty;
+        item.dgdRev += revenue;
+        item.spChinhTotalQty += qty;
+        item.spChinhTotalRev += revenue;
+      } else if (nhomLarge === 'BẢO HIỂM') {
+        item.bhQty += qty;
+        item.bhRev += revenue;
+      } else if (nhomLarge === 'SIM') {
+        item.simQty += qty;
+        item.simRev += revenue;
+      } else if (nhomLarge === 'ĐỒNG HỒ') {
+        item.dhQty += qty;
+        item.dhRev += revenue;
+      } else if (nhomLarge === 'PHỤ KIỆN') {
+        item.pkTotalQty += qty;
+        item.pkRev += revenue;
+
+        if (nhomSmall === 'CAM') {
+          item.pkCamQty += qty;
+        } else if (nhomSmall === 'LOA') {
+          item.pkLoaQty += qty;
+        } else if (nhomSmall === 'PIN SDP') {
+          item.pkPinQty += qty;
+        } else if (nhomSmall === 'TN BLT' || nhomSmall === 'TN DÂY') {
+          item.pkTnQty += qty;
+        }
+      } else if (nhomLarge === 'DCNB') {
+        item.gdQty += qty;
+        item.gdRev += revenue;
+      }
+    }
+
+    return Array.from(statsMap.values()).sort((a, b) => a.staffId - b.staffId);
+  }, [rawYcxRows, filteredRawYcxRows]);
 
   useEffect(() => {
     console.log('[NewRealtimePage] selectedMaKho:', selectedMaKho);
   }, [selectedMaKho]);
   const [activeTab, setActiveTab] = useState<'summary' | 'khai_thac'>('summary');
+  const [showKhaiThacCols, setShowKhaiThacCols] = useState({
+    doanhThu: false,
+    spChinh: true,
+    baoHiem: true,
+    sim: true,
+    dongHo: true,
+    phuKien: true,
+    giaDung: false
+  });
   const [isPending, startTransition] = useTransition();
   const [rawTablePage, setRawTablePage] = useState(0);
   const RAW_PAGE_SIZE = 100;
@@ -2534,6 +2679,358 @@ export default function NewRealtimePage() {
               </div>
             </div>
 
+            {/* PHÂN TÍCH KHAI THÁC - Menu Hiển thị & Bảng dữ liệu */}
+            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6">
+              {/* Header */}
+              <div className="px-6 pt-5 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0 font-bold">
+                    PK
+                  </div>
+                  <div>
+                    <h3 className="text-[18px] font-black text-slate-900 tracking-tight">Phân Tích Khai Thác</h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Chi tiết sản phẩm & hiệu quả bán kèm</p>
+                  </div>
+                </div>
+
+                {/* Filter bar - menu hiển thị */}
+                <div className="flex flex-wrap items-center gap-2 bg-slate-50 rounded-xl px-4 py-3">
+                  <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap mr-2">HIỂN THỊ:</span>
+                  {[
+                    { key: 'doanhThu', label: 'DOANH THU' },
+                    { key: 'spChinh', label: 'SP CHÍNH' },
+                    { key: 'baoHiem', label: 'BẢO HIỂM' },
+                    { key: 'sim', label: 'SIM' },
+                    { key: 'dongHo', label: 'ĐỒNG HỒ' },
+                    { key: 'phuKien', label: 'PHỤ KIỆN' },
+                    { key: 'giaDung', label: 'GIA DỤNG' }
+                  ].map(btn => {
+                    const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
+                    return (
+                      <button
+                        key={btn.key}
+                        onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${
+                          isActive
+                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm'
+                            : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700 hover:border-slate-300'
+                        }`}
+                      >
+                        {btn.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse border border-slate-100 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-100" style={{ borderSpacing: 0 }}>
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      <th rowSpan={2} className="py-3 px-4 text-left min-w-[200px] border-b border-slate-200/50">NHÂN VIÊN</th>
+                      {showKhaiThacCols.spChinh && (
+                        <th colSpan={showKhaiThacCols.doanhThu ? 8 : 4} className="py-2 px-3 text-center border-b border-slate-200/50">SP CHÍNH</th>
+                      )}
+                      {showKhaiThacCols.baoHiem && (
+                        <th colSpan={showKhaiThacCols.doanhThu ? 3 : 2} className="py-2 px-3 text-center border-b border-slate-200/50">BẢO HIỂM</th>
+                      )}
+                      {showKhaiThacCols.sim && (
+                        <th colSpan={showKhaiThacCols.doanhThu ? 3 : 2} className="py-2 px-3 text-center border-b border-slate-200/50">SIM</th>
+                      )}
+                      {showKhaiThacCols.dongHo && (
+                        <th colSpan={showKhaiThacCols.doanhThu ? 3 : 2} className="py-2 px-3 text-center border-b border-slate-200/50">ĐỒNG HỒ</th>
+                      )}
+                      {showKhaiThacCols.phuKien && (
+                        <th colSpan={showKhaiThacCols.doanhThu ? 6 : 5} className="py-2 px-3 text-center border-b border-slate-200/50">PHỤ KIỆN</th>
+                      )}
+                      {showKhaiThacCols.giaDung && (
+                        <th colSpan={showKhaiThacCols.doanhThu ? 3 : 2} className="py-2 px-3 text-center border-b border-slate-200/50">GIA DỤNG</th>
+                      )}
+                    </tr>
+                    <tr className="bg-slate-50 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                      {/* SP CHÍNH Sub Headers */}
+                      {showKhaiThacCols.spChinh && (
+                        <>
+                          <th className="py-2 px-2 text-center w-14">ICT</th>
+                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">DT ICT</th>}
+                          <th className="py-2 px-2 text-center w-14">CE</th>
+                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">DT CE</th>}
+                          <th className="py-2 px-2 text-center w-14">ĐGD</th>
+                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">DT ĐGD</th>}
+                          <th className="py-2 px-2 text-center w-16 text-indigo-600 font-bold bg-indigo-50/20">TỔNG</th>
+                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20 text-indigo-600 font-bold bg-indigo-50/20">DT TỔNG</th>}
+                        </>
+                      )}
+                      {/* BẢO HIỂM Sub Headers */}
+                      {showKhaiThacCols.baoHiem && (
+                        <>
+                          <th className="py-2 px-2 text-center w-14">SL</th>
+                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">D.THU</th>}
+                          <th className="py-2 px-2 text-center w-14">%</th>
+                        </>
+                      )}
+                      {/* SIM Sub Headers */}
+                      {showKhaiThacCols.sim && (
+                        <>
+                          <th className="py-2 px-2 text-center w-14">SL</th>
+                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">D.THU</th>}
+                          <th className="py-2 px-2 text-center w-14">%</th>
+                        </>
+                      )}
+                      {/* ĐỒNG HỒ Sub Headers */}
+                      {showKhaiThacCols.dongHo && (
+                        <>
+                          <th className="py-2 px-2 text-center w-14">SL</th>
+                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">D.THU</th>}
+                          <th className="py-2 px-2 text-center w-14">%</th>
+                        </>
+                      )}
+                      {/* PHỤ KIỆN Sub Headers */}
+                      {showKhaiThacCols.phuKien && (
+                        <>
+                          <th className="py-2 px-2 text-center w-14">SL CAM</th>
+                          <th className="py-2 px-2 text-center w-14">SL LOA</th>
+                          <th className="py-2 px-2 text-center w-14">SL PIN</th>
+                          <th className="py-2 px-2 text-center w-14">SL TNGHE</th>
+                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">D.THU</th>}
+                          <th className="py-2 px-2 text-center w-14">%</th>
+                        </>
+                      )}
+                      {/* GIA DỤNG Sub Headers */}
+                      {showKhaiThacCols.giaDung && (
+                        <>
+                          <th className="py-2 px-2 text-center w-14">SL</th>
+                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">D.THU</th>}
+                          <th className="py-2 px-2 text-center w-14">%</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(() => {
+                      const formatVal = (val: number) => val === 0 ? <span className="text-slate-300">-</span> : val;
+                      const formatRev = (val: number) => {
+                        if (val === 0) return <span className="text-slate-300">-</span>;
+                        if (val >= 1_000_000) {
+                          const m = val / 1_000_000;
+                          return `${m % 1 === 0 ? m : m.toFixed(1)} Tr`;
+                        }
+                        if (val >= 1_000) {
+                          return `${Math.round(val / 1_000)} K`;
+                        }
+                        return val.toLocaleString('vi-VN');
+                      };
+                      const renderPct = (num: number, den: number) => {
+                        if (den === 0 || num === 0) {
+                          return (
+                            <span className="inline-flex px-1.5 py-0.5 rounded bg-rose-50/50 text-rose-400 font-bold text-[10px]">
+                              -
+                            </span>
+                          );
+                        }
+                        const pct = Math.round((num / den) * 100);
+                        return (
+                          <span className="inline-flex px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 font-bold text-[10px]">
+                            {pct}%
+                          </span>
+                        );
+                      };
+
+                      return staffKhaiThacStats.length > 0 ? staffKhaiThacStats.map((item, idx) => {
+                        return (
+                          <tr key={item.staffName} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="py-3 px-4 text-left font-bold text-slate-800">
+                              <div className="flex items-center gap-2">
+                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[13px]">
+                                  {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
+                                </span>
+                                <span>{item.staffName}</span>
+                              </div>
+                            </td>
+                            {/* SP CHÍNH Cells */}
+                            {showKhaiThacCols.spChinh && (
+                              <>
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.ictQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.ictRev)}</td>}
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.ceQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.ceRev)}</td>}
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.dgdQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.dgdRev)}</td>}
+                                <td className="py-3 px-2 text-center text-[13px] font-bold text-indigo-600 bg-indigo-50/10">{formatVal(item.spChinhTotalQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-bold text-indigo-600 bg-indigo-50/10">{formatRev(item.spChinhTotalRev)}</td>}
+                              </>
+                            )}
+                            {/* BẢO HIỂM Cells */}
+                            {showKhaiThacCols.baoHiem && (
+                              <>
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.bhQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.bhRev)}</td>}
+                                <td className="py-3 px-2 text-center">{renderPct(item.bhQty, item.spChinhTotalQty)}</td>
+                              </>
+                            )}
+                            {/* SIM Cells */}
+                            {showKhaiThacCols.sim && (
+                              <>
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.simQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.simRev)}</td>}
+                                <td className="py-3 px-2 text-center">{renderPct(item.simQty, item.spChinhTotalQty)}</td>
+                              </>
+                            )}
+                            {/* ĐỒNG HỒ Cells */}
+                            {showKhaiThacCols.dongHo && (
+                              <>
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.dhQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.dhRev)}</td>}
+                                <td className="py-3 px-2 text-center">{renderPct(item.dhQty, item.spChinhTotalQty)}</td>
+                              </>
+                            )}
+                            {/* PHỤ KIỆN Cells */}
+                            {showKhaiThacCols.phuKien && (
+                              <>
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkCamQty)}</td>
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkLoaQty)}</td>
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkPinQty)}</td>
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkTnQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.pkRev)}</td>}
+                                <td className="py-3 px-2 text-center">{renderPct(item.pkTotalQty, item.spChinhTotalQty)}</td>
+                              </>
+                            )}
+                            {/* GIA DỤNG Cells */}
+                            {showKhaiThacCols.giaDung && (
+                              <>
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.gdRev)}</td>}
+                                <td className="py-3 px-2 text-center">{renderPct(item.gdQty, item.spChinhTotalQty)}</td>
+                              </>
+                            )}
+                          </tr>
+                        );
+                      }) : (
+                        <tr>
+                          <td colSpan={30} className="py-12 text-center text-slate-400 italic text-[11px]">
+                            {isLoadingRealtime ? 'Đang tải dữ liệu...' : 'Chưa có dữ liệu.'}
+                          </td>
+                        </tr>
+                      );
+                    })()}
+                  </tbody>
+                  {/* Footer - TỔNG CỘNG */}
+                  {staffKhaiThacStats.length > 0 && (
+                    <tfoot className="bg-slate-50 font-black text-slate-800 text-[13px] border-t border-slate-200">
+                      {(() => {
+                        const totalIctQty = staffKhaiThacStats.reduce((s, x) => s + x.ictQty, 0);
+                        const totalIctRev = staffKhaiThacStats.reduce((s, x) => s + x.ictRev, 0);
+                        const totalCeQty = staffKhaiThacStats.reduce((s, x) => s + x.ceQty, 0);
+                        const totalCeRev = staffKhaiThacStats.reduce((s, x) => s + x.ceRev, 0);
+                        const totalDgdQty = staffKhaiThacStats.reduce((s, x) => s + x.dgdQty, 0);
+                        const totalDgdRev = staffKhaiThacStats.reduce((s, x) => s + x.dgdRev, 0);
+                        const totalSpChinhQty = staffKhaiThacStats.reduce((s, x) => s + x.spChinhTotalQty, 0);
+                        const totalSpChinhRev = staffKhaiThacStats.reduce((s, x) => s + x.spChinhTotalRev, 0);
+
+                        const totalBhQty = staffKhaiThacStats.reduce((s, x) => s + x.bhQty, 0);
+                        const totalBhRev = staffKhaiThacStats.reduce((s, x) => s + x.bhRev, 0);
+
+                        const totalSimQty = staffKhaiThacStats.reduce((s, x) => s + x.simQty, 0);
+                        const totalSimRev = staffKhaiThacStats.reduce((s, x) => s + x.simRev, 0);
+
+                        const totalDhQty = staffKhaiThacStats.reduce((s, x) => s + x.dhQty, 0);
+                        const totalDhRev = staffKhaiThacStats.reduce((s, x) => s + x.dhRev, 0);
+
+                        const totalPkCam = staffKhaiThacStats.reduce((s, x) => s + x.pkCamQty, 0);
+                        const totalPkLoa = staffKhaiThacStats.reduce((s, x) => s + x.pkLoaQty, 0);
+                        const totalPkPin = staffKhaiThacStats.reduce((s, x) => s + x.pkPinQty, 0);
+                        const totalPkTn = staffKhaiThacStats.reduce((s, x) => s + x.pkTnQty, 0);
+                        const totalPkTotalQty = staffKhaiThacStats.reduce((s, x) => s + x.pkTotalQty, 0);
+                        const totalPkRev = staffKhaiThacStats.reduce((s, x) => s + x.pkRev, 0);
+
+                        const totalGdQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQty, 0);
+                        const totalGdRev = staffKhaiThacStats.reduce((s, x) => s + x.gdRev, 0);
+
+                        const formatFooterVal = (val: number) => val === 0 ? '-' : val;
+                        const formatFooterRev = (val: number) => {
+                          if (val === 0) return '-';
+                          if (val >= 1_000_000) {
+                            const m = val / 1_000_000;
+                            return `${m % 1 === 0 ? m : m.toFixed(1)} Tr`;
+                          }
+                          if (val >= 1_000) {
+                            return `${Math.round(val / 1_000)} K`;
+                          }
+                          return val.toLocaleString('vi-VN');
+                        };
+                        const renderFooterPct = (num: number, den: number) => {
+                          if (den === 0 || num === 0) return '-';
+                          return `${Math.round((num / den) * 100)}%`;
+                        };
+
+                        return (
+                          <tr>
+                            <td className="py-3 px-4 text-left">TỔNG CỘNG</td>
+                            {/* SP CHÍNH Totals */}
+                            {showKhaiThacCols.spChinh && (
+                              <>
+                                <td className="py-3 px-2 text-center">{formatFooterVal(totalIctQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalIctRev)}</td>}
+                                <td className="py-3 px-2 text-center">{formatFooterVal(totalCeQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalCeRev)}</td>}
+                                <td className="py-3 px-2 text-center">{formatFooterVal(totalDgdQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalDgdRev)}</td>}
+                                <td className="py-3 px-2 text-center text-indigo-600 bg-indigo-50/20">{formatFooterVal(totalSpChinhQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-indigo-600 bg-indigo-50/20">{formatFooterRev(totalSpChinhRev)}</td>}
+                              </>
+                            )}
+                            {/* BẢO HIỂM Totals */}
+                            {showKhaiThacCols.baoHiem && (
+                              <>
+                                <td className="py-3 px-2 text-center">{formatFooterVal(totalBhQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalBhRev)}</td>}
+                                <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalBhQty, totalSpChinhQty)}</td>
+                              </>
+                            )}
+                            {/* SIM Totals */}
+                            {showKhaiThacCols.sim && (
+                              <>
+                                <td className="py-3 px-2 text-center">{formatFooterVal(totalSimQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalSimRev)}</td>}
+                                <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalSimQty, totalSpChinhQty)}</td>
+                              </>
+                            )}
+                            {/* ĐỒNG HỒ Totals */}
+                            {showKhaiThacCols.dongHo && (
+                              <>
+                                <td className="py-3 px-2 text-center">{formatFooterVal(totalDhQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalDhRev)}</td>}
+                                <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalDhQty, totalSpChinhQty)}</td>
+                              </>
+                            )}
+                            {/* PHỤ KIỆN Totals */}
+                            {showKhaiThacCols.phuKien && (
+                              <>
+                                <td className="py-3 px-2 text-center">{formatFooterVal(totalPkCam)}</td>
+                                <td className="py-3 px-2 text-center">{formatFooterVal(totalPkLoa)}</td>
+                                <td className="py-3 px-2 text-center">{formatFooterVal(totalPkPin)}</td>
+                                <td className="py-3 px-2 text-center">{formatFooterVal(totalPkTn)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalPkRev)}</td>}
+                                <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalPkTotalQty, totalSpChinhQty)}</td>
+                              </>
+                            )}
+                            {/* GIA DỤNG Totals */}
+                            {showKhaiThacCols.giaDung && (
+                              <>
+                                <td className="py-3 px-2 text-center">{formatFooterVal(totalGdQty)}</td>
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalGdRev)}</td>}
+                                <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalGdQty, totalSpChinhQty)}</td>
+                              </>
+                            )}
+                          </tr>
+                        );
+                      })()}
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
 
             {/* Raw Data Table: 3. THÊM YCX RT */}
             <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-md mt-8 mb-12">
