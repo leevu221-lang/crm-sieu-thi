@@ -40,14 +40,7 @@ const splitLine = (l: string): string[] => {
 };
 
 const BONUS_COLS = [
-  'Số lượng',
-  'Điểm tích lũy',
-  'Điểm nhập trả',
-  'Thưởng nóng',
-  'Điểm trả góp',
-  'Điểm nhận dán MDMH',
-  'Thưởng nóng SBH',
-  'Điểm thực lãnh'
+  { name: 'Điểm thực lãnh', index: 7 }
 ];
 
 const parseBonusData = (text: string, staffObj: any, marketFilter: string) => {
@@ -411,6 +404,20 @@ const EmployeeHealth: React.FC = () => {
       saveThuongToDb(updated);
       return updated;
     });
+  };
+
+  const autoCopyNextStaff = (currentStaffId: string) => {
+    const currentIndex = filteredBiData.findIndex(s => s.fullId === currentStaffId);
+    if (currentIndex !== -1 && currentIndex < filteredBiData.length - 1) {
+      const nextStaff = filteredBiData[currentIndex + 1];
+      const match = nextStaff.fullId.match(/\d+/);
+      const nextStaffId = match ? match[0] : nextStaff.fullId;
+      navigator.clipboard.writeText(nextStaffId).then(() => {
+        showNotification(`Đã copy mã NV tiếp theo: ${nextStaffId} (${nextStaff.displayName.split(' - ').pop()})`, 'success');
+      }).catch(err => {
+        console.error('Failed to copy next staff ID: ', err);
+      });
+    }
   };
 
   const handleDistribute = (field: 'truoc' | 'hientai') => {
@@ -1575,6 +1582,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                 onChange={(e) => {
                                   saveThuongField(staff.fullId, 'truoc', e.target.value);
                                 }}
+                                onPaste={() => {
+                                  autoCopyNextStaff(staff.fullId);
+                                }}
                               />
                             </div>
                           ))}
@@ -1613,6 +1623,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                 value={thuongData[staff.fullId]?.hientai || ''}
                                 onChange={(e) => {
                                   saveThuongField(staff.fullId, 'hientai', e.target.value);
+                                }}
+                                onPaste={() => {
+                                  autoCopyNextStaff(staff.fullId);
                                 }}
                               />
                             </div>
@@ -1679,7 +1692,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                     <th rowSpan={2} className="px-3 py-4 text-left border-b border-slate-200 border-r border-slate-200 min-w-[160px]">Nhân viên</th>
                                     {BONUS_COLS.map((cat, idx) => (
                                       <th key={idx} colSpan={2} className="px-3 py-2 text-center border-r border-slate-200 border-b border-slate-200">
-                                        {cat}
+                                        {cat.name}
                                       </th>
                                     ))}
                                     <th rowSpan={2} className="px-3 py-4 text-center border-b border-slate-200 min-w-[80px]">Xu hướng</th>
@@ -1722,11 +1735,11 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                             <p className="text-[11px] font-bold text-slate-800 truncate max-w-[140px]" title={staff.displayName}>{staff.displayName}</p>
                                           </div>
                                         </td>
-                                        {BONUS_COLS.map((_, gIdx) => {
-                                          const valT = truocData.details[gIdx];
-                                          const valH = hientaiData.details[gIdx];
+                                        {BONUS_COLS.map((cat, idx) => {
+                                          const valT = truocData.details[cat.index];
+                                          const valH = hientaiData.details[cat.index];
                                           return (
-                                            <React.Fragment key={gIdx}>
+                                            <React.Fragment key={idx}>
                                               <td className="px-2 py-3 text-center border-r border-slate-200">
                                                 {valT !== null ? (
                                                   <span className="inline-flex px-2 py-0.5 rounded bg-slate-100 text-[11px] font-bold text-slate-600">
@@ -1778,11 +1791,11 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                 <tfoot className="bg-slate-50 font-black text-slate-700 text-[11px] border-t-2 border-slate-200">
                                   <tr>
                                     <td colSpan={2} className="px-3 py-3 text-right uppercase tracking-wider border-r border-slate-200">Tổng cộng</td>
-                                    {BONUS_COLS.map((_, gIdx) => {
-                                      const totalT = colTotalsT[gIdx];
-                                      const totalH = colTotalsH[gIdx];
+                                    {BONUS_COLS.map((cat, idx) => {
+                                      const totalT = colTotalsT[cat.index];
+                                      const totalH = colTotalsH[cat.index];
                                       return (
-                                        <React.Fragment key={gIdx}>
+                                        <React.Fragment key={idx}>
                                           <td className="px-2 py-3 text-center border-r border-slate-200 bg-slate-100/50">
                                             {hasAnyDataT ? (
                                               <span className="text-slate-800 font-bold">{totalT.toLocaleString('vi-VN')}</span>
