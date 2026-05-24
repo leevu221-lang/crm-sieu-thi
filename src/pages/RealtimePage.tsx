@@ -946,6 +946,68 @@ export default function NewRealtimePage() {
     };
   }, [rawYcxRows, filteredRawYcxRows, selectedStaffs, compareMode]);
 
+  const [activeTab, setActiveTab] = useState<'summary' | 'khai_thac'>('summary');
+  const [showKhaiThacCols, setShowKhaiThacCols] = useState({
+    doanhThu: false,
+    spChinh: true,
+    baoHiem: true,
+    sim: true,
+    dongHo: true,
+    phuKien: true,
+    giaDung: false
+  });
+  const [isPending, startTransition] = useTransition();
+  const [rawTablePage, setRawTablePage] = useState(0);
+  const RAW_PAGE_SIZE = 100;
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const categoriesRef = useRef<HTMLDivElement>(null);
+  const overviewRef = useRef<HTMLDivElement>(null);
+  const categorySLRef = useRef<HTMLDivElement>(null);
+  const categoryDTRef = useRef<HTMLDivElement>(null);
+  const [stores, setStores] = useState<{ warehouse_code: string, ten_sieu_thi: string }[]>([]);
+  const [isStoreSelectorOpen, setIsStoreSelectorOpen] = useState(false);
+
+  // Update selectedMaKho when userProfile changes
+  useEffect(() => {
+    if (userProfile?.ma_kho && !selectedMaKho) {
+      setSelectedMaKho(userProfile.ma_kho);
+    }
+  }, [userProfile, selectedMaKho]);
+
+  // Fetch all stores for admin
+  useEffect(() => {
+    if (userProfile?.role === 'admin') {
+      const fetchStores = async () => {
+        const { data } = await supabase
+          .from('store')
+          .select('warehouse_code, ten_sieu_thi');
+        if (data) setStores(data);
+      };
+      fetchStores();
+    }
+  }, [userProfile]);
+  const [sllkComment, setSllkComment] = useState('');
+  const [dtlkComment, setDtlkComment] = useState('');
+  const [showSllkComment, setShowSllkComment] = useState(false);
+  const [showDtlkComment, setShowDtlkComment] = useState(false);
+  const [showLuykeColumn, setShowLuykeColumn] = useState(true);
+  const [showTargetCols, setShowTargetCols] = useState(true);  // TARGET, REAL, %HT
+  const [showOrangeCols, setShowOrangeCols] = useState(true);  // CÒN LẠI, LUỸ KẾ, MỤC TIÊU 100%
+  const [expandedStaff, setExpandedStaff] = useState<Record<string, boolean>>({});
+  const [expandedCERows, setExpandedCERows] = useState<Record<string, boolean>>({});
+  const [expandedDrillRows, setExpandedDrillRows] = useState<Record<string, boolean>>({});
+  const [expandedDrillBrand, setExpandedDrillBrand] = useState<Record<string, boolean>>({});
+  const [isDrillCollapsed, setIsDrillCollapsed] = useState(false);
+  const [isDrillAllOpen, setIsDrillAllOpen] = useState(false);
+  const [selectedDrillGroups, setSelectedDrillGroups] = useState<string[]>([]);
+  const [drillFilterNhomSmall, setDrillFilterNhomSmall] = useState<string[]>([]);
+  const [drillFilterStaff, setDrillFilterStaff] = useState<string[]>([]);
+  const [drillFilterBrand, setDrillFilterBrand] = useState<string[]>([]);
+  const [activeDrillFilter, setActiveDrillFilter] = useState<string | null>(null);
+  const [drillFilterSearch, setDrillFilterSearch] = useState('');
+  const drillFilterBarRef = useRef<HTMLDivElement>(null);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+
   const staffKhaiThacStats = useMemo(() => {
     if (rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return [];
 
@@ -1109,71 +1171,6 @@ export default function NewRealtimePage() {
 
     return filteredStats;
   }, [rawYcxRows, filteredRawYcxRows, drillFilterStaff]);
-
-  useEffect(() => {
-    console.log('[NewRealtimePage] selectedMaKho:', selectedMaKho);
-  }, [selectedMaKho]);
-  const [activeTab, setActiveTab] = useState<'summary' | 'khai_thac'>('summary');
-  const [showKhaiThacCols, setShowKhaiThacCols] = useState({
-    doanhThu: false,
-    spChinh: true,
-    baoHiem: true,
-    sim: true,
-    dongHo: true,
-    phuKien: true,
-    giaDung: false
-  });
-  const [isPending, startTransition] = useTransition();
-  const [rawTablePage, setRawTablePage] = useState(0);
-  const RAW_PAGE_SIZE = 100;
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const categoriesRef = useRef<HTMLDivElement>(null);
-  const overviewRef = useRef<HTMLDivElement>(null);
-  const categorySLRef = useRef<HTMLDivElement>(null);
-  const categoryDTRef = useRef<HTMLDivElement>(null);
-  const [stores, setStores] = useState<{ warehouse_code: string, ten_sieu_thi: string }[]>([]);
-  const [isStoreSelectorOpen, setIsStoreSelectorOpen] = useState(false);
-
-  // Update selectedMaKho when userProfile changes
-  useEffect(() => {
-    if (userProfile?.ma_kho && !selectedMaKho) {
-      setSelectedMaKho(userProfile.ma_kho);
-    }
-  }, [userProfile, selectedMaKho]);
-
-  // Fetch all stores for admin
-  useEffect(() => {
-    if (userProfile?.role === 'admin') {
-      const fetchStores = async () => {
-        const { data } = await supabase
-          .from('store')
-          .select('warehouse_code, ten_sieu_thi');
-        if (data) setStores(data);
-      };
-      fetchStores();
-    }
-  }, [userProfile]);
-  const [sllkComment, setSllkComment] = useState('');
-  const [dtlkComment, setDtlkComment] = useState('');
-  const [showSllkComment, setShowSllkComment] = useState(false);
-  const [showDtlkComment, setShowDtlkComment] = useState(false);
-  const [showLuykeColumn, setShowLuykeColumn] = useState(true);
-  const [showTargetCols, setShowTargetCols] = useState(true);  // TARGET, REAL, %HT
-  const [showOrangeCols, setShowOrangeCols] = useState(true);  // CÒN LẠI, LUỸ KẾ, MỤC TIÊU 100%
-  const [expandedStaff, setExpandedStaff] = useState<Record<string, boolean>>({});
-  const [expandedCERows, setExpandedCERows] = useState<Record<string, boolean>>({});
-  const [expandedDrillRows, setExpandedDrillRows] = useState<Record<string, boolean>>({});
-  const [expandedDrillBrand, setExpandedDrillBrand] = useState<Record<string, boolean>>({});
-  const [isDrillCollapsed, setIsDrillCollapsed] = useState(false);
-  const [isDrillAllOpen, setIsDrillAllOpen] = useState(false);
-  const [selectedDrillGroups, setSelectedDrillGroups] = useState<string[]>([]);
-  const [drillFilterNhomSmall, setDrillFilterNhomSmall] = useState<string[]>([]);
-  const [drillFilterStaff, setDrillFilterStaff] = useState<string[]>([]);
-  const [drillFilterBrand, setDrillFilterBrand] = useState<string[]>([]);
-  const [activeDrillFilter, setActiveDrillFilter] = useState<string | null>(null);
-  const [drillFilterSearch, setDrillFilterSearch] = useState('');
-  const drillFilterBarRef = useRef<HTMLDivElement>(null);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
   // Available options per filter level (dynamic from data)
   const availableNhomSmall = useMemo(() => {
@@ -2756,8 +2753,11 @@ export default function NewRealtimePage() {
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                       <th rowSpan={2} className="py-3 px-4 text-left min-w-[200px] border-b border-slate-200/50">NHÂN VIÊN</th>
+                      {showKhaiThacCols.doanhThu && (
+                        <th colSpan={3} className="py-2 px-3 text-center border-b border-slate-200/50">DOANH THU</th>
+                      )}
                       {showKhaiThacCols.spChinh && (
-                        <th colSpan={showKhaiThacCols.doanhThu ? 8 : 4} className="py-2 px-3 text-center border-b border-slate-200/50">SP CHÍNH</th>
+                        <th colSpan={4} className="py-2 px-3 text-center border-b border-slate-200/50">SP CHÍNH</th>
                       )}
                       {showKhaiThacCols.baoHiem && (
                         <th colSpan={showKhaiThacCols.doanhThu ? 3 : 2} className="py-2 px-3 text-center border-b border-slate-200/50">BẢO HIỂM</th>
@@ -2776,17 +2776,21 @@ export default function NewRealtimePage() {
                       )}
                     </tr>
                     <tr className="bg-slate-50 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                      {/* DOANH THU Sub Headers */}
+                      {showKhaiThacCols.doanhThu && (
+                        <>
+                          <th className="py-2 px-2 text-center w-20">DT THỰC</th>
+                          <th className="py-2 px-2 text-center w-20">DTQĐ</th>
+                          <th className="py-2 px-2 text-center w-20">HQQĐ</th>
+                        </>
+                      )}
                       {/* SP CHÍNH Sub Headers */}
                       {showKhaiThacCols.spChinh && (
                         <>
                           <th className="py-2 px-2 text-center w-14">ICT</th>
-                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">DT ICT</th>}
                           <th className="py-2 px-2 text-center w-14">CE</th>
-                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">DT CE</th>}
                           <th className="py-2 px-2 text-center w-14">ĐGD</th>
-                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">DT ĐGD</th>}
                           <th className="py-2 px-2 text-center w-16 text-indigo-600 font-bold bg-indigo-50/20">TỔNG</th>
-                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20 text-indigo-600 font-bold bg-indigo-50/20">DT TỔNG</th>}
                         </>
                       )}
                       {/* BẢO HIỂM Sub Headers */}
@@ -2863,6 +2867,20 @@ export default function NewRealtimePage() {
                           </span>
                         );
                       };
+                      const renderHqqd = (val: number) => {
+                        if (val === 0) {
+                          return (
+                            <span className="inline-flex px-1.5 py-0.5 rounded bg-indigo-50/50 text-indigo-400 font-bold text-[10px]">
+                              -
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="inline-flex px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-bold text-[10px]">
+                            {val}%
+                          </span>
+                        );
+                      };
 
                       return staffKhaiThacStats.length > 0 ? staffKhaiThacStats.map((item, idx) => {
                         return (
@@ -2875,17 +2893,21 @@ export default function NewRealtimePage() {
                                 <span>{item.staffName}</span>
                               </div>
                             </td>
+                            {/* DOANH THU Cells */}
+                            {showKhaiThacCols.doanhThu && (
+                              <>
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.dtThuc)}</td>
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.dtqd)}</td>
+                                <td className="py-3 px-2 text-center">{renderHqqd(item.hqqd)}</td>
+                              </>
+                            )}
                             {/* SP CHÍNH Cells */}
                             {showKhaiThacCols.spChinh && (
                               <>
                                 <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.ictQty)}</td>
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.ictRev)}</td>}
                                 <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.ceQty)}</td>
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.ceRev)}</td>}
                                 <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.dgdQty)}</td>
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.dgdRev)}</td>}
                                 <td className="py-3 px-2 text-center text-[13px] font-bold text-indigo-600 bg-indigo-50/10">{formatVal(item.spChinhTotalQty)}</td>
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-bold text-indigo-600 bg-indigo-50/10">{formatRev(item.spChinhTotalRev)}</td>}
                               </>
                             )}
                             {/* BẢO HIỂM Cells */}
@@ -2946,14 +2968,14 @@ export default function NewRealtimePage() {
                   {staffKhaiThacStats.length > 0 && (
                     <tfoot className="bg-slate-50 font-black text-slate-800 text-[13px] border-t border-slate-200">
                       {(() => {
+                        const totalDtThuc = staffKhaiThacStats.reduce((s, x) => s + x.dtThuc, 0);
+                        const totalDtqd = staffKhaiThacStats.reduce((s, x) => s + x.dtqd, 0);
+                        const totalHqqd = totalDtThuc > 0 ? Math.round(((totalDtqd - totalDtThuc) / totalDtThuc) * 100) : 0;
+
                         const totalIctQty = staffKhaiThacStats.reduce((s, x) => s + x.ictQty, 0);
-                        const totalIctRev = staffKhaiThacStats.reduce((s, x) => s + x.ictRev, 0);
                         const totalCeQty = staffKhaiThacStats.reduce((s, x) => s + x.ceQty, 0);
-                        const totalCeRev = staffKhaiThacStats.reduce((s, x) => s + x.ceRev, 0);
                         const totalDgdQty = staffKhaiThacStats.reduce((s, x) => s + x.dgdQty, 0);
-                        const totalDgdRev = staffKhaiThacStats.reduce((s, x) => s + x.dgdRev, 0);
                         const totalSpChinhQty = staffKhaiThacStats.reduce((s, x) => s + x.spChinhTotalQty, 0);
-                        const totalSpChinhRev = staffKhaiThacStats.reduce((s, x) => s + x.spChinhTotalRev, 0);
 
                         const totalBhQty = staffKhaiThacStats.reduce((s, x) => s + x.bhQty, 0);
                         const totalBhRev = staffKhaiThacStats.reduce((s, x) => s + x.bhRev, 0);
@@ -2990,21 +3012,31 @@ export default function NewRealtimePage() {
                           if (den === 0 || num === 0) return '-';
                           return `${Math.round((num / den) * 100)}%`;
                         };
+                        const renderFooterHqqd = (val: number) => {
+                          if (val === 0) return '-';
+                          return `${val}%`;
+                        };
 
                         return (
                           <tr>
                             <td className="py-3 px-4 text-left">TỔNG CỘNG</td>
+                            {/* DOANH THU Totals */}
+                            {showKhaiThacCols.doanhThu && (
+                              <>
+                                <td className="py-3 px-2 text-center">{formatFooterRev(totalDtThuc)}</td>
+                                <td className="py-3 px-2 text-center">{formatFooterRev(totalDtqd)}</td>
+                                <td className="py-3 px-2 text-center text-indigo-600 font-bold bg-indigo-50/20">
+                                  {renderFooterHqqd(totalHqqd)}
+                                </td>
+                              </>
+                            )}
                             {/* SP CHÍNH Totals */}
                             {showKhaiThacCols.spChinh && (
                               <>
                                 <td className="py-3 px-2 text-center">{formatFooterVal(totalIctQty)}</td>
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalIctRev)}</td>}
                                 <td className="py-3 px-2 text-center">{formatFooterVal(totalCeQty)}</td>
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalCeRev)}</td>}
                                 <td className="py-3 px-2 text-center">{formatFooterVal(totalDgdQty)}</td>
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalDgdRev)}</td>}
                                 <td className="py-3 px-2 text-center text-indigo-600 bg-indigo-50/20">{formatFooterVal(totalSpChinhQty)}</td>
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-indigo-600 bg-indigo-50/20">{formatFooterRev(totalSpChinhRev)}</td>}
                               </>
                             )}
                             {/* BẢO HIỂM Totals */}
