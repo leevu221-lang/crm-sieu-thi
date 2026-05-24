@@ -304,7 +304,7 @@ const EmployeeHealth: React.FC = () => {
   // Sync stName and target fields when marketFilter or data changes (consistent with Lũy Kế page)
   useEffect(() => {
     if (marketFilter === 'ALL') return;
-    const market = allowedMarkets.find((m: any) => m.name === marketFilter);
+    const market = allowedMarkets.find((m: any) => removeAccents(m.name) === removeAccents(marketFilter));
     if (!market) return;
 
     if (stName !== market.name) setStName(market.name);

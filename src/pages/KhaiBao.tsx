@@ -156,7 +156,7 @@ const KhaiBao: React.FC = () => {
     if (marketFilter !== 'ALL') {
       setStName((prev: string) => prev !== marketFilter ? marketFilter : prev);
 
-      const market = luykeMarkets.find(m => m.name.toUpperCase() === marketFilter.toUpperCase());
+      const market = luykeMarkets.find(m => normalize(m.name) === normalize(marketFilter));
       
       if (market) {
         setStDtlk((prev: number) => prev !== (market.actualReal || 0) ? (market.actualReal || 0) : prev);
@@ -170,7 +170,7 @@ const KhaiBao: React.FC = () => {
         setStDtqd((prev: number) => prev !== 0 ? 0 : prev);
         
         // Try fallback to Realtime data for projected targets
-        const rtMarket = (rtProcessedData.markets || []).find(m => m.name.toUpperCase() === marketFilter.toUpperCase());
+        const rtMarket = (rtProcessedData.markets || []).find(m => normalize(m.name) === normalize(marketFilter));
         const dtDuKienQD = rtMarket?.targetQD || 0;
         const percentHT = rtMarket?.percentHT || 0;
         
