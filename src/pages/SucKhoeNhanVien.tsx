@@ -606,9 +606,9 @@ const EmployeeHealth: React.FC = () => {
     return matchesSearch && matchesSelection;
   }), [biRevenueData, searchTerm, selectedStaffIds]);
 
-  // Load thuong data from DB when store changes or tab switches to THUONG_NV
+  // Load thuong data from DB when store changes
   useEffect(() => {
-    if (activeTab !== 'THUONG_NV' || marketFilter === 'ALL' || !maKho) return;
+    if (marketFilter === 'ALL' || !maKho) return;
     const shortMaKho = maKho.replace(/^0+/, '');
     
     supabase.from('store')
@@ -631,7 +631,7 @@ const EmployeeHealth: React.FC = () => {
           setThuongData({});
         }
       });
-  }, [activeTab, marketFilter, maKho]);
+  }, [marketFilter, maKho]);
 
   const toggleStaffSelection = (id: string) => {
     setSelectedStaffIds(prev =>
