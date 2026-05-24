@@ -54,6 +54,7 @@ interface EmployeeDetailTableProps {
   staffTargetQd?: number;
   staffDtqd?: number;
   staffPercentHT?: number;
+  staffBonusHientai?: number | null;
 }
 
 // Parse all staff matrix data (same as before - one unified parse)
@@ -288,7 +289,8 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
   luykeCategories = [],
   staffTargetQd = 0,
   staffDtqd = 0,
-  staffPercentHT = 0
+  staffPercentHT = 0,
+  staffBonusHientai = null
 }) => {
   // Parse staff matrix using original unified parser
   const { results: staffMatrix, categories: detailCategories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays);
@@ -438,8 +440,10 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
           </div>
           <div className="p-3 flex flex-col items-center justify-center bg-white">
             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">THƯỞNG</span>
-            <span className="text-[27px] font-utm-avo font-black text-slate-300">
-              -
+            <span className={cn("text-[27px] font-utm-avo font-black", (staffBonusHientai !== null && staffBonusHientai !== undefined) ? "text-rose-600" : "text-slate-300")}>
+              {(staffBonusHientai !== null && staffBonusHientai !== undefined)
+                ? staffBonusHientai.toLocaleString('vi-VN')
+                : '-'}
             </span>
           </div>
         </div>

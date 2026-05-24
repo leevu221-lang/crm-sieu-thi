@@ -50,6 +50,189 @@ const BONUS_COLS = [
   'Điểm thực lãnh'
 ];
 
+const parseBonusData = (text: string, staffObj: any, marketFilter: string) => {
+  if (!text || text.trim().length === 0) return { tong: null, details: Array(8).fill(null) };
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const currentStoreClean = marketFilter && marketFilter !== 'ALL' 
+    ? removeAccents(marketFilter).replace(/^(dml|dms3|dms|dmm|tgd|aar|bhx)\s+/, '').trim()
+    : '';
+  const staffId = staffObj.fullId;
+  const staffNameClean = removeAccents(staffObj.displayName.split('-').pop() || '').trim();
+
+  const getStoreHeader = (line: string): string | null => {
+    const cleanLine = removeAccents(line).trim();
+    const hasStoreKeyword = cleanLine.includes('sieu thi') || 
+                            cleanLine.includes('cua hang') ||
+                            cleanLine.includes('dien may xanh') ||
+                            cleanLine.includes('the gioi di dong') ||
+                            /^(dml|dms3|dms|dmm|tgd|aar|bhx)\b/.test(cleanLine);
+    return hasStoreKeyword ? cleanLine : null;
+  };
+
+  const colIndices = Array(8).fill(-1);
+  let headerColCount = -1;
+  let isMultiCol = false;
+
+  for (const line of lines) {
+    const parts = splitLine(line);
+    const cleanParts = parts.map(p => removeAccents(p));
+    const hasSoLuong = cleanParts.some(p => p.includes('so luong'));
+    const hasThucLanh = cleanParts.some(p => p.includes('thuc lanh'));
+    
+    if (hasSoLuong && hasThucLanh) {
+      isMultiCol = true;
+      headerColCount = parts.length;
+      colIndices[0] = cleanParts.findIndex(p => p.includes('so luong'));
+      colIndices[1] = cleanParts.findIndex(p => p.includes('tich luy'));
+      colIndices[2] = cleanParts.findIndex(p => p.includes('nhap tra'));
+      colIndices[3] = cleanParts.findIndex(p => p.includes('thuong nong') && !p.includes('sbh'));
+      colIndices[4] = cleanParts.findIndex(p => p.includes('tra gop'));
+      colIndices[5] = cleanParts.findIndex(p => p.includes('mdmh') || p.includes('nhan dan'));
+      colIndices[6] = cleanParts.findIndex(p => p.includes('sbh'));
+      colIndices[7] = cleanParts.findIndex(p => p.includes('thuc lanh'));
+      break;
+    }
+  }
+
+  if (!isMultiCol) {
+    for (const line of lines) {
+      const parts = splitLine(line);
+      const cleanParts = parts.map(p => removeAccents(p));
+      const idx = cleanParts.findIndex(p => {
+        return p.includes('diem thuc lanh') || 
+               p.includes('thuc lanh') ||
+               p.includes('thuc nhan') ||
+               p.includes('thuc linh') ||
+               p.includes('thuc tra');
+      });
+      if (idx !== -1) {
+        headerColCount = parts.length;
+        colIndices[7] = idx;
+        break;
+      }
+    }
+  }
+
+  let foundStaff = false;
+  let targetLines: string[] = [];
+  const hasAnyHeader = lines.some(l => getStoreHeader(l) !== null);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const cleanLine = removeAccents(line);
+    const matchStaff = cleanLine.includes(staffId) || (staffNameClean && cleanLine.includes(staffNameClean));
+    if (matchStaff) {
+      let nearestStoreHeader: string | null = null;
+      for (let k = i - 1; k >= 0; k--) {
+        const header = getStoreHeader(lines[k]);
+        if (header) {
+          nearestStoreHeader = header;
+          break;
+        }
+      }
+      let storeCompatible = true;
+      if (currentStoreClean && hasAnyHeader) {
+        storeCompatible = nearestStoreHeader !== null && nearestStoreHeader.includes(currentStoreClean);
+      }
+      if (storeCompatible) {
+        foundStaff = true;
+        targetLines = [line];
+        for (let j = i + 1; j < lines.length; j++) {
+          const subLine = lines[j];
+          if (getStoreHeader(subLine) !== null) break;
+          targetLines.push(subLine);
+          const subParts = splitLine(subLine);
+          const hasTotalLabel = subParts.some(part => {
+            const clean = removeAccents(part);
+            return clean === 'tong cong' || clean === 'tong' || clean.includes('tong cong') || clean.includes('tong');
+          });
+          if (hasTotalLabel) break;
+        }
+        break;
+      }
+    }
+  }
+
+  const linesToParse = foundStaff ? targetLines : lines;
+
+  let foundRow = false;
+  let tong = 0;
+  const details: (number | null)[] = Array(8).fill(null);
+
+  for (const line of linesToParse) {
+    const parts = splitLine(line);
+    
+    const hasTotalLabel = parts.some(part => {
+      const clean = removeAccents(part);
+      return clean === 'tong cong' || 
+             clean === 'tong' || 
+             clean.startsWith('tong cong') || 
+             clean.startsWith('tong ') || 
+             clean.startsWith('tong:') ||
+             clean.includes('tong cong') || 
+             clean.includes('tong');
+    });
+
+    const hasNumericData = parts.some(part => {
+      const clean = part.replace(/[^\d-]/g, '');
+      return clean.length > 0 && !isNaN(parseInt(clean, 10));
+    });
+    
+    if (hasTotalLabel && hasNumericData) {
+      foundRow = true;
+      
+      let offset = 0;
+      if (parts.length === headerColCount + 1) {
+        offset = 1;
+      } else if (parts.length === headerColCount) {
+        offset = 0;
+      } else {
+        const cleanFirst = parts[0].replace(/[^\d-]/g, '');
+        const isFirstNumeric = cleanFirst !== '' && !isNaN(parseInt(cleanFirst, 10));
+        offset = isFirstNumeric ? 0 : 1;
+      }
+
+      for (let i = 0; i < 8; i++) {
+        const headerIdx = colIndices[i];
+        if (headerIdx !== -1) {
+          const targetIdx = headerIdx + offset;
+          if (targetIdx >= 0 && targetIdx < parts.length) {
+            const raw = parts[targetIdx];
+            const clean = raw.replace(/[^\d-]/g, '');
+            if (clean.length > 0) {
+              const num = parseInt(clean, 10);
+              details[i] = isNaN(num) ? 0 : num;
+            } else {
+              details[i] = 0;
+            }
+          }
+        }
+      }
+      
+      if (colIndices[7] !== -1) {
+        tong = details[7] !== null ? details[7] : 0;
+      } else {
+        let foundNum = false;
+        let lastNum = 0;
+        for (let i = parts.length - 1; i >= 0; i--) {
+          const raw = parts[i];
+          const clean = raw.replace(/[^\d-]/g, '');
+          const n = parseInt(clean, 10);
+          if (!isNaN(n) && n > 0) { 
+            lastNum = n; 
+            foundNum = true;
+            break; 
+          }
+        }
+        tong = foundNum ? lastNum : 0;
+        details[7] = tong;
+      }
+      break;
+    }
+  }
+  return { tong: foundRow ? tong : null, details: foundRow ? details : Array(8).fill(null) };
+};
+
 const EmployeeHealth: React.FC = () => {
   const { userProfile } = useAuth();
   const { showNotification } = useNotification();
@@ -909,6 +1092,11 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                         const staffPercentHT = (actualTargetQd > 0 && daysPassed > 0)
                           ? (((actualDtqd / daysPassed) * totalDays) / actualTargetQd) * 100
                           : 0;
+                        const staffBonusHientai = (() => {
+                           const hientai = thuongData[staff.fullId]?.hientai || '';
+                           const res = parseBonusData(hientai, staff, marketFilter);
+                           return res.tong;
+                         })();
 
                         return (
                           <motion.div
@@ -933,6 +1121,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               staffTargetQd={targetQdPerStaff}
                               staffDtqd={staffActualVal}
                               staffPercentHT={staffPercentHT}
+                              staffBonusHientai={staffBonusHientai}
                             />
                           </motion.div>
                         );
@@ -1457,189 +1646,6 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                       {/* Table Content */}
                       <div className="overflow-x-auto scrollbar-thin select-none">
                         {(() => {
-                          const parseBonusData = (text: string, staffObj: any) => {
-                            if (!text || text.trim().length === 0) return { tong: null, details: Array(8).fill(null) };
-                            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-                            const currentStoreClean = marketFilter && marketFilter !== 'ALL' 
-                              ? removeAccents(marketFilter).replace(/^(dml|dms3|dms|dmm|tgd|aar|bhx)\s+/, '').trim()
-                              : '';
-                            const staffId = staffObj.fullId;
-                            const staffNameClean = removeAccents(staffObj.displayName.split('-').pop() || '').trim();
-
-                            const getStoreHeader = (line: string): string | null => {
-                              const cleanLine = removeAccents(line).trim();
-                              const hasStoreKeyword = cleanLine.includes('sieu thi') || 
-                                                      cleanLine.includes('cua hang') ||
-                                                      cleanLine.includes('dien may xanh') ||
-                                                      cleanLine.includes('the gioi di dong') ||
-                                                      /^(dml|dms3|dms|dmm|tgd|aar|bhx)\b/.test(cleanLine);
-                              return hasStoreKeyword ? cleanLine : null;
-                            };
-
-                            const colIndices = Array(8).fill(-1);
-                            let headerColCount = -1;
-                            let isMultiCol = false;
-
-                            for (const line of lines) {
-                              const parts = splitLine(line);
-                              const cleanParts = parts.map(p => removeAccents(p));
-                              const hasSoLuong = cleanParts.some(p => p.includes('so luong'));
-                              const hasThucLanh = cleanParts.some(p => p.includes('thuc lanh'));
-                              
-                              if (hasSoLuong && hasThucLanh) {
-                                isMultiCol = true;
-                                headerColCount = parts.length;
-                                colIndices[0] = cleanParts.findIndex(p => p.includes('so luong'));
-                                colIndices[1] = cleanParts.findIndex(p => p.includes('tich luy'));
-                                colIndices[2] = cleanParts.findIndex(p => p.includes('nhap tra'));
-                                colIndices[3] = cleanParts.findIndex(p => p.includes('thuong nong') && !p.includes('sbh'));
-                                colIndices[4] = cleanParts.findIndex(p => p.includes('tra gop'));
-                                colIndices[5] = cleanParts.findIndex(p => p.includes('mdmh') || p.includes('nhan dan'));
-                                colIndices[6] = cleanParts.findIndex(p => p.includes('sbh'));
-                                colIndices[7] = cleanParts.findIndex(p => p.includes('thuc lanh'));
-                                break;
-                              }
-                            }
-
-                            if (!isMultiCol) {
-                              for (const line of lines) {
-                                const parts = splitLine(line);
-                                const cleanParts = parts.map(p => removeAccents(p));
-                                const idx = cleanParts.findIndex(p => {
-                                  return p.includes('diem thuc lanh') || 
-                                         p.includes('thuc lanh') ||
-                                         p.includes('thuc nhan') ||
-                                         p.includes('thuc linh') ||
-                                         p.includes('thuc tra');
-                                });
-                                if (idx !== -1) {
-                                  headerColCount = parts.length;
-                                  colIndices[7] = idx;
-                                  break;
-                                }
-                              }
-                            }
-
-                            let foundStaff = false;
-                            let targetLines: string[] = [];
-                            const hasAnyHeader = lines.some(l => getStoreHeader(l) !== null);
-
-                            for (let i = 0; i < lines.length; i++) {
-                              const line = lines[i];
-                              const cleanLine = removeAccents(line);
-                              const matchStaff = cleanLine.includes(staffId) || (staffNameClean && cleanLine.includes(staffNameClean));
-                              if (matchStaff) {
-                                let nearestStoreHeader: string | null = null;
-                                for (let k = i - 1; k >= 0; k--) {
-                                  const header = getStoreHeader(lines[k]);
-                                  if (header) {
-                                    nearestStoreHeader = header;
-                                    break;
-                                  }
-                                }
-                                let storeCompatible = true;
-                                if (currentStoreClean && hasAnyHeader) {
-                                  storeCompatible = nearestStoreHeader !== null && nearestStoreHeader.includes(currentStoreClean);
-                                }
-                                if (storeCompatible) {
-                                  foundStaff = true;
-                                  targetLines = [line];
-                                  for (let j = i + 1; j < lines.length; j++) {
-                                    const subLine = lines[j];
-                                    if (getStoreHeader(subLine) !== null) break;
-                                    targetLines.push(subLine);
-                                    const subParts = splitLine(subLine);
-                                    const hasTotalLabel = subParts.some(part => {
-                                      const clean = removeAccents(part);
-                                      return clean === 'tong cong' || clean === 'tong' || clean.includes('tong cong') || clean.includes('tong');
-                                    });
-                                    if (hasTotalLabel) break;
-                                  }
-                                  break;
-                                }
-                              }
-                            }
-
-                            const linesToParse = foundStaff ? targetLines : lines;
-
-                            let foundRow = false;
-                            let tong = 0;
-                            const details: (number | null)[] = Array(8).fill(null);
-
-                            for (const line of linesToParse) {
-                              const parts = splitLine(line);
-                              
-                              const hasTotalLabel = parts.some(part => {
-                                const clean = removeAccents(part);
-                                return clean === 'tong cong' || 
-                                       clean === 'tong' || 
-                                       clean.startsWith('tong cong') || 
-                                       clean.startsWith('tong ') || 
-                                       clean.startsWith('tong:') ||
-                                       clean.includes('tong cong') || 
-                                       clean.includes('tong');
-                              });
-
-                              const hasNumericData = parts.some(part => {
-                                const clean = part.replace(/[^\d-]/g, '');
-                                return clean.length > 0 && !isNaN(parseInt(clean, 10));
-                              });
-                              
-                              if (hasTotalLabel && hasNumericData) {
-                                foundRow = true;
-                                
-                                let offset = 0;
-                                if (parts.length === headerColCount + 1) {
-                                  offset = 1;
-                                } else if (parts.length === headerColCount) {
-                                  offset = 0;
-                                } else {
-                                  const cleanFirst = parts[0].replace(/[^\d-]/g, '');
-                                  const isFirstNumeric = cleanFirst !== '' && !isNaN(parseInt(cleanFirst, 10));
-                                  offset = isFirstNumeric ? 0 : 1;
-                                }
-
-                                for (let i = 0; i < 8; i++) {
-                                  const headerIdx = colIndices[i];
-                                  if (headerIdx !== -1) {
-                                    const targetIdx = headerIdx + offset;
-                                    if (targetIdx >= 0 && targetIdx < parts.length) {
-                                      const raw = parts[targetIdx];
-                                      const clean = raw.replace(/[^\d-]/g, '');
-                                      if (clean.length > 0) {
-                                        const num = parseInt(clean, 10);
-                                        details[i] = isNaN(num) ? 0 : num;
-                                      } else {
-                                        details[i] = 0;
-                                      }
-                                    }
-                                  }
-                                }
-                                
-                                if (colIndices[7] !== -1) {
-                                  tong = details[7] !== null ? details[7] : 0;
-                                } else {
-                                  let foundNum = false;
-                                  let lastNum = 0;
-                                  for (let i = parts.length - 1; i >= 0; i--) {
-                                    const raw = parts[i];
-                                    const clean = raw.replace(/[^\d-]/g, '');
-                                    const n = parseInt(clean, 10);
-                                    if (!isNaN(n) && n > 0) { 
-                                      lastNum = n; 
-                                      foundNum = true;
-                                      break; 
-                                    }
-                                  }
-                                  tong = foundNum ? lastNum : 0;
-                                  details[7] = tong;
-                                }
-                                break;
-                              }
-                            }
-                            return { tong: foundRow ? tong : null, details: foundRow ? details : Array(8).fill(null) };
-                          };
-
                           // Tính toán hàng Tổng cho Footer
                           const colTotalsT = Array(8).fill(0);
                           const colTotalsH = Array(8).fill(0);
@@ -1649,8 +1655,8 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                           filteredBiData.forEach(staff => {
                             const truoc = thuongData[staff.fullId]?.truoc || '';
                             const hientai = thuongData[staff.fullId]?.hientai || '';
-                            const tD = parseBonusData(truoc, staff);
-                            const hD = parseBonusData(hientai, staff);
+                            const tD = parseBonusData(truoc, staff, marketFilter);
+                            const hD = parseBonusData(hientai, staff, marketFilter);
                             
                             for (let i = 0; i < 8; i++) {
                               if (tD.details[i] !== null) {
@@ -1692,8 +1698,8 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                     const truoc = thuongData[staff.fullId]?.truoc || '';
                                     const hientai = thuongData[staff.fullId]?.hientai || '';
                                     
-                                    const truocData = parseBonusData(truoc, staff);
-                                    const hientaiData = parseBonusData(hientai, staff);
+                                    const truocData = parseBonusData(truoc, staff, marketFilter);
+                                    const hientaiData = parseBonusData(hientai, staff, marketFilter);
                                     
                                     const valTruoc = truocData.tong !== null ? truocData.tong : 0;
                                     const valHientai = hientaiData.tong !== null ? hientaiData.tong : 0;
