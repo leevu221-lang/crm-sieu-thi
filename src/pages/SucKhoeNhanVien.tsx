@@ -358,16 +358,15 @@ const EmployeeHealth: React.FC = () => {
       .filter(line => line.length > 0)
       .map(line => line.split('\t'))
       .filter(parts => {
-        // Employee lines usually have at least 10 columns and the first column starts with a 4-6 digit ID
-        if (parts.length < 10) return false;
-        return /^(\d{4,6})\s*-/.test(parts[0]);
+        if (parts.length < 6) return false;
+        return /^(\d+)\s*-/.test(parts[0]);
       })
       .map(parts => ({
         nhanVien: parts[0],
         dtlk: parts[1],
         luotBill: parts[4],
-        phanTramBill: parts[5], // Use 6th column (index 5)
-        luotBillBanHang: parts[9], // 10th column (index 9)
+        phanTramBill: parts[5],
+        luotBillBanHang: parts[9] || '0',
       }));
   }, []);
 
@@ -1505,7 +1504,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                   return (
                                     <tr key={i} className="hover:bg-slate-50">
                                       <td style={{ width: '240px' }} className="px-6 py-[11px] text-slate-900 border-r-2 border-slate-300">{row.nhanVien}</td>
-                                      <td style={{ width: '70px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300">{row.dtlk ? Math.round(parseFloat(row.dtlk.toString().replace(/,/g, '')) || 0).toLocaleString('vi-VN') : '0'}</td>
+                                      <td style={{ width: '70px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300">{row.dtlk || '0'}</td>
                                       <td style={{ width: '70px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300">{row.luotBill}</td>
                                       <td style={{ width: '70px' }} className={`px-6 py-[11px] text-center border-r-2 border-slate-300 ${isTop ? 'text-emerald-600 font-black' : isBottom ? 'text-rose-600 font-black' : ''}`}>{row.phanTramBill}</td>
                                       <td style={{ width: '70px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300">{row.luotBillBanHang}</td>

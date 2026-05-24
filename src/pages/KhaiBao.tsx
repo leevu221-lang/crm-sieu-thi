@@ -106,7 +106,7 @@ const KhaiBao: React.FC = () => {
     allStoreTargets
   } = useRTSTSharedData(maKho, isYcxDirty);
 
-  const { banKemNv, setBanKemNv, saveBanKemNv, phucVu, savePhucVu } = useEmployeeHealth(maKho, stName || (marketFilter !== 'ALL' ? marketFilter : undefined));
+  const { banKemNv, setBanKemNv, saveBanKemNv, phucVu, savePhucVu } = useEmployeeHealth(maKho, marketFilter !== 'ALL' ? marketFilter : undefined);
 
   // Synchronized with DB-declared stores list via useStore()
 
