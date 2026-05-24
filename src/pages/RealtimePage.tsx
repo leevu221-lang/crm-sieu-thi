@@ -986,6 +986,9 @@ export default function NewRealtimePage() {
       pkRev: number;
       gdQty: number;
       gdRev: number;
+      dtThuc: number;
+      dtqd: number;
+      hqqd: number;
     }>();
 
     const isSystemName = (n: string) =>
@@ -1032,6 +1035,9 @@ export default function NewRealtimePage() {
           pkRev: 0,
           gdQty: 0,
           gdRev: 0,
+          dtThuc: 0,
+          dtqd: 0,
+          hqqd: 0,
         });
       }
 
@@ -1080,8 +1086,29 @@ export default function NewRealtimePage() {
       }
     }
 
-    return Array.from(statsMap.values()).sort((a, b) => a.staffId - b.staffId);
-  }, [rawYcxRows, filteredRawYcxRows]);
+    statsMap.forEach(item => {
+      item.dtThuc = item.ictRev + item.ceRev + item.dgdRev + item.bhRev + item.simRev + item.dhRev + item.pkRev + item.gdRev;
+      
+      const ictQD = item.ictRev;
+      const ceQD = item.ceRev;
+      const dgdQD = item.dgdRev + item.dgdQty * 777777;
+      const bhQD = item.bhQty * 3000000;
+      const simQD = item.simRev;
+      const dhQD = item.dhRev;
+      const pkQD = item.pkTotalQty * 1000000;
+      const gdQD = item.gdQty * 500000;
+
+      item.dtqd = ictQD + ceQD + dgdQD + bhQD + simQD + dhQD + pkQD + gdQD;
+      item.hqqd = item.dtThuc > 0 ? Math.round(((item.dtqd - item.dtThuc) / item.dtThuc) * 100) : 0;
+    });
+
+    const allStats = Array.from(statsMap.values());
+    const filteredStats = drillFilterStaff.length > 0
+      ? allStats.filter(item => drillFilterStaff.includes(item.staffName))
+      : allStats;
+
+    return filteredStats;
+  }, [rawYcxRows, filteredRawYcxRows, drillFilterStaff]);
 
   useEffect(() => {
     console.log('[NewRealtimePage] selectedMaKho:', selectedMaKho);
