@@ -1636,20 +1636,20 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     {/* RIGHT PANEL - Bonus Summary Table */}
                     <div className="bg-white rounded-[24px] shadow-lg border border-slate-200/80 overflow-hidden">
                       {/* Table Header */}
-                      <div className="bg-gradient-to-r from-purple-600 via-indigo-600 to-violet-700 px-6 py-4">
+                      <div className="border-b border-slate-100 px-6 py-4.5 bg-white">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                              <Gift size={18} className="text-white" />
+                            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center">
+                              <Gift size={22} className="text-slate-700" />
                             </div>
                             <div>
-                              <h2 className="text-base font-black text-white uppercase tracking-tight">Bảng thưởng nhân viên</h2>
-                              <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest">{marketFilter !== 'ALL' ? marketFilter : 'Tất cả siêu thị'}</p>
+                              <h2 className="text-[19px] font-black text-slate-800 uppercase tracking-tight">Bảng thưởng nhân viên</h2>
+                              <p className="text-[12px] text-slate-500 font-bold uppercase tracking-widest">{marketFilter !== 'ALL' ? marketFilter : 'Tất cả siêu thị'}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <div className="px-3 py-1.5 rounded-xl bg-white/15 backdrop-blur-sm">
-                              <span className="text-[10px] font-black text-white/90 uppercase tracking-widest">{filteredBiData.length} NV</span>
+                            <div className="px-3 py-1.5 rounded-xl bg-slate-100">
+                              <span className="text-[12px] font-black text-slate-700 uppercase tracking-widest">{filteredBiData.length} NV</span>
                             </div>
                           </div>
                         </div>
