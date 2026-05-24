@@ -359,7 +359,7 @@ const EmployeeHealth: React.FC = () => {
       .map(line => line.split('\t'))
       .filter(parts => {
         if (parts.length < 6) return false;
-        return /^(\d+)\s*-/.test(parts[0]);
+        return /-\s*\d+/.test(parts[0]) || /\d+\s*-/.test(parts[0]);
       })
       .map(parts => ({
         nhanVien: parts[0],
