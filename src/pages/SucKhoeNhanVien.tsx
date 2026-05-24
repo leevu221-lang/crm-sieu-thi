@@ -1682,15 +1682,36 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             }
                           });
 
+                          // Sắp xếp danh sách nhân viên theo thứ tự Tăng/Giảm (Hiện tại - Tháng trước) giảm dần
+                          const sortedBiDataForBonus = [...filteredBiData].sort((a, b) => {
+                            const truocA = thuongData[a.fullId]?.truoc || '';
+                            const hientaiA = thuongData[a.fullId]?.hientai || '';
+                            const tDA = parseBonusData(truocA, a, marketFilter);
+                            const hDA = parseBonusData(hientaiA, a, marketFilter);
+                            const valTA = tDA.details[7] || 0;
+                            const valHA = hDA.details[7] || 0;
+                            const diffA = valHA - valTA;
+
+                            const truocB = thuongData[b.fullId]?.truoc || '';
+                            const hientaiB = thuongData[b.fullId]?.hientai || '';
+                            const tDB = parseBonusData(truocB, b, marketFilter);
+                            const hDB = parseBonusData(hientaiB, b, marketFilter);
+                            const valTB = tDB.details[7] || 0;
+                            const valHB = hDB.details[7] || 0;
+                            const diffB = valHB - valTB;
+
+                            return diffB - diffA;
+                          });
+
                           return (
                             <>
                               <table className="w-full border-collapse border border-slate-200">
                                 <thead>
                                   <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-widest">
                                     <th rowSpan={2} className="px-3 py-4 text-left w-10 border-b border-slate-200 border-r border-slate-200">STT</th>
-                                    <th rowSpan={2} className="px-3 py-4 text-left border-b border-slate-200 border-r border-slate-200 min-w-[160px]">Nhân viên</th>
+                                    <th rowSpan={2} className="px-3 py-4 text-left border-b border-slate-200 border-r border-slate-200 min-w-[200px]">Nhân viên</th>
                                     {BONUS_COLS.map((cat, idx) => (
-                                      <th key={idx} colSpan={2} className="px-3 py-2 text-center border-r border-slate-200 border-b border-slate-200">
+                                      <th key={idx} colSpan={3} className="px-3 py-2 text-center border-r border-slate-200 border-b border-slate-200">
                                         {cat.name}
                                       </th>
                                     ))}
@@ -1701,12 +1722,13 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                       <React.Fragment key={idx}>
                                         <th className="px-2 py-2 text-center border-r border-slate-200 border-b border-slate-200 min-w-[80px]">T.Trước</th>
                                         <th className="px-2 py-2 text-center border-r border-slate-200 border-b border-slate-200 min-w-[80px]">H.Tại</th>
+                                        <th className="px-2 py-2 text-center border-r border-slate-200 border-b border-slate-200 min-w-[80px]">Tăng / Giảm</th>
                                       </React.Fragment>
                                     ))}
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                  {filteredBiData.map((staff, idx) => {
+                                  {sortedBiDataForBonus.map((staff, idx) => {
                                     const truoc = thuongData[staff.fullId]?.truoc || '';
                                     const hientai = thuongData[staff.fullId]?.hientai || '';
                                     
@@ -1731,12 +1753,13 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                                 {staff.displayName.split(' ').pop()?.charAt(0) || '?'}
                                               </span>
                                             </div>
-                                            <p className="text-[11px] font-bold text-slate-800 truncate max-w-[140px]" title={staff.displayName}>{staff.displayName}</p>
+                                            <p className="text-[11px] font-bold text-slate-800" title={staff.displayName}>{staff.displayName}</p>
                                           </div>
                                         </td>
                                         {BONUS_COLS.map((cat, idx) => {
                                           const valT = truocData.details[cat.index];
                                           const valH = hientaiData.details[cat.index];
+                                          const diffVal = (valH || 0) - (valT || 0);
                                           return (
                                             <React.Fragment key={idx}>
                                               <td className="px-2 py-3 text-center border-r border-slate-200">
@@ -1752,6 +1775,20 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                                 {valH !== null ? (
                                                   <span className="inline-flex px-2 py-0.5 rounded bg-purple-100 text-[11px] font-bold text-purple-700">
                                                     {valH.toLocaleString('vi-VN')}
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-[10px] text-slate-300 font-bold">—</span>
+                                                )}
+                                              </td>
+                                              <td className="px-2 py-3 text-center border-r border-slate-200">
+                                                {valT !== null || valH !== null ? (
+                                                  <span className={cn(
+                                                    "inline-flex px-2 py-0.5 rounded text-[11px] font-bold",
+                                                    diffVal > 0 ? "bg-emerald-50 text-emerald-700" :
+                                                    diffVal < 0 ? "bg-rose-50 text-rose-700" :
+                                                    "bg-slate-50 text-slate-600"
+                                                  )}>
+                                                    {diffVal > 0 ? `+${diffVal.toLocaleString('vi-VN')}` : diffVal.toLocaleString('vi-VN')}
                                                   </span>
                                                 ) : (
                                                   <span className="text-[10px] text-slate-300 font-bold">—</span>
@@ -1793,6 +1830,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                     {BONUS_COLS.map((cat, idx) => {
                                       const totalT = colTotalsT[cat.index];
                                       const totalH = colTotalsH[cat.index];
+                                      const diffTotal = totalH - totalT;
                                       return (
                                         <React.Fragment key={idx}>
                                           <td className="px-2 py-3 text-center border-r border-slate-200 bg-slate-100/50">
@@ -1805,6 +1843,20 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                           <td className="px-2 py-3 text-center border-r border-slate-200 bg-purple-50/30">
                                             {hasAnyDataH ? (
                                               <span className="text-purple-700 font-bold">{totalH.toLocaleString('vi-VN')}</span>
+                                            ) : (
+                                              <span className="text-slate-300">—</span>
+                                            )}
+                                          </td>
+                                          <td className="px-2 py-3 text-center border-r border-slate-200 bg-indigo-50/30">
+                                            {hasAnyDataT || hasAnyDataH ? (
+                                              <span className={cn(
+                                                "font-bold",
+                                                diffTotal > 0 ? "text-emerald-700" :
+                                                diffTotal < 0 ? "text-rose-700" :
+                                                "text-slate-800"
+                                              )}>
+                                                {diffTotal > 0 ? `+${diffTotal.toLocaleString('vi-VN')}` : diffTotal.toLocaleString('vi-VN')}
+                                              </span>
                                             ) : (
                                               <span className="text-slate-300">—</span>
                                             )}
