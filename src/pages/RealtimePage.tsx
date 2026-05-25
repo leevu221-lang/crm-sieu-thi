@@ -970,7 +970,7 @@ export default function NewRealtimePage() {
       document.body.classList.add('capturing-screenshot');
 
       // Áp dụng style tạm thời tạo viền trắng xung quanh bảng (24px) và tự động vừa khít dữ liệu
-      element.style.padding = '24px';
+      element.style.padding = '4px';
       element.style.backgroundColor = '#ffffff';
       element.style.width = 'fit-content';
       element.style.height = 'fit-content';
@@ -1090,6 +1090,10 @@ export default function NewRealtimePage() {
       pkRev: number;
       gdQty: number;
       gdRev: number;
+      gdMlnQty: number;
+      gdNcomQty: number;
+      gdNchienQty: number;
+      gdQuatQty: number;
       dtThuc: number;
       dtqd: number;
       hqqd: number;
@@ -1139,6 +1143,10 @@ export default function NewRealtimePage() {
           pkRev: 0,
           gdQty: 0,
           gdRev: 0,
+          gdMlnQty: 0,
+          gdNcomQty: 0,
+          gdNchienQty: 0,
+          gdQuatQty: 0,
           dtThuc: 0,
           dtqd: 0,
           hqqd: 0,
@@ -1187,6 +1195,15 @@ export default function NewRealtimePage() {
       } else if (nhomLarge === 'DCNB') {
         item.gdQty += qty;
         item.gdRev += revenue;
+        if (nhomSmall === 'MLN') {
+          item.gdMlnQty += qty;
+        } else if (nhomSmall === 'NC NẮP RỜI' || nhomSmall === 'NC Đ.TỬ' || nhomSmall === 'NC') {
+          item.gdNcomQty += qty;
+        } else if (nhomSmall === 'N.CHIÊN') {
+          item.gdNchienQty += qty;
+        } else if (nhomSmall === 'QUẠT') {
+          item.gdQuatQty += qty;
+        }
       }
     }
 
@@ -2844,7 +2861,7 @@ export default function NewRealtimePage() {
                         <th colSpan={showKhaiThacCols.doanhThu ? 6 : 5} className="py-2 px-3 text-center border-b border-slate-200/50">PHỤ KIỆN</th>
                       )}
                       {showKhaiThacCols.giaDung && (
-                        <th colSpan={showKhaiThacCols.doanhThu ? 3 : 2} className="py-2 px-3 text-center border-b border-slate-200/50">GIA DỤNG</th>
+                        <th colSpan={showKhaiThacCols.doanhThu ? 6 : 5} className="py-2 px-3 text-center border-b border-slate-200/50">GIA DỤNG</th>
                       )}
                     </tr>
                     <tr className="bg-slate-50 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
@@ -2903,7 +2920,10 @@ export default function NewRealtimePage() {
                       {/* GIA DỤNG Sub Headers */}
                       {showKhaiThacCols.giaDung && (
                         <>
-                          <th className="py-2 px-2 text-center w-14">SL</th>
+                          <th className="py-2 px-2 text-center w-14">SL MLN</th>
+                          <th className="py-2 px-2 text-center w-14">SL NCƠM</th>
+                          <th className="py-2 px-2 text-center w-14">SL NCHIÊN</th>
+                          <th className="py-2 px-2 text-center w-14">SL QUẠT</th>
                           {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">D.THU</th>}
                           <th className="py-2 px-2 text-center w-14">%</th>
                         </>
@@ -3020,7 +3040,10 @@ export default function NewRealtimePage() {
                             {/* GIA DỤNG Cells */}
                             {showKhaiThacCols.giaDung && (
                               <>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdQty)}</td>
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdMlnQty)}</td>
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdNcomQty)}</td>
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdNchienQty)}</td>
+                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdQuatQty)}</td>
                                 {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.gdRev)}</td>}
                                 <td className="py-3 px-2 text-center">{renderPct(item.gdQty, item.spChinhTotalQty)}</td>
                               </>
@@ -3066,6 +3089,10 @@ export default function NewRealtimePage() {
                         const totalPkRev = staffKhaiThacStats.reduce((s, x) => s + x.pkRev, 0);
 
                         const totalGdQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQty, 0);
+                        const totalGdMlnQty = staffKhaiThacStats.reduce((s, x) => s + x.gdMlnQty, 0);
+                        const totalGdNcomQty = staffKhaiThacStats.reduce((s, x) => s + x.gdNcomQty, 0);
+                        const totalGdNchienQty = staffKhaiThacStats.reduce((s, x) => s + x.gdNchienQty, 0);
+                        const totalGdQuatQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQuatQty, 0);
                         const totalGdRev = staffKhaiThacStats.reduce((s, x) => s + x.gdRev, 0);
 
                         const formatFooterVal = (val: number) => val === 0 ? '-' : val;
@@ -3149,7 +3176,10 @@ export default function NewRealtimePage() {
                             {/* GIA DỤNG Totals */}
                             {showKhaiThacCols.giaDung && (
                               <>
-                                <td className="py-3 px-2 text-center">{formatFooterVal(totalGdQty)}</td>
+                                <td className="py-3 px-2 text-center">{formatFooterVal(totalGdMlnQty)}</td>
+                                <td className="py-3 px-2 text-center">{formatFooterVal(totalGdNcomQty)}</td>
+                                <td className="py-3 px-2 text-center">{formatFooterVal(totalGdNchienQty)}</td>
+                                <td className="py-3 px-2 text-center">{formatFooterVal(totalGdQuatQty)}</td>
                                 {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalGdRev)}</td>}
                                 <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalGdQty, totalSpChinhQty)}</td>
                               </>
