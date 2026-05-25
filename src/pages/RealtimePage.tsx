@@ -2924,7 +2924,6 @@ export default function NewRealtimePage() {
                           <th className="py-2 px-2 text-center w-14">SL NCƠM</th>
                           <th className="py-2 px-2 text-center w-14">SL NCHIÊN</th>
                           <th className="py-2 px-2 text-center w-14">SL QUẠT</th>
-                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">D.THU</th>}
                           <th className="py-2 px-2 text-center w-14">%</th>
                         </>
                       )}
@@ -3044,7 +3043,6 @@ export default function NewRealtimePage() {
                                 <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdNcomQty)}</td>
                                 <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdNchienQty)}</td>
                                 <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdQuatQty)}</td>
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.gdRev)}</td>}
                                 <td className="py-3 px-2 text-center">{renderPct(item.gdQty, item.spChinhTotalQty)}</td>
                               </>
                             )}
@@ -3180,7 +3178,6 @@ export default function NewRealtimePage() {
                                 <td className="py-3 px-2 text-center">{formatFooterVal(totalGdNcomQty)}</td>
                                 <td className="py-3 px-2 text-center">{formatFooterVal(totalGdNchienQty)}</td>
                                 <td className="py-3 px-2 text-center">{formatFooterVal(totalGdQuatQty)}</td>
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalGdRev)}</td>}
                                 <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalGdQty, totalSpChinhQty)}</td>
                               </>
                             )}
