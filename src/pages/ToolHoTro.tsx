@@ -19,160 +19,143 @@ import BienBanTinhTrangHangHoa from '../components/BienBanTinhTrangHangHoa';
 
 import { STORAGE_KEYS } from './RTST/types';
 
-export default function ToolHoTro() {
-  const { userProfile } = useAuth();
-  const maKho = userProfile?.ma_kho || '';
-  const { showNotification } = useNotification();
-  const [activeTab, setActiveTab] = useState('sticker-event');
-  const [inventoryFile, setInventoryFile] = useState<File | null>(null);
-  const [priceFile, setPriceFile] = useState<File | null>(null);
-  const [inventoryData, setInventoryData] = useState<any[]>([]);
-  const [priceData, setPriceData] = useState<any[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState({ type: '', text: '' });
-  const [lastUpdateInventory, setLastUpdateInventory] = useState<string | null>(null);
-  const [lastUpdatePrice, setLastUpdatePrice] = useState<string | null>(null);
-  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+const DEFAULT_CONTRACT_TEMPLATE = `<div style="text-align: center; margin-bottom: 12px;"><h2 style="font-size: 18px; font-weight: bold; margin: 0 0 3px 0; text-transform: uppercase; text-align: center; line-height: 1.2;">HỢP ĐỒNG MUA BÁN</h2><div style="font-size: 14px; font-weight: bold; margin: 0 0 6px 0; text-align: center; line-height: 1.2;">Số./No.: {{Số hợp đồng}}/KD-TGDD/HĐMB</div><div style="font-size: 14px; font-style: italic; margin: 0; text-align: center; line-height: 1.2;">Hôm nay, ngày {{Ngày ký}} / {{Tháng ký}} /2026 (“Ngày Ký”), chúng tôi gồm có:</div></div>
 
-  const [contractTemplateName, setContractTemplateName] = useState<string>('Hợp đồng mua bán mặc định');
-  const [templateContent, setTemplateContent] = useState<string>(() => {
-    return `<div style="text-align: center; margin-bottom: 12px;"><h2 style="font-size: 18px; font-weight: bold; margin: 0 0 3px 0; text-transform: uppercase; text-align: center; line-height: 1.2;">HỢP ĐỒNG MUA BÁN</h2><div style="font-size: 14px; font-weight: bold; margin: 0 0 6px 0; text-align: center; line-height: 1.2;">Số./No.: {{Số hợp đồng}}/KD-TGDD/HĐMB</div><div style="font-size: 14px; font-style: italic; margin: 0; text-align: center; line-height: 1.2;">Hôm nay, ngày {{Ngày ký}} / {{Tháng ký}} /2026 (“Ngày Ký”), chúng tôi gồm có:</div></div>
-
-<table style="width: 100%; border-collapse: collapse; border: 1.5px solid black; margin-bottom: 15px; font-size: 13px;">
+<table style="width: 100%; border-collapse: collapse; border: 1.5px solid black; margin-bottom: 10px; font-size: 13px;">
   <tr>
-    <td colspan="3" style="border: 1px solid black; padding: 6px; font-weight: bold; background-color: #f3f4f6; text-transform: uppercase;">BÊN MUA (BÊN A): CHI NHÁNH PHÍA NAM - TỔNG CÔNG TY XÂY DỰNG TRƯỜNG SƠN</td>
+    <td colspan="3" style="border: 1px solid black; padding: 4px 6px; font-weight: bold; background-color: #f3f4f6; text-transform: uppercase;">BÊN MUA (BÊN A): CHI NHÁNH PHÍA NAM - TỔNG CÔNG TY XÂY DỰNG TRƯỜNG SƠN</td>
   </tr>
   <tr>
-    <td style="width: 25%; border: 1px solid black; padding: 6px; font-weight: bold;">Trụ sở đăng ký</td>
-    <td style="width: 2%; border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Trụ sở đăng ký Bên A}}</td>
+    <td style="width: 25%; border: 1px solid black; padding: 4px 6px; font-weight: bold;">Trụ sở đăng ký</td>
+    <td style="width: 2%; border: 1px solid black; padding: 4px 6px; text-align: center;">:</td>
+    <td style="border: 1px solid black; padding: 4px 6px;">{{Trụ sở đăng ký Bên A}}</td>
   </tr>
   <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Mã số thuế</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Mã số thuế Bên A}}</td>
+    <td style="border: 1px solid black; padding: 4px 6px; font-weight: bold;">Mã số thuế</td>
+    <td style="border: 1px solid black; padding: 4px 6px; text-align: center;">:</td>
+    <td style="border: 1px solid black; padding: 4px 6px;">{{Mã số thuế Bên A}}</td>
   </tr>
   <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Điện thoại – Fax</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Điện thoại Bên A}}</td>
+    <td style="border: 1px solid black; padding: 4px 6px; font-weight: bold;">Điện thoại – Fax</td>
+    <td style="border: 1px solid black; padding: 4px 6px; text-align: center;">:</td>
+    <td style="border: 1px solid black; padding: 4px 6px;">{{Điện thoại Bên A}}</td>
   </tr>
   <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Số tài khoản</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Số tài khoản Bên A}}</td>
+    <td style="border: 1px solid black; padding: 4px 6px; font-weight: bold;">Số tài khoản</td>
+    <td style="border: 1px solid black; padding: 4px 6px; text-align: center;">:</td>
+    <td style="border: 1px solid black; padding: 4px 6px;">{{Số tài khoản Bên A}}</td>
   </tr>
   <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Tại ngân hàng</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Ngân hàng Bên A}}</td>
+    <td style="border: 1px solid black; padding: 4px 6px; font-weight: bold;">Tại ngân hàng</td>
+    <td style="border: 1px solid black; padding: 4px 6px; text-align: center;">:</td>
+    <td style="border: 1px solid black; padding: 4px 6px;">{{Ngân hàng Bên A}}</td>
   </tr>
   <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Đại diện bởi</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Đại diện Bên A}} - Chức vụ: {{Chức vụ Bên A}}</td>
+    <td style="border: 1px solid black; padding: 4px 6px; font-weight: bold;">Đại diện bởi</td>
+    <td style="border: 1px solid black; padding: 4px 6px; text-align: center;">:</td>
+    <td style="border: 1px solid black; padding: 4px 6px;">{{Đại diện Bên A}} - Chức vụ: {{Chức vụ Bên A}}</td>
   </tr>
   <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold; height: 25px;"></td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;"></td>
+    <td style="border: 1px solid black; padding: 4px 6px; font-weight: bold; height: 20px;"></td>
+    <td style="border: 1px solid black; padding: 4px 6px; text-align: center;">:</td>
+    <td style="border: 1px solid black; padding: 4px 6px;"></td>
   </tr>
 </table>
 
-<table style="width: 100%; border-collapse: collapse; border: 1.5px solid black; margin-bottom: 20px; font-size: 13px;">
+<table style="width: 100%; border-collapse: collapse; border: 1.5px solid black; margin-bottom: 10px; font-size: 13px;">
   <tr>
-    <td colspan="3" style="border: 1px solid black; padding: 6px; font-weight: bold; background-color: #f3f4f6; text-transform: uppercase;">BÊN BÁN (BÊN B): CHI NHÁNH CÔNG TY CỔ PHẦN ĐẦU TƯ ĐIỆN MÁY XANH</td>
+    <td colspan="3" style="border: 1px solid black; padding: 4px 6px; font-weight: bold; background-color: #f3f4f6; text-transform: uppercase;">BÊN BÁN (BÊN B): CHI NHÁNH CÔNG TY CỔ PHẦN ĐẦU TƯ ĐIỆN MÁY XANH</td>
   </tr>
   <tr>
-    <td style="width: 25%; border: 1px solid black; padding: 6px; font-weight: bold;">Trụ sở đăng ký</td>
-    <td style="width: 2%; border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Trụ sở đăng ký Bên B}}</td>
+    <td style="width: 25%; border: 1px solid black; padding: 4px 6px; font-weight: bold;">Trụ sở đăng ký</td>
+    <td style="width: 2%; border: 1px solid black; padding: 4px 6px; text-align: center;">:</td>
+    <td style="border: 1px solid black; padding: 4px 6px;">{{Trụ sở đăng ký Bên B}}</td>
   </tr>
   <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Văn phòng điều hành</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Văn phòng điều hành Bên B}}</td>
+    <td style="border: 1px solid black; padding: 4px 6px; font-weight: bold;">Văn phòng điều hành</td>
+    <td style="border: 1px solid black; padding: 4px 6px; text-align: center;">:</td>
+    <td style="border: 1px solid black; padding: 4px 6px;">{{Văn phòng điều hành Bên B}}</td>
   </tr>
   <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Mã số thuế</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Mã số thuế Bên B}}</td>
+    <td style="border: 1px solid black; padding: 4px 6px; font-weight: bold;">Mã số thuế</td>
+    <td style="border: 1px solid black; padding: 4px 6px; text-align: center;">:</td>
+    <td style="border: 1px solid black; padding: 4px 6px;">{{Mã số thuế Bên B}}</td>
   </tr>
   <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Điện thoại – Fax</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Điện thoại Bên B}}</td>
+    <td style="border: 1px solid black; padding: 4px 6px; font-weight: bold;">Điện thoại – Fax</td>
+    <td style="border: 1px solid black; padding: 4px 6px; text-align: center;">:</td>
+    <td style="border: 1px solid black; padding: 4px 6px;">{{Điện thoại Bên B}}</td>
   </tr>
   <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Số tài khoản</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Số tài khoản Bên B}}</td>
+    <td style="border: 1px solid black; padding: 4px 6px; font-weight: bold;">Số tài khoản</td>
+    <td style="border: 1px solid black; padding: 4px 6px; text-align: center;">:</td>
+    <td style="border: 1px solid black; padding: 4px 6px;">{{Số tài khoản Bên B}}</td>
   </tr>
   <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Tại ngân hàng</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Ngân hàng Bên B}}</td>
+    <td style="border: 1px solid black; padding: 4px 6px; font-weight: bold;">Tại ngân hàng</td>
+    <td style="border: 1px solid black; padding: 4px 6px; text-align: center;">:</td>
+    <td style="border: 1px solid black; padding: 4px 6px;">{{Ngân hàng Bên B}}</td>
   </tr>
   <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Đại diện bởi</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px; line-height: 1.4;">{{Đại diện Bên B}}<br/>Chức vụ: {{Chức vụ Bên B}}<br/>(Theo giấy ủy quyền số {{Số ủy quyền Bên B}} ký ngày {{Ngày ủy quyền Bên B}})</td>
+    <td style="border: 1px solid black; padding: 4px 6px; font-weight: bold;">Đại diện bởi</td>
+    <td style="border: 1px solid black; padding: 4px 6px; text-align: center;">:</td>
+    <td style="border: 1px solid black; padding: 4px 6px; line-height: 1.4;">{{Đại diện Bên B}}<br/>Chức vụ: {{Chức vụ Bên B}}<br/>(Theo giấy ủy quyền số {{Số ủy quyền Bên B}} ký ngày {{Ngày ủy quyền Bên B}})</td>
   </tr>
 </table>
 
-<div style="margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; border-top: 1px solid #cbd5e1; padding-top: 5px;">
-  <div>Pháp Chế_111124_TGDD_VN</div>
-  <div>1</div>
-</div>
-<!-- pagebreak -->
-<p style="margin-top: 10px; margin-bottom: 15px; text-align: justify;">Sau khi bàn bạc, hai bên thống nhất ký kết Hợp Đồng Mua Bán này (“Hợp Đồng”) với các điều khoản sau:</p>
+<p style="margin-top: 8px; margin-bottom: 8px; text-align: justify;">Sau khi bàn bạc, hai bên thống nhất ký kết Hợp Đồng Mua Bán này (“Hợp Đồng”) với các điều khoản sau:</p>
 
-<h3 style="font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;">ĐIỀU 1: ĐỐI TƯỢNG HỢP ĐỒNG</h3>
-<p style="margin-bottom: 10px; text-align: justify;">1.1 Bên B đồng ý bán và Bên A đồng ý mua sản phẩm của Bên B với chủng loại, tính năng kỹ thuật và giá cả cụ thể như sau (Sau đây gọi tắt là “Sản Phẩm”):</p>
+<h3 style="font-size: 14px; font-weight: bold; margin-top: 8px; margin-bottom: 4px;">ĐIỀU 1: ĐỐI TƯỢNG HỢP ĐỒNG</h3>
+<p style="margin-bottom: 6px; text-align: justify;">1.1 Bên B đồng ý bán và Bên A đồng ý mua sản phẩm của Bên B với chủng loại, tính năng kỹ thuật và giá cả cụ thể như sau (Sau đây gọi tắt là “Sản Phẩm”):</p>
 
 <table style="width: 100%; border-collapse: collapse; border: 1.5px solid black; margin-bottom: 10px; font-size: 13px;">
   <thead>
     <tr style="background-color: #f3f4f6;">
-      <th style="border: 1px solid black; padding: 6px; text-align: center; width: 8%;">STT/NO.</th>
-      <th style="border: 1px solid black; padding: 6px; text-align: left;">Mô tả hàng hóa</th>
-      <th style="border: 1px solid black; padding: 6px; text-align: center; width: 12%;">Số lượng</th>
-      <th style="border: 1px solid black; padding: 6px; text-align: right; width: 20%;">Đơn giá (VND)</th>
-      <th style="border: 1px solid black; padding: 6px; text-align: right; width: 20%;">Thành tiền (VND)</th>
+      <th style="border: 1px solid black; padding: 4px 6px; text-align: center; width: 8%;">STT/NO.</th>
+      <th style="border: 1px solid black; padding: 4px 6px; text-align: left;">Mô tả hàng hóa</th>
+      <th style="border: 1px solid black; padding: 4px 6px; text-align: center; width: 12%;">Số lượng</th>
+      <th style="border: 1px solid black; padding: 4px 6px; text-align: right; width: 20%;">Đơn giá (VND)</th>
+      <th style="border: 1px solid black; padding: 4px 6px; text-align: right; width: 20%;">Thành tiền (VND)</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td style="border: 1px solid black; padding: 6px; text-align: center;">01</td>
-      <td style="border: 1px solid black; padding: 6px;">{{Mô tả hàng hóa 1}}</td>
-      <td style="border: 1px solid black; padding: 6px; text-align: center; font-weight: bold;">{{Số lượng 1}}</td>
-      <td style="border: 1px solid black; padding: 6px; text-align: right; font-weight: bold;">{{Đơn giá 1}}</td>
-      <td style="border: 1px solid black; padding: 6px; text-align: right; font-weight: bold;">{{Thành tiền 1}}</td>
+      <td style="border: 1px solid black; padding: 4px 6px; text-align: center;">01</td>
+      <td style="border: 1px solid black; padding: 4px 6px;">{{Mô tả hàng hóa 1}}</td>
+      <td style="border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold;">{{Số lượng 1}}</td>
+      <td style="border: 1px solid black; padding: 4px 6px; text-align: right; font-weight: bold;">{{Đơn giá 1}}</td>
+      <td style="border: 1px solid black; padding: 4px 6px; text-align: right; font-weight: bold;">{{Thành tiền 1}}</td>
     </tr>
     <tr>
-      <td style="border: 1px solid black; padding: 6px; text-align: center;">02</td>
-      <td style="border: 1px solid black; padding: 6px;">{{Mô tả hàng hóa 2}}</td>
-      <td style="border: 1px solid black; padding: 6px; text-align: center; font-weight: bold;">{{Số lượng 2}}</td>
-      <td style="border: 1px solid black; padding: 6px; text-align: right; font-weight: bold;">{{Đơn giá 2}}</td>
-      <td style="border: 1px solid black; padding: 6px; text-align: right; font-weight: bold;">{{Thành tiền 2}}</td>
+      <td style="border: 1px solid black; padding: 4px 6px; text-align: center;">02</td>
+      <td style="border: 1px solid black; padding: 4px 6px;">{{Mô tả hàng hóa 2}}</td>
+      <td style="border: 1px solid black; padding: 4px 6px; text-align: center; font-weight: bold;">{{Số lượng 2}}</td>
+      <td style="border: 1px solid black; padding: 4px 6px; text-align: right; font-weight: bold;">{{Đơn giá 2}}</td>
+      <td style="border: 1px solid black; padding: 4px 6px; text-align: right; font-weight: bold;">{{Thành tiền 2}}</td>
     </tr>
     <tr>
-      <td colspan="3" style="border: 1px solid black; padding: 6px; font-weight: bold;">Tổng tiền (chưa thuế) : {{Tổng tiền chưa thuế}} vnd</td>
-      <td style="border: 1px solid black; padding: 6px;"></td>
-      <td style="border: 1px solid black; padding: 6px;"></td>
+      <td colspan="3" style="border: 1px solid black; padding: 4px 6px; font-weight: bold;">Tổng tiền (chưa thuế) : {{Tổng tiền chưa thuế}} vnd</td>
+      <td style="border: 1px solid black; padding: 4px 6px;"></td>
+      <td style="border: 1px solid black; padding: 4px 6px;"></td>
     </tr>
     <tr>
-      <td colspan="3" style="border: 1px solid black; padding: 6px; font-weight: bold;">Thuế giá trị gia tăng : {{Thuế VAT}} vnd</td>
-      <td style="border: 1px solid black; padding: 6px;"></td>
-      <td style="border: 1px solid black; padding: 6px;"></td>
+      <td colspan="3" style="border: 1px solid black; padding: 4px 6px; font-weight: bold;">Thuế giá trị gia tăng : {{Thuế VAT}} vnd</td>
+      <td style="border: 1px solid black; padding: 4px 6px;"></td>
+      <td style="border: 1px solid black; padding: 4px 6px;"></td>
     </tr>
     <tr>
-      <td colspan="3" style="border: 1px solid black; padding: 6px; font-weight: bold;">Tổng tiền (đã bao gồm VAT) : {{Tổng tiền gồm VAT}} vnd</td>
-      <td style="border: 1px solid black; padding: 6px;"></td>
-      <td style="border: 1px solid black; padding: 6px;"></td>
+      <td colspan="3" style="border: 1px solid black; padding: 4px 6px; font-weight: bold;">Tổng tiền (đã bao gồm VAT) : {{Tổng tiền gồm VAT}} vnd</td>
+      <td style="border: 1px solid black; padding: 4px 6px;"></td>
+      <td style="border: 1px solid black; padding: 4px 6px;"></td>
     </tr>
   </tbody>
 </table>
 
+<div style="position: absolute; bottom: 10mm; left: 20mm; right: 15mm; display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; border-top: 1px solid #cbd5e1; padding-top: 5px;">
+  <div>Pháp Chế_111124_TGDD_VN</div>
+  <div>1</div>
+</div>
+<!-- pagebreak -->
 <p style="margin-bottom: 15px; font-weight: bold; color: red;">Tổng giá bằng chữ: {{Tổng giá bằng chữ}}.</p>
 
 <p style="margin-bottom: 10px; text-align: justify;">1.2 Tổng tiền mà Bên A phải thanh toán cho Bên B theo quy định tại Điều 1.1 (“Giá Sản Phẩm”) là chi phí cố định không thay đổi trong suốt quá trình thực hiện Hợp đồng và chưa bao gồm phần chi phí vật tư và/hoặc các chi phí khác phát sinh khi lắp đặt (nếu có). Các chi phí phát sinh này được quy định tại website: https://www.dienmayxanh.com/kinh-nghiem-hay/chinh-sach-giao-hang-lap-dat-1261528 vào thời điểm lắp đặt.</p>
@@ -181,7 +164,7 @@ export default function ToolHoTro() {
 <p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">a. Điểm lắp đặt cao trên 4m (tính từ sàn) thì Bên A tự chuẩn bị thang phù hợp hoặc giàn giáo.</p>
 <p style="margin-bottom: 15px; margin-left: 20px; text-align: justify;">b. Liên quan đến thiết bị cần cấp và thoát nước, Bên A cần phải có ống âm chờ cấp vào máy và ra các thiết bị sẵn tại vị trí lắp máy (Đầu chờ nước cấp, đầu ra nóng, Bộ pha nước ra nóng lạnh, ống thoát nước, v.v.).</p>
 
-<div style="margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; border-top: 1px solid #cbd5e1; padding-top: 5px;">
+<div style="position: absolute; bottom: 10mm; left: 20mm; right: 15mm; display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; border-top: 1px solid #cbd5e1; padding-top: 5px;">
   <div>Pháp Chế_111124_TGDD_VN</div>
   <div>2</div>
 </div>
@@ -206,21 +189,22 @@ export default function ToolHoTro() {
 <p style="margin-bottom: 10px; text-align: justify;">4.1 Sản Phẩm do Bên B cung cấp sẽ được bảo hành theo tiêu chuẩn của nhà sản xuất hoặc nhà phân phối. Sản phẩm sẽ được kích hoạt bảo hành ngay tại thời điểm Bên B xuất hóa đơn VAT cho Bên A.</p>
 <p style="margin-bottom: 10px; text-align: justify;">4.2 Chính sách bảo hành của nhà sản xuất hoặc nhà phân phối được đính kèm theo sản phẩm hoặc có thể tham khảo tại website của nhà sản xuất hoặc nhà phân phối;</p>
 <p style="margin-bottom: 10px; text-align: justify;">4.3 Nếu sản phẩm có áp dụng chính sách đổi trả hoặc hoàn tiền của Bên B vui lòng xem chính sách tại website https://www.dienmayxanh.com/bao-hanh-doi-tra (hoặc https://www.thegioididong.com/chinh-sach-bao-hanh-san-pham áp dụng tùy từng loại sản phẩm). Bên B bảo lưu quyền thay đổi các chính sách này tại từng thời điểm và không cần sự chấp thuận của Bên A.</p>
-<p style="margin-bottom: 15px; text-align: justify;">4.4 Cho mục đích bảo hành hoặc khiếu nại về Sản Phẩm Bên A liên hệ số điện thoại như được công khai tại website https://www.dienmayxanh.com/ hoặc https://www.thegioididong.com/.</p>
 
-<div style="margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; border-top: 1px solid #cbd5e1; padding-top: 5px;">
+<div style="position: absolute; bottom: 10mm; left: 20mm; right: 15mm; display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; border-top: 1px solid #cbd5e1; padding-top: 5px;">
   <div>Pháp Chế_111124_TGDD_VN</div>
   <div>3</div>
 </div>
 <!-- pagebreak -->
-<h3 style="font-size: 14px; font-weight: bold; margin-top: 10px; margin-bottom: 5px;">ĐIỀU 5: NGHĨA VỤ CÁC BÊN</h3>
+<p style="margin-bottom: 15px; text-align: justify;">4.4 Cho mục đích bảo hành hoặc khiếu nại về Sản Phẩm Bên A liên hệ số điện thoại như được công khai tại website https://www.dienmayxanh.com/ hoặc https://www.thegioididong.com/.</p>
+
+<h3 style="font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;">ĐIỀU 5: NGHĨA VỤ CÁC BÊN</h3>
 <p style="margin-bottom: 5px; font-weight: bold;">5.1 Nghĩa vụ của Bên A:</p>
 <p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">a. Cam kết không tiết lộ cho bên thứ ba bất kỳ thông tin nào có liên quan đến việc thực hiện Hợp đồng này.</p>
 <p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">b. Thanh toán cho Bên A Giá Sản Phẩm và chi phí vật tư đúng và đầy đủ theo quy định Hợp Đồng này.</p>
 <p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">c. Bên A đồng ý với chính sách thu thập thông tin và xử lý dữ liệu của Bên B theo các điều khoản và điều kiện đã được quy định tại website https://www.dienmayxanh.com/ hoặc https://www.thegioididong.com/</p>
 <p style="margin-bottom: 10px; margin-left: 20px; text-align: justify;">d. Thực đúng các cam kết được ghi trong Hợp Đồng này.</p>
 <p style="margin-bottom: 5px; font-weight: bold;">5.2 Nghĩa vụ của Bên B:</p>
-<p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">a. Đảm bảo cung cấp Sản Phẩm mới 100%, đúng với quy cách, giá cả, thời gian giao hàng theo cam kết tại Điều 1 và Điều 2 Hợp Đồng này.</p>
+<p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">a. Đảm bảo cung cấp Sản Phẩm mới 100%, đúng với quy cách, giá cả, thời gian giao hàng theo cam kết tại Điều 1 and Điều 2 Hợp Đồng này.</p>
 <p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">b. Cam kết không tiết lộ cho bên thứ ba bất kỳ thông tin nào có liên quan đến việc thực hiện Hợp đồng này.</p>
 <p style="margin-bottom: 15px; margin-left: 20px; text-align: justify;">c. Thực hiện đúng các cam kết được ghi trong Hợp Đồng này.</p>
 
@@ -232,6 +216,9 @@ export default function ToolHoTro() {
 <h3 style="font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;">ĐIỀU 7: CAM KẾT CHỐNG THAM NHŨNG</h3>
 <p style="margin-bottom: 10px; text-align: justify;">7.1 Các bên cam kết tuân thủ luật pháp chống tham nhũng, không tham gia bất kỳ hành vi hối lộ, gian lận, tặng quà hoặc gợi ý tặng quà dưới bất kỳ hình thức nào cho nhân viên của bên kia nhằm đạt được lợi ích quá trình thực hiện hợp đồng. Nếu phát hiện vi phạm, bên bị vi phạm có quyền chấm dứt hợp đồng ngay lập tức, và bên vi phạm phải bồi thường mọi thiệt hại phát sinh.</p>
 <p style="margin-bottom: 15px; text-align: justify;">7.2 Bên Mua chỉ thanh toán số tiền đã được các bên thống nhất trong hợp đồng hoặc các văn bản thanh toán liên quan. Bên Mua chỉ thanh toán vào tài khoản của Bên Bán như trên và không được thanh toán vào bất kỳ tài khoản cá nhân/tổ chức nào khác.</p>
+
+<h3 style="font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;">ĐIỀU 8: CAM KẾT CHUNG</h3>
+<p style="margin-bottom: 10px; text-align: justify;">8.1 Hai Bên cam kết thực hiện đúng những điều ghi trên Hợp Đồng này. Mọi sự thay đổi trong Hợp Đồng này phải lập phụ lục hợp đồng và phải có chữ ký xác nhận của Hai Bên. Nếu một trong Hai Bên cố ý vi phạm các điều khoản của Hợp Đồng này sẽ phải chịu trách nhiệm về các hành vi vi phạm đó.</p>
 
 <h3 style="font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;">ĐIỀU 8: CAM KẾT CHUNG</h3>
 <p style="margin-bottom: 10px; text-align: justify;">8.1 Hai Bên cam kết thực hiện đúng những điều ghi trên Hợp Đồng này. Mọi sự thay đổi trong Hợp Đồng này phải lập phụ lục hợp đồng và phải có chữ ký xác nhận của Hai Bên. Nếu một trong Hai Bên cố ý vi phạm các điều khoản của Hợp Đồng này sẽ phải chịu trách nhiệm về các hành vi vi phạm đó.</p>
@@ -263,9 +250,26 @@ export default function ToolHoTro() {
 
 <div style="margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 5px;">
   <div>Pháp Chế_111124_TGDD_VN</div>
-  <div>4</div>
+  <div>Trang 1/1</div>
 </div>`;
-  });
+
+export default function ToolHoTro() {
+  const { userProfile } = useAuth();
+  const maKho = userProfile?.ma_kho || '';
+  const { showNotification } = useNotification();
+  const [activeTab, setActiveTab] = useState('sticker-event');
+  const [inventoryFile, setInventoryFile] = useState<File | null>(null);
+  const [priceFile, setPriceFile] = useState<File | null>(null);
+  const [inventoryData, setInventoryData] = useState<any[]>([]);
+  const [priceData, setPriceData] = useState<any[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState({ type: '', text: '' });
+  const [lastUpdateInventory, setLastUpdateInventory] = useState<string | null>(null);
+  const [lastUpdatePrice, setLastUpdatePrice] = useState<string | null>(null);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+
+  const [contractTemplateName, setContractTemplateName] = useState<string>('Hợp đồng mua bán mặc định');
+  const [templateContent, setTemplateContent] = useState<string>(DEFAULT_CONTRACT_TEMPLATE);
   
   const [inputValues, setInputValues] = useState<Record<string, string>>({
     'Số hợp đồng': '02',
@@ -1716,215 +1720,7 @@ export default function ToolHoTro() {
                     <button
                       onClick={() => {
                         setContractTemplateName('Hợp đồng mua bán mặc định');
-                        setTemplateContent(`<div style="text-align: center; margin-bottom: 12px;"><h2 style="font-size: 18px; font-weight: bold; margin: 0 0 3px 0; text-transform: uppercase; text-align: center; line-height: 1.2;">HỢP ĐỒNG MUA BÁN</h2><div style="font-size: 14px; font-weight: bold; margin: 0 0 6px 0; text-align: center; line-height: 1.2;">Số./No.: {{Số hợp đồng}}/KD-TGDD/HĐMB</div><div style="font-size: 14px; font-style: italic; margin: 0; text-align: center; line-height: 1.2;">Hôm nay, ngày {{Ngày ký}} / {{Tháng ký}} /2026 (“Ngày Ký”), chúng tôi gồm có:</div></div>
-
-<table style="width: 100%; border-collapse: collapse; border: 1.5px solid black; margin-bottom: 15px; font-size: 13px;">
-  <tr>
-    <td colspan="3" style="border: 1px solid black; padding: 6px; font-weight: bold; background-color: #f3f4f6; text-transform: uppercase;">BÊN MUA (BÊN A): CHI NHÁNH PHÍA NAM - TỔNG CÔNG TY XÂY DỰNG TRƯỜNG SƠN</td>
-  </tr>
-  <tr>
-    <td style="width: 25%; border: 1px solid black; padding: 6px; font-weight: bold;">Trụ sở đăng ký</td>
-    <td style="width: 2%; border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Trụ sở đăng ký Bên A}}</td>
-  </tr>
-  <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Mã số thuế</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Mã số thuế Bên A}}</td>
-  </tr>
-  <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Điện thoại – Fax</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Điện thoại Bên A}}</td>
-  </tr>
-  <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Số tài khoản</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Số tài khoản Bên A}}</td>
-  </tr>
-  <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Tại ngân hàng</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Ngân hàng Bên A}}</td>
-  </tr>
-  <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Đại diện bởi</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Đại diện Bên A}} - Chức vụ: {{Chức vụ Bên A}}</td>
-  </tr>
-</table>
-
-<table style="width: 100%; border-collapse: collapse; border: 1.5px solid black; margin-bottom: 20px; font-size: 13px;">
-  <tr>
-    <td colspan="3" style="border: 1px solid black; padding: 6px; font-weight: bold; background-color: #f3f4f6; text-transform: uppercase;">BÊN BÁN (BÊN B): CHI NHÁNH CÔNG TY CỔ PHẦN ĐẦU TƯ ĐIỆN MÁY XANH</td>
-  </tr>
-  <tr>
-    <td style="width: 25%; border: 1px solid black; padding: 6px; font-weight: bold;">Trụ sở đăng ký</td>
-    <td style="width: 2%; border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Trụ sở đăng ký Bên B}}</td>
-  </tr>
-  <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Văn phòng điều hành</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Văn phòng điều hành Bên B}}</td>
-  </tr>
-  <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Mã số thuế</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Mã số thuế Bên B}}</td>
-  </tr>
-  <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Điện thoại – Fax</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Điện thoại Bên B}}</td>
-  </tr>
-  <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Số tài khoản</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Số tài khoản Bên B}}</td>
-  </tr>
-  <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Tại ngân hàng</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Ngân hàng Bên B}}</td>
-  </tr>
-  <tr>
-    <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Đại diện bởi</td>
-    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Đại diện Bên B}} - Chức vụ: {{Chức vụ Bên B}} (Theo giấy ủy quyền số {{Số ủy quyền Bên B}} ký ngày {{Ngày ủy quyền Bên B}})</td>
-  </tr>
-</table>
-
-<p style="margin-bottom: 15px; text-align: justify;">Sau khi bàn bạc, hai bên thống nhất ký kết Hợp Đồng Mua Bán này (“Hợp Đồng”) với các điều khoản sau:</p>
-
-<h3 style="font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;">ĐIỀU 1: ĐỐI TƯỢNG HỢP ĐỒNG</h3>
-<p style="margin-bottom: 10px; text-align: justify;">1.1 Bên B đồng ý bán và Bên A đồng ý mua sản phẩm của Bên B với chủng loại, tính năng kỹ thuật và giá cả cụ thể như sau (Sau đây gọi tắt là “Sản Phẩm”):</p>
-
-<table style="width: 100%; border-collapse: collapse; border: 1.5px solid black; margin-bottom: 10px; font-size: 13px;">
-  <thead>
-    <tr style="background-color: #f3f4f6;">
-      <th style="border: 1px solid black; padding: 6px; text-align: center; width: 8%;">STT/NO.</th>
-      <th style="border: 1px solid black; padding: 6px; text-align: left;">Mô tả hàng hóa</th>
-      <th style="border: 1px solid black; padding: 6px; text-align: center; width: 12%;">Số lượng</th>
-      <th style="border: 1px solid black; padding: 6px; text-align: right; width: 20%;">Đơn giá (VND)</th>
-      <th style="border: 1px solid black; padding: 6px; text-align: right; width: 20%;">Thành tiền (VND)</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="border: 1px solid black; padding: 6px; text-align: center;">01</td>
-      <td style="border: 1px solid black; padding: 6px;">{{Mô tả hàng hóa 1}}</td>
-      <td style="border: 1px solid black; padding: 6px; text-align: center; font-weight: bold;">{{Số lượng 1}}</td>
-      <td style="border: 1px solid black; padding: 6px; text-align: right; font-weight: bold;">{{Đơn giá 1}}</td>
-      <td style="border: 1px solid black; padding: 6px; text-align: right; font-weight: bold;">{{Thành tiền 1}}</td>
-    </tr>
-    <tr>
-      <td style="border: 1px solid black; padding: 6px; text-align: center;">02</td>
-      <td style="border: 1px solid black; padding: 6px;">{{Mô tả hàng hóa 2}}</td>
-      <td style="border: 1px solid black; padding: 6px; text-align: center; font-weight: bold;">{{Số lượng 2}}</td>
-      <td style="border: 1px solid black; padding: 6px; text-align: right; font-weight: bold;">{{Đơn giá 2}}</td>
-      <td style="border: 1px solid black; padding: 6px; text-align: right; font-weight: bold;">{{Thành tiền 2}}</td>
-    </tr>
-    <tr>
-      <td colspan="3" style="border: 1px solid black; padding: 6px; font-weight: bold;">Tổng tiền (chưa thuế) : {{Tổng tiền chưa thuế}} vnd</td>
-      <td style="border: 1px solid black; padding: 6px;"></td>
-      <td style="border: 1px solid black; padding: 6px;"></td>
-    </tr>
-    <tr>
-      <td colspan="3" style="border: 1px solid black; padding: 6px; font-weight: bold;">Thuế giá trị gia tăng : {{Thuế VAT}} vnd</td>
-      <td style="border: 1px solid black; padding: 6px;"></td>
-      <td style="border: 1px solid black; padding: 6px;"></td>
-    </tr>
-    <tr>
-      <td colspan="3" style="border: 1px solid black; padding: 6px; font-weight: bold;">Tổng tiền (đã bao gồm VAT) : {{Tổng tiền gồm VAT}} vnd</td>
-      <td style="border: 1px solid black; padding: 6px;"></td>
-      <td style="border: 1px solid black; padding: 6px;"></td>
-    </tr>
-  </tbody>
-</table>
-
-<p style="margin-bottom: 15px; font-weight: bold; color: red;">Tổng giá bằng chữ: {{Tổng giá bằng chữ}}.</p>
-
-<p style="margin-bottom: 10px; text-align: justify;">1.2 Tổng tiền mà Bên A phải thanh toán cho Bên B theo quy định tại Điều 1.1 (“Giá Sản Phẩm”) là chi phí cố định không thay đổi trong suốt quá trình thực hiện Hợp đồng và chưa bao gồm phần chi phí vật tư và/hoặc các chi phí khác phát sinh khi lắp đặt (nếu có). Các chi phí phát sinh này được quy định tại website: https://www.dienmayxanh.com/kinh-nghiem-hay/chinh-sach-giao-hang-lap-dat-1261528 vào thời điểm lắp đặt.</p>
-<p style="margin-bottom: 10px; text-align: justify;">1.3 Giá Sản Phẩm được Bên A thanh toán cho Bên B theo quy định tại Điều 3 Hợp Đồng này. Chi phí vật tư và/hoặc chi phí khác phát sinh khi lắp đặt sẽ được thanh toán bằng tiền mặt/chuyển khoản ngay khi Bên B lắp đặt cho Bên A hoàn tất.</p>
-<p style="margin-bottom: 10px; text-align: justify;">1.4 Trường hợp Sản Phẩm cần lắp đặt thì Bên A chịu trách nhiệm chuẩn bị các thiết bị sau và điểm chờ đấu nối cụ thể:</p>
-<p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">a. Điểm lắp đặt cao trên 4m (tính từ sàn) thì Bên A tự chuẩn bị thang phù hợp hoặc giàn giáo.</p>
-<p style="margin-bottom: 15px; margin-left: 20px; text-align: justify;">b. Liên quan đến thiết bị cần cấp và thoát nước, Bên A cần phải có ống âm chờ cấp vào máy và ra các thiết bị sẵn tại vị trí lắp máy (Đầu chờ nước cấp, đầu ra nóng, Bộ pha nước ra nóng lạnh, ống thoát nước, v.v.).</p>
-
-<h3 style="font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;">ĐIỀU 2: THỜI GIAN VÀ ĐỊA ĐIỂM GIAO HÀNG</h3>
-<p style="margin-bottom: 10px; text-align: justify;">2.1 Thời gian giao hàng: Bên B thực hiện giao Hàng hóa trong vòng ba (03) kể từ ngày Bên B được Ngân hàng báo có đúng, đầy đủ Giá Sản Phẩm vào tài khoản ngân hàng của Bên B. Trường hợp ngày Ngân hàng báo có rơi vào thứ bảy, chủ nhật hoặc ngày nghỉ Lễ, Tết theo quy định pháp luật thì thời hạn bắt đầu được tính từ ngày làm việc tiếp theo hoặc theo thông báo của Bên B (tùy trường hợp).</p>
-<p style="margin-bottom: 15px; text-align: justify;">2.2 Địa điểm giao hàng: <span style="background-color: yellow; font-weight: bold;">Tại địa chỉ: {{Địa điểm giao hàng}}</span></p>
-
-<h3 style="font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;">ĐIỀU 3: THANH TOÁN</h3>
-<p style="margin-bottom: 10px; text-align: justify;">3.1 Bên A sẽ thanh toán 100% Giá Sản Phẩm cho Bên B bằng các chuyển khoản vào tài khoản ngân hàng của Bên B sau khi Hợp Đồng được ký kết. Thông tin tài khoản ngân hàng của Bên B:</p>
-<ul style="margin-bottom: 10px; margin-left: 20px; list-style-type: disc;">
-  <li>Chủ tài khoản: <strong>{{Chủ tài khoản ngân hàng Bên B}}</strong></li>
-  <li>Số tài khoản: <strong>{{Số tài khoản ngân hàng Bên B}}</strong></li>
-  <li>Tại ngân hàng: <strong>{{Ngân hàng giao dịch Bên B}}</strong></li>
-  <li>Địa chỉ ngân hàng: <strong>{{Địa chỉ ngân hàng Bên B}}</strong></li>
-</ul>
-<p style="margin-bottom: 10px; text-align: justify;">3.2 Xuất hóa đơn:</p>
-<p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">a. Giao hàng khu vực Hồ Chí Minh: Bên B trực tiếp giao hàng và xuất hóa đơn cho Bên A</p>
-<p style="margin-bottom: 15px; margin-left: 20px; text-align: justify;">b. Giao hàng ở tỉnh: Bên B ủy quyền cho Chi nhánh của Bên B tại các tỉnh giao hàng và xuất hóa đơn cho Bên A.</p>
-
-<h3 style="font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;">ĐIỀU 4: CHÍNH SÁCH BẢO HÀNH, ĐỔI, TRẢ SẢN PHẨM VÀ HOÀN TIỀN</h3>
-<p style="margin-bottom: 10px; text-align: justify;">4.1 Sản Phẩm do Bên B cung cấp sẽ được bảo hành theo tiêu chuẩn của nhà sản xuất hoặc nhà phân phối. Sản phẩm sẽ được kích hoạt bảo hành ngay tại thời điểm Bên B xuất hóa đơn VAT cho Bên A.</p>
-<p style="margin-bottom: 10px; text-align: justify;">4.2 Chính sách bảo hành của nhà sản xuất hoặc nhà phân phối được đính kèm theo sản phẩm hoặc có thể tham khảo tại website của nhà sản xuất hoặc nhà phân phối;</p>
-<p style="margin-bottom: 10px; text-align: justify;">4.3 Nếu sản phẩm có áp dụng chính sách đổi trả hoặc hoàn tiền của Bên B vui lòng xem chính sách tại website https://www.dienmayxanh.com/bao-hanh-doi-tra (hoặc https://www.thegioididong.com/chinh-sach-bao-hanh-san-pham áp dụng tùy từng loại sản phẩm). Bên B bảo lưu quyền thay đổi các chính sách này tại từng thời điểm và không cần sự chấp thuận của Bên A.</p>
-<p style="margin-bottom: 15px; text-align: justify;">4.4 Cho mục đích bảo hành hoặc khiếu nại về Sản Phẩm Bên A liên hệ số điện thoại như được công khai tại website https://www.dienmayxanh.com/ hoặc https://www.thegioididong.com/.</p>
-
-<h3 style="font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;">ĐIỀU 5: NGHĨA VỤ CÁC BÊN</h3>
-<p style="margin-bottom: 5px; font-weight: bold;">5.1 Nghĩa vụ của Bên A:</p>
-<p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">a. Cam kết không tiết lộ cho bên thứ ba bất kỳ thông tin nào có liên quan đến việc thực hiện Hợp đồng này.</p>
-<p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">b. Thanh toán cho Bên A Giá Sản Phẩm và chi phí vật tư đúng và đầy đủ theo quy định Hợp Đồng này.</p>
-<p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">c. Bên A đồng ý với chính sách thu thập thông tin và xử lý dữ liệu của Bên B theo các điều khoản và điều kiện đã được quy định tại website https://www.dienmayxanh.com/ hoặc https://www.thegioididong.com/</p>
-<p style="margin-bottom: 10px; margin-left: 20px; text-align: justify;">d. Thực đúng các cam kết được ghi trong Hợp Đồng này.</p>
-<p style="margin-bottom: 5px; font-weight: bold;">5.2 Nghĩa vụ của Bên B:</p>
-<p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">a. Đảm bảo cung cấp Sản Phẩm mới 100%, đúng với quy cách, giá cả, thời gian giao hàng theo cam kết tại Điều 1 và Điều 2 Hợp Đồng này.</p>
-<p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">b. Cam kết không tiết lộ cho bên thứ ba bất kỳ thông tin nào có liên quan đến việc thực hiện Hợp đồng này.</p>
-<p style="margin-bottom: 15px; margin-left: 20px; text-align: justify;">c. Thực hiện đúng các cam kết được ghi trong Hợp Đồng này.</p>
-
-<h3 style="font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;">ĐIỀU 6: THỜI HẠN CHẤM DỨT HỢP ĐỒNG</h3>
-<p style="margin-bottom: 10px; text-align: justify;">Hợp Đồng này tự động chấm dứt trong trường hợp sau:</p>
-<p style="margin-bottom: 10px; text-align: justify;">6.1 Bên A không thực hiện nghĩa vụ thanh toán trong vòng 10 (mười) ngày làm việc kể từ Ngày Ký thì xem như Bên A không có nhu cầu mua hàng và Bên B không có nghĩa vụ giữ giá, hàng hóa cho Bên A. Khi đó, Hợp Đồng tự động chấm dứt. Trường hợp Bên A tiếp tục mua hàng thì Hai Bên phải ký lại Hợp Đồng mới; hoặc</p>
-<p style="margin-bottom: 15px; text-align: justify;">6.2 Bên A đã thực hiện nghĩa vụ thanh toán; Hợp đồng được tự động chấm dứt sau khi Hai Bên hoàn thành các nghĩa vụ quy định tại Hợp Đồng. Riêng các điều khoản về bảo hành vẫn có hiệu lực cho đến khi hết thời hạn bảo hành theo quy định của nhà sản xuất hoặc nhà phân phối.</p>
-
-<h3 style="font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;">ĐIỀU 7: CAM KẾT CHỐNG THAM NHŨNG</h3>
-<p style="margin-bottom: 10px; text-align: justify;">7.1 Các bên cam kết tuân thủ luật pháp chống tham nhũng, không tham gia bất kỳ hành vi hối lộ, gian lận, tặng quà hoặc gợi ý tặng quà dưới bất kỳ hình thức nào cho nhân viên của bên kia nhằm đạt được lợi ích quá trình thực hiện hợp đồng. Nếu phát hiện vi phạm, bên bị vi phạm có quyền chấm dứt hợp đồng ngay lập tức, và bên vi phạm phải bồi thường mọi thiệt hại phát sinh.</p>
-<p style="margin-bottom: 15px; text-align: justify;">7.2 Bên Mua chỉ thanh toán số tiền đã được các bên thống nhất trong hợp đồng hoặc các văn bản thanh toán liên quan. Bên Mua chỉ thanh toán vào tài khoản của Bên Bán như trên và không được thanh toán vào bất kỳ tài khoản cá nhân/tổ chức nào khác.</p>
-
-<h3 style="font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;">ĐIỀU 8: CAM KẾT CHUNG</h3>
-<p style="margin-bottom: 10px; text-align: justify;">8.1 Hai Bên cam kết thực hiện đúng những điều ghi trên Hợp Đồng này. Mọi sự thay đổi trong Hợp Đồng này phải lập phụ lục hợp đồng và phải có chữ ký xác nhận của Hai Bên. Nếu một trong Hai Bên cố ý vi phạm các điều khoản của Hợp Đồng này sẽ phải chịu trách nhiệm về các hành vi vi phạm đó.</p>
-<p style="margin-bottom: 10px; text-align: justify;">8.2 Trong trường hợp xảy ra tranh chấp, hai bên cố gắng cùng nhau bàn bạc các biện pháp giải quyết trên tinh thần hòa giải, có thiện chí và hợp tác. Nếu vẫn không thể thống nhất cách giải quyết thì hai bên sẽ đưa vụ việc ra Tòa án có thẩm quyền giải quyết, toàn bộ chi phí xét xử do bên thua chịu.</p>
-<p style="margin-bottom: 15px; text-align: justify;">8.3 Hợp đồng này được lập thành 02 (hai) bản, mỗi bên giữ 01 (một) bản có giá trị pháp lý như nhau.</p>
-
-<table style="width: 100%; border-collapse: collapse; border: none; margin-top: 25px; font-size: 13px;">
-  <tr>
-    <td style="width: 50%; border: 1.5px dashed #cbd5e1; padding: 15px; height: 180px; vertical-align: top;">
-      <div style="font-weight: bold; text-align: center; margin-bottom: 15px;">Đại Diện Bên A</div>
-    </td>
-    <td style="width: 50%; border: 1.5px dashed #cbd5e1; padding: 15px; height: 180px; vertical-align: top;">
-      <div style="font-weight: bold; text-align: center; margin-bottom: 15px;">Đại Diện Bên B</div>
-    </td>
-  </tr>
-  <tr>
-    <td style="width: 50%; border: none; padding: 10px 5px; vertical-align: top; line-height: 1.5;">
-      <strong>Bởi:</strong> CHI NHÁNH PHÍA NAM - TỔNG CÔNG TY XÂY DỰNG TRƯỜNG SƠN<br/>
-      <strong>Tên:</strong> {{Tên đại diện Bên A}}<br/>
-      <strong>Chức vụ:</strong> {{Chức vụ Bên A}}
-    </td>
-    <td style="width: 50%; border: none; padding: 10px 5px; vertical-align: top; line-height: 1.5;">
-      <strong>Bởi:</strong> CÔNG TY CỔ PHẦN ĐẦU TƯ ĐIỆN MÁY XANH<br/>
-      <strong>Tên:</strong> {{Tên đại diện Bên B}}<br/>
-      <strong>Chức vụ:</strong> {{Chức vụ Bên B}}
-    </td>
-  </tr>
-</table>
-
-<div style="margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 5px;">
-  <div>Pháp Chế_111124_TGDD_VN</div>
-  <div>Trang 1/1</div>
-</div>`);
+                        setTemplateContent(DEFAULT_CONTRACT_TEMPLATE);
                         setInputValues({
                           'Số hợp đồng': '02',
                           'Ngày ký': '25',
