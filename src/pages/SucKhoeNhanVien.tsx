@@ -1546,6 +1546,17 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                 >
                   {renderLoadingOverlay()}
                   <div className="space-y-5">
+                    {/* Hướng dẫn sử dụng */}
+                    <div className="bg-amber-50 border border-amber-200/60 rounded-[16px] px-4 py-3 flex items-center gap-2.5 shadow-sm">
+                      <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                        <Info size={14} className="text-amber-700" />
+                      </div>
+                      <div className="text-[11px] leading-relaxed text-amber-800">
+                        <span className="font-black uppercase tracking-wider text-amber-900 block mb-0.5">💡 Hướng dẫn sử dụng dán dữ liệu</span>
+                        <span>BCNB &rarr; ĐIỂM THƯỞNG NHÂN VIÊN &rarr; CHỌN NGÀY &rarr; CHỌN USER NV &rarr; CTRL A &rarr; COPY &rarr; DÁN VÀO Ô TÊN NV TƯƠNG ỨNG.</span>
+                      </div>
+                    </div>
+
                     {/* TOP ROW - Two input panels side by side */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Tháng trước */}
