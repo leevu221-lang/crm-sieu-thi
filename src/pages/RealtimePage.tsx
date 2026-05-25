@@ -1195,14 +1195,24 @@ export default function NewRealtimePage() {
       } else if (nhomLarge === 'DCNB') {
         item.gdQty += qty;
         item.gdRev += revenue;
-        if (nhomSmall === 'MLN') {
-          item.gdMlnQty += qty;
-        } else if (nhomSmall === 'NC NẮP RỜI' || nhomSmall === 'NC Đ.TỬ' || nhomSmall === 'NC') {
-          item.gdNcomQty += qty;
-        } else if (nhomSmall === 'N.CHIÊN') {
-          item.gdNchienQty += qty;
-        } else if (nhomSmall === 'QUẠT') {
-          item.gdQuatQty += qty;
+      }
+
+      // Phân tích Gia dụng từ nhóm nhỏ (YCX RT) độc lập
+      const nSmall = nhomSmall.toUpperCase();
+      const isMln = nSmall.includes('MLN') || nSmall.includes('LỌC NƯỚC');
+      const isNcom = nSmall.includes('N.CƠM') || nSmall.includes('NỒI CƠM') || nSmall.includes('NC NẮP RỜI') || nSmall.includes('NC Đ.TỬ') || nSmall === 'NC';
+      const isNchien = nSmall.includes('N.CHIÊN') || nSmall.includes('NỒI CHIÊN');
+      const isQuat = nSmall.includes('QUẠT') || nSmall.includes('MÁY LÀM MÁT') || nSmall === 'QĐH';
+
+      if (isMln) item.gdMlnQty += qty;
+      if (isNcom) item.gdNcomQty += qty;
+      if (isNchien) item.gdNchienQty += qty;
+      if (isQuat) item.gdQuatQty += qty;
+
+      if (isMln || isNcom || isNchien || isQuat) {
+        if (nhomLarge !== 'DCNB') {
+           item.gdQty += qty;
+           item.gdRev += revenue;
         }
       }
     }
