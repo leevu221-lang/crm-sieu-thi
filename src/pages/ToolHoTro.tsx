@@ -17,37 +17,6 @@ import PhanCaTuanTable from '../components/PhanCaTuanTable';
 import BienBanTinhTrangHangHoa from '../components/BienBanTinhTrangHangHoa';
 
 import { STORAGE_KEYS } from './RTST/types';
-� thay đổi trong Hợp Đồng này phải lập phụ lục hợp đồng và phải có chữ ký xác nhận của Hai Bên. Nếu một trong Hai Bên cố ý vi phạm các điều khoản của Hợp Đồng này sẽ phải chịu trách nhiệm về các hành vi vi phạm đó.</p>
-<p style="margin-bottom: 10px; text-align: justify;">8.2 Trong trường hợp xảy ra tranh chấp, hai bên cố gắng cùng nhau bàn bạc các biện pháp giải quyết trên tinh thần hòa giải, có thiện chí và hợp tác. Nếu vẫn không thể thống nhất cách giải quyết thì hai bên sẽ đưa vụ việc ra Tòa án có thẩm quyền giải quyết, toàn bộ chi phí xét xử do bên thua chịu.</p>
-<p style="margin-bottom: 15px; text-align: justify;">8.3 Hợp đồng này được lập thành 02 (hai) bản, mỗi bên giữ 01 (một) bản có giá trị pháp lý như nhau.</p>
-
-<table style="width: 100%; border-collapse: collapse; border: none; margin-top: 25px; font-size: 13px;">
-  <tr>
-    <td style="width: 50%; border: 1.5px dashed #cbd5e1; padding: 15px; height: 180px; vertical-align: top;">
-      <div style="font-weight: bold; text-align: center; margin-bottom: 15px;">Đại Diện Bên A</div>
-    </td>
-    <td style="width: 50%; border: 1.5px dashed #cbd5e1; padding: 15px; height: 180px; vertical-align: top;">
-      <div style="font-weight: bold; text-align: center; margin-bottom: 15px;">Đại Diện Bên B</div>
-    </td>
-  </tr>
-  <tr>
-    <td style="width: 50%; border: none; padding: 10px 5px; vertical-align: top; line-height: 1.5;">
-      <strong>Bởi:</strong> CHI NHÁNH PHÍA NAM - TỔNG CÔNG TY XÂY DỰNG TRƯỜNG SƠN<br/>
-      <strong>Tên:</strong> {{Tên đại diện Bên A}}<br/>
-      <strong>Chức vụ:</strong> {{Chức vụ Bên A}}
-    </td>
-    <td style="width: 50%; border: none; padding: 10px 5px; vertical-align: top; line-height: 1.5;">
-      <strong>Bởi:</strong> CÔNG TY CỔ PHẦN ĐẦU TƯ ĐIỆN MÁY XANH<br/>
-      <strong>Tên:</strong> {{Tên đại diện Bên B}}<br/>
-      <strong>Chức vụ:</strong> {{Chức vụ Bên B}}
-    </td>
-  </tr>
-</table>
-
-<div style="margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 5px;">
-  <div>Pháp Chế_111124_TGDD_VN</div>
-  <div>Trang 1/1</div>
-</div>`;
 
 export default function ToolHoTro() {
   const { userProfile } = useAuth();
@@ -63,7 +32,6 @@ export default function ToolHoTro() {
   const [lastUpdateInventory, setLastUpdateInventory] = useState<string | null>(null);
   const [lastUpdatePrice, setLastUpdatePrice] = useState<string | null>(null);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
-
   const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
   const [isBienBanModalOpen, setIsBienBanModalOpen] = useState(false);
   const [printConfig, setPrintConfig] = useState({ style: 'classic', layout: '4', showPromoLabel: true });
@@ -1180,8 +1148,6 @@ export default function ToolHoTro() {
               </div>
             </motion.div>
           )}
-
-
           </AnimatePresence>
         </div>
       </div>

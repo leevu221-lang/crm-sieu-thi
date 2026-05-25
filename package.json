@@ -10,7 +10,8 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "deploy": "NODE_TLS_REJECT_UNAUTHORIZED=0 npx -y netlify-cli deploy --build --prod",
-    "status": "NODE_TLS_REJECT_UNAUTHORIZED=0 npx netlify status"
+    "status": "NODE_TLS_REJECT_UNAUTHORIZED=0 npx netlify status",
+    "restore-tool": "git checkout 5ff31fc -- src/pages/ToolHoTro.tsx"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
