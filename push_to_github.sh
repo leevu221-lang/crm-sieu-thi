@@ -1,15 +1,9 @@
 #!/bin/bash
-echo "=== Đang khôi phục file ToolHoTro.tsx từ file sạch ==="
-cp src/pages/ToolHoTroTemp.tsx src/pages/ToolHoTro.tsx
-rm src/pages/ToolHoTroTemp.tsx
-
+# Script hỗ trợ đẩy code lên GitHub tự động từ terminal của bạn (tránh lỗi sandbox của IDE)
 echo "=== Đang stage các file đã thay đổi ==="
 git add -A
-
 echo "=== Đang commit thay đổi ==="
-git commit -m "fix: restore ToolHoTro.tsx and fix Cloudflare build error"
-
+git commit -m "feat: filter YCX data by sales conditions and fix PHÂN LOẠI YCX column classification"
 echo "=== Đang push lên GitHub (nhánh main) ==="
 git push origin main
-
 echo "=== Hoàn thành đẩy code lên GitHub! ==="

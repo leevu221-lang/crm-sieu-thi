@@ -690,17 +690,25 @@ export default function NewRealtimePage() {
     if (rawYcxRows.length <= 1) return [];
     const headers = rawYcxRows[0].map(h => h.trim());
 
-    // Find column indices by exact name or fallback to index 13 (N) and 44 (AS)
+    // Find column indices
     let idxStatus = headers.findIndex(h => h === 'Trạng thái xuất');
     let idxTra = headers.findIndex(h => h === 'Tình trạng nhập trả của sản phẩm đổi với sản phẩm chính');
+    let idxHinhThucXuat = headers.findIndex(h => {
+      const lh = h.toLowerCase();
+      return lh.includes('hình thức xuất') || lh.includes('loại ycx') || lh.includes('loại yêu cầu') || lh.includes('phân loại ycx');
+    });
 
     if (idxStatus === -1) idxStatus = 13;
     if (idxTra === -1) idxTra = 44;
+    if (idxHinhThucXuat === -1) idxHinhThucXuat = 3; // Fallback to index 3 (Column D)
 
     return rawYcxRows.slice(1).filter(row => {
       const statusValue = String(row[idxStatus] || '').trim();
       const traValue = String(row[idxTra] || '').trim();
-      return statusValue === 'Đã xuất' && traValue === 'Chưa trả';
+      const htxValue = String(row[idxHinhThucXuat] || '').trim().toLowerCase();
+      
+      const isSales = htxValue.startsWith('xuất bán') || htxValue.startsWith('xuất đổi');
+      return statusValue === 'Đã xuất' && traValue === 'Chưa trả' && isSales;
     });
   }, [rawYcxRows]);
 
@@ -723,7 +731,10 @@ export default function NewRealtimePage() {
     const idxRevenue = findIdx(['phải thu', 'doanh thu', 'tổng tiền', 'thành tiền', 'giá bán'], 37);
     const idxCategory = findIdx(['nhóm ngành hàng', 'nhóm hàng'], 40);
     const idxSmallCat = findIdx(['nhóm hàng nhỏ'], -1);
-    const idxHinhThucXuat = findIdx(['hình thức xuất'], -1);
+    const idxHinhThucXuat = (() => {
+      const idx = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
+      return idx !== -1 ? idx : 3; // Fallback to index 3 (Column D)
+    })();
     const idxDate = findIdx(['ngày tạo', 'ngày lập', 'ngày xuất', 'ngày giao', 'ngày hoàn'], -1);
     // Exact-match product column to avoid IMEI columns
     const idxProduct = (() => {
@@ -3220,7 +3231,11 @@ export default function NewRealtimePage() {
                             const idxProduct = headers.findIndex(h => h.toLowerCase().includes('tên sản phẩm'));
                             const idxSmallCategoryHeader = headers.findIndex(h => h.toLowerCase().includes('nhóm hàng nhỏ'));
                             const idxNhomHang = headers.findIndex(h => h.includes('Nhóm hàng'));
-                            const idxHinhThucXuat = headers.findIndex(h => h.includes('Hình thức xuất'));
+                            const idxHinhThucXuatRaw = headers.findIndex(h => {
+                              const lh = h.toLowerCase();
+                              return lh.includes('hình thức xuất') || lh.includes('loại ycx') || lh.includes('loại yêu cầu') || lh.includes('phân loại ycx');
+                            });
+                            const idxHinhThucXuat = idxHinhThucXuatRaw !== -1 ? idxHinhThucXuatRaw : 3;
                             // Date columns to format
                             const dateColIndices = new Set<number>(
                               headers.reduce((acc: number[], h, i) => {
