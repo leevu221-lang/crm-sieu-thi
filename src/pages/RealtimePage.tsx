@@ -71,7 +71,6 @@ import { useLuykeData } from './RTST/hooks/useLuykeData';
 import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';
 import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
-import html2canvas from 'html2canvas';
 import { isValidStoreName, normalize } from './RTST/utils';
 
 const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: boolean, onClick: () => void, icon: any, label: string, count?: number }) => (
@@ -963,18 +962,23 @@ export default function NewRealtimePage() {
     const element = document.getElementById(elementId);
     if (!element) return;
     try {
-      const canvas = await html2canvas(element, {
-        useCORS: true,
-        scale: 2,
+      element.classList.add('capturing-target');
+      document.body.classList.add('capturing-screenshot');
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const dataUrl = await domToPng(element, {
         backgroundColor: '#ffffff',
+        scale: 2,
       });
-      const image = canvas.toDataURL('image/png');
       const link = document.createElement('a');
-      link.href = image;
-      link.download = `${fileName}.png`;
+      link.href = dataUrl;
+      link.download = `${fileName}_${userProfile?.ma_kho || 'Report'}.png`;
       link.click();
     } catch (err) {
       console.error('Lỗi chụp ảnh bảng:', err);
+    } finally {
+      document.body.classList.remove('capturing-screenshot');
+      element.classList.remove('capturing-target');
     }
   };
   const [isPending, startTransition] = useTransition();
@@ -2103,7 +2107,7 @@ export default function NewRealtimePage() {
                     <p className="text-[11px] text-slate-400 mt-0.5">Thống kê chi tiết theo ngành hàng và nhóm hàng.</p>
                   </div>
                   {/* Comparison period buttons & Capture button */}
-                  <div className="flex items-center gap-2" data-html2canvas-ignore>
+                  <div className="flex items-center gap-2 no-capture">
                     <button
                       onClick={() => handleCaptureTable('chi-tiet-nganh-hang-container', 'chi_tiet_nganh_hang')}
                       className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-[11px] font-bold flex items-center gap-1.5 shadow-sm"
@@ -2750,9 +2754,8 @@ export default function NewRealtimePage() {
                   </div>
                   {/* Nút chụp ảnh */}
                   <button
-                    data-html2canvas-ignore
                     onClick={() => handleCaptureTable('phan-tich-khai-thac-container', 'phan_tich_khai_thac')}
-                    className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-[11px] font-bold flex items-center gap-1.5 shadow-sm"
+                    className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-[11px] font-bold flex items-center gap-1.5 shadow-sm no-capture"
                     title="Chụp ảnh bảng này"
                   >
                     <Camera size={13} className="text-slate-500 hover:text-indigo-600" />
