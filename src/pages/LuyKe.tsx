@@ -191,13 +191,27 @@ const LuyKe: React.FC = () => {
     }
     // Dedup by name + type (prevent duplicate category rows from broad matching)
     const seen = new Set<string>();
-    return cats.filter(c => {
+    const deduped = cats.filter(c => {
       const key = `${(c.name || '').trim().toUpperCase()}__${c.type || ''}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
-  }, [adjustedCategories, marketFilter, filteredDisplayData.markets]);
+
+    // Map each category to use the target from categoryTargets (TARGET THI ĐUA) if available
+    return deduped.map((cat: any) => {
+      const matchingTarget = categoryTargets.find(
+        (t: any) => normalize(t.name) === normalize(cat.name) && t.type === cat.type
+      );
+      if (matchingTarget && typeof matchingTarget.adjustedTarget === 'number') {
+        return {
+          ...cat,
+          target: matchingTarget.adjustedTarget
+        };
+      }
+      return cat;
+    });
+  }, [adjustedCategories, marketFilter, filteredDisplayData.markets, categoryTargets]);
 
   // Removed window focus re-processing to improve performance
 
