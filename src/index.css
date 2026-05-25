@@ -61,6 +61,7 @@ body.capturing-screenshot *::-webkit-scrollbar {
 body.capturing-screenshot * {
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
+  zoom: 1 !important;
 }
 
 body.capturing-screenshot .no-capture {
@@ -97,7 +98,7 @@ body.capturing-screenshot .screenshot-comment {
 body.capturing-screenshot .capturing-target {
   display: inline-block !important;
   width: max-content !important;
-  max-width: 100% !important;
+  max-width: none !important;
   border: 16px solid #ffffff !important;
   background-color: #ffffff !important;
   box-sizing: border-box !important;
@@ -105,5 +106,10 @@ body.capturing-screenshot .capturing-target {
 
 body.capturing-screenshot .capturing-target > div {
   border: 1px solid #cbd5e1 !important;
+}
+
+body.capturing-screenshot .capturing-target table {
+  width: auto !important;
+  min-width: max-content !important;
 }
 

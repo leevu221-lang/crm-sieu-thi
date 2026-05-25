@@ -961,21 +961,19 @@ export default function NewRealtimePage() {
   const handleCaptureTable = async (elementId: string, fileName: string) => {
     const element = document.getElementById(elementId);
     if (!element) return;
+    const originalPadding = element.style.padding;
+    const originalBg = element.style.backgroundColor;
+    const originalWidth = element.style.width;
+    const originalHeight = element.style.height;
     try {
       element.classList.add('capturing-target');
       document.body.classList.add('capturing-screenshot');
 
-      // Lưu lại style ban đầu
-      const originalPadding = element.style.padding;
-      const originalBg = element.style.backgroundColor;
-      const originalWidth = element.style.width;
-      const originalDisplay = element.style.display;
-
-      // Áp dụng style tạm thời tạo viền trắng xung quanh bảng (24px)
+      // Áp dụng style tạm thời tạo viền trắng xung quanh bảng (24px) và tự động vừa khít dữ liệu
       element.style.padding = '24px';
       element.style.backgroundColor = '#ffffff';
-      element.style.width = 'max-content';
-      element.style.display = 'inline-block';
+      element.style.width = 'fit-content';
+      element.style.height = 'fit-content';
 
       await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -987,17 +985,17 @@ export default function NewRealtimePage() {
       link.href = dataUrl;
       link.download = `${fileName}_${userProfile?.ma_kho || 'Report'}.png`;
       link.click();
-
-      // Khôi phục style cũ
-      element.style.padding = originalPadding;
-      element.style.backgroundColor = originalBg;
-      element.style.width = originalWidth;
-      element.style.display = originalDisplay;
     } catch (err) {
       console.error('Lỗi chụp ảnh bảng:', err);
     } finally {
+      if (element) {
+        element.style.padding = originalPadding;
+        element.style.backgroundColor = originalBg;
+        element.style.width = originalWidth;
+        element.style.height = originalHeight;
+        element.classList.remove('capturing-target');
+      }
       document.body.classList.remove('capturing-screenshot');
-      element.classList.remove('capturing-target');
     }
   };
   const [isPending, startTransition] = useTransition();
@@ -1379,19 +1377,21 @@ export default function NewRealtimePage() {
   };
 
   const captureElement = async (ref: React.RefObject<HTMLDivElement | null>, filename: string) => {
-    if (ref.current) {
+    const element = ref.current;
+    if (element) {
+      const originalWidth = element.style.width;
+      const originalHeight = element.style.height;
       try {
-        ref.current.classList.add('capturing-target');
+        element.classList.add('capturing-target');
         document.body.classList.add('capturing-screenshot');
         
-        const originalWidth = ref.current.style.width;
-        const originalDisplay = ref.current.style.display;
-        ref.current.style.width = 'max-content';
-        ref.current.style.display = 'inline-block';
-        
+        // Tự động vừa khít dữ liệu
+        element.style.width = 'fit-content';
+        element.style.height = 'fit-content';
+
         await new Promise(resolve => setTimeout(resolve, 100));
 
-        const dataUrl = await domToPng(ref.current, {
+        const dataUrl = await domToPng(element, {
           backgroundColor: '#ffffff',
           scale: 2,
         });
@@ -1399,16 +1399,15 @@ export default function NewRealtimePage() {
         link.href = dataUrl;
         link.download = `${filename}_${userProfile?.ma_kho || 'Report'}.png`;
         link.click();
-        
-        ref.current.style.width = originalWidth;
-        ref.current.style.display = originalDisplay;
       } catch (error) {
         console.error(`Lỗi khi chụp ảnh ${filename}:`, error);
       } finally {
-        document.body.classList.remove('capturing-screenshot');
-        if (ref.current) {
-          ref.current.classList.remove('capturing-target');
+        if (element) {
+          element.style.width = originalWidth;
+          element.style.height = originalHeight;
+          element.classList.remove('capturing-target');
         }
+        document.body.classList.remove('capturing-screenshot');
       }
     }
   };
