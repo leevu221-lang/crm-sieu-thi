@@ -968,10 +968,14 @@ export default function NewRealtimePage() {
       // Lưu lại style ban đầu
       const originalPadding = element.style.padding;
       const originalBg = element.style.backgroundColor;
+      const originalWidth = element.style.width;
+      const originalDisplay = element.style.display;
 
       // Áp dụng style tạm thời tạo viền trắng xung quanh bảng (24px)
       element.style.padding = '24px';
       element.style.backgroundColor = '#ffffff';
+      element.style.width = 'max-content';
+      element.style.display = 'inline-block';
 
       await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -987,6 +991,8 @@ export default function NewRealtimePage() {
       // Khôi phục style cũ
       element.style.padding = originalPadding;
       element.style.backgroundColor = originalBg;
+      element.style.width = originalWidth;
+      element.style.display = originalDisplay;
     } catch (err) {
       console.error('Lỗi chụp ảnh bảng:', err);
     } finally {
@@ -1377,6 +1383,12 @@ export default function NewRealtimePage() {
       try {
         ref.current.classList.add('capturing-target');
         document.body.classList.add('capturing-screenshot');
+        
+        const originalWidth = ref.current.style.width;
+        const originalDisplay = ref.current.style.display;
+        ref.current.style.width = 'max-content';
+        ref.current.style.display = 'inline-block';
+        
         await new Promise(resolve => setTimeout(resolve, 100));
 
         const dataUrl = await domToPng(ref.current, {
@@ -1387,6 +1399,9 @@ export default function NewRealtimePage() {
         link.href = dataUrl;
         link.download = `${filename}_${userProfile?.ma_kho || 'Report'}.png`;
         link.click();
+        
+        ref.current.style.width = originalWidth;
+        ref.current.style.display = originalDisplay;
       } catch (error) {
         console.error(`Lỗi khi chụp ảnh ${filename}:`, error);
       } finally {
