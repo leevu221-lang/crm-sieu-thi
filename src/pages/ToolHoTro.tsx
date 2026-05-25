@@ -34,7 +34,6 @@ export default function ToolHoTro() {
   const [lastUpdatePrice, setLastUpdatePrice] = useState<string | null>(null);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
-  // States cho HĐ Mua bán
   const [contractTemplateName, setContractTemplateName] = useState<string>('Hợp đồng mua bán mặc định');
   const [templateContent, setTemplateContent] = useState<string>(() => {
     return `<div style="text-align: center; margin-bottom: 20px;">
@@ -77,6 +76,11 @@ export default function ToolHoTro() {
     <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
     <td style="border: 1px solid black; padding: 6px;">{{Đại diện Bên A}} - Chức vụ: {{Chức vụ Bên A}}</td>
   </tr>
+  <tr>
+    <td style="border: 1px solid black; padding: 6px; font-weight: bold; height: 25px;"></td>
+    <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
+    <td style="border: 1px solid black; padding: 6px;"></td>
+  </tr>
 </table>
 
 <table style="width: 100%; border-collapse: collapse; border: 1.5px solid black; margin-bottom: 20px; font-size: 13px;">
@@ -116,11 +120,16 @@ export default function ToolHoTro() {
   <tr>
     <td style="border: 1px solid black; padding: 6px; font-weight: bold;">Đại diện bởi</td>
     <td style="border: 1px solid black; padding: 6px; text-align: center;">:</td>
-    <td style="border: 1px solid black; padding: 6px;">{{Đại diện Bên B}} - Chức vụ: {{Chức vụ Bên B}} (Theo giấy ủy quyền số {{Số ủy quyền Bên B}} ký ngày {{Ngày ủy quyền Bên B}})</td>
+    <td style="border: 1px solid black; padding: 6px; line-height: 1.4;">{{Đại diện Bên B}}<br/>Chức vụ: {{Chức vụ Bên B}}<br/>(Theo giấy ủy quyền số {{Số ủy quyền Bên B}} ký ngày {{Ngày ủy quyền Bên B}})</td>
   </tr>
 </table>
 
-<p style="margin-bottom: 15px; text-align: justify;">Sau khi bàn bạc, hai bên thống nhất ký kết Hợp Đồng Mua Bán này (“Hợp Đồng”) với các điều khoản sau:</p>
+<div style="margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; border-top: 1px solid #cbd5e1; padding-top: 5px;">
+  <div>Pháp Chế_111124_TGDD_VN</div>
+  <div>1</div>
+</div>
+<!-- pagebreak -->
+<p style="margin-top: 10px; margin-bottom: 15px; text-align: justify;">Sau khi bàn bạc, hai bên thống nhất ký kết Hợp Đồng Mua Bán này (“Hợp Đồng”) với các điều khoản sau:</p>
 
 <h3 style="font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;">ĐIỀU 1: ĐỐI TƯỢNG HỢP ĐỒNG</h3>
 <p style="margin-bottom: 10px; text-align: justify;">1.1 Bên B đồng ý bán và Bên A đồng ý mua sản phẩm của Bên B với chủng loại, tính năng kỹ thuật và giá cả cụ thể như sau (Sau đây gọi tắt là “Sản Phẩm”):</p>
@@ -176,7 +185,12 @@ export default function ToolHoTro() {
 <p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">a. Điểm lắp đặt cao trên 4m (tính từ sàn) thì Bên A tự chuẩn bị thang phù hợp hoặc giàn giáo.</p>
 <p style="margin-bottom: 15px; margin-left: 20px; text-align: justify;">b. Liên quan đến thiết bị cần cấp và thoát nước, Bên A cần phải có ống âm chờ cấp vào máy và ra các thiết bị sẵn tại vị trí lắp máy (Đầu chờ nước cấp, đầu ra nóng, Bộ pha nước ra nóng lạnh, ống thoát nước, v.v.).</p>
 
-<h3 style="font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;">ĐIỀU 2: THỜI GIAN VÀ ĐỊA ĐIỂM GIAO HÀNG</h3>
+<div style="margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; border-top: 1px solid #cbd5e1; padding-top: 5px;">
+  <div>Pháp Chế_111124_TGDD_VN</div>
+  <div>2</div>
+</div>
+<!-- pagebreak -->
+<h3 style="font-size: 14px; font-weight: bold; margin-top: 10px; margin-bottom: 5px;">ĐIỀU 2: THỜI GIAN VÀ ĐỊA ĐIỂM GIAO HÀNG</h3>
 <p style="margin-bottom: 10px; text-align: justify;">2.1 Thời gian giao hàng: Bên B thực hiện giao Hàng hóa trong vòng ba (03) kể từ ngày Bên B được Ngân hàng báo có đúng, đầy đủ Giá Sản Phẩm vào tài khoản ngân hàng của Bên B. Trường hợp ngày Ngân hàng báo có rơi vào thứ bảy, chủ nhật hoặc ngày nghỉ Lễ, Tết theo quy định pháp luật thì thời hạn bắt đầu được tính từ ngày làm việc tiếp theo hoặc theo thông báo của Bên B (tùy trường hợp).</p>
 <p style="margin-bottom: 15px; text-align: justify;">2.2 Địa điểm giao hàng: <span style="background-color: yellow; font-weight: bold;">Tại địa chỉ: {{Địa điểm giao hàng}}</span></p>
 
@@ -198,7 +212,12 @@ export default function ToolHoTro() {
 <p style="margin-bottom: 10px; text-align: justify;">4.3 Nếu sản phẩm có áp dụng chính sách đổi trả hoặc hoàn tiền của Bên B vui lòng xem chính sách tại website https://www.dienmayxanh.com/bao-hanh-doi-tra (hoặc https://www.thegioididong.com/chinh-sach-bao-hanh-san-pham áp dụng tùy từng loại sản phẩm). Bên B bảo lưu quyền thay đổi các chính sách này tại từng thời điểm và không cần sự chấp thuận của Bên A.</p>
 <p style="margin-bottom: 15px; text-align: justify;">4.4 Cho mục đích bảo hành hoặc khiếu nại về Sản Phẩm Bên A liên hệ số điện thoại như được công khai tại website https://www.dienmayxanh.com/ hoặc https://www.thegioididong.com/.</p>
 
-<h3 style="font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 5px;">ĐIỀU 5: NGHĨA VỤ CÁC BÊN</h3>
+<div style="margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; border-top: 1px solid #cbd5e1; padding-top: 5px;">
+  <div>Pháp Chế_111124_TGDD_VN</div>
+  <div>3</div>
+</div>
+<!-- pagebreak -->
+<h3 style="font-size: 14px; font-weight: bold; margin-top: 10px; margin-bottom: 5px;">ĐIỀU 5: NGHĨA VỤ CÁC BÊN</h3>
 <p style="margin-bottom: 5px; font-weight: bold;">5.1 Nghĩa vụ của Bên A:</p>
 <p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">a. Cam kết không tiết lộ cho bên thứ ba bất kỳ thông tin nào có liên quan đến việc thực hiện Hợp đồng này.</p>
 <p style="margin-bottom: 5px; margin-left: 20px; text-align: justify;">b. Thanh toán cho Bên A Giá Sản Phẩm và chi phí vật tư đúng và đầy đủ theo quy định Hợp Đồng này.</p>
@@ -248,7 +267,7 @@ export default function ToolHoTro() {
 
 <div style="margin-top: 50px; display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 5px;">
   <div>Pháp Chế_111124_TGDD_VN</div>
-  <div>Trang 1/1</div>
+  <div>4</div>
 </div>`;
   });
   
@@ -323,6 +342,13 @@ export default function ToolHoTro() {
     });
     return result;
   }, [templateContent, placeholders, inputValues]);
+
+  const contractPages = useMemo(() => {
+    if (renderedContent.includes('<!-- pagebreak -->')) {
+      return renderedContent.split('<!-- pagebreak -->');
+    }
+    return [renderedContent];
+  }, [renderedContent]);
 
   const handleTemplateUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -418,6 +444,16 @@ export default function ToolHoTro() {
       ? "font-family: 'Times New Roman', Times, serif;" 
       : "font-family: Arial, sans-serif;";
 
+    const pagesHtml = contractPages.map((pageHtml) => `
+      <div class="a4-page">
+        <div style="height: 100%; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box;">
+          <div>
+            ${pageHtml}
+          </div>
+        </div>
+      </div>
+    `).join('\n');
+
     printWindow.document.write(`
       <html>
         <head>
@@ -425,16 +461,34 @@ export default function ToolHoTro() {
           <style>
             @page {
               size: A4;
-              margin: 20mm 15mm 20mm 20mm;
+              margin: 0;
             }
             body {
-              ${fontStyle}
-              font-size: 14px;
-              line-height: 1.5;
-              color: #000;
               margin: 0;
               padding: 0;
+              background-color: #fff;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .a4-page {
+              width: 210mm;
+              height: 297mm;
+              padding: 20mm 15mm 20mm 20mm;
+              box-sizing: border-box;
+              page-break-after: always;
+              break-after: page;
+              position: relative;
+              background: white;
+              ${fontStyle}
+              font-size: 14px;
+              line-height: 1.6;
+              color: #000;
               white-space: pre-wrap;
+              overflow: hidden;
+            }
+            .a4-page:last-child {
+              page-break-after: avoid;
+              break-after: avoid;
             }
             table {
               width: 100%;
@@ -458,9 +512,7 @@ export default function ToolHoTro() {
           </style>
         </head>
         <body onload="window.print(); window.close();">
-          <div style="padding: 10px;">
-            ${renderedContent}
-          </div>
+          ${pagesHtml}
         </body>
       </html>
     `);
@@ -1996,25 +2048,34 @@ export default function ToolHoTro() {
                   </div>
 
                   {/* Vùng hiển thị A4 giống như tờ giấy thật */}
-                  <div className="bg-slate-100 rounded-2xl p-6 overflow-auto max-h-[850px] border border-slate-200 flex justify-center">
-                    <div
-                      id="contract-a4-page"
-                      style={{
-                        width: '210mm',
-                        minHeight: '297mm',
-                        padding: '20mm 15mm 20mm 20mm',
-                        fontFamily: contractFont === 'times' ? "'Times New Roman', Times, serif" : 'Arial, sans-serif',
-                        fontSize: '14px',
-                        lineHeight: '1.6',
-                        color: '#1e293b',
-                        whiteSpace: 'pre-wrap',
-                        textAlign: 'left'
-                      }}
-                      className="bg-white shadow-2xl border border-slate-200 rounded-sm relative flex flex-col justify-between"
-                    >
-                      {/* Nội dung Hợp đồng */}
-                      <div dangerouslySetInnerHTML={{ __html: renderedContent }} />
-                    </div>
+                  <div className="bg-slate-100 rounded-2xl p-6 overflow-auto max-h-[850px] border border-slate-200 flex flex-col items-center gap-6">
+                    {contractPages.map((pageHtml, index) => (
+                      <div
+                        key={index}
+                        id={`contract-a4-page-${index}`}
+                        style={{
+                          width: '210mm',
+                          minHeight: '297mm',
+                          padding: '20mm 15mm 20mm 20mm',
+                          fontFamily: contractFont === 'times' ? "'Times New Roman', Times, serif" : 'Arial, sans-serif',
+                          fontSize: '14px',
+                          lineHeight: '1.6',
+                          color: '#1e293b',
+                          whiteSpace: 'pre-wrap',
+                          textAlign: 'left',
+                          backgroundColor: 'white',
+                          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                          border: '1px solid #cbd5e1',
+                          position: 'relative',
+                          boxSizing: 'border-box',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between'
+                        }}
+                      >
+                        <div dangerouslySetInnerHTML={{ __html: pageHtml }} />
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
