@@ -36,11 +36,7 @@ export default function ToolHoTro() {
 
   const [contractTemplateName, setContractTemplateName] = useState<string>('Hợp đồng mua bán mặc định');
   const [templateContent, setTemplateContent] = useState<string>(() => {
-    return `<div style="text-align: center; margin-bottom: 20px;">
-  <h2 style="font-size: 18px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; text-align: center;">HỢP ĐỒNG MUA BÁN</h2>
-  <div style="font-size: 14px; font-weight: bold; margin-bottom: 10px; text-align: center;">Số./No.: {{Số hợp đồng}}/KD-TGDD/HĐMB</div>
-  <div style="font-size: 14px; font-style: italic; text-align: center;">Hôm nay, ngày {{Ngày ký}} / {{Tháng ký}} /2026 (“Ngày Ký”), chúng tôi gồm có:</div>
-</div>
+    return `<div style="text-align: center; margin-bottom: 12px;"><h2 style="font-size: 18px; font-weight: bold; margin: 0 0 3px 0; text-transform: uppercase; text-align: center; line-height: 1.2;">HỢP ĐỒNG MUA BÁN</h2><div style="font-size: 14px; font-weight: bold; margin: 0 0 6px 0; text-align: center; line-height: 1.2;">Số./No.: {{Số hợp đồng}}/KD-TGDD/HĐMB</div><div style="font-size: 14px; font-style: italic; margin: 0; text-align: center; line-height: 1.2;">Hôm nay, ngày {{Ngày ký}} / {{Tháng ký}} /2026 (“Ngày Ký”), chúng tôi gồm có:</div></div>
 
 <table style="width: 100%; border-collapse: collapse; border: 1.5px solid black; margin-bottom: 15px; font-size: 13px;">
   <tr>
@@ -1720,11 +1716,7 @@ export default function ToolHoTro() {
                     <button
                       onClick={() => {
                         setContractTemplateName('Hợp đồng mua bán mặc định');
-                        setTemplateContent(`<div style="text-align: center; margin-bottom: 20px;">
-  <h2 style="font-size: 18px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; text-align: center;">HỢP ĐỒNG MUA BÁN</h2>
-  <div style="font-size: 14px; font-weight: bold; margin-bottom: 10px; text-align: center;">Số./No.: {{Số hợp đồng}}/KD-TGDD/HĐMB</div>
-  <div style="font-size: 14px; font-style: italic; text-align: center;">Hôm nay, ngày {{Ngày ký}} / {{Tháng ký}} /2026 (“Ngày Ký”), chúng tôi gồm có:</div>
-</div>
+                        setTemplateContent(`<div style="text-align: center; margin-bottom: 12px;"><h2 style="font-size: 18px; font-weight: bold; margin: 0 0 3px 0; text-transform: uppercase; text-align: center; line-height: 1.2;">HỢP ĐỒNG MUA BÁN</h2><div style="font-size: 14px; font-weight: bold; margin: 0 0 6px 0; text-align: center; line-height: 1.2;">Số./No.: {{Số hợp đồng}}/KD-TGDD/HĐMB</div><div style="font-size: 14px; font-style: italic; margin: 0; text-align: center; line-height: 1.2;">Hôm nay, ngày {{Ngày ký}} / {{Tháng ký}} /2026 (“Ngày Ký”), chúng tôi gồm có:</div></div>
 
 <table style="width: 100%; border-collapse: collapse; border: 1.5px solid black; margin-bottom: 15px; font-size: 13px;">
   <tr>
