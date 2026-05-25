@@ -71,6 +71,7 @@ import { useLuykeData } from './RTST/hooks/useLuykeData';
 import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';
 import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
+import html2canvas from 'html2canvas';
 import { isValidStoreName, normalize } from './RTST/utils';
 
 const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: boolean, onClick: () => void, icon: any, label: string, count?: number }) => (
@@ -956,6 +957,26 @@ export default function NewRealtimePage() {
     phuKien: true,
     giaDung: false
   });
+  const [showRawTable, setShowRawTable] = useState(true);
+
+  const handleCaptureTable = async (elementId: string, fileName: string) => {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+    try {
+      const canvas = await html2canvas(element, {
+        useCORS: true,
+        scale: 2,
+        backgroundColor: '#ffffff',
+      });
+      const image = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = image;
+      link.download = `${fileName}.png`;
+      link.click();
+    } catch (err) {
+      console.error('Lỗi chụp ảnh bảng:', err);
+    }
+  };
   const [isPending, startTransition] = useTransition();
   const [rawTablePage, setRawTablePage] = useState(0);
   const RAW_PAGE_SIZE = 100;
@@ -2071,7 +2092,7 @@ export default function NewRealtimePage() {
             </div>
 
             {/* CHI TIẾT NGÀNH HÀNG - Drill-down table */}
-            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200">
+            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200" id="chi-tiet-nganh-hang-container">
               {/* Header */}
               <div className="px-6 pt-5 pb-4 border-b border-slate-100">
                 <div className="flex items-start justify-between mb-4">
@@ -2081,26 +2102,36 @@ export default function NewRealtimePage() {
                     </h3>
                     <p className="text-[11px] text-slate-400 mt-0.5">Thống kê chi tiết theo ngành hàng và nhóm hàng.</p>
                   </div>
-                  {/* Comparison period buttons */}
-                  <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
-                    {([
-                      { key: 'none', label: 'Mặc định' },
-                      { key: 'day', label: 'Cùng ngày', sub: 'Hôm nay vs Hôm qua' },
-                      { key: 'week', label: 'Cùng tuần', sub: 'Tuần này vs Tuần trước' },
-                      { key: 'month', label: 'Cùng tháng', sub: 'Tháng này vs Tháng trước' },
-                    ] as const).map(opt => (
-                      <button
-                        key={opt.key}
-                        onClick={() => setCompareMode(opt.key)}
-                        title={'sub' in opt ? opt.sub : ''}
-                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all whitespace-nowrap ${compareMode === opt.key
-                            ? 'bg-white text-indigo-700 shadow-sm border border-indigo-200'
-                            : 'text-slate-500 hover:text-slate-700'
-                          }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
+                  {/* Comparison period buttons & Capture button */}
+                  <div className="flex items-center gap-2" data-html2canvas-ignore>
+                    <button
+                      onClick={() => handleCaptureTable('chi-tiet-nganh-hang-container', 'chi_tiet_nganh_hang')}
+                      className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-[11px] font-bold flex items-center gap-1.5 shadow-sm"
+                      title="Chụp ảnh bảng này"
+                    >
+                      <Camera size={13} className="text-slate-500 hover:text-indigo-600" />
+                      <span>Chụp ảnh</span>
+                    </button>
+                    <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+                      {([
+                        { key: 'none', label: 'Mặc định' },
+                        { key: 'day', label: 'Cùng ngày', sub: 'Hôm nay vs Hôm qua' },
+                        { key: 'week', label: 'Cùng tuần', sub: 'Tuần này vs Tuần trước' },
+                        { key: 'month', label: 'Cùng tháng', sub: 'Tháng này vs Tháng trước' },
+                      ] as const).map(opt => (
+                        <button
+                          key={opt.key}
+                          onClick={() => setCompareMode(opt.key)}
+                          title={'sub' in opt ? opt.sub : ''}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all whitespace-nowrap ${compareMode === opt.key
+                              ? 'bg-white text-indigo-700 shadow-sm border border-indigo-200'
+                              : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
                 {compareMode !== 'none' && (
@@ -2285,7 +2316,7 @@ export default function NewRealtimePage() {
 
               {/* Table */}
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse border border-slate-200 [&_th]:border-r [&_th]:border-slate-200 [&_td]:border-r [&_td]:border-slate-200" style={{ borderSpacing: 0 }}>
+                <table className="w-full border-collapse border border-slate-200 [&_th]:border-r [&_th]:border-slate-200 [&_td]:border-r [&_td]:border-slate-200 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap" style={{ borderSpacing: 0 }}>
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
                       <th className="py-3 px-4 text-[11px] font-black text-slate-500 uppercase tracking-wider text-left min-w-[240px]">NGÀNH HÀNG</th>
@@ -2704,17 +2735,29 @@ export default function NewRealtimePage() {
             </div>
 
             {/* PHÂN TÍCH KHAI THÁC - Menu Hiển thị & Bảng dữ liệu */}
-            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6">
+            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6" id="phan-tich-khai-thac-container">
               {/* Header */}
               <div className="px-6 pt-5 pb-4 border-b border-slate-100">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0 font-bold">
-                    PK
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0 font-bold">
+                      PK
+                    </div>
+                    <div>
+                      <h3 className="text-[18px] font-black text-slate-900 tracking-tight">Phân Tích Khai Thác</h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Chi tiết sản phẩm & hiệu quả bán kèm</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-[18px] font-black text-slate-900 tracking-tight">Phân Tích Khai Thác</h3>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Chi tiết sản phẩm & hiệu quả bán kèm</p>
-                  </div>
+                  {/* Nút chụp ảnh */}
+                  <button
+                    data-html2canvas-ignore
+                    onClick={() => handleCaptureTable('phan-tich-khai-thac-container', 'phan_tich_khai_thac')}
+                    className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-[11px] font-bold flex items-center gap-1.5 shadow-sm"
+                    title="Chụp ảnh bảng này"
+                  >
+                    <Camera size={13} className="text-slate-500 hover:text-indigo-600" />
+                    <span>Chụp ảnh</span>
+                  </button>
                 </div>
 
                 {/* Filter bar - menu hiển thị */}
@@ -2749,7 +2792,7 @@ export default function NewRealtimePage() {
 
               {/* Table */}
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse border border-slate-100 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-100" style={{ borderSpacing: 0 }}>
+                <table className="w-full border-collapse border border-slate-100 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-100 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap" style={{ borderSpacing: 0 }}>
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                       <th rowSpan={2} className="py-3 px-4 text-left min-w-[200px] border-b border-slate-200/50">NHÂN VIÊN</th>
@@ -3093,190 +3136,212 @@ export default function NewRealtimePage() {
 
             {/* Raw Data Table: 3. THÊM YCX RT */}
             <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-md mt-8 mb-12">
-              <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-3">
-                <ShoppingBag size={18} className="text-slate-700 flex-shrink-0" />
-                <div>
-                  <h3 className="text-[15px] font-black text-slate-900 uppercase tracking-widest">3. THÊM YCX RT (DỮ LIỆU NGUỒN)</h3>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Lọc: Đã xuất &amp; Chưa trả</p>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-                <table className="w-full border-collapse text-center min-w-[3000px]" style={{ borderSpacing: 0 }}>
-                  <thead className="sticky top-0 z-10">
-                    <tr>
-                      {rawYcxRows.length > 0 &&
-                        rawYcxRows[0].map((cell, idx) => (
-                          <th key={idx} className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">
-                            {cell || `Cột ${String.fromCharCode(65 + idx)}`}
-                          </th>
-                        ))
-                      }
-                      <th className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">PHÂN LOẠI</th>
-                      <th className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">NHÓM HÀNG LỚN</th>
-                      <th className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">NHÓM HÀNG NHỎ</th>
-                      <th className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">PHÂN LOẠI YCX</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {deferredFilteredRows.length > 0 ? (
-                      (() => {
-                        // Find index of Tên sản phẩm
-                        const headers = rawYcxRows[0].map(h => String(h || '').trim());
-                        const idxProduct = headers.findIndex(h => h.toLowerCase().includes('tên sản phẩm'));
-                        const idxSmallCategoryHeader = headers.findIndex(h => h.toLowerCase().includes('nhóm hàng nhỏ'));
-                        const idxNhomHang = headers.findIndex(h => h.includes('Nhóm hàng'));
-                        const idxHinhThucXuat = headers.findIndex(h => h.includes('Hình thức xuất'));
-                        // Date columns to format
-                        const dateColIndices = new Set<number>(
-                          headers.reduce((acc: number[], h, i) => {
-                            const lh = h.toLowerCase();
-                            if (lh.includes('ngày tạo') || lh.includes('ngày lập') || lh.includes('ngày xuất') || lh.includes('ngày giao') || lh.includes('ngày hoàn')) acc.push(i);
-                            return acc;
-                          }, [])
-                        );
-
-                        // Format raw date string → dd/MM/yyyy
-                        const fmtRawDate = (raw: string): string => {
-                          if (!raw || raw.trim() === '') return '-';
-                          const p2 = (n: number) => String(n).padStart(2, '0');
-
-                          // ── Excel serial date number (e.g. 46143.40754975694) ──
-                          const num = parseFloat(raw);
-                          if (!isNaN(num) && /^\d+(\.\d+)?$/.test(raw.trim()) && num > 40000 && num < 60000) {
-                            const days = Math.floor(num);
-                            const fraction = num - days;
-                            // Date portion: offset from Unix epoch (25569 days = days between 1/1/1900 and 1/1/1970, minus Excel's fake leap day)
-                            const dateMs = (days - 25569) * 86400000;
-                            const d = new Date(dateMs);
-                            const dd = p2(d.getUTCDate());
-                            const mm = p2(d.getUTCMonth() + 1);
-                            const yyyy = d.getUTCFullYear();
-                            // Time portion from fractional day (Excel stores local time)
-                            const totalSec = Math.round(fraction * 86400);
-                            const hh = p2(Math.floor(totalSec / 3600));
-                            const min = p2(Math.floor((totalSec % 3600) / 60));
-                            const ss = p2(totalSec % 60);
-                            return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
-                          }
-
-                          // ── dd/MM/yyyy or dd/MM/yyyy HH:mm:ss ──
-                          const m1 = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})([\s\T](.+))?/);
-                          if (m1) {
-                            const datePart = `${p2(+m1[1])}/${p2(+m1[2])}/${m1[3]}`;
-                            const timePart = m1[5] ? ` ${m1[5].substring(0, 8)}` : '';
-                            return `${datePart}${timePart}`;
-                          }
-
-                          // ── ISO yyyy-MM-dd[THH:mm:ss] ──
-                          const m2 = raw.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})[\sT]?(.*)$/);
-                          if (m2) {
-                            const timePart = m2[4] ? ` ${m2[4].substring(0, 8)}` : '';
-                            return `${p2(+m2[3])}/${p2(+m2[2])}/${m2[1]}${timePart}`;
-                          }
-
-                          return raw;
-                        };
-
-                        const classifyProduct = (name: string) => {
-                          const n = name.toUpperCase();
-                          if (n.includes('1 ĐỔI 1')) return '1 ĐỔI 1';
-                          if (n.includes('BẢO HIỂM KHOẢN VAY')) return 'BHKV';
-                          if (n.includes('BẢO HÀNH MỞ RỘNG')) return 'BHMR';
-                          if (n.includes('BẢO HIỂM RƠI VỠ')) return 'BHRV';
-                          if (n.includes('BẢO HIỂM SC+')) return 'SC+';
-                          if (n.includes('BẢO HÀNH APPLECARE+')) return 'BHAP';
-                          if (n.includes('BẢO HIỂM Ô TÔ')) return 'BHOT';
-                          if (n.includes('BẢO HIỂM VẬT CHẤT')) return 'BHVC';
-                          if (n.includes('BẢO HIỂM XE MÁY')) return 'BHXM';
-                          if (n.includes('BẢO HIỂM XE MOTO')) return 'BHMT';
-                          if (n.includes('BẢO HIỂM XÃ HỘI')) return 'BHXH';
-                          if (n.includes('BẢO HIỂM Y TẾ')) return 'BHYT';
-                          if (n.includes('01 THÁNG')) return 'V1';
-                          if (n.includes('03 THÁNG')) return 'V2';
-                          if (n.includes('06 THÁNG')) return 'V4';
-                          return '-';
-                        };
-
-                        const classifyHinhThucXuat = (htx: string): string => {
-                          const lower = htx.toLowerCase();
-                          // TC = Trả cửợc: chứa 'trả góp'
-                          if (lower.includes('trả góp')) return 'TC';
-                          // TM = Tiền mặt: tất cả các trường hợp còn lại
-                          return 'TM';
-                        };
-
-                        // Paginate: only render current page rows
-                        const pageRows = deferredFilteredRows.slice(
-                          rawTablePage * RAW_PAGE_SIZE,
-                          (rawTablePage + 1) * RAW_PAGE_SIZE
-                        );
-
-                        return pageRows.map((row, rowIdx) => (
-                          <tr key={rowIdx} className={`transition-colors ${rowIdx % 2 === 1 ? 'bg-slate-50' : 'bg-white'} hover:bg-slate-100`}>
-                            {row.map((cell, cellIdx) => (
-                              <td key={cellIdx} className={`border border-slate-200 py-2 px-3 text-[9px] font-medium whitespace-nowrap ${dateColIndices.has(cellIdx) ? 'text-indigo-700 font-bold' : 'text-slate-900'}`}>
-                                {dateColIndices.has(cellIdx)
-                                  ? fmtRawDate(String(cell || ''))
-                                  : cell}
-                              </td>
-                            ))}
-                            <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
-                              {classifyProduct(String(row[idxProduct] || '').toUpperCase())}
-                            </td>
-                            <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
-                              {idxNhomHang !== -1 ? (NHOM_HANG_MAP[row[idxNhomHang]]?.large || '-') : '-'}
-                            </td>
-                            <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
-                              {idxSmallCategoryHeader !== -1 ? (row[idxSmallCategoryHeader] || '-') : (idxNhomHang !== -1 ? (NHOM_HANG_MAP[row[idxNhomHang]]?.small || '-') : '-')}
-                            </td>
-                            <td className="border border-slate-200 py-2 px-3 text-[9px] whitespace-nowrap font-black text-center">
-                              {(() => {
-                                const val = idxHinhThucXuat !== -1 ? classifyHinhThucXuat(String(row[idxHinhThucXuat] || '')) : '-';
-                                return val === 'TC'
-                                  ? <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-black">TC</span>
-                                  : val === 'TM'
-                                    ? <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-black">TM</span>
-                                    : <span className="text-slate-400">-</span>;
-                              })()}
-                            </td>
-                          </tr>
-                        ));
-                      })()
-                    ) : (
-                      <tr>
-                        <td className="py-12 text-center text-slate-400 italic text-[11px]" colSpan={(rawYcxRows[0]?.length || 0) + 1}>
-                          Chưa có dữ liệu nguồn hoặc không có bản ghi nào thỏa mãn điều kiện lọc.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination controls */}
-              {deferredFilteredRows.length > RAW_PAGE_SIZE && (
-                <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-slate-50/50">
-                  <span className="text-[11px] font-bold text-slate-500">
-                    Hiển thị {rawTablePage * RAW_PAGE_SIZE + 1}–{Math.min((rawTablePage + 1) * RAW_PAGE_SIZE, deferredFilteredRows.length)} / {deferredFilteredRows.length} dòng
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      disabled={rawTablePage === 0}
-                      onClick={() => setRawTablePage(p => Math.max(0, p - 1))}
-                      className="px-3 py-1 text-[11px] font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >← Trước</button>
-                    <span className="text-[11px] font-bold text-slate-600">
-                      Trang {rawTablePage + 1} / {Math.ceil(deferredFilteredRows.length / RAW_PAGE_SIZE)}
-                    </span>
-                    <button
-                      disabled={(rawTablePage + 1) * RAW_PAGE_SIZE >= deferredFilteredRows.length}
-                      onClick={() => setRawTablePage(p => p + 1)}
-                      className="px-3 py-1 text-[11px] font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >Tiếp →</button>
+              <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <ShoppingBag size={18} className="text-slate-700 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-[15px] font-black text-slate-900 uppercase tracking-widest">3. THÊM YCX RT (DỮ LIỆU NGUỒN)</h3>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Lọc: Đã xuất &amp; Chưa trả</p>
                   </div>
                 </div>
+                <button
+                  onClick={() => setShowRawTable(!showRawTable)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+                >
+                  {showRawTable ? (
+                    <>
+                      <ChevronUp size={12} />
+                      <span>ẨN BẢNG</span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown size={12} />
+                      <span>HIỂN THỊ</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {showRawTable && (
+                <>
+                  <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+                    <table className="w-full border-collapse text-center min-w-[3000px]" style={{ borderSpacing: 0 }}>
+                      <thead className="sticky top-0 z-10">
+                        <tr>
+                          {rawYcxRows.length > 0 &&
+                            rawYcxRows[0].map((cell, idx) => (
+                              <th key={idx} className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">
+                                {cell || `Cột ${String.fromCharCode(65 + idx)}`}
+                              </th>
+                            ))
+                          }
+                          <th className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">PHÂN LOẠI</th>
+                          <th className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">NHÓM HÀNG LỚN</th>
+                          <th className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">NHÓM HÀNG NHỎ</th>
+                          <th className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">PHÂN LOẠI YCX</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {deferredFilteredRows.length > 0 ? (
+                          (() => {
+                            // Find index of Tên sản phẩm
+                            const headers = rawYcxRows[0].map(h => String(h || '').trim());
+                            const idxProduct = headers.findIndex(h => h.toLowerCase().includes('tên sản phẩm'));
+                            const idxSmallCategoryHeader = headers.findIndex(h => h.toLowerCase().includes('nhóm hàng nhỏ'));
+                            const idxNhomHang = headers.findIndex(h => h.includes('Nhóm hàng'));
+                            const idxHinhThucXuat = headers.findIndex(h => h.includes('Hình thức xuất'));
+                            // Date columns to format
+                            const dateColIndices = new Set<number>(
+                              headers.reduce((acc: number[], h, i) => {
+                                const lh = h.toLowerCase();
+                                if (lh.includes('ngày tạo') || lh.includes('ngày lập') || lh.includes('ngày xuất') || lh.includes('ngày giao') || lh.includes('ngày hoàn')) acc.push(i);
+                                return acc;
+                              }, [])
+                            );
+
+                            // Format raw date string → dd/MM/yyyy
+                            const fmtRawDate = (raw: string): string => {
+                              if (!raw || raw.trim() === '') return '-';
+                              const p2 = (n: number) => String(n).padStart(2, '0');
+
+                              // ── Excel serial date number (e.g. 46143.40754975694) ──
+                              const num = parseFloat(raw);
+                              if (!isNaN(num) && /^\d+(\.\d+)?$/.test(raw.trim()) && num > 40000 && num < 60000) {
+                                const days = Math.floor(num);
+                                const fraction = num - days;
+                                // Date portion: offset from Unix epoch (25569 days = days between 1/1/1900 and 1/1/1970, minus Excel's fake leap day)
+                                const dateMs = (days - 25569) * 86400000;
+                                const d = new Date(dateMs);
+                                const dd = p2(d.getUTCDate());
+                                const mm = p2(d.getUTCMonth() + 1);
+                                const yyyy = d.getUTCFullYear();
+                                // Time portion from fractional day (Excel stores local time)
+                                const totalSec = Math.round(fraction * 86400);
+                                const hh = p2(Math.floor(totalSec / 3600));
+                                const min = p2(Math.floor((totalSec % 3600) / 60));
+                                const ss = p2(totalSec % 60);
+                                return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
+                              }
+
+                              // ── dd/MM/yyyy or dd/MM/yyyy HH:mm:ss ──
+                              const m1 = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})([\s\T](.+))?/);
+                              if (m1) {
+                                const datePart = `${p2(+m1[1])}/${p2(+m1[2])}/${m1[3]}`;
+                                const timePart = m1[5] ? ` ${m1[5].substring(0, 8)}` : '';
+                                return `${datePart}${timePart}`;
+                              }
+
+                              // ── ISO yyyy-MM-dd[THH:mm:ss] ──
+                              const m2 = raw.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})[\sT]?(.*)$/);
+                              if (m2) {
+                                const timePart = m2[4] ? ` ${m2[4].substring(0, 8)}` : '';
+                                return `${p2(+m2[3])}/${p2(+m2[2])}/${m2[1]}${timePart}`;
+                              }
+
+                              return raw;
+                            };
+
+                            const classifyProduct = (name: string) => {
+                              const n = name.toUpperCase();
+                              if (n.includes('1 ĐỔI 1')) return '1 ĐỔI 1';
+                              if (n.includes('BẢO HIỂM KHOẢN VAY')) return 'BHKV';
+                              if (n.includes('BẢO HÀNH MỞ RỘNG')) return 'BHMR';
+                              if (n.includes('BẢO HIỂM RƠI VỠ')) return 'BHRV';
+                              if (n.includes('BẢO HIỂM SC+')) return 'SC+';
+                              if (n.includes('BẢO HÀNH APPLECARE+')) return 'BHAP';
+                              if (n.includes('BẢO HIỂM Ô TÔ')) return 'BHOT';
+                              if (n.includes('BẢO HIỂM VẬT CHẤT')) return 'BHVC';
+                              if (n.includes('BẢO HIỂM XE MÁY')) return 'BHXM';
+                              if (n.includes('BẢO HIỂM XE MOTO')) return 'BHMT';
+                              if (n.includes('BẢO HIỂM XÃ HỘI')) return 'BHXH';
+                              if (n.includes('BẢO HIỂM Y TẾ')) return 'BHYT';
+                              if (n.includes('01 THÁNG')) return 'V1';
+                              if (n.includes('03 THÁNG')) return 'V2';
+                              if (n.includes('06 THÁNG')) return 'V4';
+                              return '-';
+                            };
+
+                            const classifyHinhThucXuat = (htx: string): string => {
+                              const lower = htx.toLowerCase();
+                              // TC = Trả cửợc: chứa 'trả góp'
+                              if (lower.includes('trả góp')) return 'TC';
+                              // TM = Tiền mặt: tất cả các trường hợp còn lại
+                              return 'TM';
+                            };
+
+                            // Paginate: only render current page rows
+                            const pageRows = deferredFilteredRows.slice(
+                              rawTablePage * RAW_PAGE_SIZE,
+                              (rawTablePage + 1) * RAW_PAGE_SIZE
+                            );
+
+                            return pageRows.map((row, rowIdx) => (
+                              <tr key={rowIdx} className={`transition-colors ${rowIdx % 2 === 1 ? 'bg-slate-50' : 'bg-white'} hover:bg-slate-100`}>
+                                {row.map((cell, cellIdx) => (
+                                  <td key={cellIdx} className={`border border-slate-200 py-2 px-3 text-[9px] font-medium whitespace-nowrap ${dateColIndices.has(cellIdx) ? 'text-indigo-700 font-bold' : 'text-slate-900'}`}>
+                                    {dateColIndices.has(cellIdx)
+                                      ? fmtRawDate(String(cell || ''))
+                                      : cell}
+                                  </td>
+                                ))}
+                                <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
+                                  {classifyProduct(String(row[idxProduct] || '').toUpperCase())}
+                                </td>
+                                <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
+                                  {idxNhomHang !== -1 ? (NHOM_HANG_MAP[row[idxNhomHang]]?.large || '-') : '-'}
+                                </td>
+                                <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
+                                  {idxSmallCategoryHeader !== -1 ? (row[idxSmallCategoryHeader] || '-') : (idxNhomHang !== -1 ? (NHOM_HANG_MAP[row[idxNhomHang]]?.small || '-') : '-')}
+                                </td>
+                                <td className="border border-slate-200 py-2 px-3 text-[9px] whitespace-nowrap font-black text-center">
+                                  {(() => {
+                                    const val = idxHinhThucXuat !== -1 ? classifyHinhThucXuat(String(row[idxHinhThucXuat] || '')) : '-';
+                                    return val === 'TC'
+                                      ? <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-black">TC</span>
+                                      : val === 'TM'
+                                        ? <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-black">TM</span>
+                                        : <span className="text-slate-400">-</span>;
+                                  })()}
+                                </td>
+                              </tr>
+                            ));
+                          })()
+                        ) : (
+                          <tr>
+                            <td className="py-12 text-center text-slate-400 italic text-[11px]" colSpan={(rawYcxRows[0]?.length || 0) + 1}>
+                              Chưa có dữ liệu nguồn hoặc không có bản ghi nào thỏa mãn điều kiện lọc.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination controls */}
+                  {deferredFilteredRows.length > RAW_PAGE_SIZE && (
+                    <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-slate-50/50">
+                      <span className="text-[11px] font-bold text-slate-500">
+                        Hiển thị {rawTablePage * RAW_PAGE_SIZE + 1}–{Math.min((rawTablePage + 1) * RAW_PAGE_SIZE, deferredFilteredRows.length)} / {deferredFilteredRows.length} dòng
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          disabled={rawTablePage === 0}
+                          onClick={() => setRawTablePage(p => Math.max(0, p - 1))}
+                          className="px-3 py-1 text-[11px] font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >← Trước</button>
+                        <span className="text-[11px] font-bold text-slate-600">
+                          Trang {rawTablePage + 1} / {Math.ceil(deferredFilteredRows.length / RAW_PAGE_SIZE)}
+                        </span>
+                        <button
+                          disabled={(rawTablePage + 1) * RAW_PAGE_SIZE >= deferredFilteredRows.length}
+                          onClick={() => setRawTablePage(p => p + 1)}
+                          className="px-3 py-1 text-[11px] font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >Tiếp →</button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </motion.div>
