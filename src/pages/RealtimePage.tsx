@@ -964,6 +964,15 @@ export default function NewRealtimePage() {
     try {
       element.classList.add('capturing-target');
       document.body.classList.add('capturing-screenshot');
+
+      // Lưu lại style ban đầu
+      const originalPadding = element.style.padding;
+      const originalBg = element.style.backgroundColor;
+
+      // Áp dụng style tạm thời tạo viền trắng xung quanh bảng (24px)
+      element.style.padding = '24px';
+      element.style.backgroundColor = '#ffffff';
+
       await new Promise(resolve => setTimeout(resolve, 100));
 
       const dataUrl = await domToPng(element, {
@@ -974,6 +983,10 @@ export default function NewRealtimePage() {
       link.href = dataUrl;
       link.download = `${fileName}_${userProfile?.ma_kho || 'Report'}.png`;
       link.click();
+
+      // Khôi phục style cũ
+      element.style.padding = originalPadding;
+      element.style.backgroundColor = originalBg;
     } catch (err) {
       console.error('Lỗi chụp ảnh bảng:', err);
     } finally {
@@ -2096,7 +2109,7 @@ export default function NewRealtimePage() {
             </div>
 
             {/* CHI TIẾT NGÀNH HÀNG - Drill-down table */}
-            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200" id="chi-tiet-nganh-hang-container">
+            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200">
               {/* Header */}
               <div className="px-6 pt-5 pb-4 border-b border-slate-100">
                 <div className="flex items-start justify-between mb-4">
@@ -2109,7 +2122,7 @@ export default function NewRealtimePage() {
                   {/* Comparison period buttons & Capture button */}
                   <div className="flex items-center gap-2 no-capture">
                     <button
-                      onClick={() => handleCaptureTable('chi-tiet-nganh-hang-container', 'chi_tiet_nganh_hang')}
+                      onClick={() => handleCaptureTable('chi-tiet-nganh-hang-table-container', 'chi_tiet_nganh_hang')}
                       className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-[11px] font-bold flex items-center gap-1.5 shadow-sm"
                       title="Chụp ảnh bảng này"
                     >
@@ -2319,7 +2332,7 @@ export default function NewRealtimePage() {
               </div>
 
               {/* Table */}
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto bg-white" id="chi-tiet-nganh-hang-table-container">
                 <table className="w-full border-collapse border border-slate-200 [&_th]:border-r [&_th]:border-slate-200 [&_td]:border-r [&_td]:border-slate-200 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap" style={{ borderSpacing: 0 }}>
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
@@ -2739,7 +2752,7 @@ export default function NewRealtimePage() {
             </div>
 
             {/* PHÂN TÍCH KHAI THÁC - Menu Hiển thị & Bảng dữ liệu */}
-            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6" id="phan-tich-khai-thac-container">
+            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6">
               {/* Header */}
               <div className="px-6 pt-5 pb-4 border-b border-slate-100">
                 <div className="flex items-center justify-between mb-4">
@@ -2754,7 +2767,7 @@ export default function NewRealtimePage() {
                   </div>
                   {/* Nút chụp ảnh */}
                   <button
-                    onClick={() => handleCaptureTable('phan-tich-khai-thac-container', 'phan_tich_khai_thac')}
+                    onClick={() => handleCaptureTable('phan-tich-khai-thac-table-container', 'phan_tich_khai_thac')}
                     className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-[11px] font-bold flex items-center gap-1.5 shadow-sm no-capture"
                     title="Chụp ảnh bảng này"
                   >
@@ -2794,7 +2807,7 @@ export default function NewRealtimePage() {
               </div>
 
               {/* Table */}
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto bg-white" id="phan-tich-khai-thac-table-container">
                 <table className="w-full border-collapse border border-slate-100 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-100 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap" style={{ borderSpacing: 0 }}>
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
