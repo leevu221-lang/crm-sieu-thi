@@ -3332,32 +3332,25 @@ export default function NewRealtimePage() {
                             };
 
                             const classifyHinhThucXuat = (htx: string): string | null => {
-                               const clean = htx.trim().toLowerCase().replace(/\s+/g, ' ');
-                               const mapping: Record<string, string> = {
-                                 'xuất bán hàng online tại siêu thị': 'Tiền mặt',
-                                 'xuất bán hàng online tiết kiệm': 'Tiền mặt',
-                                 'xuất bán hàng tại siêu thị': 'Tiền mặt',
-                                 'xuất bán hàng tại siêu thị (tcđm)': 'Tiền mặt',
-                                 'xuất bán online giá rẻ': 'Tiền mặt',
-                                 'xuất bán pre-order tại siêu thị': 'Tiền mặt',
-                                 'xuất bán ưu đãi cho nhân viên': 'Tiền mặt',
-                                 'xuất dịch vụ thu hộ bảo hiểm': 'Tiền mặt',
-                                 'xuất đổi bảo hành sản phẩm imei': 'Tiền mặt',
-                                 'xuất đổi bảo hành tại siêu thị': 'Tiền mặt',
-                                 'xuất sim trắng kèm theo sim': 'Tiền mặt',
-                                 'xuất bán hàng trả góp online': 'Trả góp',
-                                 'xuất bán hàng trả góp online giá rẻ': 'Trả góp',
-                                 'xuất bán hàng trả góp online tiết kiệm': 'Trả góp',
-                                 'xuất bán hàng trả góp tại siêu thị': 'Trả góp',
-                                 'xuất bán hàng trả góp tại siêu thị (tcđm)': 'Trả góp',
-                                 'xuất bán trả góp ưu đãi cho nhân viên': 'Trả góp',
-                                 'xuất đổi bảo hành sản phẩm trả góp có imei': 'Trả góp',
-                                 'xuất dịch vụ thu hộ cước payoo': 'Thu hộ',
-                                 'xuất dịch vụ thu hộ qua epay': 'Thu hộ',
-                                 'xuất dịch vụ thu hộ qua smartnet': 'Thu hộ',
-                                 'xuất dịch vụ thu hộ qua tổng công ty viettel': 'Thu hộ'
-                               };
-                               return mapping[clean] || null;
+                               const clean = htx.trim().toLowerCase();
+                               if (!clean) return null;
+                               
+                               if (clean.includes('thu hộ')) return 'Thu hộ';
+                               if (clean.includes('trả góp')) return 'Trả góp';
+                               if (
+                                 clean.includes('tiền mặt') ||
+                                 clean.includes('xuất bán hàng online') ||
+                                 clean.includes('xuất bán hàng tại siêu thị') ||
+                                 clean.includes('xuất bán online') ||
+                                 clean.includes('xuất bán pre-order') ||
+                                 clean.includes('xuất bán ưu đãi') ||
+                                 clean.includes('xuất đổi bảo hành') ||
+                                 clean.includes('xuất sim')
+                               ) {
+                                 return 'Tiền mặt';
+                               }
+                               
+                               return null;
                              };
 
                             // Paginate: only render current page rows
