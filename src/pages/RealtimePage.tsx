@@ -2794,7 +2794,6 @@ export default function NewRealtimePage() {
                 <div className="flex flex-wrap items-center gap-2 bg-slate-50 rounded-xl px-4 py-3">
                   <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap mr-2">HIỂN THỊ:</span>
                   {[
-                    { key: 'doanhThu', label: 'DOANH THU' },
                     { key: 'spChinh', label: 'SP CHÍNH' },
                     { key: 'baoHiem', label: 'BẢO HIỂM' },
                     { key: 'sim', label: 'SIM' },
