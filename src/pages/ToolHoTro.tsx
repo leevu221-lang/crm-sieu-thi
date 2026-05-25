@@ -7,6 +7,7 @@ import {
   ChevronRight, LayoutGrid, FileText
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -32,6 +33,258 @@ export default function ToolHoTro() {
   const [lastUpdateInventory, setLastUpdateInventory] = useState<string | null>(null);
   const [lastUpdatePrice, setLastUpdatePrice] = useState<string | null>(null);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+
+  // States cho HĐ Mua bán
+  const [contractTemplateName, setContractTemplateName] = useState<string>('Hợp đồng mua bán mặc định');
+  const [templateContent, setTemplateContent] = useState<string>(() => {
+    return `CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+Độc lập - Tự do - Hạnh phúc
+------------------
+
+HỢP ĐỒNG MUA BÁN HÀNG HÓA
+Số: {{Số hợp đồng}} /HĐMB
+
+- Căn cứ Bộ luật Dân sự nước Cộng hòa xã hội chủ nghĩa Việt Nam năm 2015;
+- Căn cứ Luật Thương mại nước Cộng hòa xã hội chủ nghĩa Việt Nam năm 2005;
+- Căn cứ nhu cầu và khả năng của hai bên.
+
+Hôm nay, ngày {{Ngày ký hợp đồng}}, tại {{Địa điểm ký}}, chúng tôi gồm có:
+
+BÊN BÁN (BÊN A):
+- Tên cá nhân/tổ chức: {{Tên Bên A}}
+- Địa chỉ: {{Địa chỉ Bên A}}
+- Điện thoại: {{Số điện thoại Bên A}}
+- Mã số thuế / CMND: {{Mã số thuế Bên A}}
+- Đại diện bởi Ông/Bà: {{Đại diện Bên A}}   Chức vụ: {{Chức vụ Bên A}}
+
+BÊN MUA (BÊN B):
+- Tên cá nhân/tổ chức: {{Tên Bên B}}
+- Địa chỉ: {{Địa chỉ Bên B}}
+- Điện thoại: {{Số điện thoại Bên B}}
+- Mã số thuế / CMND: {{Mã số thuế Bên B}}
+- Đại diện bởi Ông/Bà: {{Đại diện Bên B}}   Chức vụ: {{Chức vụ Bên B}}
+
+Sau khi bàn bạc thảo luận, hai bên thống nhất ký kết hợp đồng mua bán với các điều khoản cụ thể sau đây:
+
+ĐIỀU 1: ĐỐI TƯỢNG HỢP ĐỒNG & THÔNG TIN HÀNG HÓA
+Bên A đồng ý bán và Bên B đồng ý mua mặt hàng sau:
+- Tên hàng hóa: {{Tên hàng hóa}}
+- Đơn vị tính: {{Đơn vị tính}}
+- Số lượng: {{Số lượng}}
+- Đơn giá: {{Đơn giá}} VNĐ
+- Tổng tiền hợp đồng: {{Tổng tiền hợp đồng}} VNĐ
+
+ĐIỀU 2: PHƯƠNG THỨC THANH TOÁN & GIAO NHẬN
+1. Phương thức thanh toán: {{Phương thức thanh toán}}
+2. Thời gian giao nhận: {{Thời gian giao nhận}}
+3. Địa điểm giao nhận: {{Địa điểm giao nhận}}
+
+ĐIỀU 3: HIỆU LỰC HỢP ĐỒNG
+Hợp đồng này có hiệu lực kể từ ngày ký. Hợp đồng được lập thành 02 bản có giá trị pháp lý như nhau, mỗi bên giữ 01 bản để thực hiện.
+
+ĐẠI DIỆN BÊN A                               ĐẠI DIỆN BÊN B
+(Ký, ghi rõ họ tên)                          (Ký, ghi rõ họ tên)
+`;
+  });
+  
+  const [inputValues, setInputValues] = useState<Record<string, string>>({
+    'Số hợp đồng': '01/2026',
+    'Ngày ký hợp đồng': '25 tháng 05 năm 2026',
+    'Địa điểm ký': 'Hồ Chí Minh',
+    'Tên Bên A': 'CÔNG TY TNHH THƯƠNG MẠI MAVEN',
+    'Địa chỉ Bên A': '123 Đường Song Hành, Quận 1, TP. Hồ Chí Minh',
+    'Số điện thoại Bên A': '028 1234 5678',
+    'Mã số thuế Bên A': '0312345678',
+    'Đại diện Bên A': 'Nguyễn Văn Bán',
+    'Chức vụ Bên A': 'Giám đốc',
+    'Tên Bên B': 'NGUYỄN VĂN MUA',
+    'Địa chỉ Bên B': '456 Đường CMT8, Quận 3, TP. Hồ Chí Minh',
+    'Số điện thoại Bên B': '090 999 8888',
+    'Mã số thuế Bên B': '123456789',
+    'Đại diện Bên B': 'Nguyễn Văn Mua',
+    'Chức vụ Bên B': 'Khách hàng cá nhân',
+    'Tên hàng hóa': 'Tủ lạnh Samsung Inverter 400L',
+    'Đơn vị tính': 'Cái',
+    'Số lượng': '1',
+    'Đơn giá': '15.000.000',
+    'Tổng tiền hợp đồng': '15.000.000',
+    'Phương thức thanh toán': 'Chuyển khoản ngân hàng',
+    'Thời gian giao nhận': 'Trước ngày 30/05/2026',
+    'Địa điểm giao nhận': 'Nhà riêng Bên B'
+  });
+  
+  const [contractFont, setContractFont] = useState<'times' | 'arial'>('times');
+
+  const placeholders = useMemo(() => {
+    const found = new Set<string>();
+    const doubleCurlyRegex = /\{\{(.+?)\}\}/g;
+    let match;
+    while ((match = doubleCurlyRegex.exec(templateContent)) !== null) {
+      found.add(match[1].trim());
+    }
+    const squareBracketRegex = /\[([^\]]+)\]/g;
+    while ((match = squareBracketRegex.exec(templateContent)) !== null) {
+      const val = match[1].trim();
+      if (val && val.length < 50 && !val.includes('/') && !val.includes(':')) {
+        found.add(val);
+      }
+    }
+    return Array.from(found);
+  }, [templateContent]);
+
+  const renderedContent = useMemo(() => {
+    let result = templateContent;
+    placeholders.forEach(key => {
+      const val = inputValues[key] || `(Chưa nhập ${key})`;
+      const escapedKey = key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      result = result.replace(new RegExp(`\\{\\{\\s*${escapedKey}\\s*\\}\\}`, 'g'), val);
+      result = result.replace(new RegExp(`\\[\\s*${escapedKey}\\s*\\]`, 'g'), val);
+    });
+    return result;
+  }, [templateContent, placeholders, inputValues]);
+
+  const handleTemplateUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const name = file.name.toLowerCase();
+      if (name.endsWith('.docx')) {
+        try {
+          const arrayBuffer = evt.target?.result as ArrayBuffer;
+          const zip = await JSZip.loadAsync(arrayBuffer);
+          const docXml = await zip.file('word/document.xml')?.async('text');
+          if (docXml) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(docXml, 'application/xml');
+            const paragraphs = xmlDoc.getElementsByTagName('w:p');
+            let docText = '';
+            for (let i = 0; i < paragraphs.length; i++) {
+              const p = paragraphs[i];
+              const tTags = p.getElementsByTagName('w:t');
+              let pText = '';
+              for (let j = 0; j < tTags.length; j++) {
+                pText += tTags[j].textContent || '';
+              }
+              if (pText.trim() || pText === '') {
+                docText += pText + '\n';
+              }
+            }
+            
+            if (docText.trim()) {
+              setTemplateContent(docText);
+              setContractTemplateName(file.name);
+              const foundInputs: Record<string, string> = {};
+              const doubleCurlyRegex = /\{\{(.+?)\}\}/g;
+              let match;
+              while ((match = doubleCurlyRegex.exec(docText)) !== null) {
+                foundInputs[match[1].trim()] = '';
+              }
+              const squareBracketRegex = /\[([^\]]+)\]/g;
+              while ((match = squareBracketRegex.exec(docText)) !== null) {
+                const val = match[1].trim();
+                if (val && val.length < 50 && !val.includes('/') && !val.includes(':')) {
+                  foundInputs[val] = '';
+                }
+              }
+              setInputValues(foundInputs);
+              showNotification(`Đã tải mẫu hợp đồng từ file Word: ${file.name}`, 'success');
+            } else {
+              showNotification('Không tìm thấy văn bản trong file Word!', 'error');
+            }
+          }
+        } catch (err) {
+          console.error(err);
+          showNotification('Lỗi khi đọc file Word (.docx)!', 'error');
+        }
+      } else {
+        const text = evt.target?.result as string;
+        setTemplateContent(text);
+        setContractTemplateName(file.name);
+        const foundInputs: Record<string, string> = {};
+        const doubleCurlyRegex = /\{\{(.+?)\}\}/g;
+        let match;
+        while ((match = doubleCurlyRegex.exec(text)) !== null) {
+          foundInputs[match[1].trim()] = '';
+        }
+        const squareBracketRegex = /\[([^\]]+)\]/g;
+        while ((match = squareBracketRegex.exec(text)) !== null) {
+          const val = match[1].trim();
+          if (val && val.length < 50 && !val.includes('/') && !val.includes(':')) {
+            foundInputs[val] = '';
+          }
+        }
+        setInputValues(foundInputs);
+        showNotification(`Đã tải mẫu hợp đồng từ file: ${file.name}`, 'success');
+      }
+    };
+    if (file.name.toLowerCase().endsWith('.docx')) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsText(file);
+    }
+  };
+
+  const handlePrintContract = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showNotification('Vui lòng cho phép mở popup để in hợp đồng!', 'error');
+      return;
+    }
+    
+    const fontStyle = contractFont === 'times' 
+      ? "font-family: 'Times New Roman', Times, serif;" 
+      : "font-family: Arial, sans-serif;";
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>In Hợp Đồng - ${contractTemplateName}</title>
+          <style>
+            @page {
+              size: A4;
+              margin: 20mm 15mm 20mm 20mm;
+            }
+            body {
+              ${fontStyle}
+              font-size: 14px;
+              line-height: 1.5;
+              color: #000;
+              margin: 0;
+              padding: 0;
+              white-space: pre-wrap;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+            }
+            th, td {
+              ${fontStyle}
+            }
+            .text-justify {
+              text-align: justify;
+            }
+            .text-center {
+              text-align: center;
+            }
+            .font-bold {
+              font-weight: bold;
+            }
+            .uppercase {
+              text-transform: uppercase;
+            }
+          </style>
+        </head>
+        <body onload="window.print(); window.close();">
+          <div style="padding: 10px;">
+            ${renderedContent}
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
   const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
   const [isBienBanModalOpen, setIsBienBanModalOpen] = useState(false);
   const [printConfig, setPrintConfig] = useState({ style: 'classic', layout: '4', showPromoLabel: true });
@@ -547,6 +800,7 @@ export default function ToolHoTro() {
     { id: 'phan-ca-thang', label: 'PHÂN CA THÁNG', icon: Users, color: 'text-purple-500' },
     { id: 'phan-ca-tuan', label: 'PHÂN CA TUẦN', icon: UploadCloud, color: 'text-orange-500' },
     { id: 'bien-ban', label: 'BIÊN BẢN CÁC LOẠI', icon: FileText, color: 'text-rose-500' },
+    { id: 'hd-mua-ban', label: 'HĐ MUA BÁN', icon: FileText, color: 'text-amber-500' },
   ];
 
   return (
@@ -1145,6 +1399,264 @@ export default function ToolHoTro() {
                   <h3 className="text-lg font-bold text-slate-800 text-center uppercase">Biên bản Tình Trạng Hàng Hóa</h3>
                   <p className="text-slate-500 text-sm text-center mt-2">Dùng khi ghi nhận tình trạng hàng hóa, in A4 ngang</p>
                 </button>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'hd-mua-ban' && (
+            <motion.div
+              key="hd-mua-ban"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.2 }}
+              className="grid grid-cols-1 xl:grid-cols-12 gap-8"
+            >
+              {/* Cột trái: Cấu hình và nhập liệu */}
+              <div className="xl:col-span-5 space-y-6">
+                {/* Card 1: Tải file mẫu và tùy chọn font */}
+                <div className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100">
+                  <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                    <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
+                      <UploadCloud size={24} />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Cấu hình Hợp đồng</h2>
+                      <p className="text-xs text-slate-500 font-medium">Tải file mẫu hoặc thiết lập font chữ</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-5">
+                    {/* Drag & drop / upload file */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">File hợp đồng mẫu</label>
+                      <div className="relative group border-2 border-dashed border-slate-200 hover:border-amber-400 rounded-2xl p-6 transition-all bg-slate-50/50 hover:bg-amber-50/10 text-center cursor-pointer">
+                        <input
+                          type="file"
+                          accept=".docx, .txt, .html"
+                          onChange={handleTemplateUpload}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 group-hover:border-amber-200 flex items-center justify-center text-slate-400 group-hover:text-amber-500 transition-all shadow-sm">
+                            <FileText size={24} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-black text-slate-700">Kéo thả hoặc click để tải file</p>
+                            <p className="text-[10px] text-slate-400 font-bold mt-1">Hỗ trợ .docx, .txt, .html</p>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Hiển thị tên file mẫu hiện tại */}
+                      <div className="mt-3 flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-xs">
+                        <span className="text-slate-500 font-bold">Mẫu đang dùng:</span>
+                        <span className="text-amber-600 font-black truncate max-w-[200px]" title={contractTemplateName}>
+                          {contractTemplateName}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Tùy chỉnh Font chữ */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Font chữ văn bản</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => setContractFont('times')}
+                          className={`py-3 px-4 rounded-xl border text-xs font-black transition-all ${
+                            contractFont === 'times'
+                              ? 'bg-amber-50 border-amber-300 text-amber-700 shadow-sm'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          Times New Roman
+                        </button>
+                        <button
+                          onClick={() => setContractFont('arial')}
+                          className={`py-3 px-4 rounded-xl border text-xs font-black transition-all ${
+                            contractFont === 'arial'
+                              ? 'bg-amber-50 border-amber-300 text-amber-700 shadow-sm'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          Arial
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Nút reset về mẫu mặc định */}
+                    <button
+                      onClick={() => {
+                        setContractTemplateName('Hợp đồng mua bán mặc định');
+                        setTemplateContent(`CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+Độc lập - Tự do - Hạnh phúc
+------------------
+
+HỢP ĐỒNG MUA BÁN HÀNG HÓA
+Số: {{Số hợp đồng}} /HĐMB
+
+- Căn cứ Bộ luật Dân sự nước Cộng hòa xã hội chủ nghĩa Việt Nam năm 2015;
+- Căn cứ Luật Thương mại nước Cộng hòa xã hội chủ nghĩa Việt Nam năm 2005;
+- Căn cứ nhu cầu và khả năng của hai bên.
+
+Hôm nay, ngày {{Ngày ký hợp đồng}}, tại {{Địa điểm ký}}, chúng tôi gồm có:
+
+BÊN BÁN (BÊN A):
+- Tên cá nhân/tổ chức: {{Tên Bên A}}
+- Địa chỉ: {{Địa chỉ Bên A}}
+- Điện thoại: {{Số điện thoại Bên A}}
+- Mã số thuế / CMND: {{Mã số thuế Bên A}}
+- Đại diện bởi Ông/Bà: {{Đại diện Bên A}}   Chức vụ: {{Chức vụ Bên A}}
+
+BÊN MUA (BÊN B):
+- Tên cá nhân/tổ chức: {{Tên Bên B}}
+- Địa chỉ: {{Địa chỉ Bên B}}
+- Điện thoại: {{Số điện thoại Bên B}}
+- Mã số thuế / CMND: {{Mã số thuế Bên B}}
+- Đại diện bởi Ông/Bà: {{Đại diện Bên B}}   Chức vụ: {{Chức vụ Bên B}}
+
+Sau khi bàn bạc thảo luận, hai bên thống nhất ký kết hợp đồng mua bán với các điều khoản cụ thể sau đây:
+
+ĐIỀU 1: ĐỐI TƯỢNG HỢP ĐỒNG & THÔNG TIN HÀNG HÓA
+Bên A đồng ý bán và Bên B đồng ý mua mặt hàng sau:
+- Tên hàng hóa: {{Tên hàng hóa}}
+- Đơn vị tính: {{Đơn vị tính}}
+- Số lượng: {{Số lượng}}
+- Đơn giá: {{Đơn giá}} VNĐ
+- Tổng tiền hợp đồng: {{Tổng tiền hợp đồng}} VNĐ
+
+ĐIỀU 2: PHƯƠNG THỨC THANH TOÁN & GIAO NHẬN
+1. Phương thức thanh toán: {{Phương thức thanh toán}}
+2. Thời gian giao nhận: {{Thời gian giao nhận}}
+3. Địa điểm giao nhận: {{Địa điểm giao nhận}}
+
+ĐIỀU 3: HIỆU LỰC HỢP ĐỒNG
+Hợp đồng này có hiệu lực kể từ ngày ký. Hợp đồng được lập thành 02 bản có giá trị pháp lý như nhau, mỗi bên giữ 01 bản để thực hiện.
+
+ĐẠI DIỆN BÊN A                               ĐẠI DIỆN BÊN B
+(Ký, ghi rõ họ tên)                          (Ký, ghi rõ họ tên)
+`);
+                        setInputValues({
+                          'Số hợp đồng': '01/2026',
+                          'Ngày ký hợp đồng': '25 tháng 05 năm 2026',
+                          'Địa điểm ký': 'Hồ Chí Minh',
+                          'Tên Bên A': 'CÔNG TY TNHH THƯƠNG MẠI MAVEN',
+                          'Địa chỉ Bên A': '123 Đường Song Hành, Quận 1, TP. Hồ Chí Minh',
+                          'Số điện thoại Bên A': '028 1234 5678',
+                          'Mã số thuế Bên A': '0312345678',
+                          'Đại diện Bên A': 'Nguyễn Văn Bán',
+                          'Chức vụ Bên A': 'Giám đốc',
+                          'Tên Bên B': 'NGUYỄN VĂN MUA',
+                          'Địa chỉ Bên B': '456 Đường CMT8, Quận 3, TP. Hồ Chí Minh',
+                          'Số điện thoại Bên B': '090 999 8888',
+                          'Mã số thuế Bên B': '123456789',
+                          'Đại diện Bên B': 'Nguyễn Văn Mua',
+                          'Chức vụ Bên B': 'Khách hàng cá nhân',
+                          'Tên hàng hóa': 'Tủ lạnh Samsung Inverter 400L',
+                          'Đơn vị tính': 'Cái',
+                          'Số lượng': '1',
+                          'Đơn giá': '15.000.000',
+                          'Tổng tiền hợp đồng': '15.000.000',
+                          'Phương thức thanh toán': 'Chuyển khoản ngân hàng',
+                          'Thời gian giao nhận': 'Trước ngày 30/05/2026',
+                          'Địa điểm giao nhận': 'Nhà riêng Bên B'
+                        });
+                        showNotification('Đã đặt lại mẫu hợp đồng mặc định!', 'success');
+                      }}
+                      className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black transition-colors"
+                    >
+                      Khôi phục mẫu mặc định
+                    </button>
+                  </div>
+                </div>
+
+                {/* Card 2: Form nhập dữ liệu tự động */}
+                <div className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100">
+                  <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                    <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                      <FilePlus size={24} />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Thông tin Hợp đồng</h2>
+                      <p className="text-xs text-slate-500 font-medium">Nhập thông tin điền vào các trường trống</p>
+                    </div>
+                  </div>
+
+                  {placeholders.length > 0 ? (
+                    <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                      {placeholders.map(key => (
+                        <div key={key} className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                            {key}
+                          </label>
+                          <input
+                            type="text"
+                            value={inputValues[key] || ''}
+                            placeholder={`Nhập ${key.toLowerCase()}...`}
+                            onChange={(e) => setInputValues(prev => ({ ...prev, [key]: e.target.value }))}
+                            className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2.5 px-4 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Info size={36} className="text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs font-bold text-slate-500">Không tìm thấy trường giữ chỗ nào.</p>
+                      <p className="text-[10px] text-slate-400 mt-1 max-w-[250px] mx-auto leading-relaxed">
+                        Vui lòng sử dụng định dạng <code className="bg-slate-100 px-1 py-0.5 rounded text-amber-600 font-mono text-[9px] font-black">{"{{tên biến}}"}</code> hoặc <code className="bg-slate-100 px-1 py-0.5 rounded text-amber-600 font-mono text-[9px] font-black">{"[tên biến]"}</code> trong file mẫu hợp đồng tải lên.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Cột phải: Xem trước A4 */}
+              <div className="xl:col-span-7 space-y-6">
+                <div className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 flex flex-col">
+                  <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                        <Printer size={24} />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Bản xem trước A4</h2>
+                        <p className="text-xs text-slate-500 font-medium">Xem trước theo tỷ lệ chuẩn A4 và in ấn</p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handlePrintContract}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black transition-colors shadow-lg shadow-amber-100"
+                    >
+                      <Printer size={16} />
+                      IN HỢP ĐỒNG (A4)
+                    </button>
+                  </div>
+
+                  {/* Vùng hiển thị A4 giống như tờ giấy thật */}
+                  <div className="bg-slate-100 rounded-2xl p-6 overflow-auto max-h-[850px] border border-slate-200 flex justify-center">
+                    <div
+                      id="contract-a4-page"
+                      style={{
+                        width: '210mm',
+                        minHeight: '297mm',
+                        padding: '20mm 15mm 20mm 20mm',
+                        fontFamily: contractFont === 'times' ? "'Times New Roman', Times, serif" : 'Arial, sans-serif',
+                        fontSize: '14px',
+                        lineHeight: '1.6',
+                        color: '#1e293b',
+                        whiteSpace: 'pre-wrap',
+                        textAlign: 'left'
+                      }}
+                      className="bg-white shadow-2xl border border-slate-200 rounded-sm relative flex flex-col justify-between"
+                    >
+                      {/* Nội dung Hợp đồng */}
+                      <div>
+                        {renderedContent}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
