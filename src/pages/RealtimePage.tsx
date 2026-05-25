@@ -3220,7 +3220,10 @@ export default function NewRealtimePage() {
                             const idxProduct = headers.findIndex(h => h.toLowerCase().includes('tên sản phẩm'));
                             const idxSmallCategoryHeader = headers.findIndex(h => h.toLowerCase().includes('nhóm hàng nhỏ'));
                             const idxNhomHang = headers.findIndex(h => h.includes('Nhóm hàng'));
-                            const idxHinhThucXuat = headers.findIndex(h => h.includes('Hình thức xuất'));
+                            const idxHinhThucXuat = headers.findIndex(h => {
+                               const lh = h.toLowerCase();
+                               return lh.includes('hình thức xuất') || lh.includes('loại ycx') || lh.includes('loại yêu cầu');
+                             });
                             // Date columns to format
                             const dateColIndices = new Set<number>(
                               headers.reduce((acc: number[], h, i) => {
@@ -3292,13 +3295,34 @@ export default function NewRealtimePage() {
                               return '-';
                             };
 
-                            const classifyHinhThucXuat = (htx: string): string => {
-                              const lower = htx.toLowerCase();
-                              // TC = Trả cửợc: chứa 'trả góp'
-                              if (lower.includes('trả góp')) return 'TC';
-                              // TM = Tiền mặt: tất cả các trường hợp còn lại
-                              return 'TM';
-                            };
+                            const classifyHinhThucXuat = (htx: string): string | null => {
+                               const clean = htx.trim().toLowerCase().replace(/\s+/g, ' ');
+                               const mapping: Record<string, string> = {
+                                 'xuất bán hàng online tại siêu thị': 'Tiền mặt',
+                                 'xuất bán hàng online tiết kiệm': 'Tiền mặt',
+                                 'xuất bán hàng tại siêu thị': 'Tiền mặt',
+                                 'xuất bán hàng tại siêu thị (tcđm)': 'Tiền mặt',
+                                 'xuất bán online giá rẻ': 'Tiền mặt',
+                                 'xuất bán pre-order tại siêu thị': 'Tiền mặt',
+                                 'xuất bán ưu đãi cho nhân viên': 'Tiền mặt',
+                                 'xuất dịch vụ thu hộ bảo hiểm': 'Tiền mặt',
+                                 'xuất đổi bảo hành sản phẩm imei': 'Tiền mặt',
+                                 'xuất đổi bảo hành tại siêu thị': 'Tiền mặt',
+                                 'xuất sim trắng kèm theo sim': 'Tiền mặt',
+                                 'xuất bán hàng trả góp online': 'Trả góp',
+                                 'xuất bán hàng trả góp online giá rẻ': 'Trả góp',
+                                 'xuất bán hàng trả góp online tiết kiệm': 'Trả góp',
+                                 'xuất bán hàng trả góp tại siêu thị': 'Trả góp',
+                                 'xuất bán hàng trả góp tại siêu thị (tcđm)': 'Trả góp',
+                                 'xuất bán trả góp ưu đãi cho nhân viên': 'Trả góp',
+                                 'xuất đổi bảo hành sản phẩm trả góp có imei': 'Trả góp',
+                                 'xuất dịch vụ thu hộ cước payoo': 'Thu hộ',
+                                 'xuất dịch vụ thu hộ qua epay': 'Thu hộ',
+                                 'xuất dịch vụ thu hộ qua smartnet': 'Thu hộ',
+                                 'xuất dịch vụ thu hộ qua tổng công ty viettel': 'Thu hộ'
+                               };
+                               return mapping[clean] || null;
+                             };
 
                             // Paginate: only render current page rows
                             const pageRows = deferredFilteredRows.slice(
@@ -3326,12 +3350,14 @@ export default function NewRealtimePage() {
                                 </td>
                                 <td className="border border-slate-200 py-2 px-3 text-[9px] whitespace-nowrap font-black text-center">
                                   {(() => {
-                                    const val = idxHinhThucXuat !== -1 ? classifyHinhThucXuat(String(row[idxHinhThucXuat] || '')) : '-';
-                                    return val === 'TC'
-                                      ? <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-black">TC</span>
-                                      : val === 'TM'
-                                        ? <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-black">TM</span>
-                                        : <span className="text-slate-400">-</span>;
+                                    const val = idxHinhThucXuat !== -1 ? classifyHinhThucXuat(String(row[idxHinhThucXuat] || '')) : null;
+                                    return val === 'Tiền mặt'
+                                      ? <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-black">Tiền mặt</span>
+                                      : val === 'Trả góp'
+                                        ? <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-black">Trả góp</span>
+                                        : val === 'Thu hộ'
+                                          ? <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-black">Thu hộ</span>
+                                          : <span className="text-slate-400">-</span>;
                                   })()}
                                 </td>
                               </tr>
