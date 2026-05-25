@@ -136,12 +136,19 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
 
   const targetPerStaffPerCat: Record<string, number> = {};
   if (luykeCategories && luykeCategories.length > 0) {
-    luykeCategories.forEach(cat => {
-      targetPerStaffPerCat[cleanCategoryName(cat.name)] = cat.target / staffCount;
+    luykeCategories.forEach((cat: any) => {
+      const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCategoryName(cat.name));
+      const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
+        ? matchingTarget.adjustedTarget
+        : cat.target;
+      targetPerStaffPerCat[cleanCategoryName(cat.name)] = baseTarget / staffCount;
     });
   } else {
-    categoryTargets.forEach(cat => {
-      targetPerStaffPerCat[cleanCategoryName(cat.name)] = (cat.target || 0) / staffCount;
+    categoryTargets.forEach((cat: any) => {
+      const baseTarget = (typeof cat.adjustedTarget === 'number')
+        ? cat.adjustedTarget
+        : (cat.target || 0);
+      targetPerStaffPerCat[cleanCategoryName(cat.name)] = baseTarget / staffCount;
     });
   }
 
@@ -321,12 +328,18 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
   // Prepare all row data
   const allRowData = detailCategories.map((catName, index) => {
     let target = 0;
+    const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCategoryName(catName));
     if (luykeCategories && luykeCategories.length > 0) {
-      const lkCat = luykeCategories.find(c => cleanCategoryName(c.name) === cleanCategoryName(catName));
-      target = lkCat ? lkCat.target / staffCount : 0;
+      const lkCat = luykeCategories.find((c: any) => cleanCategoryName(c.name) === cleanCategoryName(catName));
+      const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
+        ? matchingTarget.adjustedTarget
+        : (lkCat ? lkCat.target : 0);
+      target = baseTarget / staffCount;
     } else {
-      const targetObj = categoryTargets.find(t => cleanCategoryName(t.name) === cleanCategoryName(catName));
-      target = targetObj ? targetObj.target / staffCount : 0;
+      const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
+        ? matchingTarget.adjustedTarget
+        : 0;
+      target = baseTarget / staffCount;
     }
     
     // Giá trị thực đạt đã được khớp đúng vị trí cột từ parseStaffMatrixDataRefined

@@ -96,12 +96,19 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
 
   const targetPerStaffPerCat: Record<string, number> = {};
   if (luykeCategories && luykeCategories.length > 0) {
-    luykeCategories.forEach(cat => {
-      targetPerStaffPerCat[cleanCategoryName(cat.name)] = cat.target / staffCount;
+    luykeCategories.forEach((cat: any) => {
+      const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCategoryName(cat.name));
+      const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
+        ? matchingTarget.adjustedTarget
+        : cat.target;
+      targetPerStaffPerCat[cleanCategoryName(cat.name)] = baseTarget / staffCount;
     });
   } else {
-    categoryTargets.forEach(cat => {
-      targetPerStaffPerCat[cleanCategoryName(cat.name)] = (cat.target || 0) / staffCount;
+    categoryTargets.forEach((cat: any) => {
+      const baseTarget = (typeof cat.adjustedTarget === 'number')
+        ? cat.adjustedTarget
+        : (cat.target || 0);
+      targetPerStaffPerCat[cleanCategoryName(cat.name)] = baseTarget / staffCount;
     });
   }
 
@@ -402,11 +409,13 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
           selectedCategories.map((catName) => {
             const catIdx = categories.indexOf(catName);
             const lkCat = luykeCategories.length > 0
-              ? luykeCategories.find(c => cleanCategoryName(c.name) === cleanCategoryName(catName))
+              ? luykeCategories.find((c: any) => cleanCategoryName(c.name) === cleanCategoryName(catName))
               : null;
-            const targetPerStaff = lkCat
-              ? lkCat.target / staffCount
-              : (() => { const t = categoryTargets.find(t => cleanCategoryName(t.name) === cleanCategoryName(catName)); return t ? (t.target || 0) / staffCount : 0; })();
+            const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCategoryName(catName));
+            const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
+              ? matchingTarget.adjustedTarget
+              : (lkCat ? lkCat.target : 0);
+            const targetPerStaff = staffCount > 0 ? baseTarget / staffCount : 0;
             const elementId = `cat-detail-${catName.replace(/\s+/g, '-')}`;
 
             const rowData = staffMatrix.map(staff => {

@@ -120,11 +120,13 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       values.push(accumulated);
 
       const lkCat = luykeCategories.length > 0
-        ? luykeCategories.find(c => cleanCategoryName(c.name) === cleanCategoryName(catName))
+        ? luykeCategories.find((c: any) => cleanCategoryName(c.name) === cleanCategoryName(catName))
         : null;
-      const target = lkCat
-        ? lkCat.target / staffCount
-        : (() => { const t = categoryTargets.find(t => cleanCategoryName(t.name) === cleanCategoryName(catName)); return t ? t.target / staffCount : 0; })();
+      const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCategoryName(catName));
+      const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
+        ? matchingTarget.adjustedTarget
+        : (lkCat ? lkCat.target : 0);
+      const target = baseTarget / staffCount;
       
       // Actual
       let actualRate = target > 0 ? (accumulated / target) * 100 : 0;
@@ -188,6 +190,17 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   // Use passed luykeCategories (BC THÁNG displayed data) for staffMatrix calculation
   const { staffMatrix, categories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays);
   const sortedStaffMatrix = staffMatrix.sort((a, b) => b.rate - a.rate);
+
+  const getTargetPerStaff = (catName: string) => {
+    const lkCat = luykeCategories.length > 0
+      ? luykeCategories.find((c: any) => cleanCategoryName(c.name) === cleanCategoryName(catName))
+      : null;
+    const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCategoryName(catName));
+    const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
+      ? matchingTarget.adjustedTarget
+      : (lkCat ? lkCat.target : 0);
+    return staffCount > 0 ? baseTarget / staffCount : 0;
+  };
   
   // Initialize visible categories when categories load
   React.useEffect(() => {
@@ -512,12 +525,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                   {(() => {
                     const visibleAchieved = categories.reduce((count, catName, idx) => {
                       if (!visibleCategories.includes(catName)) return count;
-                      const lkCat = luykeCategories.length > 0
-                        ? luykeCategories.find(c => cleanCategoryName(c.name) === cleanCategoryName(catName))
-                        : null;
-                      const targetPerStaff = lkCat
-                        ? lkCat.target / staffCount
-                        : (() => { const t = categoryTargets.find(t => cleanCategoryName(t.name) === cleanCategoryName(catName)); return t && staffCount > 0 ? t.target / staffCount : 0; })();
+                      const targetPerStaff = getTargetPerStaff(catName);
                       const accumulated = staff.rawValues[idx] || 0;
                       const projectedRate = targetPerStaff > 0 && daysPassed > 0
                         ? (((accumulated) / daysPassed) * totalDays) / targetPerStaff * 100
@@ -532,12 +540,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                   (() => {
                     const visibleAchieved = categories.reduce((count, catName, idx) => {
                       if (!visibleCategories.includes(catName)) return count;
-                      const lkCat = luykeCategories.length > 0
-                        ? luykeCategories.find(c => cleanCategoryName(c.name) === cleanCategoryName(catName))
-                        : null;
-                      const targetPerStaff = lkCat
-                        ? lkCat.target / staffCount
-                        : (() => { const t = categoryTargets.find(t => cleanCategoryName(t.name) === cleanCategoryName(catName)); return t && staffCount > 0 ? t.target / staffCount : 0; })();
+                      const targetPerStaff = getTargetPerStaff(catName);
                       const accumulated = staff.rawValues[idx] || 0;
                       const projectedRate = targetPerStaff > 0 && daysPassed > 0
                         ? (((accumulated) / daysPassed) * totalDays) / targetPerStaff * 100
@@ -551,12 +554,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                   {(() => {
                     const visibleAchieved = categories.reduce((count, catName, idx) => {
                       if (!visibleCategories.includes(catName)) return count;
-                      const lkCat = luykeCategories.length > 0
-                        ? luykeCategories.find(c => cleanCategoryName(c.name) === cleanCategoryName(catName))
-                        : null;
-                      const targetPerStaff = lkCat
-                        ? lkCat.target / staffCount
-                        : (() => { const t = categoryTargets.find(t => cleanCategoryName(t.name) === cleanCategoryName(catName)); return t && staffCount > 0 ? t.target / staffCount : 0; })();
+                      const targetPerStaff = getTargetPerStaff(catName);
                       const accumulated = staff.rawValues[idx] || 0;
                       const projectedRate = targetPerStaff > 0 && daysPassed > 0
                         ? (((accumulated) / daysPassed) * totalDays) / targetPerStaff * 100
@@ -569,12 +567,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                 </td>
                 {categories.map((catName, idx) => {
                   if (!visibleCategories.includes(catName)) return null;
-                  const lkCat = luykeCategories.length > 0
-                    ? luykeCategories.find(c => cleanCategoryName(c.name) === cleanCategoryName(catName))
-                    : null;
-                  const targetPerStaff = lkCat
-                    ? lkCat.target / staffCount
-                    : (() => { const t = categoryTargets.find(t => cleanCategoryName(t.name) === cleanCategoryName(catName)); return t && staffCount > 0 ? t.target / staffCount : 0; })();
+                  const targetPerStaff = getTargetPerStaff(catName);
                   const accumulated = staff.rawValues[idx] || 0;
                   const projectedRate = targetPerStaff > 0 && daysPassed > 0 
                       ? (((accumulated) / daysPassed) * totalDays) / targetPerStaff * 100
