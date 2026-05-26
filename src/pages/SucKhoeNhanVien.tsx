@@ -236,6 +236,19 @@ const EmployeeHealth: React.FC = () => {
   const captureRef = useRef<HTMLDivElement>(null);
   const capturePhucVuRef = useRef<HTMLDivElement>(null);
   const captureBanKemRef = useRef<HTMLDivElement>(null);
+  const captureThuongNvRef = useRef<HTMLDivElement>(null);
+  const handleCaptureThuongNv = async () => {
+    if (!captureThuongNvRef.current) return;
+    setIsCapturing(true);
+    try {
+      const dataUrl = await htmlToImage.toPng(captureThuongNvRef.current, { backgroundColor: '#ffffff' });
+      saveAs(dataUrl, 'LK_THUONG_NHAN_VIEN.png');
+    } catch (err) {
+      console.error('Error capturing thuong nv board:', err);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
 
   const handleCaptureBanKem = async () => {
     if (!captureBanKemRef.current) return;
@@ -1524,7 +1537,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     </div>
 
                     {/* RIGHT PANEL - Bonus Summary Table */}
-                    <div className="bg-white rounded-[24px] shadow-lg border border-slate-200/80 overflow-hidden">
+                    <div ref={captureThuongNvRef} className="bg-white rounded-[24px] shadow-lg border border-slate-200/80 overflow-hidden">
                       {/* Table Header */}
                       <div className="border-b border-slate-100 px-6 py-4.5 bg-white">
                         <div className="flex items-center justify-between">
@@ -1538,6 +1551,16 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
+                            <button
+                              onClick={handleCaptureThuongNv}
+                              disabled={isCapturing}
+                              className={cn(
+                                "flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                                isCapturing ? "opacity-50 cursor-not-allowed" : "active:scale-95"
+                              )}
+                            >
+                              <Camera size={14} /> CHỤP ẢNH
+                            </button>
                             <div className="px-3 py-1.5 rounded-xl bg-slate-100">
                               <span className="text-[12px] font-black text-slate-700 uppercase tracking-widest">{filteredBiData.length} NV</span>
                             </div>
