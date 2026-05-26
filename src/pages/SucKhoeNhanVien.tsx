@@ -1285,8 +1285,8 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             <div className="w-full">
                               <table className="w-full border-collapse">
                                 <thead className="sticky top-0 z-20">
-                                  <tr className="text-white font-utm-avo font-black text-[14px] uppercase tracking-wider h-[40px]">
-                                    <th className="bg-[#00965e] px-2 py-0 text-center border-r border-white/10 h-[30px]">STT</th>
+                                  <tr className="text-white font-utm-avo font-black text-[17px] uppercase tracking-wider h-[45px]">
+                                    <th className="bg-[#00965e] px-2 py-0 text-center border-r border-white/10 h-[35px]">STT</th>
                                     {visibleIndices.map((idx, i) => {
                                       // Map color regions like the image
                                       let bgColor = 'bg-[#00965e]'; // First group (Emerald)
@@ -1296,12 +1296,12 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                       let widthClasses = ''; // Flexible width
 
                                       return (
-                                        <th key={idx} className={`${bgColor} ${widthClasses} px-2 py-0 text-center border-r border-white/10 whitespace-normal break-words leading-tight text-[12px] h-[30px]`}>
+                                        <th key={idx} className={`${bgColor} ${widthClasses} px-2 py-0 text-center border-r border-white/10 whitespace-normal break-words leading-tight text-[14px] h-[35px]`}>
                                           {allHeaders[idx]}
                                         </th>
                                       );
                                     })}
-                                    <th className="bg-[#f58220] px-2 py-0 text-center border-r border-white/10 last:border-r-0 whitespace-nowrap text-[12px] h-[30px]">
+                                    <th className="bg-[#f58220] px-2 py-0 text-center border-r border-white/10 last:border-r-0 whitespace-nowrap text-[14px] h-[35px]">
                                       TOP/BOT
                                     </th>
                                   </tr>
@@ -1314,8 +1314,8 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                     const isBottomOne = rowIdx >= totalRows - botLimit;
 
                                     return (
-                                      <tr key={rowIdx} className={`${isStriped ? 'bg-[#f8faff]' : 'bg-white'} hover:bg-slate-50 transition-colors h-[30px]`}>
-                                        <td className="px-2 py-0 text-center font-black text-slate-800 text-[13px] font-oswald border-r border-slate-100 h-[30px]">{rowIdx + 1}</td>
+                                      <tr key={rowIdx} className={`${isStriped ? 'bg-[#f8faff]' : 'bg-white'} hover:bg-slate-50 transition-colors h-[35px]`}>
+                                        <td className="px-2 py-0 text-center font-black text-slate-800 text-[16px] font-oswald border-r border-slate-100 h-[35px]">{rowIdx + 1}</td>
                                         {visibleIndices.map((idx, i) => {
                                           const value = cells[idx] || '';
                                           const headerText = allHeaders[idx].trim().toUpperCase();
@@ -1337,33 +1337,41 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                             }
                                           }
 
+                                          let displayValue = value;
+                                          if (headerText.includes('ĐIỂM KH HÀI LÒNG')) {
+                                            const numVal = parseFloat(value);
+                                            if (!isNaN(numVal) && value.trim() !== '') {
+                                              displayValue = (Math.floor(numVal * 10) / 10).toString();
+                                            }
+                                          }
+
                                           return (
-                                            <td key={idx} className={`px-2 py-0 text-center text-[13px] font-utm-avo font-bold ${textColor} border-r border-slate-100 whitespace-nowrap h-[40px]`}>
+                                            <td key={idx} className={`px-2 py-0 text-center text-[16px] font-utm-avo font-bold ${textColor} border-r border-slate-100 whitespace-nowrap h-[45px]`}>
                                               <div className="flex items-center justify-center gap-1 h-full px-2">
                                                 {isStaffName && <ChevronRight size={14} className="flex-shrink-0" />}
                                                 {isPercentage ? (
                                                   <span className={`px-1.5 py-0.5 rounded ${parseFloat(value) >= 100 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                                                    {value}
+                                                    {displayValue}
                                                   </span>
                                                 ) : (
-                                                  <span>{value}</span>
+                                                  <span>{displayValue}</span>
                                                 )}
                                               </div>
                                             </td>
                                           );
                                         })}
-                                        <td className={`px-1 py-0 text-center text-[13px] font-bold font-oswald border-r border-slate-100 last:border-r-0 whitespace-nowrap h-[30px]`}>
+                                        <td className={`px-1 py-0 text-center text-[16px] font-bold font-oswald border-r border-slate-100 last:border-r-0 whitespace-nowrap h-[35px]`}>
                                           <div className="flex items-center justify-center gap-1 h-full">
                                             {isTopOne && (
                                               <div className="flex items-center gap-1 text-[#2563eb]">
                                                 <Trophy size={14} className="flex-shrink-0" />
-                                                <span className="text-[11px]">TOP</span>
+                                                <span className="text-[13px]">TOP</span>
                                               </div>
                                             )}
                                             {isBottomOne && (
                                               <div className="flex items-center gap-1 text-[#e11d48]">
                                                 <TrendingDown size={14} className="flex-shrink-0" />
-                                                <span className="text-[11px]">BOT</span>
+                                                <span className="text-[13px]">BOT</span>
                                               </div>
                                             )}
                                             {!isTopOne && !isBottomOne && <span className="opacity-20 text-slate-400">-</span>}
@@ -1375,7 +1383,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                 </tbody>
                                 {/* Footer like the image */}
                                 <tfoot className="bg-[#f8faff] border-t-2 border-slate-200">
-                                  <tr className="font-black text-slate-800 uppercase text-[12pt]">
+                                  <tr className="font-black text-slate-800 uppercase text-[14pt]">
                                     <td colSpan={2} className="px-6 py-4 text-center">TỔNG</td>
                                     {visibleIndices.slice(1).map((_, i) => (
                                       <td key={i} className="px-4 py-4 text-center">---</td>
