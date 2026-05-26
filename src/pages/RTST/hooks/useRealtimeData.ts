@@ -23,7 +23,8 @@ import {
   fetchConversionRates,
   CONVERSION_RATES,
   safeSetItem,
-  isValidStoreName
+  isValidStoreName,
+  minifyYcxData
 } from '../utils';
 
 export const useRealtimeData = (maKho: string) => {
@@ -186,8 +187,10 @@ export const useRealtimeData = (maKho: string) => {
 
   const updateYcxData = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(ycxDataRef.current) : val;
-    ycxDataRef.current = newVal;
-    setYcxData(newVal);
+    // Minify data before setting to prevent Firebase 1MB size limit errors
+    const minified = minifyYcxData(newVal);
+    ycxDataRef.current = minified;
+    setYcxData(minified);
     setIsYcxDirty(true);
   }, []);
 
@@ -440,6 +443,11 @@ export const useRealtimeData = (maKho: string) => {
             });
             
             setYcxData(prev => {
+              // Safeguard: If Firebase rejected our save (e.g. >1MB limit) 
+              // it rolls back and sends an empty string. We ignore it to prevent data loss on UI.
+              if (prev && prev.length > 1000 && (!record.ycx_data || record.ycx_data.trim() === '')) {
+                return prev;
+              }
               if (prev !== record.ycx_data) {
                 skipAutoSaveRef.current = true;
                 return record.ycx_data || '';

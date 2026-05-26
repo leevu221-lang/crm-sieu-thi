@@ -1478,6 +1478,95 @@ export const fetchConversionRates = async (): Promise<Record<string, { normal: n
   }
 };
 
+export const minifyYcxData = (data: string): string => {
+  if (!data) return data;
+  let rows: string[][] = [];
+  try {
+    const parsed = JSON.parse(data);
+    if (Array.isArray(parsed)) rows = parsed;
+    else rows = data.split('\n').map(line => line.split('\t'));
+  } catch (e) {
+    rows = data.split('\n').map(line => line.split('\t'));
+  }
+
+  if (rows.length < 2) return data;
+
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(rows.length, 30); i++) {
+    if (rows[i] && rows[i].some(cell => {
+      const c = String(cell).toLowerCase();
+      return c.includes('người tạo') || c.includes('nhân viên') || c.includes('phải thu') || c.includes('loại ycx') || c.includes('trạng thái xuất');
+    })) {
+      headerIdx = i;
+      break;
+    }
+  }
+
+  if (headerIdx === -1) return data; // Cannot safely minify without header
+
+  const header = rows[headerIdx].map(c => String(c || '').toLowerCase().trim());
+  const getIdx = (names: string[]) => {
+    const lowerNames = names.map(n => n.toLowerCase());
+    const exactIdx = header.findIndex(h => lowerNames.includes(h));
+    if (exactIdx !== -1) return exactIdx;
+    return header.findIndex(h => lowerNames.some(n => h.includes(n)));
+  };
+
+  const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
+  const idxMethod = getIdx(['hình thức xuất']);
+  const idxStatus = getIdx(['trạng thái xuất']);
+  const idxStaffName = getIdx(['người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo']); 
+  const idxStaffId = getIdx(['user tạo', 'mã nv', 'mã nhân viên', 'id nhân viên']);
+  const idxRevenue = getIdx(['phải thu', 'doanh thu', 'tổng tiền', 'thành tiền', 'giá bán 1', 'giá bán', 'giá trị', 'số tiền', 'tổng cộng', 'tiền']);
+  const idxProduct = getIdx(['tên sản phẩm', 'sản phẩm', 'tên hàng', 'hàng hóa']);
+  const idxQty = getIdx(['số lượng', 'sl', 'quantity']);
+  const idxMarket = getIdx(['siêu thị', 'mã kho', 'tên kho', 'địa điểm', 'kho', 'cửa hàng']);
+  const idxColumnAO = getIdx(['nhóm ngành hàng', 'nhóm hàng', 'ngành hàng', 'nhóm']);
+  const idxReturnStatus = getIdx(['trạng thái trả', 'trả hàng']);
+
+  const colType = idxType !== -1 ? idxType : 3;
+  const colMethod = idxMethod !== -1 ? idxMethod : 3;
+  const colStatus = idxStatus !== -1 ? idxStatus : 13;
+  const colStaffName = idxStaffName !== -1 ? idxStaffName : 23;
+  const colStaffId = idxStaffId !== -1 ? idxStaffId : 22;
+  const colRevenue = idxRevenue !== -1 ? idxRevenue : 37;
+  const colProduct = idxProduct !== -1 ? idxProduct : 33;
+  const colQty = idxQty !== -1 ? idxQty : 35;
+  const colMarket = idxMarket !== -1 ? idxMarket : 1;
+  const colColumnAO = idxColumnAO !== -1 ? idxColumnAO : 40;
+  const colReturnStatus = idxReturnStatus !== -1 ? idxReturnStatus : 44;
+
+  const usedCols = new Set([colType, colMethod, colStatus, colStaffName, colStaffId, colRevenue, colProduct, colQty, colMarket, colColumnAO, colReturnStatus]);
+
+  const validRows = [];
+  // Keep headers
+  for (let i = 0; i <= headerIdx; i++) {
+    validRows.push(rows[i]);
+  }
+
+  // Filter rows and clear unused columns
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const cols = rows[i];
+    if (!cols || cols.length < 3) continue;
+
+    const method = String(cols[colMethod] || '').trim().toLowerCase();
+    const status = String(cols[colStatus] || '').trim().toLowerCase();
+    const returnStatus = String(cols[colReturnStatus] || '').trim().toLowerCase();
+
+    // Skip invalid rows early
+    if (!method.startsWith('xuất bán') && !method.startsWith('xuất đổi')) continue;
+    if (status !== 'đã xuất' || returnStatus !== 'chưa trả') continue;
+
+    validRows.push(cols);
+  }
+
+  try {
+    return validRows.map(r => r.join('\t')).join('\n');
+  } catch (e) {
+    return data;
+  }
+};
+
 export const parseYcxData = (data: string, customRates?: Record<string, { normal: number, installment: number }>): YcxStaffData[] => {
   if (!data) return [];
   
