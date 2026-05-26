@@ -1199,10 +1199,10 @@ export default function NewRealtimePage() {
 
       // Phân tích Gia dụng từ nhóm nhỏ (YCX RT) độc lập
       const nSmall = nhomSmall.toUpperCase();
-      const isMln = nSmall.includes('MLN') || nSmall.includes('LỌC NƯỚC');
-      const isNcom = nSmall.includes('N.CƠM') || nSmall.includes('NỒI CƠM') || nSmall.includes('NC NẮP RỜI') || nSmall.includes('NC Đ.TỬ') || nSmall === 'NC';
-      const isNchien = nSmall.includes('N.CHIÊN') || nSmall.includes('NỒI CHIÊN');
-      const isQuat = nSmall.includes('QUẠT') || nSmall.includes('MÁY LÀM MÁT') || nSmall === 'QĐH';
+      const isMln = nSmall === 'MLN';
+      const isNcom = nSmall === 'NC NẮP RỜI' || nSmall === 'NC Đ.TỬ';
+      const isNchien = nSmall === 'N.CHIÊN';
+      const isQuat = nSmall === 'QUẠT';
 
       if (isMln) item.gdMlnQty += qty;
       if (isNcom) item.gdNcomQty += qty;
