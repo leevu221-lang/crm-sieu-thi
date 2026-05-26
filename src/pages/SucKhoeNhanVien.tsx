@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { HeartPulse, Camera, TrendingUp, Search, ChevronDown, Check, MessageSquare, FileText, ChevronRight, LayoutGrid, Info, Users, Printer, UploadCloud, Trophy, TrendingDown, Gift, Target, RefreshCw } from 'lucide-react';
+import { HeartPulse, Camera, TrendingUp, Search, ChevronDown, Check, MessageSquare, FileText, ChevronRight, LayoutGrid, Info, Users, Printer, UploadCloud, Trophy, TrendingDown, Gift, Target, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { motion, AnimatePresence } from 'motion/react';
 import * as htmlToImage from 'html-to-image';
@@ -426,148 +426,19 @@ const EmployeeHealth: React.FC = () => {
     }
   };
 
-  const handleDistribute = (field: 'truoc' | 'hientai') => {
-    const firstStaff = filteredBiData[0];
-    if (!firstStaff) {
-      showNotification('Không tìm thấy nhân viên nào để phân bổ!', 'error');
-      return;
-    }
-    const sourceText = thuongData[firstStaff.fullId]?.[field] || '';
-    if (!sourceText.trim()) {
-      showNotification('Vui lòng dán dữ liệu vào ô nhân viên đầu tiên trước!', 'error');
-      return;
-    }
-
-    const lines = sourceText.split('\n');
-    
-    // Clean store name for matching
-    const currentStoreClean = marketFilter && marketFilter !== 'ALL' 
-      ? removeAccents(marketFilter).replace(/^(dml|dms3|dms|dmm|tgd|aar|bhx)\s+/, '').trim()
-      : '';
-
-    // Helper to check if a line is a supermarket header
-    const getStoreHeader = (line: string): string | null => {
-      const cleanLine = removeAccents(line).trim();
-      const hasStoreKeyword = cleanLine.includes('sieu thi') || 
-                              cleanLine.includes('cua hang') ||
-                              cleanLine.includes('dien may xanh') ||
-                              cleanLine.includes('the gioi di dong') ||
-                              /^(dml|dms3|dms|dmm|tgd|aar|bhx)\b/.test(cleanLine);
-      return hasStoreKeyword ? cleanLine : null;
-    };
-
-    // Find the header line in the source text if it exists
-    let headerLine = '';
-    for (const line of lines) {
-      const parts = splitLine(line);
-      const hasThucLanh = parts.some(p => {
-        const clean = removeAccents(p);
-        return clean.includes('diem thuc lanh') || 
-               clean.includes('thuc lanh') ||
-               clean.includes('thuc nhan') ||
-               clean.includes('thuc linh') ||
-               clean.includes('thuc tra');
+  const handleClearThuong = (field: 'truoc' | 'hientai') => {
+    if (!window.confirm(`Bạn có chắc muốn xóa dữ liệu thưởng ${field === 'truoc' ? 'tháng trước' : 'hiện tại'} của tất cả nhân viên?`)) return;
+    setThuongData(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(staffId => {
+        if (updated[staffId]) {
+          updated[staffId] = { ...updated[staffId], [field]: '' };
+        }
       });
-      if (hasThucLanh) {
-        headerLine = line;
-        break;
-      }
-    }
-
-    const updated = { ...thuongData };
-    let count = 0;
-    const hasAnyHeader = lines.some(l => getStoreHeader(l) !== null);
-
-    filteredBiData.forEach(staff => {
-      const staffId = staff.fullId;
-      const staffNameClean = removeAccents(staff.displayName.split('-').pop() || '').trim();
-      let staffLines: string[] = [];
-      let found = false;
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const cleanLine = removeAccents(line);
-
-        const matchStaff = cleanLine.includes(staffId) || (staffNameClean && cleanLine.includes(staffNameClean));
-        if (matchStaff) {
-          // Look upwards for nearest store header
-          let nearestStoreHeader: string | null = null;
-          for (let k = i - 1; k >= 0; k--) {
-            const header = getStoreHeader(lines[k]);
-            if (header) {
-              nearestStoreHeader = header;
-              break;
-            }
-          }
-
-          // Check store compatibility
-          let storeCompatible = true;
-          if (currentStoreClean) {
-            if (hasAnyHeader) {
-              if (nearestStoreHeader) {
-                storeCompatible = nearestStoreHeader.includes(currentStoreClean);
-              } else {
-                storeCompatible = false;
-              }
-            }
-          }
-
-          if (storeCompatible) {
-            found = true;
-            staffLines = [line];
-            
-            for (let j = i + 1; j < lines.length; j++) {
-              const subLine = lines[j];
-
-              if (getStoreHeader(subLine) !== null) {
-                break;
-              }
-
-              staffLines.push(subLine);
-              const subParts = splitLine(subLine);
-              const hasTotalLabel = subParts.some(part => {
-                const clean = removeAccents(part);
-                return clean === 'tong cong' ||
-                       clean === 'tong' ||
-                       clean.startsWith('tong cong') ||
-                       clean.startsWith('tong ') ||
-                       clean.startsWith('tong:') ||
-                       clean.includes('tong cong') ||
-                       clean.includes('tong');
-              });
-              const hasNumericData = subParts.some(part => {
-                const clean = part.replace(/[^\d-]/g, '');
-                return clean.length > 0 && !isNaN(parseInt(clean, 10));
-              });
-              if (hasTotalLabel && hasNumericData) {
-                break;
-              }
-            }
-            break;
-          }
-        }
-      }
-
-      if (found && staffLines.length > 0) {
-        // Prepend header if not already present
-        if (headerLine && staffLines[0] !== headerLine) {
-          staffLines.unshift(headerLine);
-        }
-        updated[staffId] = {
-          ...updated[staffId],
-          [field]: staffLines.join('\n')
-        };
-        count++;
-      }
-    });
-
-    if (count > 0) {
-      setThuongData(updated);
       saveThuongToDb(updated);
-      showNotification(`Đã phân bổ dữ liệu thành công cho ${count} nhân viên!`, 'success');
-    } else {
-      showNotification('Không tìm thấy dữ liệu khớp với mã nhân viên nào trong danh sách!', 'error');
-    }
+      showNotification(`Đã xóa dữ liệu thưởng ${field === 'truoc' ? 'tháng trước' : 'hiện tại'} thành công!`, 'success');
+      return updated;
+    });
   };
 
   // Default to check all when data is loaded or STORE changes
@@ -1580,12 +1451,12 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             </div>
                           </div>
                           <button
-                            onClick={() => handleDistribute('truoc')}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm"
-                            title="Cập nhật dữ liệu cho các nhân viên bên dưới từ ô nhân viên đầu tiên phía trên"
+                            onClick={() => handleClearThuong('truoc')}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-600 hover:text-rose-700 border border-rose-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm"
+                            title="Xóa toàn bộ dữ liệu thưởng tháng trước"
                           >
-                            <RefreshCw size={10} className="text-slate-500" />
-                            Cập nhật từ ô NV phía trên
+                            <Trash2 size={10} className="text-rose-500" />
+                            Xóa dữ liệu
                           </button>
                         </div>
                         <div className="space-y-2.5">
@@ -1622,12 +1493,12 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             </div>
                           </div>
                           <button
-                            onClick={() => handleDistribute('hientai')}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 hover:text-purple-900 border border-purple-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm"
-                            title="Cập nhật dữ liệu cho các nhân viên bên dưới từ ô nhân viên đầu tiên phía trên"
+                            onClick={() => handleClearThuong('hientai')}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-600 hover:text-rose-700 border border-rose-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm"
+                            title="Xóa toàn bộ dữ liệu thưởng tháng hiện tại"
                           >
-                            <RefreshCw size={10} className="text-purple-500" />
-                            Cập nhật từ ô NV phía trên
+                            <Trash2 size={10} className="text-rose-500" />
+                            Xóa dữ liệu
                           </button>
                         </div>
                         <div className="space-y-2.5">
