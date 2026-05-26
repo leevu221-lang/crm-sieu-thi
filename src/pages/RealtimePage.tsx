@@ -3082,6 +3082,19 @@ export default function NewRealtimePage() {
 
                       return staffKhaiThacStats.length > 0 ? staffKhaiThacStats.map((item, idx) => {
                         const visibleSpChinhTotalQty = getVisibleSpChinhQty(item);
+
+                        const visiblePkTotalQty = 
+                          (showKhaiThacCols.pkCam ? item.pkCamQty : 0) + 
+                          (showKhaiThacCols.pkLoa ? item.pkLoaQty : 0) + 
+                          (showKhaiThacCols.pkPin ? item.pkPinQty : 0) + 
+                          (showKhaiThacCols.pkTn ? item.pkTnQty : 0);
+
+                        const visibleGdTotalQty = 
+                          (showKhaiThacCols.gdMln ? item.gdMlnQty : 0) + 
+                          (showKhaiThacCols.gdNcom ? item.gdNcomQty : 0) + 
+                          (showKhaiThacCols.gdNchien ? item.gdNchienQty : 0) + 
+                          (showKhaiThacCols.gdQuat ? item.gdQuatQty : 0);
+
                         return (
                           <tr key={item.staffName} className="hover:bg-slate-50/50 transition-colors">
                             <td className="py-3 px-4 text-left font-bold text-slate-800">
@@ -3141,7 +3154,7 @@ export default function NewRealtimePage() {
                                 {showKhaiThacCols.pkPin && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkPinQty)}</td>}
                                 {showKhaiThacCols.pkTn && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkTnQty)}</td>}
                                 {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.pkRev)}</td>}
-                                <td className="py-3 px-2 text-center">{renderPct(item.pkTotalQty, visibleSpChinhTotalQty)}</td>
+                                <td className="py-3 px-2 text-center">{renderPct(visiblePkTotalQty, visibleSpChinhTotalQty)}</td>
                               </>
                             )}
                             {/* GIA DỤNG Cells */}
@@ -3151,7 +3164,7 @@ export default function NewRealtimePage() {
                                 {showKhaiThacCols.gdNcom && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdNcomQty)}</td>}
                                 {showKhaiThacCols.gdNchien && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdNchienQty)}</td>}
                                 {showKhaiThacCols.gdQuat && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdQuatQty)}</td>}
-                                <td className="py-3 px-2 text-center">{renderPct(item.gdQty, visibleSpChinhTotalQty)}</td>
+                                <td className="py-3 px-2 text-center">{renderPct(visibleGdTotalQty, visibleSpChinhTotalQty)}</td>
                               </>
                             )}
                           </tr>
@@ -3222,6 +3235,23 @@ export default function NewRealtimePage() {
                           return `${val}%`;
                         };
 
+                        const totalVisibleSpChinhQty = 
+                          (showKhaiThacCols.ict ? totalIctQty : 0) + 
+                          (showKhaiThacCols.ce ? totalCeQty : 0) + 
+                          (showKhaiThacCols.dgd ? totalDgdQty : 0);
+
+                        const totalVisiblePkTotalQty = 
+                          (showKhaiThacCols.pkCam ? totalPkCam : 0) + 
+                          (showKhaiThacCols.pkLoa ? totalPkLoa : 0) + 
+                          (showKhaiThacCols.pkPin ? totalPkPin : 0) + 
+                          (showKhaiThacCols.pkTn ? totalPkTn : 0);
+
+                        const totalVisibleGdTotalQty = 
+                          (showKhaiThacCols.gdMln ? totalGdMlnQty : 0) + 
+                          (showKhaiThacCols.gdNcom ? totalGdNcomQty : 0) + 
+                          (showKhaiThacCols.gdNchien ? totalGdNchienQty : 0) + 
+                          (showKhaiThacCols.gdQuat ? totalGdQuatQty : 0);
+
                         return (
                           <tr>
                             <td className="py-3 px-4 text-left">TỔNG CỘNG</td>
@@ -3276,7 +3306,7 @@ export default function NewRealtimePage() {
                                 {showKhaiThacCols.pkPin && <td className="py-3 px-2 text-center">{formatFooterVal(totalPkPin)}</td>}
                                 {showKhaiThacCols.pkTn && <td className="py-3 px-2 text-center">{formatFooterVal(totalPkTn)}</td>}
                                 {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalPkRev)}</td>}
-                                <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalPkTotalQty, totalSpChinhQty)}</td>
+                                <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalVisiblePkTotalQty, totalVisibleSpChinhQty)}</td>
                               </>
                             )}
                             {/* GIA DỤNG Totals */}
@@ -3286,7 +3316,7 @@ export default function NewRealtimePage() {
                                 {showKhaiThacCols.gdNcom && <td className="py-3 px-2 text-center">{formatFooterVal(totalGdNcomQty)}</td>}
                                 {showKhaiThacCols.gdNchien && <td className="py-3 px-2 text-center">{formatFooterVal(totalGdNchienQty)}</td>}
                                 {showKhaiThacCols.gdQuat && <td className="py-3 px-2 text-center">{formatFooterVal(totalGdQuatQty)}</td>}
-                                <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalGdQty, totalSpChinhQty)}</td>
+                                <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalVisibleGdTotalQty, totalVisibleSpChinhQty)}</td>
                               </>
                             )}
                           </tr>
