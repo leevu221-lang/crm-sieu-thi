@@ -969,7 +969,7 @@ export default function NewRealtimePage() {
     gdNchien: true,
     gdQuat: true
   });
-  const [showRawTable, setShowRawTable] = useState(true);
+  const [showRawTable, setShowRawTable] = useState(false);
 
   const handleCaptureTable = async (elementId: string, fileName: string) => {
     const element = document.getElementById(elementId);
