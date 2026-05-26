@@ -2895,7 +2895,7 @@ export default function NewRealtimePage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[9px] font-bold text-slate-400 w-16">VAS:</span>
                         {[
-                          { key: 'vasBh', label: 'SL BẢO HIỂM' },
+                          { key: 'vasBh', label: 'SL B.HIỂM' },
                           { key: 'vasVieon', label: 'SL VIEON' }
                         ].map(btn => {
                           const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
@@ -3020,7 +3020,7 @@ export default function NewRealtimePage() {
                       {/* VAS Sub Headers */}
                       {showKhaiThacCols.baoHiem && (
                         <>
-                          {showKhaiThacCols.vasBh && <th className="py-2 px-2 text-center w-14">SL BẢO HIỂM</th>}
+                          {showKhaiThacCols.vasBh && <th className="py-2 px-2 text-center w-14">SL B.HIỂM</th>}
                           {showKhaiThacCols.vasVieon && <th className="py-2 px-2 text-center w-14">SL VIEON</th>}
                           {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">D.THU</th>}
                           <th className="py-2 px-2 text-center w-14">%</th>
