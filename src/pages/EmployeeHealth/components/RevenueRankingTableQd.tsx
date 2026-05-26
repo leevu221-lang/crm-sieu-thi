@@ -149,7 +149,7 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                         </td>
                         <td className={cn(
                           "px-2 py-0 text-center border-r border-slate-200 font-utm-avo font-bold text-[14px]",
-                          effQd < 40 ? "text-rose-600" : "text-[#059669]"
+                          effQd < stPercentHTTargetDuKienQD ? "text-rose-600" : "text-[#059669]"
                         )}>
                           {effQd.toFixed(1)}%
                         </td>
