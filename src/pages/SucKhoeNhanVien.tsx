@@ -297,7 +297,9 @@ const EmployeeHealth: React.FC = () => {
   const currentMarket = useMemo(() => {
     return allowedMarkets.find((m: any) => removeAccents(m.name) === removeAccents(marketFilter));
   }, [allowedMarkets, marketFilter]);
-  const marketPercentQD = currentMarket?.percentQD || 0;
+  const marketPercentQD = currentMarket?.actualReal 
+    ? (((currentMarket.actualVirtual || 0) - currentMarket.actualReal) / currentMarket.actualReal) * 100 
+    : 0;
 
   // Sync stName and target fields when marketFilter or data changes (consistent with Lũy Kế page)
   useEffect(() => {
