@@ -294,6 +294,11 @@ const EmployeeHealth: React.FC = () => {
     );
   }, [processedData.markets]);
 
+  const currentMarket = useMemo(() => {
+    return allowedMarkets.find((m: any) => removeAccents(m.name) === removeAccents(marketFilter));
+  }, [allowedMarkets, marketFilter]);
+  const marketPercentQD = currentMarket?.percentQD || 0;
+
   // Sync stName and target fields when marketFilter or data changes (consistent with Lũy Kế page)
   useEffect(() => {
     if (marketFilter === 'ALL') return;
@@ -1033,7 +1038,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                       stTargetQuyDoi={stTargetSauHeSo}
                       daysPassed={daysPassed}
                       totalDays={totalDays}
-                      stPercentHTTargetDuKienQD={stPercentHTTargetDuKienQD}
+                      stPercentHTTargetDuKienQD={marketPercentQD}
                     />
                   </div>
                 </motion.div>
