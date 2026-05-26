@@ -12,6 +12,7 @@ interface RevenueRankingTableQdQProps {
   totalDays?: number;
   selectedStaffId?: string | null;
   onSelectStaff?: (id: string) => void;
+  stPercentHTTargetDuKienQD?: number;
 }
 
 const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({ 
@@ -21,7 +22,8 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
   daysPassed = 1,
   totalDays = 30,
   selectedStaffId = null,
-  onSelectStaff
+  onSelectStaff,
+  stPercentHTTargetDuKienQD = 0
 }) => {
   // Sort by actualVal (Doanh thu QĐ) descending
   const sortedData = [...data].sort((a, b) => (b.actualVal || 0) - (a.actualVal || 0));
@@ -200,7 +202,12 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                     )}>
                       {totalPercentHT.toFixed(1)}%
                     </td>
-                    <td className="px-2 py-0 text-center border-r border-slate-200 font-utm-avo font-bold text-[13px] text-emerald-600"></td>
+                    <td className={cn(
+                      "px-2 py-0 text-center border-r border-slate-200 font-utm-avo font-bold text-[13px]",
+                      stPercentHTTargetDuKienQD < 40 ? "text-rose-600" : "text-emerald-600"
+                    )}>
+                      {stPercentHTTargetDuKienQD > 0 ? `${stPercentHTTargetDuKienQD.toFixed(1)}%` : ''}
+                    </td>
                     <td className="px-2 py-0 text-center"></td>
                   </tr>
                 </tfoot>

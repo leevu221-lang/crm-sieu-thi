@@ -1033,6 +1033,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                       stTargetQuyDoi={stTargetSauHeSo}
                       daysPassed={daysPassed}
                       totalDays={totalDays}
+                      stPercentHTTargetDuKienQD={stPercentHTTargetDuKienQD}
                     />
                   </div>
                 </motion.div>
