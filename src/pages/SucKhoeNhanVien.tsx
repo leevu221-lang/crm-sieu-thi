@@ -1265,18 +1265,18 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                           {/* Custom Header from Image */}
                           <div className="w-full bg-white border border-slate-200 border-b-0 rounded-t-[32px] overflow-hidden flex divide-x divide-slate-100 shadow-sm">
                             <div className="flex-1 p-6 flex flex-col items-center justify-center relative">
-                              <h2 className="text-xl font-black text-[#0f172a] uppercase tracking-tight mb-2">LUỸ KẾ PHỤC VỤ NHÂN VIÊN</h2>
-                              <div className="flex items-center gap-2 py-1 px-4 border-t border-slate-100 mt-2">
-                                <Camera size={14} className="text-indigo-600" />
-                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">LUỸ KẾ ĐẾN NGÀY : {today}</span>
+                              <h2 className="text-[40px] font-black text-[#0f172a] uppercase tracking-tight mb-2">LUỸ KẾ PHỤC VỤ NHÂN VIÊN</h2>
+                              <div className="flex items-center gap-4 py-2 px-6 border-t border-slate-100 mt-2">
+                                <Camera size={28} className="text-indigo-600" />
+                                <span className="text-[20px] font-black text-slate-500 uppercase tracking-widest">LUỸ KẾ ĐẾN NGÀY : {today}</span>
                               </div>
                               <div className="absolute top-0 bottom-0 right-0 w-[1px] bg-slate-100"></div>
                             </div>
                             <div className="w-2/5 p-6 flex flex-col items-center justify-center">
-                              <h2 className="text-xl font-black text-[#e11d48] uppercase tracking-tight mb-2">DỰ KIẾN</h2>
-                              <div className="flex items-center gap-2 py-1 px-4 border-t border-slate-100 mt-2">
-                                <TrendingUp size={14} className="text-orange-500" />
-                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">TGSD: 19/30</span>
+                              <h2 className="text-[40px] font-black text-[#e11d48] uppercase tracking-tight mb-2">DỰ KIẾN</h2>
+                              <div className="flex items-center gap-4 py-2 px-6 border-t border-slate-100 mt-2">
+                                <TrendingUp size={28} className="text-orange-500" />
+                                <span className="text-[20px] font-black text-slate-500 uppercase tracking-widest">TGSD: 19/30</span>
                               </div>
                             </div>
                           </div>
