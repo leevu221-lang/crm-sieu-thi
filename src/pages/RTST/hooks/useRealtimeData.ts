@@ -184,8 +184,10 @@ export const useRealtimeData = (maKho: string) => {
     return () => clearTimeout(tid);
   }, [marketInput, categoryInput, ycxData, handleProcess]);
 
-  const updateYcxData = useCallback((newData: string) => {
-    setYcxData(newData);
+  const updateYcxData = useCallback((val: string | ((prev: string) => string)) => {
+    const newVal = typeof val === 'function' ? val(ycxDataRef.current) : val;
+    ycxDataRef.current = newVal;
+    setYcxData(newVal);
     setIsYcxDirty(true);
   }, []);
 
@@ -283,7 +285,7 @@ export const useRealtimeData = (maKho: string) => {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [marketInput, categoryInput, categoryRevenueInput, categoryTargetInput, normalizedMaKho, activeStore, isStoreReady]);
+  }, [marketInput, categoryInput, categoryRevenueInput, categoryTargetInput, ycxData, normalizedMaKho, activeStore, isStoreReady]);
 
   const loadData = useCallback(async (storeName?: string) => {
     if (!normalizedMaKho) {
