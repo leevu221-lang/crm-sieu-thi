@@ -951,6 +951,8 @@ export default function NewRealtimePage() {
     doanhThu: false,
     spChinh: true,
     baoHiem: true,
+    vasBh: true,
+    vasVieon: true,
     sim: true,
     dongHo: true,
     phuKien: true,
@@ -1089,6 +1091,8 @@ export default function NewRealtimePage() {
       spChinhTotalRev: number;
       bhQty: number;
       bhRev: number;
+      vieonQty: number;
+      vieonRev: number;
       simQty: number;
       simRev: number;
       dhQty: number;
@@ -1142,6 +1146,8 @@ export default function NewRealtimePage() {
           spChinhTotalRev: 0,
           bhQty: 0,
           bhRev: 0,
+          vieonQty: 0,
+          vieonRev: 0,
           simQty: 0,
           simRev: 0,
           dhQty: 0,
@@ -1184,6 +1190,9 @@ export default function NewRealtimePage() {
       } else if (nhomLarge === 'BẢO HIỂM') {
         item.bhQty += qty;
         item.bhRev += revenue;
+      } else if (nhomLarge === 'VIEON') {
+        item.vieonQty += qty;
+        item.vieonRev += revenue;
       } else if (nhomLarge === 'SIM') {
         item.simQty += qty;
         item.simRev += revenue;
@@ -2834,7 +2843,7 @@ export default function NewRealtimePage() {
                     <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap mr-2">HIỂN THỊ:</span>
                     {[
                       { key: 'spChinh', label: 'SP CHÍNH' },
-                      { key: 'baoHiem', label: 'BẢO HIỂM' },
+                      { key: 'baoHiem', label: 'VAS' },
                       { key: 'sim', label: 'SIM' },
                       { key: 'dongHo', label: 'ĐỒNG HỒ' },
                       { key: 'phuKien', label: 'PHỤ KIỆN' },
@@ -2864,6 +2873,30 @@ export default function NewRealtimePage() {
                           { key: 'ict', label: 'ICT' },
                           { key: 'ce', label: 'CE' },
                           { key: 'dgd', label: 'ĐGD' }
+                        ].map(btn => {
+                          const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
+                          return (
+                            <button
+                              key={btn.key}
+                              onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                              className={`px-2.5 py-1 rounded-lg text-[9px] font-bold transition-all border whitespace-nowrap ${
+                                isActive
+                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                  : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                              }`}
+                            >
+                              {btn.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {showKhaiThacCols.baoHiem && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[9px] font-bold text-slate-400 w-16">VAS:</span>
+                        {[
+                          { key: 'vasBh', label: 'SL BẢO HIỂM' },
+                          { key: 'vasVieon', label: 'SL VIEON' }
                         ].map(btn => {
                           const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
                           return (
@@ -2951,7 +2984,7 @@ export default function NewRealtimePage() {
                         <th colSpan={1 + (showKhaiThacCols.ict ? 1 : 0) + (showKhaiThacCols.ce ? 1 : 0) + (showKhaiThacCols.dgd ? 1 : 0)} className="py-2 px-3 text-center border-b border-slate-200/50">SP CHÍNH</th>
                       )}
                       {showKhaiThacCols.baoHiem && (
-                        <th colSpan={showKhaiThacCols.doanhThu ? 3 : 2} className="py-2 px-3 text-center border-b border-slate-200/50">BẢO HIỂM</th>
+                        <th colSpan={1 + (showKhaiThacCols.doanhThu ? 1 : 0) + (showKhaiThacCols.vasBh ? 1 : 0) + (showKhaiThacCols.vasVieon ? 1 : 0)} className="py-2 px-3 text-center border-b border-slate-200/50">VAS</th>
                       )}
                       {showKhaiThacCols.sim && (
                         <th colSpan={showKhaiThacCols.doanhThu ? 3 : 2} className="py-2 px-3 text-center border-b border-slate-200/50">SIM</th>
@@ -2984,10 +3017,11 @@ export default function NewRealtimePage() {
                           <th className="py-2 px-2 text-center w-16 text-indigo-600 font-bold bg-indigo-50/20">TỔNG</th>
                         </>
                       )}
-                      {/* BẢO HIỂM Sub Headers */}
+                      {/* VAS Sub Headers */}
                       {showKhaiThacCols.baoHiem && (
                         <>
-                          <th className="py-2 px-2 text-center w-14">SL</th>
+                          {showKhaiThacCols.vasBh && <th className="py-2 px-2 text-center w-14">SL BẢO HIỂM</th>}
+                          {showKhaiThacCols.vasVieon && <th className="py-2 px-2 text-center w-14">SL VIEON</th>}
                           {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">D.THU</th>}
                           <th className="py-2 px-2 text-center w-14">%</th>
                         </>
@@ -3083,6 +3117,10 @@ export default function NewRealtimePage() {
                       return staffKhaiThacStats.length > 0 ? staffKhaiThacStats.map((item, idx) => {
                         const visibleSpChinhTotalQty = getVisibleSpChinhQty(item);
 
+                        const visibleVasTotalQty = 
+                          (showKhaiThacCols.vasBh ? item.bhQty : 0) + 
+                          (showKhaiThacCols.vasVieon ? item.vieonQty : 0);
+
                         const visiblePkTotalQty = 
                           (showKhaiThacCols.pkCam ? item.pkCamQty : 0) + 
                           (showKhaiThacCols.pkLoa ? item.pkLoaQty : 0) + 
@@ -3122,12 +3160,13 @@ export default function NewRealtimePage() {
                                 <td className="py-3 px-2 text-center text-[13px] font-bold text-indigo-600 bg-indigo-50/10">{formatVal(visibleSpChinhTotalQty)}</td>
                               </>
                             )}
-                            {/* BẢO HIỂM Cells */}
+                            {/* VAS Cells */}
                             {showKhaiThacCols.baoHiem && (
                               <>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.bhQty)}</td>
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.bhRev)}</td>}
-                                <td className="py-3 px-2 text-center">{renderPct(item.bhQty, visibleSpChinhTotalQty)}</td>
+                                {showKhaiThacCols.vasBh && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.bhQty)}</td>}
+                                {showKhaiThacCols.vasVieon && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.vieonQty)}</td>}
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.bhRev + item.vieonRev)}</td>}
+                                <td className="py-3 px-2 text-center">{renderPct(visibleVasTotalQty, visibleSpChinhTotalQty)}</td>
                               </>
                             )}
                             {/* SIM Cells */}
@@ -3193,6 +3232,8 @@ export default function NewRealtimePage() {
 
                         const totalBhQty = staffKhaiThacStats.reduce((s, x) => s + x.bhQty, 0);
                         const totalBhRev = staffKhaiThacStats.reduce((s, x) => s + x.bhRev, 0);
+                        const totalVieonQty = staffKhaiThacStats.reduce((s, x) => s + x.vieonQty, 0);
+                        const totalVieonRev = staffKhaiThacStats.reduce((s, x) => s + x.vieonRev, 0);
 
                         const totalSimQty = staffKhaiThacStats.reduce((s, x) => s + x.simQty, 0);
                         const totalSimRev = staffKhaiThacStats.reduce((s, x) => s + x.simRev, 0);
@@ -3240,6 +3281,10 @@ export default function NewRealtimePage() {
                           (showKhaiThacCols.ce ? totalCeQty : 0) + 
                           (showKhaiThacCols.dgd ? totalDgdQty : 0);
 
+                        const totalVisibleVasTotalQty = 
+                          (showKhaiThacCols.vasBh ? totalBhQty : 0) + 
+                          (showKhaiThacCols.vasVieon ? totalVieonQty : 0);
+
                         const totalVisiblePkTotalQty = 
                           (showKhaiThacCols.pkCam ? totalPkCam : 0) + 
                           (showKhaiThacCols.pkLoa ? totalPkLoa : 0) + 
@@ -3274,12 +3319,13 @@ export default function NewRealtimePage() {
                                 <td className="py-3 px-2 text-center text-indigo-600 bg-indigo-50/20">{formatFooterVal(totalSpChinhQty)}</td>
                               </>
                             )}
-                            {/* BẢO HIỂM Totals */}
+                            {/* VAS Totals */}
                             {showKhaiThacCols.baoHiem && (
                               <>
-                                <td className="py-3 px-2 text-center">{formatFooterVal(totalBhQty)}</td>
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalBhRev)}</td>}
-                                <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalBhQty, totalSpChinhQty)}</td>
+                                {showKhaiThacCols.vasBh && <td className="py-3 px-2 text-center">{formatFooterVal(totalBhQty)}</td>}
+                                {showKhaiThacCols.vasVieon && <td className="py-3 px-2 text-center">{formatFooterVal(totalVieonQty)}</td>}
+                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalBhRev + totalVieonRev)}</td>}
+                                <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalVisibleVasTotalQty, totalVisibleSpChinhQty)}</td>
                               </>
                             )}
                             {/* SIM Totals */}
