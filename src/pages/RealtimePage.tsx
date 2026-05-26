@@ -957,7 +957,15 @@ export default function NewRealtimePage() {
     giaDung: false,
     ict: true,
     ce: true,
-    dgd: true
+    dgd: true,
+    pkCam: true,
+    pkLoa: true,
+    pkPin: true,
+    pkTn: true,
+    gdMln: true,
+    gdNcom: true,
+    gdNchien: true,
+    gdQuat: true
   });
   const [showRawTable, setShowRawTable] = useState(true);
 
@@ -2848,30 +2856,85 @@ export default function NewRealtimePage() {
                       );
                     })}
                   </div>
-                  {showKhaiThacCols.spChinh && (
-                    <div className="flex flex-wrap items-center gap-2 pl-[70px]">
-                      {[
-                        { key: 'ict', label: 'ICT' },
-                        { key: 'ce', label: 'CE' },
-                        { key: 'dgd', label: 'ĐGD' }
-                      ].map(btn => {
-                        const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
-                        return (
-                          <button
-                            key={btn.key}
-                            onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
-                            className={`px-2.5 py-1 rounded-lg text-[9px] font-bold transition-all border whitespace-nowrap ${
-                              isActive
-                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
-                            }`}
-                          >
-                            {btn.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                  <div className="flex flex-col gap-2 pl-[70px]">
+                    {showKhaiThacCols.spChinh && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[9px] font-bold text-slate-400 w-16">SP CHÍNH:</span>
+                        {[
+                          { key: 'ict', label: 'ICT' },
+                          { key: 'ce', label: 'CE' },
+                          { key: 'dgd', label: 'ĐGD' }
+                        ].map(btn => {
+                          const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
+                          return (
+                            <button
+                              key={btn.key}
+                              onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                              className={`px-2.5 py-1 rounded-lg text-[9px] font-bold transition-all border whitespace-nowrap ${
+                                isActive
+                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                  : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                              }`}
+                            >
+                              {btn.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {showKhaiThacCols.phuKien && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[9px] font-bold text-slate-400 w-16">PHỤ KIỆN:</span>
+                        {[
+                          { key: 'pkCam', label: 'SL CÁP/SẠC' },
+                          { key: 'pkLoa', label: 'SL LOA' },
+                          { key: 'pkPin', label: 'SL PIN' },
+                          { key: 'pkTn', label: 'SL TAI NGHE' }
+                        ].map(btn => {
+                          const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
+                          return (
+                            <button
+                              key={btn.key}
+                              onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                              className={`px-2.5 py-1 rounded-lg text-[9px] font-bold transition-all border whitespace-nowrap ${
+                                isActive
+                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                  : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                              }`}
+                            >
+                              {btn.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {showKhaiThacCols.giaDung && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[9px] font-bold text-slate-400 w-16">GIA DỤNG:</span>
+                        {[
+                          { key: 'gdMln', label: 'SL MLN' },
+                          { key: 'gdNcom', label: 'SL NCƠM' },
+                          { key: 'gdNchien', label: 'SL NCHIÊN' },
+                          { key: 'gdQuat', label: 'SL QUẠT' }
+                        ].map(btn => {
+                          const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
+                          return (
+                            <button
+                              key={btn.key}
+                              onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                              className={`px-2.5 py-1 rounded-lg text-[9px] font-bold transition-all border whitespace-nowrap ${
+                                isActive
+                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                  : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                              }`}
+                            >
+                              {btn.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -2897,10 +2960,10 @@ export default function NewRealtimePage() {
                         <th colSpan={showKhaiThacCols.doanhThu ? 3 : 2} className="py-2 px-3 text-center border-b border-slate-200/50">ĐỒNG HỒ</th>
                       )}
                       {showKhaiThacCols.phuKien && (
-                        <th colSpan={showKhaiThacCols.doanhThu ? 6 : 5} className="py-2 px-3 text-center border-b border-slate-200/50">PHỤ KIỆN</th>
+                        <th colSpan={1 + (showKhaiThacCols.doanhThu ? 1 : 0) + (showKhaiThacCols.pkCam ? 1 : 0) + (showKhaiThacCols.pkLoa ? 1 : 0) + (showKhaiThacCols.pkPin ? 1 : 0) + (showKhaiThacCols.pkTn ? 1 : 0)} className="py-2 px-3 text-center border-b border-slate-200/50">PHỤ KIỆN</th>
                       )}
                       {showKhaiThacCols.giaDung && (
-                        <th colSpan={showKhaiThacCols.doanhThu ? 6 : 5} className="py-2 px-3 text-center border-b border-slate-200/50">GIA DỤNG</th>
+                        <th colSpan={1 + (showKhaiThacCols.gdMln ? 1 : 0) + (showKhaiThacCols.gdNcom ? 1 : 0) + (showKhaiThacCols.gdNchien ? 1 : 0) + (showKhaiThacCols.gdQuat ? 1 : 0)} className="py-2 px-3 text-center border-b border-slate-200/50">GIA DỤNG</th>
                       )}
                     </tr>
                     <tr className="bg-slate-50 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
@@ -2948,10 +3011,10 @@ export default function NewRealtimePage() {
                       {/* PHỤ KIỆN Sub Headers */}
                       {showKhaiThacCols.phuKien && (
                         <>
-                          <th className="py-2 px-2 text-center w-14">SL CAM</th>
-                          <th className="py-2 px-2 text-center w-14">SL LOA</th>
-                          <th className="py-2 px-2 text-center w-14">SL PIN</th>
-                          <th className="py-2 px-2 text-center w-14">SL TNGHE</th>
+                          {showKhaiThacCols.pkCam && <th className="py-2 px-2 text-center w-14">SL CAM</th>}
+                          {showKhaiThacCols.pkLoa && <th className="py-2 px-2 text-center w-14">SL LOA</th>}
+                          {showKhaiThacCols.pkPin && <th className="py-2 px-2 text-center w-14">SL PIN</th>}
+                          {showKhaiThacCols.pkTn && <th className="py-2 px-2 text-center w-14">SL TNGHE</th>}
                           {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">D.THU</th>}
                           <th className="py-2 px-2 text-center w-14">%</th>
                         </>
@@ -2959,10 +3022,10 @@ export default function NewRealtimePage() {
                       {/* GIA DỤNG Sub Headers */}
                       {showKhaiThacCols.giaDung && (
                         <>
-                          <th className="py-2 px-2 text-center w-14">SL MLN</th>
-                          <th className="py-2 px-2 text-center w-14">SL NCƠM</th>
-                          <th className="py-2 px-2 text-center w-14">SL NCHIÊN</th>
-                          <th className="py-2 px-2 text-center w-14">SL QUẠT</th>
+                          {showKhaiThacCols.gdMln && <th className="py-2 px-2 text-center w-14">SL MLN</th>}
+                          {showKhaiThacCols.gdNcom && <th className="py-2 px-2 text-center w-14">SL NCƠM</th>}
+                          {showKhaiThacCols.gdNchien && <th className="py-2 px-2 text-center w-14">SL NCHIÊN</th>}
+                          {showKhaiThacCols.gdQuat && <th className="py-2 px-2 text-center w-14">SL QUẠT</th>}
                           <th className="py-2 px-2 text-center w-14">%</th>
                         </>
                       )}
@@ -3073,10 +3136,10 @@ export default function NewRealtimePage() {
                             {/* PHỤ KIỆN Cells */}
                             {showKhaiThacCols.phuKien && (
                               <>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkCamQty)}</td>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkLoaQty)}</td>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkPinQty)}</td>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkTnQty)}</td>
+                                {showKhaiThacCols.pkCam && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkCamQty)}</td>}
+                                {showKhaiThacCols.pkLoa && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkLoaQty)}</td>}
+                                {showKhaiThacCols.pkPin && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkPinQty)}</td>}
+                                {showKhaiThacCols.pkTn && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkTnQty)}</td>}
                                 {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.pkRev)}</td>}
                                 <td className="py-3 px-2 text-center">{renderPct(item.pkTotalQty, visibleSpChinhTotalQty)}</td>
                               </>
@@ -3084,10 +3147,10 @@ export default function NewRealtimePage() {
                             {/* GIA DỤNG Cells */}
                             {showKhaiThacCols.giaDung && (
                               <>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdMlnQty)}</td>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdNcomQty)}</td>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdNchienQty)}</td>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdQuatQty)}</td>
+                                {showKhaiThacCols.gdMln && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdMlnQty)}</td>}
+                                {showKhaiThacCols.gdNcom && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdNcomQty)}</td>}
+                                {showKhaiThacCols.gdNchien && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdNchienQty)}</td>}
+                                {showKhaiThacCols.gdQuat && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdQuatQty)}</td>}
                                 <td className="py-3 px-2 text-center">{renderPct(item.gdQty, visibleSpChinhTotalQty)}</td>
                               </>
                             )}
@@ -3208,10 +3271,10 @@ export default function NewRealtimePage() {
                             {/* PHỤ KIỆN Totals */}
                             {showKhaiThacCols.phuKien && (
                               <>
-                                <td className="py-3 px-2 text-center">{formatFooterVal(totalPkCam)}</td>
-                                <td className="py-3 px-2 text-center">{formatFooterVal(totalPkLoa)}</td>
-                                <td className="py-3 px-2 text-center">{formatFooterVal(totalPkPin)}</td>
-                                <td className="py-3 px-2 text-center">{formatFooterVal(totalPkTn)}</td>
+                                {showKhaiThacCols.pkCam && <td className="py-3 px-2 text-center">{formatFooterVal(totalPkCam)}</td>}
+                                {showKhaiThacCols.pkLoa && <td className="py-3 px-2 text-center">{formatFooterVal(totalPkLoa)}</td>}
+                                {showKhaiThacCols.pkPin && <td className="py-3 px-2 text-center">{formatFooterVal(totalPkPin)}</td>}
+                                {showKhaiThacCols.pkTn && <td className="py-3 px-2 text-center">{formatFooterVal(totalPkTn)}</td>}
                                 {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalPkRev)}</td>}
                                 <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalPkTotalQty, totalSpChinhQty)}</td>
                               </>
@@ -3219,10 +3282,10 @@ export default function NewRealtimePage() {
                             {/* GIA DỤNG Totals */}
                             {showKhaiThacCols.giaDung && (
                               <>
-                                <td className="py-3 px-2 text-center">{formatFooterVal(totalGdMlnQty)}</td>
-                                <td className="py-3 px-2 text-center">{formatFooterVal(totalGdNcomQty)}</td>
-                                <td className="py-3 px-2 text-center">{formatFooterVal(totalGdNchienQty)}</td>
-                                <td className="py-3 px-2 text-center">{formatFooterVal(totalGdQuatQty)}</td>
+                                {showKhaiThacCols.gdMln && <td className="py-3 px-2 text-center">{formatFooterVal(totalGdMlnQty)}</td>}
+                                {showKhaiThacCols.gdNcom && <td className="py-3 px-2 text-center">{formatFooterVal(totalGdNcomQty)}</td>}
+                                {showKhaiThacCols.gdNchien && <td className="py-3 px-2 text-center">{formatFooterVal(totalGdNchienQty)}</td>}
+                                {showKhaiThacCols.gdQuat && <td className="py-3 px-2 text-center">{formatFooterVal(totalGdQuatQty)}</td>}
                                 <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalGdQty, totalSpChinhQty)}</td>
                               </>
                             )}
@@ -3287,7 +3350,7 @@ export default function NewRealtimePage() {
                         {deferredFilteredRows.length > 0 ? (
                           (() => {
                             // Find index of Tên sản phẩm
-                            const headers = rawYcxRows[0].map(h => String(h || '').trim());
+                            const headers = rawYcxRows[0]?.map(h => String(h || '').trim()) || [];
                             const idxProduct = headers.findIndex(h => h.toLowerCase().includes('tên sản phẩm'));
                             const idxSmallCategoryHeader = headers.findIndex(h => h.toLowerCase().includes('nhóm hàng nhỏ'));
                             const idxNhomHang = headers.findIndex(h => h.includes('Nhóm hàng'));
