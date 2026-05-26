@@ -240,12 +240,33 @@ const EmployeeHealth: React.FC = () => {
   const handleCaptureThuongNv = async () => {
     if (!captureThuongNvRef.current) return;
     setIsCapturing(true);
+
+    const container = captureThuongNvRef.current;
+    const tableWrap = container.querySelector('.overflow-x-auto') as HTMLElement;
+    const captureBtn = container.querySelector('.capture-btn') as HTMLElement;
+    
+    const origContainerWidth = container.style.width;
+    const origTableWrapOverflow = tableWrap ? tableWrap.style.overflow : '';
+    const origBtnDisplay = captureBtn ? captureBtn.style.display : '';
+
+    if (tableWrap) {
+        tableWrap.style.overflow = 'visible';
+    }
+    if (captureBtn) {
+        captureBtn.style.display = 'none';
+    }
+    container.style.width = 'max-content';
+
     try {
-      const dataUrl = await htmlToImage.toPng(captureThuongNvRef.current, { backgroundColor: '#ffffff' });
+      await new Promise(r => setTimeout(r, 100)); // wait for layout
+      const dataUrl = await htmlToImage.toPng(container, { backgroundColor: '#ffffff' });
       saveAs(dataUrl, 'LK_THUONG_NHAN_VIEN.png');
     } catch (err) {
       console.error('Error capturing thuong nv board:', err);
     } finally {
+      if (tableWrap) tableWrap.style.overflow = origTableWrapOverflow;
+      if (captureBtn) captureBtn.style.display = origBtnDisplay;
+      container.style.width = origContainerWidth;
       setIsCapturing(false);
     }
   };
@@ -1555,7 +1576,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               onClick={handleCaptureThuongNv}
                               disabled={isCapturing}
                               className={cn(
-                                "flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                                "capture-btn flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
                                 isCapturing ? "opacity-50 cursor-not-allowed" : "active:scale-95"
                               )}
                             >
