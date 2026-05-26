@@ -83,8 +83,7 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       
       // Loại bỏ dòng rác (không phải tên ngành hàng)
       const isColumnTypesLine = /^(DTLK|SLLK|SL|DT|Realtime|REALTIME|\s)+$/i.test(catName);
-      const numbers = catName.match(/-?\d+[\d,.]*/g) || [];
-      const hasManyNumbers = numbers.length >= 2;
+      const isOnlyNumbers = /^[\d\s,.-]+$/.test(catName);
       const lowerCatName = catName.toLowerCase();
       const isExcluded = [
         'tổng', 'tong',
@@ -102,7 +101,7 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
         'avatar'
       ].some(ex => lowerCatName.includes(ex));
 
-      if (isColumnTypesLine || hasManyNumbers || isExcluded) {
+      if (isColumnTypesLine || isOnlyNumbers || isExcluded) {
         continue;
       }
 
