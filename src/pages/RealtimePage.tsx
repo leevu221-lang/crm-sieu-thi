@@ -954,7 +954,10 @@ export default function NewRealtimePage() {
     sim: true,
     dongHo: true,
     phuKien: true,
-    giaDung: false
+    giaDung: false,
+    ict: true,
+    ce: true,
+    dgd: true
   });
   const [showRawTable, setShowRawTable] = useState(true);
 
@@ -2818,31 +2821,57 @@ export default function NewRealtimePage() {
                 </div>
 
                 {/* Filter bar - menu hiển thị */}
-                <div className="flex flex-wrap items-center gap-2 bg-slate-50 rounded-xl px-4 py-3">
-                  <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap mr-2">HIỂN THỊ:</span>
-                  {[
-                    { key: 'spChinh', label: 'SP CHÍNH' },
-                    { key: 'baoHiem', label: 'BẢO HIỂM' },
-                    { key: 'sim', label: 'SIM' },
-                    { key: 'dongHo', label: 'ĐỒNG HỒ' },
-                    { key: 'phuKien', label: 'PHỤ KIỆN' },
-                    { key: 'giaDung', label: 'GIA DỤNG' }
-                  ].map(btn => {
-                    const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
-                    return (
-                      <button
-                        key={btn.key}
-                        onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
-                        className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${
-                          isActive
-                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm'
-                            : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700 hover:border-slate-300'
-                        }`}
-                      >
-                        {btn.label}
-                      </button>
-                    );
-                  })}
+                <div className="flex flex-col gap-2 bg-slate-50 rounded-xl px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap mr-2">HIỂN THỊ:</span>
+                    {[
+                      { key: 'spChinh', label: 'SP CHÍNH' },
+                      { key: 'baoHiem', label: 'BẢO HIỂM' },
+                      { key: 'sim', label: 'SIM' },
+                      { key: 'dongHo', label: 'ĐỒNG HỒ' },
+                      { key: 'phuKien', label: 'PHỤ KIỆN' },
+                      { key: 'giaDung', label: 'GIA DỤNG' }
+                    ].map(btn => {
+                      const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
+                      return (
+                        <button
+                          key={btn.key}
+                          onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${
+                            isActive
+                              ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm'
+                              : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700 hover:border-slate-300'
+                          }`}
+                        >
+                          {btn.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {showKhaiThacCols.spChinh && (
+                    <div className="flex flex-wrap items-center gap-2 pl-[70px]">
+                      {[
+                        { key: 'ict', label: 'ICT' },
+                        { key: 'ce', label: 'CE' },
+                        { key: 'dgd', label: 'ĐGD' }
+                      ].map(btn => {
+                        const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
+                        return (
+                          <button
+                            key={btn.key}
+                            onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                            className={`px-2.5 py-1 rounded-lg text-[9px] font-bold transition-all border whitespace-nowrap ${
+                              isActive
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                            }`}
+                          >
+                            {btn.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2856,7 +2885,7 @@ export default function NewRealtimePage() {
                         <th colSpan={3} className="py-2 px-3 text-center border-b border-slate-200/50">DOANH THU</th>
                       )}
                       {showKhaiThacCols.spChinh && (
-                        <th colSpan={4} className="py-2 px-3 text-center border-b border-slate-200/50">SP CHÍNH</th>
+                        <th colSpan={1 + (showKhaiThacCols.ict ? 1 : 0) + (showKhaiThacCols.ce ? 1 : 0) + (showKhaiThacCols.dgd ? 1 : 0)} className="py-2 px-3 text-center border-b border-slate-200/50">SP CHÍNH</th>
                       )}
                       {showKhaiThacCols.baoHiem && (
                         <th colSpan={showKhaiThacCols.doanhThu ? 3 : 2} className="py-2 px-3 text-center border-b border-slate-200/50">BẢO HIỂM</th>
@@ -2886,9 +2915,9 @@ export default function NewRealtimePage() {
                       {/* SP CHÍNH Sub Headers */}
                       {showKhaiThacCols.spChinh && (
                         <>
-                          <th className="py-2 px-2 text-center w-14">ICT</th>
-                          <th className="py-2 px-2 text-center w-14">CE</th>
-                          <th className="py-2 px-2 text-center w-14">ĐGD</th>
+                          {showKhaiThacCols.ict && <th className="py-2 px-2 text-center w-14">ICT</th>}
+                          {showKhaiThacCols.ce && <th className="py-2 px-2 text-center w-14">CE</th>}
+                          {showKhaiThacCols.dgd && <th className="py-2 px-2 text-center w-14">ĐGD</th>}
                           <th className="py-2 px-2 text-center w-16 text-indigo-600 font-bold bg-indigo-50/20">TỔNG</th>
                         </>
                       )}
@@ -3005,9 +3034,9 @@ export default function NewRealtimePage() {
                             {/* SP CHÍNH Cells */}
                             {showKhaiThacCols.spChinh && (
                               <>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.ictQty)}</td>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.ceQty)}</td>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.dgdQty)}</td>
+                                {showKhaiThacCols.ict && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.ictQty)}</td>}
+                                {showKhaiThacCols.ce && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.ceQty)}</td>}
+                                {showKhaiThacCols.dgd && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.dgdQty)}</td>}
                                 <td className="py-3 px-2 text-center text-[13px] font-bold text-indigo-600 bg-indigo-50/10">{formatVal(item.spChinhTotalQty)}</td>
                               </>
                             )}
@@ -3140,9 +3169,9 @@ export default function NewRealtimePage() {
                             {/* SP CHÍNH Totals */}
                             {showKhaiThacCols.spChinh && (
                               <>
-                                <td className="py-3 px-2 text-center">{formatFooterVal(totalIctQty)}</td>
-                                <td className="py-3 px-2 text-center">{formatFooterVal(totalCeQty)}</td>
-                                <td className="py-3 px-2 text-center">{formatFooterVal(totalDgdQty)}</td>
+                                {showKhaiThacCols.ict && <td className="py-3 px-2 text-center">{formatFooterVal(totalIctQty)}</td>}
+                                {showKhaiThacCols.ce && <td className="py-3 px-2 text-center">{formatFooterVal(totalCeQty)}</td>}
+                                {showKhaiThacCols.dgd && <td className="py-3 px-2 text-center">{formatFooterVal(totalDgdQty)}</td>}
                                 <td className="py-3 px-2 text-center text-indigo-600 bg-indigo-50/20">{formatFooterVal(totalSpChinhQty)}</td>
                               </>
                             )}
