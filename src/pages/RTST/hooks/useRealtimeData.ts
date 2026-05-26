@@ -48,12 +48,14 @@ export const useRealtimeData = (maKho: string) => {
   const categoryInputRef = useRef(categoryInput);
   const categoryRevenueInputRef = useRef(categoryRevenueInput);
   const categoryTargetInputRef = useRef(categoryTargetInput);
+  const ycxDataRef = useRef(ycxData);
   const activeStoreRef = useRef(activeStore);
 
   useEffect(() => { marketInputRef.current = marketInput; }, [marketInput]);
   useEffect(() => { categoryInputRef.current = categoryInput; }, [categoryInput]);
   useEffect(() => { categoryRevenueInputRef.current = categoryRevenueInput; }, [categoryRevenueInput]);
   useEffect(() => { categoryTargetInputRef.current = categoryTargetInput; }, [categoryTargetInput]);
+  useEffect(() => { ycxDataRef.current = ycxData; }, [ycxData]);
   useEffect(() => { activeStoreRef.current = activeStore; }, [activeStore]);
 
   // Sync activeStore and load data when StoreContext's currentStoreId changes
@@ -222,6 +224,7 @@ export const useRealtimeData = (maKho: string) => {
           rt_nh_cum: categoryInputRef.current,
           lk_bi_tong_quan: categoryRevenueInputRef.current,
           lk_nh_sieu_thi: categoryTargetInputRef.current,
+          ycx_data: ycxDataRef.current,
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
 
@@ -318,7 +321,7 @@ export const useRealtimeData = (maKho: string) => {
       // Query directly using the selected store name as the unique document ID
       const { data: record, error } = await supabase
         .from('store')
-        .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ten_sieu_thi, updated_at')
+        .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ten_sieu_thi, updated_at')
         .eq('id', targetStore.trim())
         .maybeSingle();
 
@@ -333,6 +336,7 @@ export const useRealtimeData = (maKho: string) => {
         setCategoryInput(record.rt_nh_cum || '');
         setCategoryRevenueInput(record.lk_bi_tong_quan || '');
         setCategoryTargetInput(record.lk_nh_sieu_thi || '');
+        setYcxData(record.ycx_data || '');
         
         if (record.updated_at) {
           const parsedDate = new Date(record.updated_at);
@@ -432,6 +436,14 @@ export const useRealtimeData = (maKho: string) => {
               }
               return prev;
             });
+            
+            setYcxData(prev => {
+              if (prev !== record.ycx_data) {
+                skipAutoSaveRef.current = true;
+                return record.ycx_data || '';
+              }
+              return prev;
+            });
           }
         }
       )
@@ -456,7 +468,7 @@ export const useRealtimeData = (maKho: string) => {
       // Query directly using the selected store name as the unique document ID
       const { data, error } = await supabase
         .from('store')
-        .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ten_sieu_thi, updated_at')
+        .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ten_sieu_thi, updated_at')
         .eq('id', activeStore.trim())
         .maybeSingle();
 
@@ -467,6 +479,7 @@ export const useRealtimeData = (maKho: string) => {
         setCategoryInput(data.rt_nh_cum || '');
         setCategoryRevenueInput(data.lk_bi_tong_quan || '');
         setCategoryTargetInput(data.lk_nh_sieu_thi || '');
+        setYcxData(data.ycx_data || '');
       } else {
         showNotification('Không tìm thấy dữ liệu Realtime để đồng bộ.', 'error');
       }

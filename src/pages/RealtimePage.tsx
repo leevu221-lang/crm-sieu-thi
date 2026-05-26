@@ -2970,6 +2970,11 @@ export default function NewRealtimePage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {(() => {
+                      const getVisibleSpChinhQty = (item: any) => {
+                        return (showKhaiThacCols.ict ? item.ictQty : 0) +
+                               (showKhaiThacCols.ce ? item.ceQty : 0) +
+                               (showKhaiThacCols.dgd ? item.dgdQty : 0);
+                      };
                       const formatVal = (val: number) => val === 0 ? <span className="text-slate-300">-</span> : val;
                       const formatRev = (val: number) => {
                         if (val === 0) return <span className="text-slate-300">-</span>;
@@ -3013,6 +3018,7 @@ export default function NewRealtimePage() {
                       };
 
                       return staffKhaiThacStats.length > 0 ? staffKhaiThacStats.map((item, idx) => {
+                        const visibleSpChinhTotalQty = getVisibleSpChinhQty(item);
                         return (
                           <tr key={item.staffName} className="hover:bg-slate-50/50 transition-colors">
                             <td className="py-3 px-4 text-left font-bold text-slate-800">
@@ -3037,7 +3043,7 @@ export default function NewRealtimePage() {
                                 {showKhaiThacCols.ict && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.ictQty)}</td>}
                                 {showKhaiThacCols.ce && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.ceQty)}</td>}
                                 {showKhaiThacCols.dgd && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.dgdQty)}</td>}
-                                <td className="py-3 px-2 text-center text-[13px] font-bold text-indigo-600 bg-indigo-50/10">{formatVal(item.spChinhTotalQty)}</td>
+                                <td className="py-3 px-2 text-center text-[13px] font-bold text-indigo-600 bg-indigo-50/10">{formatVal(visibleSpChinhTotalQty)}</td>
                               </>
                             )}
                             {/* BẢO HIỂM Cells */}
@@ -3045,7 +3051,7 @@ export default function NewRealtimePage() {
                               <>
                                 <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.bhQty)}</td>
                                 {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.bhRev)}</td>}
-                                <td className="py-3 px-2 text-center">{renderPct(item.bhQty, item.spChinhTotalQty)}</td>
+                                <td className="py-3 px-2 text-center">{renderPct(item.bhQty, visibleSpChinhTotalQty)}</td>
                               </>
                             )}
                             {/* SIM Cells */}
@@ -3053,7 +3059,7 @@ export default function NewRealtimePage() {
                               <>
                                 <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.simQty)}</td>
                                 {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.simRev)}</td>}
-                                <td className="py-3 px-2 text-center">{renderPct(item.simQty, item.spChinhTotalQty)}</td>
+                                <td className="py-3 px-2 text-center">{renderPct(item.simQty, visibleSpChinhTotalQty)}</td>
                               </>
                             )}
                             {/* ĐỒNG HỒ Cells */}
@@ -3061,7 +3067,7 @@ export default function NewRealtimePage() {
                               <>
                                 <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.dhQty)}</td>
                                 {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.dhRev)}</td>}
-                                <td className="py-3 px-2 text-center">{renderPct(item.dhQty, item.spChinhTotalQty)}</td>
+                                <td className="py-3 px-2 text-center">{renderPct(item.dhQty, visibleSpChinhTotalQty)}</td>
                               </>
                             )}
                             {/* PHỤ KIỆN Cells */}
@@ -3072,7 +3078,7 @@ export default function NewRealtimePage() {
                                 <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkPinQty)}</td>
                                 <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkTnQty)}</td>
                                 {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.pkRev)}</td>}
-                                <td className="py-3 px-2 text-center">{renderPct(item.pkTotalQty, item.spChinhTotalQty)}</td>
+                                <td className="py-3 px-2 text-center">{renderPct(item.pkTotalQty, visibleSpChinhTotalQty)}</td>
                               </>
                             )}
                             {/* GIA DỤNG Cells */}
@@ -3082,7 +3088,7 @@ export default function NewRealtimePage() {
                                 <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdNcomQty)}</td>
                                 <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdNchienQty)}</td>
                                 <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdQuatQty)}</td>
-                                <td className="py-3 px-2 text-center">{renderPct(item.gdQty, item.spChinhTotalQty)}</td>
+                                <td className="py-3 px-2 text-center">{renderPct(item.gdQty, visibleSpChinhTotalQty)}</td>
                               </>
                             )}
                           </tr>
@@ -3107,7 +3113,7 @@ export default function NewRealtimePage() {
                         const totalIctQty = staffKhaiThacStats.reduce((s, x) => s + x.ictQty, 0);
                         const totalCeQty = staffKhaiThacStats.reduce((s, x) => s + x.ceQty, 0);
                         const totalDgdQty = staffKhaiThacStats.reduce((s, x) => s + x.dgdQty, 0);
-                        const totalSpChinhQty = staffKhaiThacStats.reduce((s, x) => s + x.spChinhTotalQty, 0);
+                        const totalSpChinhQty = (showKhaiThacCols.ict ? totalIctQty : 0) + (showKhaiThacCols.ce ? totalCeQty : 0) + (showKhaiThacCols.dgd ? totalDgdQty : 0);
 
                         const totalBhQty = staffKhaiThacStats.reduce((s, x) => s + x.bhQty, 0);
                         const totalBhRev = staffKhaiThacStats.reduce((s, x) => s + x.bhRev, 0);
