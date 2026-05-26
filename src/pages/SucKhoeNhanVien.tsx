@@ -438,6 +438,21 @@ const EmployeeHealth: React.FC = () => {
     }, 1500);
   };
 
+  const saveStaffIdsToDb = (ids: string[]) => {
+    const storeName = marketFilter !== 'ALL' ? marketFilter : '';
+    if (!storeName || !maKho) return;
+    const shortMaKho = maKho.replace(/^0+/, '');
+    
+    supabase.from('store').upsert({
+      id: storeName,
+      warehouse_code: shortMaKho,
+      ten_sieu_thi: storeName,
+      selected_staff_ids: JSON.stringify(ids)
+    }, { onConflict: 'id' }).then(({ error }: any) => {
+      if (error) console.error('[EmployeeHealth] Save selected_staff_ids error:', error);
+    });
+  };
+
   const saveThuongField = (staffId: string, field: 'truoc' | 'hientai', value: string) => {
     setThuongData(prev => {
       const updated = { ...prev, [staffId]: { ...prev[staffId], [field]: value } };
@@ -495,7 +510,9 @@ const EmployeeHealth: React.FC = () => {
 
     const validIds = biRevenueData.map(s => s.fullId);
     const hasValidSelection = selectedStaffIds.length > 0 && selectedStaffIds.some(id => validIds.includes(id));
-    if (initializedRef.current !== storeKey || !hasValidSelection) {
+    const isExplicitlyEmpty = initializedRef.current === storeKey && selectedStaffIds.length === 0;
+
+    if (initializedRef.current !== storeKey || (!hasValidSelection && !isExplicitlyEmpty)) {
       setSelectedStaffIds(validIds);
       initializedRef.current = storeKey;
     }
@@ -530,11 +547,11 @@ const EmployeeHealth: React.FC = () => {
     const shortMaKho = maKho.replace(/^0+/, '');
     
     supabase.from('store')
-      .select('thuong_nv_data')
+      .select('thuong_nv_data, selected_staff_ids')
       .eq('id', marketFilter.trim())
       .maybeSingle()
       .then(({ data }: any) => {
-        if (!data || !data.thuong_nv_data) {
+        if (!data) {
           setThuongData({});
           return;
         }
@@ -548,13 +565,29 @@ const EmployeeHealth: React.FC = () => {
           console.error('[THUONG] Parse error:', e);
           setThuongData({});
         }
+
+        if (data.selected_staff_ids) {
+          try {
+            const parsedIds = typeof data.selected_staff_ids === 'string'
+              ? JSON.parse(data.selected_staff_ids)
+              : data.selected_staff_ids;
+            if (Array.isArray(parsedIds)) {
+              setSelectedStaffIds(parsedIds);
+              initializedRef.current = `${maKho.replace(/^0+/, '')}_${marketFilter}`;
+            }
+          } catch(e) {
+            console.error('[EmployeeHealth] Parse selected_staff_ids error:', e);
+          }
+        }
       });
   }, [marketFilter, maKho]);
 
   const toggleStaffSelection = (id: string) => {
-    setSelectedStaffIds(prev =>
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+    setSelectedStaffIds(prev => {
+      const updated = prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id];
+      saveStaffIdsToDb(updated);
+      return updated;
+    });
   };
 
 
@@ -812,13 +845,20 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                       <div className="max-h-64 overflow-y-auto p-2">
                         <div className="flex items-center justify-between px-3 mb-2">
                           <button
-                            onClick={() => setSelectedStaffIds(biRevenueData.map(s => s.fullId))}
+                            onClick={() => {
+                              const allIds = biRevenueData.map(s => s.fullId);
+                              setSelectedStaffIds(allIds);
+                              saveStaffIdsToDb(allIds);
+                            }}
                             className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-800 transition-colors"
                           >
                             Chọn tất cả
                           </button>
                           <button
-                            onClick={() => setSelectedStaffIds([])}
+                            onClick={() => {
+                              setSelectedStaffIds([]);
+                              saveStaffIdsToDb([]);
+                            }}
                             className="text-[10px] font-black uppercase text-slate-500 hover:text-slate-700 transition-colors"
                           >
                             Bỏ chọn tất cả
