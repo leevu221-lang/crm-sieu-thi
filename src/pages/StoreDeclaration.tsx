@@ -370,7 +370,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                       type="text"
                       value={store1}
                       onChange={(e) => setStore1(e.target.value)}
-                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-black placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
+                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-normal text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-normal placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
                       placeholder="Nhập tên siêu thị đúng cú pháp trên Bi VD : ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH"
                     />
                   </div>
@@ -389,7 +389,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                       type="text"
                       value={store2}
                       onChange={(e) => setStore2(e.target.value)}
-                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-black placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
+                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-normal text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-normal placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
                       placeholder="Nhập tên siêu thị đúng cú pháp trên Bi VD : ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH"
                     />
                   </div>
@@ -408,7 +408,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                       type="text"
                       value={store3}
                       onChange={(e) => setStore3(e.target.value)}
-                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-black placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
+                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-normal text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-normal placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
                       placeholder="Nhập tên siêu thị đúng cú pháp trên Bi VD : ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH"
                     />
                   </div>

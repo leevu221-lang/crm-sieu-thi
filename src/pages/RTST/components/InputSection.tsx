@@ -546,7 +546,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                         onBlur={item.onBlur}
                         rows={3}
                         placeholder="Dán dữ liệu (Ctrl+V)..."
-                        className="w-full bg-white border-2 border-slate-200 focus:border-blue-400 rounded-xl p-3 text-[11px] focus:ring-4 focus:ring-blue-100 outline-none resize-none font-mono transition-all"
+                        className="w-full bg-white border-2 border-slate-200 focus:border-blue-400 rounded-xl p-3 text-[11px] focus:ring-4 focus:ring-blue-100 outline-none resize-none font-sans font-normal transition-all"
                       />
                     </div>
                   ))}
@@ -789,7 +789,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                               rows={3} 
                               autoFocus 
                               placeholder="Dán dữ liệu (Ctrl+V)..." 
-                              className="w-full mt-1.5 bg-white border-2 border-blue-200 rounded-xl p-2.5 text-[10px] focus:ring-2 focus:ring-blue-400 outline-none resize-none font-mono shadow-inner" 
+                              className="w-full mt-1.5 bg-white border-2 border-blue-200 rounded-xl p-2.5 text-[10px] focus:ring-2 focus:ring-blue-400 outline-none resize-none font-sans font-normal shadow-inner" 
                             />
                           )}
                         </div>
@@ -854,7 +854,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                         placeholder="0" 
                         disabled={!isActiveCard}
                         className={cn(
-                          "w-20 border rounded-lg p-1.5 text-xs font-black text-center outline-none transition-all",
+                          "w-20 border rounded-lg p-1.5 text-xs font-sans font-normal text-center outline-none transition-all",
                           isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400"
                         )} 
                       />
@@ -886,7 +886,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                             <button onClick={onAnalyze} className="px-3 py-1.5 bg-violet-50 text-violet-600 border border-violet-100 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-violet-100 transition-all active:scale-95 flex items-center gap-1">
                               <Zap size={10} /> ĐỒNG BỘ
                             </button>
-                            <input type="number" value={globalPercent} onChange={(e) => handleGlobalPercentChange(Number(e.target.value))} className="w-16 bg-white border border-slate-200 rounded-lg p-1.5 text-[10px] font-black text-center" placeholder="%" />
+                            <input type="number" value={globalPercent} onChange={(e) => handleGlobalPercentChange(Number(e.target.value))} className="w-16 bg-white border border-slate-200 rounded-lg p-1.5 text-[10px] font-sans font-normal text-center" placeholder="%" />
                              <button onClick={() => { const nt = categoryTargets.map(item => ({ ...item, percent: globalPercent, adjustedTarget: item.target * (globalPercent / 100) })); setCategoryTargets(nt); onSaveLuyke(false, 'targets', undefined, nt, 'TARGET THI ĐUA'); }} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[9px] font-black uppercase hover:bg-indigo-700 transition-all active:scale-95">ÁP DỤNG ALL</button>
                             <button onClick={() => onSaveLuyke(false, 'targets', undefined, undefined, 'TARGET THI ĐUA')} disabled={isSavingTargets} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[9px] font-black uppercase hover:bg-emerald-700 transition-all active:scale-95 flex items-center gap-1 disabled:opacity-50">
                               {isSavingTargets ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />} LƯU
@@ -916,7 +916,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                                         <td className="p-1.5 text-[10px]">{item.target.toLocaleString()}</td>
                                         <td className="p-1.5 text-[10px] font-black text-indigo-600">{item.adjustedTarget.toLocaleString()}</td>
                                         <td className="p-1.5 text-center">
-                                          <input type="number" value={item.percent} onChange={(e) => { if (!isActiveCard) return; const nv = Number(e.target.value); const nt = categoryTargets.map(t => t.name === item.name ? { ...t, percent: nv, adjustedTarget: t.target * (nv / 100) } : t); setCategoryTargets(nt); }} disabled={!isActiveCard} className={cn("w-14 border rounded p-1 text-[10px] text-center font-black outline-none", isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400")} />
+                                          <input type="number" value={item.percent} onChange={(e) => { if (!isActiveCard) return; const nv = Number(e.target.value); const nt = categoryTargets.map(t => t.name === item.name ? { ...t, percent: nv, adjustedTarget: t.target * (nv / 100) } : t); setCategoryTargets(nt); }} disabled={!isActiveCard} className={cn("w-14 border rounded p-1 text-[10px] text-center font-sans font-normal outline-none", isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400")} />
                                         </td>
                                       </tr>
                                     ))}
@@ -1047,7 +1047,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                     type="number"
                     value={daysPassed}
                     readOnly
-                    className="flex-1 bg-slate-100 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-black text-slate-500 cursor-not-allowed outline-none transition-all text-center"
+                    className="flex-1 bg-slate-100 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-sans font-normal text-slate-500 cursor-not-allowed outline-none transition-all text-center"
                     title="Tự động: Tháng quá khứ = Tổng ngày; Tháng hiện tại = Ngày hiện tại - 1"
                   />
                   <span className="text-2xl font-light text-slate-300">/</span>
@@ -1055,7 +1055,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                     type="number"
                     value={totalDays}
                     readOnly
-                    className="flex-1 bg-slate-100 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-black text-slate-500 cursor-not-allowed outline-none transition-all text-center"
+                    className="flex-1 bg-slate-100 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-sans font-normal text-slate-500 cursor-not-allowed outline-none transition-all text-center"
                     title="Tổng số ngày trong tháng"
                   />
                 </div>
