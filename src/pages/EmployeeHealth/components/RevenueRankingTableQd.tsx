@@ -78,14 +78,14 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
           <div className="overflow-hidden">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="text-slate-900 font-utm-avo font-black text-[14px] uppercase tracking-tight h-[60px]">
-                  <th className="bg-[#00965e] px-2 py-0 text-center text-white border-r border-white/10 w-[40px] h-[60px]">STT</th>
-                  <th className="bg-[#00965e] px-4 py-0 text-center text-white border-r border-white/10 w-[300px] whitespace-normal break-words leading-tight">NHÂN VIÊN</th>
-                  <th className="bg-[#00965e] px-4 py-0 text-center text-white border-r border-white/10 w-[120px] whitespace-normal break-words leading-tight">TARGET QĐ</th>
-                  <th className="bg-[#ffcb05] px-4 py-0 text-center border-r border-white/10 w-[130px] whitespace-normal break-words leading-tight">DOANH THU QUY ĐỔI</th>
-                  <th className="bg-[#ffcb05] px-4 py-0 text-center border-r border-white/10 w-[80px] whitespace-normal break-words leading-tight">% HT</th>
-                  <th className="bg-[#ffcb05] px-4 py-0 text-center border-r border-white/10 w-[120px] whitespace-normal break-words leading-tight">HIỆU QUẢ QĐ</th>
-                  <th className="bg-[#f58220] px-4 py-0 text-center w-[100px] whitespace-normal break-words leading-tight">TOP/BOT</th>
+                 <tr className="text-slate-900 font-sans font-black text-[14px] uppercase tracking-tight h-[60px]">
+                  <th style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="bg-[#00965e] px-2 py-0 text-center text-white border-r border-white/10 w-[40px] h-[60px] font-sans font-black">STT</th>
+                  <th style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="bg-[#00965e] px-4 py-0 text-center text-white border-r border-white/10 w-[300px] whitespace-normal break-words leading-tight font-sans font-black">NHÂN VIÊN</th>
+                  <th style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="bg-[#00965e] px-4 py-0 text-center text-white border-r border-white/10 w-[120px] whitespace-normal break-words leading-tight font-sans font-black">TARGET QĐ</th>
+                  <th style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="bg-[#ffcb05] px-4 py-0 text-center border-r border-white/10 w-[130px] whitespace-normal break-words leading-tight font-sans font-black">DOANH THU QUY ĐỔI</th>
+                  <th style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="bg-[#ffcb05] px-4 py-0 text-center border-r border-white/10 w-[80px] whitespace-normal break-words leading-tight font-sans font-black">% HT</th>
+                  <th style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="bg-[#ffcb05] px-4 py-0 text-center border-r border-white/10 w-[120px] whitespace-normal break-words leading-tight font-sans font-black">HIỆU QUẢ QĐ</th>
+                  <th style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="bg-[#f58220] px-4 py-0 text-center w-[100px] whitespace-normal break-words leading-tight font-sans font-black">TOP/BOT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
