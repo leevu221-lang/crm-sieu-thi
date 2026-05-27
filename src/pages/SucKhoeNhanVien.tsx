@@ -767,7 +767,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                 }`}>
                   <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
                 </div>
-                <span className={`text-[15px] font-sans font-black tracking-tight uppercase ${isActive ? 'text-slate-800' : 'text-slate-500'}`} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }}>
+                <span className={`text-[15px] font-sans font-bold tracking-tight uppercase ${isActive ? 'text-slate-800' : 'text-slate-500'}`} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }}>
                   {item.label}
                 </span>
                 {isActive && (
