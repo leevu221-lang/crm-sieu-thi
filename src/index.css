@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Lexend:wght@300;400;500;600;700;800;900&family=Oswald:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Lexend:wght@300;400;500;600;700;800;900&family=Oswald:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700;800;900&family=Montserrat:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 /* Global font size reduction: ~45% of default */
@@ -21,6 +21,7 @@ html {
   --font-cambria: "Cambria", "Georgia", serif;
   --font-ms: "Microsoft Sans Serif", "Arial", sans-serif;
   --font-poppins: "Poppins", sans-serif;
+  --font-montserrat: "Montserrat", sans-serif;
   --animate-blob: blob 7s infinite;
   @keyframes blob {
     0% {

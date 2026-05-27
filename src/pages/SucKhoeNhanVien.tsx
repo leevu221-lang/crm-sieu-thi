@@ -1440,21 +1440,21 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                       >
                         <div className="mb-6 flex items-center gap-3">
                           <Trophy size={20} className="text-orange-500" />
-                          <h3 style={{ fontFamily: 'var(--font-sans)', fontSize: '24px', fontWeight: '900' }} className="text-slate-800 uppercase tracking-widest font-sans font-black">LK BÁN KÈM NHÂN VIÊN</h3>
+                          <h3 style={{ fontFamily: 'var(--font-montserrat)', fontSize: '24px', fontWeight: '900' }} className="text-slate-800 uppercase tracking-widest font-montserrat font-black">LK BÁN KÈM NHÂN VIÊN</h3>
                         </div>
                         <div className="overflow-x-auto">
                           <table className="w-full text-left font-sans text-slate-800 border-collapse border-2 border-slate-300">
                             <thead className="text-white uppercase border-b-2 border-slate-300">
                               <tr>
-                                <th style={{ width: '240px', fontFamily: 'var(--font-sans)', fontSize: '16px', fontWeight: '900' }} className="px-6 py-[11px] border-r-2 border-slate-300 bg-emerald-600 font-sans font-black">NHÂN VIÊN</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: '900' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800 font-sans font-black">DTLK</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: '900' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800 font-sans font-black">LƯỢT BILL BÁN KÈM</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: '900' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800 font-sans font-black">%BILL BÁN KÈM</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: '900' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800 font-sans font-black">LƯỢT BILL BÁN HÀNG (TRỪ ONLINE, TRẢ GÓP)</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: '900' }} className="px-6 py-[11px] text-center bg-orange-300 text-slate-800 font-sans font-black">HIỆU QUẢ</th>
+                                <th style={{ width: '240px', fontFamily: 'var(--font-montserrat)', fontSize: '16px', fontWeight: '900' }} className="px-6 py-[11px] border-r-2 border-slate-300 bg-emerald-600 font-montserrat font-black">NHÂN VIÊN</th>
+                                <th style={{ width: '70px', fontFamily: 'var(--font-montserrat)', fontSize: '13px', fontWeight: '900' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800 font-montserrat font-black">DTLK</th>
+                                <th style={{ width: '70px', fontFamily: 'var(--font-montserrat)', fontSize: '13px', fontWeight: '900' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800 font-montserrat font-black">LƯỢT BILL BÁN KÈM</th>
+                                <th style={{ width: '70px', fontFamily: 'var(--font-montserrat)', fontSize: '13px', fontWeight: '900' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800 font-montserrat font-black">%BILL BÁN KÈM</th>
+                                <th style={{ width: '70px', fontFamily: 'var(--font-montserrat)', fontSize: '13px', fontWeight: '900' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800 font-montserrat font-black">LƯỢT BILL BÁN HÀNG (TRỪ ONLINE, TRẢ GÓP)</th>
+                                <th style={{ width: '70px', fontFamily: 'var(--font-montserrat)', fontSize: '13px', fontWeight: '900' }} className="px-6 py-[11px] text-center bg-orange-300 text-slate-800 font-montserrat font-black">HIỆU QUẢ</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y-2 divide-slate-200 font-bold font-poppins" style={{ fontFamily: 'var(--font-poppins)', fontSize: '14px' }}>
+                            <tbody className="divide-y-2 divide-slate-200 font-bold font-sans" style={{ fontFamily: 'var(--font-sans)', fontSize: '14px' }}>
                               {parseBanKemData(banKemNv)
                                 .filter(row => selectedStaffIds.length === 0 || selectedStaffIds.some(id => row.nhanVien.includes(id)))
                                 .sort((a, b) => parseFloat(b.phanTramBill) - parseFloat(a.phanTramBill))
