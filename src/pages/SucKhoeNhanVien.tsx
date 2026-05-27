@@ -1440,21 +1440,21 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                       >
                         <div className="mb-6 flex items-center gap-3">
                           <Trophy size={20} className="text-orange-500" />
-                          <h3 style={{ fontFamily: 'var(--font-utm-avo)', fontSize: '24px', fontWeight: 'bold' }} className="text-slate-800 uppercase tracking-widest">LK BÁN KÈM NHÂN VIÊN</h3>
+                          <h3 style={{ fontSize: '24px', fontWeight: 'bold' }} className="text-slate-800 uppercase tracking-widest font-sans">LK BÁN KÈM NHÂN VIÊN</h3>
                         </div>
                         <div className="overflow-x-auto">
                           <table className="w-full text-left font-sans text-slate-800 border-collapse border-2 border-slate-300">
                             <thead className="text-white uppercase border-b-2 border-slate-300">
                               <tr>
-                                <th style={{ width: '240px', fontFamily: 'var(--font-utm-avo)', fontSize: '16px', fontWeight: 'bold' }} className="px-6 py-[11px] border-r-2 border-slate-300 bg-emerald-600">NHÂN VIÊN</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px', fontWeight: 'bold' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">DTLK</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px', fontWeight: 'bold' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">LƯỢT BILL BÁN KÈM</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px', fontWeight: 'bold' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">%BILL BÁN KÈM</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px', fontWeight: 'bold' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">LƯỢT BILL BÁN HÀNG (TRỪ ONLINE, TRẢ GÓP)</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px', fontWeight: 'bold' }} className="px-6 py-[11px] text-center bg-orange-300 text-slate-800">HIỆU QUẢ</th>
+                                <th style={{ width: '240px', fontSize: '16px', fontWeight: 'bold' }} className="px-6 py-[11px] border-r-2 border-slate-300 bg-emerald-600">NHÂN VIÊN</th>
+                                <th style={{ width: '70px', fontSize: '13px', fontWeight: 'bold' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">DTLK</th>
+                                <th style={{ width: '70px', fontSize: '13px', fontWeight: 'bold' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">LƯỢT BILL BÁN KÈM</th>
+                                <th style={{ width: '70px', fontSize: '13px', fontWeight: 'bold' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">%BILL BÁN KÈM</th>
+                                <th style={{ width: '70px', fontSize: '13px', fontWeight: 'bold' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">LƯỢT BILL BÁN HÀNG (TRỪ ONLINE, TRẢ GÓP)</th>
+                                <th style={{ width: '70px', fontSize: '13px', fontWeight: 'bold' }} className="px-6 py-[11px] text-center bg-orange-300 text-slate-800">HIỆU QUẢ</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y-2 divide-slate-200 font-normal" style={{ fontFamily: 'var(--font-utm-avo)', fontSize: '14px' }}>
+                            <tbody className="divide-y-2 divide-slate-200 font-normal" style={{ fontSize: '14px' }}>
                               {parseBanKemData(banKemNv)
                                 .filter(row => selectedStaffIds.length === 0 || selectedStaffIds.some(id => row.nhanVien.includes(id)))
                                 .sort((a, b) => parseFloat(b.phanTramBill) - parseFloat(a.phanTramBill))
