@@ -1285,8 +1285,8 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             <div className="w-full">
                               <table className="w-full border-collapse">
                                 <thead className="sticky top-0 z-20">
-                                  <tr className="text-white font-utm-avo font-black text-[17px] uppercase tracking-wider h-[45px]">
-                                    <th className="bg-[#00965e] px-2 py-0 text-center border-r border-white/10 h-[35px]">STT</th>
+                                  <tr className="text-white font-sans font-black text-[17px] uppercase tracking-wider h-[45px]">
+                                    <th style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="bg-[#00965e] px-2 py-0 text-center border-r border-white/10 h-[35px] font-sans font-black">STT</th>
                                     {visibleIndices.map((idx, i) => {
                                       // Map color regions like the image
                                       let bgColor = 'bg-[#00965e]'; // First group (Emerald)
@@ -1296,12 +1296,12 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                       let widthClasses = ''; // Flexible width
 
                                       return (
-                                        <th key={idx} className={`${bgColor} ${widthClasses} px-2 py-0 text-center border-r border-white/10 whitespace-normal break-words leading-tight text-[14px] h-[35px]`}>
+                                        <th key={idx} style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className={`${bgColor} ${widthClasses} px-2 py-0 text-center border-r border-white/10 whitespace-normal break-words leading-tight text-[14px] h-[35px] font-sans font-black`}>
                                           {allHeaders[idx]}
                                         </th>
                                       );
                                     })}
-                                    <th className="bg-[#f58220] px-2 py-0 text-center border-r border-white/10 last:border-r-0 whitespace-nowrap text-[14px] h-[35px]">
+                                    <th style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="bg-[#f58220] px-2 py-0 text-center border-r border-white/10 last:border-r-0 whitespace-nowrap text-[14px] h-[35px] font-sans font-black">
                                       TOP/BOT
                                     </th>
                                   </tr>
@@ -1346,7 +1346,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                           }
 
                                           return (
-                                            <td key={idx} className={`px-2 py-0 text-center text-[16px] font-utm-avo font-bold ${textColor} border-r border-slate-100 whitespace-nowrap h-[45px]`}>
+                                            <td key={idx} className={`px-2 py-0 text-center text-[16px] font-sans font-bold ${textColor} border-r border-slate-100 whitespace-nowrap h-[45px]`}>
                                               <div className="flex items-center justify-center gap-1 h-full px-2">
                                                 {isStaffName && <ChevronRight size={14} className="flex-shrink-0" />}
                                                 {isPercentage ? (
