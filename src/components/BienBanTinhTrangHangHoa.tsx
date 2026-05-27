@@ -7,9 +7,10 @@ import { useAuth } from '../contexts/AuthContext';
 interface BienBanTinhTrangHangHoaProps {
   isOpen: boolean;
   onClose: () => void;
+  title?: string;
 }
 
-export default function BienBanTinhTrangHangHoa({ isOpen, onClose }: BienBanTinhTrangHangHoaProps) {
+export default function BienBanTinhTrangHangHoa({ isOpen, onClose, title = 'BIÊN BẢN GHI NHẬN TÌNH TRẠNG HÀNG HÓA' }: BienBanTinhTrangHangHoaProps) {
   const { userProfile } = useAuth();
   const LOCAL_STORAGE_KEY = 'rtst_bien_ban_tinh_trang_hang_hoa_data';
 
@@ -135,7 +136,7 @@ export default function BienBanTinhTrangHangHoa({ isOpen, onClose }: BienBanTinh
 
       {/* Toolbar */}
       <div className="flex items-center justify-between p-4 bg-white border-b border-slate-200 shadow-sm no-print relative z-10 shrink-0">
-        <h2 className="text-xl font-bold text-slate-800">Biên Bản Nhận Tình Trạng Hàng Hóa</h2>
+        <h2 className="text-xl font-bold text-slate-800">{title}</h2>
         <div className="flex items-center gap-3">
           <button
             onClick={handleAddItem}
@@ -165,19 +166,19 @@ export default function BienBanTinhTrangHangHoa({ isOpen, onClose }: BienBanTinh
           style={{ width: '297mm', minHeight: '210mm', padding: '10mm', fontFamily: '"Times New Roman", Times, serif' }}
         >
           {/* Header */}
-          <div className="flex items-start border-b-2 border-black pb-2 mb-2 relative">
-            <div className="flex-1 flex justify-center absolute w-full top-2">
-              <h1 className="text-2xl font-bold text-black font-serif uppercase tracking-wide">BIÊN BẢN GHI NHẬN TÌNH TRẠNG HÀNG HÓA</h1>
+          <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-2">
+            <div className="bg-black text-[#fffb00] font-sans italic font-bold py-2 px-4 text-center w-[280px] shrink-0">
+              <span style={{fontSize:'20px'}}>www.thegioididong.com</span>
             </div>
-            <div className="w-1/3 bg-black text-[#fffb00] font-sans italic font-bold py-2 px-4 text-center z-10 w-[300px]">
-              <span style={{fontSize:'22px'}}>www.thegioididong.com</span>
+            <div className="flex-1 flex justify-center px-4">
+              <h1 className="text-[22px] font-bold text-black font-serif uppercase tracking-wide text-center">{title}</h1>
             </div>
             
-            <div className="w-1/3 flex justify-end items-end text-black text-lg z-10 w-full pt-2">
-              <span className="mr-1">Ngày lập:</span>
+            <div className="flex justify-end items-center text-black text-lg shrink-0">
+              <span className="mr-1 whitespace-nowrap">Ngày lập:</span>
               <input 
                 type="date"
-                className="no-print outline-none border-b border-dashed border-gray-300 ml-1 text-right text-base text-black bg-transparent w-[140px]"
+                className="no-print outline-none border-b border-dashed border-gray-300 ml-1 text-right text-base text-black bg-transparent w-[130px]"
                 value={format(currentDate, 'yyyy-MM-dd')}
                 onChange={(e) => {
                   const dateStr = e.target.value;
@@ -189,7 +190,7 @@ export default function BienBanTinhTrangHangHoa({ isOpen, onClose }: BienBanTinh
                   }
                 }}
               />
-              <span className="print-only">{format(currentDate, 'dd/MM/yyyy')}</span>
+              <span className="print-only ml-1 whitespace-nowrap">{format(currentDate, 'dd/MM/yyyy')}</span>
             </div>
           </div>
 

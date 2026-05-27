@@ -34,6 +34,7 @@ export default function ToolHoTro() {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
   const [isBienBanModalOpen, setIsBienBanModalOpen] = useState(false);
+  const [bienBanTitle, setBienBanTitle] = useState('BIÊN BẢN GHI NHẬN TÌNH TRẠNG HÀNG HÓA');
   const [printConfig, setPrintConfig] = useState({ style: 'classic', layout: '4', showPromoLabel: true });
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [printQuantities, setPrintQuantities] = useState<Record<number, number>>({});
@@ -1136,7 +1137,10 @@ export default function ToolHoTro() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <button
-                  onClick={() => setIsBienBanModalOpen(true)}
+                  onClick={() => {
+                    setBienBanTitle('BIÊN BẢN GHI NHẬN TÌNH TRẠNG HÀNG HÓA');
+                    setIsBienBanModalOpen(true);
+                  }}
                   className="flex flex-col items-center justify-center p-6 bg-white border-2 border-indigo-100 hover:border-indigo-400 hover:shadow-lg hover:shadow-indigo-100/50 rounded-2xl transition-all cursor-pointer group"
                 >
                   <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
@@ -1144,6 +1148,20 @@ export default function ToolHoTro() {
                   </div>
                   <h3 className="text-lg font-bold text-slate-800 text-center uppercase">Biên bản Tình Trạng Hàng Hóa</h3>
                   <p className="text-slate-500 text-sm text-center mt-2">Dùng khi ghi nhận tình trạng hàng hóa, in A4 ngang</p>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setBienBanTitle('BÁO GIÁ CÔNG TY');
+                    setIsBienBanModalOpen(true);
+                  }}
+                  className="flex flex-col items-center justify-center p-6 bg-white border-2 border-emerald-100 hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-100/50 rounded-2xl transition-all cursor-pointer group"
+                >
+                  <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <FileText size={32} />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-800 text-center uppercase">Báo Giá Công Ty</h3>
+                  <p className="text-slate-500 text-sm text-center mt-2">Dùng khi tạo báo giá, in A4 ngang</p>
                 </button>
               </div>
             </motion.div>
@@ -1155,6 +1173,7 @@ export default function ToolHoTro() {
       <BienBanTinhTrangHangHoa 
         isOpen={isBienBanModalOpen}
         onClose={() => setIsBienBanModalOpen(false)}
+        title={bienBanTitle}
       />
 
       <PrintLayoutModal
