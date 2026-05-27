@@ -1685,22 +1685,22 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             <>
                               <table className="w-full border-collapse font-utm-avo">
                                 <thead>
-                                  <tr className="bg-[#1e293b] text-[14px] font-black text-white uppercase tracking-tight h-[45px]">
-                                    <th rowSpan={2} className="px-3 py-0 text-center w-10 border-r border-white/10">STT</th>
-                                    <th rowSpan={2} className="px-4 py-0 text-center border-r border-white/10 min-w-[200px]">Nhân viên</th>
+                                  <tr className="bg-[#facc15] text-[14px] font-black text-slate-900 uppercase tracking-tight h-[45px] border-b border-slate-300">
+                                    <th rowSpan={2} className="px-3 py-0 text-center w-10 border-r border-slate-300">STT</th>
+                                    <th rowSpan={2} className="px-4 py-0 text-center border-r border-slate-300 min-w-[200px]">Nhân viên</th>
                                     {BONUS_COLS.map((cat, idx) => (
-                                      <th key={idx} colSpan={3} className="px-3 py-0 text-center border-r border-white/10 text-[14px] font-black text-white uppercase">
+                                      <th key={idx} colSpan={3} className="px-3 py-0 text-center border-r border-slate-300 text-[14px] font-black text-slate-900 uppercase">
                                         {cat.name}
                                       </th>
                                     ))}
-                                    <th rowSpan={2} className="px-3 py-0 text-center min-w-[80px] text-[14px] font-black text-white uppercase">Xu hướng</th>
+                                    <th rowSpan={2} className="px-3 py-0 text-center min-w-[80px] text-[14px] font-black text-slate-900 uppercase">Nhận xét</th>
                                   </tr>
-                                  <tr className="bg-[#1e293b] text-[12px] font-black text-white uppercase tracking-tight h-[35px]">
+                                  <tr className="bg-[#facc15] text-[12px] font-black text-slate-900 uppercase tracking-tight h-[35px] border-b border-slate-300">
                                     {BONUS_COLS.map((_, idx) => (
                                       <React.Fragment key={idx}>
-                                        <th className="px-2 py-0 text-center border-r border-white/10 min-w-[80px]">T.Trước</th>
-                                        <th className="px-2 py-0 text-center border-r border-white/10 min-w-[80px]">H.Tại</th>
-                                        <th className="px-2 py-0 text-center border-r border-white/10 min-w-[80px]">Tăng / Giảm</th>
+                                        <th className="px-2 py-0 text-center border-r border-slate-300 min-w-[80px]">T.Trước</th>
+                                        <th className="px-2 py-0 text-center border-r border-slate-300 min-w-[80px]">H.Tại</th>
+                                        <th className="px-2 py-0 text-center border-r border-slate-300 min-w-[80px]">Tăng / Giảm</th>
                                       </React.Fragment>
                                     ))}
                                   </tr>
