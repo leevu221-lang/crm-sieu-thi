@@ -119,11 +119,7 @@ export default function BaoGiaCongTyModal({ isOpen, onClose }: BaoGiaCongTyModal
     return items.reduce((sum: number, item: any) => sum + calculateTotalRow(item), 0);
   };
 
-  // Ensure there are at least 11 rows in the table for visual matching
   const displayItems = [...items];
-  while (displayItems.length < 11) {
-      displayItems.push({ name: '', quantity: '', retailPrice: '', discountPrice: '', isEmpty: true });
-  }
 
   const handleTermChange = (index: number, value: string) => {
     const newTerms = [...terms];
@@ -244,7 +240,7 @@ export default function BaoGiaCongTyModal({ isOpen, onClose }: BaoGiaCongTyModal
                   />
               </div>
             </div>
-            <div className="w-[200px] h-[50px] flex shrink-0 border border-slate-200">
+            <div className="w-[260px] h-[50px] flex shrink-0 border border-slate-200">
                 <div className="w-1/2 bg-black flex items-center justify-center p-1">
                     <div className="flex items-center gap-1">
                         <div className="w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center text-[8px] font-black">?</div>
@@ -261,7 +257,7 @@ export default function BaoGiaCongTyModal({ isOpen, onClose }: BaoGiaCongTyModal
           </div>
 
           <div className="flex justify-between items-start mb-6">
-              <div className="w-[55%]">
+              <div className="w-[65%]">
                   <div className="bg-black text-white font-bold px-2 py-1 mb-6 text-[14px]">
                       Kính gởi Quý khách:
                   </div>
@@ -294,7 +290,7 @@ export default function BaoGiaCongTyModal({ isOpen, onClose }: BaoGiaCongTyModal
                   </div>
               </div>
               
-              <div className="w-[40%] pl-4 flex flex-col items-end">
+              <div className="w-[35%] pl-4 flex flex-col items-end">
                   <h1 className="text-[32px] font-bold text-black font-serif tracking-wide mb-4 mt-[-10px]">BẢNG BÁO GIÁ</h1>
                   
                   <div className="w-full space-y-1 text-[13px] text-black pl-4">
