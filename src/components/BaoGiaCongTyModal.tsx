@@ -242,10 +242,10 @@ export default function BaoGiaCongTyModal({ isOpen, onClose }: BaoGiaCongTyModal
             </div>
             <div className="w-[260px] h-[50px] flex shrink-0">
                 <div className="w-1/2 bg-black flex items-center justify-center p-2">
-                    <img src="https://cdn.tgdd.vn/mwgcart/mwgcore/ContentMwg/images/logo/tgdd.png" alt="Thegioididong" className="max-h-full max-w-full object-contain" />
+                    <img src="/logo_tgdd.png" alt="Thegioididong" className="max-h-full max-w-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement!.innerHTML = '<span class="text-[#fffb00] font-sans font-bold italic text-[12px]">thegioididong</span>'; }} />
                 </div>
                 <div className="w-1/2 bg-[#00a8e8] flex items-center justify-center p-2">
-                    <img src="https://cdn.tgdd.vn/mwgcart/mwgcore/ContentMwg/images/logo/dmx.png" alt="Dien may XANH" className="max-h-full max-w-full object-contain" />
+                    <img src="/dmx.png" alt="Dien may XANH" className="max-h-full max-w-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement!.innerHTML = '<span class="text-[#fffb00] font-sans font-bold italic text-[12px]">Điện máy XANH</span>'; }} />
                 </div>
             </div>
           </div>
