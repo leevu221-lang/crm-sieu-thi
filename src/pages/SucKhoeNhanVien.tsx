@@ -1346,7 +1346,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                           }
 
                                           return (
-                                            <td key={idx} className={`px-2 py-0 text-center text-[16px] font-utm-avo font-bold ${textColor} border-r border-slate-100 whitespace-nowrap h-[45px]`}>
+                                            <td key={idx} className={`px-2 py-0 text-center text-[16px] font-utm-avo font-normal ${textColor} border-r border-slate-100 whitespace-nowrap h-[45px]`}>
                                               <div className="flex items-center justify-center gap-1 h-full px-2">
                                                 {isStaffName && <ChevronRight size={14} className="flex-shrink-0" />}
                                                 {isPercentage ? (
@@ -1446,15 +1446,15 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                           <table className="w-full text-left font-sans text-slate-800 border-collapse border-2 border-slate-300">
                             <thead className="text-white uppercase border-b-2 border-slate-300">
                               <tr>
-                                <th style={{ width: '240px', fontFamily: 'var(--font-utm-avo)', fontSize: '16px' }} className="px-6 py-[11px] border-r-2 border-slate-300 bg-emerald-600">NHÂN VIÊN</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">DTLK</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">LƯỢT BILL BÁN KÈM</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">%BILL BÁN KÈM</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">LƯỢT BILL BÁN HÀNG (TRỪ ONLINE, TRẢ GÓP)</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px' }} className="px-6 py-[11px] text-center bg-orange-300 text-slate-800">HIỆU QUẢ</th>
+                                <th style={{ width: '240px', fontFamily: 'var(--font-utm-avo)', fontSize: '16px', fontWeight: 'bold' }} className="px-6 py-[11px] border-r-2 border-slate-300 bg-emerald-600">NHÂN VIÊN</th>
+                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px', fontWeight: 'bold' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">DTLK</th>
+                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px', fontWeight: 'bold' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">LƯỢT BILL BÁN KÈM</th>
+                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px', fontWeight: 'bold' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">%BILL BÁN KÈM</th>
+                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px', fontWeight: 'bold' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800">LƯỢT BILL BÁN HÀNG (TRỪ ONLINE, TRẢ GÓP)</th>
+                                <th style={{ width: '70px', fontFamily: 'var(--font-utm-avo)', fontSize: '13px', fontWeight: 'bold' }} className="px-6 py-[11px] text-center bg-orange-300 text-slate-800">HIỆU QUẢ</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y-2 divide-slate-200 font-bold" style={{ fontFamily: 'var(--font-utm-avo)', fontSize: '14px' }}>
+                            <tbody className="divide-y-2 divide-slate-200 font-normal" style={{ fontFamily: 'var(--font-utm-avo)', fontSize: '14px' }}>
                               {parseBanKemData(banKemNv)
                                 .filter(row => selectedStaffIds.length === 0 || selectedStaffIds.some(id => row.nhanVien.includes(id)))
                                 .sort((a, b) => parseFloat(b.phanTramBill) - parseFloat(a.phanTramBill))
@@ -1719,11 +1719,11 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                                     return (
                                       <tr key={staff.fullId} className={cn("hover:bg-slate-50 transition-colors h-[40px]", idx % 2 === 1 ? "bg-[#f8faff]" : "bg-white")}>
-                                        <td className="px-2 py-0 text-center border-r border-slate-200 bg-[#facc15] font-bold text-[13px] text-slate-800">
+                                        <td className="px-2 py-0 text-center border-r border-slate-200 bg-[#facc15] font-normal text-[13px] text-slate-800">
                                           {idx + 1}
                                         </td>
                                         <td className="px-4 py-0 border-r border-slate-200">
-                                          <span className="text-[13px] font-bold text-slate-800 uppercase" title={staff.displayName}>{staff.displayName}</span>
+                                          <span className="text-[13px] font-normal text-slate-800 uppercase" title={staff.displayName}>{staff.displayName}</span>
                                         </td>
                                         {BONUS_COLS.map((cat, idx) => {
                                           const valT = truocData.details[cat.index];
@@ -1733,26 +1733,26 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                             <React.Fragment key={idx}>
                                               <td className="px-2 py-0 text-center border-r border-slate-200">
                                                 {valT !== null ? (
-                                                  <span className="text-[14px] font-bold text-slate-700">
+                                                  <span className="text-[14px] font-normal text-slate-700">
                                                     {valT.toLocaleString('vi-VN')}
                                                   </span>
                                                 ) : (
-                                                  <span className="text-[12px] text-slate-300 font-bold">—</span>
+                                                  <span className="text-[12px] text-slate-300 font-normal">—</span>
                                                 )}
                                               </td>
                                               <td className="px-2 py-0 text-center border-r border-slate-200">
                                                 {valH !== null ? (
-                                                  <span className="text-[14px] font-bold text-emerald-700">
+                                                  <span className="text-[14px] font-normal text-emerald-700">
                                                     {valH.toLocaleString('vi-VN')}
                                                   </span>
                                                 ) : (
-                                                  <span className="text-[12px] text-slate-300 font-bold">—</span>
+                                                  <span className="text-[12px] text-slate-300 font-normal">—</span>
                                                 )}
                                               </td>
                                               <td className="px-2 py-0 text-center border-r border-slate-200">
                                                 {valT !== null || valH !== null ? (
                                                   <span className={cn(
-                                                    "text-[14px] font-bold",
+                                                    "text-[14px] font-normal",
                                                     diffVal > 0 ? "text-emerald-600" :
                                                     diffVal < 0 ? "text-rose-600" :
                                                     "text-slate-400"
@@ -1760,7 +1760,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                                     {diffVal > 0 ? `+${diffVal.toLocaleString('vi-VN')}` : diffVal.toLocaleString('vi-VN')}
                                                   </span>
                                                 ) : (
-                                                  <span className="text-[12px] text-slate-300 font-bold">—</span>
+                                                  <span className="text-[12px] text-slate-300 font-normal">—</span>
                                                 )}
                                               </td>
                                             </React.Fragment>
