@@ -1346,7 +1346,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                           }
 
                                           return (
-                                            <td key={idx} className={`px-2 py-0 text-center text-[16px] font-utm-avo font-normal ${textColor} border-r border-slate-100 whitespace-nowrap h-[45px]`}>
+                                            <td key={idx} className={`px-2 py-0 text-center text-[16px] font-utm-avo font-bold ${textColor} border-r border-slate-100 whitespace-nowrap h-[45px]`}>
                                               <div className="flex items-center justify-center gap-1 h-full px-2">
                                                 {isStaffName && <ChevronRight size={14} className="flex-shrink-0" />}
                                                 {isPercentage ? (
@@ -1454,7 +1454,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                 <th style={{ width: '70px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: '900' }} className="px-6 py-[11px] text-center bg-orange-300 text-slate-800 font-sans font-black">HIỆU QUẢ</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y-2 divide-slate-200 font-normal font-poppins" style={{ fontFamily: 'var(--font-poppins)', fontSize: '14px' }}>
+                            <tbody className="divide-y-2 divide-slate-200 font-bold font-poppins" style={{ fontFamily: 'var(--font-poppins)', fontSize: '14px' }}>
                               {parseBanKemData(banKemNv)
                                 .filter(row => selectedStaffIds.length === 0 || selectedStaffIds.some(id => row.nhanVien.includes(id)))
                                 .sort((a, b) => parseFloat(b.phanTramBill) - parseFloat(a.phanTramBill))
@@ -1719,11 +1719,11 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                                     return (
                                       <tr key={staff.fullId} className={cn("hover:bg-slate-50 transition-colors h-[40px]", idx % 2 === 1 ? "bg-[#f8faff]" : "bg-white")}>
-                                        <td className="px-2 py-0 text-center border-r border-slate-200 bg-[#facc15] font-normal text-[13px] text-slate-800">
+                                        <td className="px-2 py-0 text-center border-r border-slate-200 bg-[#facc15] font-bold text-[13px] text-slate-800">
                                           {idx + 1}
                                         </td>
                                         <td className="px-4 py-0 border-r border-slate-200">
-                                          <span className="text-[13px] font-normal text-slate-800 uppercase" title={staff.displayName}>{staff.displayName}</span>
+                                          <span className="text-[13px] font-bold text-slate-800 uppercase" title={staff.displayName}>{staff.displayName}</span>
                                         </td>
                                         {BONUS_COLS.map((cat, idx) => {
                                           const valT = truocData.details[cat.index];
@@ -1733,26 +1733,26 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                             <React.Fragment key={idx}>
                                               <td className="px-2 py-0 text-center border-r border-slate-200">
                                                 {valT !== null ? (
-                                                  <span className="text-[14px] font-normal text-slate-700">
+                                                  <span className="text-[14px] font-bold text-slate-700">
                                                     {valT.toLocaleString('vi-VN')}
                                                   </span>
                                                 ) : (
-                                                  <span className="text-[12px] text-slate-300 font-normal">—</span>
+                                                  <span className="text-[12px] text-slate-300 font-bold">—</span>
                                                 )}
                                               </td>
                                               <td className="px-2 py-0 text-center border-r border-slate-200">
                                                 {valH !== null ? (
-                                                  <span className="text-[14px] font-normal text-emerald-700">
+                                                  <span className="text-[14px] font-bold text-emerald-700">
                                                     {valH.toLocaleString('vi-VN')}
                                                   </span>
                                                 ) : (
-                                                  <span className="text-[12px] text-slate-300 font-normal">—</span>
+                                                  <span className="text-[12px] text-slate-300 font-bold">—</span>
                                                 )}
                                               </td>
                                               <td className="px-2 py-0 text-center border-r border-slate-200">
                                                 {valT !== null || valH !== null ? (
                                                   <span className={cn(
-                                                    "text-[14px] font-normal",
+                                                    "text-[14px] font-bold",
                                                     diffVal > 0 ? "text-emerald-600" :
                                                     diffVal < 0 ? "text-rose-600" :
                                                     "text-slate-400"
@@ -1760,7 +1760,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                                     {diffVal > 0 ? `+${diffVal.toLocaleString('vi-VN')}` : diffVal.toLocaleString('vi-VN')}
                                                   </span>
                                                 ) : (
-                                                  <span className="text-[12px] text-slate-300 font-normal">—</span>
+                                                  <span className="text-[12px] text-slate-300 font-bold">—</span>
                                                 )}
                                               </td>
                                             </React.Fragment>
