@@ -767,7 +767,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                 }`}>
                   <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
                 </div>
-                <span className={`text-[15px] font-black tracking-tight uppercase ${isActive ? 'text-slate-800' : 'text-slate-500'}`}>
+                <span className={`text-[15px] font-sans font-black tracking-tight uppercase ${isActive ? 'text-slate-800' : 'text-slate-500'}`} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }}>
                   {item.label}
                 </span>
                 {isActive && (
@@ -1346,7 +1346,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                           }
 
                                           return (
-                                            <td key={idx} className={`px-2 py-0 text-center text-[16px] font-sans font-bold ${textColor} border-r border-slate-100 whitespace-nowrap h-[45px]`}>
+                                            <td key={idx} className={`px-2 py-0 text-center text-[16px] font-sans font-black ${textColor} border-r border-slate-100 whitespace-nowrap h-[45px]`}>
                                               <div className="flex items-center justify-center gap-1 h-full px-2">
                                                 {isStaffName && <ChevronRight size={14} className="flex-shrink-0" />}
                                                 {isPercentage ? (
@@ -1529,7 +1529,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             </div>
                             <div>
                               <h3 className="text-xs font-black text-slate-700 uppercase tracking-tight">Thưởng tháng trước</h3>
-                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Dán dữ liệu từ BI</p>
+                              <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Dán dữ liệu từ BI</p>
                             </div>
                           </div>
                           <button
@@ -1544,9 +1544,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                         <div className="space-y-2.5">
                           {filteredBiData.map((staff) => (
                             <div key={`truoc-${staff.fullId}`}>
-                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 block truncate">{staff.displayName}</label>
+                              <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5 block truncate">{staff.displayName}</label>
                               <textarea
-                                className="w-full p-2 rounded-lg border border-slate-200 text-[10px] font-bold font-sans focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 outline-none transition-all bg-slate-50/50 hover:bg-white resize-none"
+                                className="w-full p-2 rounded-lg border border-slate-200 text-[10px] font-black font-sans focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 outline-none transition-all bg-slate-50/50 hover:bg-white resize-none"
                                 rows={1}
                                 placeholder="Dán dữ liệu..."
                                 value={thuongData[staff.fullId]?.truoc || ''}
@@ -1571,7 +1571,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             </div>
                             <div>
                               <h3 className="text-xs font-black text-purple-700 uppercase tracking-tight">Thưởng hiện tại</h3>
-                              <p className="text-[9px] text-purple-400 font-bold uppercase tracking-widest">Dán dữ liệu từ BI</p>
+                              <p className="text-[9px] text-purple-400 font-black uppercase tracking-widest">Dán dữ liệu từ BI</p>
                             </div>
                           </div>
                           <button
@@ -1586,9 +1586,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                         <div className="space-y-2.5">
                           {filteredBiData.map((staff) => (
                             <div key={`hientai-${staff.fullId}`}>
-                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 block truncate">{staff.displayName}</label>
+                              <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5 block truncate">{staff.displayName}</label>
                               <textarea
-                                className="w-full p-2 rounded-lg border border-purple-200 text-[10px] font-bold font-sans focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 outline-none transition-all bg-purple-50/30 hover:bg-white resize-none"
+                                className="w-full p-2 rounded-lg border border-purple-200 text-[10px] font-black font-sans focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 outline-none transition-all bg-purple-50/30 hover:bg-white resize-none"
                                 rows={1}
                                 placeholder="Dán dữ liệu..."
                                 value={thuongData[staff.fullId]?.hientai || ''}
@@ -1855,7 +1855,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                     <Gift size={28} className="text-slate-300" />
                                   </div>
                                   <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Chưa có nhân viên</h3>
-                                  <p className="text-xs text-slate-300 font-medium mt-1">Chọn siêu thị và nhân viên để xem bảng thưởng</p>
+                                  <p className="text-xs text-slate-300 font-black mt-1">Chọn siêu thị và nhân viên để xem bảng thưởng</p>
                                 </div>
                               )}
                             </>
