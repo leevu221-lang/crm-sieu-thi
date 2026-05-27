@@ -1689,22 +1689,22 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             <>
                               <table className="w-full border-collapse border border-slate-100 font-utm-avo">
                                 <thead>
-                                  <tr className="bg-slate-50 border-b border-slate-100 text-[13px] font-black text-[#1a2744] uppercase tracking-tight">
-                                    <th rowSpan={2} className="px-3 py-4 text-left w-10 border-b border-slate-100 border-r border-slate-100">STT</th>
-                                    <th rowSpan={2} className="px-3 py-4 text-left border-b border-slate-100 border-r border-slate-100 min-w-[200px]">Nhân viên</th>
+                                  <tr className="bg-[#1e293b] border-b border-slate-700 text-[13px] font-black text-white uppercase tracking-tight">
+                                    <th rowSpan={2} className="px-3 py-4 text-left w-10 border-b border-slate-700 border-r border-slate-700/50">STT</th>
+                                    <th rowSpan={2} className="px-3 py-4 text-left border-b border-slate-700 border-r border-slate-700/50 min-w-[200px]">Nhân viên</th>
                                     {BONUS_COLS.map((cat, idx) => (
-                                      <th key={idx} colSpan={3} className="px-3 py-2 text-center border-r border-slate-100 border-b border-slate-100 text-[14px] font-black text-[#1a2744] uppercase">
+                                      <th key={idx} colSpan={3} className="px-3 py-2 text-center border-r border-slate-700/50 border-b border-slate-700 text-[14px] font-black text-white uppercase">
                                         {cat.name}
                                       </th>
                                     ))}
-                                    <th rowSpan={2} className="px-3 py-4 text-center border-b border-slate-100 min-w-[80px] text-[13px] font-black text-[#1a2744] uppercase">Xu hướng</th>
+                                    <th rowSpan={2} className="px-3 py-4 text-center border-b border-slate-700 min-w-[80px] text-[13px] font-black text-white uppercase">Xu hướng</th>
                                   </tr>
-                                  <tr className="bg-slate-50 text-[12px] font-black text-[#1a2744] uppercase tracking-tight">
+                                  <tr className="bg-[#1e293b] text-[12px] font-black text-white uppercase tracking-tight">
                                     {BONUS_COLS.map((_, idx) => (
                                       <React.Fragment key={idx}>
-                                        <th className="px-2 py-3 text-center border-r border-slate-100 border-b border-slate-100 min-w-[80px]">T.Trước</th>
-                                        <th className="px-2 py-3 text-center border-r border-slate-100 border-b border-slate-100 min-w-[80px]">H.Tại</th>
-                                        <th className="px-2 py-3 text-center border-r border-slate-100 border-b border-slate-100 min-w-[80px]">Tăng / Giảm</th>
+                                        <th className="px-2 py-3 text-center border-r border-slate-700/50 border-b border-slate-700 min-w-[80px]">T.Trước</th>
+                                        <th className="px-2 py-3 text-center border-r border-slate-700/50 border-b border-slate-700 min-w-[80px]">H.Tại</th>
+                                        <th className="px-2 py-3 text-center border-r border-slate-700/50 border-b border-slate-700 min-w-[80px]">Tăng / Giảm</th>
                                       </React.Fragment>
                                     ))}
                                   </tr>
