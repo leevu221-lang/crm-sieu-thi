@@ -1719,7 +1719,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                                     return (
                                       <tr key={staff.fullId} className={cn("hover:bg-slate-50 transition-colors h-[40px]", idx % 2 === 1 ? "bg-[#f8faff]" : "bg-white")}>
-                                        <td className="px-2 py-0 text-center border-r border-slate-200 bg-[#fef08a] font-bold text-[13px] text-slate-800">
+                                        <td className="px-2 py-0 text-center border-r border-slate-200 bg-[#facc15] font-bold text-[13px] text-slate-800">
                                           {idx + 1}
                                         </td>
                                         <td className="px-4 py-0 border-r border-slate-200">
