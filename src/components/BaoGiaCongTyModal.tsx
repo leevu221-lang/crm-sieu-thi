@@ -240,18 +240,12 @@ export default function BaoGiaCongTyModal({ isOpen, onClose }: BaoGiaCongTyModal
                   />
               </div>
             </div>
-            <div className="w-[260px] h-[50px] flex shrink-0 border border-slate-200">
-                <div className="w-1/2 bg-black flex items-center justify-center p-1">
-                    <div className="flex items-center gap-1">
-                        <div className="w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center text-[8px] font-black">?</div>
-                        <span className="text-yellow-400 font-sans font-bold italic text-[11px] leading-none">thegioididong</span>
-                    </div>
+            <div className="w-[260px] h-[50px] flex shrink-0">
+                <div className="w-1/2 bg-black flex items-center justify-center p-2">
+                    <img src="https://cdn.tgdd.vn/mwgcart/mwgcore/ContentMwg/images/logo/tgdd.png" alt="Thegioididong" className="max-h-full max-w-full object-contain" />
                 </div>
-                <div className="w-1/2 bg-[#00a8e8] flex items-center justify-center p-1">
-                    <div className="flex items-center gap-1">
-                        <div className="w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center text-[8px] font-black">?</div>
-                        <span className="text-yellow-400 font-sans font-bold italic text-[11px] leading-none whitespace-nowrap">Điện máy XANH</span>
-                    </div>
+                <div className="w-1/2 bg-[#00a8e8] flex items-center justify-center p-2">
+                    <img src="https://cdn.tgdd.vn/mwgcart/mwgcore/ContentMwg/images/logo/dmx.png" alt="Dien may XANH" className="max-h-full max-w-full object-contain" />
                 </div>
             </div>
           </div>
