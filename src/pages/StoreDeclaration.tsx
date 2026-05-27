@@ -204,18 +204,18 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center font-sans">
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center font-sans font-black">
         <div className="relative">
           <div className="w-12 h-12 border-4 border-indigo-100 rounded-full"></div>
           <div className="w-12 h-12 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin absolute top-0 left-0"></div>
         </div>
-        <p className="mt-4 text-slate-400 font-bold text-xs uppercase tracking-widest animate-pulse">Đang tải cấu hình...</p>
+        <p className="mt-4 text-slate-400 font-black text-xs uppercase tracking-widest animate-pulse">Đang tải cấu hình...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4 sm:p-6 md:p-8 font-sans selection:bg-indigo-100 selection:text-indigo-900">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4 sm:p-6 md:p-8 font-sans font-black selection:bg-indigo-100 selection:text-indigo-900">
       <motion.div 
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -258,14 +258,14 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                     Cú pháp chuẩn trên BI
                   </h3>
                   <div className="p-4 bg-slate-900 text-slate-100 rounded-2xl font-mono text-[11px] sm:text-xs relative group overflow-hidden border border-slate-800">
-                    <div className="flex justify-between items-center mb-2 text-[10px] text-slate-500 font-sans font-bold uppercase tracking-wider">
+                    <div className="flex justify-between items-center mb-2 text-[10px] text-slate-500 font-sans font-black uppercase tracking-wider">
                       <span>Ví dụ mẫu</span>
                       <span className="text-emerald-400 flex items-center gap-1">
                         <CheckCircle2 size={10} />
                         Hợp lệ
                       </span>
                     </div>
-                    <code className="block text-indigo-300 font-bold select-all whitespace-pre-wrap break-all leading-relaxed">
+                    <code className="block text-indigo-300 font-sans font-black select-all whitespace-pre-wrap break-all leading-relaxed">
                       ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH
                     </code>
                     
@@ -278,7 +278,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                     </button>
                     
                     {copied && (
-                      <span className="absolute right-12 top-4 text-[9px] font-bold text-emerald-400 bg-slate-800 px-2 py-0.5 rounded shadow border border-slate-700/40">
+                      <span className="absolute right-12 top-4 text-[9px] font-black text-emerald-400 bg-slate-800 px-2 py-0.5 rounded shadow border border-slate-700/40">
                         Đã sao chép!
                       </span>
                     )}
@@ -289,7 +289,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                   <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-wider pl-1">
                     Các lưu ý cần biết
                   </h3>
-                  <ul className="space-y-3 text-xs font-semibold text-slate-500 leading-normal">
+                  <ul className="space-y-3 text-xs font-black text-slate-500 leading-normal">
                     <li className="flex items-start gap-2.5">
                       <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0" />
                       <span>Không tự ý viết tắt tên tỉnh thành hoặc bỏ bớt địa chỉ.</span>
@@ -307,7 +307,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
               </div>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-slate-200/60 flex items-center gap-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <div className="mt-6 pt-4 border-t border-slate-200/60 flex items-center gap-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
               <span>Hệ thống hỗ trợ đồng bộ 24/7</span>
             </div>
@@ -323,7 +323,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                 <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight uppercase">
                   Khai báo tên siêu thị
                 </h1>
-                <p className="text-xs text-slate-400 font-semibold tracking-wider uppercase mt-1.5">
+                <p className="text-xs text-slate-400 font-black tracking-wider uppercase mt-1.5">
                   Mã kho đăng nhập: <span className="text-indigo-600 font-black">{maKho}</span>
                 </p>
               </div>
@@ -332,7 +332,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className={`mb-6 p-4 rounded-2xl border flex items-start gap-3 text-sm font-bold ${
+                  className={`mb-6 p-4 rounded-2xl border flex items-start gap-3 text-sm font-black ${
                     statusMessage.type === 'success' 
                       ? 'bg-emerald-50 border-emerald-100 text-emerald-600' 
                       : 'bg-red-50 border-red-100 text-red-600'
@@ -360,7 +360,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                     <label className="text-xs font-black text-slate-400 uppercase tracking-widest">
                       Siêu thị 1 <span className="text-indigo-500 font-black">*</span>
                     </label>
-                    <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase">Cơ sở chính</span>
+                    <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase">Cơ sở chính</span>
                   </div>
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
@@ -370,7 +370,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                       type="text"
                       value={store1}
                       onChange={(e) => setStore1(e.target.value)}
-                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-medium placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
+                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-black placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
                       placeholder="Nhập tên siêu thị đúng cú pháp trên Bi VD : ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH"
                     />
                   </div>
@@ -389,7 +389,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                       type="text"
                       value={store2}
                       onChange={(e) => setStore2(e.target.value)}
-                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-medium placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
+                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-black placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
                       placeholder="Nhập tên siêu thị đúng cú pháp trên Bi VD : ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH"
                     />
                   </div>
@@ -408,7 +408,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                       type="text"
                       value={store3}
                       onChange={(e) => setStore3(e.target.value)}
-                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-medium placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
+                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-black placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
                       placeholder="Nhập tên siêu thị đúng cú pháp trên Bi VD : ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH"
                     />
                   </div>

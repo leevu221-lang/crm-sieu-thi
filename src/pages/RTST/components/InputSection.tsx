@@ -590,7 +590,7 @@ const InputSection: React.FC<InputSectionProps> = ({
               <button
                 onClick={() => onStoreChange?.('ALL')}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all active:scale-95",
+                  "flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all active:scale-95",
                   activeStore === 'ALL'
                     ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
                     : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
@@ -619,7 +619,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                   key={name}
                   onClick={() => onStoreChange?.(name)}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all active:scale-95",
+                    "flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all active:scale-95",
                     activeStore === name
                       ? "bg-teal-600 text-white shadow-lg shadow-teal-200"
                       : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
@@ -720,12 +720,12 @@ const InputSection: React.FC<InputSectionProps> = ({
                   <div className="px-5 py-4 flex items-center justify-between border-b border-slate-100">
                     <div>
                       <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">{storeName}</h3>
-                      <p className="text-[10px] text-slate-400 font-medium">Thống kê dữ liệu siêu thị.</p>
+                      <p className="text-[10px] text-slate-400 font-black">Thống kê dữ liệu siêu thị.</p>
                     </div>
                     {isActiveCard ? (
                       <span className={cn("text-[9px] font-black px-3 py-1.5 rounded-lg", color.activeBadge)}>ĐANG CHỌN</span>
                     ) : (
-                      <span className="text-[9px] font-bold text-slate-400 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50">BẤM ĐỂ CHỌN</span>
+                      <span className="text-[9px] font-black text-slate-400 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50">BẤM ĐỂ CHỌN</span>
                     )}
                   </div>
 
@@ -811,7 +811,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <div className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-md border", cardPhucVu ? "text-teal-500 bg-white border-teal-200" : "text-slate-400 bg-white border-slate-200")}>
+                        <div className={cn("text-[9px] font-black px-1.5 py-0.5 rounded-md border", cardPhucVu ? "text-teal-500 bg-white border-teal-200" : "text-slate-400 bg-white border-slate-200")}>
                           BÁO CÁO PHỤC VỤ
                         </div>
                         {cardPhucVu && isActiveCard && (
@@ -854,7 +854,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                         placeholder="0" 
                         disabled={!isActiveCard}
                         className={cn(
-                          "w-20 border rounded-lg p-1.5 text-xs font-bold text-center outline-none transition-all",
+                          "w-20 border rounded-lg p-1.5 text-xs font-black text-center outline-none transition-all",
                           isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400"
                         )} 
                       />
@@ -886,7 +886,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                             <button onClick={onAnalyze} className="px-3 py-1.5 bg-violet-50 text-violet-600 border border-violet-100 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-violet-100 transition-all active:scale-95 flex items-center gap-1">
                               <Zap size={10} /> ĐỒNG BỘ
                             </button>
-                            <input type="number" value={globalPercent} onChange={(e) => handleGlobalPercentChange(Number(e.target.value))} className="w-16 bg-white border border-slate-200 rounded-lg p-1.5 text-[10px] font-bold text-center" placeholder="%" />
+                            <input type="number" value={globalPercent} onChange={(e) => handleGlobalPercentChange(Number(e.target.value))} className="w-16 bg-white border border-slate-200 rounded-lg p-1.5 text-[10px] font-black text-center" placeholder="%" />
                              <button onClick={() => { const nt = categoryTargets.map(item => ({ ...item, percent: globalPercent, adjustedTarget: item.target * (globalPercent / 100) })); setCategoryTargets(nt); onSaveLuyke(false, 'targets', undefined, nt, 'TARGET THI ĐUA'); }} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[9px] font-black uppercase hover:bg-indigo-700 transition-all active:scale-95">ÁP DỤNG ALL</button>
                             <button onClick={() => onSaveLuyke(false, 'targets', undefined, undefined, 'TARGET THI ĐUA')} disabled={isSavingTargets} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[9px] font-black uppercase hover:bg-emerald-700 transition-all active:scale-95 flex items-center gap-1 disabled:opacity-50">
                               {isSavingTargets ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />} LƯU
@@ -899,7 +899,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                             if (items.length === 0) return null;
                             return (
                               <div key={type}>
-                                <h4 className="text-[10px] font-bold text-slate-400 mb-2 uppercase">Ngành hàng ({type})</h4>
+                                <h4 className="text-[10px] font-black text-slate-400 mb-2 uppercase">Ngành hàng ({type})</h4>
                                 <table className="w-full text-left border-collapse">
                                   <thead>
                                     <tr className="text-[9px] text-slate-400 uppercase tracking-widest">
@@ -912,11 +912,11 @@ const InputSection: React.FC<InputSectionProps> = ({
                                   <tbody>
                                     {items.map(item => (
                                       <tr key={item.name} className="border-t border-slate-100">
-                                        <td className="p-1.5 text-[10px] font-bold">{item.name}</td>
+                                        <td className="p-1.5 text-[10px] font-black">{item.name}</td>
                                         <td className="p-1.5 text-[10px]">{item.target.toLocaleString()}</td>
-                                        <td className="p-1.5 text-[10px] font-bold text-indigo-600">{item.adjustedTarget.toLocaleString()}</td>
+                                        <td className="p-1.5 text-[10px] font-black text-indigo-600">{item.adjustedTarget.toLocaleString()}</td>
                                         <td className="p-1.5 text-center">
-                                          <input type="number" value={item.percent} onChange={(e) => { if (!isActiveCard) return; const nv = Number(e.target.value); const nt = categoryTargets.map(t => t.name === item.name ? { ...t, percent: nv, adjustedTarget: t.target * (nv / 100) } : t); setCategoryTargets(nt); }} disabled={!isActiveCard} className={cn("w-14 border rounded p-1 text-[10px] text-center font-bold outline-none", isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400")} />
+                                          <input type="number" value={item.percent} onChange={(e) => { if (!isActiveCard) return; const nv = Number(e.target.value); const nt = categoryTargets.map(t => t.name === item.name ? { ...t, percent: nv, adjustedTarget: t.target * (nv / 100) } : t); setCategoryTargets(nt); }} disabled={!isActiveCard} className={cn("w-14 border rounded p-1 text-[10px] text-center font-black outline-none", isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400")} />
                                         </td>
                                       </tr>
                                     ))}
@@ -1001,9 +1001,9 @@ const InputSection: React.FC<InputSectionProps> = ({
                       {showPicker && (
                         <div className="absolute z-50 bottom-full mb-2 left-0 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-4">
                           <div className="flex items-center justify-between mb-3">
-                            <button type="button" onClick={() => setPickerYear(y => y - 1)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-slate-500 font-bold transition-all">&lt;</button>
+                            <button type="button" onClick={() => setPickerYear(y => y - 1)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-slate-500 font-black transition-all">&lt;</button>
                             <span className="text-sm font-black text-slate-700">{pickerYear}</span>
-                            <button type="button" onClick={() => setPickerYear(y => y + 1)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-slate-500 font-bold transition-all">&gt;</button>
+                            <button type="button" onClick={() => setPickerYear(y => y + 1)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 text-slate-500 font-black transition-all">&gt;</button>
                           </div>
                           <div className="grid grid-cols-4 gap-2">
                             {MONTHS.map((m, i) => {
@@ -1019,7 +1019,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                                     setSelectedMonth(`${pickerYear}-${String(mon).padStart(2, '0')}`);
                                     setShowPicker(false);
                                   }}
-                                  className={`py-2 px-1 rounded-xl text-xs font-bold transition-all ${
+                                  className={`py-2 px-1 rounded-xl text-xs font-black transition-all ${
                                     isSelected
                                       ? 'bg-indigo-600 text-white shadow-md'
                                       : isCurrent
@@ -1104,7 +1104,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                 <p className="text-xs text-slate-500 leading-relaxed mb-4">
                   Truy cập trang tính Google Sheets để cập nhật các thông số, danh mục và dữ liệu nguồn cho hệ thống.
                 </p>
-                <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full w-fit">
+                <div className="flex items-center gap-2 text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full w-fit">
                   <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                   LIÊN KẾT TRỰC TIẾP
                 </div>
@@ -1116,7 +1116,7 @@ const InputSection: React.FC<InputSectionProps> = ({
 
       {/* Copyright Footer */}
       <div className="text-center py-6 mt-4">
-        <p className="text-xs font-semibold text-slate-400 tracking-widest uppercase">
+        <p className="text-xs font-black text-slate-400 tracking-widest uppercase">
           © LINH VU
         </p>
       </div>

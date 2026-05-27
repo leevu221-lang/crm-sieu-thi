@@ -284,7 +284,7 @@ const KhaiBao: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans">
+    <div className="min-h-screen bg-[#f8fafc] font-sans font-black">
 
 
       <div className="max-w-[1260px] mx-auto p-8">
