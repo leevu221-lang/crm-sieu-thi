@@ -1687,24 +1687,24 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                           return (
                             <>
-                              <table className="w-full border-collapse border border-slate-100">
+                              <table className="w-full border-collapse border border-slate-100 font-utm-avo">
                                 <thead>
-                                  <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                  <tr className="bg-slate-50 border-b border-slate-100 text-[13px] font-black text-[#1a2744] uppercase tracking-tight">
                                     <th rowSpan={2} className="px-3 py-4 text-left w-10 border-b border-slate-100 border-r border-slate-100">STT</th>
                                     <th rowSpan={2} className="px-3 py-4 text-left border-b border-slate-100 border-r border-slate-100 min-w-[200px]">Nhân viên</th>
                                     {BONUS_COLS.map((cat, idx) => (
-                                      <th key={idx} colSpan={3} className="px-3 py-2 text-center border-r border-slate-100 border-b border-slate-100">
+                                      <th key={idx} colSpan={3} className="px-3 py-2 text-center border-r border-slate-100 border-b border-slate-100 text-[14px] font-black text-[#1a2744] uppercase">
                                         {cat.name}
                                       </th>
                                     ))}
-                                    <th rowSpan={2} className="px-3 py-4 text-center border-b border-slate-100 min-w-[80px]">Xu hướng</th>
+                                    <th rowSpan={2} className="px-3 py-4 text-center border-b border-slate-100 min-w-[80px] text-[13px] font-black text-[#1a2744] uppercase">Xu hướng</th>
                                   </tr>
-                                  <tr className="bg-slate-50 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                                  <tr className="bg-slate-50 text-[12px] font-black text-[#1a2744] uppercase tracking-tight">
                                     {BONUS_COLS.map((_, idx) => (
                                       <React.Fragment key={idx}>
-                                        <th className="px-2 py-2 text-center border-r border-slate-100 border-b border-slate-100 min-w-[80px]">T.Trước</th>
-                                        <th className="px-2 py-2 text-center border-r border-slate-100 border-b border-slate-100 min-w-[80px]">H.Tại</th>
-                                        <th className="px-2 py-2 text-center border-r border-slate-100 border-b border-slate-100 min-w-[80px]">Tăng / Giảm</th>
+                                        <th className="px-2 py-3 text-center border-r border-slate-100 border-b border-slate-100 min-w-[80px]">T.Trước</th>
+                                        <th className="px-2 py-3 text-center border-r border-slate-100 border-b border-slate-100 min-w-[80px]">H.Tại</th>
+                                        <th className="px-2 py-3 text-center border-r border-slate-100 border-b border-slate-100 min-w-[80px]">Tăng / Giảm</th>
                                       </React.Fragment>
                                     ))}
                                   </tr>
@@ -1723,20 +1723,11 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                                     return (
                                       <tr key={staff.fullId} className="hover:bg-slate-50/50 transition-colors">
-                                        <td className="px-3 py-3 border-r border-slate-100 text-center">
-                                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-slate-100 text-[10px] font-black text-slate-500">
-                                            {idx + 1}
-                                          </span>
+                                        <td className="px-3 py-3 border-r border-slate-100 text-center text-[13px] font-bold text-slate-700">
+                                          {idx + 1}
                                         </td>
                                         <td className="px-3 py-3 border-r border-slate-100">
-                                          <div className="flex items-center gap-2">
-                                            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-100 to-indigo-100 flex items-center justify-center flex-shrink-0">
-                                              <span className="text-[10px] font-black text-purple-600">
-                                                {staff.displayName.split(' ').pop()?.charAt(0) || '?'}
-                                              </span>
-                                            </div>
-                                            <p className="text-[11px] font-bold text-slate-800" title={staff.displayName}>{staff.displayName}</p>
-                                          </div>
+                                          <span className="text-[13px] font-bold text-slate-800 uppercase" title={staff.displayName}>{staff.displayName}</span>
                                         </td>
                                         {BONUS_COLS.map((cat, idx) => {
                                           const valT = truocData.details[cat.index];
@@ -1746,26 +1737,26 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                             <React.Fragment key={idx}>
                                               <td className="px-2 py-3 text-center border-r border-slate-100">
                                                 {valT !== null ? (
-                                                  <span className="text-[11px] font-semibold text-slate-600">
+                                                  <span className="text-[14px] font-bold text-slate-700">
                                                     {valT.toLocaleString('vi-VN')}
                                                   </span>
                                                 ) : (
-                                                  <span className="text-[10px] text-slate-300 font-bold">—</span>
+                                                  <span className="text-[12px] text-slate-300 font-bold">—</span>
                                                 )}
                                               </td>
                                               <td className="px-2 py-3 text-center border-r border-slate-100">
                                                 {valH !== null ? (
-                                                  <span className="text-[11px] font-bold text-indigo-600">
+                                                  <span className="text-[14px] font-bold text-indigo-600">
                                                     {valH.toLocaleString('vi-VN')}
                                                   </span>
                                                 ) : (
-                                                  <span className="text-[10px] text-slate-300 font-bold">—</span>
+                                                  <span className="text-[12px] text-slate-300 font-bold">—</span>
                                                 )}
                                               </td>
                                               <td className="px-2 py-3 text-center border-r border-slate-100">
                                                 {valT !== null || valH !== null ? (
                                                   <span className={cn(
-                                                    "text-[11px] font-semibold",
+                                                    "text-[14px] font-bold",
                                                     diffVal > 0 ? "text-emerald-600" :
                                                     diffVal < 0 ? "text-rose-600" :
                                                     "text-slate-400"
@@ -1773,7 +1764,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                                     {diffVal > 0 ? `+${diffVal.toLocaleString('vi-VN')}` : diffVal.toLocaleString('vi-VN')}
                                                   </span>
                                                 ) : (
-                                                  <span className="text-[10px] text-slate-300 font-bold">—</span>
+                                                  <span className="text-[12px] text-slate-300 font-bold">—</span>
                                                 )}
                                               </td>
                                             </React.Fragment>
@@ -1783,16 +1774,16 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                           {truocData.tong !== null || hientaiData.tong !== null ? (
                                             <div className="flex items-center justify-center">
                                               {tongDiff > 0 ? (
-                                                <span className="inline-flex items-center gap-0.5 text-emerald-600 text-[10px] font-bold uppercase">
-                                                  <TrendingUp size={11} strokeWidth={2.5} /> Tăng
+                                                <span className="inline-flex items-center gap-0.5 text-emerald-600 text-[11px] font-bold uppercase">
+                                                  <TrendingUp size={12} strokeWidth={2.5} /> Tăng
                                                 </span>
                                               ) : tongDiff < 0 ? (
-                                                <span className="inline-flex items-center gap-0.5 text-rose-600 text-[10px] font-bold uppercase">
-                                                  <TrendingDown size={11} strokeWidth={2.5} /> Giảm
+                                                <span className="inline-flex items-center gap-0.5 text-rose-600 text-[11px] font-bold uppercase">
+                                                  <TrendingDown size={12} strokeWidth={2.5} /> Giảm
                                                 </span>
                                               ) : (
-                                                <span className="inline-flex items-center gap-0.5 text-slate-500 text-[10px] font-bold uppercase">
-                                                  <Check size={11} strokeWidth={2.5} /> Ổn định
+                                                <span className="inline-flex items-center gap-0.5 text-slate-500 text-[11px] font-bold uppercase">
+                                                  <Check size={12} strokeWidth={2.5} /> Ổn định
                                                 </span>
                                               )}
                                             </div>
@@ -1806,7 +1797,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                     );
                                   })}
                                 </tbody>
-                                <tfoot className="bg-[#1e293b] font-bold text-white text-[11px] border-t border-slate-700 select-none">
+                                <tfoot className="bg-[#1e293b] font-black text-white text-[13px] border-t border-slate-700 select-none">
                                   <tr>
                                     <td colSpan={2} className="px-3 py-3.5 text-left uppercase tracking-wider border-r border-slate-700/50 text-white font-black">
                                       TỔNG CỘNG ĐANG HIỂN THỊ
@@ -1847,11 +1838,11 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                       {hasAnyDataT && hasAnyDataH ? (
                                         <div className="flex items-center justify-center">
                                           {colTotalsH[7] - colTotalsT[7] > 0 ? (
-                                            <span className="text-white text-[9px] font-black uppercase">Tăng</span>
+                                            <span className="text-white text-[10px] font-black uppercase">Tăng</span>
                                           ) : colTotalsH[7] - colTotalsT[7] < 0 ? (
-                                            <span className="text-white text-[9px] font-black uppercase">Giảm</span>
+                                            <span className="text-white text-[10px] font-black uppercase">Giảm</span>
                                           ) : (
-                                            <span className="text-white text-[9px] font-black uppercase">Ổn định</span>
+                                            <span className="text-white text-[10px] font-black uppercase">Ổn định</span>
                                           )}
                                         </div>
                                       ) : (
