@@ -223,7 +223,7 @@ function Sticker({ item, style, showPromoLabel = true }: { item: any, style: str
 
           {/* GIÁ SỐC */}
           <div className="text-center mt-6">
-            <div className="text-[140px] uppercase leading-none tracking-normal font-normal" style={{ fontFamily: '"Anton", sans-serif', transform: 'scaleY(1.15)', transformOrigin: 'top center' }}>
+            <div className="text-[140px] uppercase leading-none tracking-normal font-normal" style={{ fontFamily: '"Futura Extra Bold Condensed", "Futura PT Cond Extra Bold", "Futura", sans-serif', fontStretch: 'condensed' }}>
               GIÁ SỐC
             </div>
           </div>
@@ -231,7 +231,7 @@ function Sticker({ item, style, showPromoLabel = true }: { item: any, style: str
           {/* Discount Percentage */}
           {discountPercent > 0 && (
             <div className="text-center mt-8">
-              <div className="text-[280px] leading-none tracking-normal text-black font-normal" style={{ fontFamily: '"Anton", sans-serif', transform: 'scaleY(1.15)', transformOrigin: 'top center' }}>
+              <div className="text-[260px] leading-none tracking-normal text-black font-normal" style={{ fontFamily: '"Futura Extra Bold Condensed", "Futura PT Cond Extra Bold", "Futura", sans-serif', fontStretch: 'condensed' }}>
                 -{discountPercent}%
               </div>
             </div>
@@ -249,15 +249,15 @@ function Sticker({ item, style, showPromoLabel = true }: { item: any, style: str
           {/* Prices */}
           <div className="flex-1 flex flex-col items-center pt-2">
             {/* Original Price */}
-            <div className="relative inline-block text-[64px] font-extrabold text-black opacity-80 mb-2" style={{ fontWeight: 800 }}>
+            <div className="relative inline-block text-[64px] font-extrabold text-black opacity-80 mb-2" style={{ fontFamily: '"Futura Extra Bold Condensed", "Futura PT Cond Extra Bold", "Futura", sans-serif', fontStretch: 'condensed' }}>
               {formatPrice(item.originalPrice)}
               <div className="absolute top-[50%] left-[-10%] right-[-10%] h-[6px] bg-black -translate-y-1/2"></div>
             </div>
 
             {/* Final Price */}
-            <div className="flex items-baseline font-extrabold justify-center w-full" style={{ fontWeight: 800 }}>
-              <span className="text-[220px] leading-none tracking-tighter">{mainPrice}</span>
-              <span className="text-[80px] ml-1">.{lastPart}Đ</span>
+            <div className="flex items-baseline font-extrabold justify-center w-full px-4" style={{ fontFamily: '"Futura Extra Bold Condensed", "Futura PT Cond Extra Bold", "Futura", sans-serif', fontStretch: 'condensed' }}>
+              <span className="text-[170px] leading-none tracking-tighter whitespace-nowrap">{mainPrice}</span>
+              <span className="text-[64px] ml-1 whitespace-nowrap">.{lastPart}Đ</span>
             </div>
           </div>
 
