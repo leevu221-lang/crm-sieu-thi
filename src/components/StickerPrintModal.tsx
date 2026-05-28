@@ -62,7 +62,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
       case '1': return { cols: 1, rows: 1, scale: 1.98, orientation: 'landscape' };
       case '2': return { cols: 1, rows: 2, scale: 1.38, orientation: 'portrait' };
       case '4': return { cols: 2, rows: 2, scale: 0.98, orientation: 'landscape' };
-      case '8': return { cols: 2, rows: 4, scale: 0.68, orientation: 'portrait' };
+      case '8': return { cols: 2, rows: 4, scale: 0.64, orientation: 'portrait' };
       default: return { cols: 2, rows: 2, scale: 0.98, orientation: 'landscape' };
     }
   };
@@ -149,7 +149,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                   height: isA5 
                     ? (layoutStyles.orientation === 'portrait' ? '210mm' : '148.5mm') 
                     : (layoutStyles.orientation === 'portrait' ? '297mm' : '210mm'),
-                  padding: (isA5 || isA4Giasoc) ? '0' : '2mm',
+                  padding: (isA5 || isA4Giasoc) ? '0' : '4mm',
                   gridTemplateColumns: `repeat(${layoutStyles.cols}, 1fr)`,
                   gridTemplateRows: `repeat(${layoutStyles.rows}, 1fr)`,
                   margin: '0 auto',
@@ -157,27 +157,24 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                   gap: '0'
                 }}>
                   {page.map((item, index) => (
-                    <div key={index} className="relative overflow-hidden border-dashed border-slate-100 print:border-none flex items-center justify-center" style={{ 
-                      borderWidth: '0.5px',
+                    <div key={index} className="print:border-none" style={{ 
+                      overflow: 'hidden',
+                      position: 'relative',
                       width: '100%',
-                      height: '100%'
+                      height: '100%',
+                      minHeight: 0,
+                      minWidth: 0
                     }}>
                       <div style={{ 
-                        width: `${baseStickerWidth * layoutStyles.scale}mm`,
-                        height: `${baseStickerHeight * layoutStyles.scale}mm`,
-                        position: 'relative'
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: `translate(-50%, -50%) scale(${layoutStyles.scale})`,
+                        transformOrigin: 'center center',
+                        width: `${baseStickerWidth}mm`, 
+                        height: `${baseStickerHeight}mm`
                       }}>
-                        <div style={{ 
-                          transform: `scale(${layoutStyles.scale})`, 
-                          transformOrigin: 'top left', 
-                          width: `${baseStickerWidth}mm`, 
-                          height: `${baseStickerHeight}mm`, 
-                          position: 'absolute',
-                          top: 0,
-                          left: 0
-                        }}>
-                          <Sticker item={item} style={config.style} showPromoLabel={config.showPromoLabel} />
-                        </div>
+                        <Sticker item={item} style={config.style} showPromoLabel={config.showPromoLabel} />
                       </div>
                     </div>
                   ))}
