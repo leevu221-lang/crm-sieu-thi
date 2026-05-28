@@ -81,6 +81,9 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
 
   return createPortal(
     <div className="print-modal-container fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 print:static print:bg-white print:p-0 print:block">
+      <style type="text/css">
+        @import url('https://fonts.googleapis.com/css2?family=Anton&amp;family=Montserrat:ital,wght@0,500;0,700;0,800;1,500;1,700;1,800&amp;display=swap');
+      </style>
       <style type="text/css" media="print">
         {`
           @page { 
@@ -209,35 +212,35 @@ function Sticker({ item, style, showPromoLabel = true }: { item: any, style: str
 
     return (
       <div className="w-[210mm] h-[297mm] bg-white p-[5mm] box-border shrink-0 overflow-hidden flex flex-col items-center">
-        <div className="w-full h-full bg-white border-[4px] border-black flex flex-col relative text-black" style={{ fontFamily: '"Arial", sans-serif' }}>
+        <div className="w-full h-full bg-white border-[4px] border-black flex flex-col relative text-black" style={{ fontFamily: '"Montserrat", sans-serif' }}>
           
           {/* Top category label */}
           <div className="mt-12 flex justify-center w-full px-8">
             <div className="bg-black text-white px-12 py-3 rounded-sm shadow-sm inline-block">
-              <span className="text-[42px] font-black uppercase tracking-widest leading-none">{categoryName}</span>
+              <span className="text-[42px] font-bold uppercase tracking-widest leading-none">{categoryName}</span>
             </div>
           </div>
 
           {/* GIÁ SỐC */}
           <div className="text-center mt-6">
-            <div className="text-[140px] font-black uppercase leading-none tracking-tighter" style={{ fontFamily: '"Impact", "Arial Black", sans-serif' }}>
+            <div className="text-[140px] uppercase leading-none tracking-normal font-normal" style={{ fontFamily: '"Anton", sans-serif', transform: 'scaleY(1.15)', transformOrigin: 'top center' }}>
               GIÁ SỐC
             </div>
           </div>
 
           {/* Discount Percentage */}
           {discountPercent > 0 && (
-            <div className="text-center mt-4">
-              <div className="text-[280px] font-black leading-none tracking-tighter text-black">
+            <div className="text-center mt-8">
+              <div className="text-[280px] leading-none tracking-normal text-black font-normal" style={{ fontFamily: '"Anton", sans-serif', transform: 'scaleY(1.15)', transformOrigin: 'top center' }}>
                 -{discountPercent}%
               </div>
             </div>
           )}
 
           {/* Product Name */}
-          <div className="w-full px-12 mt-12 mb-6">
+          <div className="w-full px-12 mt-16 mb-6">
             <div className="h-[2px] bg-black opacity-80 mb-6"></div>
-            <div className="text-[28px] font-bold text-center line-clamp-2 leading-tight uppercase">
+            <div className="text-[28px] font-bold text-center line-clamp-2 leading-tight uppercase" style={{ fontWeight: 700 }}>
               {item.name || 'TÊN SẢN PHẨM'}
             </div>
             <div className="h-[2px] bg-black opacity-80 mt-6"></div>
@@ -246,13 +249,13 @@ function Sticker({ item, style, showPromoLabel = true }: { item: any, style: str
           {/* Prices */}
           <div className="flex-1 flex flex-col items-center pt-2">
             {/* Original Price */}
-            <div className="relative inline-block text-[64px] font-bold text-black opacity-80 mb-2">
+            <div className="relative inline-block text-[64px] font-extrabold text-black opacity-80 mb-2" style={{ fontWeight: 800 }}>
               {formatPrice(item.originalPrice)}
               <div className="absolute top-[50%] left-[-10%] right-[-10%] h-[6px] bg-black -translate-y-1/2"></div>
             </div>
 
             {/* Final Price */}
-            <div className="flex items-baseline font-black justify-center w-full">
+            <div className="flex items-baseline font-extrabold justify-center w-full" style={{ fontWeight: 800 }}>
               <span className="text-[220px] leading-none tracking-tighter">{mainPrice}</span>
               <span className="text-[80px] ml-1">.{lastPart}Đ</span>
             </div>
@@ -260,7 +263,7 @@ function Sticker({ item, style, showPromoLabel = true }: { item: any, style: str
 
           {/* Footer Text */}
           <div className="text-center pb-8 pt-4">
-            <div className="text-[18px] font-bold italic tracking-wide">
+            <div className="text-[18px] italic tracking-wide" style={{ fontWeight: 500 }}>
               {timeString ? `Khuyến mãi áp dụng đến hết ngày ${timeString.split(' | ')[0]}` : 'Khuyến mãi áp dụng đến khi hết hàng'}
             </div>
           </div>
