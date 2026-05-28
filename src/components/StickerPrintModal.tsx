@@ -14,6 +14,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
   const [previewScale, setPreviewScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
   const isA5 = config.style === 'display' || config.style === 'giovang';
+  const isA4Giasoc = config.style === 'a4_giasoc';
 
   useEffect(() => {
     if (!isOpen) return;
@@ -22,7 +23,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
       if (containerRef.current) {
         const availableWidth = containerRef.current.clientWidth;
         const padding = 64;
-        const isPortrait = config.layout === '2' || config.layout === '8' || isA5;
+        const isPortrait = config.layout === '2' || config.layout === '8' || isA5 || isA4Giasoc;
         const pageDimensions = isA5 
           ? { width: 148.5, height: 210 } // A5
           : { width: 210, height: 297 };  // A4
@@ -54,7 +55,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
   };
 
   const getLayoutStyles = () => {
-    if (config.style === 'display' || config.style === 'giovang') {
+    if (config.style === 'display' || config.style === 'giovang' || config.style === 'a4_giasoc') {
       return { cols: 1, rows: 1, scale: 1, orientation: 'portrait' };
     }
     switch (config.layout) {
@@ -74,9 +75,9 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
     pages.push(data.slice(i, i + itemsPerPage));
   }
 
-  // Base sticker dimensions (A6 Landscape standard)
-  const baseStickerWidth = isA5 ? 148.5 : 148.5; // mm
-  const baseStickerHeight = isA5 ? 210 : 105; // mm
+  // Base sticker dimensions
+  const baseStickerWidth = isA5 ? 148.5 : (isA4Giasoc ? 210 : 148.5); // mm
+  const baseStickerHeight = isA5 ? 210 : (isA4Giasoc ? 297 : 105); // mm
 
   return createPortal(
     <div className="print-modal-container fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 print:static print:bg-white print:p-0 print:block">
@@ -145,7 +146,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                   height: isA5 
                     ? (layoutStyles.orientation === 'portrait' ? '210mm' : '148.5mm') 
                     : (layoutStyles.orientation === 'portrait' ? '297mm' : '210mm'),
-                  padding: isA5 ? '0' : '2mm',
+                  padding: (isA5 || isA4Giasoc) ? '0' : '2mm',
                   gridTemplateColumns: `repeat(${layoutStyles.cols}, 1fr)`,
                   gridTemplateRows: `repeat(${layoutStyles.rows}, 1fr)`,
                   margin: '0 auto',
@@ -192,6 +193,82 @@ function Sticker({ item, style, showPromoLabel = true }: { item: any, style: str
     if (isNaN(num)) return '0';
     return num.toLocaleString('vi-VN').replace(/,/g, '.');
   };
+
+  if (style === 'a4_giasoc') {
+    const discountPercent = item.originalPrice > 0 
+      ? Math.round(((item.originalPrice - item.discountPrice) / item.originalPrice) * 100) 
+      : 0;
+      
+    const priceStr = formatPrice(item.discountPrice);
+    const priceParts = priceStr.split('.');
+    const mainPrice = priceParts.slice(0, -1).join('.');
+    const lastPart = priceParts[priceParts.length - 1];
+    
+    // Extract category heuristically or use default
+    const categoryName = item.name ? item.name.split(' ').slice(0, 3).join(' ') : 'SẢN PHẨM KHUYẾN MÃI';
+
+    return (
+      <div className="w-[210mm] h-[297mm] bg-white p-[5mm] box-border shrink-0 overflow-hidden flex flex-col items-center">
+        <div className="w-full h-full bg-white border-[4px] border-black flex flex-col relative text-black" style={{ fontFamily: '"Arial", sans-serif' }}>
+          
+          {/* Top category label */}
+          <div className="mt-12 flex justify-center w-full px-8">
+            <div className="bg-black text-white px-12 py-3 rounded-sm shadow-sm inline-block">
+              <span className="text-[42px] font-black uppercase tracking-widest leading-none">{categoryName}</span>
+            </div>
+          </div>
+
+          {/* GIÁ SỐC */}
+          <div className="text-center mt-6">
+            <div className="text-[140px] font-black uppercase leading-none tracking-tighter" style={{ fontFamily: '"Impact", "Arial Black", sans-serif' }}>
+              GIÁ SỐC
+            </div>
+          </div>
+
+          {/* Discount Percentage */}
+          {discountPercent > 0 && (
+            <div className="text-center mt-4">
+              <div className="text-[280px] font-black leading-none tracking-tighter text-black">
+                -{discountPercent}%
+              </div>
+            </div>
+          )}
+
+          {/* Product Name */}
+          <div className="w-full px-12 mt-12 mb-6">
+            <div className="h-[2px] bg-black opacity-80 mb-6"></div>
+            <div className="text-[28px] font-bold text-center line-clamp-2 leading-tight uppercase">
+              {item.name || 'TÊN SẢN PHẨM'}
+            </div>
+            <div className="h-[2px] bg-black opacity-80 mt-6"></div>
+          </div>
+
+          {/* Prices */}
+          <div className="flex-1 flex flex-col items-center pt-2">
+            {/* Original Price */}
+            <div className="relative inline-block text-[64px] font-bold text-black opacity-80 mb-2">
+              {formatPrice(item.originalPrice)}
+              <div className="absolute top-[50%] left-[-10%] right-[-10%] h-[6px] bg-black -translate-y-1/2"></div>
+            </div>
+
+            {/* Final Price */}
+            <div className="flex items-baseline font-black justify-center w-full">
+              <span className="text-[220px] leading-none tracking-tighter">{mainPrice}</span>
+              <span className="text-[80px] ml-1">.{lastPart}Đ</span>
+            </div>
+          </div>
+
+          {/* Footer Text */}
+          <div className="text-center pb-8 pt-4">
+            <div className="text-[18px] font-bold italic tracking-wide">
+              {timeString ? `Khuyến mãi áp dụng đến hết ngày ${timeString.split(' | ')[0]}` : 'Khuyến mãi áp dụng đến khi hết hàng'}
+            </div>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
 
   if (style === 'giovang') {
     const discountPercent = item.originalPrice > 0 

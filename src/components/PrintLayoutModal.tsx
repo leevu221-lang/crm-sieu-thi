@@ -80,6 +80,17 @@ export default function PrintLayoutModal({ isOpen, onClose, onConfirm }: PrintLa
                 />
                 <span className="ml-3 font-medium text-slate-800 text-red-600 font-black">GIỜ VÀNG GIÁ SỐC (A5)</span>
               </label>
+              <label className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedStyle === 'a4_giasoc' ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-200'}`}>
+                <input 
+                  type="radio" 
+                  name="stickerStyle" 
+                  value="a4_giasoc" 
+                  checked={selectedStyle === 'a4_giasoc'} 
+                  onChange={(e) => setSelectedStyle(e.target.value)}
+                  className="w-5 h-5 text-indigo-600 border-slate-300 focus:ring-indigo-500"
+                />
+                <span className="ml-3 font-medium text-slate-800 text-amber-500 font-black">A4 ĐỨNG (GIÁ SỐC VÀNG)</span>
+              </label>
             </div>
           </div>
 
@@ -87,12 +98,14 @@ export default function PrintLayoutModal({ isOpen, onClose, onConfirm }: PrintLa
           <div className="mb-8">
             <h3 className="text-sm font-bold text-slate-600 mb-4 uppercase tracking-wider">2. CHỌN BỐ CỤC TRANG IN</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {selectedStyle === 'display' || selectedStyle === 'giovang' ? (
+              {selectedStyle === 'display' || selectedStyle === 'giovang' || selectedStyle === 'a4_giasoc' ? (
                 <div 
                   className={`p-5 rounded-xl border-2 cursor-pointer transition-all border-indigo-500 bg-indigo-50/50`}
                 >
-                  <h4 className="text-lg font-bold text-slate-800 mb-1">1 Sticker / Trang A5</h4>
-                  <p className="text-sm text-slate-500">Kích thước 148.5 x 210 mm (A5 Đứng)</p>
+                  <h4 className="text-lg font-bold text-slate-800 mb-1">1 Sticker / Trang {selectedStyle === 'a4_giasoc' ? 'A4' : 'A5'}</h4>
+                  <p className="text-sm text-slate-500">
+                    Kích thước {selectedStyle === 'a4_giasoc' ? '210 x 297 mm (A4 Đứng)' : '148.5 x 210 mm (A5 Đứng)'}
+                  </p>
                 </div>
               ) : (
                 layouts.map(layout => (
@@ -130,7 +143,7 @@ export default function PrintLayoutModal({ isOpen, onClose, onConfirm }: PrintLa
           </button>
           <button 
             onClick={() => {
-              const finalLayout = (selectedStyle === 'display' || selectedStyle === 'giovang') ? '1' : selectedLayout;
+              const finalLayout = (selectedStyle === 'display' || selectedStyle === 'giovang' || selectedStyle === 'a4_giasoc') ? '1' : selectedLayout;
               onConfirm(selectedStyle, finalLayout, showPromoLabel);
             }}
             className="px-6 py-2.5 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
