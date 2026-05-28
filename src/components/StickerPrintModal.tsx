@@ -157,15 +157,27 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                   gap: '0'
                 }}>
                   {page.map((item, index) => (
-                    <div key={index} className="relative overflow-hidden border-dashed border-slate-100 print:border-none flex items-center justify-center" style={{ borderWidth: '0.5px' }}>
+                    <div key={index} className="relative overflow-hidden border-dashed border-slate-100 print:border-none flex items-center justify-center" style={{ 
+                      borderWidth: '0.5px',
+                      width: '100%',
+                      height: '100%'
+                    }}>
                       <div style={{ 
-                        transform: `scale(${layoutStyles.scale})`, 
-                        transformOrigin: 'center', 
-                        width: `${baseStickerWidth}mm`, 
-                        height: `${baseStickerHeight}mm`, 
-                        flexShrink: 0 
+                        width: `${baseStickerWidth * layoutStyles.scale}mm`,
+                        height: `${baseStickerHeight * layoutStyles.scale}mm`,
+                        position: 'relative'
                       }}>
-                        <Sticker item={item} style={config.style} showPromoLabel={config.showPromoLabel} />
+                        <div style={{ 
+                          transform: `scale(${layoutStyles.scale})`, 
+                          transformOrigin: 'top left', 
+                          width: `${baseStickerWidth}mm`, 
+                          height: `${baseStickerHeight}mm`, 
+                          position: 'absolute',
+                          top: 0,
+                          left: 0
+                        }}>
+                          <Sticker item={item} style={config.style} showPromoLabel={config.showPromoLabel} />
+                        </div>
                       </div>
                     </div>
                   ))}
