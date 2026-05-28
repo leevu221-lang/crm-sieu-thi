@@ -1286,7 +1286,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               <table className="w-full border-collapse">
                                 <thead className="sticky top-0 z-20">
                                   <tr className="text-white font-sans font-black text-[17px] uppercase tracking-wider h-[45px]">
-                                    <th style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="bg-[#00965e] px-2 py-0 text-center border-r border-white/10 h-[35px] font-sans font-black">STT</th>
+                                    <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="bg-[#00965e] px-2 py-0 text-center border-r border-white/10 h-[35px] font-sans font-black">STT</th>
                                     {visibleIndices.map((idx, i) => {
                                       // Map color regions like the image
                                       let bgColor = 'bg-[#00965e]'; // First group (Emerald)
@@ -1296,12 +1296,12 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                       let widthClasses = ''; // Flexible width
 
                                       return (
-                                        <th key={idx} style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className={`${bgColor} ${widthClasses} px-2 py-0 text-center border-r border-white/10 whitespace-normal break-words leading-tight text-[14px] h-[35px] font-sans font-black`}>
+                                        <th key={idx} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={`${bgColor} ${widthClasses} px-2 py-0 text-center border-r border-white/10 whitespace-normal break-words leading-tight text-[14px] h-[35px] font-sans font-black`}>
                                           {allHeaders[idx]}
                                         </th>
                                       );
                                     })}
-                                    <th style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="bg-[#f58220] px-2 py-0 text-center border-r border-white/10 last:border-r-0 whitespace-nowrap text-[14px] h-[35px] font-sans font-black">
+                                    <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="bg-[#f58220] px-2 py-0 text-center border-r border-white/10 last:border-r-0 whitespace-nowrap text-[14px] h-[35px] font-sans font-black">
                                       TOP/BOT
                                     </th>
                                   </tr>
@@ -1315,7 +1315,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                                     return (
                                       <tr key={rowIdx} className={`${isStriped ? 'bg-[#f8faff]' : 'bg-white'} hover:bg-slate-50 transition-colors h-[35px]`}>
-                                        <td className="px-2 py-0 text-center font-black text-slate-800 text-[16px] font-oswald border-r border-slate-100 h-[35px]">{rowIdx + 1}</td>
+                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="px-2 py-0 text-center font-extrabold text-slate-800 text-[16px] font-sans border-r border-slate-100 h-[35px]">{rowIdx + 1}</td>
                                         {visibleIndices.map((idx, i) => {
                                           const value = cells[idx] || '';
                                           const headerText = allHeaders[idx].trim().toUpperCase();
@@ -1346,7 +1346,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                           }
 
                                           return (
-                                            <td key={idx} className={`px-2 py-0 text-center text-[16px] font-sans font-black ${textColor} border-r border-slate-100 whitespace-nowrap h-[45px]`}>
+                                            <td key={idx} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className={`px-2 py-0 text-center text-[16px] font-sans font-extrabold ${textColor} border-r border-slate-100 whitespace-nowrap h-[45px]`}>
                                               <div className="flex items-center justify-center gap-1 h-full px-2">
                                                 {isStaffName && <ChevronRight size={14} className="flex-shrink-0" />}
                                                 {isPercentage ? (
@@ -1360,7 +1360,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                             </td>
                                           );
                                         })}
-                                        <td className={`px-1 py-0 text-center text-[16px] font-bold font-oswald border-r border-slate-100 last:border-r-0 whitespace-nowrap h-[35px]`}>
+                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className={`px-1 py-0 text-center text-[16px] font-extrabold font-sans border-r border-slate-100 last:border-r-0 whitespace-nowrap h-[35px]`}>
                                           <div className="flex items-center justify-center gap-1 h-full">
                                             {isTopOne && (
                                               <div className="flex items-center gap-1 text-[#2563eb]">
@@ -1383,7 +1383,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                 </tbody>
                                 {/* Footer like the image */}
                                 <tfoot className="bg-[#f8faff] border-t-2 border-slate-200">
-                                  <tr className="font-black text-slate-800 uppercase text-[14pt]">
+                                  <tr style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="font-black text-slate-800 uppercase text-[14pt]">
                                     <td colSpan={2} className="px-6 py-4 text-center">TỔNG</td>
                                     {visibleIndices.slice(1).map((_, i) => (
                                       <td key={i} className="px-4 py-4 text-center">---</td>
