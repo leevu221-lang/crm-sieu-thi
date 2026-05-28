@@ -222,8 +222,8 @@ function Sticker({ item, style, showPromoLabel = true }: { item: any, style: str
           </div>
 
           {/* GIÁ SỐC */}
-          <div className="text-center mt-6">
-            <div className="text-[160px] uppercase leading-none tracking-tighter font-black" style={{ transform: 'scaleY(1.1)', transformOrigin: 'top center' }}>
+          <div className="text-center mt-10">
+            <div className="text-[130px] uppercase leading-none tracking-tighter font-black" style={{ transform: 'scaleY(1.1)', transformOrigin: 'top center' }}>
               GIÁ SỐC
             </div>
           </div>
@@ -262,9 +262,13 @@ function Sticker({ item, style, showPromoLabel = true }: { item: any, style: str
           </div>
 
           {/* Footer Text */}
-          <div className="text-center pb-8 pt-4">
-            <div className="text-[20px] font-bold italic tracking-wide">
-              {timeString ? `Khuyến mãi áp dụng đến hết ngày ${timeString.split(' | ')[0]}` : 'Khuyến mãi áp dụng đến khi hết hàng'}
+          <div className="text-center pb-8 pt-4 w-full">
+            <div 
+              className="text-[20px] font-bold italic tracking-wide outline-none focus:ring-2 focus:ring-indigo-500/50 rounded inline-block px-4 py-1"
+              contentEditable={true}
+              suppressContentEditableWarning={true}
+            >
+              {timeString ? `Khuyến mãi áp dụng đến hết ngày ${timeString.split(' | ')[0].replace(/\//g, ' - ')}` : 'Khuyến mãi áp dụng đến khi hết hàng'}
             </div>
           </div>
 
