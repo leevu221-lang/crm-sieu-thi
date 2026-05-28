@@ -141,29 +141,36 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
             </div>
           ) : (
             <div className="flex flex-col items-center gap-8 print:gap-0 print:block w-full">
-              {pages.map((page, pageIndex) => (
-                <div key={pageIndex} className="bg-white shadow-xl print:shadow-none grid page-break" style={{ 
-                  width: isA5 
-                    ? (layoutStyles.orientation === 'portrait' ? '148.5mm' : '210mm') 
-                    : (layoutStyles.orientation === 'portrait' ? '210mm' : '297mm'),
-                  height: isA5 
-                    ? (layoutStyles.orientation === 'portrait' ? '210mm' : '148.5mm') 
-                    : (layoutStyles.orientation === 'portrait' ? '297mm' : '210mm'),
-                  padding: (isA5 || isA4Giasoc) ? '0' : '4mm',
-                  gridTemplateColumns: `repeat(${layoutStyles.cols}, 1fr)`,
-                  gridTemplateRows: `repeat(${layoutStyles.rows}, 1fr)`,
+              {pages.map((page, pageIndex) => {
+                const pageW = isA5 
+                  ? (layoutStyles.orientation === 'portrait' ? '148.5mm' : '210mm') 
+                  : (layoutStyles.orientation === 'portrait' ? '210mm' : '297mm');
+                const pageH = isA5 
+                  ? (layoutStyles.orientation === 'portrait' ? '210mm' : '148.5mm') 
+                  : (layoutStyles.orientation === 'portrait' ? '297mm' : '210mm');
+                const cellW = `${100 / layoutStyles.cols}%`;
+                const cellH = `${100 / layoutStyles.rows}%`;
+                
+                return (
+                <div key={pageIndex} className="bg-white shadow-xl print:shadow-none page-break" style={{ 
+                  width: pageW,
+                  height: pageH,
+                  maxHeight: pageH,
+                  padding: (isA5 || isA4Giasoc) ? '0' : '3mm',
                   margin: '0 auto',
                   boxSizing: 'border-box',
-                  gap: '0'
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignContent: 'stretch'
                 }}>
                   {page.map((item, index) => (
-                    <div key={index} className="print:border-none" style={{ 
+                    <div key={index} style={{ 
+                      width: cellW,
+                      height: cellH,
                       overflow: 'hidden',
                       position: 'relative',
-                      width: '100%',
-                      height: '100%',
-                      minHeight: 0,
-                      minWidth: 0
+                      boxSizing: 'border-box'
                     }}>
                       <div style={{ 
                         position: 'absolute',
@@ -179,7 +186,8 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                     </div>
                   ))}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
