@@ -62,7 +62,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
       case '1': return { cols: 1, rows: 1, scale: 1.98, orientation: 'landscape' };
       case '2': return { cols: 1, rows: 2, scale: 1.38, orientation: 'portrait' };
       case '4': return { cols: 2, rows: 2, scale: 0.98, orientation: 'landscape' };
-      case '8': return { cols: 2, rows: 4, scale: 0.64, orientation: 'portrait' };
+      case '8': return { cols: 2, rows: 4, scale: 0.68, orientation: 'portrait' };
       default: return { cols: 2, rows: 2, scale: 0.98, orientation: 'landscape' };
     }
   };
@@ -141,53 +141,36 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
             </div>
           ) : (
             <div className="flex flex-col items-center gap-8 print:gap-0 print:block w-full">
-              {pages.map((page, pageIndex) => {
-                const pageW = isA5 
-                  ? (layoutStyles.orientation === 'portrait' ? '148.5mm' : '210mm') 
-                  : (layoutStyles.orientation === 'portrait' ? '210mm' : '297mm');
-                const pageH = isA5 
-                  ? (layoutStyles.orientation === 'portrait' ? '210mm' : '148.5mm') 
-                  : (layoutStyles.orientation === 'portrait' ? '297mm' : '210mm');
-                const cellW = `${100 / layoutStyles.cols}%`;
-                const cellH = `${100 / layoutStyles.rows}%`;
-                
-                return (
-                <div key={pageIndex} className="bg-white shadow-xl print:shadow-none page-break" style={{ 
-                  width: pageW,
-                  height: pageH,
-                  maxHeight: pageH,
-                  padding: (isA5 || isA4Giasoc) ? '0' : '3mm',
+              {pages.map((page, pageIndex) => (
+                <div key={pageIndex} className="bg-white shadow-xl print:shadow-none grid page-break" style={{ 
+                  width: isA5 
+                    ? (layoutStyles.orientation === 'portrait' ? '148.5mm' : '210mm') 
+                    : (layoutStyles.orientation === 'portrait' ? '210mm' : '297mm'),
+                  height: isA5 
+                    ? (layoutStyles.orientation === 'portrait' ? '210mm' : '148.5mm') 
+                    : (layoutStyles.orientation === 'portrait' ? '297mm' : '210mm'),
+                  padding: (isA5 || isA4Giasoc) ? '0' : '2mm',
+                  gridTemplateColumns: `repeat(${layoutStyles.cols}, 1fr)`,
+                  gridTemplateRows: `repeat(${layoutStyles.rows}, 1fr)`,
                   margin: '0 auto',
                   boxSizing: 'border-box',
-                  overflow: 'hidden',
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  alignContent: 'stretch'
+                  gap: '0'
                 }}>
                   {page.map((item, index) => (
-                    <div key={index} style={{ 
-                      width: cellW,
-                      height: cellH,
-                      overflow: 'hidden',
-                      position: 'relative',
-                      boxSizing: 'border-box'
-                    }}>
+                    <div key={index} className="relative overflow-hidden border-dashed border-slate-100 print:border-none flex items-center justify-center" style={{ borderWidth: '0.5px' }}>
                       <div style={{ 
-                        position: 'absolute',
-                        top: '50%',
-                        left: '50%',
-                        transform: `translate(-50%, -50%) scale(${layoutStyles.scale})`,
-                        transformOrigin: 'center center',
+                        transform: `scale(${layoutStyles.scale})`, 
+                        transformOrigin: 'center', 
                         width: `${baseStickerWidth}mm`, 
-                        height: `${baseStickerHeight}mm`
+                        height: `${baseStickerHeight}mm`, 
+                        flexShrink: 0 
                       }}>
                         <Sticker item={item} style={config.style} showPromoLabel={config.showPromoLabel} />
                       </div>
                     </div>
                   ))}
                 </div>
-                );
-              })}
+              ))}
             </div>
           )}
         </div>
