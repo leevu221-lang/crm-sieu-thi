@@ -61,9 +61,9 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
     switch (config.layout) {
       case '1': return { cols: 1, rows: 1, scale: 1.98, orientation: 'landscape' };
       case '2': return { cols: 1, rows: 2, scale: 1.38, orientation: 'portrait' };
-      case '4': return { cols: 2, rows: 2, scale: 0.98, orientation: 'landscape' };
+      case '4': return { cols: 2, rows: 2, scale: 0.95, orientation: 'landscape' };
       case '8': return { cols: 2, rows: 4, scale: 0.68, orientation: 'portrait' };
-      default: return { cols: 2, rows: 2, scale: 0.98, orientation: 'landscape' };
+      default: return { cols: 2, rows: 2, scale: 0.95, orientation: 'landscape' };
     }
   };
 
