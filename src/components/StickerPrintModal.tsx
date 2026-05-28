@@ -245,10 +245,10 @@ function Sticker({ item, style, showPromoLabel = true }: { item: any, style: str
               <div className="absolute top-[55%] left-[-10%] right-[-10%] h-[3px] bg-black"></div>
             </div>
 
-            {/* 5. GIÁ GIẢM (Tăng 20% size: 110 * 1.2 = 132 | 48 * 1.2 = 57.6 -> Adjusted to 52 for 10% reduction) */}
+            {/* 5. GIÁ GIẢM (Giảm size để vừa trang A5 với các giá trị lớn như 10.990.000) */}
             <div className="flex items-baseline font-black">
-              <span className="text-[132px] leading-none tracking-tighter">{mainPrice}</span>
-              <span className="text-[52px] ml-1">.{lastPart}Đ</span>
+              <span className="text-[100px] leading-none tracking-tighter">{mainPrice}</span>
+              <span className="text-[40px] ml-1">.{lastPart}Đ</span>
             </div>
           </div>
         </div>
