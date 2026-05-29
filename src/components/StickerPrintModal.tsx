@@ -59,11 +59,11 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
       return { cols: 1, rows: 1, scale: 1, orientation: 'portrait' };
     }
     switch (config.layout) {
-      case '1': return { cols: 1, rows: 1, scale: 1.98, orientation: 'landscape' };
+      case '1': return { cols: 1, rows: 1, scale: 1.96, orientation: 'landscape' };
       case '2': return { cols: 1, rows: 2, scale: 1.38, orientation: 'portrait' };
-      case '4': return { cols: 2, rows: 2, scale: 0.95, orientation: 'landscape' };
+      case '4': return { cols: 2, rows: 2, scale: 0.94, orientation: 'landscape' };
       case '8': return { cols: 2, rows: 4, scale: 0.68, orientation: 'portrait' };
-      default: return { cols: 2, rows: 2, scale: 0.95, orientation: 'landscape' };
+      default: return { cols: 2, rows: 2, scale: 0.94, orientation: 'landscape' };
     }
   };
 
@@ -157,15 +157,24 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                   gap: '0'
                 }}>
                   {page.map((item, index) => (
-                    <div key={index} className="relative overflow-hidden border-dashed border-slate-100 print:border-none flex items-center justify-center" style={{ borderWidth: '0.5px' }}>
-                      <div style={{ 
-                        transform: `scale(${layoutStyles.scale})`, 
-                        transformOrigin: 'center', 
-                        width: `${baseStickerWidth}mm`, 
-                        height: `${baseStickerHeight}mm`, 
-                        flexShrink: 0 
+                    <div key={index} className="relative overflow-hidden border-dashed border-slate-100 print:border-none flex items-center justify-center min-w-0 min-h-0" style={{ borderWidth: '0.5px' }}>
+                      <div style={{
+                        width: `${baseStickerWidth * layoutStyles.scale}mm`,
+                        height: `${baseStickerHeight * layoutStyles.scale}mm`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
                       }}>
-                        <Sticker item={item} style={config.style} showPromoLabel={config.showPromoLabel} />
+                        <div style={{ 
+                          transform: `scale(${layoutStyles.scale})`, 
+                          transformOrigin: 'center', 
+                          width: `${baseStickerWidth}mm`, 
+                          height: `${baseStickerHeight}mm`, 
+                          flexShrink: 0 
+                        }}>
+                          <Sticker item={item} style={config.style} showPromoLabel={config.showPromoLabel} />
+                        </div>
                       </div>
                     </div>
                   ))}
