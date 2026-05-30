@@ -15,7 +15,8 @@ import OverviewDashboard from './RTST/components/OverviewDashboard';
 import CategoryTable from './RTST/components/CategoryTable';
 
 import { ConfirmationModal } from './RTST/components/Modals';
-import { normalize, isKhoLuuDong } from './RTST/utils';
+import { normalize, isKhoLuuDong, parseStaffRankData, parseCategoryData } from './RTST/utils';
+import SummaryThiDuaTable from './EmployeeHealth/components/SummaryThiDuaTable';
 
 const LuyKe: React.FC = () => {
   const { userProfile } = useAuth();
@@ -24,10 +25,15 @@ const LuyKe: React.FC = () => {
     return (availableMarkets || []).filter(m => !isKhoLuuDong(m.name));
   }, [availableMarkets]);
   const [maKho, setMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
+  const [activeTab, setActiveTab] = useState<'summary' | 'efficiency'>('summary');
 
   const {
     clusterSummaryInput, setClusterSummaryInput,
     clusterCategoryInput, setClusterCategoryInput,
+    staffInput,
+    staffCategoryInput,
+    tragopMatran,
+    activeStore,
     categoryTargets,
     processedData: displayData,
     processData,
@@ -214,7 +220,104 @@ const LuyKe: React.FC = () => {
 
   // Removed window focus re-processing to improve performance
 
+  // Extract staffIds and staffCount for SummaryThiDuaTable
+  const staffIds = React.useMemo(() => {
+    // 1. First try parsing from staffCategoryInput (this tab's primary input)
+    if (staffCategoryInput) {
+      const lines = staffCategoryInput.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+      let headerStartIdx = -1;
+      let dataStartIdx = -1;
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i] === 'Phòng ban') { headerStartIdx = i; continue; }
+        const isEmployeeLine = /[-–—]\s*\d{5,8}\b/.test(lines[i]) || /\b\d{5,8}\s*[-–—]/.test(lines[i]);
+        if (headerStartIdx !== -1 && isEmployeeLine) { dataStartIdx = i; break; }
+      }
+      if (dataStartIdx !== -1) {
+        const ids: string[] = [];
+        const excludedKeywords = ['Tổng', 'BP All In One', 'BP Trưởng Ca', 'Hỗ trợ BI', 'Copyright', 'Dashboard', 'BC ', 'HD sử dụng', 'Trang chủ', 'Báo cáo', 'Khối kinh doanh', 'Logo BI', 'avatar'];
+        for (let i = dataStartIdx; i < lines.length; i++) {
+          const parts = lines[i].split(/\t|\s{2,}/).map((p: string) => p.trim()).filter((p: string) => p.length > 0);
+          const namePart = parts[0];
+          if (!namePart || excludedKeywords.some((ex: string) => namePart.includes(ex))) continue;
+          const nameIdParts = namePart.split(' - ').map((s: string) => s.trim());
+          if (nameIdParts.length < 2) continue;
+          ids.push(nameIdParts[1]);
+        }
+        if (ids.length > 0) return ids;
+      }
+    }
+    
+    // 2. Fallback to staffInput
+    if (staffInput) {
+      const parsed = parseStaffRankData(staffInput);
+      return parsed.map((s: any) => s.fullId);
+    }
+    
+    return [];
+  }, [staffCategoryInput, staffInput]);
 
+  const staffCount = staffIds.length;
+
+  // Parse categories from tragopMatran (CẤU HÌNH SIÊU THỊ -> MA TRẬN NH) if available
+  const tragopMatranCategories = React.useMemo(() => {
+    if (!tragopMatran) return [];
+    
+    // Fallback: If no markets found, default to activeStore
+    const markets = marketsForDashboard.length > 0 ? marketsForDashboard : 
+      (maKho ? [{ 
+        name: activeStore, targetST: 0, actualReal: 0, actualVirtual: 0, 
+        dtHomQua: 0, percentHT: 0, isExplicitTarget: false 
+      }] : []);
+
+    const parsed = parseCategoryData(tragopMatran, daysPassed, totalDays, markets as any[], 'LUYKE');
+    
+    // Normalize type
+    const normalized = parsed.map((c: any) => ({
+      ...c,
+      type: c.type === 'ALL' ? 'DT' : c.type
+    }));
+    
+    // Filter by marketFilter to stay consistent with store selection
+    let filtered = normalized;
+    if (marketFilter !== 'ALL') {
+      const normFilter = normalize(marketFilter);
+      filtered = filtered.filter((c: any) => {
+        if (!c.marketName) return true;
+        const normMarketName = normalize(c.marketName);
+        return normMarketName === normFilter || normMarketName.includes(normFilter) || normFilter.includes(normMarketName);
+      });
+    }
+
+    // Dedup by name + type
+    const seen = new Set<string>();
+    const deduped = filtered.filter((c: any) => {
+      const key = `${(c.name || '').trim().toUpperCase()}__${c.type || ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // Map each category to use target from categoryTargets if available
+    return deduped.map((cat: any) => {
+      const matchingTarget = categoryTargets.find(
+        (t: any) => normalize(t.name) === normalize(cat.name) && t.type === cat.type
+      );
+      if (matchingTarget && typeof matchingTarget.adjustedTarget === 'number') {
+        return {
+          ...cat,
+          target: matchingTarget.adjustedTarget
+        };
+      }
+      return cat;
+    });
+  }, [tragopMatran, daysPassed, totalDays, marketsForDashboard, marketFilter, categoryTargets, activeStore, maKho]);
+
+  const efficiencyCategories = React.useMemo(() => {
+    if (tragopMatranCategories.length > 0) {
+      return tragopMatranCategories;
+    }
+    return filteredCategories;
+  }, [tragopMatranCategories, filteredCategories]);
 
   // Filter states
   const [catGroupFilter, setCatGroupFilter] = useState('ALL');
@@ -315,31 +418,79 @@ const LuyKe: React.FC = () => {
         </div>
       )}
 
-      <main className="max-w-[1800px] mx-auto p-8">
-        <div ref={captureRefs.fullDashboard} className="space-y-6">
-          <OverviewDashboard 
-            markets={marketsForDashboard}
-            marketFilter={marketFilter}
-            setMarketFilter={setMarketFilter}
-            captureRef={captureRefs.overviewInternal}
-            fullCaptureRef={captureRefs.fullDashboard}
-            captureElement={captureElement}
-            title="TỔNG QUAN SIÊU THỊ (LUỸ KẾ)"
-            showFilters={false}
-            hideTargetQD={true}
-            hideDashboard={true}
-            daysPassed={daysPassed}
-            totalDays={totalDays}
-            stName={stName}
-            stTargetQuyDoi={stTargetQuyDoi}
-            stTargetSauHeSo={stTargetSauHeSo}
-            allStoreTargets={allStoreTargets}
-            storeSettings={storeSettings}
-            stDtDuKienQD={stDtDuKienQD}
-            stPercentTarget={stPercentTarget}
-          />
+      <main className="max-w-[1800px] mx-auto flex flex-col lg:flex-row gap-8 p-8">
+        {/* Left Vertical Navigation */}
+        <div className="w-full lg:w-[320px] shrink-0">
+          <div className="flex flex-col gap-3 py-4 sticky top-[116px]">
+            {[
+              { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, color: 'text-indigo-600' },
+              { id: 'efficiency', label: 'HIỆU QUẢ', icon: Activity, color: 'text-emerald-600' }
+            ].map((item) => {
+              const isActive = activeTab === item.id;
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id as any)}
+                  className={`flex items-center gap-4 px-6 py-5 rounded-[22px] border transition-all duration-300 group ${
+                    isActive 
+                      ? 'bg-white border-indigo-500 shadow-[0_15px_35px_-10px_rgba(79,70,229,0.15)] -translate-y-0.5 translate-x-1' 
+                      : 'bg-transparent border-transparent hover:bg-white/50 hover:border-slate-200 text-slate-500'
+                  }`}
+                >
+                  <div className={`p-2.5 rounded-xl transition-all duration-300 ${
+                    isActive ? 'bg-indigo-50 ' + item.color : 'bg-slate-100 text-slate-400 group-hover:bg-white group-hover:text-slate-500'
+                  }`}>
+                    <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
+                  </div>
+                  <span className={`text-[15px] font-black tracking-tight uppercase ${isActive ? 'text-slate-800' : 'text-slate-500'}`}>
+                    {item.label}
+                  </span>
+                  {isActive && (
+                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.5)]" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-          {/* CHI TIẾT NGÀNH HÀNG - Same layout as BC Ngày */}
+        {/* Main Content Area - Right Side */}
+        <div className="flex-1 min-w-0 space-y-6">
+          <AnimatePresence mode="wait">
+            {activeTab === 'summary' && (
+              <motion.div
+                key="summary"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-6"
+              >
+          <div ref={captureRefs.fullDashboard}>
+            <OverviewDashboard 
+              markets={marketsForDashboard}
+              marketFilter={marketFilter}
+              setMarketFilter={setMarketFilter}
+              captureRef={captureRefs.overviewInternal}
+              fullCaptureRef={captureRefs.fullDashboard}
+              captureElement={captureElement}
+              title="TỔNG QUAN SIÊU THỊ (LUỸ KẾ)"
+              showFilters={false}
+              hideTargetQD={true}
+              hideDashboard={true}
+              daysPassed={daysPassed}
+              totalDays={totalDays}
+              stName={stName}
+              stTargetQuyDoi={stTargetQuyDoi}
+              stTargetSauHeSo={stTargetSauHeSo}
+              allStoreTargets={allStoreTargets}
+              storeSettings={storeSettings}
+              stDtDuKienQD={stDtDuKienQD}
+              stPercentTarget={stPercentTarget}
+            />
+
+        {/* CHI TIẾT NGÀNH HÀNG - Same layout as BC Ngày */}
           <div className="mt-6">
             <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
               {/* Header */}
@@ -484,6 +635,51 @@ const LuyKe: React.FC = () => {
               </div>
             </div>
           </div>
+          </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'efficiency' && (
+              <motion.div
+                key="efficiency"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-6"
+              >
+                {staffCategoryInput ? (
+                  <SummaryThiDuaTable
+                    luyKeNganhHang={tragopMatran || clusterCategoryInput}
+                    thiDuaNv={staffCategoryInput}
+                    staffCount={staffCount}
+                    daysPassed={daysPassed}
+                    totalDays={totalDays}
+                    selectedStaffIds={staffIds}
+                    categoryTargets={categoryTargets}
+                    luykeCategories={efficiencyCategories}
+                  />
+                ) : (
+                  <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm">
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                        <Activity size={24} />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">HIỆU QUẢ KINH DOANH</h3>
+                        <p className="text-sm text-slate-400">Phân tích hiệu quả theo tháng</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                      <Activity size={48} className="mb-4 opacity-20" />
+                      <p className="text-sm font-bold uppercase tracking-wider">Chưa có dữ liệu thi đua nhân viên</p>
+                      <p className="text-xs text-slate-300 mt-1">Vui lòng khai báo hoặc đồng bộ dữ liệu THI ĐUA NV ở tab KHAI BÁO</p>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </main>
 
