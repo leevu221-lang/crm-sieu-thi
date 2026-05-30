@@ -71,7 +71,8 @@ const KhaiBao: React.FC = () => {
     processData: processLuykeData,
     syncFromRealtime,
     clearField: clearLuykeField,
-    allStoresCache
+    allStoresCache,
+    syncTragopMatran
   } = useLuykeData(maKho);
 
   const handleClearField = (setter: (val: string) => void) => {
@@ -319,7 +320,7 @@ const KhaiBao: React.FC = () => {
             setClusterCategoryInput={setClusterCategoryInput}
             setYcxData={setYcxData}
             ycxData={ycxData}
-            onAnalyze={() => { processRealtimeData(); processLuykeData(); }}
+            onAnalyze={() => { processRealtimeData(); processLuykeData(); syncTragopMatran && syncTragopMatran(); }}
             onSaveRealtime={saveRealtimeData}
             clearField={handleClearField}
             onSyncRealtime={syncRealtimeData}
@@ -350,6 +351,7 @@ const KhaiBao: React.FC = () => {
             setPhucVu={savePhucVu}
             tragopMatran={tragopMatran}
             setTragopMatran={setTragopMatran}
+            syncTragopMatran={syncTragopMatran}
             tragopNv={tragopNv}
             setTragopNv={setTragopNv}
             stName={stName}

@@ -125,6 +125,7 @@ interface InputSectionProps {
   setPhucVu?: (val: string) => void;
   tragopMatran?: string;
   setTragopMatran?: (val: string) => void;
+  syncTragopMatran?: () => void;
   tragopNv?: string;
   setTragopNv?: (val: string) => void;
   allStoresCache?: Record<string, {
@@ -187,6 +188,7 @@ const InputSection: React.FC<InputSectionProps> = ({
   setPhucVu,
   tragopMatran,
   setTragopMatran,
+  syncTragopMatran,
   tragopNv,
   setTragopNv,
   stName, setStName,
@@ -781,16 +783,33 @@ const InputSection: React.FC<InputSectionProps> = ({
                             )}
                           </button>
                           {expandedInput === item.key && isActiveCard && (
-                            <textarea 
-                              value={val} 
-                              onChange={(e) => handleChange(e.target.value)} 
-                              onPaste={(e) => { e.preventDefault(); const t = e.clipboardData.getData('text'); if (t) { handleChange(t); } }} 
-                              onBlur={() => onSaveLuyke(false, 'auto', undefined, undefined, item.label)} 
-                              rows={3} 
-                              autoFocus 
-                              placeholder="Dán dữ liệu (Ctrl+V)..." 
-                              className="w-full mt-1.5 bg-white border-2 border-blue-200 rounded-xl p-2.5 text-[10px] focus:ring-2 focus:ring-blue-400 outline-none resize-none font-sans font-normal shadow-inner" 
-                            />
+                            <div className="relative w-full mt-1.5">
+                              <textarea 
+                                value={val} 
+                                onChange={(e) => handleChange(e.target.value)} 
+                                onPaste={(e) => { e.preventDefault(); const t = e.clipboardData.getData('text'); if (t) { handleChange(t); } }} 
+                                onBlur={() => onSaveLuyke(false, 'auto', undefined, undefined, item.label)} 
+                                rows={3} 
+                                autoFocus 
+                                placeholder="Dán dữ liệu (Ctrl+V)..." 
+                                className={cn(
+                                  "w-full bg-white border-2 border-blue-200 rounded-xl p-2.5 text-[10px] focus:ring-2 focus:ring-blue-400 outline-none resize-none font-sans font-normal shadow-inner",
+                                  item.configKey === 'tragop_matran' && "pb-10"
+                                )} 
+                              />
+                              {item.configKey === 'tragop_matran' && syncTragopMatran && (
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    syncTragopMatran();
+                                  }}
+                                  className="absolute right-2.5 bottom-2.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm cursor-pointer z-10"
+                                >
+                                  Đồng bộ từ Khai báo
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       );

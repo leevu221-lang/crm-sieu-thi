@@ -436,6 +436,86 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       } else {
         setCategoryTargets(prev => prev.length === 0 ? prev : []);
       }
+
+      // Auto-sync tragopMatran if empty
+      if (!tragopMatranRef.current && (clusterCategoryInput || clusterSummaryInput) && activeStore && activeStore !== 'ALL') {
+        const inputToParse = clusterCategoryInput || clusterSummaryInput;
+        const lines = inputToParse.split('\n');
+        const matchedLines: string[] = [];
+        let headerLine = "";
+        for (let i = 0; i < Math.min(lines.length, 15); i++) {
+          const lowerLine = lines[i].toLowerCase();
+          if (lowerLine.includes('ngành hàng') || lowerLine.includes('tên siêu thị') || lowerLine.includes('target') || lowerLine.includes('luỹ kế')) {
+            headerLine = lines[i].trim();
+            break;
+          }
+        }
+        const normActiveStore = normalize(activeStore);
+        const marketNames = markets.map(m => m.name);
+        if (!marketNames.includes(activeStore)) {
+          marketNames.push(activeStore);
+        }
+        const sortedMarketNames = [...marketNames].sort((a, b) => b.length - a.length);
+        const sortedNormalized = sortedMarketNames.map(name => {
+          const norm = normalize(name);
+          const nameWithoutPrefix = normalize(name.replace(/^(ĐML|ĐMM|ĐMS3|ĐMS|TGD|AAR)\s*-\s*/i, ''));
+          const codeMatch = name.match(/^([^-]+)/);
+          const code = codeMatch ? codeMatch[1].trim() : "";
+          return { name, norm, nameWithoutPrefix, code };
+        });
+
+        let currentMarketName = "";
+        let isTargetStore = false;
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          const normLine = normalize(line);
+          const matchedMarket = sortedNormalized.find(m => {
+            return normLine.includes(m.norm) || 
+                   (m.nameWithoutPrefix.length > 3 && normLine.includes(m.nameWithoutPrefix)) ||
+                   (m.code.length >= 3 && normLine.includes(m.code)) ||
+                   (normLine.length >= 5 && m.norm.includes(normLine));
+          });
+          if (matchedMarket) {
+            currentMarketName = matchedMarket.name;
+            const isMatch = normalize(currentMarketName) === normActiveStore || 
+                            normalize(currentMarketName).includes(normActiveStore) || 
+                            normActiveStore.includes(normalize(currentMarketName));
+            isTargetStore = isMatch;
+            if (isTargetStore) {
+              matchedLines.push(lines[i]);
+            }
+            continue;
+          }
+          if (isTargetStore) {
+            const isHeaderLine = normLine.includes('target') || normLine.includes('tháng') || normLine.includes('đự kiến') || normLine.includes('rank') || normLine.includes('tiến độ');
+            if (isHeaderLine) continue;
+            if (normLine.includes('ho tro bi') || normLine.includes('copyright') || normLine.includes('tên miền')) {
+              continue;
+            }
+            matchedLines.push(lines[i]);
+          }
+        }
+
+        if (matchedLines.length > 0) {
+          let finalResult = "";
+          if (headerLine && !normalize(matchedLines[0]).includes('target') && !normalize(matchedLines[0]).includes('luỹ kế')) {
+            finalResult = [headerLine, ...matchedLines].join('\n');
+          } else {
+            finalResult = matchedLines.join('\n');
+          }
+          setTragopMatran(finalResult);
+        } else {
+          const filteredLines = lines.filter(line => {
+            const norm = normalize(line);
+            return !norm.includes('ho tro bi') && !norm.includes('copyright') && !norm.includes('tên miền');
+          });
+          if (filteredLines.length > 0) {
+            setTragopMatran(filteredLines.join('\n'));
+          }
+        }
+      }
     } catch (error) {
       console.error('Error processing luyke data:', error);
     }
@@ -915,6 +995,128 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     handleProcess();
   }, [rawMaKho, shortMaKho, warehouseCodes, activeStore, handleProcess, showNotification]);
 
+  const syncTragopMatran = useCallback(() => {
+    const targetStore = activeStore;
+    if (!targetStore || targetStore === 'ALL') {
+      showNotification('Vui lòng chọn siêu thị cụ thể trước khi đồng bộ ma trận!', 'error');
+      return;
+    }
+
+    const inputToParse = clusterCategoryInput || clusterSummaryInput;
+    if (!inputToParse) {
+      showNotification('Không tìm thấy dữ liệu khai báo để đồng bộ.', 'error');
+      return;
+    }
+
+    const lines = inputToParse.split('\n');
+    const matchedLines: string[] = [];
+    
+    // Find header lines in the document
+    let headerLine = "";
+    for (let i = 0; i < Math.min(lines.length, 15); i++) {
+      const lowerLine = lines[i].toLowerCase();
+      if (lowerLine.includes('ngành hàng') || lowerLine.includes('tên siêu thị') || lowerLine.includes('target') || lowerLine.includes('luỹ kế')) {
+        headerLine = lines[i].trim();
+        break;
+      }
+    }
+
+    const normActiveStore = normalize(targetStore);
+    
+    const marketNames = (processedData?.markets || []).map(m => m.name);
+    if (!marketNames.includes(targetStore)) {
+      marketNames.push(targetStore);
+    }
+    
+    const sortedMarketNames = [...marketNames].sort((a, b) => b.length - a.length);
+    const sortedNormalized = sortedMarketNames.map(name => {
+      const norm = normalize(name);
+      const nameWithoutPrefix = normalize(name.replace(/^(ĐML|ĐMM|ĐMS3|ĐMS|TGD|AAR)\s*-\s*/i, ''));
+      const codeMatch = name.match(/^([^-]+)/);
+      const code = codeMatch ? codeMatch[1].trim() : "";
+      return { name, norm, nameWithoutPrefix, code };
+    });
+
+    let currentMarketName = "";
+    let isTargetStore = false;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const normLine = normalize(line);
+      
+      const matchedMarket = sortedNormalized.find(m => {
+        return normLine.includes(m.norm) || 
+               (m.nameWithoutPrefix.length > 3 && normLine.includes(m.nameWithoutPrefix)) ||
+               (m.code.length >= 3 && normLine.includes(m.code)) ||
+               (normLine.length >= 5 && m.norm.includes(normLine));
+      });
+
+      if (matchedMarket) {
+        currentMarketName = matchedMarket.name;
+        const isMatch = normalize(currentMarketName) === normActiveStore || 
+                        normalize(currentMarketName).includes(normActiveStore) || 
+                        normActiveStore.includes(normalize(currentMarketName));
+        isTargetStore = isMatch;
+        if (isTargetStore) {
+          matchedLines.push(lines[i]);
+        }
+        continue;
+      }
+
+      if (isTargetStore) {
+        const isHeaderLine = normLine.includes('target') || normLine.includes('tháng') || normLine.includes('đự kiến') || normLine.includes('rank') || normLine.includes('tiến độ');
+        if (isHeaderLine) continue;
+
+        if (normLine.includes('ho tro bi') || normLine.includes('copyright') || normLine.includes('tên miền')) {
+          continue;
+        }
+
+        matchedLines.push(lines[i]);
+      }
+    }
+
+    if (matchedLines.length > 0) {
+      let finalResult = "";
+      if (headerLine && !normalize(matchedLines[0]).includes('target') && !normalize(matchedLines[0]).includes('luỹ kế')) {
+        finalResult = [headerLine, ...matchedLines].join('\n');
+      } else {
+        finalResult = matchedLines.join('\n');
+      }
+
+      setTragopMatran(finalResult);
+      showNotification('Đồng bộ ma trận ngành hàng thành công!', 'success');
+      
+      // Save immediately to DB
+      setTimeout(() => {
+        if (saveLuykeDataRef.current) {
+          saveLuykeDataRef.current(true, 'auto', targetStore, undefined, 'MA TRẬN NH');
+        }
+      }, 200);
+    } else {
+      console.warn('[LuykeData] No store-specific lines matched, using fallback extraction');
+      const filteredLines = lines.filter(line => {
+        const norm = normalize(line);
+        return !norm.includes('ho tro bi') && !norm.includes('copyright') && !norm.includes('tên miền');
+      });
+      
+      if (filteredLines.length > 0) {
+        const finalResult = filteredLines.join('\n');
+        setTragopMatran(finalResult);
+        showNotification('Đồng bộ ma trận ngành hàng thành công (toàn bộ dữ liệu)!', 'success');
+        
+        setTimeout(() => {
+          if (saveLuykeDataRef.current) {
+            saveLuykeDataRef.current(true, 'auto', targetStore, undefined, 'MA TRẬN NH');
+          }
+        }, 200);
+      } else {
+        showNotification('Không trích xuất được dữ liệu cho siêu thị ' + targetStore, 'error');
+      }
+    }
+  }, [activeStore, clusterCategoryInput, clusterSummaryInput, processedData.markets, showNotification]);
+
   // Stable setActiveStore callback (prevents KhaiBao effect from re-running every render)
   const handleSetActiveStore = useCallback((store: string) => {
     setActiveStore(store);
@@ -974,6 +1176,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     processData: handleProcess,
     saveLuykeData,
     syncFromRealtime,
+    syncTragopMatran,
     loadData,
     setActiveStore: handleSetActiveStore,
     clearField: (setter: (val: string) => void) => {
