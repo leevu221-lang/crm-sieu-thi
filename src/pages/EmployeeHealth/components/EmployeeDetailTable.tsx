@@ -24,6 +24,9 @@ export const cleanCategoryName = (name: string): string => {
   }
   let clean = removeAccents(namePart).trim();
   
+  // Strip prefixes like "nnh " or "nh " at the start
+  clean = clean.replace(/^(nnh|nh)\s+/, '');
+  
   // Replace abbreviations
   clean = clean.replace(/\b(bao hiem)\b/g, 'bh');
   clean = clean.replace(/\b(dien may xanh)\b/g, 'dmx');
