@@ -21,9 +21,9 @@ async function run() {
     console.log(`Document ID: ${doc.id}`);
     const data = doc.data();
     console.log(`ten_sieu_thi: ${data.ten_sieu_thi}`);
-    console.log(`lk_nh_sieu_thi length: ${data.lk_nh_sieu_thi ? data.lk_nh_sieu_thi.length : 0}`);
-    console.log(`lk_bi_tong_quan length: ${data.lk_bi_tong_quan ? data.lk_bi_tong_quan.length : 0}`);
-    console.log(`category_targets length: ${data.category_targets ? data.category_targets.length : 0}`);
+    console.log(`tragop_matran: ${data.tragop_matran ? data.tragop_matran.substring(0, 100) + '...' : 'none'}`);
+    console.log(`tragop_nv: ${data.tragop_nv ? data.tragop_nv.substring(0, 100) + '...' : 'none'}`);
+    console.log(`tragop_matran_full_length: ${data.tragop_matran ? data.tragop_matran.length : 0}`);
     console.log('--------------------');
   });
 }
