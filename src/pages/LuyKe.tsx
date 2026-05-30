@@ -15,7 +15,7 @@ import OverviewDashboard from './RTST/components/OverviewDashboard';
 import CategoryTable from './RTST/components/CategoryTable';
 
 import { ConfirmationModal } from './RTST/components/Modals';
-import { normalize, isKhoLuuDong, parseStaffRankData } from './RTST/utils';
+import { normalize, isKhoLuuDong, parseStaffRankData, parseCategoryData } from './RTST/utils';
 import SummaryThiDuaTable from './EmployeeHealth/components/SummaryThiDuaTable';
 
 const LuyKe: React.FC = () => {
@@ -32,6 +32,8 @@ const LuyKe: React.FC = () => {
     clusterCategoryInput, setClusterCategoryInput,
     staffInput,
     staffCategoryInput,
+    tragopMatran,
+    activeStore,
     categoryTargets,
     processedData: displayData,
     processData,
@@ -255,6 +257,67 @@ const LuyKe: React.FC = () => {
   }, [staffCategoryInput, staffInput]);
 
   const staffCount = staffIds.length;
+
+  // Parse categories from tragopMatran (CẤU HÌNH SIÊU THỊ -> MA TRẬN NH) if available
+  const tragopMatranCategories = React.useMemo(() => {
+    if (!tragopMatran) return [];
+    
+    // Fallback: If no markets found, default to activeStore
+    const markets = marketsForDashboard.length > 0 ? marketsForDashboard : 
+      (maKho ? [{ 
+        name: activeStore, targetST: 0, actualReal: 0, actualVirtual: 0, 
+        dtHomQua: 0, percentHT: 0, isExplicitTarget: false 
+      }] : []);
+
+    const parsed = parseCategoryData(tragopMatran, daysPassed, totalDays, markets as any[], 'LUYKE');
+    
+    // Normalize type
+    const normalized = parsed.map((c: any) => ({
+      ...c,
+      type: c.type === 'ALL' ? 'DT' : c.type
+    }));
+    
+    // Filter by marketFilter to stay consistent with store selection
+    let filtered = normalized;
+    if (marketFilter !== 'ALL') {
+      const normFilter = normalize(marketFilter);
+      filtered = filtered.filter((c: any) => {
+        if (!c.marketName) return true;
+        const normMarketName = normalize(c.marketName);
+        return normMarketName === normFilter || normMarketName.includes(normFilter) || normFilter.includes(normMarketName);
+      });
+    }
+
+    // Dedup by name + type
+    const seen = new Set<string>();
+    const deduped = filtered.filter((c: any) => {
+      const key = `${(c.name || '').trim().toUpperCase()}__${c.type || ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // Map each category to use target from categoryTargets if available
+    return deduped.map((cat: any) => {
+      const matchingTarget = categoryTargets.find(
+        (t: any) => normalize(t.name) === normalize(cat.name) && t.type === cat.type
+      );
+      if (matchingTarget && typeof matchingTarget.adjustedTarget === 'number') {
+        return {
+          ...cat,
+          target: matchingTarget.adjustedTarget
+        };
+      }
+      return cat;
+    });
+  }, [tragopMatran, daysPassed, totalDays, marketsForDashboard, marketFilter, categoryTargets, activeStore, maKho]);
+
+  const efficiencyCategories = React.useMemo(() => {
+    if (tragopMatranCategories.length > 0) {
+      return tragopMatranCategories;
+    }
+    return filteredCategories;
+  }, [tragopMatranCategories, filteredCategories]);
 
   // Filter states
   const [catGroupFilter, setCatGroupFilter] = useState('ALL');
@@ -587,14 +650,14 @@ const LuyKe: React.FC = () => {
               >
                 {staffCategoryInput ? (
                   <SummaryThiDuaTable
-                    luyKeNganhHang={clusterCategoryInput}
+                    luyKeNganhHang={tragopMatran || clusterCategoryInput}
                     thiDuaNv={staffCategoryInput}
                     staffCount={staffCount}
                     daysPassed={daysPassed}
                     totalDays={totalDays}
                     selectedStaffIds={staffIds}
                     categoryTargets={categoryTargets}
-                    luykeCategories={filteredCategories}
+                    luykeCategories={efficiencyCategories}
                   />
                 ) : (
                   <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm">
