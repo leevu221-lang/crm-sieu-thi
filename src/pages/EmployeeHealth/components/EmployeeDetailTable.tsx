@@ -113,21 +113,17 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
     }
   }
 
-  // 2. Xác định danh sách ngành hàng hiển thị (lấy từ luykeCategories - BC Tháng)
-  // Nếu không có luykeCategories, dùng fallback là inputCategories
+  // 2. Xác định danh sách ngành hàng hiển thị (lấy trực tiếp từ dữ liệu dán thiDuaNv)
+  // để đảm bảo các cột hiển thị trùng khớp hoàn toàn với dữ liệu người dùng dán vào.
   let displayCategories: string[] = [];
-  if (luykeCategories && luykeCategories.length > 0) {
-    const seen = new Set<string>();
-    luykeCategories.forEach(c => {
-      const clean = cleanCategoryName(c.name);
-      if (clean && !seen.has(clean)) {
-        seen.add(clean);
-        displayCategories.push(c.name);
-      }
-    });
-  } else {
-    displayCategories = inputCategories;
-  }
+  const seen = new Set<string>();
+  inputCategories.forEach(catName => {
+    const clean = cleanCategoryName(catName);
+    if (clean && !seen.has(clean)) {
+      seen.add(clean);
+      displayCategories.push(catName);
+    }
+  });
 
   const results: StaffMatrixData[] = [];
   const excludedKeywords = ['Tổng', 'BP All In One', 'BP Trưởng Ca', 'Hỗ trợ BI', 'Copyright', 'Dashboard', 'BC ', 'HD sử dụng', 'Trang chủ', 'Báo cáo', 'Khối kinh doanh', 'Logo BI', 'avatar'];
