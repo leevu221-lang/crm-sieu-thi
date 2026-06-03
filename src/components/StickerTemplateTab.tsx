@@ -123,34 +123,7 @@ export default function StickerTemplateTab() {
   return (
     <div className="space-y-6">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700;900&display=swap');
-        
-        .giare-edit-text {
-          font-family: 'Anton', 'Oswald', sans-serif !important;
-          font-style: italic !important;
-          color: #ffffff !important;
-          -webkit-text-stroke: 1.8px #000000 !important;
-          paint-order: stroke fill !important;
-          text-shadow: 
-            -1.5px -1.5px 0 #000,  
-             1.5px -1.5px 0 #000,
-            -1.5px  1.5px 0 #000,
-             1.5px  1.5px 0 #000,
-             2px 2px 0 #000 !important;
-        }
-        
-        .verygood-edit-text {
-          font-family: 'Georgia', serif !important;
-          color: #ffffff !important;
-          -webkit-text-stroke: 1px #000000 !important;
-          paint-order: stroke fill !important;
-          text-shadow: 
-            -1px -1px 0 #000,  
-             1px -1px 0 #000,
-            -1px  1px 0 #000,
-             1px  1px 0 #000,
-             1.5px 1.5px 0 #000 !important;
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Anton&family=Pacifico&family=Oswald:wght@400;500;600;700;900&display=swap');
       `}</style>
       {/* Header & Controls */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
@@ -173,6 +146,17 @@ export default function StickerTemplateTab() {
               Xóa hết
             </button>
           </div>
+        </div>
+
+        {/* Promo label */}
+        <div className="flex items-center gap-3 mb-4">
+          <label className="text-[10px] font-bold text-slate-500 uppercase shrink-0">Dòng khuyến mãi:</label>
+          <input
+            type="text"
+            value={promoLabel}
+            onChange={(e) => setPromoLabel(e.target.value)}
+            className="flex-1 bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
         </div>
 
         {/* Layout Selection */}
@@ -225,26 +209,54 @@ export default function StickerTemplateTab() {
               className="relative border-2 border-black bg-white p-1 group"
             >
               {/* Mini sticker preview */}
-              <div className="border-[2px] border-black p-2 flex flex-col h-[180px] relative overflow-hidden select-none bg-white justify-between">
+              <div className="border-[2px] border-black p-2 flex flex-col h-[180px] relative overflow-hidden select-none bg-white">
                 {/* Top: product name */}
-                <div className="text-center mb-1 w-full">
+                <div className="text-center mb-1 w-full flex flex-col items-center">
                   <input
                     type="text"
                     value={sticker.name}
                     onChange={(e) => handleNameChange(sticker.id, e.target.value)}
-                    className="w-full text-center text-[20px] leading-[0.9] font-black uppercase tracking-tighter bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-1 py-0.5 select-all giare-edit-text"
+                    className="w-full text-center text-[22px] leading-[0.8] font-black uppercase tracking-tighter bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-1 py-0.5 select-all z-10"
                     style={{
+                      fontFamily: '"Anton", sans-serif',
+                      color: '#ffffff',
+                      WebkitTextStroke: '1.2px #000000',
+                      paintOrder: 'stroke fill',
                       letterSpacing: '-0.04em',
-                      transform: 'scaleY(1.1) skewX(-4deg)',
+                      transform: 'skewX(-10deg) scale(1.1, 0.95)',
+                      textShadow: `
+                        -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
+                        -2px 2px 0 #000, -3px 3px 0 #000, -4px 4px 0 #000
+                      `,
                     }}
                   />
                   <div
-                    className="text-[9px] font-bold tracking-wider -mt-0.5 flex items-center justify-center gap-0.5 select-none verygood-edit-text"
+                    className="flex items-center justify-center gap-0.5 -mt-1.5 z-20 select-none"
+                    style={{
+                      transform: 'skewX(-10deg)',
+                    }}
                   >
-                    <span className="italic lowercase">very</span>
                     <span
-                      className="font-black uppercase not-italic text-[10px] tracking-tight"
-                      style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
+                      className="text-[10px] lowercase leading-none pr-0.5"
+                      style={{
+                        fontFamily: '"Pacifico", cursive',
+                        color: '#ffffff',
+                        WebkitTextStroke: '0.6px #000000',
+                        paintOrder: 'stroke fill',
+                        textShadow: '-0.5px 0.5px 0 #000, -1px 1px 0 #000, -1.5px 1.5px 0 #000',
+                      }}
+                    >
+                      very
+                    </span>
+                    <span
+                      className="text-[11px] font-black uppercase leading-none tracking-tight"
+                      style={{
+                        fontFamily: '"Anton", sans-serif',
+                        color: '#ffffff',
+                        WebkitTextStroke: '0.8px #000000',
+                        paintOrder: 'stroke fill',
+                        textShadow: '-0.5px 0.5px 0 #000, -1px 1px 0 #000, -1.5px 1.5px 0 #000',
+                      }}
                     >
                       GOOD!
                     </span>
@@ -252,7 +264,7 @@ export default function StickerTemplateTab() {
                 </div>
 
                 {/* Middle: Prices */}
-                <div className="flex-1 flex flex-col items-center justify-center gap-1">
+                <div className="flex-1 flex flex-col items-center justify-center -mt-1 gap-0.5">
                   {/* Original Price */}
                   <input
                     type="text"
@@ -266,18 +278,29 @@ export default function StickerTemplateTab() {
                     }}
                   />
 
+                  {/* GIẢM CÒN Label */}
+                  <div
+                    className="text-[10px] font-black text-slate-800 uppercase tracking-wide select-none"
+                    style={{ fontFamily: '"Oswald", sans-serif' }}
+                  >
+                    GIẢM CÒN
+                  </div>
+
                   {/* Discount Price */}
                   <input
                     type="text"
-                    placeholder="Giá sau giảm..."
+                    placeholder="Nhập giá (trống để viết tay)..."
                     value={sticker.discountPrice ? formatPriceDisplay(sticker.discountPrice) : ''}
                     onChange={(e) => handlePriceChange(sticker.id, 'discountPrice', e.target.value)}
-                    className="w-full text-center text-[22px] font-black tracking-tighter bg-transparent border-none outline-none focus:bg-green-50 rounded px-1 leading-none"
+                    className="w-full text-center text-[22px] font-black tracking-tighter bg-transparent border-none outline-none focus:bg-green-50 rounded px-1 leading-none animate-pulse"
                     style={{ fontFamily: '"Oswald", sans-serif' }}
                   />
                 </div>
 
-                <div className="h-3"></div>
+                {/* Bottom: promo label */}
+                <div className="text-center text-[8px] font-bold uppercase tracking-tight text-slate-600 mt-auto mb-2 select-none">
+                  {promoLabel}
+                </div>
 
                 {/* Bottom black bar */}
                 <div className="absolute bottom-0 left-0 right-0 h-3 bg-black"></div>
@@ -429,41 +452,7 @@ function StickerTemplatePrintModal({
   return createPortal(
     <div className="print-modal-container fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 print:static print:bg-white print:p-0 print:block">
       <style type="text/css">
-        {`
-          @import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700;900&display=swap');
-          
-          .giare-header-text {
-            font-family: 'Anton', 'Oswald', sans-serif !important;
-            font-style: italic !important;
-            color: #ffffff !important;
-            -webkit-text-stroke: 3.5px #000000 !important;
-            paint-order: stroke fill !important;
-            text-shadow: 
-              -3px -3px 0 #000,  
-               3px -3px 0 #000,
-              -3px  3px 0 #000,
-               3px  3px 0 #000,
-              -3px  0px 0 #000,
-               3px  0px 0 #000,
-               0px -3px 0 #000,
-               0px  3px 0 #000,
-               4px  4px 0 #000,
-               5px  5px 0 #000 !important;
-          }
-          
-          .verygood-header-text {
-            font-family: 'Georgia', serif !important;
-            color: #ffffff !important;
-            -webkit-text-stroke: 1.8px #000000 !important;
-            paint-order: stroke fill !important;
-            text-shadow: 
-              -1.5px -1.5px 0 #000,  
-               1.5px -1.5px 0 #000,
-              -1.5px  1.5px 0 #000,
-               1.5px  1.5px 0 #000,
-               2.5px  2.5px 0 #000 !important;
-          }
-        `}
+        {`@import url('https://fonts.googleapis.com/css2?family=Anton&family=Pacifico&family=Oswald:wght@400;500;600;700;900&display=swap');`}
       </style>
       <style type="text/css" media="print">
         {`
@@ -550,26 +539,62 @@ function StickerTemplatePrintModal({
                         >
                           <div className="w-full h-full border-[3px] border-black p-3 flex flex-col relative">
                             {/* Top Section - Name with "very GOOD!" subtitle */}
-                            {/* Top Section - Name with "very GOOD!" subtitle */}
                             <div className="flex justify-center items-start w-full pt-1">
-                              <div className="text-center w-full">
+                              <div className="text-center w-full flex flex-col items-center justify-center relative">
                                 <h1
-                                  className="text-[64px] leading-[0.85] font-black uppercase tracking-tighter select-none giare-header-text"
+                                  className="text-[64px] leading-[0.8] font-black uppercase select-none relative z-10"
                                   style={{
-                                    letterSpacing: '-0.04em',
-                                    display: 'inline-block',
-                                    transform: 'scaleY(1.1) skewX(-4deg)',
+                                    fontFamily: '"Anton", sans-serif',
+                                    color: '#ffffff',
+                                    WebkitTextStroke: '2.5px #000000',
+                                    paintOrder: 'stroke fill',
+                                    letterSpacing: '-0.05em',
+                                    transform: 'skewX(-10deg) scale(1.15, 0.95)',
+                                    textShadow: `
+                                      -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
+                                      -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000,
+                                      -3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000, 3px 3px 0 #000,
+                                      -4px 4px 0 #000, -5px 5px 0 #000, -6px 6px 0 #000, -7px 7px 0 #000,
+                                      -8px 8px 0 #000, -9px 9px 0 #000, -10px 10px 0 #000, -11px 11px 0 #000,
+                                      -12px 12px 0 #000
+                                    `,
                                   }}
                                 >
                                   {item.name || 'GIÁ RẺ QUÁ'}
                                 </h1>
                                 <div
-                                  className="text-[20px] font-bold tracking-wider -mt-1 select-none flex items-center justify-center gap-1 verygood-header-text"
+                                  className="flex items-center justify-center gap-1 -mt-2.5 relative z-20"
+                                  style={{
+                                    transform: 'skewX(-10deg) scale(1.05)',
+                                  }}
                                 >
-                                  <span className="italic lowercase">very</span>
                                   <span
-                                    className="font-black uppercase not-italic text-[22px] tracking-tight"
-                                    style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
+                                    className="text-[26px] lowercase leading-none pr-1"
+                                    style={{
+                                      fontFamily: '"Pacifico", cursive',
+                                      color: '#ffffff',
+                                      WebkitTextStroke: '1.5px #000000',
+                                      paintOrder: 'stroke fill',
+                                      textShadow: `
+                                        -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
+                                        -2px 2px 0 #000, -3px 3px 0 #000, -4px 4px 0 #000, -5px 5px 0 #000, -6px 6px 0 #000
+                                      `,
+                                    }}
+                                  >
+                                    very
+                                  </span>
+                                  <span
+                                    className="text-[28px] font-black uppercase leading-none tracking-tight"
+                                    style={{
+                                      fontFamily: '"Anton", sans-serif',
+                                      color: '#ffffff',
+                                      WebkitTextStroke: '1.8px #000000',
+                                      paintOrder: 'stroke fill',
+                                      textShadow: `
+                                        -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
+                                        -2px 2px 0 #000, -3px 3px 0 #000, -4px 4px 0 #000, -5px 5px 0 #000, -6px 6px 0 #000
+                                      `,
+                                    }}
                                   >
                                     GOOD!
                                   </span>
@@ -592,6 +617,14 @@ function StickerTemplatePrintModal({
                                 </div>
                               ) : null}
 
+                              {/* GIẢM CÒN Label */}
+                              <div
+                                className="text-[26px] font-black tracking-widest uppercase mb-1"
+                                style={{ fontFamily: '"Oswald", sans-serif' }}
+                              >
+                                GIẢM CÒN
+                              </div>
+
                               {/* Discount Price - show value, or blank area */}
                               {item.discountPrice ? (
                                 <div
@@ -602,12 +635,14 @@ function StickerTemplatePrintModal({
                                 </div>
                               ) : (
                                 /* Large empty space for writing */
-                                <div className="h-[140px]"></div>
+                                <div className="h-[95px]"></div>
                               )}
                             </div>
 
-                            {/* Bottom spacer to prevent overlapping black bar */}
-                            <div className="h-5"></div>
+                            {/* Bottom Section - Promo */}
+                            <div className="text-center font-bold text-[16px] mb-6 tracking-tight uppercase">
+                              {promoLabel}
+                            </div>
 
                             {/* Bottom black bar */}
                             <div className="absolute bottom-0 left-0 right-0 h-5 bg-black"></div>
