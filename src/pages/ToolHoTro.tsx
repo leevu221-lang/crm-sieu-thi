@@ -4,7 +4,7 @@ import {
   Wrench, Printer, Trash2, Info, Archive, ShieldAlert, FilePlus, 
   ChevronDown, CheckCircle2, Save, Loader2, Calendar, ArrowUpDown, 
   SortAsc, SortDesc, PieChart, Users, UploadCloud, Settings, 
-  ChevronRight, LayoutGrid, FileText
+  ChevronRight, LayoutGrid, FileText, Tag
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
@@ -16,6 +16,7 @@ import PhanCaTable from '../components/PhanCaTable';
 import PhanCaTuanTable from '../components/PhanCaTuanTable';
 import BienBanTinhTrangHangHoa from '../components/BienBanTinhTrangHangHoa';
 import BaoGiaCongTyModal from '../components/BaoGiaCongTyModal';
+import StickerTemplateTab from '../components/StickerTemplateTab';
 
 import { STORAGE_KEYS } from './RTST/types';
 
@@ -545,6 +546,7 @@ export default function ToolHoTro() {
   };
 
   const menuItems = [
+    { id: 'sticker-mau', label: 'STICKER MẪU', icon: Tag, color: 'text-rose-500' },
     { id: 'sticker', label: 'STICKER', icon: Printer, color: 'text-blue-500' },
     { id: 'sticker-event', label: 'STICKER EVENT', icon: Printer, color: 'text-emerald-500' },
     { id: 'phan-ca-thang', label: 'PHÂN CA THÁNG', icon: Users, color: 'text-purple-500' },
@@ -633,6 +635,17 @@ export default function ToolHoTro() {
                 exit={{ opacity: 0, x: -20 }}
               >
                 <PhanCaTuanTable />
+              </motion.div>
+            )}
+
+            {activeTab === 'sticker-mau' && (
+              <motion.div
+                key="sticker-mau"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <StickerTemplateTab />
               </motion.div>
             )}
 
