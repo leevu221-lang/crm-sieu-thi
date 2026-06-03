@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Printer, Plus, Trash2, X, Copy } from 'lucide-react';
+import { Printer, Plus, Trash2, X, Copy, Minus } from 'lucide-react';
 
 interface StickerItem {
   id: string;
@@ -34,6 +34,11 @@ export default function StickerTemplateTab() {
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const [printLayout, setPrintLayout] = useState<'8' | '4'>('8');
   const [promoLabel, setPromoLabel] = useState('SẢN PHẨM GIÁ SỐC - EVENT T7 & CN');
+  const [printQuantities, setPrintQuantities] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {};
+    createDefaultStickers().forEach(s => { init[s.id] = 1; });
+    return init;
+  });
 
   const handlePriceChange = (id: string, field: 'originalPrice' | 'discountPrice', rawValue: string) => {
     const cleaned = parsePriceInput(rawValue);
@@ -45,24 +50,28 @@ export default function StickerTemplateTab() {
   };
 
   const addSticker = () => {
+    const newId = `sticker-${Date.now()}`;
     setStickers(prev => [...prev, {
-      id: `sticker-${Date.now()}`,
+      id: newId,
       name: 'GIÁ RẺ',
       originalPrice: '',
       discountPrice: '',
     }]);
+    setPrintQuantities(prev => ({ ...prev, [newId]: 1 }));
   };
 
   const removeSticker = (id: string) => {
     setStickers(prev => prev.filter(s => s.id !== id));
+    setPrintQuantities(prev => { const n = { ...prev }; delete n[id]; return n; });
   };
 
   const duplicateSticker = (id: string) => {
     const original = stickers.find(s => s.id === id);
     if (!original) return;
+    const newId = `sticker-${Date.now()}`;
     const newSticker = {
       ...original,
-      id: `sticker-${Date.now()}`,
+      id: newId,
     };
     setStickers(prev => {
       const idx = prev.findIndex(s => s.id === id);
@@ -70,13 +79,40 @@ export default function StickerTemplateTab() {
       arr.splice(idx + 1, 0, newSticker);
       return arr;
     });
+    setPrintQuantities(prev => ({ ...prev, [newId]: prev[id] || 1 }));
+  };
+
+  const handleQuantityChange = (id: string, delta: number) => {
+    setPrintQuantities(prev => ({
+      ...prev,
+      [id]: Math.max(1, (prev[id] || 1) + delta)
+    }));
+  };
+
+  const handleQuantityInput = (id: string, value: string) => {
+    const num = parseInt(value, 10);
+    setPrintQuantities(prev => ({
+      ...prev,
+      [id]: isNaN(num) || num < 1 ? 1 : num
+    }));
   };
 
   const clearAll = () => {
-    setStickers(createDefaultStickers());
+    const newStickers = createDefaultStickers();
+    setStickers(newStickers);
+    const init: Record<string, number> = {};
+    newStickers.forEach(s => { init[s.id] = 1; });
+    setPrintQuantities(init);
   };
 
   const validStickers = stickers.filter(s => s.discountPrice);
+
+  // Expand stickers by their quantity for printing
+  const expandedStickers = validStickers.flatMap(s =>
+    Array(printQuantities[s.id] || 1).fill(s)
+  );
+
+  const totalPrintCount = validStickers.reduce((sum, s) => sum + (printQuantities[s.id] || 1), 0);
 
   const handlePrint = () => {
     if (validStickers.length === 0) return;
@@ -215,6 +251,29 @@ export default function StickerTemplateTab() {
                 <div className="absolute bottom-0 left-0 right-0 h-3 bg-black"></div>
               </div>
 
+              {/* Quantity input bar */}
+              <div className="flex items-center justify-center gap-1.5 mt-1.5 bg-slate-50 rounded-lg py-1 px-2 border border-slate-200">
+                <span className="text-[9px] font-bold text-slate-500 uppercase">SL:</span>
+                <button
+                  onClick={() => handleQuantityChange(sticker.id, -1)}
+                  className="w-5 h-5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded flex items-center justify-center transition-colors"
+                >
+                  <Minus size={10} />
+                </button>
+                <input
+                  type="text"
+                  value={printQuantities[sticker.id] || 1}
+                  onChange={(e) => handleQuantityInput(sticker.id, e.target.value)}
+                  className="w-10 text-center text-xs font-black bg-white border border-slate-200 rounded py-0.5 focus:outline-none focus:ring-1 focus:ring-orange-400"
+                />
+                <button
+                  onClick={() => handleQuantityChange(sticker.id, 1)}
+                  className="w-5 h-5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded flex items-center justify-center transition-colors"
+                >
+                  <Plus size={10} />
+                </button>
+              </div>
+
               {/* Action buttons overlay */}
               <div className="absolute -top-2 -right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                 <button
@@ -249,13 +308,13 @@ export default function StickerTemplateTab() {
         className="w-full flex items-center justify-center gap-2 px-4 py-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-3xl text-base font-bold transition-colors shadow-sm"
       >
         <Printer size={20} />
-        IN STICKER ({validStickers.length} sticker)
+        IN STICKER ({totalPrintCount} sticker)
       </button>
 
       {/* Print Preview Modal */}
       {isPrintPreviewOpen && (
         <StickerTemplatePrintModal
-          stickers={validStickers}
+          stickers={expandedStickers}
           layout={printLayout}
           promoLabel={promoLabel}
           onClose={() => setIsPrintPreviewOpen(false)}
