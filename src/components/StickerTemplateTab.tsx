@@ -105,7 +105,8 @@ export default function StickerTemplateTab() {
     setPrintQuantities(init);
   };
 
-  const validStickers = stickers.filter(s => s.discountPrice);
+  // All stickers are valid for printing (blank ones will show lines for handwriting)
+  const validStickers = stickers;
 
   // Expand stickers by their quantity for printing
   const expandedStickers = validStickers.flatMap(s =>
@@ -497,7 +498,8 @@ function StickerTemplatePrintModal({
 
                             {/* Middle Section - Prices */}
                             <div className="flex-1 flex flex-col items-center justify-center -mt-2">
-                              {item.originalPrice && (
+                              {/* Original Price - show value with strikethrough, or blank line */}
+                              {item.originalPrice ? (
                                 <div className="relative">
                                   <span
                                     className="text-[55px] font-black tracking-tighter"
@@ -507,13 +509,25 @@ function StickerTemplatePrintModal({
                                   </span>
                                   <div className="absolute top-1/2 left-[-5%] right-[-5%] h-[4px] bg-black -translate-y-1/2"></div>
                                 </div>
+                              ) : (
+                                <div className="w-[60%] mb-2 mt-2">
+                                  <div className="border-b-[3px] border-dashed border-black h-[45px]"></div>
+                                </div>
                               )}
-                              <div
-                                className="text-[120px] leading-[0.8] font-black tracking-tighter mt-2"
-                                style={{ fontFamily: '"Oswald", sans-serif', transform: 'scaleY(1.1)', display: 'inline-block' }}
-                              >
-                                {formatPrice(item.discountPrice)}
-                              </div>
+
+                              {/* Discount Price - show value, or blank line */}
+                              {item.discountPrice ? (
+                                <div
+                                  className="text-[120px] leading-[0.8] font-black tracking-tighter mt-2"
+                                  style={{ fontFamily: '"Oswald", sans-serif', transform: 'scaleY(1.1)', display: 'inline-block' }}
+                                >
+                                  {formatPrice(item.discountPrice)}
+                                </div>
+                              ) : (
+                                <div className="w-[80%] mt-4">
+                                  <div className="border-b-[4px] border-black h-[55px]"></div>
+                                </div>
+                              )}
                             </div>
 
                             {/* Bottom Section - Promo */}
