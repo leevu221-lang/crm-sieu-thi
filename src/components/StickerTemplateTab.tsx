@@ -19,11 +19,11 @@ const parsePriceInput = (value: string): string => {
   return value.replace(/[^0-9]/g, '');
 };
 
-// Default stickers - 8 items with "GIÁ RẺ" as product name
+// Default stickers with "GIÁ RẺ QUÁ" as product name
 const createDefaultStickers = (): StickerItem[] => {
   return [{
     id: `sticker-${Date.now()}-0`,
-    name: 'GIÁ RẺ',
+    name: 'GIÁ RẺ QUÁ',
     originalPrice: '',
     discountPrice: '',
   }];
@@ -53,7 +53,7 @@ export default function StickerTemplateTab() {
     const newId = `sticker-${Date.now()}`;
     setStickers(prev => [...prev, {
       id: newId,
-      name: 'GIÁ RẺ',
+      name: 'GIÁ RẺ QUÁ',
       originalPrice: '',
       discountPrice: '',
     }]);
@@ -484,15 +484,16 @@ function StickerTemplatePrintModal({
                           style={{ fontFamily: '"Oswald", sans-serif' }}
                         >
                           <div className="w-full h-full border-[3px] border-black p-3 flex flex-col relative">
-                            {/* Top Section - Name only, NO QR */}
+                            {/* Top Section - Name with "very GOOD!" subtitle */}
                             <div className="flex justify-center items-start">
                               <div className="text-center pt-1">
                                 <h1
                                   className="text-[28px] leading-[1.1] font-black uppercase tracking-tighter"
                                   style={{ fontFamily: '"Oswald", sans-serif', transform: 'scaleY(1.1)' }}
                                 >
-                                  {item.name || 'GIÁ RẺ'}
+                                  {item.name || 'GIÁ RẺ QUÁ'}
                                 </h1>
+                                <div className="text-[14px] italic font-bold tracking-wide -mt-0.5" style={{ fontFamily: '"Georgia", serif' }}>very <span className="not-italic font-black uppercase" style={{ fontFamily: '"Oswald", sans-serif' }}>GOOD!</span></div>
                               </div>
                             </div>
 
