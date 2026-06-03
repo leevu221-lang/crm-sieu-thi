@@ -33,6 +33,7 @@ export default function StickerTemplateTab() {
   const [stickers, setStickers] = useState<StickerItem[]>(createDefaultStickers);
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const [printLayout, setPrintLayout] = useState<'8' | '4'>('8');
+  const [promoLabel, setPromoLabel] = useState('SẢN PHẨM GIÁ SỐC - EVENT T7 & CN');
   const [printQuantities, setPrintQuantities] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
     createDefaultStickers().forEach(s => { init[s.id] = 1; });
@@ -147,7 +148,16 @@ export default function StickerTemplateTab() {
           </div>
         </div>
 
-
+        {/* Promo label */}
+        <div className="flex items-center gap-3 mb-4">
+          <label className="text-[10px] font-bold text-slate-500 uppercase shrink-0">Dòng khuyến mãi:</label>
+          <input
+            type="text"
+            value={promoLabel}
+            onChange={(e) => setPromoLabel(e.target.value)}
+            className="flex-1 bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+        </div>
 
         {/* Layout Selection */}
         <div className="flex items-center gap-3">
@@ -206,25 +216,24 @@ export default function StickerTemplateTab() {
                     type="text"
                     value={sticker.name}
                     onChange={(e) => handleNameChange(sticker.id, e.target.value)}
-                    className="w-full text-center text-[16px] leading-[1.0] font-black uppercase tracking-tight bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-1 py-0.5 select-all"
+                    className="w-full text-center text-[17px] leading-[0.9] font-black uppercase tracking-tighter bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-1 py-0.5 select-all text-black"
                     style={{
-                      fontFamily: '"Oswald", sans-serif',
-                      color: '#000000',
-                      letterSpacing: '-0.02em',
-                      transform: 'scaleY(1.1)',
+                      fontFamily: '"Anton", "Oswald", sans-serif',
+                      fontStyle: 'italic',
+                      letterSpacing: '-0.04em',
+                      transform: 'scaleY(1.1) skewX(-4deg)',
                     }}
                   />
                   <div
-                    className="text-[9px] font-bold tracking-wider mt-0.5 flex items-center justify-center gap-0.5 select-none"
+                    className="text-[8px] font-bold tracking-wider -mt-0.5 flex items-center justify-center gap-0.5 select-none text-black"
                     style={{
                       fontFamily: '"Georgia", serif',
-                      color: '#000000',
                     }}
                   >
                     <span className="italic lowercase">very</span>
                     <span
-                      className="font-black uppercase not-italic text-[10px] tracking-tight"
-                      style={{ fontFamily: '"Oswald", sans-serif' }}
+                      className="font-black uppercase not-italic text-[9px] tracking-tight"
+                      style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
                     >
                       GOOD!
                     </span>
@@ -232,7 +241,7 @@ export default function StickerTemplateTab() {
                 </div>
 
                 {/* Middle: Prices */}
-                <div className="flex-1 flex flex-col items-center justify-center -mt-1 gap-1">
+                <div className="flex-1 flex flex-col items-center justify-center -mt-1 gap-1 pb-2">
                   {/* Original Price */}
                   <input
                     type="text"
@@ -252,7 +261,7 @@ export default function StickerTemplateTab() {
                     placeholder="Nhập giá (trống để viết tay)..."
                     value={sticker.discountPrice ? formatPriceDisplay(sticker.discountPrice) : ''}
                     onChange={(e) => handlePriceChange(sticker.id, 'discountPrice', e.target.value)}
-                    className="w-full text-center text-[20px] font-black tracking-tighter bg-transparent border-none outline-none focus:bg-green-50 rounded px-1 leading-none"
+                    className="w-full text-center text-[22px] font-black tracking-tighter bg-transparent border-none outline-none focus:bg-green-50 rounded px-1 leading-none animate-pulse text-black"
                     style={{ fontFamily: '"Oswald", sans-serif' }}
                   />
                 </div>
@@ -326,6 +335,7 @@ export default function StickerTemplateTab() {
         <StickerTemplatePrintModal
           stickers={expandedStickers}
           layout={printLayout}
+          promoLabel={promoLabel}
           onClose={() => setIsPrintPreviewOpen(false)}
         />
       )}
@@ -340,10 +350,12 @@ export default function StickerTemplateTab() {
 function StickerTemplatePrintModal({
   stickers,
   layout,
+  promoLabel,
   onClose
 }: {
   stickers: StickerItem[];
   layout: '8' | '4';
+  promoLabel: string;
   onClose: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -494,28 +506,27 @@ function StickerTemplatePrintModal({
                             <div className="flex justify-center items-start w-full pt-4">
                               <div className="text-center w-full">
                                 <h1
-                                  className="text-[48px] leading-[1.0] font-black uppercase tracking-tight select-none"
+                                  className="text-[52px] leading-[0.9] font-black uppercase tracking-tighter select-none text-black"
                                   style={{
-                                    fontFamily: '"Oswald", sans-serif',
-                                    color: '#000000',
-                                    letterSpacing: '-0.02em',
+                                    fontFamily: '"Anton", "Oswald", sans-serif',
+                                    fontStyle: 'italic',
+                                    letterSpacing: '-0.04em',
                                     display: 'inline-block',
-                                    transform: 'scaleY(1.1)',
+                                    transform: 'scaleY(1.1) skewX(-4deg)',
                                   }}
                                 >
                                   {item.name || 'GIÁ RẺ QUÁ'}
                                 </h1>
                                 <div
-                                  className="text-[16px] font-bold tracking-wider mt-0.5 select-none flex items-center justify-center gap-1"
+                                  className="text-[18px] font-bold tracking-wider -mt-1 select-none flex items-center justify-center gap-1 text-black"
                                   style={{
                                     fontFamily: '"Georgia", serif',
-                                    color: '#000000',
                                   }}
                                 >
                                   <span className="italic lowercase">very</span>
                                   <span
-                                    className="font-black uppercase not-italic text-[18px] tracking-tight"
-                                    style={{ fontFamily: '"Oswald", sans-serif' }}
+                                    className="font-black uppercase not-italic text-[20px] tracking-tight"
+                                    style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
                                   >
                                     GOOD!
                                   </span>
@@ -524,10 +535,10 @@ function StickerTemplatePrintModal({
                             </div>
 
                             {/* Middle Section - Prices */}
-                            <div className="flex-1 flex flex-col items-center justify-center pt-2">
-                              {/* Original Price - show value with strikethrough */}
+                            <div className="flex-1 flex flex-col items-center justify-center pt-2 pb-6">
+                              {/* Original Price - show value with strikethrough, or blank space */}
                               {item.originalPrice ? (
-                                <div className="relative mb-2">
+                                <div className="relative mb-1">
                                   <span
                                     className="text-[42px] font-black tracking-tighter text-slate-800"
                                     style={{ fontFamily: '"Oswald", sans-serif', transform: 'scaleY(1.1)', display: 'inline-block' }}
@@ -548,7 +559,7 @@ function StickerTemplatePrintModal({
                                 </div>
                               ) : (
                                 /* Large empty space for writing */
-                                <div className="h-[120px]"></div>
+                                <div className="h-[140px]"></div>
                               )}
                             </div>
 
