@@ -209,7 +209,7 @@ export default function StickerTemplateTab() {
               className="relative border-2 border-black bg-white p-1 group"
             >
               {/* Mini sticker preview */}
-              <div className="border-[2px] border-black p-2 flex flex-col h-[180px] relative overflow-hidden select-none bg-white">
+              <div className="border-[2px] border-black p-2 flex flex-col h-[160px] relative overflow-hidden select-none bg-white">
                 {/* Top: product name */}
                 <div className="text-center mb-1 w-full flex flex-col items-center">
                   <input
@@ -220,13 +220,13 @@ export default function StickerTemplateTab() {
                     style={{
                       fontFamily: '"Anton", sans-serif',
                       color: '#ffffff',
-                      WebkitTextStroke: '1.2px #000000',
+                      WebkitTextStroke: '1.8px #000000',
                       paintOrder: 'stroke fill',
                       letterSpacing: '-0.04em',
                       transform: 'skewX(-10deg) scale(1.1, 0.95)',
                       textShadow: `
                         -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
-                        -2px 2px 0 #000, -3px 3px 0 #000, -4px 4px 0 #000
+                        -2px 2px 0 #000, -3px 3px 0 #000, -4px 4px 0 #000, -5px 5px 0 #000, -6px 6px 0 #000
                       `,
                     }}
                   />
@@ -241,9 +241,9 @@ export default function StickerTemplateTab() {
                       style={{
                         fontFamily: '"Pacifico", cursive',
                         color: '#ffffff',
-                        WebkitTextStroke: '0.6px #000000',
+                        WebkitTextStroke: '1px #000000',
                         paintOrder: 'stroke fill',
-                        textShadow: '-0.5px 0.5px 0 #000, -1px 1px 0 #000, -1.5px 1.5px 0 #000',
+                        textShadow: '-0.5px 0.5px 0 #000, -1px 1px 0 #000, -1.5px 1.5px 0 #000, -2px 2px 0 #000',
                       }}
                     >
                       very
@@ -253,9 +253,9 @@ export default function StickerTemplateTab() {
                       style={{
                         fontFamily: '"Anton", sans-serif',
                         color: '#ffffff',
-                        WebkitTextStroke: '0.8px #000000',
+                        WebkitTextStroke: '1.2px #000000',
                         paintOrder: 'stroke fill',
-                        textShadow: '-0.5px 0.5px 0 #000, -1px 1px 0 #000, -1.5px 1.5px 0 #000',
+                        textShadow: '-0.5px 0.5px 0 #000, -1px 1px 0 #000, -1.5px 1.5px 0 #000, -2px 2px 0 #000',
                       }}
                     >
                       GOOD!
@@ -278,14 +278,6 @@ export default function StickerTemplateTab() {
                     }}
                   />
 
-                  {/* GIẢM CÒN Label */}
-                  <div
-                    className="text-[10px] font-black text-slate-800 uppercase tracking-wide select-none"
-                    style={{ fontFamily: '"Oswald", sans-serif' }}
-                  >
-                    GIẢM CÒN
-                  </div>
-
                   {/* Discount Price */}
                   <input
                     type="text"
@@ -295,11 +287,6 @@ export default function StickerTemplateTab() {
                     className="w-full text-center text-[22px] font-black tracking-tighter bg-transparent border-none outline-none focus:bg-green-50 rounded px-1 leading-none animate-pulse"
                     style={{ fontFamily: '"Oswald", sans-serif' }}
                   />
-                </div>
-
-                {/* Bottom: promo label */}
-                <div className="text-center text-[8px] font-bold uppercase tracking-tight text-slate-600 mt-auto mb-2 select-none">
-                  {promoLabel}
                 </div>
 
                 {/* Bottom black bar */}
@@ -546,7 +533,7 @@ function StickerTemplatePrintModal({
                                   style={{
                                     fontFamily: '"Anton", sans-serif',
                                     color: '#ffffff',
-                                    WebkitTextStroke: '2.5px #000000',
+                                    WebkitTextStroke: '4px #000000',
                                     paintOrder: 'stroke fill',
                                     letterSpacing: '-0.05em',
                                     transform: 'skewX(-10deg) scale(1.15, 0.95)',
@@ -554,16 +541,19 @@ function StickerTemplatePrintModal({
                                       -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
                                       -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000,
                                       -3px -3px 0 #000, 3px -3px 0 #000, -3px 3px 0 #000, 3px 3px 0 #000,
-                                      -4px 4px 0 #000, -5px 5px 0 #000, -6px 6px 0 #000, -7px 7px 0 #000,
-                                      -8px 8px 0 #000, -9px 9px 0 #000, -10px 10px 0 #000, -11px 11px 0 #000,
-                                      -12px 12px 0 #000
+                                      -4px -4px 0 #000, 4px -4px 0 #000, -4px 4px 0 #000, 4px 4px 0 #000,
+                                      -5px -5px 0 #000, 5px -5px 0 #000, -5px 5px 0 #000, 5px 5px 0 #000,
+                                      -6px 6px 0 #000, -7px 7px 0 #000, -8px 8px 0 #000, -9px 9px 0 #000,
+                                      -10px 10px 0 #000, -11px 11px 0 #000, -12px 12px 0 #000, -13px 13px 0 #000,
+                                      -14px 14px 0 #000, -15px 15px 0 #000, -16px 16px 0 #000, -17px 17px 0 #000,
+                                      -18px 18px 0 #000
                                     `,
                                   }}
                                 >
                                   {item.name || 'GIÁ RẺ QUÁ'}
                                 </h1>
                                 <div
-                                  className="flex items-center justify-center gap-1 -mt-2.5 relative z-20"
+                                  className="flex items-center justify-center gap-1 -mt-3.5 relative z-20"
                                   style={{
                                     transform: 'skewX(-10deg) scale(1.05)',
                                   }}
@@ -573,11 +563,12 @@ function StickerTemplatePrintModal({
                                     style={{
                                       fontFamily: '"Pacifico", cursive',
                                       color: '#ffffff',
-                                      WebkitTextStroke: '1.5px #000000',
+                                      WebkitTextStroke: '2px #000000',
                                       paintOrder: 'stroke fill',
                                       textShadow: `
                                         -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
-                                        -2px 2px 0 #000, -3px 3px 0 #000, -4px 4px 0 #000, -5px 5px 0 #000, -6px 6px 0 #000
+                                        -2px 2px 0 #000, -3px 3px 0 #000, -4px 4px 0 #000, -5px 5px 0 #000, -6px 6px 0 #000,
+                                        -7px 7px 0 #000, -8px 8px 0 #000, -9px 9px 0 #000
                                       `,
                                     }}
                                   >
@@ -588,11 +579,12 @@ function StickerTemplatePrintModal({
                                     style={{
                                       fontFamily: '"Anton", sans-serif',
                                       color: '#ffffff',
-                                      WebkitTextStroke: '1.8px #000000',
+                                      WebkitTextStroke: '2.2px #000000',
                                       paintOrder: 'stroke fill',
                                       textShadow: `
                                         -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
-                                        -2px 2px 0 #000, -3px 3px 0 #000, -4px 4px 0 #000, -5px 5px 0 #000, -6px 6px 0 #000
+                                        -2px 2px 0 #000, -3px 3px 0 #000, -4px 4px 0 #000, -5px 5px 0 #000, -6px 6px 0 #000,
+                                        -7px 7px 0 #000, -8px 8px 0 #000, -9px 9px 0 #000
                                       `,
                                     }}
                                   >
@@ -603,7 +595,7 @@ function StickerTemplatePrintModal({
                             </div>
 
                             {/* Middle Section - Prices */}
-                            <div className="flex-1 flex flex-col items-center justify-center pt-3">
+                            <div className="flex-1 flex flex-col items-center justify-center pt-2">
                               {/* Original Price - show value with strikethrough, or blank space */}
                               {item.originalPrice ? (
                                 <div className="relative mb-1">
@@ -617,14 +609,6 @@ function StickerTemplatePrintModal({
                                 </div>
                               ) : null}
 
-                              {/* GIẢM CÒN Label */}
-                              <div
-                                className="text-[26px] font-black tracking-widest uppercase mb-1"
-                                style={{ fontFamily: '"Oswald", sans-serif' }}
-                              >
-                                GIẢM CÒN
-                              </div>
-
                               {/* Discount Price - show value, or blank area */}
                               {item.discountPrice ? (
                                 <div
@@ -635,13 +619,8 @@ function StickerTemplatePrintModal({
                                 </div>
                               ) : (
                                 /* Large empty space for writing */
-                                <div className="h-[95px]"></div>
+                                <div className="h-[160px]"></div>
                               )}
-                            </div>
-
-                            {/* Bottom Section - Promo */}
-                            <div className="text-center font-bold text-[16px] mb-6 tracking-tight uppercase">
-                              {promoLabel}
                             </div>
 
                             {/* Bottom black bar */}
