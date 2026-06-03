@@ -122,6 +122,9 @@ export default function StickerTemplateTab() {
 
   return (
     <div className="space-y-6">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700;900&display=swap');
+      `}</style>
       {/* Header & Controls */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
         <div className="flex items-center justify-between mb-5">
@@ -206,45 +209,81 @@ export default function StickerTemplateTab() {
               className="relative border-2 border-black bg-white p-1 group"
             >
               {/* Mini sticker preview */}
-              <div className="border-[2px] border-black p-2 flex flex-col h-[180px] relative">
+              <div className="border-[2px] border-black p-2 flex flex-col h-[180px] relative overflow-hidden select-none bg-white">
                 {/* Top: product name */}
-                <div className="text-center mb-1">
+                <div className="text-center mb-1 w-full">
                   <input
                     type="text"
                     value={sticker.name}
                     onChange={(e) => handleNameChange(sticker.id, e.target.value)}
-                    className="w-full text-center text-[13px] font-black uppercase tracking-tight bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-1 py-0.5"
-                    style={{ fontFamily: '"Oswald", sans-serif' }}
+                    className="w-full text-center text-[20px] leading-[0.9] font-black uppercase tracking-tighter bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-1 py-0.5 select-all"
+                    style={{
+                      fontFamily: '"Anton", "Oswald", sans-serif',
+                      fontStyle: 'italic',
+                      color: '#ffffff',
+                      WebkitTextStroke: '1.2px #000000',
+                      paintOrder: 'stroke fill',
+                      textShadow: '1.2px 1.2px 0 #000000, 1.8px 1.8px 0 #000000, 2.2px 2.2px 0 #000000',
+                      letterSpacing: '-0.04em',
+                      transform: 'scaleY(1.1) skewX(-4deg)',
+                    }}
                   />
+                  <div
+                    className="text-[9px] font-bold tracking-wider -mt-0.5 flex items-center justify-center gap-0.5 select-none"
+                    style={{
+                      fontFamily: '"Georgia", serif',
+                      color: '#ffffff',
+                      WebkitTextStroke: '0.8px #000000',
+                      paintOrder: 'stroke fill',
+                      textShadow: '1px 1px 0 #000000',
+                    }}
+                  >
+                    <span className="italic lowercase">very</span>
+                    <span
+                      className="font-black uppercase not-italic text-[10px] tracking-tight"
+                      style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
+                    >
+                      GOOD!
+                    </span>
+                  </div>
                 </div>
 
                 {/* Middle: Prices */}
-                <div className="flex-1 flex flex-col items-center justify-center gap-1">
+                <div className="flex-1 flex flex-col items-center justify-center -mt-1 gap-0.5">
                   {/* Original Price */}
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Giá gốc..."
-                      value={sticker.originalPrice ? formatPriceDisplay(sticker.originalPrice) : ''}
-                      onChange={(e) => handlePriceChange(sticker.id, 'originalPrice', e.target.value)}
-                      className="w-full text-center text-[18px] font-black tracking-tight bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-1"
-                      style={{ fontFamily: '"Oswald", sans-serif', textDecoration: sticker.originalPrice ? 'line-through' : 'none' }}
-                    />
+                  <input
+                    type="text"
+                    placeholder="Giá gốc..."
+                    value={sticker.originalPrice ? formatPriceDisplay(sticker.originalPrice) : ''}
+                    onChange={(e) => handlePriceChange(sticker.id, 'originalPrice', e.target.value)}
+                    className="w-full text-center text-[11px] font-bold tracking-tight bg-transparent border-none outline-none focus:bg-yellow-50 rounded px-1 text-slate-600"
+                    style={{
+                      fontFamily: '"Oswald", sans-serif',
+                      textDecoration: sticker.originalPrice ? 'line-through' : 'none'
+                    }}
+                  />
+
+                  {/* GIẢM CÒN Label */}
+                  <div
+                    className="text-[10px] font-black text-slate-800 uppercase tracking-wide select-none"
+                    style={{ fontFamily: '"Oswald", sans-serif' }}
+                  >
+                    GIẢM CÒN
                   </div>
 
                   {/* Discount Price */}
                   <input
                     type="text"
-                    placeholder="Giá sau giảm..."
+                    placeholder="Nhập giá (trống để viết tay)..."
                     value={sticker.discountPrice ? formatPriceDisplay(sticker.discountPrice) : ''}
                     onChange={(e) => handlePriceChange(sticker.id, 'discountPrice', e.target.value)}
-                    className="w-full text-center text-[32px] font-black tracking-tighter bg-transparent border-none outline-none focus:bg-green-50 rounded px-1 leading-none"
+                    className="w-full text-center text-[22px] font-black tracking-tighter bg-transparent border-none outline-none focus:bg-green-50 rounded px-1 leading-none animate-pulse"
                     style={{ fontFamily: '"Oswald", sans-serif' }}
                   />
                 </div>
 
                 {/* Bottom: promo label */}
-                <div className="text-center text-[8px] font-bold uppercase tracking-tight text-slate-600 mt-auto">
+                <div className="text-center text-[8px] font-bold uppercase tracking-tight text-slate-600 mt-auto mb-2 select-none">
                   {promoLabel}
                 </div>
 
@@ -398,7 +437,7 @@ function StickerTemplatePrintModal({
   return createPortal(
     <div className="print-modal-container fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 print:static print:bg-white print:p-0 print:block">
       <style type="text/css">
-        {`@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&display=swap');`}
+        {`@import url('https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@400;500;600;700;900&display=swap');`}
       </style>
       <style type="text/css" media="print">
         {`
@@ -485,49 +524,79 @@ function StickerTemplatePrintModal({
                         >
                           <div className="w-full h-full border-[3px] border-black p-3 flex flex-col relative">
                             {/* Top Section - Name with "very GOOD!" subtitle */}
-                            <div className="flex justify-center items-start">
-                              <div className="text-center pt-1">
+                            <div className="flex justify-center items-start w-full pt-1">
+                              <div className="text-center w-full">
                                 <h1
-                                  className="text-[28px] leading-[1.1] font-black uppercase tracking-tighter"
-                                  style={{ fontFamily: '"Oswald", sans-serif', transform: 'scaleY(1.1)' }}
+                                  className="text-[64px] leading-[0.85] font-black uppercase tracking-tighter select-none"
+                                  style={{
+                                    fontFamily: '"Anton", "Oswald", sans-serif',
+                                    fontStyle: 'italic',
+                                    color: '#ffffff',
+                                    WebkitTextStroke: '3px #000000',
+                                    paintOrder: 'stroke fill',
+                                    textShadow: '3px 3px 0 #000000, 4px 4px 0 #000000, 5px 5px 0 #000000',
+                                    letterSpacing: '-0.04em',
+                                    display: 'inline-block',
+                                    transform: 'scaleY(1.1) skewX(-4deg)',
+                                  }}
                                 >
                                   {item.name || 'GIÁ RẺ QUÁ'}
                                 </h1>
-                                <div className="text-[14px] italic font-bold tracking-wide -mt-0.5" style={{ fontFamily: '"Georgia", serif' }}>very <span className="not-italic font-black uppercase" style={{ fontFamily: '"Oswald", sans-serif' }}>GOOD!</span></div>
+                                <div
+                                  className="text-[20px] font-bold tracking-wider -mt-1 select-none flex items-center justify-center gap-1"
+                                  style={{
+                                    fontFamily: '"Georgia", serif',
+                                    color: '#ffffff',
+                                    WebkitTextStroke: '1.5px #000000',
+                                    paintOrder: 'stroke fill',
+                                    textShadow: '2px 2px 0 #000000',
+                                  }}
+                                >
+                                  <span className="italic lowercase">very</span>
+                                  <span
+                                    className="font-black uppercase not-italic text-[22px] tracking-tight"
+                                    style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
+                                  >
+                                    GOOD!
+                                  </span>
+                                </div>
                               </div>
                             </div>
 
                             {/* Middle Section - Prices */}
-                            <div className="flex-1 flex flex-col items-center justify-center -mt-2">
-                              {/* Original Price - show value with strikethrough, or blank line */}
+                            <div className="flex-1 flex flex-col items-center justify-center pt-3">
+                              {/* Original Price - show value with strikethrough, or blank space */}
                               {item.originalPrice ? (
-                                <div className="relative">
+                                <div className="relative mb-1">
                                   <span
-                                    className="text-[55px] font-black tracking-tighter"
+                                    className="text-[42px] font-black tracking-tighter text-slate-800"
                                     style={{ fontFamily: '"Oswald", sans-serif', transform: 'scaleY(1.1)', display: 'inline-block' }}
                                   >
                                     {formatPrice(item.originalPrice)}
                                   </span>
-                                  <div className="absolute top-1/2 left-[-5%] right-[-5%] h-[4px] bg-black -translate-y-1/2"></div>
+                                  <div className="absolute top-1/2 left-[-5%] right-[-5%] h-[3px] bg-black -translate-y-1/2"></div>
                                 </div>
-                              ) : (
-                                <div className="w-[60%] mb-2 mt-2">
-                                  <div className="border-b-[3px] border-dashed border-black h-[45px]"></div>
-                                </div>
-                              )}
+                              ) : null}
 
-                              {/* Discount Price - show value, or blank line */}
+                              {/* GIẢM CÒN Label */}
+                              <div
+                                className="text-[26px] font-black tracking-widest uppercase mb-1"
+                                style={{ fontFamily: '"Oswald", sans-serif' }}
+                              >
+                                GIẢM CÒN
+                              </div>
+
+                              {/* Discount Price - show value, or blank area */}
                               {item.discountPrice ? (
                                 <div
-                                  className="text-[120px] leading-[0.8] font-black tracking-tighter mt-2"
+                                  className="text-[120px] leading-[0.8] font-black tracking-tighter mt-1"
                                   style={{ fontFamily: '"Oswald", sans-serif', transform: 'scaleY(1.1)', display: 'inline-block' }}
                                 >
                                   {formatPrice(item.discountPrice)}
                                 </div>
                               ) : (
-                                <div className="w-[80%] mt-4">
-                                  <div className="border-b-[4px] border-black h-[55px]"></div>
-                                </div>
+                                /* Large empty space for writing */
+                                <div className="h-[95px]"></div>
                               )}
                             </div>
 
