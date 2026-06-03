@@ -21,12 +21,12 @@ const parsePriceInput = (value: string): string => {
 
 // Default stickers - 8 items with "GIÁ RẺ" as product name
 const createDefaultStickers = (): StickerItem[] => {
-  return Array.from({ length: 8 }, (_, i) => ({
-    id: `sticker-${Date.now()}-${i}`,
+  return [{
+    id: `sticker-${Date.now()}-0`,
     name: 'GIÁ RẺ',
     originalPrice: '',
     discountPrice: '',
-  }));
+  }];
 };
 
 export default function StickerTemplateTab() {
