@@ -24,7 +24,8 @@ import {
   CONVERSION_RATES,
   safeSetItem,
   isValidStoreName,
-  minifyYcxData
+  minifyYcxData,
+  normalizeStoreId
 } from '../utils';
 
 export const useRealtimeData = (maKho: string) => {
@@ -222,7 +223,7 @@ export const useRealtimeData = (maKho: string) => {
       const { error: upsertError } = await supabase
         .from('store')
         .upsert({
-          id: cleanStore, // Supermarket Name!
+          id: normalizeStoreId(cleanStore), // Normalized UPPERCASE ID to prevent duplicates
           warehouse_code: cleanMaKho,
           ten_sieu_thi: cleanStore,
           rt_bi_tong_quan: marketInputRef.current,
@@ -327,7 +328,7 @@ export const useRealtimeData = (maKho: string) => {
       const { data: record, error } = await supabase
         .from('store')
         .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ten_sieu_thi, updated_at')
-        .eq('id', targetStore.trim())
+        .eq('id', normalizeStoreId(targetStore.trim()))
         .maybeSingle();
 
       if (error) {
@@ -479,7 +480,7 @@ export const useRealtimeData = (maKho: string) => {
       const { data, error } = await supabase
         .from('store')
         .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ten_sieu_thi, updated_at')
-        .eq('id', activeStore.trim())
+        .eq('id', normalizeStoreId(activeStore.trim()))
         .maybeSingle();
 
       if (error) throw error;

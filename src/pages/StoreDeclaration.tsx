@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { Store, ArrowRight, Save, Loader2, Sparkles, LayoutGrid, Info, CheckCircle2, Copy, Check } from 'lucide-react';
-import { isValidStoreName } from './RTST/utils';
+import { isValidStoreName, normalizeStoreId } from './RTST/utils';
 
 interface StoreDeclarationProps {
   onComplete: () => void;
@@ -130,13 +130,15 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
         const { data: existingData } = await supabase
           .from('store')
           .select('*')
-          .eq('id', storeName)
+          .eq('id', normalizeStoreId(storeName))
           .maybeSingle();
 
+        const normalizedId = normalizeStoreId(storeName);
+
         const payload: any = {
-          id: storeName, // The Supermarket Name as the unique Document ID / Primary Key!
+          id: normalizedId, // Normalized UPPERCASE ID to prevent duplicates
           warehouse_code: maKho.trim(),
-          ten_sieu_thi: storeName,
+          ten_sieu_thi: storeName, // Keep original casing for display
           declared_stores: storesArray,
           updated_at: new Date().toISOString(),
         };

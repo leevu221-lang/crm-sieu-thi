@@ -8,7 +8,7 @@ import { STORAGE_KEYS } from '../types';
 import { supabase } from '../../../supabaseClient';
 import { useNotification } from '../../../contexts/NotificationContext';
 import { useStore, getStoreItem, setStoreItem } from '../../../contexts/StoreContext';
-import { isValidStoreName as isValidStoreNameUtil, normalize, safeSetItem } from '../utils';
+import { isValidStoreName as isValidStoreNameUtil, normalize, safeSetItem, normalizeStoreId } from '../utils';
 
 const globalAllStoreTargets: Record<string, any> = {};
 
@@ -278,7 +278,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
 
       // 2. Prepare payload: only include fields we are modifying
       const payload: any = {
-        id: cleanStore.trim(), // The Supermarket Name as the unique Document ID / Primary Key!
+        id: normalizeStoreId(cleanStore), // Normalized UPPERCASE ID to prevent duplicates
         warehouse_code: cleanMaKho,
         ten_sieu_thi: cleanStore,
         taget_doanh_thu: newTargetData,
@@ -333,7 +333,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       const { data: record, error } = await supabase
         .from('store')
         .select('taget_doanh_thu, ten_sieu_thi, warehouse_code, updated_at')
-        .eq('id', targetStore.trim())
+        .eq('id', normalizeStoreId(targetStore.trim()))
         .maybeSingle();
 
       if (error) throw error;
@@ -562,7 +562,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         const { data: existingData } = await supabase
           .from('store')
           .select('taget_doanh_thu, warehouse_code, ten_sieu_thi, category_targets, lk_dt_nv, lk_td_nv, ban_kem_nv, ds_nhan_vien, dt_gio_cong, data_phan_ca, tragop_matran, tragop_nv, phuc_vu, lk_bi_tong_quan, lk_nh_sieu_thi')
-          .eq('id', cleanStore)
+          .eq('id', normalizeStoreId(cleanStore))
           .maybeSingle();
 
         const currentTargetQD = settings.stTargetQuyDoi || (existingData?.taget_doanh_thu?.stTargetQuyDoi) || 0;
@@ -601,7 +601,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
 
         const payload: any = {
           ...(existingData || {}),
-          id: cleanStore,
+          id: normalizeStoreId(cleanStore),
           warehouse_code: cleanMaKho,
           ten_sieu_thi: cleanStore,
           taget_doanh_thu: newTargetData,

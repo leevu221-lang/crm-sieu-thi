@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { useStore } from '../../../contexts/StoreContext';
-import { parseYcxData, parseStaffRankData } from '../../RTST/utils';
+import { parseYcxData, parseStaffRankData, normalizeStoreId } from '../../RTST/utils';
 import { StaffData } from '../../RTST/types';
 
 const globalHealthCache: Record<string, any> = {};
@@ -60,7 +60,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         lkQuery = supabase
           .from('store')
           .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, ten_sieu_thi, updated_at')
-          .eq('id', cleanStore);
+          .eq('id', normalizeStoreId(cleanStore));
       } else {
         // ALL stores mode: query by warehouse_code
         rtQuery = supabase
@@ -337,7 +337,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         const { error } = await supabase
           .from('store')
           .upsert({
-            id: cleanStore,
+            id: normalizeStoreId(cleanStore),
             warehouse_code: maKho.trim(),
             ten_sieu_thi: cleanStore,
             ban_kem_nv: banKemNv,
@@ -363,7 +363,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           supabase
             .from('store')
             .upsert({
-              id: cleanStoreVal,
+              id: normalizeStoreId(cleanStoreVal),
               warehouse_code: maKho.trim(),
               ten_sieu_thi: cleanStoreVal,
               ban_kem_nv: banKemNv,
@@ -397,7 +397,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         const { error } = await supabase
           .from('store')
           .upsert({
-            id: cleanStore,
+            id: normalizeStoreId(cleanStore),
             warehouse_code: cleanMaKho,
             ten_sieu_thi: cleanStore,
             phuc_vu: data,
@@ -431,7 +431,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         const { error } = await supabase
           .from('store')
           .upsert({
-            id: cleanStore,
+            id: normalizeStoreId(cleanStore),
             warehouse_code: cleanMaKho,
             ten_sieu_thi: cleanStore,
             ban_kem_nv: data,

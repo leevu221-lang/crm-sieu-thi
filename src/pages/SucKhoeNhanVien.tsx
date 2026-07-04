@@ -21,7 +21,7 @@ import RevenueRankingTableQd from './EmployeeHealth/components/RevenueRankingTab
 import EmployeeDetailTable from './EmployeeHealth/components/EmployeeDetailTable';
 import SummaryThiDuaTable from './EmployeeHealth/components/SummaryThiDuaTable';
 import CategoryDetailByStaffTable from './EmployeeHealth/components/CategoryDetailByStaffTable';
-import { cn, parseStaffRankData, parseYcxData } from './RTST/utils';
+import { cn, parseStaffRankData, parseYcxData, normalizeStoreId } from './RTST/utils';
 
 const removeAccents = (str: string): string => {
   return str
@@ -427,7 +427,7 @@ const EmployeeHealth: React.FC = () => {
     
     thuongSaveTimerRef.current = setTimeout(() => {
       supabase.from('store').upsert({
-        id: storeName, // The Supermarket Name as the unique Document ID / Primary Key!
+        id: normalizeStoreId(storeName), // Normalized UPPERCASE ID to prevent duplicates
         warehouse_code: shortMaKho,
         ten_sieu_thi: storeName,
         thuong_nv_data: JSON.stringify(data)
@@ -444,7 +444,7 @@ const EmployeeHealth: React.FC = () => {
     const shortMaKho = maKho.replace(/^0+/, '');
     
     supabase.from('store').upsert({
-      id: storeName,
+      id: normalizeStoreId(storeName),
       warehouse_code: shortMaKho,
       ten_sieu_thi: storeName,
       selected_staff_ids: JSON.stringify(ids)
@@ -548,7 +548,7 @@ const EmployeeHealth: React.FC = () => {
     
     supabase.from('store')
       .select('thuong_nv_data, selected_staff_ids')
-      .eq('id', marketFilter.trim())
+      .eq('id', normalizeStoreId(marketFilter.trim()))
       .maybeSingle()
       .then(({ data }: any) => {
         if (!data) {

@@ -6,6 +6,7 @@ import { Loader2, Save, Trash2, ChevronRight, ChevronLeft, Camera, RotateCcw, Re
 import * as XLSX from 'xlsx';
 import * as htmlToImage from 'html-to-image';
 import { useRealtimeData } from '../pages/RTST/hooks/useRealtimeData';
+import { normalizeStoreId } from '../pages/RTST/utils';
 import { format, startOfWeek, addDays, isSameDay, parseISO, differenceInDays, startOfMonth, endOfMonth, eachDayOfInterval, addMonths } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
@@ -71,7 +72,7 @@ export default function PhanCaTable() {
       const { data: lkData, error } = await supabase
         .from('store')
         .select('data_phan_ca, ds_nhan_vien')
-        .eq('id', targetStore.trim())
+        .eq('id', normalizeStoreId(targetStore.trim()))
         .maybeSingle();
 
       if (error) {

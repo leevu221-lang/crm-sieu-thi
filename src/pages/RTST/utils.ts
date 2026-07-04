@@ -215,6 +215,16 @@ export const isValidStoreName = (name: string): boolean => {
   return isValid;
 };
 
+/**
+ * Normalize a store name for use as a Supabase document ID (primary key).
+ * Converts to UPPERCASE and trims whitespace so that "Láng Tròn" and "LÁNG TRÒN"
+ * always map to the same row, preventing duplicate documents.
+ */
+export const normalizeStoreId = (name: string): string => {
+  if (!name) return '';
+  return name.trim().normalize('NFC').toUpperCase();
+};
+
 export const normalize = (s: string) => {
   if (!s) return "";
   // NFC normalization and basic cleaning

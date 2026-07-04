@@ -22,7 +22,8 @@ import {
   isValidStoreName,
   normalize,
   isKhoLuuDong,
-  safeSetItem
+  safeSetItem,
+  normalizeStoreId
 } from '../pages/RTST/utils';
 
 const globalAllStoresCache: Record<string, {
@@ -180,7 +181,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const targetsToSave = overrideTargets || categoryTargetsRef.current;
 
       const payload: any = {
-        id: cleanStore.trim(), // The Supermarket Name as the unique Document ID / Primary Key!
+        id: normalizeStoreId(cleanStore), // Normalized UPPERCASE ID to prevent duplicates
         warehouse_code: shortMaKho,
         ten_sieu_thi: cleanStore,
         updated_at: new Date().toISOString()
@@ -707,7 +708,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       let { data, error } = await supabase
         .from('store')
         .select('id, lk_bi_tong_quan, lk_nh_sieu_thi, lk_dt_nv, lk_td_nv, ds_nhan_vien, dt_gio_cong, data_phan_ca, tragop_matran, tragop_nv, category_targets, ten_sieu_thi, updated_at, taget_doanh_thu, ban_kem_nv, phuc_vu')
-        .eq('id', targetStore.trim())
+        .eq('id', normalizeStoreId(targetStore.trim()))
         .maybeSingle();
       
       // FALLBACK: If no document found by ID, try querying by warehouse_code + match ten_sieu_thi
@@ -975,7 +976,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     Object.keys(basePayload).forEach(k => basePayload[k] === undefined && delete basePayload[k]);
 
     const payload: any = {
-      id: activeStore.trim(), // The Supermarket Name as the unique Document ID / Primary Key!
+      id: normalizeStoreId(activeStore.trim()), // Normalized UPPERCASE ID to prevent duplicates
       warehouse_code: shortMaKho,
       ten_sieu_thi: activeStore,
       lk_bi_tong_quan: rtData[0].rt_bi_tong_quan,
