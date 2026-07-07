@@ -718,7 +718,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
         <div className="border border-slate-300 border-t-0 rounded-b-2xl overflow-x-auto">
           <table className="w-full border-collapse table-fixed" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", minWidth: '1230px' }}>
             <thead>
-              <tr className="h-[50px] text-[12px] font-black uppercase tracking-tight">
+              <tr className="h-[50px] text-[14px] font-black uppercase tracking-tight">
                 <th style={{ fontWeight: 900, backgroundColor: '#00965e', width: '70px' }} className="px-1 py-2 text-center border-r border-white/20 text-white">HẠNG</th>
                 <th style={{ fontWeight: 900, backgroundColor: '#00965e', width: '260px' }} className="px-2 py-2 text-center border-r border-white/20 text-white">NHÂN VIÊN</th>
                 <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'achieved' ? '#005f3a' : '#00965e', width: '80px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#007b4e] transition-colors" onClick={() => handleSort('achieved')}>ĐÃ VỀ{renderSortArrows('achieved')}</th>
@@ -751,25 +751,25 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
                         {rankIcon ? (
                           <span className="text-[20px]">{rankIcon}</span>
                         ) : (
-                          <span style={{ fontWeight: 900 }} className="text-[16px] font-black text-slate-800">{index + 1}</span>
+                          <span style={{ fontWeight: 900 }} className="text-[18px] font-black text-slate-800">{index + 1}</span>
                         )}
                       </td>
 
                       {/* NHÂN VIÊN */}
                       <td style={{ fontWeight: 900 }} className="px-4 py-2 border-r border-slate-200">
-                        <span className="text-[13px] font-black text-slate-800 uppercase tracking-tight">
+                        <span className="text-[15px] font-black text-slate-800 uppercase tracking-tight">
                           {formatName(row.staff.displayName)}
                         </span>
                       </td>
 
                       {/* ĐÃ VỀ */}
                       <td style={{ fontWeight: 900 }} className={cn("px-2 py-2 text-center border-r border-slate-200", sortBg('achieved'))}>
-                        <span className="text-[13px] font-black text-slate-800">{row.achieved}/{row.totalCats}</span>
+                        <span className="text-[15px] font-black text-slate-800">{row.achieved}/{row.totalCats}</span>
                       </td>
 
                       {/* DOANH THU THỰC */}
                       <td style={{ fontWeight: 900 }} className={cn("px-2 py-2 text-center border-r border-slate-200", sortBg('dtThuc'))}>
-                        <span className="text-[14px] font-black text-slate-800">
+                        <span className="text-[16px] font-black text-slate-800">
                           {formatRevenue(row.dtThuc)}
                         </span>
                       </td>
@@ -777,7 +777,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
                       {/* LUỸ KẾ QUY ĐỔI (with progress bar) */}
                       <td className={cn("px-2 py-2 border-r border-slate-200", sortBg('lkQuyDoi'))}>
                         <div className="flex flex-col items-center gap-1">
-                          <span style={{ fontWeight: 900 }} className="text-[14px] font-black text-slate-800">
+                          <span style={{ fontWeight: 900 }} className="text-[16px] font-black text-slate-800">
                             {formatRevenue(row.lkQuyDoi)}
                           </span>
                           <div className="w-full h-[18px] rounded-full overflow-hidden relative" style={{ backgroundColor: '#f1f5f9' }}>
@@ -798,7 +798,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
                       {/* HIỆU QUẢ QUY ĐỔI */}
                       <td style={{ fontWeight: 900 }} className={cn("px-2 py-2 text-center border-r border-slate-200", sortBg('effQd'))}>
                         <span className={cn(
-                          "text-[14px] font-black",
+                          "text-[16px] font-black",
                           row.effQd >= 50 ? "text-emerald-600" : "text-rose-600"
                         )}>
                           {row.effQd.toFixed(1)}%
@@ -808,7 +808,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
                       {/* TỶ TRỌNG TRẢ CHẬM */}
                       <td style={{ fontWeight: 900 }} className={cn("px-2 py-2 text-center border-r border-slate-200", sortBg('traCham'))}>
                         <span className={cn(
-                          "text-[14px] font-black",
+                          "text-[16px] font-black",
                           row.traChamPercent >= 50 ? "text-emerald-600" : "text-rose-600"
                         )}>
                           {row.traChamPercent > 0 ? `${row.traChamPercent.toFixed(2)}%` : ''}
@@ -817,7 +817,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
 
                       {/* MỤC TIÊU THÁNG - Always show TARGET QĐ from DOANH THU NV */}
                       <td style={{ fontWeight: 900 }} className={cn("px-2 py-2 text-center border-r border-slate-200", sortBg('target'))}>
-                        <span className="text-[14px] font-black text-slate-800">{targetStr}</span>
+                        <span className="text-[16px] font-black text-slate-800">{targetStr}</span>
                       </td>
 
                       {/* CÒN LẠI - Show ✅ HT when <= 0 */}
