@@ -968,7 +968,10 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
 
         {/* Bottom Section - Promos */}
         {showPromoLabel && (
-          <div className="text-center font-bold text-[16.5px] mb-6 tracking-tight uppercase">
+          <div 
+            className="text-center font-black text-[24px] mb-5 tracking-tight uppercase text-red-600"
+            style={{ color: 'red' }}
+          >
             {promoLabelText}
           </div>
         )}

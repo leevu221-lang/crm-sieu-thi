@@ -394,6 +394,7 @@ export default function ToolHoTro() {
     maSieuThi: string;
     nganhHang: string;
     nhomHang: string;
+    tenSanPham: string;
     onlyInventory: boolean;
     selectedQrs: string[] | null;
     sortOrder: string;
@@ -401,6 +402,7 @@ export default function ToolHoTro() {
     maSieuThi: '',
     nganhHang: '',
     nhomHang: '',
+    tenSanPham: '',
     onlyInventory: false,
     selectedQrs: null,
     sortOrder: '' // '' | 'asc' | 'desc'
@@ -429,16 +431,23 @@ export default function ToolHoTro() {
   const [printConfig, setPrintConfig] = useState<{ style: string; layout: string; showPromoLabel?: boolean }>({
     style: 'classic',
     layout: '4',
-    showPromoLabel: true
+    showPromoLabel: false
   });
 
-  const [showEventPromoLabel, setShowEventPromoLabel] = useState(true);
+  const [showEventPromoLabel, setShowEventPromoLabel] = useState(false);
+  const [promoLabelTextVal, setPromoLabelTextVal] = useState<string>('GIÁ KM 43346-TRẦN TRỌNG THIỆN GỬI');
 
   const [autoExpand, setAutoExpand] = useState(false);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
 
   // Fetch data from local storage or Firebase on activeTab changes
   useEffect(() => {
+    if (activeTab === 'sticker-event-dmx') {
+      setPromoLabelTextVal('GIÁ KM 43346-TRẦN TRỌNG THIỆN GỬI');
+    } else {
+      setPromoLabelTextVal('SẢN PHẨM GIÁ SỐC - EVENT T7 & CN');
+    }
+
     if (
       activeTab === 'all-sticker' || 
       activeTab === 'sticker-lk' || 
@@ -837,7 +846,10 @@ export default function ToolHoTro() {
       const matchNhom = !filters.nhomHang || item.nhomHang === filters.nhomHang;
       const matchInv = !filters.onlyInventory || item.inStock;
       const matchQr = !filters.selectedQrs || (item.qrData ? filters.selectedQrs.includes(item.qrData) : filters.selectedQrs.includes('(Trống)'));
-      return matchNganh && matchNhom && matchInv && matchQr;
+      const matchName = !filters.tenSanPham || 
+        (item.name && item.name.toLowerCase().includes(filters.tenSanPham.toLowerCase())) || 
+        (item.maSanPham && item.maSanPham.toLowerCase().includes(filters.tenSanPham.toLowerCase()));
+      return matchNganh && matchNhom && matchInv && matchQr && matchName;
     });
 
     if (filters.sortOrder === 'asc') {
@@ -3150,7 +3162,7 @@ export default function ToolHoTro() {
                                           style="classic"
                                           layout="1"
                                           showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' ? false : showEventPromoLabel}
-                                          promoLabelText={activeTab === 'sticker-event-dmx' ? 'GIÁ KM 43346-TRẦN TRỌNG THIỆN GỬI' : undefined}
+                                          promoLabelText={promoLabelTextVal}
                                         />
                                       </div>
                                     </div>
@@ -3172,7 +3184,7 @@ export default function ToolHoTro() {
                               style={activeTab === 'sticker-mln' ? 'display' : activeTab === 'sticker-lk' ? 'sticker_lk' : activeTab === 'sticker-ce' ? 'sticker_ce' : 'classic'}
                               layout={activeTab === 'sticker-lk' ? lkPrintLayout : activeTab === 'sticker-ce' ? cePrintLayout : activeTab === 'sticker-mln' ? mlnPrintLayout : '1'}
                               showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' ? false : showEventPromoLabel}
-                              promoLabelText={activeTab === 'sticker-event-dmx' ? 'GIÁ KM 43346-TRẦN TRỌNG THIỆN GỬI' : undefined}
+                              promoLabelText={promoLabelTextVal}
                               mlnHeaderTemplate={mlnHeaderTemplate}
                               mlnFooterTemplate={mlnFooterTemplate}
                             />
@@ -3180,16 +3192,34 @@ export default function ToolHoTro() {
                         </div>
                       </div>
                       {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event') && (
-                        <div className="p-3.5 bg-slate-50/40 backdrop-blur-sm border-t border-indigo-50/60">
-                          <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                        <div className="p-3.5 bg-slate-50/40 backdrop-blur-sm border-t border-indigo-50/60 space-y-3">
+                          <label className="flex items-center gap-2.5 text-xs font-bold text-slate-700 cursor-pointer">
                             <input 
                               type="checkbox" 
                               checked={showEventPromoLabel}
-                              onChange={(e) => setShowEventPromoLabel(e.target.checked)}
+                              onChange={(e) => {
+                                setShowEventPromoLabel(e.target.checked);
+                                setPrintConfig(prev => ({ ...prev, showPromoLabel: e.target.checked }));
+                              }}
                               className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                             />
-                            <span>Hiển thị nhãn "{activeTab === 'sticker-event-dmx' ? 'GIÁ KM 43346-TRẦN TRỌNG THIỆN GỬI' : 'SẢN PHẨM GIÁ SỐC - EVENT T7 & CN'}"</span>
+                            <span>Hiển thị nhãn khuyến mãi</span>
                           </label>
+                          {showEventPromoLabel && (
+                            <div className="flex flex-col gap-1.5 pl-6">
+                              <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Nội dung nhãn khuyến mãi</label>
+                              <input 
+                                type="text"
+                                value={promoLabelTextVal}
+                                onChange={(e) => setPromoLabelTextVal(e.target.value)}
+                                className="w-full bg-white border border-red-200 text-red-600 py-1.5 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-red-500"
+                                placeholder="Nhập nội dung nhãn..."
+                              />
+                              <span className="text-[9px] font-bold text-red-500/80">
+                                * Nhãn sẽ hiển thị chữ ĐỎ NỔI BẬT và tăng kích thước chữ trên Sticker khi in.
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
                       {activeTab === 'sticker-mln' && (
@@ -3378,7 +3408,7 @@ export default function ToolHoTro() {
                     </div>
                     <button 
                       onClick={() => {
-                        setFilters({ maSieuThi: '', nganhHang: '', nhomHang: '', onlyInventory: false, selectedQrs: null, sortOrder: '' });
+                        setFilters({ maSieuThi: '', nganhHang: '', nhomHang: '', tenSanPham: '', onlyInventory: false, selectedQrs: null, sortOrder: '' });
                         setPrintQuantity('');
                       }}
                       className="text-sm font-medium text-emerald-700 hover:text-emerald-800 hover:underline"
@@ -3387,7 +3417,7 @@ export default function ToolHoTro() {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-500">Ngành hàng</label>
                       <div className="relative">
@@ -3419,6 +3449,16 @@ export default function ToolHoTro() {
                         </select>
                         <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                       </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500">Tên sản phẩm</label>
+                      <input 
+                        type="text" 
+                        placeholder="Tên hoặc mã SP..."
+                        value={filters.tenSanPham}
+                        onChange={(e) => setFilters(prev => ({ ...prev, tenSanPham: e.target.value }))}
+                        className="w-full bg-white border border-emerald-200/80 text-slate-800 py-2.5 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-500">Sắp xếp giá giảm</label>
@@ -4287,7 +4327,7 @@ export default function ToolHoTro() {
         }
         mlnHeaderTemplate={mlnHeaderTemplate}
         mlnFooterTemplate={mlnFooterTemplate}
-        promoLabelText={activeTab === 'sticker-event-dmx' ? 'GIÁ KM 43346-TRẦN TRỌNG THIỆN GỬI' : undefined}
+        promoLabelText={promoLabelTextVal}
       />
 
       {/* Scanner Modal */}
