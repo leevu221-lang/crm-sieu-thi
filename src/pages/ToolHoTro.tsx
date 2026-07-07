@@ -331,6 +331,7 @@ export default function ToolHoTro() {
   const [priceData, setPriceData] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [updatedBy, setUpdatedBy] = useState<string>('43751');
   const [lastUpdateInventory, setLastUpdateInventory] = useState<string | null>(null);
   const [lastUpdatePrice, setLastUpdatePrice] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error' | '', text: string }>({ type: '', text: '' });
@@ -456,7 +457,10 @@ export default function ToolHoTro() {
           try {
             const parsed = JSON.parse(savedInventory);
             setInventoryData(parsed.data || []);
-            setLastUpdateInventory(parsed.timestamp ? new Date(parsed.timestamp).toLocaleString('vi-VN') : null);
+            
+            const timestamp = parsed.timestamp ? new Date(parsed.timestamp) : null;
+            const isValidDate = timestamp && !isNaN(timestamp.getTime());
+            setLastUpdateInventory(isValidDate ? timestamp.toLocaleString('vi-VN') : null);
           } catch (e) {
             console.error('Error parsing saved inventory:', e);
             setInventoryData([]);
@@ -472,7 +476,13 @@ export default function ToolHoTro() {
           try {
             const parsed = JSON.parse(savedPrice);
             setPriceData(parsed.data || []);
-            setLastUpdatePrice(parsed.timestamp ? new Date(parsed.timestamp).toLocaleString('vi-VN') : null);
+            
+            const timestamp = parsed.timestamp ? new Date(parsed.timestamp) : null;
+            const isValidDate = timestamp && !isNaN(timestamp.getTime());
+            setLastUpdatePrice(isValidDate ? timestamp.toLocaleString('vi-VN') : null);
+            if (parsed.updated_by) {
+              setUpdatedBy(parsed.updated_by);
+            }
           } catch (e) {
             console.error('Error parsing saved price:', e);
             setPriceData([]);
@@ -490,7 +500,7 @@ export default function ToolHoTro() {
           try {
             const { data, error } = await supabase
               .from('store')
-              .select('sticker_ce_price_data, updated_at')
+              .select('sticker_ce_price_data, updated_at, updated_by')
               .eq('id', 'EVENT_DMX_GLOBAL')
               .maybeSingle();
 
@@ -507,17 +517,21 @@ export default function ToolHoTro() {
                   : data.sticker_ce_price_data;
 
                 setPriceData(parsedPrice || []);
+                setUpdatedBy(data.updated_by || '43751');
                 
                 // Format updated timestamp
-                const formattedTime = data.updated_at 
-                  ? new Date(data.updated_at).toLocaleString('vi-VN')
+                const dbTime = data.updated_at ? new Date(data.updated_at) : null;
+                const isValidDbTime = dbTime && !isNaN(dbTime.getTime());
+                const formattedTime = isValidDbTime 
+                  ? dbTime.toLocaleString('vi-VN')
                   : new Date().toLocaleString('vi-VN');
                 setLastUpdatePrice(formattedTime);
 
                 // Save to localStorage as a cache/copy
                 localStorage.setItem(keys.price, JSON.stringify({
                   data: parsedPrice,
-                  timestamp: data.updated_at || new Date().toISOString()
+                  timestamp: data.updated_at || new Date().toISOString(),
+                  updated_by: data.updated_by || '43751'
                 }));
 
                 // No inventory for Event ĐMX by default, clean it
@@ -1050,10 +1064,13 @@ export default function ToolHoTro() {
       
       // Save locally to localStorage
       const keys = getStorageKeysForTab(activeTab);
+      const currentUsername = userProfile?.username || '43751';
       localStorage.setItem(keys.price, JSON.stringify({
         data: parsedData,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        updated_by: currentUsername
       }));
+      setUpdatedBy(currentUsername);
       
       // Also save to Firebase collection 'store' -> document 'EVENT_DMX_GLOBAL'
       const record = {
@@ -1061,6 +1078,7 @@ export default function ToolHoTro() {
         ten_sieu_thi: 'Cấu hình EVENT ĐMX toàn hệ thống',
         warehouse_code: 'GLOBAL',
         sticker_ce_price_data: JSON.stringify(parsedData),
+        updated_by: currentUsername,
         updated_at: new Date().toISOString()
       };
       
@@ -3322,6 +3340,23 @@ export default function ToolHoTro() {
                         ))}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {activeTab === 'sticker-event-dmx' && lastUpdatePrice && (
+                  <div className="bg-emerald-50 border border-emerald-200/80 rounded-3xl p-5 flex items-start gap-4 text-emerald-800 shadow-sm shadow-emerald-50/50 animate-fade-in">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 shadow-sm border border-emerald-200/50">
+                      <span className="text-xl">⚡</span>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-emerald-900">Bảng giá sự kiện ĐMX đã được cập nhật</h4>
+                      <p className="text-[11px] font-bold text-emerald-600/90 mt-1 leading-relaxed">
+                        Thời gian đồng bộ: <span className="font-black text-emerald-800 text-[12px] bg-emerald-100/50 px-2 py-0.5 rounded-lg border border-emerald-200/60 ml-0.5 mr-1">{lastUpdatePrice}</span> bởi Quản trị viên <span className="font-black text-emerald-800 bg-emerald-100/50 px-2 py-0.5 rounded-lg border border-emerald-200/60">{updatedBy || '43751'}</span>.
+                      </p>
+                      <p className="text-[9px] font-bold text-emerald-500/80 mt-1.5 uppercase tracking-wide">
+                        * Áp dụng đồng bộ thời gian thực cho tất cả người dùng trên hệ thống.
+                      </p>
+                    </div>
                   </div>
                 )}
 
