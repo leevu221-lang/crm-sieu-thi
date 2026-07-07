@@ -1871,24 +1871,24 @@ export default function NewRealtimePage() {
     const todayStr = new Date().toLocaleDateString('sv-SE');
     const today = new Date(todayStr);
 
-    const active = inventorySchedules.find(s => {
-      if (!s.inventory_date) return false;
+    const items = inventorySchedules.map(s => {
+      if (!s.inventory_date) return null;
       const sDate = new Date(s.inventory_date);
       const diffTime = sDate.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays >= 0 && diffDays <= 31;
-    });
+      return { ...s, diffDays };
+    }).filter((s): s is any => s !== null && s.diffDays >= 0 && s.diffDays <= 31);
 
-    if (!active) return null;
+    if (items.length === 0) return null;
 
-    const sDate = new Date(active.inventory_date);
-    const diffTime = sDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // Sort by diffDays ascending to prioritize the nearest inventory cycle
+    items.sort((a, b) => a.diffDays - b.diffDays);
+    const active = items[0];
 
     return {
       title: active.title,
       date: active.inventory_date,
-      diffDays,
+      diffDays: active.diffDays,
     };
   }, [inventorySchedules]);
 
