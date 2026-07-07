@@ -1,5 +1,5 @@
 import React, { useState, Suspense, lazy, useEffect, useMemo, useRef } from 'react';
-import { Database, BarChart3, Activity, HeartPulse, LogOut, User, Store, Loader2, Users, Shield, Settings, Type, Minus, Plus as PlusIcon, Monitor, Smartphone, LayoutGrid, AlertCircle, Wrench, ShieldAlert, RefreshCw, Zap, ShoppingBag, Globe, Trophy, Gift, X } from 'lucide-react';
+import { Database, BarChart3, Activity, HeartPulse, LogOut, User, Store, Loader2, Users, Shield, Settings, Type, Minus, Plus as PlusIcon, Monitor, Smartphone, LayoutGrid, AlertCircle, Wrench, ShieldAlert, RefreshCw, Zap, ShoppingBag, Globe, Trophy, Gift, X, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from './contexts/AuthContext';
 import { useSettings } from './contexts/SettingsContext';
@@ -21,6 +21,7 @@ const ToolHoTro = lazy(() => import('./pages/ToolHoTro'));
 const StickerCeScanner = lazy(() => import('./components/StickerCeScanner'));
 const TnbData = lazy(() => import('./pages/TnbData'));
 const SinhNhatNv = lazy(() => import('./pages/SinhNhatNv'));
+const FeedbackPage = lazy(() => import('./pages/FeedbackPage'));
 
 const LoadingSpinner = () => (
   <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
@@ -43,7 +44,7 @@ export default function App() {
     );
   }
 
-  const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro' | 'tnb_data' | 'birthday'>('realtime');
+  const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro' | 'tnb_data' | 'birthday' | 'feedback'>('realtime');
   const { userProfile, logout } = useAuth();
   const [declarationCompleted, setDeclarationCompleted] = useState(() => {
     const justLoggedIn = sessionStorage.getItem('justLoggedIn');
@@ -60,14 +61,14 @@ export default function App() {
 
   // Hard Rule implementation for fallback if userProfile has missing userPermissions (legacy session)
   const isSuperAdminHardcoded = userProfile?.username === '43751' || userProfile?.username === 'ADMIN';
-  const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'birthday'];
+  const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'birthday', 'feedback'];
   
   // Compute allowed pages
   const canEditUser = userProfile?.userPermissions?.canEditUser ?? isSuperAdminHardcoded;
   let allowedPages = isSuperAdminHardcoded ? ALL_PAGES : userProfile?.userPermissions?.allowedPages;
   
   if (!allowedPages) {
-    allowedPages = isSuperAdminHardcoded ? ALL_PAGES : ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tnb_data', 'birthday']; // fallback for legacy normal users to not break the app completely without relogin
+    allowedPages = isSuperAdminHardcoded ? ALL_PAGES : ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tnb_data', 'birthday', 'feedback']; // fallback for legacy normal users to not break the app completely without relogin
   }
   
   const effectiveAllowedPages = useMemo(() => {
@@ -176,6 +177,7 @@ export default function App() {
     { id: 'health', label: 'Sức khỏe NV', icon: HeartPulse, color: 'rose' },
     { id: 'toolhotro', label: 'Tool Hỗ Trợ', icon: Wrench, color: 'amber' },
     { id: 'birthday', label: 'Sinh nhật NV', icon: Gift, color: 'pink' },
+    { id: 'feedback', label: 'Góp ý', icon: MessageSquare, color: 'indigo' },
     // { id: 'tnb_data', label: 'TNB DATA', icon: Trophy, color: 'indigo' },
   ];
   
@@ -398,6 +400,7 @@ export default function App() {
                 }
                 if (currentPage === 'health' && effectiveAllowedPages.includes('health')) return <EmployeeHealth />;
                 if (currentPage === 'birthday' && effectiveAllowedPages.includes('birthday')) return <SinhNhatNv />;
+                if (currentPage === 'feedback' && effectiveAllowedPages.includes('feedback')) return <FeedbackPage />;
                 return null;
               })()}
             </Suspense>
