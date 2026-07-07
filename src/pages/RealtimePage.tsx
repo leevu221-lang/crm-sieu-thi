@@ -4164,6 +4164,7 @@ export default function NewRealtimePage() {
                           name: declaredMarket.name,
                           targetQD: 0,
                           actualVirtual: 0,
+                          actualReal: 0,
                           percentHT: 0,
                           installmentRate: 0,
                           luotBillBanHang: 0,
@@ -4219,10 +4220,16 @@ export default function NewRealtimePage() {
                                 isColored={true}
                               />
                               <StatCard
-                                title="Lượt Bill Bán Hàng"
-                                value={Math.round(parsedMarket.luotBillBanHang || 0).toLocaleString()}
+                                title="% QĐ"
+                                value={(() => {
+                                  const dtlk = (parsedMarket as any).actualReal || 0;
+                                  const dtqd = parsedMarket.actualVirtual || 0;
+                                  if (dtlk === 0) return '0.0%';
+                                  const val = ((dtqd - dtlk) / dtlk) * 100;
+                                  return `${val >= 0 ? '+' : ''}${val.toFixed(1)}%`;
+                                })()}
                                 subValue=""
-                                icon={Zap}
+                                icon={TrendingUp}
                                 color="orange"
                                 isColored={true}
                               />
