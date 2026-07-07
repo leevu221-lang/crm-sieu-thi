@@ -1742,7 +1742,7 @@ export default function ToolHoTro() {
     { id: 'phan-ca-thang', label: 'PHÂN CA THÁNG', icon: Users, color: 'text-purple-500' },
     { id: 'phan-ca-tuan', label: 'PHÂN CA TUẦN', icon: UploadCloud, color: 'text-orange-500' },
     { id: 'bien-ban', label: 'BIÊN BẢN CÁC LOẠI', icon: FileText, color: 'text-rose-500' },
-    { id: 'kiem-ke', label: 'KIỂM KÊ', icon: ClipboardList, color: 'text-amber-500' },
+    ...(userProfile?.username === '43751' ? [{ id: 'kiem-ke', label: 'KIỂM KÊ', icon: ClipboardList, color: 'text-amber-500' }] : []),
   ];
 
   return (

@@ -1845,6 +1845,53 @@ export default function NewRealtimePage() {
     return { todayBirthdays: todayList, tomorrowBirthdays: tomorrowList };
   }, [birthdaysList, marketFilter, userProfile]);
 
+  const [inventorySchedules, setInventorySchedules] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!selectedMaKho) return;
+    const fetchSchedules = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('inventory_schedules')
+          .select('*')
+          .eq('warehouse_code', selectedMaKho);
+        if (data) {
+          setInventorySchedules(data);
+        }
+      } catch (err) {
+        console.error('[RealtimePage] Lỗi tải lịch kiểm kê:', err);
+      }
+    };
+    fetchSchedules();
+  }, [selectedMaKho]);
+
+  const activeInventoryNotification = useMemo(() => {
+    if (!inventorySchedules || inventorySchedules.length === 0) return null;
+    
+    const todayStr = new Date().toLocaleDateString('sv-SE');
+    const today = new Date(todayStr);
+
+    const active = inventorySchedules.find(s => {
+      if (!s.inventory_date) return false;
+      const sDate = new Date(s.inventory_date);
+      const diffTime = sDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays >= 0 && diffDays <= 7;
+    });
+
+    if (!active) return null;
+
+    const sDate = new Date(active.inventory_date);
+    const diffTime = sDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    return {
+      title: active.title,
+      date: active.inventory_date,
+      diffDays,
+    };
+  }, [inventorySchedules]);
+
   const {
     ycxFileName, setYcxFileName,
     drillFilterStaff, setDrillFilterStaff,
@@ -3878,107 +3925,6 @@ export default function NewRealtimePage() {
     }
   };
 
-  const exploitationMetrics = useMemo(() => {
-    const total = {
-      revenue: 0,
-      convertedRevenue: 0,
-      installmentRevenue: 0,
-      giaDung: 0,
-      baoHiem: 0,
-      baoHiemCount: 0,
-      ict: 0,
-      ce: 0,
-      staffCount: filteredStaff.length
-    };
-
-    filteredStaff.forEach(s => {
-      total.revenue += s.totalRevenue;
-      total.convertedRevenue += s.convertedRevenue;
-      total.installmentRevenue += s.installmentRevenue;
-      total.giaDung += s.giaDung.total;
-      total.baoHiem += s.baoHiem.total;
-      total.baoHiemCount += s.baoHiem.count;
-      // ICT is quantity based in the data structure, but let's just sum it for now
-      total.ce += s.ce.total;
-    });
-
-    return total;
-  }, [filteredStaff]);
-
-
-  // Don't block the entire page while loading - show cached data immediately
-  // Only show a small loading indicator at the top
-
-  const renderKhaiThacHeader = (field: string, label: string, colorClass: string, bgClass: string, widthClass: string) => {
-    const isSorted = khaiThacSortField === field;
-    return (
-      <th
-        onClick={() => handleKhaiThacSort(field)}
-        className={`py-1 px-2 text-center ${colorClass} ${bgClass} border-r border-slate-200/50 ${widthClass} font-black cursor-pointer select-none hover:opacity-80 transition-all`}
-      >
-        <div className="flex items-center justify-center gap-0.5">
-          <span>{label}</span>
-          <span className={`text-[10px] ${isSorted ? 'text-indigo-600 font-extrabold' : 'text-slate-400'}`}>
-            {isSorted ? (khaiThacSortAsc ? '▲' : '▼') : '⇅'}
-          </span>
-        </div>
-      </th>
-    );
-  };
-
-  return (
-    <>
-      <div className="min-h-screen bg-[#f8fafc]" style={{ fontFamily: '"Inter", sans-serif' }}>
-        {/* Non-blocking loading indicator */}
-        {isLoadingRealtime && (
-          <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-slate-100 overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 animate-pulse w-full" 
-                 style={{ animation: 'loading-slide 1s ease-in-out infinite' }} />
-          </div>
-        )}
-        {/* Professional Header - Hidden */}
-        <div className="hidden bg-white border-b border-slate-200 px-8 py-5 sticky top-[116px] z-40 shadow-sm">
-          <div className="max-w-[1800px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex items-center gap-5">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-400 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
-                <Activity size={24} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-0.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600">Hệ thống trực tuyến</span>
-                </div>
-                <h1 className="text-xl font-black text-slate-800 tracking-tight uppercase">Sức khỏe siêu thị</h1>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
-                <Calendar size={14} className="text-slate-400" />
-                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-tighter">
-                  {currentTime.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}
-                </span>
-              </div>
-              
-              <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl flex items-center gap-4 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <Clock size={14} className="text-indigo-500" />
-                  <span className="text-sm font-black font-oswald tracking-wider text-slate-800">
-                    {currentTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-                <div className="w-px h-6 bg-slate-100" />
-                <div className="flex items-center gap-2">
-                  <RefreshCw size={14} className={isLoadingRealtime ? 'animate-spin text-indigo-500' : 'text-emerald-500'} />
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">
-                    {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '---'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <div className="max-w-[1800px] mx-auto flex flex-col lg:flex-row gap-4 md:gap-8 p-3 md:p-8">
           {/* Mobile Horizontal Tab Bar */}
           <div className="lg:hidden flex items-center gap-2 overflow-x-auto no-scrollbar bg-white rounded-2xl p-2 border border-slate-100">
@@ -4038,6 +3984,164 @@ export default function NewRealtimePage() {
                     </span>
                     {isActive && (
                       <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.5)]" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Main Content Area */}
+          <div className="flex-1 min-w-0">
+            <AnimatePresence mode="wait">
+              {activeTab === 'summary' && (
+                <motion.div
+                  key="summary"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="space-y-6"
+                  ref={overviewRef}
+                >
+                  {/* Greeting & Birthday Banner */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="no-capture bg-white p-8 rounded-[32px] border border-slate-100 shadow-[0_15px_50px_-15px_rgba(0,0,0,0.03)] space-y-6"
+                  >
+                    <div>
+                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Lời chào</h3>
+                      <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                        {greeting}, <span className="text-indigo-600">{userProfile?.username?.split(' ')[0]}</span>
+                      </h2>
+                    </div>
+
+                    {/* Integrated Birthday & Inventory Greetings */}
+                    {(todayBirthdays.length > 0 || tomorrowBirthdays.length > 0 || activeInventoryNotification) && (
+                      <div className="flex flex-col gap-4">
+                        {activeInventoryNotification && (
+                          <div className="flex items-start gap-4 bg-amber-50/50 border border-amber-250/60 p-4 rounded-2xl relative overflow-hidden shadow-sm shadow-amber-50/30">
+                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-amber-200/50 animate-bounce">
+                              📋
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                                <span className="text-amber-600 font-black">LỊCH KIỂM KÊ CỦA SIÊU THỊ:</span>
+                                <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-lg font-black text-xs uppercase tracking-wide">
+                                  {activeInventoryNotification.title}
+                                </span>
+                              </p>
+                              <p className="text-[11px] text-slate-650 font-black tracking-tight leading-relaxed">
+                                {activeInventoryNotification.diffDays === 0 ? (
+                                  <span className="text-rose-600 animate-pulse font-black uppercase">⚠️ HÔM NAY ĐANG KIỂM KÊ! Vui lòng tập trung và kiểm kê chính xác, nhanh chóng!</span>
+                                ) : (
+                                  `Sắp diễn ra vào ngày ${new Date(activeInventoryNotification.date).toLocaleDateString('vi-VN')} (Còn ${activeInventoryNotification.diffDays} ngày). Vui lòng chuẩn bị và kiểm tra danh sách phân công.`
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {todayBirthdays.length > 0 && (
+                          <div className="flex items-start gap-4 bg-rose-50/50 border border-rose-100 p-4 rounded-2xl relative overflow-hidden">
+                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-rose-100">
+                              🎂
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                                <span className="text-rose-500 font-black">Hôm nay sinh nhật:</span>
+                                <span className="bg-rose-100 text-rose-600 px-2 py-0.5 rounded-lg font-black text-xs">
+                                  {todayBirthdays.join(', ')}
+                                </span>
+                                <span className="text-rose-500 font-black">! 🎉</span>
+                              </p>
+                              <p className="text-[11px] text-slate-500 font-medium">
+                                Hãy gửi lời chúc hoặc gửi kèm một món quà/lời chúc ý nghĩa đến nhân viên nhé!
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {tomorrowBirthdays.length > 0 && (
+                          <div className="flex items-start gap-4 bg-indigo-50/30 border border-indigo-100/50 p-4 rounded-2xl relative overflow-hidden">
+                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-indigo-100/50">
+                              🎁
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                                <span className="text-indigo-500 font-black">Ngày mai sinh nhật:</span>
+                                <span className="bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-lg font-black text-xs">
+                                  {tomorrowBirthdays.join(', ')}
+                                </span>
+                                <span className="text-indigo-500 font-black">! ✨</span>
+                              </p>
+                              <p className="text-[11px] text-slate-500 font-medium">
+                                Hãy chuẩn bị những lời chúc hoặc món quà bất ngờ cho đồng nghiệp vào ngày mai nhé!
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}          </div>
+                            <div className="flex-1 space-y-1">
+                              <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                                <span className="text-amber-600 font-black">LỊCH KIỂM KÊ CỦA SIÊU THỊ:</span>
+                                <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-lg font-black text-xs uppercase tracking-wide">
+                                  {activeInventoryNotification.title}
+                                </span>
+                              </p>
+                              <p className="text-[11px] text-slate-650 font-black tracking-tight leading-relaxed">
+                                {activeInventoryNotification.diffDays === 0 ? (
+                                  <span className="text-rose-600 animate-pulse font-black uppercase">⚠️ HÔM NAY ĐANG KIỂM KÊ! Vui lòng tập trung và kiểm kê chính xác, nhanh chóng!</span>
+                                ) : (
+                                  `Sắp diễn ra vào ngày ${new Date(activeInventoryNotification.date).toLocaleDateString('vi-VN')} (Còn ${activeInventoryNotification.diffDays} ngày). Vui lòng chuẩn bị và kiểm tra danh sách phân công.`
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {todayBirthdays.length > 0 && (
+                          <div className="flex items-start gap-4 bg-rose-50/50 border border-rose-100 p-4 rounded-2xl relative overflow-hidden">
+                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-rose-100">
+                              🎂
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                                <span className="text-rose-500 font-black">Hôm nay sinh nhật:</span>
+                                <span className="bg-rose-100 text-rose-600 px-2 py-0.5 rounded-lg font-black text-xs">
+                                  {todayBirthdays.join(', ')}
+                                </span>
+                                <span className="text-rose-500 font-black">! 🎉</span>
+                              </p>
+                              <p className="text-[11px] text-slate-500 font-medium">
+                                Hãy gửi lời chúc hoặc gửi kèm một món quà/lời chúc ý nghĩa đến nhân viên nhé!
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {tomorrowBirthdays.length > 0 && (
+                          <div className="flex items-start gap-4 bg-indigo-50/30 border border-indigo-100/50 p-4 rounded-2xl relative overflow-hidden">
+                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-indigo-100/50">
+                              🎁
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                                <span className="text-indigo-500 font-black">Ngày mai sinh nhật:</span>
+                                <span className="bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-lg font-black text-xs">
+                                  {tomorrowBirthdays.join(', ')}
+                                </span>
+                                <span className="text-indigo-500 font-black">! ✨</span>
+                              </p>
+                              <p className="text-[11px] text-slate-500 font-medium">
+                                Hãy chuẩn bị những lời chúc hoặc món quà bất ngờ cho đồng nghiệp vào ngày mai nhé!
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}a(79,70,229,0.5)]" />
                     )}
                   </button>
                 );
