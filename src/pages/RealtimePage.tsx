@@ -4061,7 +4061,7 @@ export default function NewRealtimePage() {
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-[0_15px_50px_-15px_rgba(0,0,0,0.03)] space-y-6"
+                    className="no-capture bg-white p-8 rounded-[32px] border border-slate-100 shadow-[0_15px_50px_-15px_rgba(0,0,0,0.03)] space-y-6"
                   >
                     <div>
                       <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Lời chào</h3>
