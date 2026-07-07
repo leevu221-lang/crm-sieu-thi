@@ -1044,8 +1044,6 @@ export default function ToolHoTro() {
   const handleSyncGoogleSheet = async () => {
     setIsSyncing(true);
     try {
-      showNotification('Bắt đầu đồng bộ bảng giá từ Google Sheet...', 'info');
-      
       const csvUrl = 'https://docs.google.com/spreadsheets/d/13MDK0KEgRnTzBP6zpIv02FtaJo-nGzq9TvY4rQPzb3o/export?format=csv';
       const response = await fetch(csvUrl);
       if (!response.ok) {
@@ -1140,7 +1138,7 @@ export default function ToolHoTro() {
         
       if (dbError) {
         console.error('Lỗi khi lưu dữ liệu lên Firebase:', dbError);
-        showNotification('Đồng bộ thành công cục bộ nhưng không thể lưu lên Firebase!', 'warning');
+        showNotification('Đồng bộ thành công cục bộ nhưng không thể lưu lên Firebase!', 'error');
       } else {
         showNotification(`Đồng bộ thành công ${parsedData.length} sản phẩm từ Google Sheet và đã lưu lên Firebase cho tất cả người dùng!`, 'success');
       }
