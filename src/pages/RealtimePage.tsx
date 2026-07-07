@@ -1848,13 +1848,11 @@ export default function NewRealtimePage() {
   const [inventorySchedules, setInventorySchedules] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!selectedMaKho) return;
     const fetchSchedules = async () => {
       try {
         const { data, error } = await supabase
           .from('inventory_schedules')
-          .select('*')
-          .eq('warehouse_code', selectedMaKho);
+          .select('*');
         if (data) {
           setInventorySchedules(data);
         }
@@ -1863,7 +1861,7 @@ export default function NewRealtimePage() {
       }
     };
     fetchSchedules();
-  }, [selectedMaKho]);
+  }, []);
 
   const activeInventoryNotification = useMemo(() => {
     if (!inventorySchedules || inventorySchedules.length === 0) return null;

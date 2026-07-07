@@ -38,6 +38,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
+  useEffect(() => {
+    if (!userProfile?.username || userProfile.username === 'ADMIN') return;
+
+    const refreshPermissions = async () => {
+      try {
+        const { data: permData } = await supabase
+          .from('user_permissions')
+          .select('allowed_pages')
+          .eq('user_id', userProfile.username)
+          .maybeSingle();
+
+        if (permData) {
+          setUserProfile(prev => {
+            if (!prev) return null;
+            const updated = {
+              ...prev,
+              userPermissions: {
+                ...prev.userPermissions,
+                allowedPages: permData.allowed_pages || []
+              }
+            };
+            localStorage.setItem('userProfile', JSON.stringify(updated));
+            return updated;
+          });
+        }
+      } catch (err) {
+        console.error('Failed to sync permissions:', err);
+      }
+    };
+
+    refreshPermissions();
+  }, [userProfile?.username]);
+
+
   async function login(username: string, maKho: string, password?: string): Promise<{ success: boolean; message: string }> {
     try {
       const { data, error } = await supabase

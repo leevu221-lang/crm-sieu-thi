@@ -28,12 +28,10 @@ export const inventoryService = {
    */
   async getInventorySchedules(warehouseCode: string): Promise<InventorySchedule[]> {
     if (!isSupabaseConfigured) throw new Error('Firebase chưa được cấu hình');
-    if (!warehouseCode) return [];
 
     const { data, error } = await supabase
       .from('inventory_schedules')
-      .select('*')
-      .eq('warehouse_code', warehouseCode);
+      .select('*');
 
     if (error) {
       console.error('[InventoryService] getInventorySchedules error:', error);
