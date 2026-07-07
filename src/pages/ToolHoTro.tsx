@@ -790,7 +790,10 @@ export default function ToolHoTro() {
 
         if (headerRowIdx !== -1) {
           const headerRow = inventoryData[headerRowIdx].map((h: any) => String(h || '').toLowerCase().trim());
-          const maSpIdx = headerRow.findIndex((h: string) => h === 'mã sản phẩm' || h === 'mã sp' || h === 'mã hàng');
+          let maSpIdx = headerRow.findIndex((h: string) => h === 'mã sản phẩm' || h === 'mã sp' || h === 'mã hàng');
+          if (maSpIdx === -1 && activeTab === 'sticker-event-dmx') {
+            maSpIdx = 2; // Column C fallback
+          }
           const nganhHangIdx = headerRow.findIndex((h: string) => h === 'ngành hàng');
           const nhomHangIdx = headerRow.findIndex((h: string) => h === 'nhóm hàng');
           const qrIdx = headerRow.findIndex((h: string) => h.includes('qr') || h.includes('quét') || h.includes('điện thoại'));
@@ -803,7 +806,9 @@ export default function ToolHoTro() {
               const maSp = String(row[maSpIdx] || '').trim();
               if (maSp) {
                 const qrVal = qrIdx !== -1 ? String(row[qrIdx] || '').trim() : '';
-                const tonKhoVal = tonKhoIdx !== -1 ? parseInt(String(row[tonKhoIdx]).replace(/\./g, '').replace(/,/g, '')) || 0 : 1;
+                const tonKhoVal = activeTab === 'sticker-event-dmx'
+                  ? parseInt(String(row[9] || '').replace(/\./g, '').replace(/,/g, '')) || 0
+                  : (tonKhoIdx !== -1 ? parseInt(String(row[tonKhoIdx]).replace(/\./g, '').replace(/,/g, '')) || 0 : 1);
                 const existing = inventoryMap.get(maSp);
                 
                 inventoryMap.set(maSp, {
@@ -860,7 +865,7 @@ export default function ToolHoTro() {
     let result = combinedPriceData.filter(item => {
       const matchNganh = !filters.nganhHang || item.nganhHang === filters.nganhHang;
       const matchNhom = !filters.nhomHang || item.nhomHang === filters.nhomHang;
-      const matchInv = !filters.onlyInventory || item.inStock;
+      const matchInv = !filters.onlyInventory || (item.tonKho !== undefined && item.tonKho > 0);
       const matchQr = !filters.selectedQrs || (item.qrData ? filters.selectedQrs.includes(item.qrData) : filters.selectedQrs.includes('(Trống)'));
       const matchName = !filters.tenSanPham || 
         (item.name && item.name.toLowerCase().includes(filters.tenSanPham.toLowerCase())) || 
@@ -1189,20 +1194,22 @@ export default function ToolHoTro() {
         }));
         showNotification('Đã tải và lưu tạm file Tồn kho!', 'success');
 
-        // Tự động xuất file Excel chỉ lấy dữ liệu cột G
-        try {
-          const originalName = file.name.substring(0, file.name.lastIndexOf('.')) || 'Du_Lieu';
-          const colGData = data.map((row) => {
-            const value = row && row.length > 6 ? row[6] : '';
-            return [value];
-          });
-          const exportWs = XLSX.utils.aoa_to_sheet(colGData);
-          const exportWb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(exportWb, exportWs, 'Sheet1');
-          XLSX.writeFile(exportWb, `${originalName}_Cot_G.xlsx`);
-          showNotification('Đã tự động xuất file Excel cột G!', 'success');
-        } catch (err) {
-          console.error('Error auto-exporting column G:', err);
+        // Tự động xuất file Excel chỉ lấy dữ liệu cột G (Không tự xuất khi ở tab EVENT ĐMX)
+        if (activeTab !== 'sticker-event-dmx') {
+          try {
+            const originalName = file.name.substring(0, file.name.lastIndexOf('.')) || 'Du_Lieu';
+            const colGData = data.map((row) => {
+              const value = row && row.length > 6 ? row[6] : '';
+              return [value];
+            });
+            const exportWs = XLSX.utils.aoa_to_sheet(colGData);
+            const exportWb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(exportWb, exportWs, 'Sheet1');
+            XLSX.writeFile(exportWb, `${originalName}_Cot_G.xlsx`);
+            showNotification('Đã tự động xuất file Excel cột G!', 'success');
+          } catch (err) {
+            console.error('Error auto-exporting column G:', err);
+          }
         }
       } else {
         // Process price data
