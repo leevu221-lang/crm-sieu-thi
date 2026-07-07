@@ -4289,17 +4289,17 @@ export default function NewRealtimePage() {
                             )}
 
                             <div className="overflow-x-auto">
-                              <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300">
+                              <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                                 <thead>
                                   <tr className="text-slate-900 h-[60px]">
-                                    <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
-                                    <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
-                                    {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">TARGET</th>}
-                                    {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">REAL</th>}
-                                    {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>}
-                                    {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">CÒN LẠI</th>}
-                                    {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">LUỸ KẾ</th>}
-                                    {showOrangeCols && <th className="px-2 py-0 text-[11px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[70px] leading-tight">MỤC TIÊU<br />100%/NGÀY</th>}
+                                    <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
+                                    <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
+                                    {showTargetCols && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">TARGET</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">REAL</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">CÒN LẠI</th>}
+                                    {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">LUỸ KẾ</th>}
+                                    {showOrangeCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[70px] leading-tight">MỤC TIÊU<br />100%/NGÀY</th>}
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -4312,20 +4312,20 @@ export default function NewRealtimePage() {
                                       const remaining = cat.target - cat.revenue;
                                       return (
                                         <tr key={idx} className="hover:bg-slate-50 transition-colors h-[40px]">
-                                          <td className="px-2 py-0 text-[13px] font-extrabold text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
-                                          <td className="px-2 py-0 text-[13px] font-extrabold uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
-                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
-                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
-                                          {showTargetCols && <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
-                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>}
+                                          <td className="px-2 py-0 text-[15px] font-black text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
+                                          <td className="px-2 py-0 text-[15px] font-black uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
+                                          {showTargetCols && <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
+                                          {showTargetCols && <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
+                                          {showTargetCols && <td className={`px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
+                                          {showTargetCols && <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>}
                                           {showOrangeCols && showLuykeColumn && (
-                                            <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                            <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-rose-600">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
                                           )}
                                           {showOrangeCols && (() => {
                                             const lkCat = luykeCatMap.get(lkKey);
-                                            if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-400"></td>;
+                                            if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-slate-400"></td>;
                                             const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
-                                            return <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                            return <td className={`px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
                                           })()}
                                         </tr>
                                       );
@@ -4373,17 +4373,17 @@ export default function NewRealtimePage() {
                             )}
 
                             <div className="overflow-x-auto">
-                              <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300">
+                              <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                                 <thead>
                                   <tr className="text-slate-900 h-[60px]">
-                                    <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
-                                    <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
-                                    {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">TARGET</th>}
-                                    {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">REAL</th>}
-                                    {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>}
-                                    {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">CÒN LẠI</th>}
-                                    {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">LUỸ KẾ</th>}
-                                    {showOrangeCols && <th className="px-2 py-0 text-[11px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[70px] leading-tight">MỤC TIÊU<br />100%/NGÀY</th>}
+                                    <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
+                                    <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
+                                    {showTargetCols && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">TARGET</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">REAL</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">CÒN LẠI</th>}
+                                    {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">LUỸ KẾ</th>}
+                                    {showOrangeCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[70px] leading-tight">MỤC TIÊU<br />100%/NGÀY</th>}
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -4396,20 +4396,20 @@ export default function NewRealtimePage() {
                                       const remaining = cat.target - cat.revenue;
                                       return (
                                         <tr key={idx} className="hover:bg-slate-50 transition-colors h-[40px]">
-                                          <td className="px-2 py-0 text-[13px] font-extrabold text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
-                                          <td className="px-2 py-0 text-[13px] font-extrabold uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
-                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
-                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
-                                          {showTargetCols && <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
-                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>}
+                                          <td className="px-2 py-0 text-[15px] font-black text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
+                                          <td className="px-2 py-0 text-[15px] font-black uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
+                                          {showTargetCols && <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
+                                          {showTargetCols && <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
+                                          {showTargetCols && <td className={`px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
+                                          {showTargetCols && <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>}
                                           {showOrangeCols && showLuykeColumn && (
-                                            <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                            <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-rose-600">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
                                           )}
                                           {showOrangeCols && (() => {
                                             const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
-                                            if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-400"></td>;
+                                            if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-slate-400"></td>;
                                             const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
-                                            return <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                            return <td className={`px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
                                           })()}
                                         </tr>
                                       );

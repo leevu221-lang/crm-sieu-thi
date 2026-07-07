@@ -240,36 +240,95 @@ const EmployeeHealth: React.FC = () => {
   const capturePhucVuRef = useRef<HTMLDivElement>(null);
   const captureBanKemRef = useRef<HTMLDivElement>(null);
   const captureThuongNvRef = useRef<HTMLDivElement>(null);
+  const captureElementHelper = async (element: HTMLElement) => {
+    // Create a temporary container to hold the clone
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.top = '0';
+    tempContainer.style.left = '0';
+    tempContainer.style.width = '4000px'; // Extremely wide to prevent any wrapping or truncation
+    tempContainer.style.height = '0';
+    tempContainer.style.overflow = 'hidden';
+    tempContainer.style.zIndex = '-9999';
+    tempContainer.style.pointerEvents = 'none';
+
+    const clone = element.cloneNode(true) as HTMLElement;
+
+    // Hide buttons/controls inside the clone
+    const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, .capture-btn');
+    noCaptureElements.forEach(el => {
+      (el as HTMLElement).style.display = 'none';
+    });
+
+    // Set clone styling to take full layout unconstrained
+    clone.style.width = 'max-content';
+    clone.style.height = 'auto';
+    clone.style.margin = '0';
+    clone.style.padding = '32px'; // Nice margin around the captured image
+    clone.style.backgroundColor = '#ffffff';
+    clone.style.display = 'inline-block';
+    clone.style.borderRadius = '32px'; // Round corners like target container
+
+    // Make sure overflow wrappers in the clone are visible
+    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+    scrollContainers.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.overflow = 'visible';
+      htmlEl.style.width = 'auto';
+      htmlEl.style.height = 'auto';
+      htmlEl.style.maxWidth = 'none';
+      htmlEl.style.maxHeight = 'none';
+    });
+
+    const tables = clone.querySelectorAll('table');
+    tables.forEach((table) => {
+      const htmlTable = table as HTMLTableElement;
+      htmlTable.style.width = 'auto';
+      htmlTable.style.minWidth = 'auto';
+      htmlTable.style.tableLayout = 'auto';
+
+      // Remove fixed widths on all cells so columns auto-shrink to fit content
+      const allCells = htmlTable.querySelectorAll('th, td');
+      allCells.forEach((cell) => {
+        const htmlCell = cell as HTMLElement;
+        htmlCell.style.width = 'auto';
+        htmlCell.style.minWidth = 'auto';
+        htmlCell.style.maxWidth = 'none';
+        htmlCell.style.whiteSpace = 'nowrap';
+        htmlCell.style.paddingLeft = '12px';
+        htmlCell.style.paddingRight = '12px';
+      });
+
+      // Remove colgroup if exists
+      const colgroup = htmlTable.querySelector('colgroup');
+      if (colgroup) colgroup.remove();
+    });
+
+    tempContainer.appendChild(clone);
+    document.body.appendChild(tempContainer);
+
+    try {
+      await new Promise(r => setTimeout(r, 200)); // wait for layout/render
+      const dataUrl = await htmlToImage.toPng(clone, {
+        backgroundColor: '#ffffff',
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+      return dataUrl;
+    } finally {
+      document.body.removeChild(tempContainer);
+    }
+  };
+
   const handleCaptureThuongNv = async () => {
     if (!captureThuongNvRef.current) return;
     setIsCapturing(true);
-
-    const container = captureThuongNvRef.current;
-    const tableWrap = container.querySelector('.overflow-x-auto') as HTMLElement;
-    const captureBtn = container.querySelector('.capture-btn') as HTMLElement;
-    
-    const origContainerWidth = container.style.width;
-    const origTableWrapOverflow = tableWrap ? tableWrap.style.overflow : '';
-    const origBtnDisplay = captureBtn ? captureBtn.style.display : '';
-
-    if (tableWrap) {
-        tableWrap.style.overflow = 'visible';
-    }
-    if (captureBtn) {
-        captureBtn.style.display = 'none';
-    }
-    container.style.width = 'max-content';
-
     try {
-      await new Promise(r => setTimeout(r, 100)); // wait for layout
-      const dataUrl = await htmlToImage.toPng(container, { backgroundColor: '#ffffff' });
+      const dataUrl = await captureElementHelper(captureThuongNvRef.current);
       setPreviewImage(dataUrl);
     } catch (err) {
       console.error('Error capturing thuong nv board:', err);
     } finally {
-      if (tableWrap) tableWrap.style.overflow = origTableWrapOverflow;
-      if (captureBtn) captureBtn.style.display = origBtnDisplay;
-      container.style.width = origContainerWidth;
       setIsCapturing(false);
     }
   };
@@ -278,8 +337,10 @@ const EmployeeHealth: React.FC = () => {
     if (!captureBanKemRef.current) return;
     setIsCapturing(true);
     try {
-      const dataUrl = await htmlToImage.toPng(captureBanKemRef.current, { backgroundColor: '#ffffff' });
+      const dataUrl = await captureElementHelper(captureBanKemRef.current);
       setPreviewImage(dataUrl);
+    } catch (err) {
+      console.error('Error capturing ban kem board:', err);
     } finally {
       setIsCapturing(false);
     }
@@ -414,8 +475,10 @@ const EmployeeHealth: React.FC = () => {
     if (!captureTraChamRef.current) return;
     setIsCapturing(true);
     try {
-      const dataUrl = await htmlToImage.toPng(captureTraChamRef.current, { backgroundColor: '#ffffff' });
+      const dataUrl = await captureElementHelper(captureTraChamRef.current);
       setPreviewImage(dataUrl);
+    } catch (err) {
+      console.error('Error capturing tra cham board:', err);
     } finally {
       setIsCapturing(false);
     }
@@ -425,8 +488,10 @@ const EmployeeHealth: React.FC = () => {
     if (!captureKhaiThacRef.current) return;
     setIsCapturing(true);
     try {
-      const dataUrl = await htmlToImage.toPng(captureKhaiThacRef.current, { backgroundColor: '#ffffff' });
+      const dataUrl = await captureElementHelper(captureKhaiThacRef.current);
       setPreviewImage(dataUrl);
+    } catch (err) {
+      console.error('Error capturing khai thac board:', err);
     } finally {
       setIsCapturing(false);
     }
@@ -436,8 +501,10 @@ const EmployeeHealth: React.FC = () => {
     if (!captureRank3TRef.current) return;
     setIsCapturing(true);
     try {
-      const dataUrl = await htmlToImage.toPng(captureRank3TRef.current, { backgroundColor: '#ffffff' });
+      const dataUrl = await captureElementHelper(captureRank3TRef.current);
       setPreviewImage(dataUrl);
+    } catch (err) {
+      console.error('Error capturing rank 3t board:', err);
     } finally {
       setIsCapturing(false);
     }
@@ -1250,33 +1317,8 @@ const EmployeeHealth: React.FC = () => {
     if (!captureRef.current) return;
     setIsCapturing(true);
     try {
-      // Temporarily switch to table-auto for compact capture
-      const table = captureRef.current.querySelector('table');
-      if (table) {
-        table.classList.remove('table-fixed');
-        table.classList.add('table-auto');
-        // Remove percentage widths from th elements for auto-sizing
-        const ths = table.querySelectorAll('th');
-        const savedWidths: string[] = [];
-        ths.forEach((th) => {
-          savedWidths.push((th as HTMLElement).style.width);
-          (th as HTMLElement).style.width = '';
-        });
-        // Wait for reflow
-        await new Promise(r => setTimeout(r, 50));
-        const dataUrl = await htmlToImage.toPng(captureRef.current, {
-          quality: 1,
-          backgroundColor: '#ffffff',
-          pixelRatio: 2,
-        });
-        // Restore table-fixed and widths
-        table.classList.remove('table-auto');
-        table.classList.add('table-fixed');
-        ths.forEach((th, i) => {
-          (th as HTMLElement).style.width = savedWidths[i] || '';
-        });
-        setPreviewImage(dataUrl);
-      }
+      const dataUrl = await captureElementHelper(captureRef.current);
+      setPreviewImage(dataUrl);
     } catch (error) {
       console.error('Error capturing element:', error);
     } finally {
@@ -1971,11 +2013,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                       if (!capturePhucVuRef.current) return;
                       setIsCapturing(true);
                       try {
-                        const dataUrl = await htmlToImage.toPng(capturePhucVuRef.current, {
-                          backgroundColor: '#ffffff',
-                          style: { borderRadius: '32px' },
-                          cacheBust: true,
-                        });
+                        const dataUrl = await captureElementHelper(capturePhucVuRef.current);
                         setPreviewImage(dataUrl);
                         showNotification('Đã xuất ảnh báo cáo phục vụ!', 'success');
                       } catch (error) {

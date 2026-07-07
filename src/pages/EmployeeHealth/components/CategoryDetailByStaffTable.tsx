@@ -251,14 +251,95 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     );
   };
 
+  const captureElementHelper = async (element: HTMLElement) => {
+    // Create a temporary container to hold the clone
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.top = '0';
+    tempContainer.style.left = '0';
+    tempContainer.style.width = '4000px'; // Extremely wide to prevent any wrapping or truncation
+    tempContainer.style.height = '0';
+    tempContainer.style.overflow = 'hidden';
+    tempContainer.style.zIndex = '-9999';
+    tempContainer.style.pointerEvents = 'none';
+
+    const clone = element.cloneNode(true) as HTMLElement;
+
+    // Hide buttons/controls inside the clone
+    const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, .capture-btn');
+    noCaptureElements.forEach(el => {
+      (el as HTMLElement).style.display = 'none';
+    });
+
+    // Set clone styling to take full layout unconstrained
+    clone.style.width = 'max-content';
+    clone.style.height = 'auto';
+    clone.style.margin = '0';
+    clone.style.padding = '32px'; // Nice margin around the captured image
+    clone.style.backgroundColor = '#ffffff';
+    clone.style.display = 'inline-block';
+    clone.style.borderRadius = '32px'; // Round corners like target container
+
+    // Make sure overflow wrappers in the clone are visible
+    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+    scrollContainers.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.overflow = 'visible';
+      htmlEl.style.width = 'auto';
+      htmlEl.style.height = 'auto';
+      htmlEl.style.maxWidth = 'none';
+      htmlEl.style.maxHeight = 'none';
+    });
+
+    const tables = clone.querySelectorAll('table');
+    tables.forEach((table) => {
+      const htmlTable = table as HTMLTableElement;
+      htmlTable.style.width = 'auto';
+      htmlTable.style.minWidth = 'auto';
+      htmlTable.style.tableLayout = 'auto';
+
+      // Remove fixed widths on all cells so columns auto-shrink to fit content
+      const allCells = htmlTable.querySelectorAll('th, td');
+      allCells.forEach((cell) => {
+        const htmlCell = cell as HTMLElement;
+        htmlCell.style.width = 'auto';
+        htmlCell.style.minWidth = 'auto';
+        htmlCell.style.maxWidth = 'none';
+        htmlCell.style.whiteSpace = 'nowrap';
+        htmlCell.style.paddingLeft = '12px';
+        htmlCell.style.paddingRight = '12px';
+      });
+
+      // Remove colgroup if exists
+      const colgroup = htmlTable.querySelector('colgroup');
+      if (colgroup) colgroup.remove();
+    });
+
+    tempContainer.appendChild(clone);
+    document.body.appendChild(tempContainer);
+
+    try {
+      await new Promise(r => setTimeout(r, 200)); // wait for layout/render
+      const dataUrl = await htmlToImage.toPng(clone, {
+        backgroundColor: '#ffffff',
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+      return dataUrl;
+    } finally {
+      document.body.removeChild(tempContainer);
+    }
+  };
+
   const handleExport = async (catName: string, elementId: string) => {
     const element = document.getElementById(elementId);
     if (element) {
-      const dataUrl = await htmlToImage.toPng(element, {
-        backgroundColor: '#ffffff',
-        pixelRatio: 2,
-      });
-      setPreviewImage(dataUrl);
+      try {
+        const dataUrl = await captureElementHelper(element);
+        setPreviewImage(dataUrl);
+      } catch (err) {
+        console.error('Export category failed:', err);
+      }
     }
   };
 
@@ -272,10 +353,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
         const elementId = `cat-detail-${catName.replace(/\s+/g, '-')}`;
         const element = document.getElementById(elementId);
         if (element) {
-          const dataUrl = await htmlToImage.toPng(element, {
-            backgroundColor: '#ffffff',
-            pixelRatio: 2,
-          });
+          const dataUrl = await captureElementHelper(element);
           const base64Data = dataUrl.split(',')[1];
           zip.file(`ChiTietNH_${catName.replace(/\s+/g, '_')}.png`, base64Data, { base64: true });
         }

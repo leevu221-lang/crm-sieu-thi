@@ -958,15 +958,15 @@ const LuyKe: React.FC = () => {
                       </div>
                     </div>
                     <div className="overflow-x-auto">
-                      <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300 min-w-[600px]">
+                      <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300 min-w-[600px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                         <thead>
                           <tr className="text-slate-900 h-[60px]">
-                            <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
-                            <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
-                            <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-[60px]">TARGET</th>
-                            <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">LUỸ KẾ</th>
-                            <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>
-                            <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">CÒN LẠI</th>
+                            <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
+                            <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
+                            <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-[60px]">TARGET</th>
+                            <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">LUỸ KẾ</th>
+                            <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>
+                            <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">CÒN LẠI</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -986,12 +986,12 @@ const LuyKe: React.FC = () => {
                                 const remaining = cat.target - cat.revenue;
                                 return (
                                   <tr key={idx} className="hover:bg-slate-50 transition-colors h-[40px]">
-                                    <td className="px-2 py-0 text-[13px] font-extrabold text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
-                                    <td className="px-2 py-0 text-[13px] font-extrabold uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
-                                    <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
-                                    <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
-                                    <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${Math.round(rate) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(rate)}%</td>
-                                    <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
+                                    <td className="px-2 py-0 text-[15px] font-black text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
+                                    <td className="px-2 py-0 text-[15px] font-black uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
+                                    <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
+                                    <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                    <td className={`px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 ${Math.round(rate) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(rate)}%</td>
+                                    <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
                                   </tr>
                                 );
                               })
@@ -1018,15 +1018,15 @@ const LuyKe: React.FC = () => {
                       </div>
                     </div>
                     <div className="overflow-x-auto">
-                      <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300 min-w-[600px]">
+                      <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300 min-w-[600px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                         <thead>
                           <tr className="text-slate-900 h-[60px]">
-                            <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
-                            <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
-                            <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-[60px]">TARGET</th>
-                            <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">LUỸ KẾ</th>
-                            <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>
-                            <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">CÒN LẠI</th>
+                            <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
+                            <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
+                            <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-[60px]">TARGET</th>
+                            <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">LUỸ KẾ</th>
+                            <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>
+                            <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">CÒN LẠI</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1046,12 +1046,12 @@ const LuyKe: React.FC = () => {
                                 const remaining = cat.target - cat.revenue;
                                 return (
                                   <tr key={idx} className="hover:bg-slate-50 transition-colors h-[40px]">
-                                    <td className="px-2 py-0 text-[13px] font-extrabold text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
-                                    <td className="px-2 py-0 text-[13px] font-extrabold uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
-                                    <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
-                                    <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
-                                    <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${Math.round(rate) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(rate)}%</td>
-                                    <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
+                                    <td className="px-2 py-0 text-[15px] font-black text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
+                                    <td className="px-2 py-0 text-[15px] font-black uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
+                                    <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
+                                    <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                    <td className={`px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 ${Math.round(rate) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(rate)}%</td>
+                                    <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
                                   </tr>
                                 );
                               })
