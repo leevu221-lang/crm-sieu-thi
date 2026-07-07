@@ -664,20 +664,6 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
           </div>
         </div>
         <div className="flex items-center gap-2 ml-4">
-          {/* Alphabetical Sort Toggle */}
-          <button
-            onClick={() => setIsCatsSortedAlpha(!isCatsSortedAlpha)}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-2 border rounded-xl text-xs font-black uppercase transition-all shadow-sm select-none",
-              isCatsSortedAlpha 
-                ? "bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700" 
-                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-            )}
-            title="Sắp xếp tên ngành hàng A-Z"
-          >
-            <span>NH A-Z</span>
-            <span className="text-[10px]">{isCatsSortedAlpha ? "▲" : "▼"}</span>
-          </button>
 
           {/* Category Filter Dropdown */}
           <div className="relative" ref={catDropdownRef}>
@@ -779,27 +765,27 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       <div className="overflow-x-auto">
         <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0' }}>
           <thead>
-            <tr className="text-slate-900 border-b border-slate-200 h-[85px]">
+            <tr className="text-slate-900 h-[85px]">
               <th 
-                className="px-2 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-200 bg-[#10b981] text-slate-900 select-none"
+                className="px-2 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none"
                 style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}
               >
                 STT
               </th>
               <th 
-                className="px-3 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-200 bg-[#10b981] text-slate-900 select-none"
+                className="px-3 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none"
                 style={{ width: '320px', minWidth: '320px', maxWidth: '320px' }}
               >
                 NHÂN VIÊN
               </th>
               <th 
-                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-200 bg-[#10b981] text-slate-900 select-none"
+                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none"
                 style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}
               >
                 ĐẠT
               </th>
               <th 
-                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-200 bg-[#10b981] text-slate-900 select-none"
+                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none"
                 style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}
               >
                 TỶ LỆ
@@ -808,7 +794,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                 <React.Fragment key={catName}>
                   <th 
                     className={cn(
-                      "px-1 py-1 text-[10px] font-black uppercase tracking-tight text-center border border-slate-200 select-none",
+                      "px-1 py-1 text-[10px] font-black uppercase tracking-tight text-center border border-white/20 select-none",
                       getCategoryBadgeStyleClasses(catName).bgText
                     )}
                     style={{
@@ -822,7 +808,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                     {catName}
                   </th>
                   {cleanCategoryName(catName) === 'maylanhdacquyen' && (
-                    <th className="bg-white border border-slate-200" style={{ width: '40px', minWidth: '40px', maxWidth: '40px' }}></th>
+                    <th className="bg-white border border-white/20" style={{ width: '40px', minWidth: '40px', maxWidth: '40px' }}></th>
                   )}
                 </React.Fragment>
               ))}
