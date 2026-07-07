@@ -23,25 +23,13 @@ const getCategoryBadgeStyleClasses = (catName: string): { bgText: string; hover:
     return { bgText: 'bg-[#ebf3ff] text-[#1d4ed8]', hover: 'hover:bg-[#d0e3ff]' };
   }
 
-  // 2. SP CHÍNH (Main Products) - Warm Yellow/Dark Brown (Changed to match SIM color theme)
-  const MAIN_PRODUCTS = [
-    "dienthoaitabletandroid", "dienthoairealme", "dienthoaivivo", "laptop"
+  // 2. NHÓM ICT (Điện thoại, Laptop, Đồng hồ, Phụ kiện, v.v...) - Đổi màu vàng như yêu cầu
+  const ICT_KEYS = [
+    "dienthoaitabletandroid", "dienthoairealme", "dienthoaivivo", "laptop",
+    "donghophukien", "doanhthudongho", "loa", "camera", "giado", "kinhcuonglucmiengdan", "baohiem", "baohanh", "mayanh", "eda"
   ];
-  if (MAIN_PRODUCTS.some(k => cleanStr === k || cleanStr.includes(k) || k.includes(cleanStr))) {
-    return { bgText: 'bg-[#fefce8] text-[#854d0e]', hover: 'hover:bg-[#fef08a]' };
-  }
-
-  // 3. ĐỒNG HỒ (Watch) - Warm Yellow/Dark Brown (Changed to match SIM color theme)
-  if (cleanStr === 'donghophukien') {
-    return { bgText: 'bg-[#fefce8] text-[#854d0e]', hover: 'hover:bg-[#fef08a]' };
-  }
-
-  // 4. PHỤ KIỆN (Accessories) - Warm Yellow/Dark Brown (Changed to match SIM color theme)
-  const ACCESSORIES = [
-    "loa", "camera"
-  ];
-  if (ACCESSORIES.some(k => cleanStr === k || cleanStr.includes(k) || k.includes(cleanStr))) {
-    return { bgText: 'bg-[#fefce8] text-[#854d0e]', hover: 'hover:bg-[#fef08a]' };
+  if (ICT_KEYS.some(k => cleanStr === k || cleanStr.includes(k) || k.includes(cleanStr))) {
+    return { bgText: 'bg-amber-100 text-amber-900', hover: 'hover:bg-amber-200' };
   }
 
   // 5. SIM - Warm Yellow/Dark Brown
