@@ -2600,7 +2600,7 @@ export default function ToolHoTro() {
                 {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-dcnb') && renderSubTabs()}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Column */}
-              {activeTab !== 'sticker-dcnb' && (
+              {activeTab !== 'sticker-dcnb' && activeTab !== 'sticker-event-dmx' && (
                 <div className="col-span-1 space-y-6">
                   {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-mln') && (
                   /* Card 1: Thông tin & Nhập dữ liệu */
@@ -2910,7 +2910,65 @@ export default function ToolHoTro() {
               )}
 
               {/* Right Column */}
-              <div className={`col-span-1 ${activeTab === 'sticker-dcnb' ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-6`}>
+              <div className={`col-span-1 ${(activeTab === 'sticker-dcnb' || activeTab === 'sticker-event-dmx') ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-6`}>
+                {activeTab === 'sticker-event-dmx' && (
+                  <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    {/* Left side: Thông tin người in */}
+                    <div className="flex-1 min-w-[200px]">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">Thông tin người in <span className="text-red-500">*</span></h3>
+                        <button 
+                          onClick={handleClearData}
+                          className="flex items-center gap-1 text-red-500 hover:text-red-600 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                          <span className="text-[10px] font-bold">Xóa dữ liệu</span>
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-3 py-2 px-4 bg-slate-50 border border-slate-100 rounded-2xl w-full">
+                        <span className="text-xs font-bold text-slate-400">Username:</span>
+                        <span className="text-sm font-black text-slate-800">{userProfile?.username || '43751'}</span>
+                        <span className="text-[10px] font-bold text-blue-500 cursor-pointer hover:underline" onClick={() => showNotification('Liên hệ Admin để sửa thông tin!', 'info')}>(Sửa)</span>
+                      </div>
+                    </div>
+
+                    {/* Right side: Buttons */}
+                    <div className="flex flex-row items-center gap-4 shrink-0">
+                      <button 
+                        onClick={handleSyncGoogleSheet}
+                        disabled={isSyncing}
+                        className={`flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-2xl border transition-all h-[52px] min-w-[220px] ${
+                          isSyncing
+                            ? 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
+                            : (priceData.length > 0 || lastUpdatePrice)
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/50 shadow-sm'
+                              : 'border-emerald-200 bg-emerald-50/20 text-emerald-600 hover:bg-emerald-50/50'
+                        }`}
+                      >
+                        {isSyncing ? (
+                          <Loader2 size={18} className="animate-spin text-emerald-500" />
+                        ) : (
+                          <RefreshCw size={18} className="text-emerald-600" />
+                        )}
+                        <div className="text-left leading-tight">
+                          <div className="text-xs font-black uppercase tracking-wider">
+                            {isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ Google Sheet'}
+                          </div>
+                          {lastUpdatePrice && !isSyncing && <div className="text-[8px] font-bold text-emerald-500">Cập nhật: {lastUpdatePrice}</div>}
+                          {!lastUpdatePrice && !isSyncing && <div className="text-[8px] font-bold text-emerald-500">Yêu cầu đồng bộ</div>}
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={handleStartScanner}
+                        className="flex items-center justify-center gap-2.5 py-3.5 px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black transition-all shadow-md shadow-indigo-100 uppercase tracking-wider h-[52px]"
+                      >
+                        <Scan size={18} /> <span>Quét QR Điện thoại</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-mln' || activeTab === 'sticker-lk' || activeTab === 'sticker-dcnb' || activeTab === 'sticker-ce') && (
                   <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
                     <div className="flex items-center gap-3 mb-4">
