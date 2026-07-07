@@ -739,6 +739,41 @@ export default function ToolHoTro() {
       } else {
         loadPhieuBhFromLocalStorage();
       }
+    } else if (activeTab === 'sticker-event-dmx') {
+      const storeName = currentStoreId !== 'ALL' ? currentStoreId : '';
+      if (storeName) {
+        (async () => {
+          try {
+            const { data, error } = await supabase
+              .from('store')
+              .select('sticker_ce_inventory_data')
+              .eq('id', normalizeStoreId(storeName))
+              .maybeSingle();
+            if (error) {
+              console.error('Lỗi khi tải dữ liệu tồn kho từ DB:', error);
+              return;
+            }
+            if (data && data.sticker_ce_inventory_data) {
+              try {
+                const parsed = typeof data.sticker_ce_inventory_data === 'string'
+                  ? JSON.parse(data.sticker_ce_inventory_data)
+                  : data.sticker_ce_inventory_data;
+                if (Array.isArray(parsed)) {
+                  setInventoryData(parsed);
+                }
+              } catch (e) {
+                console.error('Error parsing DB inventory data:', e);
+              }
+            } else {
+              setInventoryData([]);
+            }
+          } catch (e) {
+            console.error('Lỗi tải DB:', e);
+          }
+        })();
+      } else {
+        setInventoryData([]);
+      }
     }
   }, [activeTab, currentStoreId]);
 
@@ -1192,10 +1227,33 @@ export default function ToolHoTro() {
           data,
           timestamp
         }));
-        showNotification('Đã tải và lưu tạm file Tồn kho!', 'success');
 
-        // Tự động xuất file Excel chỉ lấy dữ liệu cột G (Không tự xuất khi ở tab EVENT ĐMX)
-        if (activeTab !== 'sticker-event-dmx') {
+        if (activeTab === 'sticker-event-dmx') {
+          const storeName = currentStoreId !== 'ALL' ? currentStoreId : '';
+          if (!storeName) {
+            showNotification('Vui lòng chọn siêu thị cụ thể trước khi tải tồn kho!', 'error');
+            return;
+          }
+          const normalizedId = normalizeStoreId(storeName);
+          
+          // STRICT UPDATE to avoid creating new documents
+          const { error: updateErr } = await supabase
+            .from('store')
+            .update({ 
+              sticker_ce_inventory_data: JSON.stringify(data)
+            })
+            .eq('id', normalizedId);
+            
+          if (updateErr) {
+            console.error('Lỗi khi lưu tồn kho lên Firebase:', updateErr);
+            showNotification('Lỗi khi lưu tồn kho lên Firebase!', 'error');
+          } else {
+            showNotification(`Đã tải tồn kho và đồng bộ Firebase cho ${storeName}!`, 'success');
+          }
+        } else {
+          showNotification('Đã tải và lưu tạm file Tồn kho!', 'success');
+          
+          // Tự động xuất file Excel chỉ lấy dữ liệu cột G (Không tự xuất khi ở tab EVENT ĐMX)
           try {
             const originalName = file.name.substring(0, file.name.lastIndexOf('.')) || 'Du_Lieu';
             const colGData = data.map((row) => {
