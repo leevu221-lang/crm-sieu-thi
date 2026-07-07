@@ -355,11 +355,6 @@ export default function ToolHoTro() {
           inventory: 'rtst_sticker_dcnb_inventory_data',
           price: 'rtst_sticker_dcnb_price_data'
         };
-      case 'sticker-event-dmx':
-        return {
-          inventory: 'rtst_sticker_event_dmx_inventory_data',
-          price: 'rtst_sticker_event_dmx_price_data'
-        };
       default:
         return {
           inventory: STORAGE_KEYS.STICKER_INVENTORY_DATA,
@@ -1793,7 +1788,15 @@ export default function ToolHoTro() {
         <div className="w-full lg:w-[320px] shrink-0">
           <div className="flex flex-col gap-3 py-4 sticky top-[116px]">
             {menuItems.map((item) => {
-              const isActive = activeTab === item.id;
+              const isActive = activeTab === item.id || 
+                (item.id === 'all-sticker' && (
+                  activeTab === 'sticker-event-dmx' ||
+                  activeTab === 'sticker-event' ||
+                  activeTab === 'sticker-lk' ||
+                  activeTab === 'sticker-ce' ||
+                  activeTab === 'sticker-mln' ||
+                  activeTab === 'sticker-dcnb'
+                ));
               const Icon = item.icon;
               return (
                 <button
@@ -2365,7 +2368,7 @@ export default function ToolHoTro() {
               </motion.div>
             )}
 
-            {(activeTab === 'all-sticker' || activeTab === 'sticker-event' || activeTab === 'sticker' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-dcnb') && (
+            {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-dcnb') && (
               <motion.div
                 key={activeTab}
                 initial={{ opacity: 0, x: 20 }}
@@ -2373,12 +2376,12 @@ export default function ToolHoTro() {
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
-                {(activeTab === 'all-sticker' || activeTab === 'sticker-event' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-dcnb') && renderSubTabs()}
+                {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-dcnb') && renderSubTabs()}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Column */}
               {activeTab !== 'sticker-dcnb' && (
                 <div className="col-span-1 space-y-6">
-                  {(activeTab === 'all-sticker' || activeTab === 'sticker-event' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-mln') && (
+                  {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-mln') && (
                   /* Card 1: Thông tin & Nhập dữ liệu */
                   <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
                     <div className="flex items-center justify-between mb-4">
@@ -2454,7 +2457,7 @@ export default function ToolHoTro() {
                       </button>
                     </div>
 
-                    {(activeTab === 'all-sticker' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-event' || activeTab === 'sticker-mln') && (
+                    {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-event' || activeTab === 'sticker-mln') && (
                       <div className="mt-3">
                         <button
                           onClick={handleStartScanner}
@@ -2658,7 +2661,7 @@ export default function ToolHoTro() {
 
               {/* Right Column */}
               <div className={`col-span-1 ${activeTab === 'sticker-dcnb' ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-6`}>
-                {(activeTab === 'all-sticker' || activeTab === 'sticker-event' || activeTab === 'sticker-mln' || activeTab === 'sticker-lk' || activeTab === 'sticker-dcnb' || activeTab === 'sticker-ce') && (
+                {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-mln' || activeTab === 'sticker-lk' || activeTab === 'sticker-dcnb' || activeTab === 'sticker-ce') && (
                   <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-400 flex items-center justify-center text-white shadow-lg shadow-violet-100">
@@ -2703,7 +2706,7 @@ export default function ToolHoTro() {
                                   ? (cePrintLayout === '1' ? 'scale(0.48)' : 'scale(0.58)')
                                   : activeTab === 'sticker-dcnb'
                                     ? 'scale(0.58)'
-                                    : (activeTab === 'all-sticker' || activeTab === 'sticker-event')
+                                    : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event')
                                       ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? 'scale(0.4)' : 'scale(0.42)')
                                       : 'scale(0.95)',
                             transformOrigin: 'center',
@@ -2715,7 +2718,7 @@ export default function ToolHoTro() {
                                   ? '210mm'
                                   : activeTab === 'sticker-dcnb'
                                     ? '210mm'
-                                    : (activeTab === 'all-sticker' || activeTab === 'sticker-event')
+                                    : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event')
                                       ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? '210mm' : '297mm')
                                       : '148.5mm',
                             height: activeTab === 'sticker-mln' 
@@ -2726,7 +2729,7 @@ export default function ToolHoTro() {
                                   ? (cePrintLayout === '1' ? '148.5mm' : '297mm')
                                   : activeTab === 'sticker-dcnb'
                                     ? '297mm'
-                                    : (activeTab === 'all-sticker' || activeTab === 'sticker-event')
+                                    : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event')
                                       ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? '297mm' : '210mm')
                                       : '105mm',
                             flexShrink: 0
@@ -2777,7 +2780,7 @@ export default function ToolHoTro() {
                                 showPromoLabel={false}
                               />
                             </div>
-                          ) : (activeTab === 'all-sticker' || activeTab === 'sticker-event') ? (
+                          ) : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event') ? (
                             <div 
                               className="w-full h-full grid bg-white border border-slate-100"
                               style={{
