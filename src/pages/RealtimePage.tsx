@@ -1820,8 +1820,7 @@ export default function NewRealtimePage() {
     birthdaysList.forEach(b => {
       const matchesWarehouse = 
         marketFilter === 'ALL' || 
-        b.warehouse_code === marketFilter ||
-        (b.warehouse_code === userProfile?.ma_kho && marketFilter !== 'ALL');
+        b.warehouse_code === marketFilter;
 
       if (!matchesWarehouse) {
         return;

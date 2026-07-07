@@ -41,6 +41,8 @@ const SinhNhatNv: React.FC = () => {
       setFormWarehouse(marketFilter);
     } else if (availableMarkets.length > 0) {
       setFormWarehouse(availableMarkets[0].name);
+    } else if (userProfile?.ten_sieu_thi) {
+      setFormWarehouse(userProfile.ten_sieu_thi);
     } else if (userProfile?.ma_kho) {
       setFormWarehouse(userProfile.ma_kho);
     }
@@ -267,8 +269,7 @@ const SinhNhatNv: React.FC = () => {
     const matchesSearch = b.employee_name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesWarehouse = 
       selectedWarehouseFilter === 'ALL' || 
-      b.warehouse_code === selectedWarehouseFilter ||
-      (b.warehouse_code === userProfile?.ma_kho && selectedWarehouseFilter !== 'ALL');
+      b.warehouse_code === selectedWarehouseFilter;
     return matchesSearch && matchesWarehouse;
   }).sort((a, b) => {
     return getDaysUntilNextBirthday(a.birthday) - getDaysUntilNextBirthday(b.birthday);
@@ -320,38 +321,7 @@ const SinhNhatNv: React.FC = () => {
         </div>
       </div>
 
-      {/* Quick overview of birthdays */}
-      {(todayBirthdays.length > 0 || tomorrowBirthdays.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-          {todayBirthdays.length > 0 && (
-            <div className="bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-100 rounded-3xl p-5 shadow-sm flex items-center gap-4">
-              <div className="w-12 h-12 bg-rose-500 text-white rounded-2xl flex items-center justify-center shadow-md shadow-rose-200 shrink-0">
-                <Cake size={24} className="animate-spin-slow" />
-              </div>
-              <div>
-                <span className="text-[10px] font-black uppercase text-rose-600 tracking-wider">Hôm nay sinh nhật 🎉</span>
-                <h4 className="text-sm font-bold text-slate-800 mt-0.5">
-                  {todayBirthdays.map(b => `${b.employee_name} (${b.warehouse_code})`).join(', ')}
-                </h4>
-              </div>
-            </div>
-          )}
 
-          {tomorrowBirthdays.length > 0 && (
-            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 rounded-3xl p-5 shadow-sm flex items-center gap-4">
-              <div className="w-12 h-12 bg-amber-500 text-white rounded-2xl flex items-center justify-center shadow-md shadow-amber-200 shrink-0">
-                <Gift size={24} className="animate-pulse" />
-              </div>
-              <div>
-                <span className="text-[10px] font-black uppercase text-amber-600 tracking-wider">Ngày mai sinh nhật 🎁</span>
-                <h4 className="text-sm font-bold text-slate-800 mt-0.5">
-                  {tomorrowBirthdays.map(b => `${b.employee_name} (${b.warehouse_code})`).join(', ')}
-                </h4>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Layout grid */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -409,10 +379,16 @@ const SinhNhatNv: React.FC = () => {
                   {availableMarkets.map(m => (
                     <option key={m.name} value={m.name}>{m.name}</option>
                   ))}
-                  {availableMarkets.length === 0 && userProfile?.ma_kho && (
+                  {userProfile?.ten_sieu_thi && !availableMarkets.some(m => m.name === userProfile.ten_sieu_thi) && (
+                    <option value={userProfile.ten_sieu_thi}>{userProfile.ten_sieu_thi}</option>
+                  )}
+                  {availableMarkets.length === 0 && !userProfile?.ten_sieu_thi && userProfile?.ma_kho && (
                     <option value={userProfile.ma_kho}>{userProfile.ma_kho}</option>
                   )}
-                  {formWarehouse && !availableMarkets.some(m => m.name === formWarehouse) && formWarehouse !== userProfile?.ma_kho && (
+                  {formWarehouse && 
+                   !availableMarkets.some(m => m.name === formWarehouse) && 
+                   formWarehouse !== userProfile?.ten_sieu_thi && 
+                   formWarehouse !== userProfile?.ma_kho && (
                     <option value={formWarehouse}>{formWarehouse}</option>
                   )}
                 </select>
