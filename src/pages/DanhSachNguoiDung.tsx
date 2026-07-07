@@ -184,9 +184,50 @@ export default function UserManagement({ onBack }: UserManagementProps) {
     } catch (err: any) {
       console.error("Error deleting user:", err);
       setError('Không thể xoá người dùng. Vui lòng thử lại.');
-      setDeleteConfirm(null);
     }
   };
+
+  const handleResetAllPasswords = async () => {
+    if (!window.confirm("Bạn có chắc chắn muốn đặt lại mật khẩu của TẤT CẢ người dùng thành chính Mã NV (Username) của họ không?")) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      const { data: dbUsers, error: fetchErr } = await supabase
+        .from('ql_nguoi_dung')
+        .select('username, storeCode');
+      
+      if (fetchErr) throw fetchErr;
+      if (!dbUsers || dbUsers.length === 0) {
+        alert("Không tìm thấy người dùng nào trong cơ sở dữ liệu.");
+        setSaving(false);
+        return;
+      }
+
+      const updates = dbUsers.map(u => ({
+        username: u.username,
+        storeCode: u.storeCode,
+        password: u.username
+      }));
+
+      const { error: updateErr } = await supabase
+        .from('ql_nguoi_dung')
+        .upsert(updates, { onConflict: 'username' });
+
+      if (updateErr) throw updateErr;
+
+      alert(`Đã cập nhật mật khẩu của ${dbUsers.length} người dùng thành công!`);
+      fetchUsers();
+    } catch (err: any) {
+      console.error("Error resetting all passwords:", err);
+      setError(err.message || "Lỗi khi cập nhật lại mật khẩu người dùng.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
 
   const filteredUsers = users.filter(u => 
     u.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -227,16 +268,25 @@ export default function UserManagement({ onBack }: UserManagementProps) {
               className="block w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
             />
           </div>
-          <button
-            onClick={() => {
-              setIsNewUser(true);
-              setIsEditing({ username: '', ma_kho: '', role: 'user' });
-            }}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
-          >
-            <Plus size={18} />
-            Thêm người dùng
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <button
+              onClick={handleResetAllPasswords}
+              disabled={saving}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition-colors shadow-lg shadow-amber-100 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+            >
+              🔄 Reset mật khẩu = Mã NV
+            </button>
+            <button
+              onClick={() => {
+                setIsNewUser(true);
+                setIsEditing({ username: '', ma_kho: '', role: 'user' });
+              }}
+              className="flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 cursor-pointer whitespace-nowrap"
+            >
+              <Plus size={18} />
+              Thêm người dùng
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -266,6 +316,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                 <tr>
                   <th className="px-6 py-4 border-b border-slate-200">Mã NV</th>
                   <th className="px-6 py-4 border-b border-slate-200">Mã Kho</th>
+                  <th className="px-6 py-4 border-b border-slate-200">Mật khẩu</th>
                   <th className="px-6 py-4 border-b border-slate-200">Vai trò</th>
                   <th className="px-6 py-4 border-b border-slate-200">Quyền truy cập</th>
                   <th className="px-6 py-4 border-b border-slate-200 text-right">Thao tác</th>
@@ -279,6 +330,9 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                     </td>
                     <td className="px-6 py-4 font-medium text-slate-600">
                       {user.ma_kho}
+                    </td>
+                    <td className="px-6 py-4 font-mono text-slate-500 text-xs font-bold">
+                      {user.password || '---'}
                     </td>
                     <td className="px-6 py-4">
                       {user.username === '43751' ? (
