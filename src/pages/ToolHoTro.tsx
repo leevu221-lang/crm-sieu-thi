@@ -4,7 +4,8 @@ import {
   Wrench, Printer, Trash2, Info, Archive, ShieldAlert, FilePlus, X,
   ChevronDown, CheckCircle2, Save, Loader2, Calendar, ArrowUpDown, 
   SortAsc, SortDesc, PieChart, Users, UploadCloud, Settings, 
-  ChevronRight, LayoutGrid, FileText, Tag, Scan, MapPin, ClipboardList
+  ChevronRight, LayoutGrid, FileText, Tag, Scan, MapPin, ClipboardList,
+  RefreshCw
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
@@ -329,6 +330,7 @@ export default function ToolHoTro() {
   const [inventoryData, setInventoryData] = useState<any[]>([]);
   const [priceData, setPriceData] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [lastUpdateInventory, setLastUpdateInventory] = useState<string | null>(null);
   const [lastUpdatePrice, setLastUpdatePrice] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error' | '', text: string }>({ type: '', text: '' });
@@ -354,6 +356,11 @@ export default function ToolHoTro() {
         return {
           inventory: 'rtst_sticker_dcnb_inventory_data',
           price: 'rtst_sticker_dcnb_price_data'
+        };
+      case 'sticker-event-dmx':
+        return {
+          inventory: 'rtst_sticker_event_dmx_inventory_data',
+          price: 'rtst_sticker_event_dmx_price_data'
         };
       default:
         return {
@@ -429,7 +436,7 @@ export default function ToolHoTro() {
   const [autoExpand, setAutoExpand] = useState(false);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
 
-  // Fetch data from local storage on activeTab changes
+  // Fetch data from local storage or Firebase on activeTab changes
   useEffect(() => {
     if (
       activeTab === 'all-sticker' || 
@@ -443,36 +450,93 @@ export default function ToolHoTro() {
     ) {
       const keys = getStorageKeysForTab(activeTab);
 
-      const savedInventory = localStorage.getItem(keys.inventory);
-      if (savedInventory) {
-        try {
-          const parsed = JSON.parse(savedInventory);
-          setInventoryData(parsed.data || []);
-          setLastUpdateInventory(parsed.timestamp ? new Date(parsed.timestamp).toLocaleString('vi-VN') : null);
-        } catch (e) {
-          console.error('Error parsing saved inventory:', e);
+      const loadLocalStickerData = () => {
+        const savedInventory = localStorage.getItem(keys.inventory);
+        if (savedInventory) {
+          try {
+            const parsed = JSON.parse(savedInventory);
+            setInventoryData(parsed.data || []);
+            setLastUpdateInventory(parsed.timestamp ? new Date(parsed.timestamp).toLocaleString('vi-VN') : null);
+          } catch (e) {
+            console.error('Error parsing saved inventory:', e);
+            setInventoryData([]);
+            setLastUpdateInventory(null);
+          }
+        } else {
           setInventoryData([]);
           setLastUpdateInventory(null);
         }
-      } else {
-        setInventoryData([]);
-        setLastUpdateInventory(null);
-      }
 
-      const savedPrice = localStorage.getItem(keys.price);
-      if (savedPrice) {
-        try {
-          const parsed = JSON.parse(savedPrice);
-          setPriceData(parsed.data || []);
-          setLastUpdatePrice(parsed.timestamp ? new Date(parsed.timestamp).toLocaleString('vi-VN') : null);
-        } catch (e) {
-          console.error('Error parsing saved price:', e);
+        const savedPrice = localStorage.getItem(keys.price);
+        if (savedPrice) {
+          try {
+            const parsed = JSON.parse(savedPrice);
+            setPriceData(parsed.data || []);
+            setLastUpdatePrice(parsed.timestamp ? new Date(parsed.timestamp).toLocaleString('vi-VN') : null);
+          } catch (e) {
+            console.error('Error parsing saved price:', e);
+            setPriceData([]);
+            setLastUpdatePrice(null);
+          }
+        } else {
           setPriceData([]);
           setLastUpdatePrice(null);
         }
+      };
+
+      if (activeTab === 'sticker-event-dmx') {
+        // Fetch globally from Firebase (Firestore) first
+        (async () => {
+          try {
+            const { data, error } = await supabase
+              .from('store')
+              .select('sticker_ce_price_data, updated_at')
+              .eq('id', 'EVENT_DMX_GLOBAL')
+              .maybeSingle();
+
+            if (error) {
+              console.error('Lỗi khi tải dữ liệu EVENT ĐMX từ Firebase:', error);
+              loadLocalStickerData();
+              return;
+            }
+
+            if (data && data.sticker_ce_price_data) {
+              try {
+                const parsedPrice = typeof data.sticker_ce_price_data === 'string'
+                  ? JSON.parse(data.sticker_ce_price_data)
+                  : data.sticker_ce_price_data;
+
+                setPriceData(parsedPrice || []);
+                
+                // Format updated timestamp
+                const formattedTime = data.updated_at 
+                  ? new Date(data.updated_at).toLocaleString('vi-VN')
+                  : new Date().toLocaleString('vi-VN');
+                setLastUpdatePrice(formattedTime);
+
+                // Save to localStorage as a cache/copy
+                localStorage.setItem(keys.price, JSON.stringify({
+                  data: parsedPrice,
+                  timestamp: data.updated_at || new Date().toISOString()
+                }));
+
+                // No inventory for Event ĐMX by default, clean it
+                setInventoryData([]);
+                setLastUpdateInventory(null);
+              } catch (e) {
+                console.error('Lỗi khi parse dữ liệu từ Firebase:', e);
+                loadLocalStickerData();
+              }
+            } else {
+              loadLocalStickerData();
+            }
+          } catch (e) {
+            console.error('Lỗi hệ thống khi tải dữ liệu EVENT ĐMX:', e);
+            loadLocalStickerData();
+          }
+        })();
       } else {
-        setPriceData([]);
-        setLastUpdatePrice(null);
+        loadLocalStickerData();
       }
     }
   }, [activeTab]);
@@ -861,6 +925,160 @@ export default function ToolHoTro() {
   const totalStickersToPrint = React.useMemo(() => {
     return selectedIndices.reduce((sum, index) => sum + (printQuantities[index] || 0), 0);
   }, [selectedIndices, printQuantities]);
+
+  const parseCSV = (text: string): string[][] => {
+    const result: string[][] = [];
+    let row: string[] = [];
+    let entry = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+
+      if (inQuotes) {
+        if (char === '"') {
+          if (nextChar === '"') {
+            entry += '"';
+            i++; // Skip next quote
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          entry += char;
+        }
+      } else {
+        if (char === '"') {
+          inQuotes = true;
+        } else if (char === ',') {
+          row.push(entry);
+          entry = '';
+        } else if (char === '\r' || char === '\n') {
+          row.push(entry);
+          entry = '';
+          if (row.length > 0 || char === '\n') {
+            result.push(row);
+            row = [];
+          }
+          if (char === '\r' && nextChar === '\n') {
+            i++; // Skip \n
+          }
+        } else {
+          entry += char;
+        }
+      }
+    }
+    if (entry || row.length > 0) {
+      row.push(entry);
+      result.push(row);
+    }
+    return result;
+  };
+
+  const handleSyncGoogleSheet = async () => {
+    setIsSyncing(true);
+    try {
+      showNotification('Bắt đầu đồng bộ bảng giá từ Google Sheet...', 'info');
+      
+      const csvUrl = 'https://docs.google.com/spreadsheets/d/13MDK0KEgRnTzBP6zpIv02FtaJo-nGzq9TvY4rQPzb3o/export?format=csv';
+      const response = await fetch(csvUrl);
+      if (!response.ok) {
+        throw new Error('Không thể tải file từ Google Sheet. Hãy kiểm tra lại kết nối mạng hoặc quyền chia sẻ của link.');
+      }
+      
+      const csvText = await response.text();
+      const rows = parseCSV(csvText);
+      if (rows.length < 2) {
+        throw new Error('Dữ liệu từ Google Sheet rỗng hoặc không đúng định dạng.');
+      }
+      
+      const headerRow = rows[0].map(h => h.trim().toLowerCase());
+      
+      // Find indexes
+      const nganhHangIdx = headerRow.findIndex(h => h.includes('ngành hàng'));
+      const nhomHangIdx = headerRow.findIndex(h => h.includes('nhóm hàng'));
+      const codeIdx = headerRow.findIndex(h => h.includes('code sản phẩm') || h.includes('mã sản phẩm') || h.includes('mã hàng'));
+      const tenIdx = headerRow.findIndex(h => h.includes('tên sản phẩm') || h.includes('tên hàng'));
+      const giaNiemYetIdx = headerRow.findIndex(h => h.includes('giá niêm yết'));
+      const giaKmIdx = headerRow.findIndex(h => h.includes('giá km st event') || h.includes('giá km'));
+      
+      if (codeIdx === -1 || tenIdx === -1 || giaNiemYetIdx === -1 || giaKmIdx === -1) {
+        throw new Error('Cấu trúc cột trong Google Sheet không khớp với mẫu 81 (Cần có cột: Code sản phẩm, Tên sản phẩm, Giá niêm yết, Giá KM ST Event).');
+      }
+      
+      const parsedData: any[] = [];
+      
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length === 0) continue;
+        if (row.length <= Math.max(codeIdx, tenIdx, giaNiemYetIdx, giaKmIdx)) continue;
+        
+        const maSp = row[codeIdx]?.trim();
+        const tenSp = row[tenIdx]?.trim();
+        
+        if (!maSp || !tenSp) continue;
+        
+        const cleanPrice = (valStr: string) => {
+          if (!valStr) return 0;
+          return parseInt(valStr.replace(/\./g, '').replace(/,/g, '').replace(/đ/g, '').trim()) || 0;
+        };
+        
+        const originalPrice = cleanPrice(row[giaNiemYetIdx]);
+        const discountPrice = cleanPrice(row[giaKmIdx]);
+        
+        parsedData.push({
+          maSanPham: maSp,
+          name: tenSp,
+          originalPrice,
+          discountPrice,
+          nganhHang: nganhHangIdx !== -1 ? row[nganhHangIdx]?.trim() : '',
+          nhomHang: nhomHangIdx !== -1 ? row[nhomHangIdx]?.trim() : ''
+        });
+      }
+      
+      if (parsedData.length === 0) {
+        throw new Error('Không phân tích được sản phẩm nào hợp lệ từ Google Sheet.');
+      }
+      
+      // Update local states
+      setPriceData(parsedData);
+      const timestampString = new Date().toLocaleString('vi-VN');
+      setLastUpdatePrice(timestampString);
+      
+      // Save locally to localStorage
+      const keys = getStorageKeysForTab(activeTab);
+      localStorage.setItem(keys.price, JSON.stringify({
+        data: parsedData,
+        timestamp: new Date().toISOString()
+      }));
+      
+      // Also save to Firebase collection 'store' -> document 'EVENT_DMX_GLOBAL'
+      const record = {
+        id: 'EVENT_DMX_GLOBAL',
+        ten_sieu_thi: 'Cấu hình EVENT ĐMX toàn hệ thống',
+        warehouse_code: 'GLOBAL',
+        sticker_ce_price_data: JSON.stringify(parsedData),
+        updated_at: new Date().toISOString()
+      };
+      
+      const { error: dbError } = await supabase
+        .from('store')
+        .upsert(record, { onConflict: 'id' });
+        
+      if (dbError) {
+        console.error('Lỗi khi lưu dữ liệu lên Firebase:', dbError);
+        showNotification('Đồng bộ thành công cục bộ nhưng không thể lưu lên Firebase!', 'warning');
+      } else {
+        showNotification(`Đồng bộ thành công ${parsedData.length} sản phẩm từ Google Sheet và đã lưu lên Firebase cho tất cả người dùng!`, 'success');
+      }
+      
+    } catch (err: any) {
+      console.error(err);
+      showNotification(err.message || 'Lỗi khi đồng bộ Google Sheet', 'error');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const inventoryInputRef = useRef<HTMLInputElement>(null);
   const priceInputRef = useRef<HTMLInputElement>(null);
@@ -2429,32 +2647,61 @@ export default function ToolHoTro() {
                         </div>
                       </button>
 
-                      <input 
-                        type="file" 
-                        accept=".xlsx, .xls" 
-                        className="hidden" 
-                        ref={priceInputRef}
-                        onChange={(e) => handleFileUpload(e, 'price')}
-                      />
-                      <button 
-                        onClick={() => priceInputRef.current?.click()}
-                        className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border border-dashed transition-all relative ${
-                          priceFile || lastUpdatePrice
-                            ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
-                            : 'border-emerald-300 bg-emerald-50/30 text-emerald-600 hover:bg-emerald-50/50'
-                        }`}
-                      >
-                        {priceFile || lastUpdatePrice ? <CheckCircle2 size={24} strokeWidth={1.5} className="text-emerald-500" /> : <FilePlus size={24} strokeWidth={1.5} />}
-                        <div className="text-center">
-                          <div className="text-[10px] font-black uppercase tracking-wider">
-                            {priceFile || lastUpdatePrice 
-                              ? (activeTab === 'sticker-mln' ? 'Đã tải Bảng Giá Mẫu 99' : activeTab === 'sticker-ce' ? 'Đã tải Bảng Giá Mẫu 97' : activeTab === 'sticker-lk' ? 'Đã tải Bảng Giá Mẫu 78' : 'Đã tải Bảng Giá Mẫu 81')
-                              : (activeTab === 'sticker-mln' ? 'Tải Bảng Giá Mẫu 99' : activeTab === 'sticker-ce' ? 'Tải Bảng Giá Mẫu 97' : activeTab === 'sticker-lk' ? 'Tải Bảng Giá Mẫu 78' : 'Tải Bảng Giá Mẫu 81')}
+                      {activeTab === 'sticker-event-dmx' ? (
+                        <button 
+                          onClick={handleSyncGoogleSheet}
+                          disabled={isSyncing}
+                          className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-all relative ${
+                            isSyncing
+                              ? 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
+                              : (priceData.length > 0 || lastUpdatePrice)
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/50'
+                                : 'border-emerald-200 bg-emerald-50/20 text-emerald-600 hover:bg-emerald-50/50'
+                          }`}
+                        >
+                          {isSyncing ? (
+                            <Loader2 size={24} strokeWidth={1.5} className="animate-spin text-emerald-500" />
+                          ) : (
+                            <RefreshCw size={24} strokeWidth={1.5} className="text-emerald-500" />
+                          )}
+                          <div className="text-center">
+                            <div className="text-[10px] font-black uppercase tracking-wider">
+                              {isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ Google Sheet'}
+                            </div>
+                            {lastUpdatePrice && !isSyncing && <div className="text-[8px] font-bold text-emerald-500 mt-1">Cập nhật: {lastUpdatePrice}</div>}
+                            {!lastUpdatePrice && !isSyncing && <div className="text-[8px] font-bold text-emerald-500 mt-1">Yêu cầu đồng bộ</div>}
                           </div>
-                          {lastUpdatePrice && !priceFile && <div className="text-[8px] font-bold text-emerald-500 mt-1">Cập nhật: {lastUpdatePrice}</div>}
-                          {priceFile && <div className="text-[8px] font-bold text-emerald-500 mt-1 truncate max-w-[80px]">{priceFile.name}</div>}
-                        </div>
-                      </button>
+                        </button>
+                      ) : (
+                        <>
+                          <input 
+                            type="file" 
+                            accept=".xlsx, .xls" 
+                            className="hidden" 
+                            ref={priceInputRef}
+                            onChange={(e) => handleFileUpload(e, 'price')}
+                          />
+                          <button 
+                            onClick={() => priceInputRef.current?.click()}
+                            className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border border-dashed transition-all relative ${
+                              priceFile || lastUpdatePrice
+                                ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                                : 'border-emerald-300 bg-emerald-50/30 text-emerald-600 hover:bg-emerald-50/50'
+                            }`}
+                          >
+                            {priceFile || lastUpdatePrice ? <CheckCircle2 size={24} strokeWidth={1.5} className="text-emerald-500" /> : <FilePlus size={24} strokeWidth={1.5} />}
+                            <div className="text-center">
+                              <div className="text-[10px] font-black uppercase tracking-wider">
+                                {priceFile || lastUpdatePrice 
+                                  ? (activeTab === 'sticker-mln' ? 'Đã tải Bảng Giá Mẫu 99' : activeTab === 'sticker-ce' ? 'Đã tải Bảng Giá Mẫu 97' : activeTab === 'sticker-lk' ? 'Đã tải Bảng Giá Mẫu 78' : 'Đã tải Bảng Giá Mẫu 81')
+                                  : (activeTab === 'sticker-mln' ? 'Tải Bảng Giá Mẫu 99' : activeTab === 'sticker-ce' ? 'Tải Bảng Giá Mẫu 97' : activeTab === 'sticker-lk' ? 'Tải Bảng Giá Mẫu 78' : 'Tải Bảng Giá Mẫu 81')}
+                              </div>
+                              {lastUpdatePrice && !priceFile && <div className="text-[8px] font-bold text-emerald-500 mt-1">Cập nhật: {lastUpdatePrice}</div>}
+                              {priceFile && <div className="text-[8px] font-bold text-emerald-500 mt-1 truncate max-w-[80px]">{priceFile.name}</div>}
+                            </div>
+                          </button>
+                        </>
+                      )}
                     </div>
 
                     {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-event' || activeTab === 'sticker-mln') && (
