@@ -1000,7 +1000,10 @@ export default function ToolHoTro() {
       const codeIdx = headerRow.findIndex(h => h.includes('code sản phẩm') || h.includes('mã sản phẩm') || h.includes('mã hàng'));
       const tenIdx = headerRow.findIndex(h => h.includes('tên sản phẩm') || h.includes('tên hàng'));
       const giaNiemYetIdx = headerRow.findIndex(h => h.includes('giá niêm yết'));
-      const giaKmIdx = headerRow.findIndex(h => h.includes('giá km st event') || h.includes('giá km'));
+      let giaKmIdx = headerRow.findIndex(h => h.includes('giá km st event') || h.includes('st event'));
+      if (giaKmIdx === -1) {
+        giaKmIdx = headerRow.findIndex(h => h.includes('giá km'));
+      }
       
       if (codeIdx === -1 || tenIdx === -1 || giaNiemYetIdx === -1 || giaKmIdx === -1) {
         throw new Error('Cấu trúc cột trong Google Sheet không khớp với mẫu 81 (Cần có cột: Code sản phẩm, Tên sản phẩm, Giá niêm yết, Giá KM ST Event).');
