@@ -287,7 +287,7 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({ warehouseCode
   };
 
   // Add a schedule manually
-  const handleAddManualSchedule = () => {
+  const handleAddManualSchedule = async () => {
     if (!newTitle.trim()) {
       showToast('Vui lòng nhập tên kỳ kiểm kê', false);
       return;
@@ -299,63 +299,93 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({ warehouseCode
       return;
     }
 
-    const newSched: ParsedSchedule = {
-      title: newTitle.trim(),
-      date: selectedDate,
-      items: newItems
+    try {
+      setSaving(true);
+      const savedSched = await inventoryService.saveInventorySchedule({
+        warehouse_code: warehouseCode,
+        title: newTitle.trim(),
+        inventory_date: selectedDate,
+        calendar_image: imageBase64 || '',
+        status: 'pending'
+      });
+
+      // Save empty initial assignments list
+      await inventoryService.saveAssignmentsForSchedule(savedSched.id!, []);
+
+      showToast(`Đã lưu lịch kiểm kê "${savedSched.title}" thành công!`, true);
+      setNewTitle('');
+      setShowAddForm(false);
+      loadDataFromFirebase();
+    } catch (err) {
+      console.error(err);
+      showToast('Lỗi khi lưu lịch kiểm kê vào Firebase', false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Toggle staff in assignments with auto-save to Firebase
+  const toggleStaffAssignment = async (schedTitle: string, zone: string, employeeName: string) => {
+    const targetSched = schedules.find(s => s.title === schedTitle);
+    if (!targetSched || !targetSched.id) {
+      showToast('Kỳ kiểm kê chưa được lưu vào hệ thống!', false);
+      return;
+    }
+
+    const currentList = assignmentsMap[schedTitle]?.[zone] || [];
+    let newList: string[];
+
+    if (currentList.includes(employeeName)) {
+      newList = currentList.filter(name => name !== employeeName);
+    } else {
+      newList = [...currentList, employeeName];
+    }
+
+    let cleanSubstates: Record<string, string[]> = {};
+    if (zone === 'Điện thoại' && currentList.includes(employeeName)) {
+      PHONE_STATES.forEach(sub => {
+        const subKey = `Điện thoại - ${sub}`;
+        const subList = assignmentsMap[schedTitle]?.[subKey] || [];
+        if (subList.includes(employeeName)) {
+          cleanSubstates[subKey] = subList.filter(name => name !== employeeName);
+        }
+      });
+    }
+
+    const updatedSchedAssignments = {
+      ...(assignmentsMap[schedTitle] || {}),
+      [zone]: newList,
+      ...cleanSubstates
     };
 
-    const newMap = { ...assignmentsMap };
-    newMap[newSched.title] = {};
-    newSched.items.forEach(zone => {
-      newMap[newSched.title][zone] = [];
-    });
-    PHONE_STATES.forEach(sub => {
-      newMap[newSched.title][`Điện thoại - ${sub}`] = [];
-    });
+    // Update local state instantly
+    setAssignmentsMap(prev => ({
+      ...prev,
+      [schedTitle]: updatedSchedAssignments
+    }));
 
-    setSchedules(prev => [...prev, newSched]);
-    setAssignmentsMap(newMap);
-    setNewTitle('');
-    setShowAddForm(false);
-    showToast('Lập lịch thành công! Bấm LƯU PHÂN CÔNG ở bảng phân công tương ứng.', true);
-  };
-
-  // Toggle staff in assignments
-  const toggleStaffAssignment = (schedTitle: string, zone: string, employeeName: string) => {
-    setAssignmentsMap(prev => {
-      const currentList = prev[schedTitle]?.[zone] || [];
-      let newList: string[];
-
-      if (currentList.includes(employeeName)) {
-        newList = currentList.filter(name => name !== employeeName);
-      } else {
-        newList = [...currentList, employeeName];
-      }
-
-      let cleanSubstates: Record<string, string[]> = {};
-      if (zone === 'Điện thoại' && currentList.includes(employeeName)) {
-        PHONE_STATES.forEach(sub => {
-          const subKey = `Điện thoại - ${sub}`;
-          const subList = prev[schedTitle]?.[subKey] || [];
-          if (subList.includes(employeeName)) {
-            cleanSubstates[subKey] = subList.filter(name => name !== employeeName);
-          }
+    // Auto-save to Firebase in background
+    try {
+      const payloadAssignments: Omit<InventoryAssignment, 'id'>[] = [];
+      Object.entries(updatedSchedAssignments).forEach(([zoneName, staffList]) => {
+        (staffList as string[]).forEach(staffName => {
+          payloadAssignments.push({
+            schedule_id: targetSched.id!,
+            employee_name: staffName,
+            role: 'Kiểm kê',
+            zone: zoneName
+          });
         });
-      }
+      });
 
-      return {
-        ...prev,
-        [schedTitle]: {
-          ...(prev[schedTitle] || {}),
-          [zone]: newList,
-          ...cleanSubstates
-        }
-      };
-    });
+      await inventoryService.saveAssignmentsForSchedule(targetSched.id!, payloadAssignments);
+    } catch (err) {
+      console.error('[toggleStaffAssignment] Auto-save error:', err);
+      showToast('Lỗi tự động lưu phân công vào Firebase', false);
+    }
   };
 
-  // AI scanning mock/real call
+  // AI scanning mock/real call with immediate database persistence
   const handleAnalyzeImage = async (base64: string) => {
     setDetecting(true);
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -403,26 +433,36 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({ warehouseCode
       setIsRealAi(false);
     }
 
-    const finalized = detected.map(sched => ({
-      ...sched,
-      calendar_image: base64
-    }));
+    // Persist scanned schedules to Firebase immediately so they are not lost on refresh
+    const finalized: ParsedSchedule[] = [];
+    for (const s of detected) {
+      try {
+        const saved = await inventoryService.saveInventorySchedule({
+          warehouse_code: warehouseCode,
+          title: s.title,
+          inventory_date: s.date,
+          calendar_image: base64,
+          status: 'pending'
+        });
 
-    const newMap = { ...assignmentsMap };
-    finalized.forEach(s => {
-      newMap[s.title] = {};
-      s.items.forEach(zone => {
-        newMap[s.title][zone] = [];
-      });
-      PHONE_STATES.forEach(sub => {
-        newMap[s.title][`Điện thoại - ${sub}`] = [];
-      });
-    });
+        // Initialize empty assignments in DB
+        await inventoryService.saveAssignmentsForSchedule(saved.id!, []);
 
-    setSchedules(prev => [...prev, ...finalized]);
-    setAssignmentsMap(newMap);
-    showToast(isRealAi ? 'AI đã bóc tách dữ liệu lịch trình thành công!' : 'Đã nhận diện nhanh lịch trình từ ảnh mẫu!', true);
+        finalized.push({
+          id: saved.id,
+          title: saved.title,
+          date: saved.inventory_date,
+          items: s.items,
+          calendar_image: saved.calendar_image
+        });
+      } catch (err) {
+        console.error('Lỗi khi tự động lưu lịch từ AI:', err);
+      }
+    }
+
+    showToast(isRealAi ? 'AI đã bóc tách và lưu dữ liệu lịch trình thành công!' : 'Đã nhận diện nhanh và lưu lịch trình từ ảnh mẫu!', true);
     setDetecting(false);
+    loadDataFromFirebase();
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -892,14 +932,10 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({ warehouseCode
                           <p className="text-[9px] font-extrabold text-slate-400 uppercase mt-1">Kỳ kiểm kê siêu thị</p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleSaveSchedule(sched)}
-                            disabled={saving}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-[#00965e] hover:bg-[#007b4e] text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 disabled:opacity-50"
-                          >
-                            {saving ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />}
-                            Lưu phân công
-                          </button>
+                          <div className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-750 border border-emerald-200 rounded-xl text-[9px] font-black uppercase tracking-wider select-none">
+                            <Check size={12} className="text-emerald-600" />
+                            Đã tự động lưu
+                          </div>
                           <button
                             onClick={() => handleDeleteSchedule(sched)}
                             disabled={deleting}
