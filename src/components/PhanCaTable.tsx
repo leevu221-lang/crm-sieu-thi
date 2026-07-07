@@ -272,7 +272,7 @@ export default function PhanCaTable() {
 
       const link = document.createElement('a');
       link.href = dataUrl;
-      link.download = `Bang_Phan_Ca_${format(new Date(), 'dd-MM-yyyy')}.png`;
+      link.download = 'LICH_PHAN_CA_THANG.png';
       link.click();
       setSaveMessage({ type: 'success', text: 'Đã xuất ảnh bảng phân ca!' });
     } catch (err) {
@@ -292,7 +292,7 @@ export default function PhanCaTable() {
 
       const link = document.createElement('a');
       link.href = dataUrl;
-      link.download = `Tom_Tat_HC_${format(new Date(), 'dd-MM-yyyy')}.png`;
+      link.download = 'TOM_TAT_NHAN_VIEN_DI_CA_HANH_CHINH.png';
       link.click();
       setSaveMessage({ type: 'success', text: 'Đã xuất ảnh tóm tắt ca hành chính!' });
     } catch (err) {

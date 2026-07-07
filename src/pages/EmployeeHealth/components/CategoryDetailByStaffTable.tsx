@@ -1,10 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Camera, TrendingDown, TrendingUp, ChevronDown, Check, Search, MessageSquare } from 'lucide-react';
+import { Camera, TrendingDown, TrendingUp, ChevronDown, Check, Search, MessageSquare, X, Download } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { cn } from '../../RTST/utils';
+import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { StaffMatrixData, CategoryData } from '../../RTST/types';
 import { cleanCategoryName } from './EmployeeDetailTable';
 
@@ -25,9 +26,13 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
   const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
   // 1. Quét tên các ngành hàng có trong dữ liệu dán (thiDuaNv) - dùng để mapping cột
+  // CRITICAL: Track ALL column positions including filtered ones, so data column indices stay aligned.
   let inputCategories: string[] = [];
+  let allColumnHeaders: string[] = [];
+  const categoryToColIdx: Map<string, number> = new Map();
   let headerStartIdx = -1;
   let dataStartIdx = -1;
+  let colPosition = 0;
 
   for (let i = 0; i < lines.length; i++) {
     if (lines[i] === 'Phòng ban') {
@@ -47,7 +52,6 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       const isOnlyNumbers = /^[\d\s,.-]+$/.test(catName);
       const lowerCatName = catName.toLowerCase();
       const isExcluded = [
-        'tổng', 'tong',
         'bp all in one',
         'bp trưởng ca', 'bp truong ca',
         'hỗ trợ bi', 'ho tro bi',
@@ -60,9 +64,13 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
         'khối kinh doanh', 'khoi kinh doanh',
         'logo bi',
         'avatar'
-      ].some(ex => lowerCatName.includes(ex));
+      ].some(ex => lowerCatName.includes(ex)) ||
+      ((lowerCatName.includes('tổng') || lowerCatName.includes('tong')) && cleanCategoryName(catName) !== 'simtong');
+
+      allColumnHeaders.push(catName);
 
       if (isColumnTypesLine || isOnlyNumbers || isExcluded) {
+        colPosition++;
         continue;
       }
 
@@ -70,7 +78,14 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       if (targetMatch) {
         catName = targetMatch[1].trim();
       }
+      
+      const cleanName = cleanCategoryName(catName);
+      if (!categoryToColIdx.has(cleanName)) {
+        categoryToColIdx.set(cleanName, colPosition);
+      }
+      
       inputCategories.push(catName);
+      colPosition++;
     }
   }
 
@@ -109,7 +124,14 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
   }
 
   for (const line of dataLines) {
-    const parts = line.split(/\t|\s{2,}/).map(p => p.trim()).filter(p => p.length > 0);
+    // Split by tab ONLY and preserve empty columns to maintain alignment with category headers.
+    let parts = line.split('\t').map(p => p.trim());
+    
+    // Fallback: if no tabs found (single column), try splitting by multiple spaces
+    if (parts.length < 3) {
+      parts = line.split(/ {2,}/).map(p => p.trim()).filter(p => p.length > 0);
+    }
+    
     const namePart = parts[0];
 
     if (!namePart) continue;
@@ -125,6 +147,7 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
     const dataStartIndex = 1;
 
     const rawInputValues = parts.slice(dataStartIndex).map(v => {
+      if (!v || v.trim() === '') return 0; // Preserve empty columns as 0
       const clean = v.replace(/,/g, '');
       const num = parseFloat(clean);
       return isNaN(num) ? 0 : num;
@@ -135,11 +158,12 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
     let achieved = 0;
 
     displayCategories.forEach((catName) => {
-      const inputIdx = inputCategories.findIndex(ic => cleanCategoryName(ic) === cleanCategoryName(catName));
-      const val = inputIdx !== -1 ? (rawInputValues[inputIdx] || 0) : 0;
+      const cleanName = cleanCategoryName(catName);
+      const colIdx = categoryToColIdx.get(cleanName);
+      const val = (colIdx !== undefined && colIdx < rawInputValues.length) ? (rawInputValues[colIdx] || 0) : 0;
       values.push(val);
 
-      const target = targetPerStaffPerCat[cleanCategoryName(catName)] || 0;
+      const target = targetPerStaffPerCat[cleanName] || 0;
       let projectedRate = 0;
 
       if (target > 0 && daysPassed > 0) {
@@ -175,6 +199,14 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
 }) => {
   const { results: allStaffMatrix, categories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays);
 
+  // Build dropdown options from luykeCategories (BC Tháng) if available, otherwise fall back to parsed categories
+  const dropdownCategories = React.useMemo(() => {
+    if (luykeCategories && luykeCategories.length > 0) {
+      return luykeCategories.map((c: any) => c.name).filter((n: string) => n);
+    }
+    return categories;
+  }, [luykeCategories, categories]);
+
   // Filter staff matrix based on selectedStaffIds from parent
   const staffMatrix = selectedStaffIds.length > 0
     ? allStaffMatrix.filter(s => selectedStaffIds.includes(s.fullId))
@@ -185,15 +217,16 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isCapturingAll, setIsCapturingAll] = useState(false);
   const [copiedCat, setCopiedCat] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef(false);
 
   React.useEffect(() => {
-    if (categories.length > 0 && !initializedRef.current) {
-      setSelectedCategories(categories);
+    if (dropdownCategories.length > 0 && !initializedRef.current) {
+      setSelectedCategories(dropdownCategories);
       initializedRef.current = true;
     }
-  }, [categories]);
+  }, [dropdownCategories]);
 
   // Close dropdown when clicking outside
   React.useEffect(() => {
@@ -210,7 +243,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     };
   }, []);
 
-  if (categories.length === 0) return null;
+  if (dropdownCategories.length === 0 && categories.length === 0) return null;
 
   const toggleCategory = (cat: string) => {
     setSelectedCategories(prev =>
@@ -225,10 +258,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
         backgroundColor: '#ffffff',
         pixelRatio: 2,
       });
-      const link = document.createElement('a');
-      link.download = `ChiTietNH_${catName.replace(/\s+/g, '_')}.png`;
-      link.href = dataUrl;
-      link.click();
+      setPreviewImage(dataUrl);
     }
   };
 
@@ -296,7 +326,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
     });
   };
 
-  const filteredCategories = categories.filter(cat =>
+  const filteredDropdownCategories = dropdownCategories.filter(cat =>
     cat.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -312,7 +342,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
             <span className="truncate">
               {selectedCategories.length === 0
                 ? "Chọn ngành hàng chi tiết"
-                : selectedCategories.length === categories.length
+                : selectedCategories.length === dropdownCategories.length
                   ? "Tất cả ngành hàng"
                   : `Đã chọn ${selectedCategories.length} ngành hàng`}
             </span>
@@ -336,7 +366,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
               <div className="p-2 border-b border-slate-100 flex items-center justify-between px-4">
                 <button
-                  onClick={() => setSelectedCategories([...categories])}
+                  onClick={() => setSelectedCategories([...dropdownCategories])}
                   className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-800 transition-colors"
                 >
                   Chọn tất cả
@@ -350,7 +380,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
               </div>
 
               <div className="max-h-64 overflow-y-auto p-2">
-                {filteredCategories.map(cat => (
+                {filteredDropdownCategories.map(cat => (
                   <label
                     key={cat}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-indigo-50 cursor-pointer transition-colors group"
@@ -403,7 +433,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
       <div className={cn(selectedCategories.length > 0 ? "grid grid-cols-1 md:grid-cols-2 gap-5" : "space-y-5")}>
         {selectedCategories.length > 0 ? (
           selectedCategories.map((catName) => {
-            const catIdx = categories.indexOf(catName);
+            const catIdx = categories.findIndex(c => cleanCategoryName(c) === cleanCategoryName(catName));
             const lkCat = luykeCategories.length > 0
               ? luykeCategories.find((c: any) => cleanCategoryName(c.name) === cleanCategoryName(catName))
               : null;
@@ -473,8 +503,8 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   </div>
                 </div>
 
-                <div className="overflow-hidden">
-                  <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300">
+                <div className="overflow-x-auto">
+                  <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300 min-w-[600px]">
                     <thead>
                       <tr className="text-slate-900 h-[53px]">
                         <th className="px-1 py-2.5 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
@@ -492,20 +522,20 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             key={row.staffName}
                             className="hover:bg-slate-50 transition-colors h-[53px]"
                           >
-                            <td className="px-1 py-2.5 text-[13px] font-utm-avo font-bold text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a] h-full">
+                            <td className="px-1 py-2.5 text-[13px] font-utm-avo font-black text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a] h-full">
                               {index + 1}
                             </td>
-                            <td className="px-2 py-2.5 text-[13px] font-utm-avo font-bold uppercase border-r border-b border-slate-300 text-slate-700 truncate max-w-[150px] h-full">
+                            <td className="px-2 py-2.5 text-[13px] font-utm-avo font-black uppercase border-r border-b border-slate-300 text-slate-700 truncate max-w-[150px] h-full">
                               {row.staffName}
                             </td>
-                            <td className="px-1 py-2.5 text-[13px] font-utm-avo font-bold text-center border-r border-b border-slate-300 text-slate-800 h-full">
+                            <td className="px-1 py-2.5 text-[13px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-slate-800 h-full">
                               {row.target.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
                             </td>
-                            <td className="px-1 py-2.5 text-[13px] font-utm-avo font-bold text-center border-r border-b border-slate-300 text-emerald-700 h-full">
+                            <td className="px-1 py-2.5 text-[13px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-emerald-700 h-full">
                               {row.accumulated.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
                             </td>
                             <td className={cn(
-                              "px-1 py-2.5 text-[13px] font-utm-avo font-bold text-center border-r border-b border-slate-300 h-full",
+                              "px-1 py-2.5 text-[13px] font-utm-avo font-black text-center border-r border-b border-slate-300 h-full",
                               roundedRate >= 100 ? "text-emerald-600" : roundedRate >= 50 ? "text-amber-600" : "text-rose-600"
                             )}>
                               {roundedRate}%
@@ -527,6 +557,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
           </div>
         )}
       </div>
+
+      {/* Image Preview Modal */}
+      <ImagePreviewModal previewImage={previewImage} setPreviewImage={setPreviewImage} />
     </div>
   );
 };

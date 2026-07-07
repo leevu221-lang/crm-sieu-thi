@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-type FontFamily = 'Inter' | 'Oswald';
+type FontFamily = 'Inter' | 'Oswald' | 'UTM Avo';
 
 interface SettingsContextType {
   fontSize: number;
@@ -37,12 +37,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     localStorage.setItem('app-font-family', fontFamily);
+    document.documentElement.classList.remove('font-sans', 'font-oswald', 'font-utm-avo');
+    
     if (fontFamily === 'Oswald') {
       document.documentElement.classList.add('font-oswald');
-      document.documentElement.classList.remove('font-sans');
+    } else if (fontFamily === 'UTM Avo') {
+      document.documentElement.classList.add('font-utm-avo');
     } else {
       document.documentElement.classList.add('font-sans');
-      document.documentElement.classList.remove('font-oswald');
     }
   }, [fontFamily]);
 

@@ -23,7 +23,8 @@ import {
   normalize,
   isKhoLuuDong,
   safeSetItem,
-  normalizeStoreId
+  normalizeStoreId,
+  cleanCategoryName
 } from '../pages/RTST/utils';
 
 const globalAllStoresCache: Record<string, {
@@ -400,16 +401,48 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           });
 
           const newTargets: any[] = [];
-          uniqueParsed.forEach((data, name) => {
-            const existingPercent = percentMap.get(name);
-            const percent = existingPercent !== undefined ? existingPercent : defaultPercent;
-            newTargets.push({
-              name,
-              target: data.target,
-              adjustedTarget: data.target * (percent / 100),
-              percent,
-              type: data.type
+          const processedNames = new Set<string>();
+
+          // 1. First add items from currentTargets that are still present in uniqueParsed, in their existing order
+          currentTargets.forEach((item: any) => {
+            const cleanItemName = cleanCategoryName(item.name);
+            let matchedKey: string | null = null;
+            let matchedData: any = null;
+            
+            uniqueParsed.forEach((data, key) => {
+              if (matchedKey) return;
+              if (cleanCategoryName(key) === cleanItemName) {
+                matchedKey = key;
+                matchedData = data;
+              }
             });
+
+            if (matchedKey && matchedData) {
+              const percent = item.percent !== undefined ? item.percent : defaultPercent;
+              newTargets.push({
+                name: matchedKey, // Use the parsed name to keep it in sync
+                target: matchedData.target,
+                adjustedTarget: matchedData.target * (percent / 100),
+                percent,
+                type: matchedData.type
+              });
+              processedNames.add(matchedKey);
+            }
+          });
+
+          // 2. Then append any remaining items from uniqueParsed that were not in currentTargets
+          uniqueParsed.forEach((data, name) => {
+            if (!processedNames.has(name)) {
+              const existingPercent = percentMap.get(name);
+              const percent = existingPercent !== undefined ? existingPercent : defaultPercent;
+              newTargets.push({
+                name,
+                target: data.target,
+                adjustedTarget: data.target * (percent / 100),
+                percent,
+                type: data.type
+              });
+            }
           });
 
           // Structural equality check to avoid reference changes when values are identical
@@ -1092,7 +1125,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Save immediately to DB
       setTimeout(() => {
         if (saveLuykeDataRef.current) {
-          saveLuykeDataRef.current(true, 'auto', targetStore, undefined, 'MA TRẬN NH');
+          saveLuykeDataRef.current(true, 'auto', targetStore, undefined, 'CHI TIẾT DTNV');
         }
       }, 200);
     } else {
@@ -1109,7 +1142,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         
         setTimeout(() => {
           if (saveLuykeDataRef.current) {
-            saveLuykeDataRef.current(true, 'auto', targetStore, undefined, 'MA TRẬN NH');
+            saveLuykeDataRef.current(true, 'auto', targetStore, undefined, 'CHI TIẾT DTNV');
           }
         }, 200);
       } else {

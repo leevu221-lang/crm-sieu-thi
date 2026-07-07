@@ -1,16 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 
 interface PrintLayoutModalProps {
   isOpen: boolean;
+  isCe?: boolean;
+  isLk?: boolean;
   onClose: () => void;
   onConfirm: (style: string, layout: string, showPromoLabel: boolean) => void;
 }
 
-export default function PrintLayoutModal({ isOpen, onClose, onConfirm }: PrintLayoutModalProps) {
+export default function PrintLayoutModal({ isOpen, isCe = false, isLk = false, onClose, onConfirm }: PrintLayoutModalProps) {
   const [selectedStyle, setSelectedStyle] = useState('classic');
   const [selectedLayout, setSelectedLayout] = useState('4');
   const [showPromoLabel, setShowPromoLabel] = useState(true);
+
+  useEffect(() => {
+    if (isCe) {
+      setSelectedStyle('sticker_ce');
+      setSelectedLayout('1');
+    } else if (isLk) {
+      setSelectedStyle('sticker_lk');
+      setSelectedLayout('1');
+    } else {
+      setSelectedStyle('classic');
+      setSelectedLayout('4');
+    }
+  }, [isCe, isLk, isOpen]);
 
   if (!isOpen) return null;
 
@@ -35,62 +50,10 @@ export default function PrintLayoutModal({ isOpen, onClose, onConfirm }: PrintLa
           {/* Style Selection */}
           <div className="mb-8">
             <h3 className="text-sm font-bold text-slate-600 mb-4 uppercase tracking-wider">1. CHỌN KIỂU STICKER</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedStyle === 'classic' ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-200'}`}>
-                <input 
-                  type="radio" 
-                  name="stickerStyle" 
-                  value="classic" 
-                  checked={selectedStyle === 'classic'} 
-                  onChange={(e) => setSelectedStyle(e.target.value)}
-                  className="w-5 h-5 text-indigo-600 border-slate-300 focus:ring-indigo-500"
-                />
-                <span className="ml-3 font-medium text-slate-800">Kiểu có sẵn</span>
-              </label>
-              <label className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedStyle === 'modern' ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-200'}`}>
-                <input 
-                  type="radio" 
-                  name="stickerStyle" 
-                  value="modern" 
-                  checked={selectedStyle === 'modern'} 
-                  onChange={(e) => setSelectedStyle(e.target.value)}
-                  className="w-5 h-5 text-indigo-600 border-slate-300 focus:ring-indigo-500"
-                />
-                <span className="ml-3 font-medium text-slate-800">Kiểu giá quạt</span>
-              </label>
-              <label className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedStyle === 'display' ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-200'}`}>
-                <input 
-                  type="radio" 
-                  name="stickerStyle" 
-                  value="display" 
-                  checked={selectedStyle === 'display'} 
-                  onChange={(e) => setSelectedStyle(e.target.value)}
-                  className="w-5 h-5 text-indigo-600 border-slate-300 focus:ring-indigo-500"
-                />
-                <span className="ml-3 font-medium text-slate-800">Kiểu hàng trưng bày</span>
-              </label>
-              <label className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedStyle === 'giovang' ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-200'}`}>
-                <input 
-                  type="radio" 
-                  name="stickerStyle" 
-                  value="giovang" 
-                  checked={selectedStyle === 'giovang'} 
-                  onChange={(e) => setSelectedStyle(e.target.value)}
-                  className="w-5 h-5 text-indigo-600 border-slate-300 focus:ring-indigo-500"
-                />
-                <span className="ml-3 font-medium text-slate-800 text-red-600 font-black">GIỜ VÀNG GIÁ SỐC (A5)</span>
-              </label>
-              <label className={`flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedStyle === 'a4_giasoc' ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-200'}`}>
-                <input 
-                  type="radio" 
-                  name="stickerStyle" 
-                  value="a4_giasoc" 
-                  checked={selectedStyle === 'a4_giasoc'} 
-                  onChange={(e) => setSelectedStyle(e.target.value)}
-                  className="w-5 h-5 text-indigo-600 border-slate-300 focus:ring-indigo-500"
-                />
-                <span className="ml-3 font-medium text-slate-800 text-amber-500 font-black">A4 ĐỨNG (GIÁ SỐC VÀNG)</span>
-              </label>
+            <div className="p-4 rounded-xl border-2 border-indigo-500 bg-indigo-50/55 flex items-center">
+              <span className="font-black text-indigo-600 text-sm uppercase tracking-wide">
+                {isCe ? 'In Sticker CE (Điện máy)' : isLk ? 'In Sticker Loa Kéo' : 'Kiểu có sẵn'}
+              </span>
             </div>
           </div>
 
@@ -98,43 +61,64 @@ export default function PrintLayoutModal({ isOpen, onClose, onConfirm }: PrintLa
           <div className="mb-8">
             <h3 className="text-sm font-bold text-slate-600 mb-4 uppercase tracking-wider">2. CHỌN BỐ CỤC TRANG IN</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {selectedStyle === 'display' || selectedStyle === 'giovang' || selectedStyle === 'a4_giasoc' ? (
-                <div 
-                  className={`p-5 rounded-xl border-2 cursor-pointer transition-all border-indigo-500 bg-indigo-50/50`}
-                >
-                  <h4 className="text-lg font-bold text-slate-800 mb-1">1 Sticker / Trang {selectedStyle === 'a4_giasoc' ? 'A4' : 'A5'}</h4>
-                  <p className="text-sm text-slate-500">
-                    Kích thước {selectedStyle === 'a4_giasoc' ? '210 x 297 mm (A4 Đứng)' : '148.5 x 210 mm (A5 Đứng)'}
-                  </p>
-                </div>
-              ) : (
-                layouts.map(layout => (
+              {isCe || isLk ? (
+                <>
                   <div 
-                    key={layout.id}
-                    onClick={() => setSelectedLayout(layout.id)}
-                    className={`p-5 rounded-xl border-2 cursor-pointer transition-all ${selectedLayout === layout.id ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-200'}`}
+                    onClick={() => setSelectedLayout('1')}
+                    className={`p-5 rounded-xl border-2 cursor-pointer transition-all ${selectedLayout === '1' ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-200'}`}
                   >
-                    <h4 className="text-lg font-bold text-slate-800 mb-1">{layout.title}</h4>
-                    <p className="text-sm text-slate-500">{layout.desc}</p>
+                    <h4 className="text-lg font-bold text-slate-800 mb-1">1 Sticker / Trang A5 ngang</h4>
+                    <p className="text-sm text-slate-500">Kích thước 210 x 148.5 mm (A5 ngang)</p>
                   </div>
-                ))
+                  <div 
+                    onClick={() => setSelectedLayout('2')}
+                    className={`p-5 rounded-xl border-2 cursor-pointer transition-all ${selectedLayout === '2' ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-200'}`}
+                  >
+                    <h4 className="text-lg font-bold text-slate-800 mb-1">2 Sticker A6 / Trang A5 đứng</h4>
+                    <p className="text-sm text-slate-500">1 Trang A5 đứng = 2 Sticker A6 (148.5 x 105 mm)</p>
+                  </div>
+                </>
+              ) : (
+                selectedStyle === 'display' || selectedStyle === 'giovang' || selectedStyle === 'a4_giasoc' ? (
+                  <div 
+                    className={`p-5 rounded-xl border-2 cursor-pointer transition-all border-indigo-500 bg-indigo-50/50`}
+                  >
+                    <h4 className="text-lg font-bold text-slate-800 mb-1">1 Sticker / Trang {selectedStyle === 'a4_giasoc' ? 'A4' : 'A5'}</h4>
+                    <p className="text-sm text-slate-500">
+                      Kích thước {selectedStyle === 'a4_giasoc' ? '210 x 297 mm (A4 Đứng)' : '148.5 x 210 mm (A5 Đứng)'}
+                    </p>
+                  </div>
+                ) : (
+                  layouts.map(layout => (
+                    <div 
+                      key={layout.id}
+                      onClick={() => setSelectedLayout(layout.id)}
+                      className={`p-5 rounded-xl border-2 cursor-pointer transition-all ${selectedLayout === layout.id ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-200'}`}
+                    >
+                      <h4 className="text-lg font-bold text-slate-800 mb-1">{layout.title}</h4>
+                      <p className="text-sm text-slate-500">{layout.desc}</p>
+                    </div>
+                  ))
+                )
               )}
             </div>
           </div>
 
           {/* Additional Options */}
-          <div>
-            <h3 className="text-sm font-bold text-slate-600 mb-4 uppercase tracking-wider">3. TÙY CHỌN KHÁC</h3>
-            <label className="flex items-center p-4 rounded-xl border-2 border-slate-200 hover:border-indigo-200 cursor-pointer transition-all">
-              <input 
-                type="checkbox" 
-                checked={showPromoLabel} 
-                onChange={(e) => setShowPromoLabel(e.target.checked)}
-                className="w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
-              />
-              <span className="ml-3 font-medium text-slate-800">Hiển thị nhãn "SẢN PHẨM GIÁ SỐC - EVENT T7 & CN"</span>
-            </label>
-          </div>
+          {!(isCe || isLk) && (
+            <div>
+              <h3 className="text-sm font-bold text-slate-600 mb-4 uppercase tracking-wider">3. TÙY CHỌN KHÁC</h3>
+              <label className="flex items-center p-4 rounded-xl border-2 border-slate-200 hover:border-indigo-200 cursor-pointer transition-all">
+                <input 
+                  type="checkbox" 
+                  checked={showPromoLabel} 
+                  onChange={(e) => setShowPromoLabel(e.target.checked)}
+                  className="w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                />
+                <span className="ml-3 font-medium text-slate-800">Hiển thị nhãn "SẢN PHẨM GIÁ SỐC - EVENT T7 & CN"</span>
+              </label>
+            </div>
+          )}
         </div>
 
         <div className="p-6 border-t border-slate-100 flex justify-end gap-3">
@@ -144,7 +128,7 @@ export default function PrintLayoutModal({ isOpen, onClose, onConfirm }: PrintLa
           <button 
             onClick={() => {
               const finalLayout = (selectedStyle === 'display' || selectedStyle === 'giovang' || selectedStyle === 'a4_giasoc') ? '1' : selectedLayout;
-              onConfirm(selectedStyle, finalLayout, showPromoLabel);
+              onConfirm(selectedStyle, finalLayout, (isCe || isLk) ? false : showPromoLabel);
             }}
             className="px-6 py-2.5 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
           >

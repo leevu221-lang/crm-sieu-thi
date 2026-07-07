@@ -259,7 +259,7 @@ export default function PhanCaTuanTable() {
       });
       const link = document.createElement('a');
       link.href = dataUrl;
-      link.download = `Phan_Ca_Tuan_${format(currentWeekStart, 'dd-MM-yyyy')}.png`;
+      link.download = 'PHAN_CA_TUAN.png';
       link.click();
       setSaveMessage({ type: 'success', text: 'Đã xuất ảnh bảng phân ca!' });
     } catch (err) {}
@@ -275,7 +275,7 @@ export default function PhanCaTuanTable() {
       });
       const link = document.createElement('a');
       link.href = dataUrl;
-      link.download = `Tom_Tat_HC_Tuan_${format(new Date(), 'dd-MM-yyyy')}.png`;
+      link.download = 'TOM_TAT_NHAN_VIEN_DI_CA_HANH_CHINH_TUAN.png';
       link.click();
       setSaveMessage({ type: 'success', text: 'Đã xuất ảnh tóm tắt ca hành chính!' });
     } catch (err) {}

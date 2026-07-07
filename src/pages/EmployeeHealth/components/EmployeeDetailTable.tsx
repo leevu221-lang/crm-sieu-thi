@@ -58,6 +58,7 @@ interface EmployeeDetailTableProps {
   staffDtqd?: number;
   staffPercentHT?: number;
   staffBonusHientai?: number | null;
+  staffInstallmentPercent?: number | null;
 }
 
 // Parse all staff matrix data (same as before - one unified parse)
@@ -67,9 +68,13 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
   const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
   // 1. Quét tên các ngành hàng có trong dữ liệu dán (thiDuaNv) - dùng để mapping cột
-  let inputCategories: string[] = [];
+  // CRITICAL: Track ALL column positions including filtered ones, so data column indices stay aligned.
+  let inputCategories: string[] = [];           // Filtered list for display
+  let allColumnHeaders: string[] = [];          // ALL headers including filtered, to maintain column position
+  const categoryToColIdx: Map<string, number> = new Map(); // cleanName → original column index
   let headerStartIdx = -1;
   let dataStartIdx = -1;
+  let colPosition = 0; // Tracks the original column position
 
   for (let i = 0; i < lines.length; i++) {
     if (lines[i] === 'Phòng ban') {
@@ -89,7 +94,6 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       const isOnlyNumbers = /^[\d\s,.-]+$/.test(catName);
       const lowerCatName = catName.toLowerCase();
       const isExcluded = [
-        'tổng', 'tong',
         'bp all in one',
         'bp trưởng ca', 'bp truong ca',
         'hỗ trợ bi', 'ho tro bi',
@@ -102,9 +106,15 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
         'khối kinh doanh', 'khoi kinh doanh',
         'logo bi',
         'avatar'
-      ].some(ex => lowerCatName.includes(ex));
+      ].some(ex => lowerCatName.includes(ex)) ||
+      ((lowerCatName.includes('tổng') || lowerCatName.includes('tong')) && cleanCategoryName(catName) !== 'simtong');
+
+      // Always track this column position regardless of filtering
+      allColumnHeaders.push(catName);
 
       if (isColumnTypesLine || isOnlyNumbers || isExcluded) {
+        // This header is filtered but its data column still exists
+        colPosition++;
         continue;
       }
 
@@ -112,7 +122,15 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       if (targetMatch) {
         catName = targetMatch[1].trim();
       }
+      
+      // Map this category name to its ORIGINAL column position
+      const cleanName = cleanCategoryName(catName);
+      if (!categoryToColIdx.has(cleanName)) {
+        categoryToColIdx.set(cleanName, colPosition);
+      }
+      
       inputCategories.push(catName);
+      colPosition++;
     }
   }
 
@@ -151,7 +169,14 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
   }
 
   for (const line of dataLines) {
-    const parts = line.split(/\t|\s{2,}/).map(p => p.trim()).filter(p => p.length > 0);
+    // Split by tab ONLY and preserve empty columns to maintain alignment with category headers.
+    let parts = line.split('\t').map(p => p.trim());
+    
+    // Fallback: if no tabs found (single column), try splitting by multiple spaces
+    if (parts.length < 3) {
+      parts = line.split(/ {2,}/).map(p => p.trim()).filter(p => p.length > 0);
+    }
+    
     const namePart = parts[0];
     
     if (!namePart) continue;
@@ -167,6 +192,7 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
     const dataStartIndex = 1;
     
     const rawInputValues = parts.slice(dataStartIndex).map(v => {
+      if (!v || v.trim() === '') return 0; // Preserve empty columns as 0
       const clean = v.replace(/,/g, '');
       const num = parseFloat(clean);
       return isNaN(num) ? 0 : num;
@@ -177,12 +203,13 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
     let achieved = 0;
 
     displayCategories.forEach((catName) => {
-      // Tìm index của ngành hàng này trong inputCategories của dữ liệu dán
-      const inputIdx = inputCategories.findIndex(ic => cleanCategoryName(ic) === cleanCategoryName(catName));
-      const val = inputIdx !== -1 ? (rawInputValues[inputIdx] || 0) : 0;
+      // Use the ORIGINAL column position from categoryToColIdx instead of filtered index
+      const cleanName = cleanCategoryName(catName);
+      const colIdx = categoryToColIdx.get(cleanName);
+      const val = (colIdx !== undefined && colIdx < rawInputValues.length) ? (rawInputValues[colIdx] || 0) : 0;
       values.push(val);
 
-      const target = targetPerStaffPerCat[cleanCategoryName(catName)] || 0;
+      const target = targetPerStaffPerCat[cleanName] || 0;
       let projectedRate = 0;
       if (target > 0 && daysPassed > 0) {
         projectedRate = ((val / daysPassed) * totalDays) / target * 100;
@@ -219,7 +246,7 @@ const SectionTable: React.FC<{
   const reachedCount = rowData.filter(r => r.percentHT >= 100).length;
 
   return (
-    <div className="overflow-visible">
+    <div className="overflow-x-auto">
       {/* Section header */}
       <div className="flex items-center justify-between border-b border-slate-300 bg-slate-700 px-3 h-[32px]">
         <span className={cn("text-[13px] font-utm-avo font-black uppercase tracking-widest", titleColor)}>{title}</span>
@@ -244,36 +271,38 @@ const SectionTable: React.FC<{
               key={row.name}
               className="hover:bg-slate-50 transition-colors h-[34px]"
             >
-              <td className="px-2 py-0 text-[12px] font-utm-avo font-bold text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">
+              <td className="px-2 py-0 text-[12px] font-utm-avo font-black text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">
                 {index + 1}
               </td>
               <td className={cn(
-                "px-2 py-0 text-[12px] font-utm-avo font-bold uppercase border-r border-b border-slate-300",
+                "px-2 py-0 text-[12px] font-utm-avo font-black uppercase border-r border-b border-slate-300",
                 row.percentHT < 100 ? "text-rose-600" : "text-black"
               )}>
                 {row.name}
               </td>
-              <td className="px-2 py-0 text-[12px] font-utm-avo font-bold text-center border-r border-b border-slate-300 text-slate-800">
+              <td className="px-2 py-0 text-[12px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-slate-800">
                 {row.target.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
               </td>
-              <td className="px-2 py-0 text-[12px] font-utm-avo font-bold text-center border-r border-b border-slate-300 text-emerald-700">
+              <td className="px-2 py-0 text-[12px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-emerald-700">
                 {row.accumulated.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </td>
               <td className={cn(
-                "px-2 py-0 text-[12px] font-utm-avo font-bold text-center border-r border-b border-slate-300",
+                "px-2 py-0 text-[12px] font-utm-avo font-black text-center border-r border-b border-slate-300",
                 row.percentHT >= 100 ? "text-emerald-600" : row.percentHT >= 50 ? "text-amber-600" : "text-rose-600"
               )}>
                 {row.percentHT.toFixed(0)}%
               </td>
               <td className={cn(
-                "px-2 py-0 text-[12px] font-utm-avo font-bold text-center border-r border-b border-slate-300 flex items-center justify-center h-[34px]",
+                "px-2 py-0 text-[12px] font-utm-avo font-black text-center border-r border-b border-slate-300",
                 row.remainingVal > 0 ? "text-emerald-600" : "text-rose-600 font-black"
               )}>
-                {row.remainingVal > 0 ? (
-                  <Check size={13} strokeWidth={4} />
-                ) : (
-                  Math.abs(row.remainingVal).toLocaleString('vi-VN', { maximumFractionDigits: 1 })
-                )}
+                <div className="flex items-center justify-center h-[34px] w-full">
+                  {row.remainingVal > 0 ? (
+                    <Check size={13} strokeWidth={4} />
+                  ) : (
+                    Math.abs(row.remainingVal).toLocaleString('vi-VN', { maximumFractionDigits: 1 })
+                  )}
+                </div>
               </td>
             </tr>
           ))}
@@ -295,7 +324,8 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
   staffTargetQd = 0,
   staffDtqd = 0,
   staffPercentHT = 0,
-  staffBonusHientai = null
+  staffBonusHientai = null,
+  staffInstallmentPercent = null
 }) => {
   // Parse staff matrix using original unified parser
   const { results: staffMatrix, categories: detailCategories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays);
@@ -324,33 +354,33 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
   });
 
   // Prepare all row data
-  const allRowData = detailCategories.map((catName, index) => {
-    let target = 0;
-    const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCategoryName(catName));
-    if (luykeCategories && luykeCategories.length > 0) {
-      const lkCat = luykeCategories.find((c: any) => cleanCategoryName(c.name) === cleanCategoryName(catName));
-      const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
-        ? matchingTarget.adjustedTarget
-        : (lkCat ? lkCat.target : 0);
-      target = baseTarget / staffCount;
-    } else {
-      const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
-        ? matchingTarget.adjustedTarget
-        : 0;
-      target = baseTarget / staffCount;
-    }
+  const categoriesToMap = (luykeCategories && luykeCategories.length > 0)
+    ? luykeCategories
+    : detailCategories.map(name => ({ name, type: catTypeLookup[cleanCategoryName(name)] || 'ALL', target: 0 }));
+
+  const allRowData = categoriesToMap.map((cat: any) => {
+    const cleanCatName = cleanCategoryName(cat.name);
     
-    // Giá trị thực đạt đã được khớp đúng vị trí cột từ parseStaffMatrixDataRefined
-    const accumulated = staffData.rawValues[index] || 0;
+    // Find target
+    let target = 0;
+    const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCatName);
+    const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
+      ? matchingTarget.adjustedTarget
+      : (cat.target || 0);
+    target = baseTarget / staffCount;
+    
+    // Find accumulated value from staff data
+    const detailIdx = detailCategories.findIndex(dc => cleanCategoryName(dc) === cleanCatName);
+    const accumulated = detailIdx !== -1 ? (staffData.rawValues[detailIdx] || 0) : 0;
 
     const percentHT = (target > 0 && daysPassed > 0) 
       ? (((accumulated / daysPassed) * totalDays) / target) * 100 
       : 0;
     const remainingVal = accumulated - target;
-    const catType = catTypeLookup[cleanCategoryName(catName)] || 'ALL';
+    const catType = cat.type || 'ALL';
     
     return {
-      name: catName,
+      name: cat.name,
       target,
       accumulated,
       percentHT,
@@ -426,7 +456,7 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
 
       {/* Revenue Dashboard */}
       {(staffTargetQd > 0 || staffDtqd > 0) && (
-        <div className="grid grid-cols-4 border-b border-slate-300">
+        <div className="grid grid-cols-5 border-b border-slate-300">
           <div className="p-3 flex flex-col items-center justify-center border-r border-slate-300 bg-white">
             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">TARGET QĐ</span>
             <span className="text-[27px] font-utm-avo font-black text-blue-900">
@@ -449,12 +479,24 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
               {Math.round(staffPercentHT)}%
             </span>
           </div>
+          <div className="p-3 flex flex-col items-center justify-center border-r border-slate-300 bg-white">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">TRẢ CHẬM</span>
+            <span className={cn("text-[27px] font-utm-avo font-black", (staffInstallmentPercent !== null && staffInstallmentPercent !== undefined) ? "text-emerald-600" : "text-slate-300")}>
+              {(staffInstallmentPercent !== null && staffInstallmentPercent !== undefined)
+                ? `${staffInstallmentPercent.toFixed(1)}%`
+                : '-'}
+            </span>
+          </div>
           <div className="p-3 flex flex-col items-center justify-center bg-white">
             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">THƯỞNG</span>
             <span className={cn("text-[27px] font-utm-avo font-black", (staffBonusHientai !== null && staffBonusHientai !== undefined) ? "text-rose-600" : "text-slate-300")}>
-              {(staffBonusHientai !== null && staffBonusHientai !== undefined)
-                ? staffBonusHientai.toLocaleString('vi-VN')
-                : '-'}
+              {(() => {
+                if (staffBonusHientai === null || staffBonusHientai === undefined) return '-';
+                if (staffBonusHientai === 0) return '0';
+                const millions = staffBonusHientai / 1000000;
+                const rounded = Math.round(millions * 10) / 10;
+                return `${rounded.toString().replace('.', ',')}tr`;
+              })()}
             </span>
           </div>
         </div>

@@ -51,6 +51,17 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
   const cachedStoreKey = currentStoreId ? Object.keys(globalAllStoreTargets).find(k => normalize(k) === normalize(currentStoreId)) : null;
   const cachedStore = cachedStoreKey ? globalAllStoreTargets[cachedStoreKey] : {};
 
+  const [drillFilterStaff, setDrillFilterStaff] = useState<string[]>(() => {
+    if (cachedStore.drillFilterStaff !== undefined) return cachedStore.drillFilterStaff;
+    const saved = localStorage.getItem('BI_REAL_DRILL_FILTER_STAFF_V1');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [categoryMappingInput, setCategoryMappingInput] = useState(() => {
+    if (cachedStore.categoryMappingInput !== undefined) return cachedStore.categoryMappingInput;
+    return getStoreItem('ST_CATEGORY_MAPPING_INPUT_V1', currentStoreId) || '';
+  });
+
   const [stName, setStName] = useState(() => cachedStore.stName || getStoreItem('ST_NAME_V1', currentStoreId) || '');
   const [stDtlk, setStDtlk] = useState(() => cachedStore.stDtlk !== undefined ? cachedStore.stDtlk : (Number(getStoreItem('ST_DTLK_V1', currentStoreId)) || 0));
   const [stDtqd, setStDtqd] = useState(() => cachedStore.stDtqd !== undefined ? cachedStore.stDtqd : (Number(getStoreItem('ST_DTQD_V1', currentStoreId)) || 0));
@@ -63,6 +74,21 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     return saved !== null ? Number(saved) : 100;
   });
   const [stTargetSauHeSo, setStTargetSauHeSo] = useState(() => cachedStore.stTargetSauHeSo !== undefined ? cachedStore.stTargetSauHeSo : (Number(getStoreItem('ST_TARGET_SAU_HE_SO_V1', currentStoreId)) || 0));
+  const [excelFileName, setExcelFileName] = useState(() => cachedStore.excelFileName || getStoreItem('ST_EXCEL_FILE_NAME_V1', currentStoreId) || '');
+  const [thuongStRows, setThuongStRows] = useState<any[]>(() => {
+    if (cachedStore.thuongStRows !== undefined) return cachedStore.thuongStRows;
+    try {
+      const saved = getStoreItem('ST_THUONG_ST_ROWS_V1', currentStoreId);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [topPercentRankLimit, setTopPercentRankLimit] = useState<number>(() => {
+    if (cachedStore.topPercentRankLimit !== undefined) return cachedStore.topPercentRankLimit;
+    const saved = getStoreItem('ST_TOP_PERCENT_LIMIT_V1', currentStoreId);
+    return saved !== null ? Number(saved) : 7;
+  });
   const [allStoreTargets, setAllStoreTargets] = useState<Record<string, any>>(() => globalAllStoreTargets);
 
   const updateAllStoreTargets = useCallback((updater: any) => {
@@ -130,6 +156,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
               const normUpdate = normalize(storeName);
               
               if (normUpdate && normActive && (normUpdate === normActive || normUpdate.includes(normActive) || normActive.includes(normUpdate))) {
+                if (settings.categoryMappingInput !== undefined) setCategoryMappingInput((prev: string) => prev !== settings.categoryMappingInput ? settings.categoryMappingInput : prev);
                 if (settings.stName) setStName((prev: string) => prev !== settings.stName ? settings.stName : prev);
                 if (settings.stTargetSauHeSo !== undefined) setStTargetSauHeSo((prev: number) => prev !== settings.stTargetSauHeSo ? settings.stTargetSauHeSo : prev);
                 if (settings.stTargetQuyDoi !== undefined) setStTargetQuyDoi((prev: number) => prev !== settings.stTargetQuyDoi ? settings.stTargetQuyDoi : prev);
@@ -205,8 +232,10 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       safeSetItem('BI_REAL_EXCLUDED_V1', JSON.stringify(excludedStaffIds));
       safeSetItem('BI_REAL_STORE_SETTINGS_V1', JSON.stringify(storeSettings));
       safeSetItem('BI_REAL_STAFF_LIST_FILE_V1', staffListFileName);
+      safeSetItem('BI_REAL_DRILL_FILTER_STAFF_V1', JSON.stringify(drillFilterStaff));
       // Per-store keys — prefixed with currentStoreId
       if (storeId && storeId !== 'ALL') {
+        setStoreItem('ST_CATEGORY_MAPPING_INPUT_V1', storeId, categoryMappingInput);
         setStoreItem('ST_NAME_V1', storeId, stName);
         setStoreItem('ST_DTLK_V1', storeId, stDtlk.toString());
         setStoreItem('ST_DTQD_V1', storeId, stDtqd.toString());
@@ -218,7 +247,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       }
     }, 300); // Batch all localStorage writes with 300ms debounce
     return () => { if (localStorageTimerRef.current) clearTimeout(localStorageTimerRef.current); };
-  }, [manualAdjustment, ycxFileName, linkBcTongHop, linkNganhHangTongHop, selectedMonth, daysPassed, totalDays, excludedStaffIds, storeSettings, staffListFileName, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, currentStoreId]);
+  }, [manualAdjustment, ycxFileName, linkBcTongHop, linkNganhHangTongHop, selectedMonth, daysPassed, totalDays, excludedStaffIds, storeSettings, staffListFileName, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, drillFilterStaff, currentStoreId]);
 
 
 
@@ -273,6 +302,11 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         staffListFileName,
         excludedStaffIds,
         storeSettings,
+        excelFileName,
+        thuongStRows,
+        topPercentRankLimit,
+        drillFilterStaff,
+        categoryMappingInput,
         updated_at: new Date().toISOString()
       };
 
@@ -308,7 +342,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     } finally {
       setIsSavingStoreRevenue(false);
     }
-  }, [stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, ycxFileName, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, showNotification]);
+  }, [stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, ycxFileName, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, drillFilterStaff, showNotification]);
 
   const loadStoreRevenue = useCallback(async (maKho: string, storeName?: string) => {
     if (!maKho) return;
@@ -330,32 +364,42 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     console.log('[useRTSTSharedData] Loading shared settings for warehouse:', cleanMaKho);
     try {
       const targetStore = storeName || stName || cleanMaKho;
-      const { data: record, error } = await supabase
+      const maKhoNum = parseInt(cleanMaKho, 10);
+      let query = supabase
         .from('store')
-        .select('taget_doanh_thu, ten_sieu_thi, warehouse_code, updated_at')
-        .eq('id', normalizeStoreId(targetStore.trim()))
-        .maybeSingle();
+        .select('id, taget_doanh_thu, ten_sieu_thi, warehouse_code, updated_at');
+      
+      if (!isNaN(maKhoNum)) {
+        query = query.or(`warehouse_code.eq.${cleanMaKho},warehouse_code.eq.${maKhoNum}`);
+      } else {
+        query = query.eq('warehouse_code', cleanMaKho);
+      }
+      
+      const { data: records, error } = await query;
 
       if (error) throw error;
       
-      if (record) {
+      if (records && records.length > 0) {
         // Map all store targets
         const targetMap: Record<string, any> = {};
-        if (record.ten_sieu_thi && record.taget_doanh_thu) {
-          targetMap[record.ten_sieu_thi.toUpperCase()] = {
-            ...record.taget_doanh_thu,
-            warehouse_code: record.warehouse_code
-          };
-        }
+        records.forEach((r: any) => {
+          if (r.ten_sieu_thi && r.taget_doanh_thu) {
+            targetMap[r.ten_sieu_thi.toUpperCase()] = {
+              ...r.taget_doanh_thu,
+              warehouse_code: r.warehouse_code
+            };
+          }
+        });
         updateAllStoreTargets(targetMap);
 
         // Find the specific store settings for top-level state
-        const settings = record.taget_doanh_thu;
+        const activeRecord = records.find((r: any) => r.id === normalizeStoreId(targetStore.trim())) || records[0];
+        const settings = activeRecord?.taget_doanh_thu;
 
         if (settings) {
-          console.log('[useRTSTSharedData] ✓ Found settings in DB for', record.ten_sieu_thi);
+          console.log('[useRTSTSharedData] ✓ Found settings in DB for', activeRecord.ten_sieu_thi);
           if (settings.stName) setStName(settings.stName);
-          else if (record.ten_sieu_thi) setStName(record.ten_sieu_thi);
+          else if (activeRecord.ten_sieu_thi) setStName(activeRecord.ten_sieu_thi);
           
           if (settings.stDtlk !== undefined) setStDtlk(settings.stDtlk);
           if (settings.stDtqd !== undefined) setStDtqd(settings.stDtqd);
@@ -374,9 +418,16 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           if (settings.staffListFileName) setStaffListFileName(settings.staffListFileName);
           if (settings.excludedStaffIds) setExcludedStaffIds(settings.excludedStaffIds);
           if (settings.storeSettings) setStoreSettings(settings.storeSettings);
+          if (settings.drillFilterStaff !== undefined) setDrillFilterStaff(settings.drillFilterStaff || []);
+          if (settings.categoryMappingInput !== undefined) setCategoryMappingInput(settings.categoryMappingInput || '');
+          else setCategoryMappingInput('');
+          
+          if (settings.excelFileName !== undefined) setExcelFileName(settings.excelFileName || '');
+          if (settings.thuongStRows !== undefined) setThuongStRows(settings.thuongStRows || []);
+          if (settings.topPercentRankLimit !== undefined) setTopPercentRankLimit(settings.topPercentRankLimit);
         } else {
           // STRICT ISOLATION: Do NOT fallback to another store's data if no match is found
-          console.log('[useRTSTSharedData] ✗ No settings found for', record.ten_sieu_thi, '- Enforcing strict isolation (clearing values)');
+          console.log('[useRTSTSharedData] ✗ No settings found for', activeRecord.ten_sieu_thi, '- Enforcing strict isolation (clearing values)');
           setStDtlk(0);
           setStDtqd(0);
           setStDtDuKienQD(0);
@@ -385,6 +436,11 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           setStPercentTarget(100);
           setStTargetSauHeSo(0);
           setManualAdjustment(0);
+          setExcelFileName('');
+          setThuongStRows([]);
+          setTopPercentRankLimit(7);
+          setDrillFilterStaff([]);
+          setCategoryMappingInput('');
         }
       } else {
         console.log('[useRTSTSharedData] No settings found in DB for warehouse', cleanMaKho);
@@ -396,6 +452,11 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         setStPercentTarget(100);
         setStTargetSauHeSo(0);
         setManualAdjustment(0);
+        setExcelFileName('');
+        setThuongStRows([]);
+        setTopPercentRankLimit(7);
+        setDrillFilterStaff([]);
+        setCategoryMappingInput('');
       }
       hasLoadedFromDB.current = true;
     } catch (error) {
@@ -458,7 +519,12 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         existing.stPercentHTTargetDuKienQD === stPercentHTTargetDuKienQD &&
         existing.stTargetQuyDoi === stTargetQuyDoi &&
         existing.stPercentTarget === stPercentTarget &&
-        existing.stTargetSauHeSo === stTargetSauHeSo
+        existing.stTargetSauHeSo === stTargetSauHeSo &&
+        existing.excelFileName === excelFileName &&
+        existing.thuongStRows === thuongStRows &&
+        existing.topPercentRankLimit === topPercentRankLimit &&
+        existing.categoryMappingInput === categoryMappingInput &&
+        JSON.stringify(existing.drillFilterStaff) === JSON.stringify(drillFilterStaff)
       ) {
         return prev;
       }
@@ -468,13 +534,16 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         [storeKey]: {
           ...existing,
           stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD,
-          stTargetQuyDoi, stPercentTarget, stTargetSauHeSo
+          stTargetQuyDoi, stPercentTarget, stTargetSauHeSo,
+          excelFileName, thuongStRows, topPercentRankLimit,
+          drillFilterStaff, categoryMappingInput
         }
       };
     });
   }, [
     stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, 
-    stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, currentStoreId, updateAllStoreTargets
+    stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, excelFileName, 
+    thuongStRows, topPercentRankLimit, drillFilterStaff, currentStoreId, updateAllStoreTargets
   ]);
 
   // AUTO-REACT: When global currentStoreId changes, reload per-store settings from DB
@@ -502,6 +571,11 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     setStTargetQuyDoi(cached?.stTargetQuyDoi ?? 0);
     setStPercentTarget(cached?.stPercentTarget ?? 100);
     setStTargetSauHeSo(cached?.stTargetSauHeSo ?? 0);
+    setExcelFileName(cached?.excelFileName || '');
+    setThuongStRows(cached?.thuongStRows || []);
+    setTopPercentRankLimit(cached?.topPercentRankLimit ?? 7);
+    setDrillFilterStaff(cached?.drillFilterStaff || []);
+    setCategoryMappingInput(cached?.categoryMappingInput || '');
     
     // Reload from DB for the new store (sets hasLoadedFromDB = true on completion)
     loadStoreRevenue(maKho, currentStoreId);
@@ -531,9 +605,10 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     }, 4000); // 4s debounce
 
     return () => clearTimeout(timeoutId);
-  }, [maKho, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, ycxFileName, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, isStoreReady]);
+  }, [maKho, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, ycxFileName, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, drillFilterStaff, categoryMappingInput, isStoreReady]);
 
   return {
+    categoryMappingInput, setCategoryMappingInput,
     manualAdjustment, setManualAdjustment,
     ycxFileName, setYcxFileName,
     linkBcTongHop, setLinkBcTongHop,
@@ -552,6 +627,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     stTargetQuyDoi, setStTargetQuyDoi,
     stPercentTarget, setStPercentTarget,
     stTargetSauHeSo, setStTargetSauHeSo,
+    drillFilterStaff, setDrillFilterStaff,
     allStoreTargets,
     updateStoreSettings: useCallback(async (storeName: string, settings: any) => {
       if (!maKho) return;
@@ -618,6 +694,100 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         console.error('Error updating store settings:', error);
       }
     }, [maKho, stName, stPercentTarget, stTargetQuyDoi]),
+    saveExcelThuongStData: useCallback(async (parsedRows: any[], fileName: string, detectedLimit: number, clusterStoreNames: string[]) => {
+      if (!maKho) return;
+      const cleanMaKho = maKho.trim();
+      const shortMaKho = cleanMaKho.replace(/^0+/, '');
+
+      const storesToProcess = clusterStoreNames && clusterStoreNames.length > 0
+        ? clusterStoreNames
+        : [stName || currentStoreId].filter(Boolean);
+
+      try {
+        const storeIds = storesToProcess.map(name => normalizeStoreId(name));
+        const { data: existingRecords, error: fetchError } = await supabase
+          .from('store')
+          .select('*')
+          .in('id', storeIds);
+
+        if (fetchError) throw fetchError;
+
+        const payloads: any[] = [];
+        const updatedCache: Record<string, any> = {};
+
+        for (const storeName of storesToProcess) {
+          const normalizedStoreName = storeName.toUpperCase();
+          const existingRecord = existingRecords?.find((r: any) => r.id === normalizeStoreId(storeName));
+          
+          const storeRows = fileName
+            ? parsedRows.filter(row => {
+                if (!row.storeName) return false;
+                const normRowStore = normalize(row.storeName);
+                const normStoreName = normalize(storeName);
+                return normRowStore === normStoreName || normRowStore.includes(normStoreName) || normStoreName.includes(normRowStore);
+              })
+            : [];
+
+          const existingTargetData = existingRecord?.taget_doanh_thu || {};
+          const newTargetData = {
+            ...existingTargetData,
+            excelFileName: fileName,
+            thuongStRows: storeRows,
+            topPercentRankLimit: detectedLimit,
+            updated_at: new Date().toISOString()
+          };
+
+          updatedCache[normalizedStoreName] = newTargetData;
+
+          payloads.push({
+            ...(existingRecord || {}),
+            id: normalizeStoreId(storeName),
+            warehouse_code: shortMaKho,
+            ten_sieu_thi: storeName,
+            taget_doanh_thu: newTargetData,
+            updated_at: new Date().toISOString()
+          });
+        }
+
+        const { error: upsertError } = await supabase
+          .from('store')
+          .upsert(payloads, { onConflict: 'id' });
+
+        if (upsertError) throw upsertError;
+
+        // Update local states for the active store immediately
+        const activeNormalized = (stName || currentStoreId || '').toUpperCase();
+        if (updatedCache[activeNormalized]) {
+          const activeData = updatedCache[activeNormalized];
+          setExcelFileName(activeData.excelFileName || '');
+          setThuongStRows(activeData.thuongStRows || []);
+          setTopPercentRankLimit(activeData.topPercentRankLimit ?? 7);
+        } else {
+          setExcelFileName(fileName);
+          setThuongStRows([]);
+          setTopPercentRankLimit(detectedLimit);
+        }
+
+        updateAllStoreTargets((prev: any) => ({
+          ...prev,
+          ...updatedCache
+        }));
+
+        showNotification(
+          fileName ? 'Tải lên và đồng bộ dữ liệu thi đua thành công!' : 'Đã xóa dữ liệu thi đua thành công!',
+          'success'
+        );
+      } catch (err: any) {
+        console.error('Lỗi lưu dữ liệu thi đua:', err);
+        showNotification('Lỗi lưu dữ liệu thi đua: ' + err.message, 'error');
+      }
+    }, [maKho, stName, currentStoreId, updateAllStoreTargets, showNotification]),
+    excelFileName,
+    setExcelFileName,
+    thuongStRows,
+    setThuongStRows,
+    topPercentRankLimit,
+    setTopPercentRankLimit,
     isSavingStoreRevenue,
     isLoadingStoreRevenue,
     saveStoreRevenue,

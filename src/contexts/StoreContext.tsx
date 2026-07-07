@@ -180,7 +180,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           table: 'store',
           filter: `warehouse_code=eq.${cleanMaKho}`
         },
-        (payload) => {
+        (payload: any) => {
           const { eventType, new: newRow } = payload;
           if (eventType === 'INSERT' || eventType === 'DELETE') {
             console.log('[StoreContext] Real-time structural change (INSERT/DELETE), refetching...');

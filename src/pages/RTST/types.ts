@@ -15,7 +15,13 @@ export const STORAGE_KEYS = {
   CLUSTER_CATEGORY_INPUT: 'rtst_cluster_category_input',
   CATEGORY_REVENUE_INPUT: 'rtst_category_revenue_input',
   STICKER_INVENTORY_DATA: 'rtst_sticker_inventory_data',
-  STICKER_PRICE_DATA: 'rtst_sticker_price_data'
+  STICKER_PRICE_DATA: 'rtst_sticker_price_data',
+  STICKER_CE_INVENTORY_DATA: 'rtst_sticker_ce_inventory_data',
+  STICKER_CE_PRICE_DATA: 'rtst_sticker_ce_price_data',
+  STICKER_LK_INVENTORY_DATA: 'rtst_sticker_lk_inventory_data',
+  STICKER_LK_PRICE_DATA: 'rtst_sticker_lk_price_data',
+  STICKER_ADDRESS_DATA: 'rtst_sticker_address_data',
+  STICKER_PHIEU_BH_DATA: 'rtst_sticker_phieu_bh_data'
 };
 
 export interface MarketData {

@@ -53,9 +53,9 @@ export default function UserManagement({ onBack }: UserManagementProps) {
 
       if (error) throw error;
       
-      const permMap = new Map((permData || []).map(p => [p.user_id, p.allowed_pages]));
+      const permMap = new Map((permData || []).map((p: any) => [p.user_id, p.allowed_pages]));
 
-      const mappedUsers = (data || []).map(u => ({
+      const mappedUsers = (data || []).map((u: any) => ({
         username: u.username,
         ma_kho: u.storeCode,
         password: u.password,
@@ -80,18 +80,29 @@ export default function UserManagement({ onBack }: UserManagementProps) {
     e.preventDefault();
     if (!isEditing) return;
 
+    if (isNewUser && (!isEditing.password || isEditing.password.trim() === '')) {
+      setError('Vui lòng nhập mật khẩu cho người dùng mới.');
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
     try {
       if (!isNewUser) {
         // Update existing user
+        const updateData: any = {
+          storeCode: isEditing.ma_kho
+        };
+        
+        // Only include password in update if the admin actually typed a new one
+        if (isEditing.password && isEditing.password.trim() !== '') {
+          updateData.password = isEditing.password;
+        }
+
         const { error } = await supabase
           .from('ql_nguoi_dung')
-          .update({
-            storeCode: isEditing.ma_kho,
-            password: isEditing.password
-          })
+          .update(updateData)
           .eq('username', isEditing.username);
 
         if (error) throw error;
@@ -106,7 +117,15 @@ export default function UserManagement({ onBack }: UserManagementProps) {
         
         if (permError) throw permError;
         
-        setUsers(users.map(u => u.username === isEditing.username ? isEditing : u));
+        // Preserve old password if not changed
+        const updatedUser = {
+          ...isEditing,
+          password: (isEditing.password && isEditing.password.trim() !== '')
+            ? isEditing.password
+            : (users.find(u => u.username === isEditing.username)?.password || '')
+        };
+
+        setUsers(users.map(u => u.username === isEditing.username ? updatedUser : u));
       } else {
         // Create new user
         const newUser = {
@@ -281,11 +300,13 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                       ) : (
                         <div className="flex flex-wrap gap-1">
                           {[
-                            { id: 'realtime', label: 'BC Ngày', color: 'bg-indigo-100 text-indigo-700' },
+                            { id: 'realtime', label: 'BC NGÀY', color: 'bg-indigo-100 text-indigo-700' },
                             { id: 'luyke', label: 'BC Tháng', color: 'bg-blue-100 text-blue-700' },
                             { id: 'khaibao', label: 'Khai Báo', color: 'bg-violet-100 text-violet-700' },
                             { id: 'health', label: 'Sức Khoẻ', color: 'bg-rose-100 text-rose-700' },
                             { id: 'toolhotro', label: 'Tool HT', color: 'bg-amber-100 text-amber-700' },
+                            { id: 'tnb_data', label: 'TNB DATA', color: 'bg-emerald-100 text-emerald-700' },
+                            { id: 'birthday', label: 'Sinh Nhật', color: 'bg-pink-100 text-pink-700' },
                           ].filter(p => user.userPermissions?.allowedPages?.includes(p.id)).map(p => (
                             <span key={p.id} className={`px-2.5 py-1 rounded-full text-xs font-bold ${p.color}`}>{p.label}</span>
                           ))}
@@ -411,19 +432,19 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                   </div>
                 </div>
 
-                {isNewUser && (
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Mật khẩu</label>
-                    <input
-                      type="password"
-                      required
-                      value={isEditing.password || ''}
-                      onChange={(e) => setIsEditing({ ...isEditing, password: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
-                      placeholder="Nhập mật khẩu"
-                    />
-                  </div>
-                )}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                    Mật khẩu {!isNewUser && '(Bỏ trống nếu giữ nguyên)'}
+                  </label>
+                  <input
+                    type="password"
+                    required={isNewUser}
+                    value={isEditing.password || ''}
+                    onChange={(e) => setIsEditing({ ...isEditing, password: e.target.value })}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
+                    placeholder={isNewUser ? "Nhập mật khẩu" : "Nhập mật khẩu mới nếu muốn đổi..."}
+                  />
+                </div>
 
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Vai trò</label>
@@ -462,6 +483,8 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                       { id: 'khaibao', label: 'Khai Báo', color: 'bg-indigo-500' },
                       { id: 'health', label: 'Sức khoẻ nhân viên', color: 'bg-rose-500' },
                       { id: 'toolhotro', label: 'Tool Hỗ Trợ', color: 'bg-amber-500' },
+                      { id: 'tnb_data', label: 'TNB DATA', color: 'bg-emerald-500' },
+                      { id: 'birthday', label: 'Sinh nhật NV', color: 'bg-pink-500' },
                     ].map((page) => {
                       const hasAccess = isEditing.userPermissions?.allowedPages?.includes(page.id) || false;
                       return (

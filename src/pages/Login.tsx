@@ -172,9 +172,11 @@ export default function Login() {
         </div>
       </motion.div>
       
-      <p className="mt-8 text-xs font-bold text-slate-400 uppercase tracking-widest">
-        Võ Vũ Linh Edition
-      </p>
+      <div className="mt-8 text-center text-[10px] font-bold text-slate-400">
+        <span>CRM SIÊU THỊ</span>
+        <span className="mx-2 text-slate-300">•</span>
+        <span className="font-black text-indigo-500 uppercase tracking-wider">Võ Vũ Linh Edition</span>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
-import React, { useState, Suspense, lazy, useEffect } from 'react';
-import { Database, BarChart3, Activity, HeartPulse, LogOut, User, Store, Loader2, Users, Shield, Settings, Type, Minus, Plus as PlusIcon, Monitor, Smartphone, LayoutGrid, AlertCircle, Wrench, ShieldAlert, RefreshCw, Zap, ShoppingBag, Globe } from 'lucide-react';
+import React, { useState, Suspense, lazy, useEffect, useMemo, useRef } from 'react';
+import { Database, BarChart3, Activity, HeartPulse, LogOut, User, Store, Loader2, Users, Shield, Settings, Type, Minus, Plus as PlusIcon, Monitor, Smartphone, LayoutGrid, AlertCircle, Wrench, ShieldAlert, RefreshCw, Zap, ShoppingBag, Globe, Trophy, Gift, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from './contexts/AuthContext';
 import { useSettings } from './contexts/SettingsContext';
@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import StoreDeclaration from './pages/StoreDeclaration';
 import { testSupabaseConnection } from './supabaseClient';
 import VersionUpdateNotifier from './components/VersionUpdateNotifier';
+import { birthdayService } from './services/birthdayService';
 
 // Lazy load pages for better performance
 const NewRealtimePage = lazy(() => import('./pages/RealtimePage'));
@@ -17,6 +18,9 @@ const EmployeeHealth = lazy(() => import('./pages/SucKhoeNhanVien'));
 const KhaiBao = lazy(() => import('./pages/KhaiBao'));
 const LuyKe = lazy(() => import('./pages/LuyKe'));
 const ToolHoTro = lazy(() => import('./pages/ToolHoTro'));
+const StickerCeScanner = lazy(() => import('./components/StickerCeScanner'));
+const TnbData = lazy(() => import('./pages/TnbData'));
+const SinhNhatNv = lazy(() => import('./pages/SinhNhatNv'));
 
 const LoadingSpinner = () => (
   <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
@@ -29,7 +33,17 @@ const LoadingSpinner = () => (
 );
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro'>('realtime');
+  const isScannerMode = window.location.search.includes('scanner=true');
+
+  if (isScannerMode) {
+    return (
+      <Suspense fallback={<LoadingSpinner />}>
+        <StickerCeScanner />
+      </Suspense>
+    );
+  }
+
+  const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro' | 'tnb_data' | 'birthday'>('realtime');
   const { userProfile, logout } = useAuth();
   const [declarationCompleted, setDeclarationCompleted] = useState(() => {
     const justLoggedIn = sessionStorage.getItem('justLoggedIn');
@@ -42,41 +56,47 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [isDesktopView, setIsDesktopView] = useState(true);
 
+
+
   // Hard Rule implementation for fallback if userProfile has missing userPermissions (legacy session)
   const isSuperAdminHardcoded = userProfile?.username === '43751' || userProfile?.username === 'ADMIN';
-  const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users'];
+  const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'birthday'];
   
   // Compute allowed pages
   const canEditUser = userProfile?.userPermissions?.canEditUser ?? isSuperAdminHardcoded;
   let allowedPages = isSuperAdminHardcoded ? ALL_PAGES : userProfile?.userPermissions?.allowedPages;
   
   if (!allowedPages) {
-    allowedPages = isSuperAdminHardcoded ? ALL_PAGES : ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro']; // fallback for legacy normal users to not break the app completely without relogin
+    allowedPages = isSuperAdminHardcoded ? ALL_PAGES : ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tnb_data', 'birthday']; // fallback for legacy normal users to not break the app completely without relogin
   }
   
-  const effectiveAllowedPages = canEditUser && !allowedPages.includes('users') ? [...allowedPages, 'users'] : allowedPages;
+  const effectiveAllowedPages = useMemo(() => {
+    return canEditUser && !allowedPages.includes('users') ? [...allowedPages, 'users'] : allowedPages;
+  }, [canEditUser, allowedPages]);
   // Thêm dòng này sau dòng 46
   // console.log('--- PERMISSION DEBUG ---');
   // console.log('Effective Allowed Pages:', effectiveAllowedPages);
   
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
   const [showHeader, setShowHeader] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
+  const lastScrollYRef = useRef(0);
 
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
+      const lastScrollY = lastScrollYRef.current;
+      
       if (currentScrollY > lastScrollY && currentScrollY > 80) {
         setShowHeader(false);
-      } else {
+      } else if (currentScrollY < lastScrollY) {
         setShowHeader(true);
       }
-      setLastScrollY(currentScrollY);
+      lastScrollYRef.current = currentScrollY;
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+  }, []);
 
   useEffect(() => {
     // Removed forced viewport width change to allow responsive design to work naturally
@@ -152,12 +172,16 @@ export default function App() {
   const BASE_NAV_ITEMS = [
     { id: 'realtime', label: 'BC NGÀY', icon: Activity, color: 'indigo' },
     { id: 'luyke', label: 'BC THÁNG', icon: BarChart3, color: 'blue' },
-    { id: 'khaibao', label: 'Khai báo', icon: Database, color: 'indigo' },
-    { id: 'health', label: 'Sức khỏe', icon: HeartPulse, color: 'rose' },
+    { id: 'khaibao', label: 'Cập nhật', icon: Database, color: 'indigo' },
+    { id: 'health', label: 'Sức khỏe NV', icon: HeartPulse, color: 'rose' },
     { id: 'toolhotro', label: 'Tool Hỗ Trợ', icon: Wrench, color: 'amber' },
+    { id: 'birthday', label: 'Sinh nhật NV', icon: Gift, color: 'pink' },
+    // { id: 'tnb_data', label: 'TNB DATA', icon: Trophy, color: 'indigo' },
   ];
   
   const NAV_ITEMS = BASE_NAV_ITEMS.filter(item => effectiveAllowedPages.includes(item.id));
+
+
 
   return (
     <div className={`min-h-screen flex flex-col pb-24 md:pb-0 bg-slate-50 selection:bg-indigo-100 selection:text-indigo-900`}>
@@ -345,6 +369,8 @@ export default function App() {
       </motion.div>
 
       <main className="flex-1 relative">
+
+
         <LuykeDataProvider>
         <AnimatePresence mode="wait">
           <motion.div
@@ -356,22 +382,43 @@ export default function App() {
             className="h-full"
           >
             <Suspense fallback={<LoadingSpinner />}>
-              <>
-                {currentPage === 'realtime' && effectiveAllowedPages.includes('realtime') && <NewRealtimePage />}
-                {currentPage === 'khaibao' && effectiveAllowedPages.includes('khaibao') && <KhaiBao />}
-                {currentPage === 'luyke' && effectiveAllowedPages.includes('luyke') && <LuyKe />}
-                {currentPage === 'toolhotro' && effectiveAllowedPages.includes('toolhotro') && <ToolHoTro />}
-                {currentPage === 'users' && effectiveAllowedPages.includes('users') && <UserManagement onBack={() => {
-                  const firstAllowedNavPage = effectiveAllowedPages.find(p => p !== 'users');
-                  setCurrentPage((firstAllowedNavPage || 'realtime') as any);
-                }} />}
-                {currentPage === 'health' && effectiveAllowedPages.includes('health') && <EmployeeHealth />}
-              </>
+              {(() => {
+                if (currentPage === 'realtime' && effectiveAllowedPages.includes('realtime')) return <NewRealtimePage />;
+                if (currentPage === 'khaibao' && effectiveAllowedPages.includes('khaibao')) return <KhaiBao />;
+                if (currentPage === 'luyke' && effectiveAllowedPages.includes('luyke')) return <LuyKe />;
+                if (currentPage === 'tnb_data' && effectiveAllowedPages.includes('tnb_data')) return <TnbData />;
+                if (currentPage === 'toolhotro' && effectiveAllowedPages.includes('toolhotro')) return <ToolHoTro />;
+                if (currentPage === 'users' && effectiveAllowedPages.includes('users')) {
+                  return (
+                    <UserManagement onBack={() => {
+                      const firstAllowedNavPage = effectiveAllowedPages.find(p => p !== 'users');
+                      setCurrentPage((firstAllowedNavPage || 'realtime') as any);
+                    }} />
+                  );
+                }
+                if (currentPage === 'health' && effectiveAllowedPages.includes('health')) return <EmployeeHealth />;
+                if (currentPage === 'birthday' && effectiveAllowedPages.includes('birthday')) return <SinhNhatNv />;
+                return null;
+              })()}
             </Suspense>
           </motion.div>
         </AnimatePresence>
         </LuykeDataProvider>
       </main>
+
+      {/* Global Copyright Footer */}
+      <footer className="w-full border-t border-slate-200 bg-white mt-12 px-6 py-6 pb-32 md:pb-6 print:hidden">
+        <div className="max-w-7xl mx-auto flex flex-col items-center justify-center text-center gap-2">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+            <span>© {new Date().getFullYear()} CRM SIÊU THỊ</span>
+            <span className="text-slate-300">•</span>
+            <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-bold">v2.4.0</span>
+          </div>
+          <div className="text-[11px] text-slate-400 font-medium">
+            Phát triển & Thiết kế bởi <span className="font-extrabold text-slate-600 tracking-wider">Linh Vũ</span>
+          </div>
+        </div>
+      </footer>
 
       {/* Mobile Bottom Navigation Bar */}
       <nav className="md:hidden fixed bottom-6 left-4 right-4 bg-white/90 backdrop-blur-xl border border-white/20 z-[100] px-2 py-2 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] ring-1 ring-slate-900/5 print:hidden">
@@ -488,20 +535,27 @@ export default function App() {
                 {/* Font Family */}
                 <div className="space-y-3">
                   <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Kiểu chữ</label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-2">
                     <button 
                       onClick={() => setFontFamily('Inter')}
-                      className={`p-4 rounded-2xl border-2 transition-all text-left ${fontFamily === 'Inter' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-slate-200 bg-white'}`}
+                      className={`p-3 rounded-xl border-2 transition-all text-left ${fontFamily === 'Inter' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-slate-200 bg-white'}`}
                     >
-                      <div className={`text-lg font-bold mb-1 ${fontFamily === 'Inter' ? 'text-indigo-600' : 'text-slate-800'}`}>Inter</div>
-                      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Mặc định</div>
+                      <div className={`text-base font-bold mb-1 ${fontFamily === 'Inter' ? 'text-indigo-600' : 'text-slate-800'}`}>Inter</div>
+                      <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">Mặc định</div>
                     </button>
                     <button 
                       onClick={() => setFontFamily('Oswald')}
-                      className={`p-4 rounded-2xl border-2 transition-all text-left font-oswald ${fontFamily === 'Oswald' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-slate-200 bg-white'}`}
+                      className={`p-3 rounded-xl border-2 transition-all text-left font-oswald ${fontFamily === 'Oswald' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-slate-200 bg-white'}`}
                     >
-                      <div className={`text-lg font-bold mb-1 ${fontFamily === 'Oswald' ? 'text-indigo-600' : 'text-slate-800'}`}>Oswald</div>
-                      <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Hiện đại</div>
+                      <div className={`text-base font-bold mb-1 ${fontFamily === 'Oswald' ? 'text-indigo-600' : 'text-slate-800'}`}>Oswald</div>
+                      <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">Hiện đại</div>
+                    </button>
+                    <button 
+                      onClick={() => setFontFamily('UTM Avo')}
+                      className={`p-3 rounded-xl border-2 transition-all text-left font-utm-avo ${fontFamily === 'UTM Avo' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-slate-200 bg-white'}`}
+                    >
+                      <div className={`text-base font-bold mb-1 ${fontFamily === 'UTM Avo' ? 'text-indigo-600' : 'text-slate-800'}`}>UTM Avo</div>
+                      <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">Tròn trịa</div>
                     </button>
                   </div>
                 </div>

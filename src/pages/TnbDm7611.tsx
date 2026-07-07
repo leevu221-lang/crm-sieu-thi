@@ -495,15 +495,15 @@ export default function TnbDm7611() {
             {activeTab === 'nhap-lieu' ? (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Box title="DS BOSS" icon={Users} value={data.ds_boss} onChange={(v) => setData(d => ({...d, ds_boss: v}))} onBlur={(v) => handleSave('ds_boss', v)} />
-                  <Box title="REALTIME DATA VÙNG" icon={Activity} value={data.realtime_vung} onChange={(v) => setData(d => ({...d, realtime_vung: v}))} onBlur={(v) => handleSave('realtime_vung', v)} />
-                  <Box title="REALTIME DATA SIÊU THỊ" icon={Activity} value={data.realtime_st} onChange={(v) => setData(d => ({...d, realtime_st: v}))} onBlur={(v) => handleSave('realtime_st', v)} />
-                  <Box title="LUỸ KẾ DATA VÙNG" icon={BarChart3} value={data.luyke_vung} onChange={(v) => setData(d => ({...d, luyke_vung: v}))} onBlur={(v) => handleSave('luyke_vung', v)} />
-                  <Box title="LUỸ KẾ DATA SIÊU THỊ" icon={BarChart3} value={data.luyke_st} onChange={(v) => setData(d => ({...d, luyke_st: v}))} onBlur={(v) => handleSave('luyke_st', v)} />
-                  <Box title="REALTIME MA TRẬN VÙNG" icon={Activity} value={data.rt_ma_tran_vung} onChange={(v) => setData(d => ({...d, rt_ma_tran_vung: v}))} onBlur={(v) => handleSave('rt_ma_tran_vung', v)} />
-                  <Box title="LUỸ KẾ MA TRẬN VÙNG" icon={BarChart3} value={data.lk_ma_tran_vung} onChange={(v) => setData(d => ({...d, lk_ma_tran_vung: v}))} onBlur={(v) => handleSave('lk_ma_tran_vung', v)} />
-                  <Box title="REALTIME MA TRẬN SIÊU THỊ" icon={Activity} value={data.rt_ma_tran_sieu_thi} onChange={(v) => setData(d => ({...d, rt_ma_tran_sieu_thi: v}))} onBlur={(v) => handleSave('rt_ma_tran_sieu_thi', v)} />
-                  <Box title="LUỸ KẾ MA TRẬN SIÊU THỊ" icon={BarChart3} value={data.lk_ma_tran_sieu_thi} onChange={(v) => setData(d => ({...d, lk_ma_tran_sieu_thi: v}))} onBlur={(v) => handleSave('lk_ma_tran_sieu_thi', v)} />
+                  <Box title="DS BOSS" icon={Users} value={data.ds_boss} onChange={(v) => setData(d => ({...d, ds_boss: v}))} onBlur={() => { handleSave('ds_boss', data.ds_boss); }} />
+                  <Box title="REALTIME DATA VÙNG" icon={Activity} value={data.realtime_vung} onChange={(v) => setData(d => ({...d, realtime_vung: v}))} onBlur={() => { handleSave('realtime_vung', data.realtime_vung); }} />
+                  <Box title="REALTIME DATA SIÊU THỊ" icon={Activity} value={data.realtime_st} onChange={(v) => setData(d => ({...d, realtime_st: v}))} onBlur={() => { handleSave('realtime_st', data.realtime_st); }} />
+                  <Box title="LUỸ KẾ DATA VÙNG" icon={BarChart3} value={data.luyke_vung} onChange={(v) => setData(d => ({...d, luyke_vung: v}))} onBlur={() => { handleSave('luyke_vung', data.luyke_vung); }} />
+                  <Box title="LUỸ KẾ DATA SIÊU THỊ" icon={BarChart3} value={data.luyke_st} onChange={(v) => setData(d => ({...d, luyke_st: v}))} onBlur={() => { handleSave('luyke_st', data.luyke_st); }} />
+                  <Box title="REALTIME MA TRẬN VÙNG" icon={Activity} value={data.rt_ma_tran_vung} onChange={(v) => setData(d => ({...d, rt_ma_tran_vung: v}))} onBlur={() => { handleSave('rt_ma_tran_vung', data.rt_ma_tran_vung); }} />
+                  <Box title="LUỸ KẾ MA TRẬN VÙNG" icon={BarChart3} value={data.lk_ma_tran_vung} onChange={(v) => setData(d => ({...d, lk_ma_tran_vung: v}))} onBlur={() => { handleSave('lk_ma_tran_vung', data.lk_ma_tran_vung); }} />
+                  <Box title="REALTIME MA TRẬN SIÊU THỊ" icon={Activity} value={data.rt_ma_tran_sieu_thi} onChange={(v) => setData(d => ({...d, rt_ma_tran_sieu_thi: v}))} onBlur={() => { handleSave('rt_ma_tran_sieu_thi', data.rt_ma_tran_sieu_thi); }} />
+                  <Box title="LUỸ KẾ MA TRẬN SIÊU THỊ" icon={BarChart3} value={data.lk_ma_tran_sieu_thi} onChange={(v) => setData(d => ({...d, lk_ma_tran_sieu_thi: v}))} onBlur={() => { handleSave('lk_ma_tran_sieu_thi', data.lk_ma_tran_sieu_thi); }} />
                 </div>
                 <TempTable rawText={data.realtime_vung} />
               </>
@@ -515,7 +515,7 @@ export default function TnbDm7611() {
                     icon={BarChart3}
                     value={data.thidua_vung_st}
                     onChange={(v) => setData(d => ({...d, thidua_vung_st: v}))}
-                    onBlur={(v) => handleSave('thidua_vung_st', v)}
+                    onBlur={() => { handleSave('thidua_vung_st', data.thidua_vung_st); }}
                   />
                 </div>
                 <ThiDuaNganhHangTable rawText={data.realtime_vung} />

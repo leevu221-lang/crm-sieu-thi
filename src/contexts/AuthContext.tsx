@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             permissions: ['lkst', 'rtst', 'sknv', 'updata'] as any,
             userPermissions: {
               canEditUser: true,
-              allowedPages: ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users']
+              allowedPages: ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'birthday']
             },
             ten_sieu_thi: `Siêu thị ${maKho} (Offline Mode)`
           };
@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       const isSuperAdmin = username === '43751';
-      const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users'];
+      const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'birthday'];
 
       const profile: UserProfile = {
         username: data.username,
@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           permissions: ['lkst', 'rtst', 'sknv', 'updata'] as any,
           userPermissions: {
             canEditUser: true,
-            allowedPages: ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users']
+            allowedPages: ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'birthday']
           },
           ten_sieu_thi: `Siêu thị ${maKho} (Offline Mode)`
         };

@@ -582,22 +582,129 @@ export const parseStaffMatrixData = (input: string, staffCount: number, category
 };
 
 export const CONVERSION_RATES: Record<string, { normal: number, installment: number }> = {
+  '664 - sim online': { normal: 5.45, installment: 5.75 },
+  'sim online': { normal: 5.45, installment: 5.75 },
   'sim': { normal: 5.45, installment: 5.75 },
   'bảo hiểm': { normal: 4.18, installment: 4.48 },
+  '1994 - dịch vụ bảo hành, bảo dưỡng điện máy xanh': { normal: 4.18, installment: 4.48 },
+  'dịch vụ bảo hành, bảo dưỡng điện máy xanh': { normal: 4.18, installment: 4.48 },
+  '16 - phụ kiện tiện ích': { normal: 3.37, installment: 3.67 },
   'phụ kiện tiện ích': { normal: 3.37, installment: 3.67 },
+  '184 - phụ kiện trang trí': { normal: 3.37, installment: 3.67 },
   'phụ kiện trang trí': { normal: 3.37, installment: 3.67 },
+  '1394 - phụ kiện lắp đặt': { normal: 3.37, installment: 3.67 },
+  'phụ kiện lắp đặt': { normal: 3.37, installment: 3.67 },
+  '2831 - phụ kiện trang trí apple': { normal: 3.37, installment: 3.67 },
+  'phụ kiện trang trí apple': { normal: 3.37, installment: 3.67 },
+  '4659 - phụ kiện tiện ích apple': { normal: 3.37, installment: 3.67 },
+  'phụ kiện tiện ích apple': { normal: 3.37, installment: 3.67 },
+  '6400 - phụ kiện tiện ích apple - imei': { normal: 3.37, installment: 3.67 },
+  'phụ kiện tiện ích apple - imei': { normal: 3.37, installment: 3.67 },
+  '764 - loa vi tính': { normal: 3.37, installment: 3.67 },
   'loa vi tính': { normal: 3.37, installment: 3.67 },
   'vas': { normal: 3.30, installment: 3.60 },
+  '1274 - đồng hồ thời trang': { normal: 3.00, installment: 3.30 },
   'đồng hồ thời trang': { normal: 3.00, installment: 3.30 },
+  '23 - wearable': { normal: 3.00, installment: 3.30 },
   'wearable': { normal: 3.00, installment: 3.30 },
+  '364 - it': { normal: 2.00, installment: 2.30 },
   'it': { normal: 2.00, installment: 2.30 },
+  '1034 - dụng cụ nhà bếp': { normal: 1.92, installment: 2.22 },
   'dụng cụ nhà bếp': { normal: 1.92, installment: 2.22 },
+  'dcnb': { normal: 1.92, installment: 2.22 },
+  'vieon': { normal: 5.45, installment: 5.75 },
+  '571 - uddđ': { normal: 5.45, installment: 5.75 },
+  'uddđ': { normal: 5.45, installment: 5.75 },
+  '484 - điện gia dụng': { normal: 1.85, installment: 2.15 },
   'điện gia dụng': { normal: 1.85, installment: 2.15 },
+  '1116 - máy lọc nước': { normal: 1.85, installment: 2.15 },
   'máy lọc nước': { normal: 1.85, installment: 2.15 },
+  '1214 - gia dụng lắp đặt': { normal: 1.85, installment: 2.15 },
   'gia dụng lắp đặt': { normal: 1.85, installment: 2.15 },
+  '880 - loa karaoke': { normal: 1.29, installment: 1.59 },
   'loa karaoke': { normal: 1.29, installment: 1.59 },
+  '22 - laptop': { normal: 1.20, installment: 1.50 },
   'laptop': { normal: 1.20, installment: 1.50 },
+  '244 - tablet': { normal: 1.20, installment: 1.50 },
   'tablet': { normal: 1.20, installment: 1.50 },
+};
+
+export const getRowConversionRate = (
+  columnAO: string,
+  rowString: string,
+  isInstallment: boolean,
+  ratesToUse: Record<string, { normal: number, installment: number }>
+): { rate: number; matchedCat: string } => {
+  let maxRate = 1;
+  let matchedCat = "Khác";
+
+  const catLower = columnAO.toLowerCase().trim();
+  
+    // Special check for category 1841, 1994 or general/insurance categories
+  if (catLower.includes('1841') || catLower.includes('1994') || catLower.includes('khác') || catLower.includes('khac') || catLower.includes('bảo hiểm') || catLower.includes('bao hiem') || !catLower) {
+    const rowStrLower = rowString.toLowerCase();
+    const hasInsuranceKeyword = 
+      rowStrLower.includes('1 đổi 1') || rowStrLower.includes('1 doi 1') ||
+      rowStrLower.includes('khoản vay') || rowStrLower.includes('khoan vay') || rowStrLower.includes('bhkv') ||
+      rowStrLower.includes('mở rộng') || rowStrLower.includes('mo rong') || rowStrLower.includes('bhmr') ||
+      rowStrLower.includes('rơi vỡ') || rowStrLower.includes('roi vo') || rowStrLower.includes('bhrv') ||
+      rowStrLower.includes('sc+') ||
+      rowStrLower.includes('xe máy') || rowStrLower.includes('xe may') || rowStrLower.includes('bhxm') ||
+      rowStrLower.includes('bảo hiểm') || rowStrLower.includes('bao hiem') ||
+      catLower.includes('1994') || rowStrLower.includes('1994') ||
+      rowStrLower.includes('bảo hành') || rowStrLower.includes('bảo dưỡng') ||
+      rowStrLower.includes('bao hanh') || rowStrLower.includes('bao duong');
+    
+    if (hasInsuranceKeyword) {
+      const rates = ratesToUse['bảo hiểm'] || { normal: 4.18, installment: 4.48 };
+      return {
+        rate: isInstallment ? rates.installment : rates.normal,
+        matchedCat: 'bảo hiểm'
+      };
+    }
+  }
+  
+  for (const [cat, rates] of Object.entries(ratesToUse)) {
+    // 1. Try exact or substring match on the category column (AO) first
+    // This is 100% accurate and prevents cross-category false matches.
+    if (catLower && (catLower === cat || catLower.includes(cat) || cat.includes(catLower))) {
+      // Avoid short substring matches on category column unless they are exact (like 'it')
+      if (cat === 'it' && catLower !== 'it' && catLower !== '364 - it') {
+        continue;
+      }
+      const rate = isInstallment ? rates.installment : rates.normal;
+      if (rate > maxRate) {
+        maxRate = rate;
+        matchedCat = cat;
+      }
+    }
+  }
+
+  // 2. Fallback to rowString if no match found on category column
+  if (matchedCat === "Khác") {
+    for (const [cat, rates] of Object.entries(ratesToUse)) {
+      if (cat === 'it') {
+        if (!rowString.includes('364 - it') && !rowString.includes(' 364 - it') && rowString !== 'it') {
+          continue;
+        }
+      }
+      if (cat === 'sim' && !rowString.includes('664 - sim') && !rowString.includes('sim online')) {
+        if (!/\bsim\b/.test(rowString)) {
+          continue;
+        }
+      }
+      
+      if (rowString.includes(cat)) {
+        const rate = isInstallment ? rates.installment : rates.normal;
+        if (rate > maxRate) {
+          maxRate = rate;
+          matchedCat = cat;
+        }
+      }
+    }
+  }
+
+  return { rate: maxRate, matchedCat };
 };
 
 export const parseYcxData = (data: string): YcxStaffData[] => {
@@ -652,17 +759,42 @@ export const parseYcxData = (data: string): YcxStaffData[] => {
   }
 
   const header = headerIdx !== -1 ? rows[headerIdx].map(c => String(c || '').toLowerCase().trim()) : [];
-  const getIdx = (names: string[]) => header.findIndex(h => names.some(n => h.includes(n.toLowerCase())));
+  const removeAccentsLocal = (str: string): string => {
+    return str
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'd')
+      .trim();
+  };
+  const getIdx = (names: string[]) => {
+    const lowerNames = names.map(n => n.toLowerCase());
+    for (const name of lowerNames) {
+      const exactIdx = header.findIndex(h => h === name);
+      if (exactIdx !== -1) return exactIdx;
+      
+      const partialIdx = header.findIndex(h => {
+        const norm = removeAccentsLocal(h).toLowerCase();
+        const normName = removeAccentsLocal(name).toLowerCase();
+        if (normName === 'nhom hang' && norm.includes('nho')) return false;
+        if (normName === 'nganh hang' && norm.includes('lon')) return false;
+        return norm.includes(normName);
+      });
+      if (partialIdx !== -1) return partialIdx;
+    }
+    return -1;
+  };
 
   const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
   const idxStatus = getIdx(['trạng thái xuất']);
   const idxStaffName = getIdx(['người tạo']); // Bắt buộc dùng cột "Người tạo"
   const idxStaffId = getIdx(['user tạo']);
-  const idxRevenue = getIdx(['phải thu', 'doanh thu', 'tổng tiền', 'thành tiền']);
+  const idxRevenue = getIdx(['doanh thu', 'thành tiền', 'giá bán', 'phải thu', 'tổng tiền']);
   const idxProduct = getIdx(['tên sản phẩm', 'sản phẩm', 'tên hàng']);
   const idxQty = getIdx(['số lượng', 'sl']);
-  const idxMarket = getIdx(['siêu thị', 'mã kho', 'tên kho', 'địa điểm']);
-  const idxReturnStatus = getIdx(['trạng thái trả']);
+  const idxMarket = getIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm']);
+  const idxReturnStatus = getIdx(['trạng thái trả', 'trả hàng', 'tình trạng nhập trả', 'nhập trả']);
+  const idxColumnAO = getIdx(['nhóm ngành hàng', 'nhóm hàng', 'ngành hàng', 'nhóm']);
 
   // Fallback indices if header not found
   const colType = idxType !== -1 ? idxType : 3;
@@ -674,6 +806,7 @@ export const parseYcxData = (data: string): YcxStaffData[] => {
   const colQty = idxQty !== -1 ? idxQty : 35;
   const colMarket = idxMarket !== -1 ? idxMarket : 1;
   const colReturnStatus = idxReturnStatus !== -1 ? idxReturnStatus : 44; // Cột AS (Index 44)
+  const colColumnAO = idxColumnAO !== -1 ? idxColumnAO : 40;
 
   const startIdx = headerIdx !== -1 ? headerIdx + 1 : 1;
 
@@ -749,7 +882,7 @@ export const parseYcxData = (data: string): YcxStaffData[] => {
     }
     staff = matchedStaffKey;
       
-    const isSales = type.includes('xuất bán hàng') || type.includes('xuất đổi bảo hành');
+    const isSales = type.includes('xuất bán hàng') || type.includes('xuất đổi bảo hành') || type.includes('thu hộ bảo hiểm') || type.includes('thu ho bao hiem');
     const isExported = status === 'đã xuất';
     const isNotReturned = returnStatus === 'chưa trả' || returnStatus === '' || !returnStatus.includes('đã trả');
 
@@ -763,18 +896,8 @@ export const parseYcxData = (data: string): YcxStaffData[] => {
            isInstallment = true;
          }
          
-         let maxRate = 1;
-         let matchedCat = "Khác";
-         
-         for (const [cat, rates] of Object.entries(CONVERSION_RATES)) {
-           if (rowString.includes(cat)) {
-             const rate = isInstallment ? rates.installment : rates.normal;
-             if (rate > maxRate) {
-               maxRate = rate;
-               matchedCat = cat;
-             }
-           }
-         }
+         const columnAO = String(cols[colColumnAO] || '').trim();
+         const { rate: maxRate, matchedCat } = getRowConversionRate(columnAO, rowString, isInstallment, CONVERSION_RATES);
          
          const convertedRev = Math.round(revenue * maxRate);
          
@@ -800,15 +923,59 @@ export const parseYcxData = (data: string): YcxStaffData[] => {
            if (rowString.includes('quạt')) current.giaDung.quatGio += quantity;
            if (rowString.includes('bếp')) current.giaDung.bep += quantity;
          }
-          const isBaoHiem = rowString.includes('bảo hiểm') || matchedCat === 'bảo hiểm';
+          const productNameLower = productName.toLowerCase();
+          const isBaoHiem = productNameLower.includes('bảo hiểm') || 
+                            productNameLower.includes('mở rộng') || 
+                            productNameLower.includes('mo rong') || 
+                            productNameLower.includes('bhmr') ||
+                            productNameLower.includes('1 đổi 1') || 
+                            productNameLower.includes('1 doi 1') ||
+                            productNameLower.includes('1doi1') ||
+                            productNameLower.includes('1-1') ||
+                            productNameLower.includes('rơi vỡ') ||
+                            productNameLower.includes('roi vo') ||
+                            productNameLower.includes('bhrv') ||
+                            productNameLower.includes('sc+') ||
+                            productNameLower.includes('care+') ||
+                            productNameLower.includes('applecare') ||
+                            productNameLower.includes('bhkv') ||
+                            productNameLower.includes('khoản vay') ||
+                            productNameLower.includes('khoan vay') ||
+                            productNameLower.includes('bhxm') ||
+                            productNameLower.includes('xe máy') ||
+                            productNameLower.includes('xe may') ||
+                            productNameLower.includes('bảo vệ màn hình') ||
+                            productNameLower.includes('bvmh') ||
+                            rowString.includes('bảo hiểm') || 
+                            rowString.includes('mở rộng') || 
+                            rowString.includes('mo rong') || 
+                            rowString.includes('bhmr') || 
+                            rowString.includes('1 đổi 1') || 
+                            rowString.includes('1 doi 1') || 
+                            rowString.includes('rơi vỡ') || 
+                            rowString.includes('roi vo') || 
+                            rowString.includes('bhrv') || 
+                            rowString.includes('sc+') || 
+                            rowString.includes('bhkv') || 
+                            rowString.includes('bhxm') || 
+                            rowString.includes('bảo vệ màn hình') ||
+                            rowString.includes('bvmh') ||
+                            matchedCat === 'bảo hiểm' || 
+                            matchedCat === '1994 - dịch vụ bảo hành, bảo dưỡng điện máy xanh' ||
+                            columnAO.includes('1994') ||
+                            columnAO.includes('7139') ||
+                            columnAO.includes('4479') ||
+                            columnAO.includes('4499') ||
+                            columnAO.includes('Dịch vụ bảo hành, bảo dưỡng');
+
           if (isBaoHiem) {
             current.baoHiem.total += revenue;
             current.baoHiem.count += 1;
-            if (rowString.includes('1 đổi 1') || rowString.includes('1 doi 1')) {
+            if (productNameLower.includes('1 đổi 1') || productNameLower.includes('1 doi 1') || productNameLower.includes('1doi1') || productNameLower.includes('1-1') || rowString.includes('1 đổi 1') || rowString.includes('1 doi 1')) {
               current.baoHiem.motDoiMot += revenue;
-            } else if (rowString.includes('mở rộng') || rowString.includes('mo rong')) {
+            } else if (productNameLower.includes('mở rộng') || productNameLower.includes('mo rong') || productNameLower.includes('bhmr') || rowString.includes('mở rộng') || rowString.includes('mo rong') || rowString.includes('bhmr')) {
               current.baoHiem.moRong += revenue;
-            } else if (rowString.includes('rơi vỡ') || rowString.includes('roi vo')) {
+            } else if (productNameLower.includes('rơi vỡ') || productNameLower.includes('roi vo') || productNameLower.includes('bhrv') || productNameLower.includes('sc+') || productNameLower.includes('care+') || productNameLower.includes('applecare') || rowString.includes('rơi vỡ') || rowString.includes('roi vo') || rowString.includes('bhrv') || rowString.includes('sc+') || rowString.includes('care+')) {
               current.baoHiem.roiVo += revenue;
             } else {
               current.baoHiem.khac += revenue;

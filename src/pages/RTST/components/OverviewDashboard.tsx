@@ -161,9 +161,11 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-6">
                 {(() => {
-                  // Compute targetValue from parsed market data (DT Dự Kiến QĐ / % HT Target Dự Kiến QĐ)
-                  // Data synced from: LUỸ KẾ DT, BÁO CÁO TỔNG HỢP, KHAI BÁO
-                  const targetDataKey = Object.keys(allStoreTargets || {}).find(k => normalize(k) === normalize(market.name));
+                  const targetDataKey = Object.keys(allStoreTargets || {}).find(k => {
+                    const normK = normalize(k);
+                    const normMarket = normalize(market.name);
+                    return normK === normMarket || normK.includes(normMarket) || normMarket.includes(normK);
+                  });
                   const targetData: any = targetDataKey ? allStoreTargets[targetDataKey] : null;
                   const dtDuKienQD = market.targetQD || 0;
                   const percentHT = market.percentHT || 0;
@@ -185,8 +187,13 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                     { 
                       label: '%QĐ', 
                       value: title.toUpperCase().includes('LUỸ KẾ')
-                        ? `${market.actualReal !== 0 ? Math.round((((market.actualVirtual || 0) - market.actualReal) / market.actualReal) * 100) : '0'}%`
-                        : `${Math.round(market.percentQD || 0)}%`, 
+                        ? (() => {
+                            const dtlkVal = targetData?.stDtlk || market.actualReal || 0;
+                            const dtqdVal = targetData?.stDtqd || market.actualVirtual || 0;
+                            const percent = dtlkVal > 0 ? ((dtqdVal - dtlkVal) / dtlkVal) * 100 : 0;
+                            return `${percent.toFixed(1)}%`;
+                          })()
+                        : `${(market.percentQD || 0).toFixed(1)}%`, 
                       color: 'bg-rose-500', 
                       icon: <Zap size={20} /> 
                     },

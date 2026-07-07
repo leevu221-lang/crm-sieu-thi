@@ -166,8 +166,10 @@ export const useRealtimeData = (maKho: string) => {
     getRates();
   }, []);
   useEffect(() => {
+    setIsProcessingRealtime(true);
     const tid = setTimeout(() => {
       handleProcess();
+      setIsProcessingRealtime(false);
     }, 200);
 
     if (marketInput) safeSetItem(STORAGE_KEYS.MARKET_INPUT, marketInput);

@@ -156,8 +156,8 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
               </span>
             </div>
           </div>
-          <div className="overflow-hidden">
-            <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300">
+          <div className="overflow-x-auto">
+            <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300 min-w-[500px]">
               <thead>
                 <tr className="text-slate-900 h-[40px]">
                   <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>

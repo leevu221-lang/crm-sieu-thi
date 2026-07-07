@@ -460,6 +460,11 @@ const InputSection: React.FC<InputSectionProps> = ({
       ).join('\n');
       
       setYcxData(rawString);
+      setTimeout(() => {
+        if (onSaveRealtime) {
+          onSaveRealtime(true);
+        }
+      }, 100);
     };
     reader.readAsBinaryString(file);
   };
@@ -700,7 +705,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                 { key: `${storeName}_dt_nv`, label: 'DOANH THU NV', value: cardStaffInput, setter: isActiveCard ? setStaffInput : undefined, biLink: 'https://bi.thegioididong.com/sieu-thi-con?id=16500&tab=bcdtnv&rt=2&dm=1' },
                 { key: `${storeName}_td_nv`, label: 'THI ĐUA NV', value: cardStaffCategoryInput, setter: isActiveCard ? setStaffCategoryInput : undefined },
                 { key: `${storeName}_hq_nv`, label: 'HQ BÁN KÈM NV', value: cardBanKemNv, setter: isActiveCard ? setBanKemNv : undefined },
-                { key: `${storeName}_matran`, label: 'MA TRẬN NH', value: cardTragopMatran, isConfig: true, configKey: 'tragop_matran' },
+                { key: `${storeName}_matran`, label: 'CHI TIẾT DTNV', value: cardTragopMatran, isConfig: true, configKey: 'tragop_matran' },
                 { key: `${storeName}_tragop`, label: 'TRẢ GÓP NV', value: cardTragopNv, isConfig: true, configKey: 'tragop_nv' },
               ];
 
@@ -1133,12 +1138,7 @@ const InputSection: React.FC<InputSectionProps> = ({
         </div>
       )}
 
-      {/* Copyright Footer */}
-      <div className="text-center py-6 mt-4">
-        <p className="text-xs font-black text-slate-400 tracking-widest uppercase">
-          © LINH VU
-        </p>
-      </div>
+
     </div>
   );
 };

@@ -1,22 +1,95 @@
 import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { parseCategoryData } from '../../RTST/utils';
+import { parseCategoryData, cn, cleanCategoryName } from '../../RTST/utils';
 import { StaffMatrixData, CategoryData } from '../../RTST/types';
-import { cn } from '../../RTST/utils';
-import { Download, Copy, Check, MessageSquare, ChevronDown, Search } from 'lucide-react';
-import { toPng } from 'html-to-image';
-import { cleanCategoryName } from './EmployeeDetailTable';
+import { Download, Copy, Check, MessageSquare, ChevronDown, Search, X } from 'lucide-react';
+import { domToPng } from 'modern-screenshot';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useLuykeData } from '../../RTST/hooks/useLuykeData';
+
+const removeAccentsLocal = (str: string): string => {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+};
+
+const getCategoryBadgeStyleClasses = (catName: string): { bgText: string; hover: string } => {
+  const cleanStr = removeAccentsLocal(catName).toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // 1. DOANH THU (Revenue) - Light Blue/Navy
+  if (cleanStr === 'doanhthudongho') {
+    return { bgText: 'bg-[#ebf3ff] text-[#1d4ed8]', hover: 'hover:bg-[#d0e3ff]' };
+  }
+
+  // 2. SP CHÍNH (Main Products) - Warm Yellow/Dark Brown (Changed to match SIM color theme)
+  const MAIN_PRODUCTS = [
+    "dienthoaitabletandroid", "dienthoairealme", "dienthoaivivo", "laptop"
+  ];
+  if (MAIN_PRODUCTS.some(k => cleanStr === k || cleanStr.includes(k) || k.includes(cleanStr))) {
+    return { bgText: 'bg-[#fefce8] text-[#854d0e]', hover: 'hover:bg-[#fef08a]' };
+  }
+
+  // 3. ĐỒNG HỒ (Watch) - Warm Yellow/Dark Brown (Changed to match SIM color theme)
+  if (cleanStr === 'donghophukien') {
+    return { bgText: 'bg-[#fefce8] text-[#854d0e]', hover: 'hover:bg-[#fef08a]' };
+  }
+
+  // 4. PHỤ KIỆN (Accessories) - Warm Yellow/Dark Brown (Changed to match SIM color theme)
+  const ACCESSORIES = [
+    "loa", "camera"
+  ];
+  if (ACCESSORIES.some(k => cleanStr === k || cleanStr.includes(k) || k.includes(cleanStr))) {
+    return { bgText: 'bg-[#fefce8] text-[#854d0e]', hover: 'hover:bg-[#fef08a]' };
+  }
+
+  // 5. SIM - Warm Yellow/Dark Brown
+  const SIM_KEYS = [
+    "simtong", "simmobifonevinaphonesimdmx"
+  ];
+  if (SIM_KEYS.some(k => cleanStr === k || cleanStr.includes(k) || k.includes(cleanStr))) {
+    return { bgText: 'bg-[#fefce8] text-[#854d0e]', hover: 'hover:bg-[#fef08a]' };
+  }
+
+  // 6. GIA DỤNG (Household/ĐMX) - Light Cyan/Dark Teal
+  const GIA_DUNG_KEYS = [
+    "hisense", "dientu", "dientusamsung", "maygiat", "maysaymayruachen",
+    "cehanghaiermaylanhaqua", "cehanghaiernaylanhaqua", "maylanhcasper", "maylanhnagakawa",
+    "dientudienlanhdiengiadunghanglg", "dacquyenmaygiattulanhmaylanhsamsung",
+    "tulanhdudongtumat", "tulanhtudongtumat", "maylocnuoc", "noicom", "quatgio", "maylockhongkhihutamhutbui",
+    "maylanhdacquyen"
+  ];
+  if (GIA_DUNG_KEYS.some(k => cleanStr === k || cleanStr.includes(k) || k.includes(cleanStr))) {
+    return { bgText: 'bg-[#ecfeff] text-[#155e75]', hover: 'hover:bg-[#cffafe]' };
+  }
+
+  // 7. VAS / SERVICES - Light Green/Dark Green (Changed to match SP CHÍNH color theme)
+  return { bgText: 'bg-[#ecfdf5] text-[#065f46]', hover: 'hover:bg-[#d1fae5]' };
+};
 
 // Reusing parsing logic to avoid affecting EmployeeDetailTable
-const parseStaffMatrixDataRefined = (input: string, staffCount: number, categoryTargets: any[], luykeCategories: CategoryData[], daysPassed: number, totalDays: number): { staffMatrix: StaffMatrixData[], categories: string[] } => {
+const parseStaffMatrixDataRefined = (
+  input: string, 
+  staffCount: number, 
+  categoryTargets: any[], 
+  luykeCategories: CategoryData[], 
+  daysPassed: number, 
+  totalDays: number,
+  sortAlpha: boolean = false
+): { staffMatrix: StaffMatrixData[], categories: string[] } => {
   const raw = input.trim();
   if (!raw) return { staffMatrix: [], categories: [] };
   const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
   // 1. Quét tên các ngành hàng có trong dữ liệu dán (thiDuaNv) - dùng để mapping cột
+  // CRITICAL: Track ALL column positions including filtered ones, so data column indices stay aligned.
   let inputCategories: string[] = [];
+  let allColumnHeaders: string[] = [];
+  const categoryToColIdx: Map<string, number> = new Map();
   let headerStartIdx = -1;
   let dataStartIdx = -1;
+  let colPosition = 0;
 
   for (let i = 0; i < lines.length; i++) {
     if (lines[i] === 'Phòng ban') {
@@ -36,7 +109,6 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       const isOnlyNumbers = /^[\d\s,.-]+$/.test(catName);
       const lowerCatName = catName.toLowerCase();
       const isExcluded = [
-        'tổng', 'tong',
         'bp all in one',
         'bp trưởng ca', 'bp truong ca',
         'hỗ trợ bi', 'ho tro bi',
@@ -49,9 +121,13 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
         'khối kinh doanh', 'khoi kinh doanh',
         'logo bi',
         'avatar'
-      ].some(ex => lowerCatName.includes(ex));
+      ].some(ex => lowerCatName.includes(ex)) ||
+      ((lowerCatName.includes('tổng') || lowerCatName.includes('tong')) && cleanCategoryName(catName) !== 'simtong');
+
+      allColumnHeaders.push(catName);
 
       if (isColumnTypesLine || isOnlyNumbers || isExcluded) {
+        colPosition++;
         continue;
       }
 
@@ -59,28 +135,140 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       if (targetMatch) {
         catName = targetMatch[1].trim();
       }
+      
+      const cleanName = cleanCategoryName(catName);
+      if (!categoryToColIdx.has(cleanName)) {
+        categoryToColIdx.set(cleanName, colPosition);
+      }
+      
       inputCategories.push(catName);
+      colPosition++;
     }
   }
 
-  // 2. Xác định danh sách ngành hàng hiển thị (lấy trực tiếp từ dữ liệu dán thiDuaNv)
-  // để đảm bảo các cột hiển thị trùng khớp hoàn toàn với dữ liệu người dùng dán vào.
-  let displayCategories: string[] = [];
-  const seen = new Set<string>();
-  inputCategories.forEach(catName => {
-    const clean = cleanCategoryName(catName);
-    if (clean && !seen.has(clean)) {
-      seen.add(clean);
-      displayCategories.push(catName);
-    }
-  });
+  // 2. Xác định danh sách ngành hàng hiển thị
+  let resolvedCategories: string[] = [];
+  if (luykeCategories && luykeCategories.length > 0) {
+    const targetOrder = categoryTargets.map(t => cleanCategoryName(t.name));
+    const sortedLuyke = [...luykeCategories].sort((a, b) => {
+      const idxA = targetOrder.indexOf(cleanCategoryName(a.name));
+      const idxB = targetOrder.indexOf(cleanCategoryName(b.name));
+      const valA = idxA !== -1 ? idxA : 9999;
+      const valB = idxB !== -1 ? idxB : 9999;
+      return valA - valB;
+    });
+    resolvedCategories = sortedLuyke.map(c => c.name);
+  } else if (categoryTargets && categoryTargets.length > 0) {
+    resolvedCategories = categoryTargets.map(t => t.name);
+  } else {
+    let displayCategories: string[] = [];
+    const seen = new Set<string>();
+    inputCategories.forEach(catName => {
+      const clean = cleanCategoryName(catName);
+      if (clean && !seen.has(clean)) {
+        seen.add(clean);
+        displayCategories.push(catName);
+      }
+    });
+    resolvedCategories = displayCategories;
+  }
+
+  // Premium custom column order sorting
+  const CUSTOM_COLUMN_ORDER = [
+    "ĐIỆN THOẠI & TABLET ANDROID",
+    "Điện thoại Realme",
+    "Điện thoại Vivo",
+    "Đồng hồ - Phụ kiện",
+    "DOANH THU ĐỒNG HỒ",
+    "Loa",
+    "Laptop",
+    "Camera",
+    "Sim Tổng",
+    "SIM MOBIFONE&VINAPHONE&SIM DMX",
+    "BẢO HIỂM",
+    "BẢO HIỂM THỢ ĐIỆN MÁY XANH",
+    "TRẢ CHẬM HOMECREDIT",
+    "FECREDIT, SHINHAN, SAMSUNG FINANCE+",
+    "TRẢ CHẬM ĐIỆN MÁY VÀ GIA DỤNG",
+    "Ví trả sau",
+    "Cho vay tiền mặt",
+    "Dịch vụ VAS",
+    "NẠP RÚT TIỀN TÀI KHOẢN NGÂN HÀNG THÁNG 07/2026",
+    "MANGO PLUS + ICALLME",
+    "MỞ THẺ TÍN DỤNG TPBANK EVO VÀ VPBANK MWG",
+    "HISENSE",
+    "Điện tử",
+    "Điện tử Samsung",
+    "MÁY GIẶT",
+    "MÁY SẤY & MÁY RỬA CHÉN",
+    "CE HÃNG HAIER + MÁY LẠNH AQUA",
+    "Máy lạnh Casper",
+    "Máy Lạnh NAGAKAWA",
+    "ĐIỆN TỬ & ĐIỆN LẠNH, ĐIỆN GIA DỤNG HÃNG LG",
+    "ĐẶC QUYỀN MÁY GIẶT -TỦ LẠNH -MÁY LẠNH SAMSUNG",
+    "TỦ LẠNH, TỦ ĐÔNG, TỦ MÁT",
+    "Máy Lọc Nước",
+    "Nồi cơm",
+    "Quạt gió",
+    "MÁY LỌC KHÔNG KHÍ - HÚT ẨM - HÚT BỤI"
+  ];
+
+  // removeAccentsLocal is now defined at file scope
+
+  const getCategorySortWeight = (catName: string): number => {
+    const cleanStr = removeAccentsLocal(catName).toLowerCase().replace(/[^a-z0-9]/g, '');
+    const matchedIdx = CUSTOM_COLUMN_ORDER.findIndex(orderedName => {
+      const cleanOrdered = removeAccentsLocal(orderedName).toLowerCase().replace(/[^a-z0-9]/g, '');
+      return cleanStr === cleanOrdered || cleanStr.includes(cleanOrdered) || cleanOrdered.includes(cleanStr);
+    });
+    return matchedIdx !== -1 ? matchedIdx : 9999;
+  };
+
+  if (sortAlpha) {
+    resolvedCategories = [...resolvedCategories].sort((a, b) => a.localeCompare(b, 'vi'));
+  } else {
+    resolvedCategories = [...resolvedCategories].sort((a, b) => {
+      const weightA = getCategorySortWeight(a);
+      const weightB = getCategorySortWeight(b);
+      if (weightA !== weightB) {
+        return weightA - weightB;
+      }
+      return a.localeCompare(b, 'vi');
+    });
+  }
+
+  // 3. Tính target cho từng ngành hàng trên mỗi nhân viên
+  const targetPerStaffPerCat: Record<string, number> = {};
+  if (luykeCategories && luykeCategories.length > 0) {
+    luykeCategories.forEach((cat: any) => {
+      const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCategoryName(cat.name));
+      const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
+        ? matchingTarget.adjustedTarget
+        : cat.target;
+      targetPerStaffPerCat[cleanCategoryName(cat.name)] = baseTarget / staffCount;
+    });
+  } else if (categoryTargets && categoryTargets.length > 0) {
+    categoryTargets.forEach((cat: any) => {
+      const baseTarget = (typeof cat.adjustedTarget === 'number')
+        ? cat.adjustedTarget
+        : (cat.target || 0);
+      targetPerStaffPerCat[cleanCategoryName(cat.name)] = baseTarget / staffCount;
+    });
+  }
 
   const results: StaffMatrixData[] = [];
   const excludedKeywords = ['Tổng', 'BP All In One', 'BP Trưởng Ca', 'Hỗ trợ BI', 'Copyright', 'Dashboard', 'BC ', 'HD sử dụng', 'Trang chủ', 'Báo cáo', 'Khối kinh doanh', 'Logo BI', 'avatar'];
   const dataLines = lines.slice(dataStartIdx);
 
   for (const line of dataLines) {
-    const parts = line.split(/\t|\s{2,}/).map(p => p.trim()).filter(p => p.length > 0);
+    // Split by tab ONLY and preserve empty columns to maintain alignment with category headers.
+    let parts = line.split('\t').map(p => p.trim());
+    
+    // Fallback: if no tabs found (single column), try splitting by multiple spaces
+    if (parts.length < 3) {
+      parts = line.split(/ {2,}/).map(p => p.trim()).filter(p => p.length > 0);
+    }
+    
     const namePart = parts[0];
     
     if (!namePart) continue;
@@ -100,6 +288,7 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
     const dataStartIndex = 1;
     
     const rawInputValues = parts.slice(dataStartIndex).map(v => {
+      if (!v || v.trim() === '') return 0; // Preserve empty columns as 0
       const clean = v.replace(/,/g, '');
       const num = parseFloat(clean);
       return isNaN(num) ? 0 : num;
@@ -110,19 +299,13 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
     const actualPercentHTs: number[] = [];
     let achievedCount = 0;
 
-    displayCategories.forEach((catName) => {
-      const inputIdx = inputCategories.findIndex(ic => cleanCategoryName(ic) === cleanCategoryName(catName));
-      const accumulated = inputIdx !== -1 ? (rawInputValues[inputIdx] || 0) : 0;
+    resolvedCategories.forEach((catName) => {
+      const cleanName = cleanCategoryName(catName);
+      const colIdx = categoryToColIdx.get(cleanName);
+      const accumulated = (colIdx !== undefined && colIdx < rawInputValues.length) ? (rawInputValues[colIdx] || 0) : 0;
       values.push(accumulated);
 
-      const lkCat = luykeCategories.length > 0
-        ? luykeCategories.find((c: any) => cleanCategoryName(c.name) === cleanCategoryName(catName))
-        : null;
-      const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCategoryName(catName));
-      const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
-        ? matchingTarget.adjustedTarget
-        : (lkCat ? lkCat.target : 0);
-      const target = baseTarget / staffCount;
+      const target = targetPerStaffPerCat[cleanName] || 0;
       
       // Actual
       let actualRate = target > 0 ? (accumulated / target) * 100 : 0;
@@ -143,14 +326,14 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       fullId: id,
       shortName: `${id} - ${shortName}`,
       achieved: achievedCount,
-      totalCats: displayCategories.length,
-      rate: displayCategories.length > 0 ? achievedCount / displayCategories.length : 0, 
+      totalCats: resolvedCategories.length,
+      rate: resolvedCategories.length > 0 ? achievedCount / resolvedCategories.length : 0, 
       rawValues: values,
       projectedRates,
       actualPercentHTs
     });
   }
-  return { staffMatrix: results, categories: displayCategories };
+  return { staffMatrix: results, categories: resolvedCategories };
 };
 
 interface SummaryThiDuaTableProps {
@@ -180,12 +363,140 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   const [visibleCategories, setVisibleCategories] = useState<string[]>([]);
   const [catSearchTerm, setCatSearchTerm] = useState('');
   const [isCatDropdownOpen, setIsCatDropdownOpen] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const catDropdownRef = useRef<HTMLDivElement>(null);
-  const catInitializedRef = useRef(false);
+
+  const { userProfile } = useAuth();
+  const { setCategoryTargets, saveLuykeData, activeStore } = useLuykeData();
+  const isAdmin = userProfile?.username === '43751';
+
+  const [draggedCat, setDraggedCat] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, catName: string) => {
+    e.dataTransfer.setData('text/plain', catName);
+    setDraggedCat(catName);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetCatName: string) => {
+    e.preventDefault();
+    const sourceCatName = e.dataTransfer.getData('text/plain') || draggedCat;
+    if (!sourceCatName || sourceCatName === targetCatName) return;
+
+    const newTargets = [...categoryTargets];
+    const sourceClean = cleanCategoryName(sourceCatName);
+    const targetClean = cleanCategoryName(targetCatName);
+    const sourceIdx = newTargets.findIndex(t => cleanCategoryName(t.name) === sourceClean);
+    const targetIdx = newTargets.findIndex(t => cleanCategoryName(t.name) === targetClean);
+    
+    if (sourceIdx !== -1 && targetIdx !== -1) {
+      const [removed] = newTargets.splice(sourceIdx, 1);
+      newTargets.splice(targetIdx, 0, removed);
+      
+      setCategoryTargets(newTargets);
+      
+      if (saveLuykeData) {
+        await saveLuykeData(false, 'targets', activeStore, newTargets);
+      }
+    }
+    setDraggedCat(null);
+  };
   
+  const [isCatsSortedAlpha, setIsCatsSortedAlpha] = useState(false);
+  const [sortColumn, setSortColumn] = useState<{
+    type: 'default' | 'name' | 'achieved' | 'rate' | 'category';
+    catName?: string;
+    ascending: boolean;
+  }>({
+    type: 'default',
+    ascending: false
+  });
+
   // Use passed luykeCategories (BC THÁNG displayed data) for staffMatrix calculation
-  const { staffMatrix, categories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays);
-  const sortedStaffMatrix = staffMatrix.sort((a, b) => b.rate - a.rate);
+  const { staffMatrix, categories } = parseStaffMatrixDataRefined(
+    thiDuaNv, 
+    staffCount, 
+    categoryTargets, 
+    luykeCategories, 
+    daysPassed, 
+    totalDays,
+    isCatsSortedAlpha
+  );
+
+  const sortedStaffMatrix = React.useMemo(() => {
+    const matrix = [...staffMatrix];
+    
+    if (sortColumn.type === 'default') {
+      return matrix.sort((a, b) => b.rate - a.rate);
+    }
+    
+    if (sortColumn.type === 'name') {
+      return matrix.sort((a, b) => {
+        const cmp = a.displayName.localeCompare(b.displayName, 'vi');
+        return sortColumn.ascending ? cmp : -cmp;
+      });
+    }
+    
+    if (sortColumn.type === 'achieved') {
+      return matrix.sort((a, b) => {
+        const getAchieved = (staff: StaffMatrixData) => {
+          return categories.reduce((count, catName, idx) => {
+            if (!visibleCategories.includes(catName)) return count;
+            const projectedRate = staff.projectedRates[idx] || 0;
+            return Math.round(projectedRate) >= 100 ? count + 1 : count;
+          }, 0);
+        };
+        const valA = getAchieved(a);
+        const valB = getAchieved(b);
+        return sortColumn.ascending ? valA - valB : valB - valA;
+      });
+    }
+    
+    if (sortColumn.type === 'rate') {
+      return matrix.sort((a, b) => {
+        const getRate = (staff: StaffMatrixData) => {
+          const visibleAchieved = categories.reduce((count, catName, idx) => {
+            if (!visibleCategories.includes(catName)) return count;
+            const projectedRate = staff.projectedRates[idx] || 0;
+            return Math.round(projectedRate) >= 100 ? count + 1 : count;
+          }, 0);
+          return visibleCategories.length > 0 ? visibleAchieved / visibleCategories.length : 0;
+        };
+        const valA = getRate(a);
+        const valB = getRate(b);
+        return sortColumn.ascending ? valA - valB : valB - valA;
+      });
+    }
+    
+    if (sortColumn.type === 'category' && sortColumn.catName) {
+      const catIdx = categories.indexOf(sortColumn.catName);
+      return matrix.sort((a, b) => {
+        const valA = catIdx !== -1 ? (a.projectedRates[catIdx] || 0) : 0;
+        const valB = catIdx !== -1 ? (b.projectedRates[catIdx] || 0) : 0;
+        return sortColumn.ascending ? valA - valB : valB - valA;
+      });
+    }
+    
+    return matrix;
+  }, [staffMatrix, sortColumn, categories, visibleCategories]);
+
+  const handleHeaderClick = (type: 'default' | 'name' | 'achieved' | 'rate' | 'category', catName?: string) => {
+    setSortColumn(prev => {
+      if (prev.type === type && prev.catName === catName) {
+        return { type, catName, ascending: !prev.ascending };
+      }
+      return { type, catName, ascending: false };
+    });
+  };
+
+  const renderSortIcon = (type: 'default' | 'name' | 'achieved' | 'rate' | 'category', catName?: string) => {
+    const isActive = sortColumn.type === type && sortColumn.catName === catName;
+    if (!isActive) return <span className="opacity-30 ml-1 text-[10px] select-none">↕</span>;
+    return sortColumn.ascending ? <span className="ml-1 text-[10px] select-none">▲</span> : <span className="ml-1 text-[10px] select-none">▼</span>;
+  };
 
   const getTargetPerStaff = (catName: string) => {
     const lkCat = luykeCategories.length > 0
@@ -198,13 +509,13 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
     return staffCount > 0 ? baseTarget / staffCount : 0;
   };
   
-  // Initialize visible categories when categories load
+  // Initialize visible categories when categories load or change
+  const serializedCats = JSON.stringify(categories);
   React.useEffect(() => {
-    if (categories.length > 0 && !catInitializedRef.current) {
+    if (categories.length > 0) {
       setVisibleCategories(categories);
-      catInitializedRef.current = true;
     }
-  }, [categories]);
+  }, [serializedCats]);
 
   // Close dropdown when clicking outside
   React.useEffect(() => {
@@ -295,64 +606,58 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       container.style.position = 'absolute';
       container.style.top = '0';
       container.style.left = '0';
-      container.style.width = '2000px'; // Ensure enough width for the capture
+      container.style.width = '3000px'; // Extremely wide to prevent wrapping
       container.style.height = '0';
       container.style.overflow = 'hidden';
-      container.style.zIndex = '-1';
+      container.style.zIndex = '-9999';
       container.style.pointerEvents = 'none';
       
       const clone = originalElement.cloneNode(true) as HTMLElement;
       
-      // Hide the buttons in the clone
-      const buttonsToHide = clone.querySelectorAll('button');
-      buttonsToHide.forEach(btn => {
-        (btn as HTMLElement).style.display = 'none';
+      // Hide buttons/controls inside the clone
+      const noCaptureElements = clone.querySelectorAll('.no-capture, button');
+      noCaptureElements.forEach(el => {
+        (el as HTMLElement).style.display = 'none';
       });
       
-      // Maintain the original layout styles
-      clone.style.width = 'max-content'; // Allow it to take its natural fixed width
+      // Set clone styling to take full layout unconstrained
+      clone.style.width = 'max-content';
       clone.style.height = 'auto';
       clone.style.margin = '0';
-      clone.style.padding = '32px 60px 32px 32px'; // Add extra padding on the right (60px)
+      clone.style.padding = '32px'; // 32px white border all around
       clone.style.backgroundColor = '#ffffff';
       clone.style.display = 'inline-block';
       
-      // Ensure all nested scroll containers in the clone are expanded but maintain layout
-      const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto');
+      // Make sure overflow wrappers in the clone are visible
+      const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden');
       scrollContainers.forEach((el) => {
         const htmlEl = el as HTMLElement;
         htmlEl.style.overflow = 'visible';
         htmlEl.style.width = 'auto';
         htmlEl.style.height = 'auto';
+        htmlEl.style.maxWidth = 'none';
+        htmlEl.style.maxHeight = 'none';
       });
-      
+
       const table = clone.querySelector('table') as HTMLTableElement;
       if (table) {
-        // DO NOT change tableLayout to 'auto', keep it as 'fixed' if it was fixed
-        // This ensures the columns don't stretch
-        table.style.minWidth = 'unset'; 
-        table.style.width = originalElement.querySelector('table')?.offsetWidth + 'px';
+        table.style.width = 'max-content';
+        table.style.minWidth = 'max-content';
+        table.style.tableLayout = 'auto';
       }
 
       container.appendChild(clone);
       document.body.appendChild(container);
 
       try {
-        // Wait for styles and fonts to settle
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 200));
 
-        const dataUrl = await toPng(clone, { 
-            backgroundColor: '#ffffff',
-            pixelRatio: 2,
-            width: clone.offsetWidth,
-            height: clone.offsetHeight,
-            cacheBust: true,
+        const dataUrl = await domToPng(clone, {
+          backgroundColor: '#ffffff',
+          scale: 2,
         });
-        
-        const link = document.createElement('a');
-        link.href = dataUrl;
-        link.download = `TongHopThiDua_${new Date().getTime()}.png`;
-        link.click();
+
+        setPreviewImage(dataUrl);
       } catch (err) {
         console.error('Export failed:', err);
       } finally {
@@ -362,11 +667,11 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   };
 
   return (
-    <div ref={tableRef} className="card-thi-dua bg-white rounded-[16px] shadow-sm p-4 md:p-6 border border-slate-200">
+    <div ref={tableRef} className="card-thi-dua bg-white rounded-[16px] shadow-sm p-4 md:p-6 border border-slate-200" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
       {/* Header */}
-      <div className="flex flex-row items-center justify-between w-full border-b border-slate-300 pb-4 mb-4">
-        <div className="flex flex-row items-center justify-between w-full border border-slate-300 rounded-xl py-4 bg-slate-50/30">
-          <div className="flex flex-col items-center justify-center w-1/2 border-r border-slate-300">
+      <div className="flex flex-row items-center justify-between w-full border-b border-slate-200 pb-4 mb-4">
+        <div className="flex flex-row items-center justify-between w-full border border-slate-200 rounded-xl py-4 bg-slate-50/30">
+          <div className="flex flex-col items-center justify-center w-1/2 border-r border-slate-200">
             <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">TỔNG HỢP THI ĐUA</h2>
             <div className="flex items-center gap-2 text-slate-600 mt-1">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M3 7h18"/></svg>
@@ -381,7 +686,22 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
             </div>
           </div>
         </div>
-      <div className="flex items-center gap-2 ml-4">
+        <div className="flex items-center gap-2 ml-4">
+          {/* Alphabetical Sort Toggle */}
+          <button
+            onClick={() => setIsCatsSortedAlpha(!isCatsSortedAlpha)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 border rounded-xl text-xs font-black uppercase transition-all shadow-sm select-none",
+              isCatsSortedAlpha 
+                ? "bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700" 
+                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+            )}
+            title="Sắp xếp tên ngành hàng A-Z"
+          >
+            <span>NH A-Z</span>
+            <span className="text-[10px]">{isCatsSortedAlpha ? "▲" : "▼"}</span>
+          </button>
+
           {/* Category Filter Dropdown */}
           <div className="relative" ref={catDropdownRef}>
             <button
@@ -482,112 +802,156 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       <div className="overflow-x-auto">
         <table className="w-full border-collapse table-fixed">
           <thead>
-            <tr className="text-slate-900 border-b border-slate-300 h-[105px]">
-              <th className="px-2 py-2 text-xs font-black uppercase tracking-tight text-center border-r border-slate-300 bg-[#10b981] w-12">STT</th>
-              <th className="px-4 py-2 text-xs font-black uppercase tracking-tight text-center border-r border-slate-300 bg-[#10b981] w-[250px]">NHÂN VIÊN</th>
-              <th className="px-1 py-1 text-xs font-black uppercase tracking-tight text-center border-r border-slate-300 bg-[#10b981] w-[60px]">ĐẠT</th>
-              <th className="px-1 py-1 text-xs font-black uppercase tracking-tight text-center border-r border-slate-300 bg-[#10b981] w-[60px]">TỶ LỆ</th>
+            <tr className="text-slate-900 border-b border-slate-200 h-[85px]">
+              <th 
+                onClick={() => handleHeaderClick('default')}
+                className="px-2 py-1 text-[11px] font-black uppercase tracking-tight text-center border-b border-slate-200 bg-[#10b981] text-slate-900 cursor-pointer hover:bg-[#059669] transition-colors select-none"
+                style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}
+              >
+                STT {renderSortIcon('default')}
+              </th>
+              <th 
+                onClick={() => handleHeaderClick('name')}
+                className="px-3 py-1 text-[11px] font-black uppercase tracking-tight text-center border-b border-slate-200 bg-[#10b981] text-slate-900 cursor-pointer hover:bg-[#059669] transition-colors select-none"
+                style={{ width: '220px', minWidth: '220px', maxWidth: '220px' }}
+              >
+                NHÂN VIÊN {renderSortIcon('name')}
+              </th>
+              <th 
+                onClick={() => handleHeaderClick('achieved')}
+                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border-b border-slate-200 bg-[#10b981] text-slate-900 cursor-pointer hover:bg-[#059669] transition-colors select-none"
+                style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}
+              >
+                ĐẠT {renderSortIcon('achieved')}
+              </th>
+              <th 
+                onClick={() => handleHeaderClick('rate')}
+                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border-b border-slate-200 bg-[#10b981] text-slate-900 cursor-pointer hover:bg-[#059669] transition-colors select-none"
+                style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}
+              >
+                TỶ LỆ {renderSortIcon('rate')}
+              </th>
               {categories.filter(catName => visibleCategories.includes(catName)).map(catName => (
                 <React.Fragment key={catName}>
-                  <th className="px-1 py-1 text-xs font-black uppercase tracking-tight text-center border-r border-slate-300 bg-[#facc15] w-[60px] whitespace-normal break-words">{catName}</th>
-                  {catName === 'MÁY LẠNH ĐẶC QUYỀN' && (
-                    <th className="bg-white w-[30pt] border-r border-slate-300"></th>
+                  <th 
+                    draggable={isAdmin}
+                    onDragStart={(e) => handleDragStart(e, catName)}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, catName)}
+                    onClick={() => handleHeaderClick('category', catName)}
+                    className={cn(
+                      "px-1 py-1 text-[10px] font-black uppercase tracking-tight text-center border-b border-slate-200 cursor-pointer transition-colors select-none",
+                      getCategoryBadgeStyleClasses(catName).bgText,
+                      getCategoryBadgeStyleClasses(catName).hover,
+                      isAdmin && "hover:border-indigo-500 border-2 border-transparent"
+                    )}
+                    style={{
+                      width: '70px',
+                      minWidth: '70px',
+                      maxWidth: '70px',
+                      wordBreak: 'break-word',
+                      whiteSpace: 'normal',
+                      ...(isAdmin ? { border: '1px solid #4f46e5', cursor: 'grab' } : {})
+                    }}
+                    title={isAdmin ? "Kéo thả để sắp xếp vị trí cột" : undefined}
+                  >
+                    {catName} {renderSortIcon('category', catName)}
+                  </th>
+                  {cleanCategoryName(catName) === 'maylanhdacquyen' && (
+                    <th className="bg-white border-b border-slate-200" style={{ width: '40px', minWidth: '40px', maxWidth: '40px' }}></th>
                   )}
                 </React.Fragment>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-300">
-            {filteredStaffMatrix.map((staff, index) => (
-              <tr key={staff.fullId} className={cn("hover:bg-slate-50 transition-colors h-[45px]", staff.displayName.includes('30016') ? 'border-b border-slate-300' : '')}>
-                <td className="px-2 py-0 text-center border-r border-slate-300 bg-[#d1fae5] font-black text-xs truncate">
-                  {index + 1}
-                </td>
-                <td className="px-4 py-0 border-r border-slate-300 text-xs font-black uppercase tracking-tight text-slate-700 truncate">
-                  <div className="flex items-center justify-between group">
-                    <span>{staff.displayName}</span>
-                    <button 
-                      onClick={() => handleCopyStaff(staff)}
-                      className={cn(
-                        "p-1 rounded-md transition-all opacity-0 group-hover:opacity-100",
-                        copiedId === staff.fullId ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400 hover:text-indigo-600"
-                      )}
-                    >
-                      {copiedId === staff.fullId ? <Check size={12} /> : <Copy size={12} />}
-                    </button>
-                  </div>
-                </td>
-                <td className="px-1 py-0 text-xs font-black text-center border-r border-slate-300 bg-[#ecfdf5]">
-                  {(() => {
-                    const visibleAchieved = categories.reduce((count, catName, idx) => {
-                      if (!visibleCategories.includes(catName)) return count;
-                      const targetPerStaff = getTargetPerStaff(catName);
-                      const accumulated = staff.rawValues[idx] || 0;
-                      const projectedRate = targetPerStaff > 0 && daysPassed > 0
-                        ? (((accumulated) / daysPassed) * totalDays) / targetPerStaff * 100
-                        : 0;
-                      return Math.round(projectedRate) >= 100 ? count + 1 : count;
-                    }, 0);
-                    return `${visibleAchieved}/${visibleCategories.length}`;
-                  })()}
-                </td>
-                <td className={cn(
-                  "px-1 py-0 text-xs font-black text-center border-r border-slate-300 bg-[#ecfdf5]",
-                  (() => {
-                    const visibleAchieved = categories.reduce((count, catName, idx) => {
-                      if (!visibleCategories.includes(catName)) return count;
-                      const targetPerStaff = getTargetPerStaff(catName);
-                      const accumulated = staff.rawValues[idx] || 0;
-                      const projectedRate = targetPerStaff > 0 && daysPassed > 0
-                        ? (((accumulated) / daysPassed) * totalDays) / targetPerStaff * 100
-                        : 0;
-                      return Math.round(projectedRate) >= 100 ? count + 1 : count;
-                    }, 0);
-                    const visibleRate = visibleCategories.length > 0 ? visibleAchieved / visibleCategories.length : 0;
-                    return visibleRate < 0.5 ? "text-rose-600" : "text-slate-900";
-                  })()
-                )}>
-                  {(() => {
-                    const visibleAchieved = categories.reduce((count, catName, idx) => {
-                      if (!visibleCategories.includes(catName)) return count;
-                      const targetPerStaff = getTargetPerStaff(catName);
-                      const accumulated = staff.rawValues[idx] || 0;
-                      const projectedRate = targetPerStaff > 0 && daysPassed > 0
-                        ? (((accumulated) / daysPassed) * totalDays) / targetPerStaff * 100
-                        : 0;
-                      return Math.round(projectedRate) >= 100 ? count + 1 : count;
-                    }, 0);
-                    const visibleRate = visibleCategories.length > 0 ? visibleAchieved / visibleCategories.length : 0;
-                    return `${(visibleRate * 100).toFixed(1)}%`;
-                  })()}
-                </td>
+          <tbody>
+            {filteredStaffMatrix.map((staff, index) => {
+              const visibleAchieved = categories.reduce((count, catName, idx) => {
+                if (!visibleCategories.includes(catName)) return count;
+                const projectedRate = staff.projectedRates[idx] || 0;
+                return Math.round(projectedRate) >= 100 ? count + 1 : count;
+              }, 0);
+              const visibleRate = visibleCategories.length > 0 ? visibleAchieved / visibleCategories.length : 0;
+              const isBelowHalf = visibleRate < 0.5;
+              const ratePercentStr = `${(visibleRate * 100).toFixed(1)}%`;
+
+              return (
+                <tr key={staff.fullId} className={cn("hover:bg-slate-50 transition-colors h-[40px]", staff.displayName.includes('30016') ? 'border-b border-slate-200' : '')}>
+                  <td className="px-2 py-0 text-center border-b border-slate-100 bg-[#d1fae5] text-slate-900 font-black text-[13px] truncate">
+                    {index + 1}
+                  </td>
+                  <td className="px-3 py-0 border-b border-slate-100 text-[13px] font-black uppercase tracking-tight text-slate-700 truncate">
+                    <div className="flex items-center justify-between group h-full">
+                      <span className="truncate">{staff.displayName}</span>
+                      <button 
+                        onClick={() => handleCopyStaff(staff)}
+                        className={cn(
+                          "p-1 rounded-md transition-all opacity-0 group-hover:opacity-100",
+                          copiedId === staff.fullId ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400 hover:text-indigo-600"
+                        )}
+                      >
+                        {copiedId === staff.fullId ? <Check size={12} /> : <Copy size={12} />}
+                      </button>
+                    </div>
+                  </td>
+                  <td className="px-1 py-0 text-[13px] font-black text-center border-b border-slate-100 bg-[#ecfdf5] text-[#065f46]">
+                    {visibleAchieved}/{visibleCategories.length}
+                  </td>
+                  <td className={cn(
+                    "px-1 py-0 text-[13px] font-black text-center border-b border-slate-100 bg-[#ecfdf5]",
+                    isBelowHalf ? "text-[#b91c1c]" : "text-[#065f46]"
+                  )}>
+                    {ratePercentStr}
+                  </td>
                 {categories.map((catName, idx) => {
                   if (!visibleCategories.includes(catName)) return null;
-                  const targetPerStaff = getTargetPerStaff(catName);
-                  const accumulated = staff.rawValues[idx] || 0;
-                  const projectedRate = targetPerStaff > 0 && daysPassed > 0 
-                      ? (((accumulated) / daysPassed) * totalDays) / targetPerStaff * 100
-                      : 0;
+                  const projectedRate = staff.projectedRates[idx] || 0;
                   const roundedRate = Math.round(projectedRate);
                   return (
                     <React.Fragment key={idx}>
                       <td className={cn(
-                          "px-1 py-0 text-xs font-black text-center border-r border-slate-300 truncate",
-                          roundedRate >= 100 ? "text-emerald-600" : "text-rose-600"
+                          "px-1 py-0 text-[13px] font-black text-center border-b border-slate-100 truncate",
+                          roundedRate >= 100 ? "text-[#047857]" : "text-[#b91c1c]"
                       )}>
                           {roundedRate}%
                       </td>
-                      {catName === 'MÁY LẠNH ĐẶC QUYỀN' && (
-                        <td className="bg-white border-r border-slate-300"></td>
+                      {cleanCategoryName(catName) === 'maylanhdacquyen' && (
+                        <td className="bg-white border-b border-slate-100"></td>
                       )}
                     </React.Fragment>
                   );
                 })}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setPreviewImage(null)}>
+          <div className="relative bg-white rounded-2xl max-w-[90vw] max-h-[90vh] flex flex-col overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800">Ảnh chụp màn hình</h3>
+              <button
+                onClick={() => setPreviewImage(null)}
+                className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-4 py-3 bg-amber-50 border-b border-amber-100 flex items-center justify-center">
+              <p className="text-[13px] font-black text-amber-800 uppercase tracking-wide flex items-center gap-2">
+                <span className="text-lg">💡</span> Mẹo: Nhấp chuột phải (hoặc nhấn giữ trên điện thoại) vào ảnh và chọn "Sao chép hình ảnh"
+              </p>
+            </div>
+            <div className="overflow-auto p-4 bg-slate-50">
+              <img src={previewImage} alt="Preview" className="max-w-full h-auto shadow-sm" />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

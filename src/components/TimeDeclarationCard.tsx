@@ -77,7 +77,7 @@ export default function TimeDeclarationCard({ warehouseCode }: TimeDeclarationCa
 
     // Xoá các bản ghi cũ bị trùng lặp (nếu có)
     if (existingRecords && existingRecords.length > 1) {
-      const idsToDelete = existingRecords.slice(1).map(record => record.id);
+      const idsToDelete = existingRecords.slice(1).map((record: any) => record.id);
       await supabase
         .from('warehouse_time')
         .delete()

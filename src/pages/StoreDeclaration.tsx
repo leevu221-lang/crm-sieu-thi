@@ -154,7 +154,9 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
         const fieldsToMigrate = [
           'lk_bi_tong_quan', 'lk_nh_sieu_thi', 'taget_doanh_thu', 'category_targets',
           'lk_dt_nv', 'lk_td_nv', 'ds_nhan_vien', 'dt_gio_cong', 'data_phan_ca',
-          'tragop_matran', 'tragop_nv', 'phuc_vu', 'ban_kem_nv'
+          'tragop_matran', 'tragop_nv', 'phuc_vu', 'ban_kem_nv',
+          'sticker_ce_price_data', 'sticker_ce_inventory_data',
+          'sticker_lk_price_data', 'sticker_lk_inventory_data'
         ];
 
         fieldsToMigrate.forEach(mergeField);

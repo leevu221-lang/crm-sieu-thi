@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { HeartPulse, Camera, TrendingUp, Search, ChevronDown, Check, MessageSquare, FileText, ChevronRight, LayoutGrid, Info, Users, Printer, UploadCloud, Trophy, TrendingDown, Gift, Target, Trash2 } from 'lucide-react';
+import { HeartPulse, Camera, TrendingUp, Search, ChevronDown, Check, MessageSquare, FileText, ChevronRight, LayoutGrid, Info, Users, Printer, UploadCloud, Trophy, TrendingDown, Gift, Target, Trash2, Clock, X } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { motion, AnimatePresence } from 'motion/react';
 import * as htmlToImage from 'html-to-image';
@@ -13,6 +13,7 @@ import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 import { useEmployeeHealth } from './EmployeeHealth/hooks/useEmployeeHealth';
 import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';
+import { ImagePreviewModal } from '../components/ImagePreviewModal';
 import { useLuykeData } from './RTST/hooks/useLuykeData';
 import { useAuth } from '../contexts/AuthContext';
 import { useMarket } from '../contexts/MarketContext';
@@ -21,7 +22,8 @@ import RevenueRankingTableQd from './EmployeeHealth/components/RevenueRankingTab
 import EmployeeDetailTable from './EmployeeHealth/components/EmployeeDetailTable';
 import SummaryThiDuaTable from './EmployeeHealth/components/SummaryThiDuaTable';
 import CategoryDetailByStaffTable from './EmployeeHealth/components/CategoryDetailByStaffTable';
-import { cn, parseStaffRankData, parseYcxData, normalizeStoreId } from './RTST/utils';
+import TongHopNvTable from './EmployeeHealth/components/TongHopNvTable';
+import { cn, parseStaffRankData, parseYcxData, normalizeStoreId, parseStaffValueList, normalize } from './RTST/utils';
 
 const removeAccents = (str: string): string => {
   return str
@@ -232,6 +234,7 @@ const EmployeeHealth: React.FC = () => {
   const { marketFilter, setMarketFilter, setAvailableMarkets } = useMarket();
   const [maKho, setMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
   const [isCapturing, setIsCapturing] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const captureRef = useRef<HTMLDivElement>(null);
   const capturePhucVuRef = useRef<HTMLDivElement>(null);
@@ -260,7 +263,7 @@ const EmployeeHealth: React.FC = () => {
     try {
       await new Promise(r => setTimeout(r, 100)); // wait for layout
       const dataUrl = await htmlToImage.toPng(container, { backgroundColor: '#ffffff' });
-      saveAs(dataUrl, 'LK_THUONG_NHAN_VIEN.png');
+      setPreviewImage(dataUrl);
     } catch (err) {
       console.error('Error capturing thuong nv board:', err);
     } finally {
@@ -276,7 +279,7 @@ const EmployeeHealth: React.FC = () => {
     setIsCapturing(true);
     try {
       const dataUrl = await htmlToImage.toPng(captureBanKemRef.current, { backgroundColor: '#ffffff' });
-      saveAs(dataUrl, 'LK_BAN_KEM_NHAN_VIEN.png');
+      setPreviewImage(dataUrl);
     } finally {
       setIsCapturing(false);
     }
@@ -296,11 +299,21 @@ const EmployeeHealth: React.FC = () => {
     thiDuaNv: dbThiDuaNv,
     phucVu,
     banKemNv,
+    tragopNv,
+    dtqd3t1, setDtqd3t1,
+    dtqd3t2, setDtqd3t2,
+    dtqd3t3, setDtqd3t3,
+    thunhap3t1, setThunhap3t1,
+    thunhap3t2, setThunhap3t2,
+    thunhap3t3, setThunhap3t3,
+    setBanKemNv,
+    setTragopNv,
     isLoading: isHealthLoading,
     isSaving,
     refresh,
     savePhucVu,
-    saveBanKemNv
+    saveBanKemNv,
+    saveTragopNv
   } = useEmployeeHealth(maKho, marketFilter !== 'ALL' ? marketFilter : undefined);
   const { 
     stTargetSauHeSo, setStTargetSauHeSo,
@@ -315,7 +328,7 @@ const EmployeeHealth: React.FC = () => {
     stPercentHTTargetDuKienQD, setStPercentHTTargetDuKienQD,
     allStoreTargets
   } = useRTSTSharedData(maKho);
-  const { categoryTargets, processedData, staffInput, staffCategoryInput, loadData: loadLuykeData, isLoading: isLuykeLoading } = useLuykeData(maKho);
+  const { tragopMatran, categoryTargets, processedData, staffInput, staffCategoryInput, loadData: loadLuykeData, isLoading: isLuykeLoading } = useLuykeData(maKho);
 
   const isDataLoading = isHealthLoading || isLuykeLoading;
 
@@ -357,7 +370,7 @@ const EmployeeHealth: React.FC = () => {
         setStPercentTarget(targetData.stPercentTarget);
       }
     }
-  }, [marketFilter, allowedMarkets, allStoreTargets, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stPercentTarget, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD, setStPercentTarget]);
+  }, [marketFilter, allowedMarkets, allStoreTargets, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD, setStPercentTarget]);
 
   // NOTE: Luyke data auto-loads when currentStoreId changes (centralized in useLuykeData)
 
@@ -388,9 +401,434 @@ const EmployeeHealth: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<'DOANH_THU' | 'CHI_TIET' | 'THI_DUA' | 'NGANH_HANG' | 'PHUC_VU' | 'BAN_KEM_NV' | 'THUONG_NV' | 'KHAI_THAC_NV'>('DOANH_THU');
+  const [activeTab, setActiveTab] = useState<'DOANH_THU' | 'TONG_HOP_NV' | 'CHI_TIET' | 'THI_DUA' | 'NGANH_HANG' | 'PHUC_VU' | 'BAN_KEM_NV' | 'THUONG_NV' | 'TRA_CHAM_NV' | 'KHAI_THAC_NV' | 'RANK_3T_NV'>('DOANH_THU');
+  const [khaiThacCategoryFilter, setKhaiThacCategoryFilter] = useState<string>('ALL');
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const [autoExpand, setAutoExpand] = useState(false);
+
+  const captureTraChamRef = useRef<HTMLDivElement>(null);
+  const captureKhaiThacRef = useRef<HTMLDivElement>(null);
+  const captureRank3TRef = useRef<HTMLDivElement>(null);
+
+  const handleCaptureTraCham = async () => {
+    if (!captureTraChamRef.current) return;
+    setIsCapturing(true);
+    try {
+      const dataUrl = await htmlToImage.toPng(captureTraChamRef.current, { backgroundColor: '#ffffff' });
+      setPreviewImage(dataUrl);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  const handleCaptureKhaiThac = async () => {
+    if (!captureKhaiThacRef.current) return;
+    setIsCapturing(true);
+    try {
+      const dataUrl = await htmlToImage.toPng(captureKhaiThacRef.current, { backgroundColor: '#ffffff' });
+      setPreviewImage(dataUrl);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  const handleCaptureRank3T = async () => {
+    if (!captureRank3TRef.current) return;
+    setIsCapturing(true);
+    try {
+      const dataUrl = await htmlToImage.toPng(captureRank3TRef.current, { backgroundColor: '#ffffff' });
+      setPreviewImage(dataUrl);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  const parseKhaiThacData = useCallback((text: string) => {
+    if (!text) return [];
+    const lines = text.split('\n').map(l => l.replace(/[\r\n]/g, '')).filter(l => l.trim().length > 0);
+    if (lines.length === 0) return [];
+
+    const cleanNumber = (val: string): number => {
+      if (!val) return 0;
+      let s = val.trim().replace(/[^\d,.-]/g, ''); // Keep only digits, dots, commas, minus
+      if (!s) return 0;
+
+      const hasComma = s.includes(',');
+      const hasDot = s.includes('.');
+
+      if (hasComma && hasDot) {
+        const lastComma = s.lastIndexOf(',');
+        const lastDot = s.lastIndexOf('.');
+        if (lastComma > lastDot) {
+          // Comma is decimal separator (e.g. 1.500.000,50)
+          s = s.replace(/\./g, '').replace(',', '.');
+        } else {
+          // Dot is decimal separator (e.g. 1,500,000.50)
+          s = s.replace(/,/g, '');
+        }
+      } else if (hasComma) {
+        // Only comma(s)
+        const parts = s.split(',');
+        if (parts.length > 2) {
+          // Multiple commas (e.g. 1,500,000) -> thousand separators
+          s = s.replace(/,/g, '');
+        } else {
+          // Single comma (e.g. 1,500 or 15,5)
+          if (parts[1].length === 3) {
+            // E.g. 1,500 -> 1500
+            s = s.replace(/,/g, '');
+          } else {
+            // E.g. 15,5 -> 15.5
+            s = s.replace(',', '.');
+          }
+        }
+      } else if (hasDot) {
+        // Only dot(s)
+        const parts = s.split('.');
+        if (parts.length > 2) {
+          // Multiple dots (e.g. 1.500.000) -> thousand separators
+          s = s.replace(/\./g, '');
+        } else {
+          // Single dot (e.g. 1.500 or 15.5)
+          if (parts[1].length === 3) {
+            // E.g. 1.500 -> 1500
+            s = s.replace(/\./g, '');
+          }
+        }
+      }
+
+      const num = parseFloat(s);
+      return isNaN(num) ? 0 : num;
+    };
+
+    const splitLineRobust = (line: string): string[] => {
+      let parts = line.split('\t');
+      if (parts.length === 1) {
+        parts = line.split(/ {2,}/);
+      }
+      return parts.map(p => p.trim());
+    };
+
+    const parsedRows: any[] = [];
+
+    // 1. Detect headers if present in the first few lines
+    let dtlkColIdx = -1;
+    let dtqdColIdx = -1;
+    let soLuongColIdx = -1;
+    let donGiaColIdx = -1;
+    let hasColumnBasedHeader = false;
+    let solarColIdx = -1;
+    let staffColIdx = -1;
+    let detectedNhomHang = 'Đèn năng lượng mặt trời';
+
+    for (let i = 0; i < Math.min(lines.length, 10); i++) {
+      const parts = splitLineRobust(lines[i]);
+      const lowerParts = parts.map(p => removeAccents(p.toLowerCase()).trim());
+      
+      const hasDtlk = lowerParts.some(p => p === 'dtlk' || p.includes('luy ke') || p.includes('doanh thu thuc'));
+      const hasDtqd = lowerParts.some(p => p === 'dtqd' || p.includes('quy doi') || p.includes('doanh thu quy doi'));
+      
+      if (hasDtlk || hasDtqd) {
+        dtlkColIdx = lowerParts.findIndex(p => p === 'dtlk' || p.includes('luy ke') || p.includes('doanh thu thuc'));
+        dtqdColIdx = lowerParts.findIndex(p => p === 'dtqd' || p.includes('quy doi') || p.includes('doanh thu quy doi'));
+        soLuongColIdx = lowerParts.findIndex(p => p === 'so luong' || p === 'sl');
+        donGiaColIdx = lowerParts.findIndex(p => p === 'don gia' || p === 'dg');
+      }
+
+      // Also check if this is a standard Column-Based report where product name is in the column header
+      const solarIdx = lowerParts.findIndex(p => 
+        p.includes('den nang luong mat troi') || 
+        (p.includes('nang luong') && p.includes('mat troi')) || 
+        p.includes('den nang luong') || 
+        p.includes('nang luong mat troi') ||
+        p.includes('den nang luong mt') ||
+        p.includes('dnlmt')
+      );
+      if (solarIdx !== -1) {
+        // Confirm it has numbers below
+        let hasNumbers = false;
+        for (let j = i + 1; j < lines.length; j++) {
+          const rowParts = splitLineRobust(lines[j]);
+          if (rowParts.length > solarIdx) {
+            const val = cleanNumber(rowParts[solarIdx]);
+            if (val > 0) {
+              hasNumbers = true;
+              break;
+            }
+          }
+        }
+        if (hasNumbers) {
+          hasColumnBasedHeader = true;
+          solarColIdx = solarIdx;
+          const staffIdx = lowerParts.findIndex(p => 
+            p.includes('nhan vien') || p.includes('ho ten') || p === 'nv' || p === 'username'
+          );
+          staffColIdx = staffIdx !== -1 ? staffIdx : 0;
+          break;
+        }
+      }
+    }
+
+    // 2. Parse the lines
+    if (hasColumnBasedHeader && solarColIdx !== -1) {
+      lines.forEach((line) => {
+        const parts = splitLineRobust(line);
+        if (parts.length <= Math.max(solarColIdx, staffColIdx)) return;
+
+        const firstColClean = removeAccents(parts[0]).toLowerCase().replace(/[\s_*()-]+/g, '');
+        if (firstColClean.includes('nganhhang') || firstColClean.includes('nhomhang') || firstColClean.includes('sanpham') || firstColClean.includes('tennhanvien') || firstColClean.includes('nhanvien')) {
+          return;
+        }
+
+        const staffNameRaw = parts[staffColIdx].trim();
+        const solarValueRaw = parts[solarColIdx].trim();
+        let revenue = cleanNumber(solarValueRaw);
+        
+        // Scale to absolute VND if needed
+        if (revenue > 0 && revenue < 1000000) {
+          revenue = revenue * 1000000;
+        }
+
+        if (staffNameRaw && revenue > 0) {
+          parsedRows.push({
+            nhanVien: staffNameRaw,
+            nhomHang: 'Đèn năng lượng mặt trời',
+            dtlk: revenue,
+            soLuong: 0,
+            donGia: 0
+          });
+        }
+      });
+    } else {
+      let activeStaffName = '';
+
+      lines.forEach(line => {
+        const parts = splitLineRobust(line);
+        if (parts.length === 0) return;
+
+        const firstCell = parts[0].trim();
+        if (!firstCell) return;
+
+        // Check if this line is an employee row
+        const matchingStaff = biRevenueData.find(staff => {
+          const staffId = staff.fullId.toLowerCase().trim();
+          const staffName = (staff.displayName.split('-').pop() || '').trim();
+          const staffNameClean = removeAccents(staffName);
+          const cellClean = removeAccents(firstCell);
+          return cellClean.includes(staffId) || 
+                 cellClean === staffNameClean ||
+                 cellClean.includes(staffNameClean) ||
+                 staffNameClean.includes(cellClean);
+        });
+
+        if (matchingStaff) {
+          const nameParts = matchingStaff.displayName.split('-');
+          activeStaffName = nameParts.length > 1 
+            ? (isNaN(Number(nameParts[0].trim())) ? nameParts[0].trim() : nameParts[1].trim())
+            : matchingStaff.displayName;
+          return; // Skip parsing numbers on the employee header line itself
+        }
+
+        // Check if this line is a category row matching solar lights
+        const cleanFirstCell = removeAccents(firstCell.toLowerCase());
+        const isSolar = cleanFirstCell.includes('den nang luong mat troi') || 
+                        (cleanFirstCell.includes('nang luong') && cleanFirstCell.includes('mat troi')) || 
+                        cleanFirstCell.includes('den nang luong') || 
+                        cleanFirstCell.includes('dnlmt');
+        
+        // Fallbacks
+        const isGiaDung = !isSolar && (cleanFirstCell.includes('dien gia dung') || cleanFirstCell.includes('gia dung'));
+        const isPhuKien = !isSolar && !isGiaDung && (cleanFirstCell.includes('phu kien') || cleanFirstCell === 'pk');
+
+        if (isSolar || isGiaDung || isPhuKien) {
+          const currentCategory = isSolar ? 'Đèn năng lượng mặt trời' : (isGiaDung ? 'Điện gia dụng' : 'Phụ kiện');
+          
+          // Identify numeric cells in this row
+          const numericParts = parts.map((p, idx) => {
+            const clean = p.trim();
+            const val = cleanNumber(clean);
+            // Check if it looks like a number and is not the toggle or category cell
+            const hasLetters = /[a-zA-ZÀ-ỹ]/.test(removeAccents(clean).replace(/[đd%]/g, ''));
+            const isNumeric = clean.length > 0 && !hasLetters && !isNaN(parseFloat(clean.replace(/[^\d.-]/g, '')));
+            return { val, isNumeric, index: idx };
+          }).filter(item => item.isNumeric);
+
+          let dtlk = 0;
+          if (dtlkColIdx !== -1 && parts.length > dtlkColIdx) {
+            dtlk = cleanNumber(parts[dtlkColIdx]);
+          } else {
+            dtlk = numericParts[0]?.val || 0;
+          }
+
+          if (dtlk > 0 && dtlk < 1000000) {
+            dtlk = dtlk * 1000000;
+          }
+
+          let soLuong = 0;
+          if (soLuongColIdx !== -1 && parts.length > soLuongColIdx) {
+            soLuong = cleanNumber(parts[soLuongColIdx]);
+          } else if (numericParts.length >= 4) {
+            soLuong = numericParts[3].val;
+          } else if (parts.length > 4) {
+            soLuong = cleanNumber(parts[4]); // Standard sl index
+          }
+
+          let donGia = 0;
+          if (donGiaColIdx !== -1 && parts.length > donGiaColIdx) {
+            donGia = cleanNumber(parts[donGiaColIdx]);
+          } else if (numericParts.length >= 5) {
+            donGia = numericParts[4].val;
+          } else {
+            donGia = soLuong > 0 ? dtlk / soLuong : 0;
+          }
+
+          if (donGia > 0 && donGia < 1000000) {
+            donGia = donGia * 1000000;
+          }
+
+          if (dtlk > 0 && activeStaffName) {
+            parsedRows.push({
+              nhanVien: activeStaffName,
+              nhomHang: currentCategory,
+              dtlk: dtlk,
+              soLuong: soLuong,
+              donGia: donGia
+            });
+          }
+        }
+      });
+    }
+
+    return parsedRows;
+  }, [biRevenueData]);
+
+  const parseTraChamData = useCallback((text: string) => {
+    if (!text) return [];
+    const lines = text.split('\n').map(l => l.replace(/[\r\n]/g, '')).filter(l => l.trim().length > 0);
+    if (lines.length === 0) return [];
+
+    const parsedRows: any[] = [];
+
+    const cleanNumber = (val: string): number => {
+      if (!val) return 0;
+      let s = val.trim();
+      const hasComma = s.includes(',');
+      const hasDot = s.includes('.');
+      
+      if (hasComma && hasDot) {
+        if (s.indexOf(',') < s.indexOf('.')) {
+          s = s.replace(/,/g, '');
+        } else {
+          s = s.replace(/\./g, '').replace(/,/g, '.');
+        }
+      } else if (hasComma) {
+        s = s.replace(/,/g, '.');
+      }
+      
+      const clean = s.replace(/[^\d.-]/g, '');
+      const num = parseFloat(clean);
+      return isNaN(num) ? 0 : num;
+    };
+
+    // Keywords to ignore when checking if a line is a header
+    const ignoredKeywords = [
+      'nhanvien', 'homecredit', 'fecredit', 'shinhan', 'dmsieuthi', 'tytrong',
+      'logobi', 'trangchu', 'baocao', 'khoikinhdoanh', 'hdsudung', 'avatar',
+      'vungtay', 'dashboard', 'hotrobi', 'chientranh', 'lichsu', 'quanly',
+      'danhsach', 'saovang', 'chupanh', 'xuatpdf', 'xuatexcel', 'hotline',
+      'tiendo', 'rank', 'tongcong', 'tong', 'phankhuc', 'nganhhang', 'thang', 'nam'
+    ];
+
+    const isDetailed = text.toLowerCase().includes('homecredit') || 
+                       text.toLowerCase().includes('fecredit') || 
+                       text.toLowerCase().includes('shinhan');
+
+    lines.forEach(line => {
+      const parts = splitLine(line);
+      if (parts.length < 2) return;
+
+      const firstColClean = removeAccents(parts[0]).toLowerCase().replace(/[\s_*()-]+/g, '');
+      if (!firstColClean || ignoredKeywords.some(k => firstColClean.includes(k) || k.includes(firstColClean))) {
+        return; // skip headers
+      }
+
+      // Skip lines that don't start with a name or id
+      const nameStartCheck = /^[a-zA-Z\dÀ-ỹ]/.test(parts[0]);
+      if (!nameStartCheck) return;
+
+      const staffVal = parts[0];
+
+      // Remove trailing empty elements from parts
+      while (parts.length > 0 && parts[parts.length - 1] === '') {
+        parts.pop();
+      }
+
+      if (isDetailed) {
+        if (parts.length >= 3) {
+          const totalRevRaw = cleanNumber(parts[parts.length - 2]);
+          const percentRaw = cleanNumber(parts[parts.length - 1]);
+          
+          let totalRevenue = totalRevRaw;
+          // Scale to absolute VND if it's in millions (e.g. 107.33 -> 107,330,000)
+          if (Math.abs(totalRevenue) > 0 && Math.abs(totalRevenue) < 1000000) {
+            totalRevenue = totalRevenue * 1000000;
+          }
+
+          let percent = percentRaw;
+          const lastPart = parts[parts.length - 1];
+          if (percent > 0 && percent <= 1 && lastPart && !lastPart.includes('%')) {
+            percent = percent * 100;
+          }
+
+          const installmentRevenue = totalRevenue * (percent / 100);
+
+          parsedRows.push({
+            nhanVien: staffVal,
+            totalRevenue,
+            installmentRevenue,
+            billCount: 0,
+            percent
+          });
+        }
+      } else {
+        // Format A: Standard report (usually 4-5 columns)
+        if (parts.length >= 3) {
+          const totalRevRaw = cleanNumber(parts[1]);
+          const installRevRaw = cleanNumber(parts[2]);
+          const billCount = parts.length > 3 ? cleanNumber(parts[3]) : 0;
+          
+          let percent = parts.length > 4 ? cleanNumber(parts[4]) : 0;
+          if (percent > 0 && percent <= 1 && parts[4] && !parts[4].includes('%')) {
+            percent = percent * 100;
+          }
+
+          let totalRevenue = totalRevRaw;
+          if (Math.abs(totalRevenue) > 0 && Math.abs(totalRevenue) < 1000000) {
+            totalRevenue = totalRevenue * 1000000;
+          }
+
+          let installmentRevenue = installRevRaw;
+          if (Math.abs(installmentRevenue) > 0 && Math.abs(installmentRevenue) < 1000000) {
+            installmentRevenue = installmentRevenue * 1000000;
+          }
+
+          if (percent === 0 && totalRevenue > 0) {
+            percent = (installmentRevenue / totalRevenue) * 100;
+          }
+
+          parsedRows.push({
+            nhanVien: staffVal,
+            totalRevenue,
+            installmentRevenue,
+            billCount,
+            percent
+          });
+        }
+      }
+    });
+
+    return parsedRows;
+  }, []);
 
   const parseBanKemData = useCallback((text: string) => {
     if (!text) return [];
@@ -541,6 +979,223 @@ const EmployeeHealth: React.FC = () => {
     return matchesSearch && matchesSelection;
   }), [biRevenueData, searchTerm, selectedStaffIds]);
 
+  const parsedTraChamRows = useMemo(() => {
+    const parsed = parseTraChamData(tragopNv);
+    return parsed
+      .filter((row: any) => {
+        // Find if this row matches any staff in the store's biRevenueData list
+        const matchingStaff = biRevenueData.find(staff => {
+          const staffId = staff.fullId.toLowerCase().trim();
+          const staffName = (staff.displayName.split('-').pop() || '').trim();
+          const staffNameClean = removeAccents(staffName);
+          const rowValClean = removeAccents(row.nhanVien);
+          return rowValClean.includes(staffId) || 
+                 rowValClean === staffNameClean ||
+                 rowValClean.includes(staffNameClean) ||
+                 staffNameClean.includes(rowValClean);
+        });
+        if (!matchingStaff) return false;
+        return selectedStaffIds.includes(matchingStaff.fullId);
+      })
+      .sort((a, b) => b.percent - a.percent);
+  }, [tragopNv, selectedStaffIds, biRevenueData, parseTraChamData]);
+
+  const {
+    dtqd1Sum,
+    dtqd2Sum,
+    dtqd3Sum,
+    thunhap1Sum,
+    thunhap2Sum,
+    thunhap3Sum
+  } = useMemo(() => {
+    const parsedDtqd1 = parseStaffValueList(dtqd3t1);
+    const parsedDtqd2 = parseStaffValueList(dtqd3t2);
+    const parsedDtqd3 = parseStaffValueList(dtqd3t3);
+    
+    const parsedTn1 = parseStaffValueList(thunhap3t1);
+    const parsedTn2 = parseStaffValueList(thunhap3t2);
+    const parsedTn3 = parseStaffValueList(thunhap3t3);
+
+    const calcSum = (parsed: any[]) => parsed.reduce((acc, item) => {
+      let val = item.value;
+      if (val > 0 && val < 1000000) val = val * 1000000;
+      return acc + val;
+    }, 0);
+
+    return {
+      dtqd1Sum: calcSum(parsedDtqd1),
+      dtqd2Sum: calcSum(parsedDtqd2),
+      dtqd3Sum: calcSum(parsedDtqd3),
+      thunhap1Sum: calcSum(parsedTn1),
+      thunhap2Sum: calcSum(parsedTn2),
+      thunhap3Sum: calcSum(parsedTn3),
+    };
+  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3]);
+
+  const formatValueForDisplay = (val: number, isCurrency: boolean = false) => {
+    if (val === 0) return isCurrency ? '0 đ' : '0';
+    if (val >= 1000000) {
+      if (isCurrency) {
+        return `${(val / 1000000).toFixed(2).toLocaleString()} Tr`;
+      } else {
+        return `${Math.round(val / 1000000).toLocaleString('vi-VN')} Tr`;
+      }
+    }
+    return isCurrency 
+      ? `${Math.round(val).toLocaleString('vi-VN')} đ`
+      : Math.round(val).toLocaleString('vi-VN');
+  };
+
+  const parsedRank3TData = useMemo(() => {
+    const parsedDtqd1 = parseStaffValueList(dtqd3t1);
+    const parsedDtqd2 = parseStaffValueList(dtqd3t2);
+    const parsedDtqd3 = parseStaffValueList(dtqd3t3);
+    
+    const parsedTn1 = parseStaffValueList(thunhap3t1);
+    const parsedTn2 = parseStaffValueList(thunhap3t2);
+    const parsedTn3 = parseStaffValueList(thunhap3t3);
+
+    const employeeMap = new Map<string, {
+      id: string;
+      name: string;
+      dtqd: number;
+      thunhap: number;
+    }>();
+
+    const getEmpKey = (emp: { id: string; name: string }) => {
+      if (emp.id && /^\d{5,}$/.test(emp.id)) {
+        return `ID_${emp.id}`;
+      }
+      return `NAME_${normalize(emp.name || emp.id)}`;
+    };
+
+    const getOrCreate = (emp: { id: string; name: string }) => {
+      const key = getEmpKey(emp);
+      if (!employeeMap.has(key)) {
+        employeeMap.set(key, {
+          id: emp.id && /^\d{5,}$/.test(emp.id) ? emp.id : '',
+          name: emp.name || emp.id,
+          dtqd: 0,
+          thunhap: 0
+        });
+      }
+      return employeeMap.get(key)!;
+    };
+
+    parsedDtqd1.forEach(item => {
+      const entry = getOrCreate(item);
+      entry.dtqd += item.value;
+    });
+    parsedDtqd2.forEach(item => {
+      const entry = getOrCreate(item);
+      entry.dtqd += item.value;
+    });
+    parsedDtqd3.forEach(item => {
+      const entry = getOrCreate(item);
+      entry.dtqd += item.value;
+    });
+
+    parsedTn1.forEach(item => {
+      const entry = getOrCreate(item);
+      entry.thunhap += item.value;
+    });
+    parsedTn2.forEach(item => {
+      const entry = getOrCreate(item);
+      entry.thunhap += item.value;
+    });
+    parsedTn3.forEach(item => {
+      const entry = getOrCreate(item);
+      entry.thunhap += item.value;
+    });
+
+    return Array.from(employeeMap.values()).map(emp => {
+      let dtqd = emp.dtqd;
+      if (dtqd > 0 && dtqd < 1000000) dtqd = dtqd * 1000000;
+      
+      let thunhap = emp.thunhap;
+      if (thunhap > 0 && thunhap < 1000000) thunhap = thunhap * 1000000;
+
+      const effQd = dtqd > 0 ? (thunhap / dtqd) * 100 : 0;
+
+      return {
+        id: emp.id,
+        name: emp.name,
+        dtqd,
+        thunhap,
+        effQd
+      };
+    })
+    .filter(emp => emp.dtqd > 0 || emp.thunhap > 0)
+    .sort((a, b) => b.dtqd - a.dtqd);
+  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3]);
+
+  const filteredRank3TData = useMemo(() => {
+    // Filter against selectedStaffIds
+    const selectedData = parsedRank3TData.filter(emp => {
+      const matchingStaff = biRevenueData.find(staff => {
+        const staffId = staff.fullId.toLowerCase().trim();
+        const staffName = (staff.displayName.split('-').pop() || '').trim();
+        const staffNameClean = removeAccents(staffName);
+        const empNameClean = removeAccents(emp.name);
+        const empIdClean = emp.id.toLowerCase().trim();
+
+        return (
+          (empIdClean && staffId.includes(empIdClean)) ||
+          empNameClean === staffNameClean ||
+          empNameClean.includes(staffNameClean) ||
+          staffNameClean.includes(empNameClean)
+        );
+      });
+      if (!matchingStaff) return false;
+      return selectedStaffIds.includes(matchingStaff.fullId);
+    });
+
+    if (!searchTerm.trim()) return selectedData;
+    const cleanSearch = removeAccents(searchTerm.toLowerCase());
+    return selectedData.filter(emp => 
+      removeAccents(emp.name.toLowerCase()).includes(cleanSearch) ||
+      emp.id.toLowerCase().includes(cleanSearch)
+    );
+  }, [parsedRank3TData, searchTerm, selectedStaffIds, biRevenueData]);
+
+  const parsedKhaiThacRows = useMemo(() => {
+    const parsed = parseKhaiThacData(tragopMatran);
+    return parsed
+      .filter((row: any) => {
+        const matchingStaff = biRevenueData.find(staff => {
+          const staffId = staff.fullId.toLowerCase().trim();
+          const staffName = (staff.displayName.split('-').pop() || '').trim();
+          const staffNameClean = removeAccents(staffName);
+          const rowValClean = removeAccents(row.nhanVien);
+          return rowValClean.includes(staffId) || 
+                 rowValClean === staffNameClean ||
+                 rowValClean.includes(staffNameClean) ||
+                 staffNameClean.includes(rowValClean);
+        });
+        if (!matchingStaff) return false;
+        if (!selectedStaffIds.includes(matchingStaff.fullId)) return false;
+
+        // Filter by category
+        if (khaiThacCategoryFilter !== 'ALL' && row.nhomHang !== khaiThacCategoryFilter) {
+          return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => b.dtlk - a.dtlk);
+  }, [tragopMatran, selectedStaffIds, biRevenueData, parseKhaiThacData, khaiThacCategoryFilter]);
+
+  const availableKhaiThacCategories = useMemo(() => {
+    const parsed = parseKhaiThacData(tragopMatran);
+    const categories = new Set<string>();
+    parsed.forEach((row: any) => {
+      if (row.nhomHang) {
+        categories.add(row.nhomHang);
+      }
+    });
+    return Array.from(categories);
+  }, [tragopMatran, parseKhaiThacData]);
+
   // Load thuong data from DB when store changes
   useEffect(() => {
     if (marketFilter === 'ALL' || !maKho) return;
@@ -595,15 +1250,33 @@ const EmployeeHealth: React.FC = () => {
     if (!captureRef.current) return;
     setIsCapturing(true);
     try {
-      const dataUrl = await htmlToImage.toPng(captureRef.current, {
-        quality: 1,
-        backgroundColor: '#ffffff',
-        pixelRatio: 2,
-      });
-      const link = document.createElement('a');
-      link.download = `XepHangDoanhThuQD_${maKho}_${new Date().getTime()}.png`;
-      link.href = dataUrl;
-      link.click();
+      // Temporarily switch to table-auto for compact capture
+      const table = captureRef.current.querySelector('table');
+      if (table) {
+        table.classList.remove('table-fixed');
+        table.classList.add('table-auto');
+        // Remove percentage widths from th elements for auto-sizing
+        const ths = table.querySelectorAll('th');
+        const savedWidths: string[] = [];
+        ths.forEach((th) => {
+          savedWidths.push((th as HTMLElement).style.width);
+          (th as HTMLElement).style.width = '';
+        });
+        // Wait for reflow
+        await new Promise(r => setTimeout(r, 50));
+        const dataUrl = await htmlToImage.toPng(captureRef.current, {
+          quality: 1,
+          backgroundColor: '#ffffff',
+          pixelRatio: 2,
+        });
+        // Restore table-fixed and widths
+        table.classList.remove('table-auto');
+        table.classList.add('table-fixed');
+        ths.forEach((th, i) => {
+          (th as HTMLElement).style.width = savedWidths[i] || '';
+        });
+        setPreviewImage(dataUrl);
+      }
     } catch (error) {
       console.error('Error capturing element:', error);
     } finally {
@@ -718,20 +1391,47 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
   const menuItems = [
     { id: 'DOANH_THU', label: 'DOANH THU NV', icon: TrendingUp },
+    { id: 'TONG_HOP_NV', label: 'TỔNG HỢP NV', icon: LayoutGrid },
     { id: 'CHI_TIET', label: 'CHI TIẾT NV', icon: Search },
     { id: 'THI_DUA', label: 'TH THI ĐUA', icon: Check },
     { id: 'NGANH_HANG', label: 'CT NGÀNH HÀNG', icon: HeartPulse },
     { id: 'PHUC_VU', label: 'PHỤC VỤ', icon: Users },
     { id: 'BAN_KEM_NV', label: 'BÁN KÈM NV', icon: MessageSquare },
     { id: 'THUONG_NV', label: 'THƯỞNG NV', icon: Gift },
+    { id: 'TRA_CHAM_NV', label: 'TRẢ CHẬM NV', icon: Clock },
     { id: 'KHAI_THAC_NV', label: 'KHAI THÁC NV', icon: Target },
+    { id: 'RANK_3T_NV', label: 'XẾP HẠNG NV 3T', icon: Trophy },
   ];
 
   return (
-    <div className="flex h-[calc(100vh-64px)] bg-slate-50 overflow-hidden font-sans">
-      {/* Sidebar Menu */}
+    <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-64px)] bg-slate-50 overflow-hidden font-sans">
+      {/* Mobile Horizontal Tab Bar - shown only on mobile */}
+      <div className="lg:hidden bg-white border-b border-slate-200 sticky top-0 z-20">
+        <div className="flex items-center gap-2 px-3 py-2 overflow-x-auto no-scrollbar">
+          {menuItems.map((item) => {
+            const isActive = activeTab === item.id;
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id as any)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all shrink-0 ${
+                  isActive
+                    ? 'bg-[#00965e] text-white shadow-md'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
+              >
+                <Icon size={14} strokeWidth={isActive ? 2.5 : 2} />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Desktop Sidebar Menu - hidden on mobile */}
       <aside
-        className={`bg-white border-r border-slate-200 flex flex-col h-full shadow-sm z-20 relative transition-all duration-300 w-[340px]`}
+        className={`hidden lg:flex bg-white border-r border-slate-200 flex-col h-full shadow-sm z-20 relative transition-all duration-300 w-[340px]`}
       >
         {/* Sidebar Header */}
         <div className="p-8">
@@ -783,9 +1483,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-auto relative bg-slate-50/50">
-        <div className="p-4 md:p-6 lg:p-10 w-full min-h-full">
+        <div className="p-3 md:p-6 lg:p-10 w-full min-h-full">
           {/* Header Section */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-indigo-600 text-white rounded-3xl flex items-center justify-center shadow-xl shadow-indigo-200">
                 <HeartPulse size={32} strokeWidth={2.5} />
@@ -919,18 +1619,10 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="bg-white rounded-[32px] p-2 md:p-4 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-5xl mx-auto relative overflow-hidden"
+                  className="bg-white rounded-[32px] p-2 md:p-4 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-full mx-auto relative overflow-hidden"
                 >
                   {renderLoadingOverlay()}
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
-                        <TrendingUp size={20} />
-                      </div>
-                      <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight border border-slate-200 px-4 py-2 rounded-xl mt-1 shadow-sm bg-white">DOANH THU NV</h2>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-wrap items-center justify-end gap-3 mb-4">
                       <button
                         onClick={handleCapture}
                         disabled={isCapturing}
@@ -975,7 +1667,6 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                         )}
                         {isCopied ? 'ĐÃ COPY!' : 'NHẬN XÉT TOP / BOT'}
                       </button>
-                    </div>
                   </div>
 
                   <div ref={captureRef}>
@@ -988,6 +1679,38 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                       stPercentHTTargetDuKienQD={marketPercentQD}
                     />
                   </div>
+                </motion.div>
+              )}
+
+              {activeTab === 'TONG_HOP_NV' && (
+                <motion.div
+                  key="TONG_HOP_NV"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="bg-white rounded-[32px] p-2 md:p-4 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-full mx-auto relative overflow-hidden"
+                >
+                  {renderLoadingOverlay()}
+                  <TongHopNvTable
+                    biRevenueData={biRevenueData}
+                    filteredBiData={filteredBiData}
+                    thiDuaNv={thiDuaNv}
+                    tragopNv={tragopNv}
+                    selectedStaffIds={selectedStaffIds}
+                    staffCount={selectedStaffIds.length}
+                    daysPassed={daysPassed}
+                    totalDays={totalDays}
+                    stTargetSauHeSo={stTargetSauHeSo}
+                    categoryTargets={categoryTargets}
+                    luykeCategories={processedData.categories.filter((c: any) => {
+                      if (marketFilter === 'ALL') return true;
+                      if (!c.marketName) return true;
+                      return c.marketName.toUpperCase().includes(marketFilter.toUpperCase()) || marketFilter.toUpperCase().includes(c.marketName.toUpperCase());
+                    })}
+                    marketFilter={marketFilter}
+                    storeName={marketFilter !== 'ALL' ? marketFilter : ''}
+                  />
                 </motion.div>
               )}
 
@@ -1057,6 +1780,18 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                            return res.tong;
                          })();
 
+                        const staffTraChamRow = parsedTraChamRows.find(row => {
+                          const staffId = staff.fullId.toLowerCase().trim();
+                          const staffName = (staff.displayName.split('-').pop() || '').trim();
+                          const staffNameClean = removeAccents(staffName);
+                          const rowValClean = removeAccents(row.nhanVien);
+                          return rowValClean.includes(staffId) || 
+                                 rowValClean === staffNameClean ||
+                                 rowValClean.includes(staffNameClean) ||
+                                 staffNameClean.includes(rowValClean);
+                        });
+                        const staffInstallmentPercent = staffTraChamRow ? staffTraChamRow.percent : null;
+
                         return (
                           <motion.div
                             key={`detail-${id}`}
@@ -1072,7 +1807,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               daysPassed={daysPassed}
                               totalDays={totalDays}
                               categoryTargets={categoryTargets}
-                              luykeCategories={processedData.categories.filter(c => {
+                              luykeCategories={processedData.categories.filter((c: any) => {
                                 if (marketFilter === 'ALL') return true;
                                 if (!c.marketName) return true;
                                 return c.marketName.toUpperCase().includes(marketFilter.toUpperCase()) || marketFilter.toUpperCase().includes(c.marketName.toUpperCase());
@@ -1081,6 +1816,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               staffDtqd={staffActualVal}
                               staffPercentHT={staffPercentHT}
                               staffBonusHientai={staffBonusHientai}
+                              staffInstallmentPercent={staffInstallmentPercent}
                             />
                           </motion.div>
                         );
@@ -1114,7 +1850,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     totalDays={totalDays}
                     selectedStaffIds={selectedStaffIds}
                     categoryTargets={categoryTargets}
-                    luykeCategories={processedData.categories.filter(c => {
+                    luykeCategories={processedData.categories.filter((c: any) => {
                       if (marketFilter === 'ALL') return true;
                       if (!c.marketName) return true;
                       return c.marketName.toUpperCase().includes(marketFilter.toUpperCase()) || marketFilter.toUpperCase().includes(c.marketName.toUpperCase());
@@ -1141,7 +1877,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     totalDays={totalDays}
                     categoryTargets={categoryTargets}
                     selectedStaffIds={selectedStaffIds}
-                    luykeCategories={processedData.categories.filter(c => {
+                    luykeCategories={processedData.categories.filter((c: any) => {
                       if (marketFilter === 'ALL') return true;
                       if (!c.marketName) return true;
                       return c.marketName.toUpperCase().includes(marketFilter.toUpperCase()) || marketFilter.toUpperCase().includes(c.marketName.toUpperCase());
@@ -1160,10 +1896,12 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   className="bg-white rounded-[32px] p-8 shadow-xl shadow-slate-200/50 border border-slate-100 min-h-[400px] flex flex-col items-center justify-center text-center relative overflow-hidden"
                 >
                   {renderLoadingOverlay()}
+                  {/* 
                   <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mb-6">
                     <Users size={40} />
                   </div>
                   <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">BÁO CÁO PHỤC VỤ</h2>
+                  */}
                   {!phucVu && (
                     <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 w-full max-w-md mt-6">
                       <p className="text-amber-700 font-bold text-sm mb-2">Chưa có dữ liệu Phục vụ!</p>
@@ -1238,7 +1976,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                           style: { borderRadius: '32px' },
                           cacheBust: true,
                         });
-                        saveAs(dataUrl, `BAO_CAO_PHUC_VU_${new Date().getTime()}.png`);
+                        setPreviewImage(dataUrl);
                         showNotification('Đã xuất ảnh báo cáo phục vụ!', 'success');
                       } catch (error) {
                         console.error('Lỗi khi chụp ảnh:', error);
@@ -1263,30 +2001,27 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                         <div ref={capturePhucVuRef} className="p-6 bg-white rounded-[40px] w-full shadow-sm">
                           {/* Custom Header from Image */}
-                          <div className="w-full bg-white border border-slate-200 border-b-0 rounded-t-[32px] overflow-hidden flex divide-x divide-slate-100 shadow-sm">
+                          <div className="w-full bg-white border border-slate-200 border-b-0 rounded-t-[32px] overflow-hidden flex divide-x divide-slate-200 shadow-sm">
                             <div className="flex-1 p-6 flex flex-col items-center justify-center relative">
-                              <h2 className="text-[40px] font-black text-[#0f172a] uppercase tracking-tight mb-2">LUỸ KẾ PHỤC VỤ NHÂN VIÊN</h2>
-                              <div className="flex items-center gap-4 py-2 px-6 border-t border-slate-100 mt-2">
-                                <Camera size={28} className="text-indigo-600" />
-                                <span className="text-[20px] font-black text-slate-500 uppercase tracking-widest">LUỸ KẾ ĐẾN NGÀY : {today}</span>
-                              </div>
-                              <div className="absolute top-0 bottom-0 right-0 w-[1px] bg-slate-100"></div>
+                              <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[28px] text-[#0f172a] uppercase tracking-tight mb-2">LUỸ KẾ PHỤC VỤ NHÂN VIÊN</h2>
+                              <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
+                              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[15px] text-slate-500 uppercase tracking-widest">LUỸ KẾ ĐẾN NGÀY : {today}</span>
                             </div>
                             <div className="w-2/5 p-6 flex flex-col items-center justify-center">
-                              <h2 className="text-[40px] font-black text-[#e11d48] uppercase tracking-tight mb-2">DỰ KIẾN</h2>
-                              <div className="flex items-center gap-4 py-2 px-6 border-t border-slate-100 mt-2">
-                                <TrendingUp size={28} className="text-orange-500" />
-                                <span className="text-[20px] font-black text-slate-500 uppercase tracking-widest">TGSD: 19/30</span>
-                              </div>
+                              <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[28px] text-[#e11d48] uppercase tracking-tight mb-2">DỰ KIẾN</h2>
+                              <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
+                              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[15px] text-slate-500 uppercase tracking-widest">
+                                TGSD: {daysPassed}/{totalDays}
+                              </span>
                             </div>
                           </div>
 
                           <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-visible shadow-xl shadow-slate-200/50">
-                            <div className="w-full">
-                              <table className="w-full border-collapse">
+                            <div className="w-full overflow-x-auto">
+                              <table className="w-full border-collapse min-w-[900px]">
                                 <thead className="sticky top-0 z-20">
-                                  <tr className="text-white font-sans font-black text-[17px] uppercase tracking-wider h-[45px]">
-                                    <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="bg-[#00965e] px-2 py-0 text-center border-r border-white/10 h-[35px] font-sans font-black">STT</th>
+                                  <tr className="text-[#0f172a] font-sans font-black text-[17px] uppercase tracking-wider h-[45px]">
+                                    <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="bg-[#00965e] px-2 py-0 text-center border-r border-white/10 h-[35px] font-sans font-black text-[#0f172a]">STT</th>
                                     {visibleIndices.map((idx, i) => {
                                       // Map color regions like the image
                                       let bgColor = 'bg-[#00965e]'; // First group (Emerald)
@@ -1296,12 +2031,12 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                       let widthClasses = ''; // Flexible width
 
                                       return (
-                                        <th key={idx} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={`${bgColor} ${widthClasses} px-2 py-0 text-center border-r border-white/10 whitespace-normal break-words leading-tight text-[14px] h-[35px] font-sans font-black`}>
+                                        <th key={idx} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={`${bgColor} ${widthClasses} px-2 py-0 text-center border-r border-white/10 whitespace-normal break-words leading-tight text-[14px] h-[35px] font-sans font-black text-[#0f172a]`}>
                                           {allHeaders[idx]}
                                         </th>
                                       );
                                     })}
-                                    <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="bg-[#f58220] px-2 py-0 text-center border-r border-white/10 last:border-r-0 whitespace-nowrap text-[14px] h-[35px] font-sans font-black">
+                                    <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="bg-[#f58220] px-2 py-0 text-center border-r border-white/10 last:border-r-0 whitespace-nowrap text-[14px] h-[35px] font-sans font-black text-[#0f172a]">
                                       TOP/BOT
                                     </th>
                                   </tr>
@@ -1413,7 +2148,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-[1260px] mx-auto w-full relative overflow-hidden"
+                  className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-full mx-auto w-full relative overflow-hidden"
                 >
                   {renderLoadingOverlay()}
                   <div className="hidden">
@@ -1436,60 +2171,84 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                       <div
                         ref={captureBanKemRef}
-                        className="w-full bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden p-6"
+                        className="w-full bg-white rounded-[40px] overflow-hidden p-6"
                       >
-                        <div className="mb-6 flex items-center gap-3">
-                          <Trophy size={20} className="text-orange-500" />
-                          <h3 style={{ fontFamily: 'var(--font-sans)', fontSize: '24px', fontWeight: '900' }} className="text-slate-800 uppercase tracking-widest font-sans font-black">LK BÁN KÈM NHÂN VIÊN</h3>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left font-sans text-slate-800 border-collapse border-2 border-slate-300">
-                            <thead className="text-white uppercase border-b-2 border-slate-300">
-                              <tr>
-                                <th style={{ width: '240px', fontFamily: 'var(--font-sans)', fontSize: '16px', fontWeight: '900' }} className="px-6 py-[11px] border-r-2 border-slate-300 bg-emerald-600 font-sans font-black">NHÂN VIÊN</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: '900' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800 font-sans font-black">DTLK</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: '900' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800 font-sans font-black">LƯỢT BILL BÁN KÈM</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: '900' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800 font-sans font-black">%BILL BÁN KÈM</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: '900' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300 bg-orange-300 text-slate-800 font-sans font-black">LƯỢT BILL BÁN HÀNG (TRỪ ONLINE, TRẢ GÓP)</th>
-                                <th style={{ width: '70px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: '900' }} className="px-6 py-[11px] text-center bg-orange-300 text-slate-800 font-sans font-black">HIỆU QUẢ</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y-2 divide-slate-200 font-bold font-sans" style={{ fontFamily: 'var(--font-sans)', fontSize: '14px' }}>
-                              {parseBanKemData(banKemNv)
-                                .filter(row => selectedStaffIds.length === 0 || selectedStaffIds.some(id => row.nhanVien.includes(id)))
-                                .sort((a, b) => parseFloat(b.phanTramBill) - parseFloat(a.phanTramBill))
-                                .map((row: any, i: number, arr: any[]) => {
-                                  const threshold = Math.max(1, Math.ceil(arr.length * 0.2));
-                                  const isTop = i < threshold;
-                                  const isBottom = i >= arr.length - threshold && !isTop;
-                                  return (
-                                    <tr key={i} className="hover:bg-slate-50">
-                                      <td style={{ width: '240px' }} className="px-6 py-[11px] text-slate-900 border-r-2 border-slate-300">{row.nhanVien}</td>
-                                      <td style={{ width: '70px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300">{row.dtlk || '0'}</td>
-                                      <td style={{ width: '70px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300">{row.luotBill}</td>
-                                      <td style={{ width: '70px' }} className={`px-6 py-[11px] text-center border-r-2 border-slate-300 ${isTop ? 'text-emerald-600 font-black' : isBottom ? 'text-rose-600 font-black' : ''}`}>{row.phanTramBill}</td>
-                                      <td style={{ width: '70px' }} className="px-6 py-[11px] text-center border-r-2 border-slate-300">{row.luotBillBanHang}</td>
-                                      <td style={{ width: '70px' }} className="px-6 py-[11px] text-center">
-                                        {isTop && (
-                                          <span className="inline-flex items-center justify-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-[11px] font-black uppercase whitespace-nowrap">
-                                            <TrendingUp size={12} strokeWidth={3} /> TỐT
-                                          </span>
-                                        )}
-                                        {isBottom && (
-                                          <span className="inline-flex items-center justify-center gap-1 px-2 py-1 bg-rose-100 text-rose-700 rounded text-[11px] font-black uppercase whitespace-nowrap">
-                                            <TrendingDown size={12} strokeWidth={3} /> CHÚ Ý
-                                          </span>
-                                        )}
-                                        {!isTop && !isBottom && (
-                                          <span className="text-slate-400">-</span>
-                                        )}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                            </tbody>
-                          </table>
-                        </div>
+                        {(() => {
+                          const rows = parseBanKemData(banKemNv)
+                            .filter(row => selectedStaffIds.length === 0 || selectedStaffIds.some(id => row.nhanVien.includes(id)))
+                            .sort((a, b) => parseFloat(b.phanTramBill) - parseFloat(a.phanTramBill));
+
+                          return rows.length > 0 ? (
+                            <>
+                              {/* Double Header Card */}
+                              <div className="w-full bg-white border border-slate-200 border-b-0 rounded-t-[32px] overflow-hidden flex divide-x divide-slate-200 shadow-sm">
+                                <div className="flex-1 p-6 flex flex-col items-center justify-center relative">
+                                  <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[28px] text-[#0f172a] uppercase tracking-tight mb-2">BÁN KÈM NHÂN VIÊN</h2>
+                                  <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
+                                  <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[15px] text-slate-500 uppercase tracking-widest">LUỸ KẾ THÁNG</span>
+                                </div>
+                                <div className="w-2/5 p-6 flex flex-col items-center justify-center">
+                                  <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[28px] text-[#e11d48] uppercase tracking-tight mb-2">DỰ KIẾN</h2>
+                                  <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
+                                  <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[15px] text-slate-500 uppercase tracking-widest">
+                                    TGSD: {daysPassed}/{totalDays}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-hidden shadow-lg shadow-slate-200/30">
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-left font-sans text-[#0f172a] border-collapse">
+                                    <thead className="text-slate-900 uppercase border-b border-slate-200">
+                                      <tr style={{ height: '50px' }}>
+                                        <th style={{ width: '60px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">STT</th>
+                                        <th style={{ width: '250px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black">NHÂN VIÊN</th>
+                                        <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">DTLK</th>
+                                        <th style={{ width: '150px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">LƯỢT BILL BÁN KÈM</th>
+                                        <th style={{ width: '150px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">%BILL BÁN KÈM</th>
+                                        <th style={{ width: '220px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">LƯỢT BILL BÁN HÀNG (TRỪ ONLINE, TRẢ GÓP)</th>
+                                        <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-6 py-3 text-center text-[#0f172a] font-sans font-black">HIỆU QUẢ</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800, fontSize: '14px' }}>
+                                      {rows.map((row: any, i: number, arr: any[]) => {
+                                          const threshold = Math.max(1, Math.ceil(arr.length * 0.2));
+                                          const isTop = i < threshold;
+                                          const isBottom = i >= arr.length - threshold && !isTop;
+                                          const isStriped = i % 2 === 1;
+                                          return (
+                                            <tr key={i} className={`${isStriped ? 'bg-[#f8faff]' : 'bg-white'} hover:bg-slate-50 h-[48px]`}>
+                                              <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="px-4 py-3 text-center border-r border-slate-200 text-[#0f172a]">{i + 1}</td>
+                                              <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="px-6 py-3 border-r border-slate-200 text-[#0f172a] uppercase">{row.nhanVien}</td>
+                                              <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-[#0f172a]">{row.dtlk || '0'}</td>
+                                              <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-[#0f172a]">{row.luotBill}</td>
+                                              <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className={`px-6 py-3 text-center border-r border-slate-200 font-mono ${isTop ? 'text-emerald-600' : isBottom ? 'text-rose-600' : 'text-[#0f172a]'}`}>{row.phanTramBill}</td>
+                                              <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-[#0f172a]">{row.luotBillBanHang}</td>
+                                              <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="px-6 py-3 text-center text-[#0f172a]">
+                                                {isTop && (
+                                                  <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="inline-flex items-center justify-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded text-[11px] uppercase whitespace-nowrap">
+                                                    <TrendingUp size={12} strokeWidth={3} /> TỐT
+                                                  </span>
+                                                )}
+                                                {isBottom && (
+                                                  <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="inline-flex items-center justify-center gap-1 px-2.5 py-1 bg-rose-100 text-rose-700 rounded text-[11px] uppercase whitespace-nowrap">
+                                                    <TrendingDown size={12} strokeWidth={3} /> CHÚ Ý
+                                                  </span>
+                                                )}
+                                                {!isTop && !isBottom && (
+                                                  <span className="text-slate-400">-</span>
+                                                )}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </>
+                          ) : null;
+                        })()}
                       </div>
                     </div>
                   )}
@@ -1683,7 +2442,8 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                           return (
                             <>
-                              <table className="w-full border-collapse font-sans">
+                              <div className="overflow-x-auto">
+                              <table className="w-full border-collapse font-sans min-w-[1000px]">
                                 <thead>
                                   <tr className="bg-[#facc15] text-[14px] font-black text-slate-900 uppercase tracking-tight h-[45px] border-b border-slate-300">
                                     <th rowSpan={2} style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="px-3 py-0 text-center w-10 border-r border-slate-300 font-sans font-black">STT</th>
@@ -1848,6 +2608,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                   </tr>
                                 </tfoot>
                               </table>
+                              </div>
 
                               {filteredBiData.length === 0 && (
                                 <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -1867,6 +2628,126 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                 </motion.div>
               )}
 
+              {activeTab === 'TRA_CHAM_NV' && (
+                <motion.div
+                  key="TRA_CHAM_NV"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-[1260px] mx-auto w-full relative overflow-hidden"
+                >
+                  {renderLoadingOverlay()}
+                  
+                  <div className="w-full">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
+                          <Clock size={20} />
+                        </div>
+                        <h3 style={{ fontFamily: 'var(--font-sans)', fontSize: '24px', fontWeight: '900' }} className="text-slate-800 uppercase tracking-widest font-sans font-black">LK TRẢ CHẬM NHÂN VIÊN</h3>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleCaptureTraCham}
+                          className="flex items-center gap-2 px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm"
+                        >
+                          <Camera size={16} /> CHỤP ẢNH BẢNG
+                        </button>
+                      </div>
+                    </div>
+
+
+
+                    <div
+                      ref={captureTraChamRef}
+                      className="w-full bg-white rounded-[40px] overflow-hidden p-6"
+                    >
+                      {parsedTraChamRows.length > 0 ? (
+                        <>
+                          {/* Double Header Card */}
+                          <div className="w-full bg-white border border-slate-200 border-b-0 rounded-t-[32px] overflow-hidden flex divide-x divide-slate-200 shadow-sm">
+                            <div className="flex-1 p-6 flex flex-col items-center justify-center relative">
+                              <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[28px] text-[#0f172a] uppercase tracking-tight mb-2">TRẢ CHẬM NHÂN VIÊN</h2>
+                              <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
+                              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[15px] text-slate-500 uppercase tracking-widest">LUỸ KẾ THÁNG</span>
+                            </div>
+                            <div className="w-2/5 p-6 flex flex-col items-center justify-center">
+                              <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[28px] text-[#e11d48] uppercase tracking-tight mb-2">DỰ KIẾN</h2>
+                              <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
+                              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[15px] text-slate-500 uppercase tracking-widest">
+                                TGSD: {daysPassed}/{totalDays}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-hidden shadow-lg shadow-slate-200/30">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left font-sans text-[#0f172a] border-collapse">
+                                <thead className="text-slate-900 uppercase border-b border-slate-200">
+                                  <tr style={{ height: '50px' }}>
+                                    <th style={{ width: '60px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">STT</th>
+                                    <th style={{ width: '280px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black">NHÂN VIÊN</th>
+                                    <th style={{ width: '180px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">DOANH THU THỰC</th>
+                                    <th style={{ width: '200px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">DOANH THU TRẢ CHẬM</th>
+                                    <th style={{ width: '150px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">% TRẢ CHẬM</th>
+                                    <th style={{ width: '150px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-6 py-3 text-center text-[#0f172a] font-sans font-black">HIỆU QUẢ</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, fontSize: '14px' }}>
+                                  {parsedTraChamRows.map((row: any, i: number, arr: any[]) => {
+                                      const threshold = Math.max(1, Math.ceil(arr.length * 0.2));
+                                      const isTop = i < threshold;
+                                      const isBottom = i >= arr.length - threshold && !isTop;
+                                      const isStriped = i % 2 === 1;
+                                      return (
+                                        <tr key={i} className={`${isStriped ? 'bg-[#f8faff]' : 'bg-white'} hover:bg-slate-50 h-[48px]`}>
+                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-3 text-center border-r border-slate-200 text-[#0f172a]">{i + 1}</td>
+                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 border-r border-slate-200 text-[#0f172a] uppercase">{row.nhanVien}</td>
+                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-[#0f172a]">{Math.round(row.totalRevenue).toLocaleString('vi-VN')}</td>
+                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-[#0f172a]">{Math.round(row.installmentRevenue).toLocaleString('vi-VN')}</td>
+                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={`px-6 py-3 text-center border-r border-slate-200 font-mono ${isTop ? 'text-emerald-600' : isBottom ? 'text-rose-600' : 'text-[#0f172a]'}`}>{row.percent.toFixed(1)}%</td>
+                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center text-[#0f172a]">
+                                            {isTop && (
+                                              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="inline-flex items-center justify-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded text-[11px] uppercase whitespace-nowrap">
+                                                <TrendingUp size={12} strokeWidth={3} /> TỐT
+                                              </span>
+                                            )}
+                                            {isBottom && (
+                                              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="inline-flex items-center justify-center gap-1 px-2.5 py-1 bg-rose-100 text-rose-700 rounded text-[11px] uppercase whitespace-nowrap">
+                                                <TrendingDown size={12} strokeWidth={3} /> CHÚ Ý
+                                              </span>
+                                            )}
+                                            {!isTop && !isBottom && (
+                                              <span className="text-slate-400 font-black">-</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[32px] p-12 text-center">
+                          <Clock size={48} className="mx-auto text-slate-300 mb-4 animate-pulse" />
+                          <h3 className="text-lg font-black text-slate-400 uppercase tracking-widest">CHƯA CÓ DỮ LIỆU TRẢ CHẬM HỢP LỆ</h3>
+                          <p className="text-slate-400 text-sm font-medium mb-4">Vui lòng dán dữ liệu hiệu quả trả chậm của nhân viên tại trang <b>Khai Báo &gt; Cấu Hình Siêu Thị &gt; TRẢ GÓP NV</b>.</p>
+                          {tragopNv && tragopNv.trim().length > 0 && (
+                            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-left text-xs max-w-lg mx-auto">
+                              <p className="font-bold text-red-800 mb-1">Dữ liệu thô đang có trong cấu hình (không phân tích được):</p>
+                              <pre className="whitespace-pre-wrap font-mono text-[10px] text-red-700 max-h-32 overflow-y-auto bg-white p-2 rounded border border-red-100">{tragopNv}</pre>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
               {activeTab === 'KHAI_THAC_NV' && (
                 <motion.div
                   key="KHAI_THAC_NV"
@@ -1874,24 +2755,415 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-4xl mx-auto w-full relative overflow-hidden"
+                  className="space-y-6 animate-fade-in"
                 >
-                  {renderLoadingOverlay()}
-                  <div className="flex items-center justify-between mb-6 border-b-2 border-blue-400 pb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-slate-50 text-slate-500 rounded-xl">
-                        <Target size={24} />
+                  <div className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-full mx-auto w-full relative overflow-hidden">
+                    {renderLoadingOverlay()}
+                    
+                    {/* Header Controls */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-100 pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                          <Target size={24} />
+                        </div>
+                        <div>
+                          <h3 style={{ fontFamily: 'var(--font-sans)', fontSize: '24px', fontWeight: '900' }} className="text-slate-800 uppercase tracking-widest font-sans font-black">KHAI THÁC NHÓM HÀNG</h3>
+                          <p className="text-xs text-slate-400 font-black uppercase tracking-wider mt-1">Dữ liệu từ "CHI TIẾT DTNV"</p>
+                        </div>
                       </div>
-                      <h2 className="text-xl font-black text-slate-500 uppercase tracking-tight">Khai Thác NV</h2>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleCaptureKhaiThac}
+                          className="flex items-center gap-2 px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm"
+                        >
+                          <Camera size={16} /> CHỤP ẢNH BẢNG
+                        </button>
+                      </div>
                     </div>
-                    <div className="p-2 bg-slate-50 text-blue-400 rounded-xl">
-                      <Target size={24} />
+
+                    {/* Category Filter Pills */}
+                    {availableKhaiThacCategories.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mr-2">BỘ LỌC NHÓM HÀNG:</span>
+                        <button
+                          onClick={() => setKhaiThacCategoryFilter('ALL')}
+                          className={cn(
+                            "px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all",
+                            khaiThacCategoryFilter === 'ALL'
+                              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20"
+                              : "bg-white hover:bg-slate-100 text-slate-600 border border-slate-200"
+                          )}
+                        >
+                          TẤT CẢ
+                        </button>
+                        {availableKhaiThacCategories.map(cat => (
+                          <button
+                            key={cat}
+                            onClick={() => setKhaiThacCategoryFilter(cat)}
+                            className={cn(
+                              "px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all",
+                              khaiThacCategoryFilter === cat
+                                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20"
+                                : "bg-white hover:bg-slate-100 text-slate-600 border border-slate-200"
+                            )}
+                          >
+                            {cat.toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Table or Fallback */}
+                    <div
+                      ref={captureKhaiThacRef}
+                      className="w-full bg-white rounded-[40px] overflow-hidden p-6"
+                    >
+                      {parsedKhaiThacRows.length > 0 ? (
+                        (() => {
+                          const displayNhomHangName = khaiThacCategoryFilter !== 'ALL' 
+                            ? khaiThacCategoryFilter 
+                            : (parsedKhaiThacRows[0]?.nhomHang || 'Đèn năng lượng mặt trời');
+                          return (
+                            <>
+                              {/* Double Header Card */}
+                              <div className="w-full bg-white border border-slate-200 border-b-0 rounded-t-[32px] overflow-hidden flex divide-x divide-slate-200 shadow-sm">
+                                <div className="flex-1 p-6 flex flex-col items-center justify-center relative">
+                                  <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[28px] text-[#0f172a] uppercase tracking-tight mb-2">NHÓM HÀNG NHÂN VIÊN</h2>
+                                  <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
+                                  <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[15px] text-slate-500 uppercase tracking-widest">LUỸ KẾ THÁNG</span>
+                                </div>
+                                <div className="w-2/5 p-6 flex flex-col items-center justify-center bg-slate-50/50">
+                                  <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[24px] text-[#2563eb] uppercase tracking-tight mb-2 text-center">{displayNhomHangName.toUpperCase()}</h2>
+                                  <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
+                                  <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[13px] text-slate-500 uppercase tracking-widest">
+                                    Siêu thị: {marketFilter}
+                                  </span>
+                                </div>
+                              </div>
+
+                          <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-hidden shadow-lg shadow-slate-200/30">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left font-sans text-[#0f172a] border-collapse">
+                                <thead className="text-slate-900 uppercase border-b border-slate-200">
+                                  <tr style={{ height: '50px' }}>
+                                    <th style={{ width: '60px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">STT</th>
+                                    <th style={{ width: '250px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black">NHÂN VIÊN</th>
+                                    <th style={{ width: '220px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black text-center">NHÓM HÀNG</th>
+                                    <th style={{ width: '100px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">SL</th>
+                                    <th style={{ width: '180px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">DTLK</th>
+                                    <th style={{ width: '150px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-6 py-3 text-center text-[#0f172a] font-sans font-black">ĐƠN GIÁ</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, fontSize: '14px' }}>
+                                  {parsedKhaiThacRows.map((row: any, i: number) => {
+                                      const isStriped = i % 2 === 1;
+                                      return (
+                                        <tr key={i} className={`${isStriped ? 'bg-[#f8faff]' : 'bg-white'} hover:bg-slate-50 h-[48px]`}>
+                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-3 text-center border-r border-slate-200 text-[#0f172a]">{i + 1}</td>
+                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 border-r border-slate-200 text-[#0f172a] uppercase">{row.nhanVien}</td>
+                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 border-r border-slate-200 text-center text-[#0f172a]">{row.nhomHang}</td>
+                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-[#0f172a]">{row.soLuong}</td>
+                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-[#0f172a]">{Math.round(row.dtlk).toLocaleString('vi-VN')} đ</td>
+                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center font-mono text-[#0f172a]">{row.donGia > 0 ? `${Math.round(row.donGia).toLocaleString('vi-VN')} đ` : '-'}</td>
+                                        </tr>
+                                      );
+                                    })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()
+                  ) : (
+                        <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[32px] p-12 text-center">
+                          <Clock size={48} className="mx-auto text-slate-300 mb-4 animate-pulse" />
+                          <h3 className="text-lg font-black text-slate-400 uppercase tracking-widest">CHƯA CÓ DỮ LIỆU NHÓM HÀNG HỢP LỆ</h3>
+                          <p className="text-slate-400 text-sm font-medium mb-4">Vui lòng dán dữ liệu ma trận doanh thu nhân viên (chứa nhóm hàng "Đèn năng lượng mặt trời") tại trang <b>Khai Báo &gt; Cấu Hình Siêu Thị &gt; CHI TIẾT DTNV</b>.</p>
+                          {tragopMatran && tragopMatran.trim().length > 0 && (
+                            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-left text-xs max-w-lg mx-auto">
+                              <p className="font-bold text-red-800 mb-1">Dữ liệu thô đang có trong cấu hình (chưa trích xuất được):</p>
+                              <pre className="whitespace-pre-wrap font-mono text-[10px] text-red-700 max-h-32 overflow-y-auto bg-white p-2 rounded border border-red-100">{tragopMatran}</pre>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === 'RANK_3T_NV' && (
+                <motion.div
+                  key="RANK_3T_NV"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-6 animate-fade-in"
+                >
+                  {/* Inputs Section */}
+                  <div className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-full mx-auto w-full relative">
+                    {renderLoadingOverlay()}
+                    
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-100 pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-2xl">
+                          <Trophy size={24} />
+                        </div>
+                        <div>
+                          <h3 style={{ fontFamily: 'var(--font-sans)', fontSize: '24px', fontWeight: '900' }} className="text-slate-800 uppercase tracking-widest font-sans font-black">XẾP HẠNG NHÂN VIÊN 3 THÁNG</h3>
+                          <p className="text-xs text-slate-400 font-black uppercase tracking-wider mt-1">Dán dữ liệu DTQĐ và Thu nhập của 3 tháng để xếp hạng tổng hợp</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleCaptureRank3T}
+                          className="flex items-center gap-2 px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm"
+                        >
+                          <Camera size={16} /> CHỤP ẢNH BẢNG
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Summary row for the 3 monthly inputs */}
+                    <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-[20px] border border-slate-100">
+                      <div className="text-center p-3 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tổng DTQĐ Tháng 1</div>
+                        <div className="text-sm font-black text-blue-600 mt-1">{formatValueForDisplay(dtqd1Sum)}</div>
+                        <div className="text-[9px] font-bold text-slate-400 mt-0.5">TN: {formatValueForDisplay(thunhap1Sum, true)}</div>
+                      </div>
+                      <div className="text-center p-3 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tổng DTQĐ Tháng 2</div>
+                        <div className="text-sm font-black text-indigo-600 mt-1">{formatValueForDisplay(dtqd2Sum)}</div>
+                        <div className="text-[9px] font-bold text-slate-400 mt-0.5">TN: {formatValueForDisplay(thunhap2Sum, true)}</div>
+                      </div>
+                      <div className="text-center p-3 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tổng DTQĐ Tháng 3</div>
+                        <div className="text-sm font-black text-violet-600 mt-1">{formatValueForDisplay(dtqd3Sum)}</div>
+                        <div className="text-[9px] font-bold text-slate-400 mt-0.5">TN: {formatValueForDisplay(thunhap3Sum, true)}</div>
+                      </div>
+                      <div className="text-center p-3 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl shadow-sm text-white flex flex-col justify-center">
+                        <div className="text-[10px] font-black text-white/80 uppercase tracking-wider">Tổng Cộng 3 Tháng</div>
+                        <div className="text-sm font-black mt-1">{formatValueForDisplay(dtqd1Sum + dtqd2Sum + dtqd3Sum)}</div>
+                        <div className="text-[9px] font-bold text-white/80 mt-0.5">Tổng TN: {formatValueForDisplay(thunhap1Sum + thunhap2Sum + thunhap3Sum, true)}</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {/* Month 1 Inputs */}
+                      <div className="bg-slate-50/50 p-5 rounded-[24px] border border-slate-100">
+                        <div className="flex items-center gap-2 mb-4">
+                          <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-black">1</span>
+                          <h4 className="text-sm font-black text-slate-700 uppercase tracking-wider">Tháng Thứ Nhất</h4>
+                        </div>
+                        <div className="space-y-4">
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu DTQĐ 1</label>
+                              <span className="text-[10px] font-black text-blue-600">{formatValueForDisplay(dtqd1Sum)}</span>
+                            </div>
+                            <textarea
+                              value={dtqd3t1}
+                              onChange={(e) => setDtqd3t1(e.target.value)}
+                              placeholder="Dán cột Nhân viên & DTQĐ tháng 1..."
+                              className="w-full h-28 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                            />
+                          </div>
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu Thu Nhập 1</label>
+                              <span className="text-[10px] font-black text-emerald-600">{formatValueForDisplay(thunhap1Sum, true)}</span>
+                            </div>
+                            <textarea
+                              value={thunhap3t1}
+                              onChange={(e) => setThunhap3t1(e.target.value)}
+                              placeholder="Dán cột Nhân viên & Thu nhập tháng 1..."
+                              className="w-full h-28 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Month 2 Inputs */}
+                      <div className="bg-slate-50/50 p-5 rounded-[24px] border border-slate-100">
+                        <div className="flex items-center gap-2 mb-4">
+                          <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-black">2</span>
+                          <h4 className="text-sm font-black text-slate-700 uppercase tracking-wider">Tháng Thứ Hai</h4>
+                        </div>
+                        <div className="space-y-4">
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu DTQĐ 2</label>
+                              <span className="text-[10px] font-black text-indigo-600">{formatValueForDisplay(dtqd2Sum)}</span>
+                            </div>
+                            <textarea
+                              value={dtqd3t2}
+                              onChange={(e) => setDtqd3t2(e.target.value)}
+                              placeholder="Dán cột Nhân viên & DTQĐ tháng 2..."
+                              className="w-full h-28 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                            />
+                          </div>
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu Thu Nhập 2</label>
+                              <span className="text-[10px] font-black text-emerald-600">{formatValueForDisplay(thunhap2Sum, true)}</span>
+                            </div>
+                            <textarea
+                              value={thunhap3t2}
+                              onChange={(e) => setThunhap3t2(e.target.value)}
+                              placeholder="Dán cột Nhân viên & Thu nhập tháng 2..."
+                              className="w-full h-28 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Month 3 Inputs */}
+                      <div className="bg-slate-50/50 p-5 rounded-[24px] border border-slate-100">
+                        <div className="flex items-center gap-2 mb-4">
+                          <span className="w-6 h-6 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center text-xs font-black">3</span>
+                          <h4 className="text-sm font-black text-slate-700 uppercase tracking-wider">Tháng Thứ Ba</h4>
+                        </div>
+                        <div className="space-y-4">
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu DTQĐ 3</label>
+                              <span className="text-[10px] font-black text-violet-600">{formatValueForDisplay(dtqd3Sum)}</span>
+                            </div>
+                            <textarea
+                              value={dtqd3t3}
+                              onChange={(e) => setDtqd3t3(e.target.value)}
+                              placeholder="Dán cột Nhân viên & DTQĐ tháng 3..."
+                              className="w-full h-28 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                            />
+                          </div>
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu Thu Nhập 3</label>
+                              <span className="text-[10px] font-black text-emerald-600">{formatValueForDisplay(thunhap3Sum, true)}</span>
+                            </div>
+                            <textarea
+                              value={thunhap3t3}
+                              onChange={(e) => setThunhap3t3(e.target.value)}
+                              placeholder="Dán cột Nhân viên & Thu nhập tháng 3..."
+                              className="w-full h-28 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                    <Target size={64} className="mb-4 text-blue-200" />
-                    <p className="text-lg font-bold">Tính năng Khai Thác Nhân Viên đang được phát triển</p>
+                  {/* Ranking Table Section */}
+                  <div className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-full mx-auto w-full">
+                    <div
+                      ref={captureRank3TRef}
+                      className="w-full bg-white rounded-[40px] overflow-hidden p-4 md:p-6"
+                    >
+                      {filteredRank3TData.length > 0 ? (
+                        <>
+                          {/* Banner Header */}
+                          <div className="w-full bg-white border border-slate-200 border-b-0 rounded-t-[32px] overflow-hidden flex divide-x divide-slate-200 shadow-sm">
+                            <div className="flex-1 p-6 flex flex-col items-center justify-center relative">
+                              <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[28px] text-[#0f172a] uppercase tracking-tight mb-2">BẢNG XẾP HẠNG NHÂN VIÊN 3 THÁNG</h2>
+                              <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
+                              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[13px] text-slate-500 uppercase tracking-widest">TỔNG HỢP LUỸ KẾ 3T</span>
+                            </div>
+                            <div className="w-2/5 p-6 flex flex-col items-center justify-center bg-slate-50/50">
+                              <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[24px] text-[#00965e] uppercase tracking-tight mb-2 text-center">TỔNG HỢP</h2>
+                              <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
+                              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[13px] text-slate-500 uppercase tracking-widest">
+                                Siêu thị: {marketFilter}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-hidden shadow-lg shadow-slate-200/30">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left font-sans text-[#0f172a] border-collapse">
+                                <thead className="text-slate-900 uppercase border-b border-slate-200">
+                                  <tr style={{ height: '60px' }}>
+                                    <th style={{ width: '60px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">STT</th>
+                                    <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black">NHÂN VIÊN</th>
+                                    <th style={{ width: '180px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black text-center">DTQĐ</th>
+                                    <th style={{ width: '180px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black text-center">HIỆU QUẢ QĐ</th>
+                                    <th style={{ width: '180px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-6 py-3 text-center text-[#0f172a] font-sans font-black">THU NHẬP</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, fontSize: '14px' }}>
+                                  {filteredRank3TData.map((row: any, i: number) => {
+                                    const isStriped = i % 2 === 1;
+                                    const effPercent = row.effQd.toFixed(1);
+                                    const isGreen = row.effQd >= 50;
+
+                                    return (
+                                      <tr key={i} className={`${isStriped ? 'bg-[#f8faff]' : 'bg-white'} hover:bg-slate-50 h-[48px]`}>
+                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-3 text-center border-r border-slate-200 bg-[#fef08a] text-[#0f172a]">{i + 1}</td>
+                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 border-r border-slate-200 text-[#0f172a] uppercase">{row.name}</td>
+                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-slate-700">
+                                          {row.dtqd >= 1000000 
+                                            ? `${Math.round(row.dtqd / 1000000).toLocaleString('vi-VN')} Tr`
+                                            : Math.round(row.dtqd).toLocaleString('vi-VN')}
+                                        </td>
+                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                                          "px-6 py-3 text-center border-r border-slate-200 font-mono",
+                                          isGreen ? "text-emerald-600" : "text-rose-600"
+                                        )}>
+                                          {effPercent}%
+                                        </td>
+                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center font-mono text-[#00965e]">
+                                          {row.thunhap >= 1000000 
+                                            ? `${(row.thunhap / 1000000).toFixed(2).toLocaleString()} Tr`
+                                            : Math.round(row.thunhap).toLocaleString('vi-VN')} đ
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                                <tfoot className="bg-slate-50 font-black border-t-2 border-slate-200">
+                                  <tr className="h-[48px]">
+                                    <td colSpan={2} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 text-[#0f172a] uppercase tracking-wider font-sans font-black text-sm">
+                                      TỔNG CỘNG
+                                    </td>
+                                    <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-slate-800">
+                                      {(() => {
+                                        const sum = filteredRank3TData.reduce((acc: number, r: any) => acc + r.dtqd, 0);
+                                        return sum >= 1000000 
+                                          ? `${Math.round(sum / 1000000).toLocaleString('vi-VN')} Tr`
+                                          : Math.round(sum).toLocaleString('vi-VN');
+                                      })()}
+                                    </td>
+                                    <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-slate-800">
+                                      {(() => {
+                                        const sumDt = filteredRank3TData.reduce((acc: number, r: any) => acc + r.dtqd, 0);
+                                        const sumTn = filteredRank3TData.reduce((acc: number, r: any) => acc + r.thunhap, 0);
+                                        const avgEff = sumDt > 0 ? (sumTn / sumDt) * 100 : 0;
+                                        return `${avgEff.toFixed(1)}%`;
+                                      })()}
+                                    </td>
+                                    <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center font-mono text-[#00965e]">
+                                      {(() => {
+                                        const sum = filteredRank3TData.reduce((acc: number, r: any) => acc + r.thunhap, 0);
+                                        return sum >= 1000000 
+                                          ? `${(sum / 1000000).toFixed(2).toLocaleString()} Tr`
+                                          : Math.round(sum).toLocaleString('vi-VN') + ' đ';
+                                      })()}
+                                    </td>
+                                  </tr>
+                                </tfoot>
+                              </table>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[32px] p-12 text-center">
+                          <Trophy size={48} className="mx-auto text-slate-300 mb-4 animate-pulse" />
+                          <h3 className="text-lg font-black text-slate-400 uppercase tracking-widest">CHƯA CÓ DỮ LIỆU XẾP HẠNG</h3>
+                          <p className="text-slate-400 text-sm font-medium">Vui lòng dán dữ liệu cột Nhân viên và giá trị số tương ứng vào các ô dán dữ liệu phía trên để tổng hợp.</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -1899,6 +3171,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
           </div>
         </div>
       </main>
+      <ImagePreviewModal previewImage={previewImage} setPreviewImage={setPreviewImage} />
     </div>
   );
 };

@@ -21,12 +21,23 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
   const [thiDuaNv, setThiDuaNv] = useState<string>(() => initialCache?.thiDuaNv || '');
   const [phucVu, setPhucVu] = useState<string>(() => initialCache?.phucVu || '');
   const [banKemNv, setBanKemNvInternal] = useState<string>(() => initialCache?.banKemNv || '');
+  const [tragopNv, setTragopNvInternal] = useState<string>(() => initialCache?.tragopNv || '');
+  const [dtqd3t1, setDtqd3t1Internal] = useState<string>(() => initialCache?.dtqd3t1 || '');
+  const [dtqd3t2, setDtqd3t2Internal] = useState<string>(() => initialCache?.dtqd3t2 || '');
+  const [dtqd3t3, setDtqd3t3Internal] = useState<string>(() => initialCache?.dtqd3t3 || '');
+  const [thunhap3t1, setThunhap3t1Internal] = useState<string>(() => initialCache?.thunhap3t1 || '');
+  const [thunhap3t2, setThunhap3t2Internal] = useState<string>(() => initialCache?.thunhap3t2 || '');
+  const [thunhap3t3, setThunhap3t3Internal] = useState<string>(() => initialCache?.thunhap3t3 || '');
   const [tenSieuThi, setTenSieuThi] = useState<string>(() => initialCache?.tenSieuThi || '');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const hasLoadedRef = useRef(false);
   const banKemDirtyRef = useRef(false);
   const banKemAutoSaveRef = useRef<NodeJS.Timeout | null>(null);
+  const tragopDirtyRef = useRef(false);
+  const tragopAutoSaveRef = useRef<NodeJS.Timeout | null>(null);
+  const rank3tDirtyRef = useRef(false);
+  const rank3tAutoSaveRef = useRef<NodeJS.Timeout | null>(null);
 
   // Exposed setter that marks data as dirty (user-initiated change)
   const setBanKemNv = useCallback((val: string) => {
@@ -35,6 +46,50 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     if (globalHealthCache[targetKey]) {
       globalHealthCache[targetKey].banKemNv = val;
     }
+  }, [targetKey]);
+
+  const setTragopNv = useCallback((val: string) => {
+    tragopDirtyRef.current = true;
+    setTragopNvInternal(val);
+    if (globalHealthCache[targetKey]) {
+      globalHealthCache[targetKey].tragopNv = val;
+    }
+  }, [targetKey]);
+
+  const setDtqd3t1 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setDtqd3t1Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].dtqd3t1 = val;
+  }, [targetKey]);
+
+  const setDtqd3t2 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setDtqd3t2Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].dtqd3t2 = val;
+  }, [targetKey]);
+
+  const setDtqd3t3 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setDtqd3t3Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].dtqd3t3 = val;
+  }, [targetKey]);
+
+  const setThunhap3t1 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setThunhap3t1Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].thunhap3t1 = val;
+  }, [targetKey]);
+
+  const setThunhap3t2 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setThunhap3t2Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].thunhap3t2 = val;
+  }, [targetKey]);
+
+  const setThunhap3t3 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setThunhap3t3Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].thunhap3t3 = val;
   }, [targetKey]);
 
   const fetchAndMergeData = useCallback(async () => {
@@ -59,7 +114,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           .eq('ten_sieu_thi', cleanStore);
         lkQuery = supabase
           .from('store')
-          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, ten_sieu_thi, updated_at')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, ten_sieu_thi, updated_at')
           .eq('id', normalizeStoreId(cleanStore));
       } else {
         // ALL stores mode: query by warehouse_code
@@ -69,7 +124,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           .or(warehouseFilter);
         lkQuery = supabase
           .from('store')
-          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, ten_sieu_thi, updated_at')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, ten_sieu_thi, updated_at')
           .or(warehouseFilter);
       }
 
@@ -97,7 +152,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         console.log(`[EmployeeHealth] lkQuery by ID returned empty, falling back to warehouse_code query...`);
         const { data: fallbackData } = await supabase
           .from('store')
-          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, ten_sieu_thi, updated_at')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, ten_sieu_thi, updated_at')
           .or(warehouseFilter);
         console.log(`[EmployeeHealth] Fallback lk data:`, fallbackData);
         if (fallbackData) {
@@ -167,6 +222,30 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         ? (lkDataArr || []).map(r => r.ban_kem_nv || '').filter(Boolean).join('\n')
         : (lkData?.ban_kem_nv || '');
 
+      const tragopNvRaw = isAllMode
+        ? (lkDataArr || []).map(r => r.tragop_nv || '').filter(Boolean).join('\n')
+        : (lkData?.tragop_nv || '');
+
+      const dtqd3t1Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.dtqd_3t_1 || '').filter(Boolean).join('\n')
+        : (lkData?.dtqd_3t_1 || '');
+      const dtqd3t2Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.dtqd_3t_2 || '').filter(Boolean).join('\n')
+        : (lkData?.dtqd_3t_2 || '');
+      const dtqd3t3Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.dtqd_3t_3 || '').filter(Boolean).join('\n')
+        : (lkData?.dtqd_3t_3 || '');
+
+      const thunhap3t1Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.thunhap_3t_1 || '').filter(Boolean).join('\n')
+        : (lkData?.thunhap_3t_1 || '');
+      const thunhap3t2Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.thunhap_3t_2 || '').filter(Boolean).join('\n')
+        : (lkData?.thunhap_3t_2 || '');
+      const thunhap3t3Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.thunhap_3t_3 || '').filter(Boolean).join('\n')
+        : (lkData?.thunhap_3t_3 || '');
+
       const tenSieuThiVal = isAllMode
         ? 'TẤT CẢ SIÊU THỊ'
         : (lkData?.ten_sieu_thi || rtData?.ten_sieu_thi || storeName || '');
@@ -176,11 +255,20 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       setLuyKeNganhHang(lkNhRaw);
       setThiDuaNv(lkTdRaw);
       setPhucVu(phucVuRaw);
-      // Only update banKemNv from DB if user hasn't made local changes
+      
       if (!banKemDirtyRef.current) {
         setBanKemNvInternal(banKemNvRaw);
-      } else {
-        // Skipping DB overwrite for ban_kem_nv (dirty)
+      }
+      if (!tragopDirtyRef.current) {
+        setTragopNvInternal(tragopNvRaw);
+      }
+      if (!rank3tDirtyRef.current) {
+        setDtqd3t1Internal(dtqd3t1Raw);
+        setDtqd3t2Internal(dtqd3t2Raw);
+        setDtqd3t3Internal(dtqd3t3Raw);
+        setThunhap3t1Internal(thunhap3t1Raw);
+        setThunhap3t2Internal(thunhap3t2Raw);
+        setThunhap3t3Internal(thunhap3t3Raw);
       }
       setTenSieuThi(tenSieuThiVal);
       hasLoadedRef.current = true;
@@ -189,7 +277,6 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       const biData = lkRaw ? parseStaffRankData(lkRaw) : [];
       
       // Merge YCX DTQĐ into BI Data to ensure latest values are shown in the ranking table
-      // This fixes the issue where DTQĐ might be stale in lk_dt_nv but updated in ycx_rt
       const mergedBiData = biData.map(staff => {
         // Match by employee ID (fullId)
         const ycxMatch = ycxStaffData.find(y => y.staffName?.startsWith(staff.fullId));
@@ -215,15 +302,19 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         thiDuaNv: lkTdRaw,
         phucVu: phucVuRaw,
         banKemNv: banKemNvRaw,
+        tragopNv: tragopNvRaw,
+        dtqd3t1: dtqd3t1Raw,
+        dtqd3t2: dtqd3t2Raw,
+        dtqd3t3: dtqd3t3Raw,
+        thunhap3t1: thunhap3t1Raw,
+        thunhap3t2: thunhap3t2Raw,
+        thunhap3t3: thunhap3t3Raw,
         tenSieuThi: tenSieuThiVal
       };
 
       setBiRevenueData(mergedBiData);
     } catch (error: any) {
       console.error('Error fetching employee health data:', error);
-      if (error.message?.includes('Failed to fetch')) {
-        console.error('Không thể kết nối tới máy chủ. Vui lòng kiểm tra lại cấu hình Supabase trong Secrets.');
-      }
     } finally {
       setIsLoading(false);
     }
@@ -257,13 +348,21 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       setPhucVu(cached.phucVu);
       setTenSieuThi(cached.tenSieuThi);
       if (!banKemDirtyRef.current) setBanKemNvInternal(cached.banKemNv);
-    } else {
-      // Keep previous data during fetch to prevent layout collapse/flicker.
-      // Fields will be updated or cleared once the Supabase query resolves.
+      if (!tragopDirtyRef.current) setTragopNvInternal(cached.tragopNv);
+      if (!rank3tDirtyRef.current) {
+        setDtqd3t1Internal(cached.dtqd3t1 || '');
+        setDtqd3t2Internal(cached.dtqd3t2 || '');
+        setDtqd3t3Internal(cached.dtqd3t3 || '');
+        setThunhap3t1Internal(cached.thunhap3t1 || '');
+        setThunhap3t2Internal(cached.thunhap3t2 || '');
+        setThunhap3t3Internal(cached.thunhap3t3 || '');
+      }
     }
     
     // Reset dirty flag when switching stores to avoid stale banKemNv
     banKemDirtyRef.current = false;
+    tragopDirtyRef.current = false;
+    rank3tDirtyRef.current = false;
     hasLoadedRef.current = false;
     
     // Execute data fetch directly with latest closure
@@ -303,7 +402,8 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
               (record.lk_nh_sieu_thi !== undefined && record.lk_nh_sieu_thi !== (cached.luyKeNganhHang || '')) ||
               (record.lk_td_nv !== undefined && record.lk_td_nv !== (cached.thiDuaNv || '')) ||
               (record.phuc_vu !== undefined && record.phuc_vu !== (cached.phucVu || '')) ||
-              (!banKemDirtyRef.current && record.ban_kem_nv !== undefined && record.ban_kem_nv !== (cached.banKemNv || ''));
+              (!banKemDirtyRef.current && record.ban_kem_nv !== undefined && record.ban_kem_nv !== (cached.banKemNv || '')) ||
+              (!tragopDirtyRef.current && record.tragop_nv !== undefined && record.tragop_nv !== (cached.tragopNv || ''));
 
             if (hasChanged) {
               console.log('[EmployeeHealth] Monitored column change detected, refetching...');
@@ -319,6 +419,73 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       supabase.removeChannel(ehChannel);
     };
   }, [maKho, storeName, debouncedRefetch]);
+
+  // Auto-save ranking 3T fields to DB with 2s debounce
+  useEffect(() => {
+    if (!maKho || !hasLoadedRef.current || !rank3tDirtyRef.current) return;
+    if (!isStoreReady) return; // MULTI-STORE GUARD
+    const cleanStore = (storeName || tenSieuThi || '').trim();
+    if (!cleanStore) return;
+
+    if (rank3tAutoSaveRef.current) {
+      clearTimeout(rank3tAutoSaveRef.current);
+    }
+
+    rank3tAutoSaveRef.current = setTimeout(async () => {
+      setIsSaving(true);
+      try {
+        const { error } = await supabase
+          .from('store')
+          .upsert({
+            id: normalizeStoreId(cleanStore),
+            warehouse_code: maKho.trim(),
+            ten_sieu_thi: cleanStore,
+            dtqd_3t_1: dtqd3t1,
+            dtqd_3t_2: dtqd3t2,
+            dtqd_3t_3: dtqd3t3,
+            thunhap_3t_1: thunhap3t1,
+            thunhap_3t_2: thunhap3t2,
+            thunhap_3t_3: thunhap3t3,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+        if (error) {
+          console.error('[EmployeeHealth] Auto-save rank 3T error:', error);
+        } else {
+          rank3tDirtyRef.current = false;
+        }
+      } catch (err) {
+        console.error('[EmployeeHealth] Auto-save rank 3T failed:', err);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 2000);
+
+    return () => {
+      if (rank3tAutoSaveRef.current) clearTimeout(rank3tAutoSaveRef.current);
+      if (rank3tDirtyRef.current) {
+        const cleanStoreVal = (storeName || tenSieuThi || '').trim();
+        if (cleanStoreVal && maKho) {
+          supabase
+            .from('store')
+            .upsert({
+              id: normalizeStoreId(cleanStoreVal),
+              warehouse_code: maKho.trim(),
+              ten_sieu_thi: cleanStoreVal,
+              dtqd_3t_1: dtqd3t1,
+              dtqd_3t_2: dtqd3t2,
+              dtqd_3t_3: dtqd3t3,
+              thunhap_3t_1: thunhap3t1,
+              thunhap_3t_2: thunhap3t2,
+              thunhap_3t_3: thunhap3t3,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'id' })
+            .then((res: any) => {
+              if (res.error) console.error('[EmployeeHealth] Auto-save rank 3T on unmount error:', res.error);
+            });
+        }
+      }
+    };
+  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, maKho, storeName, tenSieuThi, isStoreReady]);
 
   // Auto-save banKemNv to DB with 2s debounce
   useEffect(() => {
@@ -376,6 +543,63 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       }
     };
   }, [banKemNv, maKho, storeName, tenSieuThi, isStoreReady]);
+
+  // Auto-save tragopNv to DB with 2s debounce
+  useEffect(() => {
+    if (!maKho || !hasLoadedRef.current || !tragopDirtyRef.current) return;
+    if (!isStoreReady) return; // MULTI-STORE GUARD: Don't auto-save during store switch
+    const cleanStore = (storeName || tenSieuThi || '').trim();
+    if (!cleanStore) return;
+
+    if (tragopAutoSaveRef.current) {
+      clearTimeout(tragopAutoSaveRef.current);
+    }
+
+    tragopAutoSaveRef.current = setTimeout(async () => {
+      setIsSaving(true);
+      try {
+        const { error } = await supabase
+          .from('store')
+          .upsert({
+            id: normalizeStoreId(cleanStore),
+            warehouse_code: maKho.trim(),
+            ten_sieu_thi: cleanStore,
+            tragop_nv: tragopNv,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+        if (error) {
+          console.error('[EmployeeHealth] Auto-save tragop_nv error:', error);
+        } else {
+          tragopDirtyRef.current = false; // Clear dirty flag after successful save
+        }
+      } catch (err) {
+        console.error('[EmployeeHealth] Auto-save tragop_nv failed:', err);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 2000);
+
+    return () => {
+      if (tragopAutoSaveRef.current) clearTimeout(tragopAutoSaveRef.current);
+      if (tragopDirtyRef.current) {
+        const cleanStoreVal = (storeName || tenSieuThi || '').trim();
+        if (cleanStoreVal && maKho) {
+          supabase
+            .from('store')
+            .upsert({
+              id: normalizeStoreId(cleanStoreVal),
+              warehouse_code: maKho.trim(),
+              ten_sieu_thi: cleanStoreVal,
+              tragop_nv: tragopNv,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'id' })
+            .then((res: any) => {
+              if (res.error) console.error('[EmployeeHealth] Auto-save tragop_nv on unmount error:', res.error);
+            });
+        }
+      }
+    };
+  }, [tragopNv, maKho, storeName, tenSieuThi, isStoreReady]);
 
   const refresh = useCallback(() => {
     fetchAndMergeData();
@@ -448,17 +672,60 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     }
   }, [maKho, tenSieuThi, storeName]);
 
+  const saveTragopNv = useCallback(async (data: string) => {
+    if (!maKho) return;
+    const cleanMaKho = maKho.trim();
+    const cleanStore = (storeName || tenSieuThi || '').trim();
+    
+    if (!cleanStore) {
+      console.error('[EmployeeHealth] Cannot save tragop_nv: no store name available');
+      throw new Error('Chưa xác định được tên siêu thị. Vui lòng chọn siêu thị.');
+    }
+    
+    setTragopNvInternal(data); // Optimistic update
+    tragopDirtyRef.current = false; // Manual save clears dirty
+    setIsSaving(true);
+    try {
+        const { error } = await supabase
+          .from('store')
+          .upsert({
+            id: normalizeStoreId(cleanStore),
+            warehouse_code: cleanMaKho,
+            ten_sieu_thi: cleanStore,
+            tragop_nv: data,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error saving tragop nv data:', error);
+      setTragopNvInternal(''); // Revert optimistic update on failure
+      throw error;
+    } finally {
+      setIsSaving(false);
+    }
+  }, [maKho, tenSieuThi, storeName]);
+
   return {
     biRevenueData,
     luyKeNganhHang,
     thiDuaNv,
     phucVu,
     banKemNv,
+    tragopNv,
+    dtqd3t1, setDtqd3t1,
+    dtqd3t2, setDtqd3t2,
+    dtqd3t3, setDtqd3t3,
+    thunhap3t1, setThunhap3t1,
+    thunhap3t2, setThunhap3t2,
+    thunhap3t3, setThunhap3t3,
     setBanKemNv,
+    setTragopNv,
     isLoading,
     isSaving,
     refresh,
     savePhucVu,
-    saveBanKemNv
+    saveBanKemNv,
+    saveTragopNv
   };
 };

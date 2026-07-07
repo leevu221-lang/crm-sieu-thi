@@ -23,7 +23,7 @@ export const SupabaseService = {
     }
     
     // Map lại để đồng bộ với UI
-    return (data || []).map(u => ({
+    return (data || []).map((u: any) => ({
       username: u.username,
       ma_kho: u.storeCode,
       role: 'user'

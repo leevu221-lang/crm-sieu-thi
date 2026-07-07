@@ -52,7 +52,7 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
   const totalPercentHT = (actualTotalTargetQd > 0 && daysPassed > 0) ? (((actualTotalActual / daysPassed) * totalDays) / actualTotalTargetQd) * 100 : 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
       <div className="bg-white p-2 md:p-4">
         <div className="bg-white border border-slate-300 shadow-xl overflow-hidden rounded-[8px]">
           {/* Top Header */}
@@ -76,16 +76,16 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
           </div>
 
           <div className="overflow-hidden">
-            <table className="w-full border-collapse">
+            <table className="w-full border-collapse table-fixed">
               <thead>
                  <tr className="text-slate-900 font-sans font-black text-[14px] uppercase tracking-tight h-[60px]">
-                  <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="bg-[#00965e] px-2 py-0 text-center text-white border-r border-white/10 w-[40px] h-[60px] font-sans font-black">STT</th>
-                  <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="bg-[#00965e] px-4 py-0 text-center text-white border-r border-white/10 w-[300px] whitespace-normal break-words leading-tight font-sans font-black">NHÂN VIÊN</th>
-                  <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="bg-[#00965e] px-4 py-0 text-center text-white border-r border-white/10 w-[120px] whitespace-normal break-words leading-tight font-sans font-black">TARGET QĐ</th>
-                  <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="bg-[#ffcb05] px-4 py-0 text-center border-r border-white/10 w-[130px] whitespace-normal break-words leading-tight font-sans font-black">DOANH THU QUY ĐỔI</th>
-                  <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="bg-[#ffcb05] px-4 py-0 text-center border-r border-white/10 w-[80px] whitespace-normal break-words leading-tight font-sans font-black">% HT</th>
-                  <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="bg-[#ffcb05] px-4 py-0 text-center border-r border-white/10 w-[120px] whitespace-normal break-words leading-tight font-sans font-black">HIỆU QUẢ QĐ</th>
-                  <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="bg-[#f58220] px-4 py-0 text-center w-[100px] whitespace-normal break-words leading-tight font-sans font-black">TOP/BOT</th>
+                  <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, width: '5%' }} className="bg-[#00965e] px-2 py-0 text-center text-white border-r border-white/10 h-[60px] font-sans font-black">STT</th>
+                  <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="bg-[#00965e] px-2 py-0 text-center text-white border-r border-white/10 whitespace-normal break-words leading-tight font-sans font-black">NHÂN VIÊN</th>
+                  <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, width: '13%' }} className="bg-[#00965e] px-2 py-0 text-center text-white border-r border-white/10 whitespace-normal break-words leading-tight font-sans font-black">TARGET QĐ</th>
+                  <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, width: '15%' }} className="bg-[#ffcb05] px-2 py-0 text-center border-r border-white/10 whitespace-normal break-words leading-tight font-sans font-black">DOANH THU QUY ĐỔI</th>
+                  <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, width: '10%' }} className="bg-[#ffcb05] px-2 py-0 text-center border-r border-white/10 whitespace-normal break-words leading-tight font-sans font-black">% HT</th>
+                  <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, width: '13%' }} className="bg-[#ffcb05] px-2 py-0 text-center border-r border-white/10 whitespace-normal break-words leading-tight font-sans font-black">HIỆU QUẢ QĐ</th>
+                  <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, width: '10%' }} className="bg-[#f58220] px-2 py-0 text-center whitespace-normal break-words leading-tight font-sans font-black">TOP/BOT</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -119,41 +119,41 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                           "hover:bg-slate-50"
                         )}
                       >
-                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }} className="px-2 py-0 text-center border-r border-slate-200 bg-[#fef08a] font-sans font-bold text-[13px]">
+                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-2 py-0 text-center border-r border-slate-200 bg-[#fef08a] font-sans font-black text-[13px]">
                           {index + 1}
                         </td>
-                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }} className="px-4 py-0 border-r border-slate-200">
+                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-0 border-r border-slate-200">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[12px] text-blue-600 font-bold flex-shrink-0">›</span>
+                            <span className="text-[12px] text-blue-600 font-black flex-shrink-0">›</span>
                             <span className={cn(
-                              "text-[13px] font-sans font-bold uppercase tracking-tight truncate",
+                              "text-[13px] font-sans font-black uppercase tracking-tight truncate",
                               isTop ? "text-blue-600" : isBottom ? "text-rose-600" : "text-slate-700"
                             )}>
                               {formatName(staff.displayName)} - {staff.fullId}
                             </span>
                           </div>
                         </td>
-                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }} className="px-2 py-0 text-center border-r border-slate-200 font-sans font-bold text-[14px] text-slate-800">
+                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-2 py-0 text-center border-r border-slate-200 font-sans font-black text-[14px] text-slate-800">
                           {targetQdPerStaff > 1000000 
                             ? Math.floor(targetQdPerStaff / 1000000).toLocaleString('vi-VN')
                             : Math.round(targetQdPerStaff).toLocaleString('vi-VN')}
                         </td>
-                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }} className="px-2 py-0 text-center border-r border-slate-200 font-sans font-bold text-[14px] text-slate-800">
+                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-2 py-0 text-center border-r border-slate-200 font-sans font-black text-[14px] text-slate-800">
                           {staff.actualVal !== null ? (Math.abs(staff.actualVal) > 1000000 ? Math.floor(staff.actualVal / 1000000).toLocaleString('vi-VN') : Math.round(staff.actualVal).toLocaleString('vi-VN')) : ''}
                         </td>
-                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }} className={cn(
-                          "px-2 py-0 text-center border-r border-slate-200 font-sans font-bold text-[14px]",
+                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                          "px-2 py-0 text-center border-r border-slate-200 font-sans font-black text-[14px]",
                           percentHT < 100 ? "text-rose-600" : "text-emerald-600"
                         )}>
                           {percentHT.toFixed(1)}%
                         </td>
-                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }} className={cn(
-                          "px-2 py-0 text-center border-r border-slate-200 font-sans font-bold text-[14px]",
+                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                          "px-2 py-0 text-center border-r border-slate-200 font-sans font-black text-[14px]",
                           effQd < stPercentHTTargetDuKienQD ? "text-rose-600" : "text-[#059669]"
                         )}>
                           {effQd.toFixed(1)}%
                         </td>
-                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }} className="px-2 py-0 text-center">
+                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-2 py-0 text-center">
                           <div className="flex items-center justify-center gap-1">
                             {isTop ? (
                               <div className="flex items-center gap-1 text-[#2563eb]">
@@ -189,21 +189,21 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                     <td colSpan={2} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-0 text-center border-r border-slate-200 font-sans font-black text-[13px] text-slate-800 uppercase tracking-widest">
                       TỔNG
                     </td>
-                    <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }} className="px-2 py-0 text-center border-r border-slate-200 font-sans font-bold text-[14px] text-slate-800">
+                    <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-2 py-0 text-center border-r border-slate-200 font-sans font-black text-[14px] text-slate-800">
                       {totalTargetQd > 1000000 
                         ? Math.floor(totalTargetQd / 1000000).toLocaleString('vi-VN')
                         : Math.round(totalTargetQd).toLocaleString('vi-VN')}
                     </td>
-                    <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }} className="px-2 py-0 text-center border-r border-slate-200 font-sans font-bold text-[14px] text-slate-800">
+                    <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-2 py-0 text-center border-r border-slate-200 font-sans font-black text-[14px] text-slate-800">
                       {Math.abs(totalActual) > 1000000 ? Math.floor(totalActual / 1000000).toLocaleString('vi-VN') : Math.round(totalActual).toLocaleString('vi-VN')}
                     </td>
-                    <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }} className={cn(
-                      "px-2 py-0 text-center border-r border-slate-200 font-sans font-bold text-[14px] text-rose-600",
+                    <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                      "px-2 py-0 text-center border-r border-slate-200 font-sans font-black text-[14px] text-rose-600",
                     )}>
                       {totalPercentHT.toFixed(1)}%
                     </td>
-                    <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }} className={cn(
-                      "px-2 py-0 text-center border-r border-slate-200 font-sans font-bold text-[13px]",
+                    <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                      "px-2 py-0 text-center border-r border-slate-200 font-sans font-black text-[13px]",
                       stPercentHTTargetDuKienQD < 40 ? "text-rose-600" : "text-emerald-600"
                     )}>
                       {stPercentHTTargetDuKienQD > 0 ? `${stPercentHTTargetDuKienQD.toFixed(1)}%` : ''}

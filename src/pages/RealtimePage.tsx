@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useEffect, useRef, useDeferredValue, useTransition } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useDeferredValue, useTransition, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
+import { birthdayService } from '../services/birthdayService';
 import {
   BarChart,
   Bar,
@@ -58,15 +59,25 @@ import {
   GripVertical,
   Package,
   RotateCcw,
+  ChevronsUpDown,
   ClipboardList,
   X,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Database,
+  Store,
+  ChevronsUpDown,
+  ChevronsDownUp,
+  Columns,
+  Sliders,
+  BarChart3,
+  Gift
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useMarket } from '../contexts/MarketContext';
 import { useRealtimeData } from './RTST/hooks/useRealtimeData';
+import { ImagePreviewModal } from '../components/ImagePreviewModal';
 import { useLuykeData } from './RTST/hooks/useLuykeData';
 import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';
 import * as XLSX from 'xlsx';
@@ -176,6 +187,184 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
         </div>
       </div>
     </motion.div>
+  );
+};
+
+interface ColumnFilterDropdownProps {
+  colIdx: number;
+  columnName: string;
+  uniqueVals: string[];
+  filterState: { search: string; selectedValues: string[] | null } | undefined;
+  onApply: (search: string, selectedValues: string[] | null) => void;
+  onClear: () => void;
+  onClose: () => void;
+}
+
+const ColumnFilterDropdown: React.FC<ColumnFilterDropdownProps> = ({
+  colIdx,
+  columnName,
+  uniqueVals,
+  filterState,
+  onApply,
+  onClear,
+  onClose,
+}) => {
+  const [localSearch, setLocalSearch] = useState('');
+  const [tempSelected, setTempSelected] = useState<Set<string>>(new Set());
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Initialize tempSelected
+  useEffect(() => {
+    if (filterState?.selectedValues) {
+      setTempSelected(new Set(filterState.selectedValues));
+    } else {
+      setTempSelected(new Set(uniqueVals));
+    }
+  }, [filterState, uniqueVals]);
+
+  // Handle click outside to close
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [onClose]);
+
+  // Filter unique values by search input
+  const filteredUniqueVals = useMemo(() => {
+    return uniqueVals.filter(val =>
+      String(val).toLowerCase().includes(localSearch.toLowerCase())
+    );
+  }, [uniqueVals, localSearch]);
+
+  const DISPLAY_LIMIT = 250;
+  const displayedUniqueVals = useMemo(() => {
+    return filteredUniqueVals.slice(0, DISPLAY_LIMIT);
+  }, [filteredUniqueVals]);
+
+  const allDisplayedChecked = useMemo(() => {
+    if (displayedUniqueVals.length === 0) return false;
+    return displayedUniqueVals.every(val => tempSelected.has(val));
+  }, [displayedUniqueVals, tempSelected]);
+
+  const handleSelectAllToggle = () => {
+    const newTemp = new Set(tempSelected);
+    if (allDisplayedChecked) {
+      displayedUniqueVals.forEach(val => newTemp.delete(val));
+    } else {
+      displayedUniqueVals.forEach(val => newTemp.add(val));
+    }
+    setTempSelected(newTemp);
+  };
+
+  const handleCheckboxChange = (val: string) => {
+    const newTemp = new Set(tempSelected);
+    if (newTemp.has(val)) {
+      newTemp.delete(val);
+    } else {
+      newTemp.add(val);
+    }
+    setTempSelected(newTemp);
+  };
+
+  const handleApply = () => {
+    if (tempSelected.size === uniqueVals.length) {
+      onApply(localSearch, null);
+    } else {
+      onApply(localSearch, Array.from(tempSelected));
+    }
+  };
+
+  return (
+    <div
+      ref={dropdownRef}
+      className="absolute top-full mt-1 right-0 z-50 w-64 bg-white border border-slate-200 rounded-lg shadow-xl p-3 text-left normal-case"
+      onClick={e => e.stopPropagation()}
+    >
+      <div className="text-[10px] font-black text-slate-700 mb-2 truncate">
+        Lọc cột: {columnName}
+      </div>
+
+      {/* Search Input */}
+      <input
+        type="text"
+        placeholder="Tìm kiếm giá trị..."
+        value={localSearch}
+        onChange={e => setLocalSearch(e.target.value)}
+        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 mb-2"
+      />
+
+      {/* Scrollable Checklist */}
+      <div className="max-h-48 overflow-y-auto border border-slate-150 rounded p-1.5 mb-2 bg-slate-50/50">
+        <label className="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-slate-100 cursor-pointer text-[11px] font-medium text-slate-700">
+          <input
+            type="checkbox"
+            checked={allDisplayedChecked}
+            onChange={handleSelectAllToggle}
+            className="rounded text-indigo-600 focus:ring-indigo-500 w-3 h-3 cursor-pointer"
+          />
+          <span>(Chọn tất cả kết quả hiển thị)</span>
+        </label>
+        <div className="border-t border-slate-200 my-1"></div>
+
+        {displayedUniqueVals.length > 0 ? (
+          displayedUniqueVals.map((val, idx) => (
+            <label
+              key={idx}
+              className="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-slate-100 cursor-pointer text-[11px] font-medium text-slate-700 truncate"
+            >
+              <input
+                type="checkbox"
+                checked={tempSelected.has(val)}
+                onChange={() => handleCheckboxChange(val)}
+                className="rounded text-indigo-600 focus:ring-indigo-500 w-3 h-3 cursor-pointer"
+              />
+              <span title={val}>{val}</span>
+            </label>
+          ))
+        ) : (
+          <div className="text-[10px] text-slate-400 italic text-center py-2">
+            Không tìm thấy giá trị
+          </div>
+        )}
+      </div>
+
+      {/* DISPLAY LIMIT MESSAGE */}
+      {filteredUniqueVals.length > DISPLAY_LIMIT && (
+        <div className="text-[9px] text-slate-400 font-bold mb-2 text-center">
+          Hiển thị {DISPLAY_LIMIT} / {filteredUniqueVals.length} dòng. Hãy tìm kiếm để lọc thêm.
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center justify-between border-t border-slate-100 pt-2 mt-2">
+        <button
+          onClick={onClear}
+          className="px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 text-[10px] font-black text-slate-500 transition-colors uppercase tracking-wider"
+        >
+          Xóa bộ lọc
+        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={onClose}
+            className="px-2.5 py-1 rounded hover:bg-slate-50 text-[10px] font-black text-slate-400 transition-colors uppercase tracking-wider"
+          >
+            Đóng
+          </button>
+          <button
+            onClick={handleApply}
+            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-black transition-colors uppercase tracking-wider shadow-sm"
+          >
+            Đồng ý
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -293,6 +482,7 @@ const StaffMultiSelectFilter = ({
 };
 
 const NHOM_HANG_MAP: Record<string, { large: string, small: string }> = {
+  // --- USER'S NEW MAPPING ---
   "4479 - Dịch Vụ Bảo Hiểm": { large: "BẢO HIỂM", small: "B.HIỂM" },
   "4499 - Thu Hộ Phí Bảo Hiểm": { large: "BẢO HIỂM", small: "B.HIỂM" },
   "1098 - Máy lạnh (IMEI)": { large: "CE", small: "ML" },
@@ -314,7 +504,7 @@ const NHOM_HANG_MAP: Record<string, { large: string, small: string }> = {
   "3240 - Hộp/Hũ": { large: "DCNB", small: "" },
   "4302 - Nón bảo hiểm các loại": { large: "DCNB", small: "" },
   "4171 - Lọc nước dạng tủ đứng": { large: "ĐIỆN GD", small: "MLN" },
-  "4150 - Máy nước nóng lạnh": { large: "ĐIỆN GD", small: "MLN" },
+  "4150 - Máy nước nóng lạnh": { large: "ĐIỆN GD", small: "CNL" },
   "4172 - Lọc nước âm tủ/trên bàn": { large: "ĐIỆN GD", small: "MLN" },
   "4144 - Bếp gas âm": { large: "ĐIỆN GD", small: "BẾP GAS/ĐIỆN/HÚT MÙI" },
   "3779 - Bếp điện âm": { large: "ĐIỆN GD", small: "BẾP GAS/ĐIỆN/HÚT MÙI" },
@@ -327,7 +517,7 @@ const NHOM_HANG_MAP: Record<string, { large: string, small: string }> = {
   "4155 - Hút bụi cây": { large: "ĐIỆN GD", small: "HÚT BỤI" },
   "4439 - Hút Bụi Robot": { large: "ĐIỆN GD", small: "HÚT BỤI" },
   "3639 - Máy lọc không khí": { large: "ĐIỆN GD", small: "HÚT BỤI" },
-  "6000 - Máy ép trái cây": { large: "ĐIỆN GD", small: "XAY ÉP/S.TỐ" },
+  "6000 - Máy ép trái cây": { large: "ĐIỆN GD", small: "XAY ÉP" },
   "4099 - Nồi chiên": { large: "ĐIỆN GD", small: "N.CHIÊN" },
   "4156 - Nồi cơm nắp gài/nắp rời": { large: "ĐIỆN GD", small: "NC NẮP RỜI" },
   "4158 - Nồi cơm điện tử": { large: "ĐIỆN GD", small: "NC Đ.TỬ" },
@@ -337,8 +527,8 @@ const NHOM_HANG_MAP: Record<string, { large: string, small: string }> = {
   "4159 - Quạt đứng": { large: "ĐIỆN GD", small: "QUẠT" },
   "4161 - Quạt treo": { large: "ĐIỆN GD", small: "QUẠT" },
   "3799 - Quạt điều hòa": { large: "ĐIỆN GD", small: "QĐH" },
-  "4154 - Xay ép/Khác": { large: "ĐIỆN GD", small: "XAY ÉP/S.TỐ" },
-  "4153 - Xay Sinh tố": { large: "ĐIỆN GD", small: "XAY ÉP/S.TỐ" },
+  "4154 - Xay ép/Khác": { large: "ĐIỆN GD", small: "XAY ÉP" },
+  "4153 - Xay Sinh tố": { large: "ĐIỆN GD", small: "XAY ÉP" },
   "4149 - Bình thủy điện": { large: "ĐIỆN GD", small: "ĐGD KHÁC" },
   "958 - Lò vi sóng": { large: "ĐIỆN GD", small: "ĐGD KHÁC" },
   "967 - Sấy tóc": { large: "ĐIỆN GD", small: "ĐGD KHÁC" },
@@ -359,9 +549,9 @@ const NHOM_HANG_MAP: Record<string, { large: string, small: string }> = {
   "4063 - Đồng hồ Nữ Dây da": { large: "ĐỒNG HỒ", small: "Đ.HỒ" },
   "4064 - Đồng hồ Nữ Dây khác": { large: "ĐỒNG HỒ", small: "Đ.HỒ" },
   "4060 - Đồng hồ Nam Dây da": { large: "ĐỒNG HỒ", small: "Đ.HỒ" },
-  "3359 - Phụ kiện đồng hồ": { large: "ĐỒNG HỒ", small: "Đ.HỒ" },
-  "4125 - Smartband": { large: "ĐỒNG HỒ", small: "Đ.HỒ" },
-  "2391 - Smartwatch": { large: "ĐỒNG HỒ", small: "Đ.HỒ" },
+  "3359 - Phụ kiện đồng hồ": { large: "ĐỒNG HỒ", small: "" },
+  "4125 - Smartband": { large: "ĐỒNG HỒ", small: "" },
+  "2391 - Smartwatch": { large: "ĐỒNG HỒ", small: "" },
   "1491 - Smartphone": { large: "ICT", small: "SMP" },
   "42 - Laptop": { large: "ICT", small: "LAP" },
   "931 - Máy tính bảng": { large: "ICT", small: "TAB" },
@@ -369,8 +559,8 @@ const NHOM_HANG_MAP: Record<string, { large: string, small: string }> = {
   "4219 - Camera IP Ngoài trời": { large: "PHỤ KIỆN", small: "CAM" },
   "4779 - Loa di động - imei": { large: "PHỤ KIỆN", small: "LOA" },
   "1031 - Loa di động": { large: "PHỤ KIỆN", small: "LOA" },
-  "12 - Pin sạc dự phòng": { large: "PHỤ KIỆN", small: "PIN SDP" },
-  "2651 - Pin sạc dự phòng đa dạng": { large: "PHỤ KIỆN", small: "PIN SDP" },
+  "12 - Pin sạc dự phòng": { large: "PHỤ KIỆN", small: "SDP" },
+  "2651 - Pin sạc dự phòng đa dạng": { large: "PHỤ KIỆN", small: "SDP" },
   "3346 - Tai Nghe Bluetooth": { large: "PHỤ KIỆN", small: "TN BLT" },
   "4540 - Tai Nghe Bluetooth - imei": { large: "PHỤ KIỆN", small: "TN BLT" },
   "15 - Tai nghe dây": { large: "PHỤ KIỆN", small: "TN DÂY" },
@@ -401,23 +591,44 @@ const NHOM_HANG_MAP: Record<string, { large: string, small: string }> = {
   "571 - UDDĐ": { large: "VIEON", small: "VIEON" },
   "4741 - Xe Đạp Trẻ Em": { large: "XE ĐẠP", small: "XE ĐẠP" },
   "4742 - Xe Đạp Người Lớn": { large: "XE ĐẠP", small: "XE ĐẠP" },
-  "4324 - Khung treo, giá đỡ": { large: "ĐIỆN GD", small: "KHUNG TREO" },
-  "4169 - Lõi lọc": { large: "ĐIỆN GD", small: "LÕI LỌC" }
+  "4324 - Khung treo, giá đỡ": { large: "KHUNG TREO", small: "KHUNG TREO" },
+  "4169 - Lõi lọc": { large: "LÕI LỌC", small: "LÕI LỌC" },
+  "7161 - Dịch vụ bảo hành 1 đổi 1 Thợ Điện Máy Xanh": { large: "B.Hiểm", small: "B.Hiểm" },
+
+  // --- BACKWARD COMPATIBILITY / EXTRA HELPER ENTRIES ---
+  "1994 - Dịch vụ bảo hành, bảo dưỡng Điện máy xanh": { large: "BẢO HIỂM", small: "B.HIỂM" },
+  "1754 - Máy lạnh, nước nóng": { large: "CE", small: "ML" },
+  "1755 - Tủ lạnh, đông, mát": { large: "CE", small: "TL" },
+  "1756 - Máy giặt, sấy": { large: "CE", small: "MG" },
+  "1094 - Tivi LED": { large: "CE", small: "TIVI" },
+  "1094 - Tivi": { large: "CE", small: "TIVI" },
+  "880 - Loa": { large: "CE", small: "AUDIO" }
 };
 
 const NHOM_SMALL_DISPLAY: Record<string, string> = {
   'ML': 'Máy lạnh', 'MNN': 'Máy nước nóng', 'TL': 'Tủ lạnh', 'MG': 'Máy giặt',
-  'AUDIO': 'Loa Karaoke', 'TIVI': 'Tivi', 'MLN': 'Lọc nước', 'QĐH': 'Quạt ĐH',
+  'AUDIO': 'Loa Karaoke', 'TIVI': 'Tivi', 'MLN': 'Lọc nước', 'QĐH': 'Quạt ĐH', 'CNL': 'Cây Nóng/Lạnh',
   'NC NẮP RỜI': 'NC nắp rời', 'NC Đ.TỬ': 'NC điện tử', 'NC': 'Nồi cơm',
   'HÚT BỤI': 'Hút bụi', 'BẾP GAS/ĐIỆN/HÚT MÙI': 'Bếp', 'XAY ÉP/S.TỐ': 'Xay ép',
+  'XAY ÉP': 'Xay ép',
   'N.CHIÊN': 'Nồi chiên', 'ĐGD KHÁC': 'ĐGD khác', 'QUẠT': 'Quạt',
   'SMP': 'Smartphone', 'LAP': 'Laptop', 'TAB': 'Máy tính bảng',
   'TN BLT': 'Tai nghe BT', 'TN DÂY': 'Tai nghe dây', 'CÁP': 'Cáp',
   'ADAPTER': 'Sạc', 'T.NHỚ': 'Thẻ nhớ', 'M.DÁN': 'Miếng dán',
   'ỐP LƯNG': 'Ốp lưng', 'PK APPLE': 'PK Apple', 'BALO': 'Balo/Túi',
   'CAM': 'Camera', 'LOA': 'Loa', 'PIN SDP': 'Pin sạc', 'SIM': 'Sim',
+  'SDP': 'Pin sạc',
   'CHUỘT': 'Chuột', 'Đ.HỒ': 'Đồng hồ', 'B.HIỂM': 'Bảo hiểm',
-  'XE ĐẠP': 'Xe đạp', 'VIEON': 'UDDĐ', 'KHUNG TREO': 'Khung treo', 'LÕI LỌC': 'Lõi lọc',
+  'B.Hiểm': 'Bảo hiểm',
+  'XE ĐẠP': 'Xe đạp', 'VIEON': 'VieON', 'KHUNG TREO': 'Khung treo', 'LÕI LỌC': 'Lõi lọc',
+  'CHĂM SÓC SẮC ĐẸP': 'Chăm sóc sắc đẹp',
+  'ĐIỆN THOẠI DI ĐỘNG': 'Điện thoại di động',
+  'ĐỒNG HỒ THỜI TRANG': 'Đồng hồ thời trang',
+  'WEARABLE': 'Wearable',
+  'BHXM': 'BHXM', 'BHRV': 'BHRV', 'BHMR': 'BHMR', 'BHKV': 'BHKV', 'SC+': 'SC+', '1 ĐỔI 1': '1 ĐỔI 1',
+  'APPLE+': 'APPLE+', 'ANM': 'ANM', 'BH.HOME': 'BH.HOME', 'BHYT': 'BHYT', 'BHXH': 'BHXH', 'BVMH': 'BVMH',
+  'PK LẮP ĐẶT': 'PK lắp đặt', 'PHỤ KIỆN LẮP ĐẶT': 'PK lắp đặt',
+  'PK KHÁC': 'PK khác', 'MÁY IN': 'Máy in', 'ĐÈN NĂNG LƯỢNG MẶT TRỜI': 'Đèn năng lượng mặt trời',
 };
 
 const formatCurrencyUnit = (num: number) => {
@@ -428,9 +639,21 @@ const formatCurrencyUnit = (num: number) => {
 };
 
 const fmtTr = (v: number): string => {
-  if (v === 0) return '0';
-  const m = v / 1_000_000;
-  return `${m % 1 === 0 ? m : m.toFixed(1)} Tr`;
+  if (!v || v === 0) return '-';
+  const absVal = Math.abs(v);
+  if (absVal >= 1_000_000_000) {
+    const tỷ = v / 1_000_000_000;
+    return `${tỷ % 1 === 0 ? tỷ.toFixed(0) : tỷ.toFixed(1)} Tỷ`;
+  }
+  if (absVal >= 1_000_000) {
+    const m = v / 1_000_000;
+    return `${m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)} Tr`;
+  }
+  if (absVal >= 1_000) {
+    const k = v / 1_000;
+    return `${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)} K`;
+  }
+  return String(v);
 };
 
 const fmtPct = (tc_dt: number, total_dt: number): string => {
@@ -445,103 +668,1291 @@ const calcDelta = (curr: number, prev: number): { pct: number; up: boolean } | n
   return { pct, up: pct >= 0 };
 };
 
-const fmtDiff = (curr: number, prev: number, isMoney = false): React.ReactNode => {
+const fmtDiff = (curr: number, prev: number, isMoney = false, toFixed?: number): React.ReactNode => {
   const diff = curr - prev;
   if (diff === 0) return <span className="text-slate-300">-</span>;
-  const val = isMoney ? fmtTr(Math.abs(diff)) : Math.abs(diff).toLocaleString();
+
+  let val = '';
+  if (toFixed !== undefined) {
+    if (Math.abs(diff).toFixed(toFixed) === (0).toFixed(toFixed)) {
+      return <span className="text-slate-300">-</span>;
+    }
+    val = Math.abs(diff).toFixed(toFixed);
+  } else {
+    val = isMoney ? fmtTr(Math.abs(diff)) : Math.abs(diff).toLocaleString();
+  }
+
   const sign = diff > 0 ? '+' : '-';
   const color = diff > 0 ? 'text-emerald-500' : 'text-rose-500';
   return <span className={`text-[10px] font-black ${color}`}>{sign}{val}</span>;
 };
 
-const BRAND_KEYWORDS = [
-  'HAIER', 'DAIKIN', 'HISENSE', 'HISENSI', 'SAMSUNG', 'LG', 'PANASONIC', 'TOSHIBA', 'SHARP',
-  'AQUA', 'BEKO', 'BOSCH', 'ELECTROLUX', 'MIDEA', 'CASPER', 'APPLE', 'XIAOMI', 'OPPO', 'VIVO',
-  'REALME', 'HUAWEI', 'NOKIA', 'INFINIX', 'TECNO', 'ASUS', 'LENOVO', 'HP', 'DELL', 'ACER',
-  'SONY', 'JBL', 'MARSHALL', 'HARMAN', 'CANON', 'FUJIFILM', 'NIKON', 'PHILIPS', 'GORENJE',
+const BRAND_DEFINITIONS: Array<[string, string]> = [
+  // Longer keywords first to avoid substring matching issues (e.g. 'Harman Kardon' before 'Harman')
+  ['MITSUBISHI HEAVY', 'Mitsubishi Heavy'],
+  ['HARMAN KARDON', 'Harman Kardon'],
+  ['THẺ GAME GARENA', 'Thẻ game Garena'],
+  ['THẾ GIỚI DI ĐỘNG', 'Thế Giới Di Động'],
+  ['UNIBEST CO., LTD', 'UNIBEST CO., LTD'],
+  ['GỖ TRƯỜNG SƠN', 'Gỗ Trường Sơn'],
+  ['BẢO HIỂM PTI', 'Bảo hiểm PTI'],
+  ['BẢO HIỂM PVI', 'Bảo hiểm PVI'],
+  ['CHƯA XÁC ĐỊNH', 'Chưa xác định'],
+  ['ĐIỆN MÁY XANH', 'Điện Máy Xanh'],
+  ['ARCTIC HUNTER', 'Arctic Hunter'],
+  ['DANH PHONG', 'Danh Phong'],
+  ['GREENCOOK', 'GREENCOOK'],
+  ['HK THUNDER', 'HK THUNDER'],
+  ['INNOSTYLE', 'INNOSTYLE'],
+  ['SOUNDPEATS', 'Soundpeats'],
+  ['DAIKIOSAN', 'DAIKIOSAN'],
+  ['ELECTROLUX', 'Electrolux'],
+  ['ENERGIZER', 'ENERGIZER'],
+  ['MITSUBISHI', 'Mitsubishi Heavy'],
+  ['SMILE KID', 'SMILE KID'],
+  ['M-SERVICE', 'M-Service'],
+  ['VINAPHONE', 'Vinaphone'],
+  ['BLUESTONE', 'Bluestone'],
+  ['KANGAROO', 'Kangaroo'],
+  ['LOGITECH', 'Logitech'],
+  ['MEGALIFE', 'Megalife'],
+  ['MOTOROLA', 'Motorola'],
+  ['NAGAKAWA', 'NAGAKAWA'],
+  ['PANASONIC', 'Panasonic'],
+  ['SUNHOUSE', 'Sunhouse'],
+  ['ARISTON', 'Ariston'],
+  ['FIVESTAR', 'Fivestar'],
+  ['HIKSEMI', 'HIKSEMI'],
+  ['KINGSTON', 'Kingston'],
+  ['LOCK&LOCK', 'Lock&Lock'],
+  ['MOBIFONE', 'MobiFone'],
+  ['PEPOCO', 'Pepko'],
+  ['PHILIPS', 'Philips'],
+  ['SHOWCASE', 'Showcase'],
+  ['TOSHIBA', 'Toshiba'],
+  ['VIETTEL', 'Viettel'],
+  ['AVITA', 'Avita'],
+  ['AVA+', 'AVA+'],
+  ['BASEUS', 'Baseus'],
+  ['XMOBILE', 'Xmobile'],
+  ['BEAR', 'BEAR'],
+  ['BEAZOUT', 'Beazout'],
+  ['BROTHER', 'Brother'],
+  ['CASH24', 'Cash24'],
+  ['CASIO', 'Casio'],
+  ['CASPER', 'Casper'],
+  ['COCOON', 'Cocoon'],
+  ['COMFEE', 'Comfee'],
+  ['COSMIS', 'Cosmis'],
+  ['CRYSTAL', 'CRYSTAL'],
+  ['CUCKOO', 'Cuckoo'],
+  ['DAIKIN', 'Daikin'],
+  ['DALLAN', 'Dallan'],
+  ['DALTON', 'Dalton'],
+  ['DAREU', 'Dareu'],
+  ['DENON', 'Denon'],
+  ['DUXDUC', 'Duxduc'],
+  ['DUY TÂN', 'DUY TÂN'],
+  ['ELMICH', 'Elmich'],
+  ['EZVIZ', 'Ezviz'],
+  ['GIMIKO', 'GIMIKO'],
+  ['HAFELE', 'Hafele'],
+  ['HAITER', 'Haier'],
+  ['HAIER', 'Haier'],
+  ['HAVIT', 'Havit'],
+  ['HISENSE', 'Hisense'],
+  ['HISENSI', 'Hisense'],
+  ['HOMMY', 'Hommy'],
+  ['INOCHI', 'Inochi'],
+  ['JINCASE', 'Jincase'],
+  ['JUNGER', 'Junger'],
+  ['KACHI', 'Kachi'],
+  ['KAROFI', 'KAROFI'],
+  ['KIDCARE', 'Kidcare'],
+  ['KODAK', 'KODAK'],
+  ['LIVOTEC', 'LIVOTEC'],
+  ['MASSTEL', 'Masstel'],
+  ['MISHIO', 'Mishio'],
+  ['MUTOSI', 'Mutosi'],
+  ['NAMILUX', 'Namilux'],
+  ['NANOMAX', 'Nanomax'],
+  ['PALOMA', 'Paloma'],
+  ['PROMAS', 'Promas'],
+  ['PRAMIE', 'Pramie'],
+  ['RAPIDO', 'Rapido'],
+  ['RAPOO', 'Rapoo'],
+  ['REALME', 'Realme'],
+  ['RINNAI', 'Rinnai'],
+  ['SAKURA', 'Sakura'],
+  ['SAMSUNG', 'Samsung'],
+  ['SANAKY', 'Sanaky'],
+  ['SANDISK', 'Sandisk'],
+  ['SANYO', 'Sanyo'],
+  ['SOUMAX', 'Soumax'],
+  ['SUNRA', 'Sunra'],
+  ['SUPOR', 'Supor'],
+  ['TP-LINK', 'TP-LINK'],
+  ['UGREEN', 'Ugreen'],
+  ['VIETEL', 'Viettel'],
+  ['XIAOMI', 'Xiaomi'],
+  ['ANKER', 'Anker'],
+  ['APPLE', 'Apple'],
+  ['ARISTO', 'Ariston'],
+  ['CANON', 'Canon'],
+  ['DAHUA', 'Dahua'],
+  ['DELL', 'Dell'],
+  ['DMAX', 'DMAX'],
+  ['ELIO', 'ELIO'],
+  ['EPSON', 'Epson'],
+  ['ESAY', 'Esay'],
+  ['EVIC', 'Evic'],
+  ['GAMA', 'GAMA'],
+  ['HONOR', 'Honor'],
+  ['IMOU', 'Imou'],
+  ['ITEL', 'Itel'],
+  ['JAMMY', 'Jammy'],
+  ['JBL', 'Jbl'],
+  ['JOIE', 'Joie'],
+  ['MOBEL', 'Mobell'],
+  ['MODI', 'MODI'],
+  ['MUTOS', 'Mutosi'],
+  ['NOKIA', 'Nokia'],
+  ['PUMAX', 'PUMAX'],
+  ['REOLINK', 'Reolink'],
+  ['SHARP', 'Sharp'],
+  ['SUUNTO', 'Suunto'],
+  ['TEFAL', 'Tefal'],
+  ['TOGO', 'Togo'],
+  ['UNIQ', 'UNIQ'],
+  ['VIEON', 'VIEON'],
+  ['VPLINK', 'VPLink'],
+  ['ZINC', 'Zinc'],
+  ['AQUA', 'Aqua'],
+  ['ASUS', 'Asus'],
+  ['BEKO', 'Beko'],
+  ['BOSE', 'Bose'],
+  ['BOSCH', 'Bosch'],
+  ['COEX', 'Coex'],
+  ['DARE', 'Dareu'],
+  ['DELL', 'Dell'],
+  ['ELIO', 'ELIO'],
+  ['IMOO', 'Imoo'],
+  ['IPHONE', 'iPhone'],
+  ['ITEL', 'Itel'],
+  ['JOIE', 'Joie'],
+  ['OPPO', 'OPPO'],
+  ['SONY', 'Sony'],
+  ['TCL', 'TCL'],
+  ['TECN', 'TECNO'],
+  ['VIVO', 'Vivo'],
+  ['AC', 'AC'],
+  ['AS', 'Asia'],
+  ['AV', 'Ava'],
+  ['LG', 'LG'],
+  ['MD', 'M.D'],
+  ['HP', 'HP'],
+  ['HR', 'Haier'],
+  ['O.TECH', 'O.Tech'],
+  ['ĐIỆN QUANG', 'Điện Quang'],
 ];
 
 const extractBrand = (productName: string): string => {
   const upper = productName.toUpperCase();
-  for (const brand of BRAND_KEYWORDS) {
-    if (upper.includes(brand)) return brand.charAt(0) + brand.slice(1).toLowerCase();
+  if (upper.includes('IPHONE')) return 'iPhone';
+  for (const [keyword, displayName] of BRAND_DEFINITIONS) {
+    if (keyword.length <= 3) {
+      // Keyword ngắn: phải match đầu từ (word boundary) để tránh match nhầm
+      // VD: 'AS' không match '50NANO80ASA' nhưng match 'AS-390R' hoặc 'ASIA AS ...'
+      const regex = new RegExp(`(?:^|[\\s\\-\\_\\/\\(\\)])${keyword}(?:[\\s\\-\\_\\/\\(\\)]|$)`);
+      if (regex.test(upper)) return displayName;
+      // Cũng match nếu keyword nằm ở đầu tên sản phẩm
+      if (upper.startsWith(keyword + ' ') || upper.startsWith(keyword + '-')) return displayName;
+    } else {
+      if (upper.includes(keyword)) return displayName;
+    }
   }
   return 'Khác';
 };
 
+const resolveBrandForProduct = (productName: string, nhomSmall: string): string => {
+  if (nhomSmall === 'CAM') {
+    const prodLower = productName.toLowerCase();
+    const normProd = removeAccents(prodLower);
+    if (prodLower.includes('ngoài trời') || normProd.includes('ngoai troi') ||
+        prodLower.includes('outdoor') || prodLower.includes('bullet') ||
+        prodLower.includes('chống nước') || normProd.includes('chong nuoc')) {
+      return 'Ngoài trời';
+    }
+    return 'Trong nhà';
+  }
+  return extractBrand(productName);
+};
+
+const NGANH_DISPLAY: Record<string, string> = {
+  "CE": "CE",
+  "ICT": "ICT",
+  "ĐIỆN GD": "Gia dụng",
+  "PHỤ KIỆN": "Phụ kiện",
+  "DCNB": "DCNB",
+  "BẢO HIỂM": "Bảo hiểm",
+  "ĐỒNG HỒ": "Đồng hồ",
+  "ĐỒNG HỒ THỜI TRANG": "Đồng hồ thời trang",
+  "PHỤ KIỆN LẮP ĐẶT": "Phụ kiện lắp đặt",
+  "SIM": "Sim",
+  "IT": "IT",
+  "THỂ CÀO": "Thẻ cào",
+  "THÊN CÀO": "Thẻ cào",
+  "VIEON": "VieON",
+  "WEARABLE": "Wearable",
+  "CHĂM SÓC SẮC ĐẸP": "Chăm sóc sắc đẹp",
+  "XE ĐẠP": "Xe đạp",
+};
+
+const PRODUCT_CODE_MAP: Record<string, string> = {
+  // 1 ĐỔI 1
+  '1644479000058': '1 ĐỔI 1',
+  '1644479000071': '1 ĐỔI 1',
+  '1644479000070': '1 ĐỔI 1',
+  // BHMR
+  '1644479000001': 'BHMR',
+  '1644479000002': 'BHMR',
+  '4644499000109': 'BHMR',
+  '4644499000110': 'BHMR',
+  '4644499000106': 'BHMR',
+  '4644499000108': 'BHMR',
+  '1644479000089': 'BHMR',
+  '1644479000090': 'BHMR',
+  '4644499000111': 'BHMR',
+  '4644499000112': 'BHMR',
+  '4644499000113': 'BHMR',
+  '4644499000114': 'BHMR',
+  '4644499000115': 'BHMR',
+  '4644499000116': 'BHMR',
+  '4644499000117': 'BHMR',
+  '4644499000118': 'BHMR',
+  '4644499000119': 'BHMR',
+  '4644499000120': 'BHMR',
+  '4644499000121': 'BHMR',
+  '4644499000122': 'BHMR',
+  '4644499000123': 'BHMR',
+  '4644499000124': 'BHMR',
+  '4644499000125': 'BHMR',
+  '4644499000126': 'BHMR',
+  '1644479000114': 'BHMR',
+  '1644479000115': 'BHMR',
+  // BHRV
+  '1644479000045': 'BHRV',
+  '1644479000044': 'BHRV',
+  '1644479000069': 'BHRV',
+  '1644479000068': 'BHRV',
+  '1644479000047': 'BHRV',
+  '1644479000046': 'BHRV',
+  '1644303000010': 'BHRV',
+  '1644303000009': 'BHRV',
+  '1644479000118': 'BHRV',
+  '1644479000119': 'BHRV',
+  // BVMH
+  '1644479000094': 'BVMH',
+  '1644479000095': 'BVMH',
+  // SC+
+  '1644479000086': 'SC+',
+  '1644479000087': 'SC+',
+  '1644479000088': 'SC+',
+  '1644479000116': 'SC+',
+  '1644479000117': 'SC+',
+  // ANM
+  '1644479000102': 'ANM',
+  '1644479000103': 'ANM',
+  '1644479000104': 'ANM',
+  // BHKV
+  '4644499000102': 'BHKV',
+  // BHYT
+  '1644479000057': 'BHYT',
+  // BHXH
+  '1644479000056': 'BHXH',
+  // BH.HOME
+  '1644479000098': 'BH.HOME'
+};
+
+const classifyProductByCode = (code: string): string | null => {
+  const cleanCode = String(code || '').trim();
+  if (!cleanCode) return null;
+  
+  if (cleanCode.startsWith('177655900')) {
+    return 'APPLE+';
+  }
+  if (cleanCode.startsWith('46444990000')) {
+    return 'BHXM';
+  }
+  
+  return PRODUCT_CODE_MAP[cleanCode] || null;
+};
+
+const classifyProduct = (name: string) => {
+  const n = String(name || '').toUpperCase();
+  if (n.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || n.includes('BẢO VỆ MÀN HÌNH') || n.includes('BVMH')) return 'BVMH';
+  if (n.includes('1 ĐỔI 1')) return '1 ĐỔI 1';
+  if (n.includes('BẢO HIỂM KHOẢN VAY')) return 'BHKV';
+  if (n.includes('BHMR')) return 'BHMR';
+  if (n.includes('BẢO HÀNH MỞ RỘNG')) return 'BHMR';
+  if (n.includes('BẢO HIỂM RƠI VỠ')) return 'BHRV';
+  if (n.includes('BẢO HIỂM SC+')) return 'SC+';
+  if (n.includes('BẢO HÀNH APPLECARE+')) return 'BHAP';
+  if (n.includes('BẢO HIỂM Ô TÔ')) return 'BHOT';
+  if (n.includes('BẢO HIỂM VẬT CHẤT')) return 'BHVC';
+  if (n.includes('BẢO HIỂM XE MÁY')) return 'BHXM';
+  if (n.includes('BẢO HIỂM XE MOTO')) return 'BHMT';
+  if (n.includes('BẢO HIỂM XÃ HỘI')) return 'BHXH';
+  if (n.includes('BẢO HIỂM Y TẾ')) return 'BHYT';
+  if (n.includes('01 THÁNG')) return 'V1';
+  if (n.includes('03 THÁNG')) return 'V2';
+  if (n.includes('06 THÁNG')) return 'V4';
+  return '-';
+};
+
+let activeCustomCategoryMap: Record<string, { large: string, small: string }> | null = null;
+
+const parseCategoryMapping = (inputText: string): Record<string, { large: string, small: string }> => {
+  const result: Record<string, { large: string, small: string }> = {};
+  if (!inputText) return result;
+
+  const lines = inputText.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    const parts = line.split('	').map(p => p.trim());
+    if (parts.length < 3) continue;
+
+    // Skip header line if any
+    const firstCol = parts[0].toLowerCase();
+    const secondCol = parts[1].toLowerCase();
+    if (firstCol.includes('ngành hàng') && secondCol.includes('nhóm hàng')) {
+      continue;
+    }
+
+    const nganh = parts[0];
+    const nhom = parts[1];
+    const large = parts[2];
+    const small = parts[3] || '';
+
+    // Map using lowercase keys for case-insensitive lookup
+    if (nhom) {
+      result[nhom.toLowerCase()] = { large, small };
+      const nhomParts = nhom.split(' - ');
+      if (nhomParts.length === 2) {
+        result[nhomParts[1].trim().toLowerCase()] = { large, small };
+      }
+    }
+    if (nganh) {
+      result[nganh.toLowerCase()] = { large, small };
+      const nganhParts = nganh.split(' - ');
+      if (nganhParts.length === 2) {
+        result[nganhParts[1].trim().toLowerCase()] = { large, small };
+      }
+    }
+  }
+  return result;
+};
+
+const removeAccents = (str: string): string => {
+  return String(str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'd')
+    .toLowerCase()
+    .trim();
+};
+
+const classifyNhomHangLarge = (category: string, productName?: string): string => {
+  const cat = String(category || '').trim();
+  const prod = String(productName || '').trim();
+  const catLower = cat.toLowerCase();
+  const prodLower = prod.toLowerCase();
+  const normCat = removeAccents(cat);
+  const normProd = removeAccents(prod);
+
+  // Check condition with classification first
+  const pClass = classifyProduct(prod);
+  if (['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1'].includes(pClass)) {
+    if (pClass !== '1 ĐỔI 1' || normCat.includes('1841') || normCat.includes('1994') || normCat.includes('7139') || normCat.includes('khac') || normCat.includes('bao hiem') || !cat) {
+      return 'BẢO HIỂM';
+    }
+  }
+
+  // Helmet check: "Nón bảo hiểm" or "Mũ bảo hiểm" belongs to DCNB
+  if (
+    normProd.includes('non bao hiem') ||
+    normProd.includes('mu bao hiem') ||
+    normCat.includes('non bao hiem') ||
+    normCat.includes('mu bao hiem')
+  ) {
+    return 'DCNB';
+  }
+
+  if (!cat) return 'Khác';
+
+  // Check custom mapping first
+  if (activeCustomCategoryMap) {
+    if (activeCustomCategoryMap[catLower]) {
+      return activeCustomCategoryMap[catLower].large;
+    }
+    for (const [key, val] of Object.entries(activeCustomCategoryMap)) {
+      if (key && (catLower === key || catLower.includes(key) || key.includes(catLower))) {
+        return val.large;
+      }
+    }
+  }
+
+  // 1. First priority: Check for Insurance (Bảo hiểm)
+  if (
+    normCat.includes('bao hiem') ||
+    normProd.includes('bao hiem') ||
+    normCat.includes('dich vu bao hiem') ||
+    normCat.includes('thu ho phi bao hiem') ||
+    normCat.includes('1994') ||
+    normCat.includes('7139') ||
+    normCat.includes('bao hanh, bao duong') ||
+    normCat.includes('bao hanh mo rong')
+  ) {
+    return 'BẢO HIỂM';
+  }
+
+  // 2. Check for Wearable keywords in category and product name
+  if (
+    catLower.includes('wearable') ||
+    catLower.includes('smartband') ||
+    catLower.includes('smartwatch') ||
+    prodLower.includes('smartwatch') ||
+    prodLower.includes('smartband') ||
+    prodLower.includes('wearable')
+  ) {
+    return 'WEARABLE';
+  }
+
+  // 3. Try matching with NHOM_HANG_MAP
+  if (NHOM_HANG_MAP[cat]?.large) {
+    const mapped = NHOM_HANG_MAP[cat].large;
+    if (mapped === 'ĐỒNG HỒ') {
+      if (catLower.includes('smartwatch') || catLower.includes('smartband') || catLower.includes('smart') || prodLower.includes('smart')) {
+        return 'WEARABLE';
+      }
+      return 'ĐỒNG HỒ THỜI TRANG';
+    }
+    if (mapped === 'B.Hiểm' || mapped === 'B.HIỂM' || mapped === 'BẢO HIỂM') {
+      return 'BẢO HIỂM';
+    }
+    return mapped;
+  }
+
+  for (const [key, val] of Object.entries(NHOM_HANG_MAP)) {
+    if (key.toLowerCase() === catLower) {
+      const mapped = val.large;
+      if (mapped === 'ĐỒNG HỒ') {
+        if (key.toLowerCase().includes('smartwatch') || key.toLowerCase().includes('smartband') || catLower.includes('smart') || prodLower.includes('smart')) {
+          return 'WEARABLE';
+        }
+        return 'ĐỒNG HỒ THỜI TRANG';
+      }
+      if (mapped === 'B.Hiểm' || mapped === 'B.HIỂM' || mapped === 'BẢO HIỂM') {
+        return 'BẢO HIỂM';
+      }
+      return mapped;
+    }
+  }
+
+  for (const [key, val] of Object.entries(NHOM_HANG_MAP)) {
+    const parts = key.split(' - ');
+    if (parts.length === 2) {
+      const name = parts[1].trim().toLowerCase();
+      if (catLower === name || catLower.includes(name) || name.includes(catLower)) {
+        const mapped = val.large;
+        if (mapped === 'ĐỒNG HỒ') {
+          if (name.includes('smartwatch') || name.includes('smartband') || catLower.includes('smart') || prodLower.includes('smart')) {
+            return 'WEARABLE';
+          }
+          return 'ĐỒNG HỒ THỜI TRANG';
+        }
+        if (mapped === 'B.Hiểm' || mapped === 'B.HIỂM' || mapped === 'BẢO HIỂM') {
+          return 'BẢO HIỂM';
+        }
+        return mapped;
+      }
+    }
+  }
+
+  // 4. Keywords lookup
+  if (catLower.includes('phụ kiện lắp đặt')) return 'PHỤ KIỆN LẮP ĐẶT';
+  if (catLower.includes('thẻ cào') || catLower.includes('thên cào') || catLower.includes('thẻ điện thoại') ||
+      prodLower.includes('mệnh giá') || normProd.includes('menh gia') ||
+      prodLower.includes('airtime') || normProd.includes('airtime')
+  ) return 'THỂ CÀO';
+  if (catLower.includes('wearable') || catLower.includes('smartband')) return 'WEARABLE';
+  if (catLower.includes('sim') || catLower.includes('simcard')) return 'SIM';
+  if (catLower.includes('đồng hồ') || catLower.includes('smartwatch')) return 'ĐỒNG HỒ';
+  // Chăm sóc sắc đẹp
+  if (
+    catLower.includes('chăm sóc sắc đẹp') || normCat.includes('cham soc sac dep') ||
+    catLower.includes('làm đẹp') || normCat.includes('lam dep') ||
+    catLower.includes('mỹ phẩm') || normCat.includes('my pham') ||
+    catLower.includes('beauty') || catLower.includes('skincare') ||
+    catLower.includes('máy massage') || normCat.includes('may massage') ||
+    prodLower.includes('massage') || prodLower.includes('triệt lông') || normProd.includes('triet long') ||
+    prodLower.includes('máy rửa mặt') || normProd.includes('may rua mat') ||
+    prodLower.includes('máy chăm sóc da') || normProd.includes('may cham soc da')
+  ) return 'CHĂM SÓC SẮC ĐẸP';
+  // VieON (check cả tên sản phẩm)
+  if (
+    catLower.includes('vieon') || prodLower.includes('vieon') ||
+    catLower.includes('uddđ') || prodLower.includes('uddđ')
+  ) return 'VIEON';
+  if (catLower.includes('phụ kiện') || prodLower.includes('máy in') || normProd.includes('may in')) return 'PHỤ KIỆN';
+  // DCNB (Dụng cụ nhà bếp): dao, kéo, thớt, chảo, nồi (không điện), hộp, đũa, khay đá, bình giữ nhiệt, ly, ca
+  if (
+    catLower.includes('dụng cụ nhà bếp') || prodLower.includes('dụng cụ nhà bếp') ||
+    normCat.includes('dung cu nha bep') || normProd.includes('dung cu nha bep') ||
+    /\b(dao|kéo|thớt|đũa|muỗng|nĩa)\b/.test(prodLower) ||
+    /\b(dao|keo|thot|dua|muong|nia)\b/.test(normProd) ||
+    prodLower.includes('khay đá') || normProd.includes('khay da') ||
+    prodLower.includes('hộp thực phẩm') || normProd.includes('hop thuc pham') ||
+    (prodLower.includes('hộp') && (prodLower.includes('nhựa') || prodLower.includes('thủy tinh') || prodLower.includes('inox'))) ||
+    prodLower.includes('chảo') || normProd.includes('chao') ||
+    prodLower.includes('bình giữ nhiệt') || normProd.includes('binh giu nhiet') ||
+    prodLower.includes('ly giữ nhiệt') || normProd.includes('ly giu nhiet') ||
+    prodLower.includes('ca giữ nhiệt') || normProd.includes('ca giu nhiet') ||
+    catLower.includes('nón bảo hiểm') || prodLower.includes('nón bảo hiểm') ||
+    catLower.includes('mũ bảo hiểm') || prodLower.includes('mũ bảo hiểm')
+  ) return 'DCNB';
+  // Gia dụng: check cả tên sản phẩm cho máy lọc nước, lọc nước, etc.
+  if (
+    catLower.includes('gia dụng') || catLower.includes('nhà bếp') ||
+    catLower.includes('lọc nước') || prodLower.includes('lọc nước') ||
+    catLower.includes('máy lọc nước') || prodLower.includes('máy lọc nước') ||
+    normCat.includes('loc nuoc') || normProd.includes('loc nuoc') ||
+    normCat.includes('may loc nuoc') || normProd.includes('may loc nuoc')
+  ) return 'ĐIỆN GD';
+  if (
+    catLower.includes('máy lạnh') || prodLower.includes('máy lạnh') || normCat.includes('may lanh') || normProd.includes('may lanh') ||
+    catLower.includes('tủ lạnh') || prodLower.includes('tủ lạnh') || normCat.includes('tu lanh') || normProd.includes('tu lanh') ||
+    catLower.includes('máy giặt') || prodLower.includes('máy giặt') || normCat.includes('may giat') || normProd.includes('may giat') ||
+    catLower.includes('tivi') || prodLower.includes('tivi') || normCat.includes('tivi') || normProd.includes('tivi') ||
+    catLower.includes('ti vi') || prodLower.includes('ti vi') || normCat.includes('ti vi') || normProd.includes('ti vi') ||
+    // Detect "TV" in product name (e.g. "Google TV", "4K TV") - use word boundary to avoid false positives
+    /\btv\b/i.test(prod) ||
+    catLower.includes('máy nước nóng') || prodLower.includes('máy nước nóng') || normCat.includes('may nuoc nong') || normProd.includes('may nuoc nong') ||
+    catLower.includes('tủ mát') || prodLower.includes('tủ mát') || normCat.includes('tu mat') || normProd.includes('tu mat') ||
+    catLower.includes('tủ đông') || prodLower.includes('tủ đông') || normCat.includes('tu dong') || normProd.includes('tu dong') ||
+    catLower.includes('máy sấy') || prodLower.includes('máy sấy') || normCat.includes('may say') || normProd.includes('may say') ||
+    catLower.includes('rửa chén') || prodLower.includes('rửa chén') || normCat.includes('rua chen') || normProd.includes('rua chen') ||
+    catLower.includes('loa karaoke') || prodLower.includes('loa karaoke') || catLower.includes('karaoke') || prodLower.includes('karaoke') ||
+    catLower.includes('loa điện') || prodLower.includes('loa điện') || normCat.includes('loa dien') || normProd.includes('loa dien')
+  ) return 'CE';
+  if (catLower.includes('smartphone') || catLower.includes('điện thoại') || catLower.includes('laptop') || catLower.includes('máy tính bảng') || catLower.includes('tablet')) return 'ICT';
+  if (catLower.includes('xe đạp')) return 'XE ĐẠP';
+  if (catLower === 'it' || catLower.includes(' thiết bị số ') || catLower.includes('máy tính') || catLower.includes('phần mềm')) return 'IT';
+
+  return 'Khác';
+};
+
+const getNhomSmallFromMap = (category: string): string => {
+  const cat = String(category || '').trim();
+  if (!cat) return '';
+
+  const catLower = cat.toLowerCase();
+
+  // Prioritize these specific categories to prevent mapping database overrides
+  if (catLower.includes('4171') || catLower.includes('4172')) return 'MLN';
+  if (catLower.includes('4150')) return 'CNL';
+
+  // Check custom mapping first
+  if (activeCustomCategoryMap) {
+    if (activeCustomCategoryMap[catLower]?.small) {
+      return activeCustomCategoryMap[catLower].small;
+    }
+    for (const [key, val] of Object.entries(activeCustomCategoryMap)) {
+      if (key && (catLower === key || catLower.includes(key) || key.includes(catLower))) {
+        return val.small;
+      }
+    }
+  }
+
+  if (NHOM_HANG_MAP[cat]?.small) {
+    return NHOM_HANG_MAP[cat].small;
+  }
+
+  for (const [key, val] of Object.entries(NHOM_HANG_MAP)) {
+    if (key.toLowerCase() === catLower) return val.small;
+  }
+
+  for (const [key, val] of Object.entries(NHOM_HANG_MAP)) {
+    const parts = key.split(' - ');
+    if (parts.length === 2) {
+      const name = parts[1].trim().toLowerCase();
+      // Remove (IMEI) if present in name to make substring matching even more robust
+      const cleanName = name.replace(/\(imei\)/g, '').trim();
+      const cleanCatLower = catLower.replace(/\(imei\)/g, '').trim();
+
+      if (cleanCatLower === cleanName || cleanCatLower.includes(cleanName) || cleanName.includes(cleanCatLower)) {
+        return val.small;
+      }
+    }
+  }
+
+  return '';
+};
+
+const resolveNhomSmall = (category: string, nhomSmallValue: string, nhomLarge: string, productName?: string): string => {
+  const cat = String(category || '').trim().toUpperCase();
+  const nhomSmallFromMap = getNhomSmallFromMap(category);
+  if (nhomSmallFromMap) {
+    return nhomSmallFromMap.toUpperCase();
+  }
+
+  if (cat.includes('4171') || cat.includes('4172')) return 'MLN';
+  if (cat.includes('4150')) return 'CNL';
+  if (cat.includes('1 ĐỔI 1')) return '1 ĐỔI 1';
+  if (cat.includes('BẢO HÀNH MỞ RỘNG') || cat.includes('7139')) return 'BHMR';
+  if (cat.includes('BẢO HÀNH RƠI VỠ')) return 'BHRV';
+  if (cat.includes('4479')) return 'B.HIỂM';
+
+  let nhomSmall = nhomSmallValue || 'KHÁC';
+
+  if (nhomLarge === 'CE') {
+    const catLower = cat.toLowerCase();
+    const normCat = removeAccents(catLower);
+    const prodLower = String(productName || '').toLowerCase();
+    const normProd = removeAccents(prodLower);
+
+    if (catLower.includes('tivi') || prodLower.includes('tivi') || catLower.includes('ti vi') || prodLower.includes('ti vi') || /\btv\b/i.test(String(productName || ''))) {
+      return 'TIVI';
+    }
+    if (
+      catLower.includes('loa karaoke') || prodLower.includes('loa karaoke') ||
+      catLower.includes('karaoke') || prodLower.includes('karaoke') ||
+      catLower.includes('loa điện') || prodLower.includes('loa điện') ||
+      catLower.includes('audio') || prodLower.includes('audio')
+    ) {
+      return 'AUDIO';
+    }
+    if (
+      catLower.includes('tủ lạnh') || prodLower.includes('tủ lạnh') ||
+      normCat.includes('tu lanh') || normProd.includes('tu lanh') ||
+      catLower.includes('tủ mát') || prodLower.includes('tủ mát') ||
+      normCat.includes('tu mat') || normProd.includes('tu mat') ||
+      catLower.includes('tủ đông') || prodLower.includes('tủ đông') ||
+      normCat.includes('tu dong') || normProd.includes('tu dong')
+    ) {
+      return 'TL';
+    }
+    if (
+      catLower.includes('máy lạnh') || prodLower.includes('máy lạnh') ||
+      normCat.includes('may lanh') || normProd.includes('may lanh') ||
+      catLower.includes('điều hòa') || prodLower.includes('điều hòa') ||
+      normCat.includes('dieu hoa') || normProd.includes('dieu hoa')
+    ) {
+      return 'ML';
+    }
+    if (
+      catLower.includes('máy giặt') || prodLower.includes('máy giặt') ||
+      normCat.includes('may giat') || normProd.includes('may giat') ||
+      catLower.includes('máy sấy') || prodLower.includes('máy sấy') ||
+      normCat.includes('may say') || normProd.includes('may say') ||
+      catLower.includes('rửa chén') || prodLower.includes('rửa chén') ||
+      normCat.includes('rua chen') || normProd.includes('rua chen')
+    ) {
+      return 'MG';
+    }
+    if (
+      catLower.includes('máy nước nóng') || prodLower.includes('máy nước nóng') ||
+      normCat.includes('may nuoc nong') || normProd.includes('may nuoc nong')
+    ) {
+      return 'MNN';
+    }
+  }
+
+  if (nhomLarge === 'ĐIỆN GD') {
+    const catLower = cat.toLowerCase();
+    const normCat = removeAccents(catLower);
+    const prodLower = String(productName || '').toLowerCase();
+    const normProd = removeAccents(prodLower);
+
+    if (catLower.includes('lọc nước') || prodLower.includes('lọc nước') || normProd.includes('loc nuoc')) {
+      return 'MLN';
+    }
+    if (catLower.includes('nước nóng lạnh') || prodLower.includes('nước nóng lạnh') || normProd.includes('nuoc nong lanh')) {
+      return 'CNL';
+    }
+    if (catLower.includes('quạt điều hòa') || prodLower.includes('quạt điều hòa') || normProd.includes('quat dieu hoa')) {
+      return 'QĐH';
+    }
+    if (catLower.includes('quạt') || prodLower.includes('quạt') || normProd.includes('quat')) {
+      return 'QUẠT';
+    }
+    if (catLower.includes('nồi chiên') || prodLower.includes('nồi chiên') || normProd.includes('noi chien')) {
+      return 'N.CHIÊN';
+    }
+    if (catLower.includes('nồi cơm') || prodLower.includes('nồi cơm') || normProd.includes('noi com')) {
+      if (catLower.includes('cao tần') || prodLower.includes('cao tần') || catLower.includes('điện tử') || prodLower.includes('điện tử')) {
+        return 'NC Đ.TỬ';
+      }
+      return 'NC NẮP RỜI';
+    }
+    if (catLower.includes('bếp gas') || prodLower.includes('bếp gas') || normProd.includes('bep gas') ||
+        catLower.includes('bếp điện') || prodLower.includes('bếp điện') || normProd.includes('bep dien') ||
+        catLower.includes('bếp hồng ngoại') || prodLower.includes('bếp hồng ngoại') || normProd.includes('bep hong ngoai') ||
+        catLower.includes('bếp từ') || prodLower.includes('bếp từ') || normProd.includes('bep tu') ||
+        catLower.includes('hút mùi') || prodLower.includes('hút mùi') || normProd.includes('hut mui') ||
+        catLower.includes('hút khói') || prodLower.includes('hút khói') || normProd.includes('hut khoi')) {
+      return 'BẾP GAS/ĐIỆN/HÚT MÙI';
+    }
+    if (catLower.includes('hút bụi') || prodLower.includes('hút bụi') || normProd.includes('hut bui') ||
+        catLower.includes('robot hút') || prodLower.includes('robot hút') || normProd.includes('robot hut') ||
+        catLower.includes('lọc không khí') || prodLower.includes('lọc không khí') || normProd.includes('loc khong khi')) {
+      return 'HÚT BỤI';
+    }
+    if (catLower.includes('xay') || prodLower.includes('xay') || catLower.includes('ép') || prodLower.includes('ép trái cây') ||
+        normProd.includes('xay') || normProd.includes('ep trai cay') || catLower.includes('sinh tố') || prodLower.includes('sinh tố')) {
+      return 'XAY ÉP/S.TỐ';
+    }
+    return 'ĐGD KHÁC';
+  }
+
+  if (nhomLarge === 'PHỤ KIỆN LẮP ĐẶT') {
+    const prodLower = String(productName || '').toLowerCase();
+    const normProd = removeAccents(prodLower);
+
+    if (prodLower.includes('khung treo') || normProd.includes('khung treo') ||
+        prodLower.includes('giá đỡ') || normProd.includes('gia do') ||
+        prodLower.includes('giá treo') || normProd.includes('gia treo')) {
+      return 'KHUNG TREO';
+    }
+    if (prodLower.includes('lõi lọc') || normProd.includes('loi loc')) {
+      return 'LÕI LỌC';
+    }
+    return 'PK LẮP ĐẶT';
+  }
+
+  // Các nhóm chỉ có 1 nhóm nhỏ duy nhất → trả về tên nhóm lớn để tránh hiển thị "KHÁC"
+  if (nhomLarge === 'WEARABLE' && nhomSmall === 'KHÁC') return 'WEARABLE';
+  if (nhomLarge === 'ĐỒNG HỒ THỜI TRANG' && nhomSmall === 'KHÁC') return 'ĐỒNG HỒ THỜI TRANG';
+  if (nhomLarge === 'VIEON' && nhomSmall === 'KHÁC') return 'VIEON';
+  if (nhomLarge === 'CHĂM SÓC SẮC ĐẸP' && nhomSmall === 'KHÁC') return 'CHĂM SÓC SẮC ĐẸP';
+  if (nhomLarge === 'XE ĐẠP' && nhomSmall === 'KHÁC') return 'XE ĐẠP';
+  if (nhomLarge === 'SIM' && nhomSmall === 'KHÁC') return 'SIM';
+  if (nhomLarge === 'DCNB' && nhomSmall === 'KHÁC') return 'DCNB';
+
+  if (nhomLarge === 'PHỤ KIỆN') {
+    const prodLower = String(productName || '').toLowerCase();
+    const normProd = removeAccents(prodLower);
+
+    // Pin sạc dự phòng phải check TRƯỚC cáp (vì tên SP có thể chứa "Type C", "Lightning")
+    if (prodLower.includes('pin sạc') || prodLower.includes('sạc dự phòng') ||
+        normProd.includes('pin sac') || normProd.includes('sac du phong') ||
+        prodLower.includes('powerbank')) {
+      return 'PIN SDP';
+    }
+    if (prodLower.includes('cáp') || normProd.includes('cap') ||
+        prodLower.includes('lightning') || prodLower.includes('type c') || prodLower.includes('type-c') ||
+        prodLower.includes('micro usb') || prodLower.includes('usb-c')) {
+      return 'CÁP';
+    }
+    if (prodLower.includes('adapter') || prodLower.includes('củ sạc') ||
+        normProd.includes('cu sac') ||
+        (prodLower.includes('sạc') && !prodLower.includes('dự phòng') && !prodLower.includes('pin'))) {
+      return 'ADAPTER';
+    }
+    if (prodLower.includes('tai nghe') || normProd.includes('tai nghe') ||
+        prodLower.includes('airpod') || prodLower.includes('earphone') || prodLower.includes('earbud')) {
+      if (prodLower.includes('bluetooth') || prodLower.includes('không dây') || prodLower.includes('wireless') ||
+          prodLower.includes('airpod') || prodLower.includes('earbud')) {
+        return 'TN BLT';
+      }
+      return 'TN DÂY';
+    }
+    if (prodLower.includes('ốp lưng') || normProd.includes('op lung') ||
+        prodLower.includes('bao da') || normProd.includes('bao da')) {
+      return 'ỐP LƯNG';
+    }
+    if (prodLower.includes('miếng dán') || normProd.includes('mieng dan') ||
+        prodLower.includes('kính cường lực') || normProd.includes('kinh cuong luc') ||
+        prodLower.includes('dán màn') || normProd.includes('dan man')) {
+      return 'M.DÁN';
+    }
+    if (prodLower.includes('thẻ nhớ') || normProd.includes('the nho') ||
+        prodLower.includes('microsd') || prodLower.includes('memory card') || prodLower.includes('usb')) {
+      return 'T.NHỚ';
+    }
+    if (prodLower.includes('camera') || normProd.includes('camera')) {
+      return 'CAM';
+    }
+    if (prodLower.includes('loa') || normProd.includes('loa')) {
+      return 'LOA';
+    }
+    if (prodLower.includes('chuột') || normProd.includes('chuot') ||
+        prodLower.includes('bàn phím') || normProd.includes('ban phim')) {
+      return 'CHUỘT';
+    }
+    if (prodLower.includes('balo') || prodLower.includes('túi') || normProd.includes('balo') || normProd.includes('tui')) {
+      return 'BALO';
+    }
+    if (prodLower.includes('máy in') || normProd.includes('may in')) {
+      return 'MÁY IN';
+    }
+    if ((prodLower.includes('đèn') || normProd.includes('den')) &&
+        (prodLower.includes('năng lượng') || normProd.includes('nang luong') ||
+         prodLower.includes('mặt trời') || normProd.includes('mat troi') ||
+         prodLower.includes('solar') || normProd.includes('solar'))) {
+      return 'ĐÈN NĂNG LƯỢNG MẶT TRỜI';
+    }
+    return 'PK KHÁC';
+  }
+
+  if (nhomLarge === 'ICT') {
+    const catLower = cat.toLowerCase();
+    const normCat = removeAccents(catLower);
+    const prodLower = String(productName || '').toLowerCase();
+    const normProd = removeAccents(prodLower);
+
+    if (catLower.includes('laptop') || prodLower.includes('laptop') ||
+        normCat.includes('laptop') || normProd.includes('laptop')) {
+      return 'LAP';
+    }
+    if (catLower.includes('tablet') || prodLower.includes('tablet') ||
+        catLower.includes('máy tính bảng') || prodLower.includes('máy tính bảng') ||
+        normCat.includes('may tinh bang') || normProd.includes('may tinh bang') ||
+        prodLower.includes('ipad') || normProd.includes('ipad')) {
+      return 'TAB';
+    }
+    // Điện thoại di động: Nokia, Mobell, Masstel, Itel
+    if (prodLower.includes('nokia') || prodLower.includes('mobell') ||
+        prodLower.includes('masstel') || prodLower.includes('itel')) {
+      return 'ĐIỆN THOẠI DI ĐỘNG';
+    }
+    // Smartphone: iPhone, Samsung, Oppo, Vivo, Realme, Xiaomi, Motorola, Huawei, Honor, etc.
+    if (catLower.includes('smartphone') || prodLower.includes('smartphone') ||
+        prodLower.includes('iphone') || prodLower.includes('galaxy') ||
+        prodLower.includes('samsung') || prodLower.includes('oppo') ||
+        prodLower.includes('vivo') || prodLower.includes('realme') ||
+        prodLower.includes('xiaomi') || prodLower.includes('redmi') ||
+        prodLower.includes('poco') || prodLower.includes('motorola') ||
+        prodLower.includes('huawei') || prodLower.includes('honor') ||
+        prodLower.includes('infinix') || prodLower.includes('tecno')) {
+      return 'SMP';
+    }
+    return 'SMP';
+  }
+  if (nhomLarge === 'BẢO HIỂM') {
+    if (productName) {
+      const pClass = classifyProduct(productName);
+      if (['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1'].includes(pClass)) {
+        return pClass;
+      }
+    }
+    return 'B.HIỂM';
+  }
+  return nhomSmall;
+};
+
+const resolveNhomSmallFriendlyName = (
+  row: any[],
+  idxSmallCategoryHeader: number,
+  idxNhomHang: number,
+  idxProduct?: number,
+  idxProductCode?: number
+): string => {
+  if (idxProductCode !== undefined && idxProductCode !== -1) {
+    const prodCode = String(row[idxProductCode] || '').trim();
+    const codeClass = classifyProductByCode(prodCode);
+    if (codeClass) {
+      return codeClass;
+    }
+  }
+  const prodNameUpper = idxProduct !== undefined && idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
+  if (prodNameUpper.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodNameUpper.includes('BẢO VỆ MÀN HÌNH') || prodNameUpper.includes('BVMH')) {
+    return 'BVMH';
+  }
+  const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim().toUpperCase() : '';
+  if (catVal.includes('4479')) return 'B.HIỂM.';
+
+  const nhomSmallFromMap = idxNhomHang !== -1 ? getNhomSmallFromMap(row[idxNhomHang]) : '';
+  if (nhomSmallFromMap) {
+    const prodName = idxProduct !== undefined && idxProduct !== -1 ? String(row[idxProduct] || '') : '';
+    const nhomLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', prodName);
+    if (nhomLarge === 'BẢO HIỂM') {
+      const pClass = classifyProduct(prodName);
+      if (['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1'].includes(pClass)) {
+        return NHOM_SMALL_DISPLAY[pClass] || pClass;
+      }
+      return NHOM_SMALL_DISPLAY[nhomSmallFromMap] || nhomSmallFromMap;
+    }
+    return NHOM_SMALL_DISPLAY[nhomSmallFromMap] || nhomSmallFromMap;
+  }
+
+  if (catVal.includes('4171') || catVal.includes('4172')) return 'Lọc nước';
+  if (catVal.includes('4150')) return 'Cây Nóng/Lạnh';
+  if (catVal.includes('1 ĐỔI 1')) return '1 ĐỔI 1';
+  if (catVal.includes('BẢO HÀNH MỞ RỘNG') || catVal.includes('7139')) return 'BHMR';
+  if (catVal.includes('BẢO HÀNH RƠI VỠ')) return 'BHRV';
+  if (catVal.includes('4479')) return 'Bảo hiểm';
+
+  const rawVal = idxSmallCategoryHeader !== -1 ? (row[idxSmallCategoryHeader] || '') : '';
+  const prodName = idxProduct !== undefined && idxProduct !== -1 ? String(row[idxProduct] || '') : '';
+  const nhomLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', prodName);
+  if (nhomLarge === 'BẢO HIỂM') {
+    const pClass = classifyProduct(prodName);
+    if (['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1'].includes(pClass)) {
+      return NHOM_SMALL_DISPLAY[pClass] || pClass;
+    }
+    return 'Bảo hiểm';
+  }
+  const nhomSmallRaw = String(rawVal).trim().toUpperCase() || 'KHÁC';
+  let nhomSmall = (nhomLarge === 'ICT' && nhomSmallRaw === 'KHÁC') ? 'ĐIỆN THOẠI DI ĐỘNG' : nhomSmallRaw;
+
+  if (nhomLarge === 'CE') {
+    const catLower = catVal.toLowerCase();
+    const normCat = removeAccents(catLower);
+    const prodLower = prodName.toLowerCase();
+    const normProd = removeAccents(prodLower);
+
+    if (catLower.includes('tivi') || prodLower.includes('tivi') || catLower.includes('ti vi') || prodLower.includes('ti vi') || /\btv\b/i.test(prodName)) {
+      nhomSmall = 'TIVI';
+    } else if (
+      catLower.includes('loa karaoke') || prodLower.includes('loa karaoke') ||
+      catLower.includes('karaoke') || prodLower.includes('karaoke') ||
+      catLower.includes('audio') || prodLower.includes('audio')
+    ) {
+      nhomSmall = 'AUDIO';
+    } else if (
+      catLower.includes('tủ lạnh') || prodLower.includes('tủ lạnh') ||
+      normCat.includes('tu lanh') || normProd.includes('tu lanh') ||
+      catLower.includes('tủ mát') || prodLower.includes('tủ mát') ||
+      normCat.includes('tu mat') || normProd.includes('tu mat') ||
+      catLower.includes('tủ đông') || prodLower.includes('tủ đông') ||
+      normCat.includes('tu dong') || normProd.includes('tu dong')
+    ) {
+      nhomSmall = 'TL';
+    } else if (
+      catLower.includes('máy lạnh') || prodLower.includes('máy lạnh') ||
+      normCat.includes('may lanh') || normProd.includes('may lanh') ||
+      catLower.includes('điều hòa') || prodLower.includes('điều hòa') ||
+      normCat.includes('dieu hoa') || normProd.includes('dieu hoa')
+    ) {
+      nhomSmall = 'ML';
+    } else if (
+      catLower.includes('máy giặt') || prodLower.includes('máy giặt') ||
+      normCat.includes('may giat') || normProd.includes('may giat') ||
+      catLower.includes('máy sấy') || prodLower.includes('máy sấy') ||
+      normCat.includes('may say') || normProd.includes('may say') ||
+      catLower.includes('rửa chén') || prodLower.includes('rửa chén') ||
+      normCat.includes('rua chen') || normProd.includes('rua chen')
+    ) {
+      nhomSmall = 'MG';
+    } else if (
+      catLower.includes('máy nước nóng') || prodLower.includes('máy nước nóng') ||
+      normCat.includes('may nuoc nong') || normProd.includes('may nuoc nong')
+    ) {
+      nhomSmall = 'MNN';
+    }
+  }
+
+  if (nhomLarge === 'ĐIỆN GD') {
+    const catLower = catVal.toLowerCase();
+    const normCat = removeAccents(catLower);
+    const prodLower = prodName.toLowerCase();
+    const normProd = removeAccents(prodLower);
+
+    if (catLower.includes('lọc nước') || prodLower.includes('lọc nước') || normProd.includes('loc nuoc')) {
+      nhomSmall = 'MLN';
+    } else if (catLower.includes('nước nóng lạnh') || prodLower.includes('nước nóng lạnh') || normProd.includes('nuoc nong lanh')) {
+      nhomSmall = 'CNL';
+    } else if (catLower.includes('quạt điều hòa') || prodLower.includes('quạt điều hòa') || normProd.includes('quat dieu hoa')) {
+      nhomSmall = 'QĐH';
+    } else if (catLower.includes('quạt') || prodLower.includes('quạt') || normProd.includes('quat')) {
+      nhomSmall = 'QUẠT';
+    } else if (catLower.includes('nồi chiên') || prodLower.includes('nồi chiên') || normProd.includes('noi chien')) {
+      nhomSmall = 'N.CHIÊN';
+    } else if (catLower.includes('nồi cơm') || prodLower.includes('nồi cơm') || normProd.includes('noi com')) {
+      if (catLower.includes('cao tần') || prodLower.includes('cao tần') || catLower.includes('điện tử') || prodLower.includes('điện tử')) {
+        nhomSmall = 'NC Đ.TỬ';
+      } else {
+        nhomSmall = 'NC NẮP RỜI';
+      }
+    } else if (catLower.includes('bếp gas') || prodLower.includes('bếp gas') || normProd.includes('bep gas') ||
+        catLower.includes('bếp điện') || prodLower.includes('bếp điện') || normProd.includes('bep dien') ||
+        catLower.includes('hút mùi') || prodLower.includes('hút mùi') || normProd.includes('hut mui') ||
+        catLower.includes('hút khói') || prodLower.includes('hút khói') || normProd.includes('hut khoi')) {
+      nhomSmall = 'BẾP GAS/ĐIỆN/HÚT MÙI';
+    } else if (catLower.includes('hút bụi') || prodLower.includes('hút bụi') || normProd.includes('hut bui') ||
+        catLower.includes('robot hút') || prodLower.includes('robot hút') || normProd.includes('robot hut') ||
+        catLower.includes('lọc không khí') || prodLower.includes('lọc không khí') || normProd.includes('loc khong khi')) {
+      nhomSmall = 'HÚT BỤI';
+    } else if (catLower.includes('xay') || prodLower.includes('xay') || catLower.includes('ép') || prodLower.includes('ép trái cây') ||
+        normProd.includes('xay') || normProd.includes('ep trai cay') || catLower.includes('sinh tố') || prodLower.includes('sinh tố')) {
+      nhomSmall = 'XAY ÉP';
+    } else {
+      nhomSmall = 'ĐGD KHÁC';
+    }
+  }
+
+  return NHOM_SMALL_DISPLAY[nhomSmall] || String(rawVal) || '-';
+};
+
+const getNganhName = (key: string) => NGANH_DISPLAY[key] || key;
+
+const getRowDtqd = (nhomLarge: string, qty: number, revenue: number, nhomSmall?: string, isTraGop?: boolean) => {
+  let rate = 1.0;
+  if (nhomLarge === 'ICT') {
+    if (nhomSmall === 'LAP' || nhomSmall === 'TAB' || nhomSmall === 'TABLET') {
+      rate = 1.20;
+    }
+  } else if (nhomLarge === 'CE') {
+    if (nhomSmall === 'AUDIO') {
+      rate = 1.29;
+    }
+  } else if (nhomLarge === 'ĐIỆN GD' || nhomLarge === 'PHỤ KIỆN LẮP ĐẶT' || nhomLarge === 'Gia dụng lắp đặt') {
+    rate = 1.85;
+  } else if (nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM') {
+    rate = 4.18;
+  } else if (nhomLarge === 'SIM') {
+    rate = 5.45;
+  } else if (nhomLarge === 'VIEON') {
+    rate = 5.45;
+  } else if (nhomLarge === 'CHĂM SÓC SẮC ĐẸP') {
+    rate = 1.85;
+  } else if (nhomLarge === 'ĐỒNG HỒ' || nhomLarge === 'ĐỒNG HỒ THỜI TRANG' || nhomLarge === 'WEARABLE') {
+    rate = 3.00;
+  } else if (nhomLarge === 'PHỤ KIỆN') {
+    rate = 3.37;
+  } else if (nhomLarge === 'DCNB') {
+    rate = 1.92;
+  } else if (nhomLarge === 'IT') {
+    rate = 2.00;
+  }
+
+  if (isTraGop) {
+    return (revenue * rate) + (revenue * 0.3);
+  }
+  return revenue * rate;
+};
+
+// Date column checking helper
+const isDateColumnHeader = (h: string): boolean => {
+  if (!h) return false;
+  const lh = h.toLowerCase();
+  return lh.includes('ngày tạo') || lh.includes('ngày lập') || lh.includes('ngày xuất') || lh.includes('ngày giao') || lh.includes('ngày hoàn');
+};
+
+// Format raw date string → dd/MM/yyyy HH:mm:ss
+const fmtRawDate = (raw: string): string => {
+  if (!raw || raw.trim() === '') return '-';
+  const p2 = (n: number) => String(n).padStart(2, '0');
+
+  // ── Excel serial date number (e.g. 46143.40754975694) ──
+  const num = parseFloat(raw);
+  if (!isNaN(num) && /^\d+(\.\d+)?$/.test(raw.trim()) && num > 40000 && num < 60000) {
+    const days = Math.floor(num);
+    const fraction = num - days;
+    const dateMs = (days - 25569) * 86400000;
+    const d = new Date(dateMs);
+    const dd = p2(d.getUTCDate());
+    const mm = p2(d.getUTCMonth() + 1);
+    const yyyy = d.getUTCFullYear();
+    const totalSec = Math.round(fraction * 86400);
+    const hh = p2(Math.floor(totalSec / 3600));
+    const min = p2(Math.floor((totalSec % 3600) / 60));
+    const ss = p2(totalSec % 60);
+    return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
+  }
+
+  // ── dd/MM/yyyy or dd/MM/yyyy HH:mm:ss ──
+  const m1 = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})([\s\T](.+))?/);
+  if (m1) {
+    const datePart = `${p2(+m1[1])}/${p2(+m1[2])}/${m1[3]}`;
+    const timePart = m1[5] ? ` ${m1[5].substring(0, 8)}` : '';
+    return `${datePart}${timePart}`;
+  }
+
+  // ── ISO yyyy-MM-dd[THH:mm:ss] ──
+  const m2 = raw.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})[\sT]?(.*)$/);
+  if (m2) {
+    const timePart = m2[4] ? ` ${m2[4].substring(0, 8)}` : '';
+    return `${p2(+m2[3])}/${p2(+m2[2])}/${m2[1]}${timePart}`;
+  }
+
+  return raw;
+};
+
 export default function NewRealtimePage() {
   const { userProfile } = useAuth();
+  const [isProcessingData, setIsProcessingData] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const { showNotification } = useNotification();
   const { marketFilter, setMarketFilter, availableMarkets: filteredMarkets } = useMarket();
   const [selectedStaffs, setSelectedStaffs] = useState<string[]>([]);
   const [selectedMaKho, setSelectedMaKho] = useState(userProfile?.ma_kho || '');
-  const { ycxData, setYcxData, processedData, isLoadingRealtime, loadData, lastUpdated, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
+  const { ycxData, setYcxData, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
 
-  const { ycxFileName, setYcxFileName } = useRTSTSharedData(selectedMaKho);
+  // States and hooks for Birthday greetings in card (Placed safely after standard hook initializations)
+  const [birthdaysList, setBirthdaysList] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (userProfile) {
+      birthdayService.getBirthdays()
+        .then(data => setBirthdaysList(data))
+        .catch(err => console.error('[RealtimePage] Lỗi tải dữ liệu sinh nhật:', err));
+    }
+  }, [userProfile]);
+
+  const { todayBirthdays, tomorrowBirthdays } = useMemo(() => {
+    const todayList: string[] = [];
+    const tomorrowList: string[] = [];
+
+    const now = new Date();
+    const todayMonth = now.getMonth() + 1;
+    const todayDay = now.getDate();
+
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    const tomorrowMonth = tomorrow.getMonth() + 1;
+    const tomorrowDay = tomorrow.getDate();
+
+    birthdaysList.forEach(b => {
+      const matchesWarehouse = 
+        marketFilter === 'ALL' || 
+        b.warehouse_code === marketFilter ||
+        (b.warehouse_code === userProfile?.ma_kho && marketFilter !== 'ALL');
+
+      if (!matchesWarehouse) {
+        return;
+      }
+
+      if (!b.birthday) return;
+      const parts = b.birthday.split('-');
+      if (parts.length < 3) return;
+      const m = parseInt(parts[1], 10);
+      const d = parseInt(parts[2], 10);
+
+      const labelSuffix = marketFilter === 'ALL' ? ` (${b.warehouse_code})` : '';
+
+      if (m === todayMonth && d === todayDay) {
+        todayList.push(`${b.employee_name}${labelSuffix}`);
+      } else if (m === tomorrowMonth && d === tomorrowDay) {
+        tomorrowList.push(`${b.employee_name}${labelSuffix}`);
+      }
+    });
+
+    return { todayBirthdays: todayList, tomorrowBirthdays: tomorrowList };
+  }, [birthdaysList, marketFilter, userProfile]);
+
+  const {
+    ycxFileName, setYcxFileName,
+    drillFilterStaff, setDrillFilterStaff,
+    categoryMappingInput, setCategoryMappingInput
+  } = useRTSTSharedData(selectedMaKho);
+
+  const customCategoryMap = useMemo(() => {
+    return parseCategoryMapping(categoryMappingInput || '');
+  }, [categoryMappingInput]);
+
+  activeCustomCategoryMap = customCategoryMap;
 
   const { processedData: luykeProcessedData, clusterSummaryInput, setClusterSummaryInput, clusterCategoryInput, setClusterCategoryInput, saveLuykeData } = useLuykeData(selectedMaKho);
+
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [drillFilterStore, setDrillFilterStore] = useState<string[]>([]);
+  const [drillFilterProduct, setDrillFilterProduct] = useState<string[]>([]);
+  const [drillFilterTrangThaiSP, setDrillFilterTrangThaiSP] = useState<string[]>([]);
+  const [drillLevels, setDrillLevels] = useState<string[]>(['kho', 'nganh', 'nhom', 'hang', 'nguoitao', 'sanpham', 'trangthaisp']);
+  const [expandedDrillRows, setExpandedDrillRows] = useState<Record<string, boolean>>({});
+  const [isDrillFullscreen, setIsDrillFullscreen] = useState(false);
+  const [drillExpandDepth, setDrillExpandDepth] = useState<number>(1);
+  const [selectedDrillGroups, setSelectedDrillGroups] = useState<string[]>([]);
+  const [drillFilterNhomSmall, setDrillFilterNhomSmall] = useState<string[]>([]);
+  const [drillFilterBrand, setDrillFilterBrand] = useState<string[]>([]);
+  const [activeDrillFilter, setActiveDrillFilter] = useState<string | null>(null);
+  const [drillFilterSearch, setDrillFilterSearch] = useState('');
+  const drillFilterBarRef = useRef<HTMLDivElement>(null);
 
   const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setIsProcessingData(true);
     setYcxFileName(file.name);
+
+    // Clear input value so same file can be uploaded again if needed
+    e.target.value = '';
+
     const reader = new FileReader();
     reader.onload = (evt) => {
-      const bstr = evt.target?.result;
-      const wb = XLSX.read(bstr, { type: 'binary' });
-      const wsname = wb.SheetNames[0];
-      const ws = wb.Sheets[wsname];
-      const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
-      
-      // Clean numeric strings: remove commas and convert to numbers where possible
-      // to avoid database storage issues with formatted strings.
-      const cleanedData = data.map(row => 
-        row.map(cell => {
-          if (typeof cell === 'string') {
-            const trimmed = cell.trim();
-            // If it's a numeric string with commas/dots
-            if (/^-?[\d,.]+(%?)$/.test(trimmed)) {
-              // Robust numeric parsing logic
-              const clean = (s: string) => {
-                let c = s.replace(/[^\d,.-]/g, '');
-                const lastComma = c.lastIndexOf(',');
-                const lastDot = c.lastIndexOf('.');
-                
-                if (lastComma > lastDot && lastComma !== -1) {
-                  // Vietnamese format: 1.234.567,89 -> 1234567.89
-                  return parseFloat(c.replace(/\./g, '').replace(',', '.'));
-                } else if (lastDot > lastComma && lastDot !== -1) {
-                  // International format: 1,234,567.89 -> 1234567.89
-                  return parseFloat(c.replace(/,/g, ''));
-                } else if (lastComma !== -1 && lastDot === -1) {
-                  // Only comma: 1234,56 -> 1234.56
-                  return parseFloat(c.replace(',', '.'));
-                } else if (lastDot !== -1 && lastComma === -1) {
-                  // Only dot: could be 1.234 (thousands) or 1.23 (decimal)
-                  const parts = c.split('.');
-                  if (parts.length > 1 && parts[parts.length - 1].length === 3) {
-                    return parseFloat(c.replace(/\./g, ''));
-                  }
-                  return parseFloat(c);
+      setTimeout(() => {
+        try {
+          const bstr = evt.target?.result;
+          const wb = XLSX.read(bstr, { type: 'binary' });
+          const wsname = wb.SheetNames[0];
+          const ws = wb.Sheets[wsname];
+          const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+
+          // Clean numeric strings: remove commas and convert to numbers where possible
+          // to avoid database storage issues with formatted strings.
+          const cleanedData = data.map(row =>
+            row.map(cell => {
+              if (typeof cell === 'string') {
+                const trimmed = cell.trim();
+                // If it's a numeric string with commas/dots
+                if (/^-?[\d,.]+(%?)$/.test(trimmed)) {
+                  // Robust numeric parsing logic
+                  const clean = (s: string) => {
+                    let c = s.replace(/[^\d,.-]/g, '');
+                    const lastComma = c.lastIndexOf(',');
+                    const lastDot = c.lastIndexOf('.');
+
+                    if (lastComma > lastDot && lastComma !== -1) {
+                      // Vietnamese format: 1.234.567,89 -> 1234567.89
+                      return parseFloat(c.replace(/\./g, '').replace(',', '.'));
+                    } else if (lastDot > lastComma && lastDot !== -1) {
+                      // International format: 1,234,567.89 -> 1234567.89
+                      return parseFloat(c.replace(/,/g, ''));
+                    } else if (lastComma !== -1 && lastDot === -1) {
+                      // Only comma: 1234,56 -> 1234.56
+                      return parseFloat(c.replace(',', '.'));
+                    } else if (lastDot !== -1 && lastComma === -1) {
+                      // Only dot: could be 1.234 (thousands) or 1.23 (decimal)
+                      const parts = c.split('.');
+                      if (parts.length > 1 && parts[parts.length - 1].length === 3) {
+                        return parseFloat(c.replace(/\./g, ''));
+                      }
+                      return parseFloat(c);
+                    }
+                    return parseFloat(c);
+                  };
+
+                  const num = clean(trimmed);
+                  if (!isNaN(num)) return num;
                 }
-                return parseFloat(c);
-              };
-              
-              const num = clean(trimmed);
-              if (!isNaN(num)) return num;
-            }
-          }
-          return cell;
-        })
-      );
-      
-      // Chuyển đổi thành chuỗi Tab-Separated thay vì JSON để tránh lưu các dấu phẩy, ngoặc vuông của định dạng JSON vào Database.
-      const rawString = cleanedData.map(row => 
-        (Array.isArray(row) ? row : []).map(cell => cell === null || cell === undefined ? '' : String(cell)).join('\t')
-      ).join('\n');
-      
-      setYcxData(rawString);
+              }
+              return cell;
+            })
+          );
+
+          // Chuyển đổi thành chuỗi Tab-Separated thay vì JSON để tránh lưu các dấu phẩy, ngoặc vuông của định dạng JSON vào Database.
+          const rawString = cleanedData.map(row =>
+            (Array.isArray(row) ? row : []).map(cell => cell === null || cell === undefined ? '' : String(cell)).join('\t')
+          ).join('\n');
+
+          setYcxData(rawString);
+          // showNotification('Đã xử lý dữ liệu Excel thành công!', 'success'); // Hidden as requested
+          setTimeout(() => {
+            saveRealtimeData(true);
+          }, 100);
+        } catch (error) {
+          console.error(error);
+          showNotification('Lỗi khi xử lý file Excel!', 'error');
+        } finally {
+          setIsProcessingData(false);
+        }
+      }, 100);
     };
     reader.readAsBinaryString(file);
   };
@@ -557,7 +1968,7 @@ export default function NewRealtimePage() {
       if (document.visibilityState === 'visible' && biImportMode) {
         // Small delay to ensure page is fully focused
         await new Promise(r => setTimeout(r, 800));
-        
+
         try {
           const text = await navigator.clipboard.readText();
           if (!text || text.trim().length < 50) {
@@ -627,7 +2038,7 @@ export default function NewRealtimePage() {
     if (!luykeProcessedData?.categories) return map;
 
     luykeProcessedData.categories
-      .filter((cat: any) => marketFilter === 'ALL' || !cat.marketName || 
+      .filter((cat: any) => marketFilter === 'ALL' || !cat.marketName ||
         normalize(cat.marketName).includes(normalize(marketFilter)) ||
         normalize(marketFilter).includes(normalize(cat.marketName))
       )
@@ -649,7 +2060,7 @@ export default function NewRealtimePage() {
     if (!luykeProcessedData?.categories) return map;
 
     luykeProcessedData.categories
-      .filter((cat: any) => marketFilter === 'ALL' || !cat.marketName || 
+      .filter((cat: any) => marketFilter === 'ALL' || !cat.marketName ||
         normalize(cat.marketName).includes(normalize(marketFilter)) ||
         normalize(marketFilter).includes(normalize(cat.marketName))
       )
@@ -689,49 +2100,125 @@ export default function NewRealtimePage() {
   const filteredRawYcxRows = useMemo(() => {
     if (rawYcxRows.length <= 1) return [];
     const headers = rawYcxRows[0].map(h => h.trim());
+    const headersLower = headers.map(h => h.toLowerCase());
 
     // Find column indices by exact name or fallback to index 13 (N) and 44 (AS)
-    let idxStatus = headers.findIndex(h => h === 'Trạng thái xuất');
-    let idxTra = headers.findIndex(h => h === 'Tình trạng nhập trả của sản phẩm đổi với sản phẩm chính');
+    let idxStatus = headers.findIndex(h => h.toLowerCase() === 'trạng thái xuất');
+    let idxTra = headers.findIndex(h => {
+      const lower = h.toLowerCase();
+      return lower === 'tình trạng nhập trả của sản phẩm đổi với sản phẩm chính' ||
+        lower === 'tình trạng nhập trả' ||
+        lower === 'trạng thái trả' ||
+        lower === 'trả hàng' ||
+        lower.includes('nhập trả');
+    });
 
     if (idxStatus === -1) idxStatus = 13;
     if (idxTra === -1) idxTra = 44;
 
-    return rawYcxRows.slice(1).filter(row => {
+    const filtered = rawYcxRows.slice(1).filter(row => {
       const statusValue = String(row[idxStatus] || '').trim();
       const traValue = String(row[idxTra] || '').trim();
       return statusValue === 'Đã xuất' && traValue === 'Chưa trả';
     });
+
+    // Deduplicate: tìm cột mã đơn hàng (Số YCX/Số phiếu) + tên SP + SL làm key dedup
+    const idxOrder = headersLower.findIndex(h =>
+      h.includes('số ycx') || h.includes('số phiếu') || h.includes('mã ycx') ||
+      h.includes('mã đơn') || h.includes('mã phiếu') || h === 'số'
+    );
+    const idxProduct = (() => {
+      const exact = headersLower.findIndex(h => h === 'tên sản phẩm');
+      if (exact !== -1) return exact;
+      const partial = headersLower.findIndex(h => h.startsWith('tên sản phẩm') || h === 'tên hàng');
+      return partial !== -1 ? partial : -1;
+    })();
+    const idxQty = headersLower.findIndex(h => h.includes('số lượng'));
+
+    const seen = new Set<string>();
+    const result = filtered.filter(row => {
+      let key: string;
+      const productVal = idxProduct !== -1 ? String(row[idxProduct] || '').trim() : '';
+      const productValLower = productVal.toLowerCase();
+      
+      // Do not deduplicate VieON rows - they should all be counted separately
+      const isVieon = productValLower.includes('vieon') || 
+                      row.some(cell => String(cell || '').toLowerCase().includes('vieon'));
+      if (isVieon) return true;
+
+      if (idxOrder !== -1) {
+        // Dùng mã đơn + tên SP + SL (nếu có) làm key chính xác
+        const orderVal = String(row[idxOrder] || '').trim();
+        const qtyVal = idxQty !== -1 ? String(row[idxQty] || '').trim() : '';
+        key = `${orderVal}||${productVal}||${qtyVal}`;
+      } else {
+        // Fallback: dùng toàn bộ dòng
+        key = row.join('\t');
+      }
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    console.log('[Dedup] idxOrder:', idxOrder, '| idxProduct:', idxProduct, '| idxQty:', idxQty,
+      '| Header[order]:', idxOrder !== -1 ? headers[idxOrder] : 'N/A',
+      '| Before:', filtered.length, '| After:', result.length, '| Removed:', filtered.length - result.length,
+      '| All headers:', headers.map((h, i) => `[${i}]${h}`).join(', '));
+    return result;
   }, [rawYcxRows]);
 
   // Defer heavy row list so useMemo stats don't block render
   const deferredFilteredRows = useDeferredValue(filteredRawYcxRows);
 
   // ─── Single-pass computation: iterate filteredRawYcxRows only ONCE ──────────
-  const { staffAirConStats, staffCEStats, allStaffNames, drillDownData, drillDownDataPrev, drillRefMs, currLabel, prevLabel } = useMemo(() => {
-    const empty = { staffAirConStats: [] as any[], staffCEStats: [] as any[], allStaffNames: [] as string[], drillDownData: [] as any[], drillDownDataPrev: [] as any[], drillRefMs: 0, currLabel: '', prevLabel: '' };
+  // ─── Single-pass computation: iterate filteredRawYcxRows only ONCE ──────────
+  const { staffAirConStats, staffCEStats, allStaffNames, drillDownData, drillDownDataPrev, drillRefMs, currLabel, prevLabel, minDateStr, maxDateStr } = useMemo(() => {
+    const empty = { staffAirConStats: [] as any[], staffCEStats: [] as any[], allStaffNames: [] as string[], drillDownData: [] as any[], drillDownDataPrev: [] as any[], drillRefMs: 0, currLabel: '', prevLabel: '', minDateStr: '', maxDateStr: '' };
     if (rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return empty;
 
     const headers = rawYcxRows[0].map(h => String(h || '').trim());
     const findIdx = (names: string[], defaultIdx: number) => {
-      const idx = headers.findIndex(h => names.some(n => h.toLowerCase().includes(n.toLowerCase())));
-      return idx !== -1 ? idx : defaultIdx;
+      const normalizedNames = names.map(n => removeAccents(n).toLowerCase().trim());
+      for (const name of normalizedNames) {
+        const exactIdx = headers.findIndex(h => removeAccents(h).toLowerCase().trim() === name);
+        if (exactIdx !== -1) return exactIdx;
+        const partialIdx = headers.findIndex(h => {
+          const norm = removeAccents(h).toLowerCase().trim();
+          if (name === 'nhom hang' && norm.includes('nho')) return false;
+          if (name === 'nganh hang' && norm.includes('lon')) return false;
+          return norm.includes(name);
+        });
+        if (partialIdx !== -1) return partialIdx;
+      }
+      return defaultIdx;
     };
 
     const idxStaff = findIdx(['người tạo'], 23);
     const idxQty = findIdx(['số lượng'], 35);
-    const idxRevenue = findIdx(['phải thu', 'doanh thu', 'tổng tiền', 'thành tiền', 'giá bán'], 37);
-    const idxCategory = findIdx(['nhóm ngành hàng', 'nhóm hàng'], 40);
+    // Ưu tiên tìm cột "Giá bán_1" / "Giá bán 1" bằng logic riêng
+    const idxRevenue = (() => {
+      // Tìm cột header chứa "giá bán" + "1" (VD: "Giá bán_1", "Giá bán 1", "giá bán_1")
+      const giaBan1Idx = headers.findIndex(h => {
+        const norm = removeAccents(h).toLowerCase().trim().replace(/\s+/g, ' ');
+        return (norm.includes('gia ban') && norm.includes('1')) || norm === 'gia ban_1' || norm === 'gia ban 1';
+      });
+      if (giaBan1Idx !== -1) return giaBan1Idx;
+      // Fallback: tìm các cột doanh thu khác
+      return findIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá bán'], 37);
+    })();
+    console.log('[DrillDown] idxRevenue:', idxRevenue, '| Header:', headers[idxRevenue], '| All headers:', headers.map((h, i) => `[${i}]${h}`).filter(h => h.toLowerCase().includes('giá') || h.toLowerCase().includes('gia') || h.toLowerCase().includes('ban') || h.toLowerCase().includes('bán')));
+    const idxCategory = findIdx(['ngành hàng', 'nhóm ngành hàng', 'nhóm hàng'], 40);
     const idxSmallCat = findIdx(['nhóm hàng nhỏ'], -1);
-    const idxHinhThucXuat = findIdx(['hình thức xuất'], -1);
+    const idxHinhThucXuat = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
     const idxDate = findIdx(['ngày tạo', 'ngày lập', 'ngày xuất', 'ngày giao', 'ngày hoàn'], -1);
-    // Exact-match product column to avoid IMEI columns
     const idxProduct = (() => {
       const exact = headers.findIndex(h => h.toLowerCase() === 'tên sản phẩm');
       if (exact !== -1) return exact;
       const partial = headers.findIndex(h => h.toLowerCase().startsWith('tên sản phẩm') || h.toLowerCase() === 'tên hàng');
       return partial !== -1 ? partial : 33;
     })();
+    const idxMarket = findIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm', 'kho', 'cửa hàng'], 1);
+    const idxTrangThaiSP = findIdx(['trạng thái hồ sơ'], -1);
 
     type ACStats = { staffName: string; mayLanh: number; mayLanhDaikin: number; mayLanhHaier: number; mayLanhHisense: number };
     type CEStats = { staffName: string; ceSL: number; ceDT: number; products: { name: string; sl: number; dt: number }[] };
@@ -740,8 +2227,6 @@ export default function NewRealtimePage() {
     const acMap = new Map<string, ACStats>();
     const ceMap = new Map<string, CEStats>();
     const dgdMap = new Map<string, DGDStats>();
-    const drillMap = new Map<string, Map<string, Map<string, Map<string, { sl: number; dt: number; tc_dt: number }>>>>();
-    const drillMapPrev = new Map<string, Map<string, Map<string, Map<string, { sl: number; dt: number; tc_dt: number }>>>>();
     const names = new Set<string>();
 
     // Date period helpers
@@ -750,18 +2235,16 @@ export default function NewRealtimePage() {
       if (idxDate === -1) return null;
       const raw = String(row[idxDate] || '').trim();
       if (!raw) return null;
-      // Excel serial date number (e.g. 46143.407...)
       const num = parseFloat(raw);
       if (!isNaN(num) && /^\d+(\.\d+)?$/.test(raw) && num > 40000 && num < 60000) {
         return new Date((Math.floor(num) - 25569) * 86400000);
       }
-      // dd/MM/yyyy
       const m = raw.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})/);
       if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
       const d = new Date(raw);
       return isNaN(d.getTime()) ? null : d;
     };
-    // Find max date from "NGÀY TẠO" column to use as reference
+
     const DAY_MS = 24 * 60 * 60 * 1000;
     let maxDateMs = 0;
     if (compareMode !== 'none' && idxDate !== -1) {
@@ -773,24 +2256,20 @@ export default function NewRealtimePage() {
         }
       }
     }
-    // Fallback to today if no date found
     const refMs = maxDateMs || startOfDay(new Date()).getTime();
 
     const classifyDate = (d: Date | null): 'current' | 'prev' | 'skip' => {
       if (compareMode === 'none' || !d) return 'current';
       const dtMs = startOfDay(d).getTime();
       if (compareMode === 'day') {
-        // current = ref date, prev = ref date - 1 day
         if (dtMs === refMs) return 'current';
         if (dtMs === refMs - DAY_MS) return 'prev';
         return 'skip';
       } else if (compareMode === 'week') {
-        // current = [ref-6 days → ref], prev = [ref-13 days → ref-7 days]
         if (dtMs >= refMs - 6 * DAY_MS && dtMs <= refMs) return 'current';
         if (dtMs >= refMs - 13 * DAY_MS && dtMs <= refMs - 7 * DAY_MS) return 'prev';
         return 'skip';
       } else if (compareMode === 'month') {
-        // current = [ref-29 days → ref], prev = [ref-59 days → ref-30 days]
         if (dtMs >= refMs - 29 * DAY_MS && dtMs <= refMs) return 'current';
         if (dtMs >= refMs - 59 * DAY_MS && dtMs <= refMs - 30 * DAY_MS) return 'prev';
         return 'skip';
@@ -801,24 +2280,26 @@ export default function NewRealtimePage() {
     const isSystemName = (n: string) =>
       !n || n.toLowerCase().includes('người tạo') || n.toLowerCase() === 'admin' || n.toLowerCase() === 'administrator';
 
+    const currentRows: any[][] = [];
+    const prevRows: any[][] = [];
+
     for (const row of filteredRawYcxRows) {
       const staffName = String(row[idxStaff] || '').trim();
       if (isSystemName(staffName)) continue;
 
       names.add(staffName);
 
+      const productName = String(row[idxProduct] || '').trim();
       const category = String(row[idxCategory] || '').trim();
-      const nhomLarge = NHOM_HANG_MAP[category]?.large || '';
-      const nhomSmallFromMap = NHOM_HANG_MAP[category]?.small || '';
+      const nhomLarge = classifyNhomHangLarge(category, productName);
       const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
-      // Prefer value from data column, fallback to map
-      const nhomSmall = nhomSmallValue || nhomSmallFromMap.toUpperCase();
+      const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
 
       const qty = Math.round(parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0);
       const revenue = Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0);
 
       // ── Air-con stats ──
-      if (nhomSmallValue === 'ML' || nhomSmallFromMap === 'ML') {
+      if (nhomSmall === 'ML') {
         const productName = String(row[idxProduct] || '').toUpperCase();
         if (!acMap.has(staffName)) acMap.set(staffName, { staffName, mayLanh: 0, mayLanhDaikin: 0, mayLanhHaier: 0, mayLanhHisense: 0 });
         const d = acMap.get(staffName)!;
@@ -849,26 +2330,11 @@ export default function NewRealtimePage() {
         else if (nhomSmall.startsWith('NC')) d.nc += qty;
       }
 
-      // ── Drill-down hierarchy (5 levels) ──
-      if (nhomLarge) {
-        const productName = String(row[idxProduct] || '').trim() || 'Không rõ';
-        const htx = idxHinhThucXuat !== -1 ? String(row[idxHinhThucXuat] || '').toLowerCase() : '';
-        const isTc = htx.includes('trả góp');
-        const period = classifyDate(parseRowDate(row));
-        const targetMap = (period === 'prev') ? drillMapPrev : drillMap;
-        if (period !== 'skip') {
-          if (!targetMap.has(nhomLarge)) targetMap.set(nhomLarge, new Map());
-          const subMap = targetMap.get(nhomLarge)!;
-          const subKey = nhomSmall || 'Khác';
-          if (!subMap.has(subKey)) subMap.set(subKey, new Map());
-          const staffMap = subMap.get(subKey)!;
-          if (!staffMap.has(staffName)) staffMap.set(staffName, new Map());
-          const prodMap = staffMap.get(staffName)!;
-          if (!prodMap.has(productName)) prodMap.set(productName, { sl: 0, dt: 0, tc_dt: 0 });
-          const pd = prodMap.get(productName)!;
-          pd.sl += qty; pd.dt += revenue;
-          if (isTc) pd.tc_dt += revenue;
-        }
+      const period = classifyDate(parseRowDate(row));
+      if (period === 'current') {
+        currentRows.push(row);
+      } else if (period === 'prev') {
+        prevRows.push(row);
       }
     }
 
@@ -879,42 +2345,161 @@ export default function NewRealtimePage() {
     const ceAll = Array.from(ceMap.values());
     const ceWithDGD = ceAll.map(s => ({ ...s, ...(dgdMap.get(s.staffName) || { mln: 0, qdh: 0, nc: 0 }) }));
 
-    const buildDrill = (map: typeof drillMap) =>
-      Array.from(map.entries()).map(([large, subMap]) => {
-        const subs = Array.from(subMap.entries()).map(([subKey, staffMap]) => {
-          const staffRows = Array.from(staffMap.entries()).map(([sName, prodMap]) => {
-            const products = Array.from((prodMap as Map<string, { sl: number; dt: number; tc_dt: number }>).entries())
-              .map(([pName, pd]) => ({ name: pName, sl: pd.sl, dt: pd.dt, tc_dt: pd.tc_dt }))
-              .sort((a, b) => b.dt - a.dt);
-            const brandMap = new Map<string, { sl: number; dt: number; tc_dt: number; products: { name: string; sl: number; dt: number; tc_dt: number }[] }>();
-            products.forEach(p => {
-              const brand = extractBrand(p.name);
-              if (!brandMap.has(brand)) brandMap.set(brand, { sl: 0, dt: 0, tc_dt: 0, products: [] });
-              const bd = brandMap.get(brand)!;
-              bd.sl += p.sl; bd.dt += p.dt; bd.tc_dt += p.tc_dt;
-              bd.products.push(p);
-            });
-            const brands = Array.from(brandMap.entries())
-              .map(([bName, bd]) => ({ name: bName, sl: bd.sl, dt: bd.dt, tc_dt: bd.tc_dt, products: bd.products }))
-              .sort((a, b) => b.dt - a.dt);
-            const sSL = products.reduce((s, x) => s + x.sl, 0);
-            const sDT = products.reduce((s, x) => s + x.dt, 0);
-            const sTC = products.reduce((s, x) => s + x.tc_dt, 0);
-            return { name: sName, sl: sSL, dt: sDT, tc_dt: sTC, brands };
-          }).sort((a, b) => b.dt - a.dt);
-          const subSL = staffRows.reduce((s, x) => s + x.sl, 0);
-          const subDT = staffRows.reduce((s, x) => s + x.dt, 0);
-          const subTC = staffRows.reduce((s, x) => s + x.tc_dt, 0);
-          return { key: subKey, name: NHOM_SMALL_DISPLAY[subKey] || subKey, sl: subSL, dt: subDT, tc_dt: subTC, staffRows };
-        }).sort((a, b) => b.dt - a.dt);
-        const grpSL = subs.reduce((s, x) => s + x.sl, 0);
-        const grpDT = subs.reduce((s, x) => s + x.dt, 0);
-        const grpTC = subs.reduce((s, x) => s + x.tc_dt, 0);
-        return { key: large, name: large, sl: grpSL, dt: grpDT, tc_dt: grpTC, subs };
-      }).sort((a, b) => b.dt - a.dt);
+    // Helper functions for dynamic tree
+    const getLevelValueAndName = (level: string, row: any[], idxs: any) => {
+      switch (level) {
+        case 'kho': {
+          const rawMarket = String(row[idxs.idxMarket] || '').trim();
+          const storeId = rawMarket.match(/^([a-zA-Z0-9]+)/)?.[1] || rawMarket || 'Không rõ';
+          return { key: storeId, name: storeId };
+        }
+        case 'nganh': {
+          const productName = String(row[idxs.idxProduct] || '').trim();
+          const category = String(row[idxs.idxCategory] || '').trim();
+          const nhomLarge = classifyNhomHangLarge(category, productName);
+          return { key: nhomLarge, name: getNganhName(nhomLarge) };
+        }
+        case 'nhom': {
+          const productName = String(row[idxs.idxProduct] || '').trim();
+          const category = String(row[idxs.idxCategory] || '').trim();
+          const nhomLarge = classifyNhomHangLarge(category, productName);
+          const nhomSmallValue = idxs.idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
+          const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
+          return { key: nhomSmall, name: NHOM_SMALL_DISPLAY[nhomSmall] || nhomSmall };
+        }
+        case 'hang': {
+          const productName = String(row[idxs.idxProduct] || '').trim() || 'Không rõ';
+          const category = String(row[idxs.idxCategory] || '').trim();
+          const nhomLarge = classifyNhomHangLarge(category, productName);
+          const nhomSmallValue = idxs.idxSmallCat !== -1 ? String(row[idxs.idxSmallCat] || '').trim().toUpperCase() : '';
+          const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
+          const brand = resolveBrandForProduct(productName, nhomSmall);
+          return { key: brand.toUpperCase(), name: brand };
+        }
+        case 'nguoitao': {
+          const staffName = String(row[idxs.idxStaff] || '').trim() || 'Không rõ';
+          return { key: staffName, name: staffName };
+        }
+        case 'sanpham': {
+          const productName = String(row[idxs.idxProduct] || '').trim() || 'Không rõ';
+          return { key: productName, name: productName };
+        }
+        case 'trangthaisp': {
+          const statusValue = idxs.idxTrangThaiSP !== -1 ? String(row[idxs.idxTrangThaiSP] || '').trim() : 'Không rõ';
+          const displayVal = statusValue || 'Không rõ';
+          return { key: displayVal, name: displayVal };
+        }
+        default:
+          return { key: 'unknown', name: 'Không rõ' };
+      }
+    };
 
-    const drillDownData = buildDrill(drillMap);
-    const drillDownDataPrev = buildDrill(drillMapPrev);
+    const filterDataset = (datasetRows: any[][]) => {
+      return datasetRows.filter(row => {
+        const rawMarket = String(row[idxMarket] || '').trim();
+        const storeId = rawMarket.match(/^([a-zA-Z0-9]+)/)?.[1] || rawMarket || 'Không rõ';
+
+        const productName = String(row[idxProduct] || '').trim() || 'Không rõ';
+        const category = String(row[idxCategory] || '').trim();
+        const nhomLarge = classifyNhomHangLarge(category, productName);
+
+        if (nhomLarge === 'Khác' || nhomLarge === 'THỂ CÀO') return false;
+
+        const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
+        const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
+
+        const brand = resolveBrandForProduct(productName, nhomSmall);
+        const staffName = String(row[idxStaff] || '').trim() || 'Không rõ';
+
+        // Check page-level staff filter
+        if (selectedStaffs.length > 0 && !selectedStaffs.includes(staffName)) return false;
+
+        // Check drill-down dropdown filters
+        if (drillFilterStore.length > 0 && !drillFilterStore.includes(storeId)) return false;
+        if (selectedDrillGroups.length > 0 && !selectedDrillGroups.includes(nhomLarge)) return false;
+        if (drillFilterNhomSmall.length > 0 && !drillFilterNhomSmall.includes(nhomSmall)) return false;
+        if (drillFilterBrand.length > 0 && !drillFilterBrand.includes(brand)) return false;
+        if (drillFilterStaff.length > 0 && !drillFilterStaff.includes(staffName)) return false;
+        if (drillFilterProduct.length > 0 && !drillFilterProduct.includes(productName)) return false;
+        const statusValue = idxTrangThaiSP !== -1 ? String(row[idxTrangThaiSP] || '').trim() : 'Không rõ';
+        if (drillFilterTrangThaiSP.length > 0 && !drillFilterTrangThaiSP.includes(statusValue)) return false;
+
+        return true;
+      });
+    };
+
+    const filteredCurrentRows = filterDataset(currentRows);
+    const filteredPrevRows = filterDataset(prevRows);
+
+    const buildDrillTree = (rowsToBuild: any[][], levelsToUse: string[], idxs: any, isPrev = false) => {
+      const buildNode = (
+        currentLevelRows: any[][],
+        levelIndex: number,
+        parentPath: string
+      ): any[] => {
+        if (levelIndex >= levelsToUse.length || currentLevelRows.length === 0) return [];
+
+        const currentLevel = levelsToUse[levelIndex];
+        const groups = new Map<string, { name: string; rows: any[][] }>();
+
+        currentLevelRows.forEach(row => {
+          const { key, name } = getLevelValueAndName(currentLevel, row, idxs);
+          if (!groups.has(key)) {
+            groups.set(key, { name, rows: [] });
+          }
+          groups.get(key)!.rows.push(row);
+        });
+
+        const nodes: any[] = [];
+        groups.forEach(({ name, rows: nodeRows }, key) => {
+          const nodePath = parentPath ? `${parentPath}.${key}` : key;
+
+          let sl = 0;
+          let dt = 0;
+          let tc_dt = 0;
+          let dtqd = 0;
+
+          nodeRows.forEach(row => {
+            const qty = Math.round(parseFloat(String(row[idxs.idxQty] || '0').replace(/,/g, '')) || 0);
+            const revenue = Math.round(parseFloat(String(row[idxs.idxRevenue] || '0').replace(/,/g, '')) || 0);
+            const htx = idxs.idxHinhThucXuat !== -1 ? String(row[idxs.idxHinhThucXuat] || '').toLowerCase() : '';
+            const isTc = htx.includes('trả góp');
+            const category = String(row[idxs.idxCategory] || '').trim();
+            const productName = String(row[idxs.idxProduct] || '').trim();
+            const nhomLarge = classifyNhomHangLarge(category, productName);
+            const nhomSmallValue = idxs.idxSmallCat !== -1 ? String(row[idxs.idxSmallCat] || '').trim().toUpperCase() : '';
+            const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
+
+            sl += qty;
+            dt += revenue;
+            if (isTc) tc_dt += revenue;
+            dtqd += getRowDtqd(nhomLarge, qty, revenue, nhomSmall, isTc);
+          });
+
+          const children = buildNode(nodeRows, levelIndex + 1, nodePath);
+
+          nodes.push({
+            key: nodePath,
+            nodeKey: key,
+            levelKey: currentLevel,
+            name,
+            sl,
+            dt,
+            tc_dt,
+            dtqd,
+            children
+          });
+        });
+
+        return nodes.sort((a, b) => b.dt - a.dt);
+      };
+
+      return buildNode(rowsToBuild, 0, '');
+    };
+
+    const idxs = { idxMarket, idxCategory, idxSmallCat, idxProduct, idxStaff, idxQty, idxRevenue, idxHinhThucXuat, idxTrangThaiSP };
+    const drillDownData = buildDrillTree(filteredCurrentRows, drillLevels, idxs);
+    const drillDownDataPrev = buildDrillTree(filteredPrevRows, drillLevels, idxs, true);
 
     const fmtDate = (ms: number) => {
       const d = new Date(ms);
@@ -932,6 +2517,38 @@ export default function NewRealtimePage() {
         ? `${fmtDate(ref - 13 * DAY_MS)} → ${fmtDate(ref - 7 * DAY_MS)}`
         : `${fmtDate(ref - 59 * DAY_MS)} → ${fmtDate(ref - 30 * DAY_MS)}`;
 
+    // Find min and max date from rows
+    let minDateStr = '';
+    let maxDateStr = '';
+    if (idxDate !== -1 && filteredRawYcxRows.length > 0) {
+      let minMs = Infinity;
+      let maxMs = -Infinity;
+      filteredRawYcxRows.forEach(row => {
+        const d = parseRowDate(row);
+        if (d) {
+          const ms = d.getTime();
+          if (ms < minMs) minMs = ms;
+          if (ms > maxMs) maxMs = ms;
+        }
+      });
+      if (minMs !== Infinity && maxMs !== -Infinity) {
+        const fmtD = (ms: number) => {
+          const d = new Date(ms);
+          return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+        };
+        minDateStr = fmtD(minMs);
+        maxDateStr = fmtD(maxMs);
+      }
+    }
+
+    if (!minDateStr || !maxDateStr) {
+      // Fallback to today
+      const fmtD = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+      const todayStr = fmtD(new Date());
+      minDateStr = todayStr;
+      maxDateStr = todayStr;
+    }
+
     return {
       staffAirConStats: (selectedStaffs.length > 0 ? acAll.filter(s => selectedStaffs.includes(s.staffName)) : acAll)
         .sort((a, b) => b.mayLanh - a.mayLanh),
@@ -943,12 +2560,14 @@ export default function NewRealtimePage() {
       drillRefMs: refMs,
       currLabel,
       prevLabel,
+      minDateStr,
+      maxDateStr,
     };
-  }, [rawYcxRows, filteredRawYcxRows, selectedStaffs, compareMode]);
+  }, [rawYcxRows, filteredRawYcxRows, selectedStaffs, compareMode, drillLevels, drillFilterStore, selectedDrillGroups, drillFilterNhomSmall, drillFilterBrand, drillFilterStaff, drillFilterProduct, drillFilterTrangThaiSP]);
 
   const [activeTab, setActiveTab] = useState<'summary' | 'khai_thac'>('summary');
   const [showKhaiThacCols, setShowKhaiThacCols] = useState({
-    doanhThu: false,
+    doanhThu: true,
     spChinh: true,
     baoHiem: true,
     vasBh: true,
@@ -956,20 +2575,37 @@ export default function NewRealtimePage() {
     sim: true,
     dongHo: true,
     phuKien: true,
-    giaDung: false,
-    ict: true,
-    ce: true,
-    dgd: true,
+    giaDung: true,
+    spcSmf: true,
+    spcLap: true,
+    spcTab: true,
+    spcTivi: true,
+    spcMl: true,
+    spcTl: true,
+    spcMg: true,
     pkCam: true,
     pkLoa: true,
     pkPin: true,
     pkTn: true,
+    pkDenMt: true,
     gdMln: true,
     gdNcom: true,
     gdNchien: true,
-    gdQuat: true
+    gdQuat: true,
+    gdQdh: true
   });
   const [showRawTable, setShowRawTable] = useState(false);
+  const [khaiThacSortField, setKhaiThacSortField] = useState<string>('dtqd');
+  const [khaiThacSortAsc, setKhaiThacSortAsc] = useState<boolean>(false);
+
+  const handleKhaiThacSort = (field: string) => {
+    if (khaiThacSortField === field) {
+      setKhaiThacSortAsc(prev => !prev);
+    } else {
+      setKhaiThacSortField(field);
+      setKhaiThacSortAsc(false);
+    }
+  };
 
   const handleCaptureTable = async (elementId: string, fileName: string) => {
     const element = document.getElementById(elementId);
@@ -994,10 +2630,7 @@ export default function NewRealtimePage() {
         backgroundColor: '#ffffff',
         scale: 2,
       });
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = `${fileName}_${userProfile?.ma_kho || 'Report'}.png`;
-      link.click();
+      setPreviewImage(dataUrl);
     } catch (err) {
       console.error('Lỗi chụp ảnh bảng:', err);
     } finally {
@@ -1013,6 +2646,263 @@ export default function NewRealtimePage() {
   };
   const [isPending, startTransition] = useTransition();
   const [rawTablePage, setRawTablePage] = useState(0);
+  const [columnFilters, setColumnFilters] = useState<Record<number, { search: string; selectedValues: string[] | null }>>({});
+  const [activeFilterDropdown, setActiveFilterDropdown] = useState<number | null>(null);
+
+  useEffect(() => {
+    setRawTablePage(0);
+  }, [columnFilters]);
+
+  const filteredRawTableRows = useMemo(() => {
+    if (deferredFilteredRows.length === 0) return [];
+    const headers = rawYcxRows[0]?.map(h => String(h || '').trim()) || [];
+    const idxProduct = (() => {
+      const idx = headers.findIndex(h => h.toLowerCase().includes('tên sản phẩm') || h.toLowerCase() === 'tên hàng');
+      return idx !== -1 ? idx : 33;
+    })();
+    const idxProductCode = (() => {
+      const idx = headers.findIndex(h => {
+        const norm = removeAccents(h).toLowerCase();
+        return norm === 'ma san pham' || norm === 'ma sp' || norm === 'ma hang' || norm.includes('ma san pham');
+      });
+      return idx !== -1 ? idx : 28;
+    })();
+    const idxSmallCategoryHeader = headers.findIndex(h => h.toLowerCase().includes('nhóm hàng nhỏ'));
+    const idxNhomHang = (() => {
+      const idx = headers.findIndex(h => {
+        const norm = removeAccents(h).toLowerCase();
+        return (norm.includes('nganh hang') && !norm.includes('lon')) ||
+               norm.includes('nhom nganh hang') ||
+               (norm.includes('nhom hang') && !norm.includes('nhom hang nho'));
+      });
+      return idx !== -1 ? idx : 40;
+    })();
+    const idxHinhThucXuat = headers.findIndex(h => {
+      const lh = h.toLowerCase();
+      return lh.includes('hình thức xuất') || lh.includes('loại ycx') || lh.includes('loại yêu cầu') || lh.includes('phân loại ycx');
+    });
+
+    const classifyHinhThucXuat = (htx: string): string | null => {
+      const clean = htx.trim().toLowerCase();
+      if (!clean) return null;
+
+      if (clean.includes('yêu cầu xuất dv thu hộ bảo hiểm') || clean.includes('yeu cau xuat dv thu ho bao hiem')) {
+        return 'Yêu cầu xuất DV thu hộ bảo hiểm';
+      }
+      if (clean.includes('thu hộ')) return 'Thu hộ';
+      if (clean.includes('trả góp')) return 'Trả góp';
+      if (
+        clean.includes('tiền mặt') ||
+        clean.includes('xuất bán hàng online') ||
+        clean.includes('xuất bán hàng tại siêu thị') ||
+        clean.includes('xuất bán online') ||
+        clean.includes('xuất bán pre-order') ||
+        clean.includes('xuất bán ưu đãi') ||
+        clean.includes('xuất đổi bảo hành') ||
+        clean.includes('xuất sim')
+      ) {
+        return 'Tiền mặt';
+      }
+
+      return null;
+    };
+
+    return deferredFilteredRows.filter(row => {
+      return Object.entries(columnFilters).every(([colIdxStr, filter]) => {
+        if (!filter) return true;
+        const colIdx = parseInt(colIdxStr, 10);
+        let cellValue = '';
+
+        if (colIdx < row.length) {
+          cellValue = String(row[colIdx] || '').trim();
+          if (isDateColumnHeader(headers[colIdx] || '')) {
+            cellValue = fmtRawDate(cellValue);
+          }
+        } else {
+          const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+          const codeClass = classifyProductByCode(prodCode);
+
+          if (colIdx === row.length) {
+            if (codeClass) {
+              cellValue = codeClass;
+            } else {
+              const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
+              const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
+              if (prodName.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodName.includes('BẢO VỆ MÀN HÌNH') || prodName.includes('BVMH')) {
+                cellValue = 'BVMH';
+              } else if (catVal.includes('7139') || catVal.includes('BẢO HÀNH MỞ RỘNG')) {
+                cellValue = 'BHMR';
+              } else if (catVal.includes('BẢO HÀNH RƠI VỠ')) {
+                cellValue = 'BHRV';
+              } else if (catVal.includes('4479')) {
+                cellValue = 'GIC';
+              } else if (catVal.includes('1 ĐỔI 1')) {
+                cellValue = '1 ĐỔI 1';
+              } else {
+                cellValue = classifyProduct(prodName);
+              }
+            }
+          } else if (colIdx === row.length + 1) {
+            if (codeClass) {
+              cellValue = 'B.HIỂM';
+            } else {
+              const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
+              const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
+              if (prodName.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodName.includes('BẢO VỆ MÀN HÌNH') || prodName.includes('BVMH')) {
+                cellValue = 'B.HIỂM';
+              } else if (catVal.includes('1994') || catVal.includes('4479')) {
+                cellValue = 'B.HIỂM';
+              } else {
+                const valLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', String(row[idxProduct] || '')) || '-';
+                cellValue = valLarge === 'BẢO HIỂM' ? 'B.HIỂM' : valLarge;
+              }
+            }
+          } else if (colIdx === row.length + 2) {
+            cellValue = resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode);
+          } else if (colIdx === row.length + 3) {
+            cellValue = idxHinhThucXuat !== -1 ? (classifyHinhThucXuat(String(row[idxHinhThucXuat] || '')) || '-') : '-';
+          }
+        }
+
+        if (!cellValue) cellValue = '-';
+
+        // Checklist filter
+        if (filter.selectedValues !== null) {
+          if (!filter.selectedValues.includes(cellValue)) {
+            return false;
+          }
+        }
+
+        // Wildcard search filter
+        if (filter.search) {
+          const searchLower = filter.search.toLowerCase();
+          if (!cellValue.toLowerCase().includes(searchLower)) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+    });
+  }, [deferredFilteredRows, columnFilters, rawYcxRows]);
+
+  const getUniqueValuesForColumn = useCallback((colIdx: number) => {
+    const values = new Set<string>();
+    const headers = rawYcxRows[0]?.map(h => String(h || '').trim()) || [];
+    const idxProduct = (() => {
+      const idx = headers.findIndex(h => h.toLowerCase().includes('tên sản phẩm') || h.toLowerCase() === 'tên hàng');
+      return idx !== -1 ? idx : 33;
+    })();
+    const idxProductCode = (() => {
+      const idx = headers.findIndex(h => {
+        const norm = removeAccents(h).toLowerCase();
+        return norm === 'ma san pham' || norm === 'ma sp' || norm === 'ma hang' || norm.includes('ma san pham');
+      });
+      return idx !== -1 ? idx : 28;
+    })();
+    const idxSmallCategoryHeader = headers.findIndex(h => h.toLowerCase().includes('nhóm hàng nhỏ'));
+    const idxNhomHang = (() => {
+      const idx = headers.findIndex(h => {
+        const norm = removeAccents(h).toLowerCase();
+        return (norm.includes('nganh hang') && !norm.includes('lon')) ||
+               norm.includes('nhom nganh hang') ||
+               (norm.includes('nhom hang') && !norm.includes('nhom hang nho'));
+      });
+      return idx !== -1 ? idx : 40;
+    })();
+    const idxHinhThucXuat = headers.findIndex(h => {
+      const lh = h.toLowerCase();
+      return lh.includes('hình thức xuất') || lh.includes('loại ycx') || lh.includes('loại yêu cầu');
+    });
+
+    const classifyHinhThucXuat = (htx: string): string | null => {
+      const clean = htx.trim().toLowerCase();
+      if (!clean) return null;
+
+      if (clean.includes('yêu cầu xuất dv thu hộ bảo hiểm') || clean.includes('yeu cau xuat dv thu ho bao hiem')) {
+        return 'Yêu cầu xuất DV thu hộ bảo hiểm';
+      }
+      if (clean.includes('thu hộ')) return 'Thu hộ';
+      if (clean.includes('trả góp')) return 'Trả góp';
+      if (
+        clean.includes('tiền mặt') ||
+        clean.includes('xuất bán hàng online') ||
+        clean.includes('xuất bán hàng tại siêu thị') ||
+        clean.includes('xuất bán online') ||
+        clean.includes('xuất bán pre-order') ||
+        clean.includes('xuất bán ưu đãi') ||
+        clean.includes('xuất đổi bảo hành') ||
+        clean.includes('xuất sim')
+      ) {
+        return 'Tiền mặt';
+      }
+
+      return null;
+    };
+
+    deferredFilteredRows.forEach(row => {
+      let val = '';
+      if (colIdx < row.length) {
+        val = String(row[colIdx] || '').trim();
+        if (isDateColumnHeader(headers[colIdx] || '')) {
+          val = fmtRawDate(val);
+        }
+      } else {
+        const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+        const codeClass = classifyProductByCode(prodCode);
+
+        if (colIdx === row.length) {
+          if (codeClass) {
+            val = codeClass;
+          } else {
+            const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
+            const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
+            if (prodName.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodName.includes('BẢO VỆ MÀN HÌNH') || prodName.includes('BVMH')) {
+              val = 'BVMH';
+            } else if (catVal.includes('7139') || catVal.includes('BẢO HÀNH MỞ RỘNG')) {
+              val = 'BHMR';
+            } else if (catVal.includes('BẢO HÀNH RƠI VỠ')) {
+              val = 'BHRV';
+            } else if (catVal.includes('4479')) {
+              val = 'GIC';
+            } else if (catVal.includes('1 ĐỔI 1')) {
+              val = '1 ĐỔI 1';
+            } else {
+              val = classifyProduct(prodName);
+            }
+          }
+        } else if (colIdx === row.length + 1) {
+          if (codeClass) {
+            val = 'B.HIỂM';
+          } else {
+            const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
+            const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
+            if (prodName.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodName.includes('BẢO VỆ MÀN HÌNH') || prodName.includes('BVMH')) {
+              val = 'B.HIỂM';
+            } else if (catVal.includes('1994') || catVal.includes('4479')) {
+              val = 'B.HIỂM';
+            } else {
+              const valLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', String(row[idxProduct] || '')) || '-';
+              val = valLarge === 'BẢO HIỂM' ? 'B.HIỂM' : valLarge;
+            }
+          }
+        } else if (colIdx === row.length + 2) {
+          val = resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode);
+        } else if (colIdx === row.length + 3) {
+          val = idxHinhThucXuat !== -1 ? (classifyHinhThucXuat(String(row[idxHinhThucXuat] || '')) || '-') : '-';
+        }
+      }
+      values.add(val || '-');
+    });
+
+    return Array.from(values).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }));
+  }, [deferredFilteredRows, rawYcxRows]);
+
+  const openColumnUniqueValues = useMemo(() => {
+    if (activeFilterDropdown === null) return [];
+    return getUniqueValuesForColumn(activeFilterDropdown);
+  }, [activeFilterDropdown, getUniqueValuesForColumn]);
+
   const RAW_PAGE_SIZE = 100;
   const [currentTime, setCurrentTime] = useState(new Date());
   const categoriesRef = useRef<HTMLDivElement>(null);
@@ -1047,36 +2937,56 @@ export default function NewRealtimePage() {
   const [showDtlkComment, setShowDtlkComment] = useState(false);
   const [showLuykeColumn, setShowLuykeColumn] = useState(true);
   const [showTargetCols, setShowTargetCols] = useState(true);  // TARGET, REAL, %HT
-  const [showOrangeCols, setShowOrangeCols] = useState(true);  // CÒN LẠI, LUỸ KẾ, MỤC TIÊU 100%
+  const [showOrangeCols, setShowOrangeCols] = useState(false);  // CÒN LẠI, LUỸ KẾ, MỤC TIÊU 100%
   const [expandedStaff, setExpandedStaff] = useState<Record<string, boolean>>({});
   const [expandedCERows, setExpandedCERows] = useState<Record<string, boolean>>({});
-  const [expandedDrillRows, setExpandedDrillRows] = useState<Record<string, boolean>>({});
-  const [expandedDrillBrand, setExpandedDrillBrand] = useState<Record<string, boolean>>({});
-  const [isDrillCollapsed, setIsDrillCollapsed] = useState(false);
-  const [isDrillAllOpen, setIsDrillAllOpen] = useState(false);
-  const [selectedDrillGroups, setSelectedDrillGroups] = useState<string[]>([]);
-  const [drillFilterNhomSmall, setDrillFilterNhomSmall] = useState<string[]>([]);
-  const [drillFilterStaff, setDrillFilterStaff] = useState<string[]>([]);
-  const [drillFilterBrand, setDrillFilterBrand] = useState<string[]>([]);
-  const [activeDrillFilter, setActiveDrillFilter] = useState<string | null>(null);
-  const [drillFilterSearch, setDrillFilterSearch] = useState('');
-  const drillFilterBarRef = useRef<HTMLDivElement>(null);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [expandedCrossSellingStaff, setExpandedCrossSellingStaff] = useState<Record<string, boolean>>({});
+
+
+
 
   const staffKhaiThacStats = useMemo(() => {
     if (rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return [];
 
     const headers = rawYcxRows[0].map(h => String(h || '').trim());
     const findIdx = (names: string[], defaultIdx: number) => {
-      const idx = headers.findIndex(h => names.some(n => h.toLowerCase().includes(n.toLowerCase())));
-      return idx !== -1 ? idx : defaultIdx;
+      const normalizedNames = names.map(n => removeAccents(n).toLowerCase().trim());
+      for (const name of normalizedNames) {
+        const exactIdx = headers.findIndex(h => removeAccents(h).toLowerCase().trim() === name);
+        if (exactIdx !== -1) return exactIdx;
+        const partialIdx = headers.findIndex(h => {
+          const norm = removeAccents(h).toLowerCase().trim();
+          if (name === 'nhom hang' && norm.includes('nho')) return false;
+          if (name === 'nganh hang' && norm.includes('lon')) return false;
+          return norm.includes(name);
+        });
+        if (partialIdx !== -1) return partialIdx;
+      }
+      return defaultIdx;
     };
 
     const idxStaff = findIdx(['người tạo'], 23);
     const idxQty = findIdx(['số lượng'], 35);
-    const idxRevenue = findIdx(['phải thu', 'doanh thu', 'tổng tiền', 'thành tiền', 'giá bán'], 37);
-    const idxCategory = findIdx(['nhóm ngành hàng', 'nhóm hàng'], 40);
+    // Ưu tiên tìm cột "Giá bán_1" / "Giá bán 1" bằng logic riêng
+    const idxRevenue = (() => {
+      const giaBan1Idx = headers.findIndex(h => {
+        const norm = removeAccents(h).toLowerCase().trim().replace(/\s+/g, ' ');
+        return (norm.includes('gia ban') && norm.includes('1')) || norm === 'gia ban_1' || norm === 'gia ban 1';
+      });
+      if (giaBan1Idx !== -1) return giaBan1Idx;
+      return findIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá bán'], 37);
+    })();
+    console.log('[KhaiThac] idxRevenue:', idxRevenue, '| Header:', headers[idxRevenue]);
+    const idxCategory = findIdx(['ngành hàng', 'nhóm ngành hàng', 'nhóm hàng'], 40);
     const idxSmallCat = findIdx(['nhóm hàng nhỏ'], -1);
+    const idxHinhThucXuat = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
+    const idxNhaSanXuat = findIdx(['nhà sản xuất', 'nha san xuat', 'nhà sx', 'nha sx', 'hãng sản xuất', 'hãng sx', 'brand'], -1);
+    const idxProduct = (() => {
+      const exact = headers.findIndex(h => h.toLowerCase() === 'tên sản phẩm');
+      if (exact !== -1) return exact;
+      const partial = headers.findIndex(h => h.toLowerCase().startsWith('tên sản phẩm') || h.toLowerCase() === 'tên hàng');
+      return partial !== -1 ? partial : 33;
+    })();
 
     const statsMap = new Map<string, {
       staffName: string;
@@ -1089,6 +2999,13 @@ export default function NewRealtimePage() {
       dgdRev: number;
       spChinhTotalQty: number;
       spChinhTotalRev: number;
+      spcSmfQty: number;
+      spcLapQty: number;
+      spcTabQty: number;
+      spcTiviQty: number;
+      spcMlQty: number;
+      spcTlQty: number;
+      spcMgQty: number;
       bhQty: number;
       bhRev: number;
       vieonQty: number;
@@ -1101,6 +3018,7 @@ export default function NewRealtimePage() {
       pkLoaQty: number;
       pkPinQty: number;
       pkTnQty: number;
+      pkDenMtQty: number;
       pkTotalQty: number;
       pkRev: number;
       gdQty: number;
@@ -1109,9 +3027,11 @@ export default function NewRealtimePage() {
       gdNcomQty: number;
       gdNchienQty: number;
       gdQuatQty: number;
+      gdQdhQty: number;
       dtThuc: number;
       dtqd: number;
       hqqd: number;
+      dtTraGop: number;
     }>();
 
     const isSystemName = (n: string) =>
@@ -1122,10 +3042,20 @@ export default function NewRealtimePage() {
       if (isSystemName(staffName)) continue;
 
       const category = String(row[idxCategory] || '').trim();
-      const nhomLarge = NHOM_HANG_MAP[category]?.large || '';
-      const nhomSmallFromMap = NHOM_HANG_MAP[category]?.small || '';
+      const productName = String(row[idxProduct] || '').trim();
+      let nhomLarge = classifyNhomHangLarge(category, productName);
+      if (productName.toUpperCase().includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || productName.toUpperCase().includes('BẢO VỆ MÀN HÌNH') || productName.toUpperCase().includes('BVMH')) {
+        nhomLarge = 'B.HIỂM';
+      } else if (category.includes('1994') || category.includes('4479')) {
+        nhomLarge = 'B.HIỂM';
+      } else if (nhomLarge === 'BẢO HIỂM') {
+        nhomLarge = 'B.HIỂM';
+      }
       const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
-      const nhomSmall = nhomSmallValue || nhomSmallFromMap.toUpperCase();
+      const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
+
+      const brandVal = idxNhaSanXuat !== -1 ? String(row[idxNhaSanXuat] || '').trim().toUpperCase() : '';
+      const isVieONRow = brandVal === 'VIEON' || category.toUpperCase().includes('VIEON') || productName.toUpperCase().includes('VIEON');
 
       const qty = Math.round(parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0);
       const revenue = Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0);
@@ -1144,6 +3074,13 @@ export default function NewRealtimePage() {
           dgdRev: 0,
           spChinhTotalQty: 0,
           spChinhTotalRev: 0,
+          spcSmfQty: 0,
+          spcLapQty: 0,
+          spcTabQty: 0,
+          spcTiviQty: 0,
+          spcMlQty: 0,
+          spcTlQty: 0,
+          spcMgQty: 0,
           bhQty: 0,
           bhRev: 0,
           vieonQty: 0,
@@ -1156,6 +3093,7 @@ export default function NewRealtimePage() {
           pkLoaQty: 0,
           pkPinQty: 0,
           pkTnQty: 0,
+          pkDenMtQty: 0,
           pkTotalQty: 0,
           pkRev: 0,
           gdQty: 0,
@@ -1164,9 +3102,11 @@ export default function NewRealtimePage() {
           gdNcomQty: 0,
           gdNchienQty: 0,
           gdQuatQty: 0,
+          gdQdhQty: 0,
           dtThuc: 0,
           dtqd: 0,
           hqqd: 0,
+          dtTraGop: 0,
         });
       }
 
@@ -1187,16 +3127,16 @@ export default function NewRealtimePage() {
         item.dgdRev += revenue;
         item.spChinhTotalQty += qty;
         item.spChinhTotalRev += revenue;
-      } else if (nhomLarge === 'BẢO HIỂM') {
+      } else if (nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM') {
         item.bhQty += qty;
         item.bhRev += revenue;
-      } else if (nhomLarge === 'VIEON') {
+      } else if (isVieONRow || nhomLarge === 'VIEON') {
         item.vieonQty += qty;
         item.vieonRev += revenue;
       } else if (nhomLarge === 'SIM') {
         item.simQty += qty;
         item.simRev += revenue;
-      } else if (nhomLarge === 'ĐỒNG HỒ') {
+      } else if (nhomLarge === 'ĐỒNG HỒ' || nhomLarge === 'ĐỒNG HỒ THỜI TRANG' || nhomLarge === 'WEARABLE') {
         item.dhQty += qty;
         item.dhRev += revenue;
       } else if (nhomLarge === 'PHỤ KIỆN') {
@@ -1211,6 +3151,8 @@ export default function NewRealtimePage() {
           item.pkPinQty += qty;
         } else if (nhomSmall === 'TN BLT' || nhomSmall === 'TN DÂY') {
           item.pkTnQty += qty;
+        } else if (nhomSmall === 'ĐÈN NĂNG LƯỢNG MẶT TRỜI') {
+          item.pkDenMtQty += qty;
         }
       } else if (nhomLarge === 'DCNB') {
         item.gdQty += qty;
@@ -1219,37 +3161,55 @@ export default function NewRealtimePage() {
 
       // Phân tích Gia dụng từ nhóm nhỏ (YCX RT) độc lập
       const nSmall = nhomSmall.toUpperCase();
+
+      // Phân tích SP CHÍNH chi tiết
+      if (nSmall === 'SMP' || nSmall === 'ĐIỆN THOẠI DI ĐỘNG') {
+        item.spcSmfQty += qty;
+      } else if (nSmall === 'LAP') {
+        item.spcLapQty += qty;
+      } else if (nSmall === 'TAB') {
+        item.spcTabQty += qty;
+      } else if (nSmall === 'TIVI') {
+        item.spcTiviQty += qty;
+      } else if (nSmall === 'ML') {
+        item.spcMlQty += qty;
+      } else if (nSmall === 'TL') {
+        item.spcTlQty += qty;
+      } else if (nSmall === 'MG') {
+        item.spcMgQty += qty;
+      }
+
       const isMln = nSmall === 'MLN';
       const isNcom = nSmall === 'NC NẮP RỜI' || nSmall === 'NC Đ.TỬ';
       const isNchien = nSmall === 'N.CHIÊN';
       const isQuat = nSmall === 'QUẠT';
+      const isQdh = nSmall === 'QĐH';
 
       if (isMln) item.gdMlnQty += qty;
       if (isNcom) item.gdNcomQty += qty;
       if (isNchien) item.gdNchienQty += qty;
       if (isQuat) item.gdQuatQty += qty;
+      if (isQdh) item.gdQdhQty += qty;
 
       if (isMln || isNcom || isNchien || isQuat) {
         if (nhomLarge !== 'DCNB') {
-           item.gdQty += qty;
-           item.gdRev += revenue;
+          item.gdQty += qty;
+          item.gdRev += revenue;
         }
       }
+
+      // Tích lũy DT THỰC trực tiếp từ revenue (giống bảng CHI TIẾT NGÀNH HÀNG)
+      item.dtThuc += revenue;
+
+      const htx = idxHinhThucXuat !== -1 ? String(row[idxHinhThucXuat] || '').toLowerCase() : '';
+      const isTraGop = htx.includes('trả góp');
+      if (isTraGop) {
+        item.dtTraGop += revenue;
+      }
+      item.dtqd += getRowDtqd(nhomLarge, qty, revenue, nhomSmall, isTraGop);
     }
 
     statsMap.forEach(item => {
-      item.dtThuc = item.ictRev + item.ceRev + item.dgdRev + item.bhRev + item.simRev + item.dhRev + item.pkRev + item.gdRev;
-      
-      const ictQD = item.ictRev;
-      const ceQD = item.ceRev;
-      const dgdQD = item.dgdRev + item.dgdQty * 777777;
-      const bhQD = item.bhQty * 3000000;
-      const simQD = item.simRev;
-      const dhQD = item.dhRev;
-      const pkQD = item.pkTotalQty * 1000000;
-      const gdQD = item.gdQty * 500000;
-
-      item.dtqd = ictQD + ceQD + dgdQD + bhQD + simQD + dhQD + pkQD + gdQD;
       item.hqqd = item.dtThuc > 0 ? Math.round(((item.dtqd - item.dtThuc) / item.dtThuc) * 100) : 0;
     });
 
@@ -1258,42 +3218,401 @@ export default function NewRealtimePage() {
       ? allStats.filter(item => drillFilterStaff.includes(item.staffName))
       : allStats;
 
+    if (khaiThacSortField) {
+      const getVisibleSpChinhQty = (item: any) => {
+        return (showKhaiThacCols.spcSmf ? item.spcSmfQty : 0) +
+          (showKhaiThacCols.spcLap ? item.spcLapQty : 0) +
+          (showKhaiThacCols.spcTab ? item.spcTabQty : 0) +
+          (showKhaiThacCols.spcTivi ? item.spcTiviQty : 0) +
+          (showKhaiThacCols.spcMl ? item.spcMlQty : 0) +
+          (showKhaiThacCols.spcTl ? item.spcTlQty : 0) +
+          (showKhaiThacCols.spcMg ? item.spcMgQty : 0);
+      };
+
+      const getVisibleVasTotalQty = (item: any) => {
+        return (showKhaiThacCols.vasBh ? item.bhQty : 0) +
+          (showKhaiThacCols.vasVieon ? item.vieonQty : 0);
+      };
+
+      const getVisiblePkTotalQty = (item: any) => {
+        return (showKhaiThacCols.pkCam ? item.pkCamQty : 0) +
+          (showKhaiThacCols.pkLoa ? item.pkLoaQty : 0) +
+          (showKhaiThacCols.pkPin ? item.pkPinQty : 0) +
+          (showKhaiThacCols.pkTn ? item.pkTnQty : 0) +
+          (showKhaiThacCols.pkDenMt ? item.pkDenMtQty : 0);
+      };
+
+      const getVisibleGdTotalQty = (item: any) => {
+        return (showKhaiThacCols.gdMln ? item.gdMlnQty : 0) +
+          (showKhaiThacCols.gdNcom ? item.gdNcomQty : 0) +
+          (showKhaiThacCols.gdNchien ? item.gdNchienQty : 0) +
+          (showKhaiThacCols.gdQuat ? item.gdQuatQty : 0) +
+          (showKhaiThacCols.gdQdh ? item.gdQdhQty : 0);
+      };
+
+      filteredStats.sort((a, b) => {
+        let valA: number = 0;
+        let valB: number = 0;
+
+        if (khaiThacSortField === 'staffName') {
+          return khaiThacSortAsc
+            ? a.staffName.localeCompare(b.staffName)
+            : b.staffName.localeCompare(a.staffName);
+        }
+
+        // Percentage sorting
+        if (khaiThacSortField === 'tc') {
+          valA = a.dtThuc > 0 ? (a.dtTraGop || 0) / a.dtThuc : 0;
+          valB = b.dtThuc > 0 ? (b.dtTraGop || 0) / b.dtThuc : 0;
+        } else if (khaiThacSortField === 'vasPct') {
+          const spcA = getVisibleSpChinhQty(a);
+          const spcB = getVisibleSpChinhQty(b);
+          valA = spcA > 0 ? getVisibleVasTotalQty(a) / spcA : 0;
+          valB = spcB > 0 ? getVisibleVasTotalQty(b) / spcB : 0;
+        } else if (khaiThacSortField === 'simPct') {
+          const spcA = getVisibleSpChinhQty(a);
+          const spcB = getVisibleSpChinhQty(b);
+          valA = spcA > 0 ? a.simQty / spcA : 0;
+          valB = spcB > 0 ? b.simQty / spcB : 0;
+        } else if (khaiThacSortField === 'dhPct') {
+          const spcA = getVisibleSpChinhQty(a);
+          const spcB = getVisibleSpChinhQty(b);
+          valA = spcA > 0 ? a.dhQty / spcA : 0;
+          valB = spcB > 0 ? b.dhQty / spcB : 0;
+        } else if (khaiThacSortField === 'pkPct') {
+          const spcA = getVisibleSpChinhQty(a);
+          const spcB = getVisibleSpChinhQty(b);
+          valA = spcA > 0 ? getVisiblePkTotalQty(a) / spcA : 0;
+          valB = spcB > 0 ? getVisiblePkTotalQty(b) / spcB : 0;
+        } else if (khaiThacSortField === 'gdPct') {
+          const spcA = getVisibleSpChinhQty(a);
+          const spcB = getVisibleSpChinhQty(b);
+          valA = spcA > 0 ? getVisibleGdTotalQty(a) / spcA : 0;
+          valB = spcB > 0 ? getVisibleGdTotalQty(b) / spcB : 0;
+        } else if (khaiThacSortField === 'spChinhTotalQty') {
+          valA = getVisibleSpChinhQty(a);
+          valB = getVisibleSpChinhQty(b);
+        } else if (khaiThacSortField === 'vasBhQty') {
+          valA = getVisibleVasTotalQty(a);
+          valB = getVisibleVasTotalQty(b);
+        } else if (khaiThacSortField === 'pkTotalQty') {
+          valA = getVisiblePkTotalQty(a);
+          valB = getVisiblePkTotalQty(b);
+        } else if (khaiThacSortField === 'gdTotalQty') {
+          valA = getVisibleGdTotalQty(a);
+          valB = getVisibleGdTotalQty(b);
+        } else {
+          // Standard numeric fields
+          valA = (a[khaiThacSortField as keyof typeof a] as number) || 0;
+          valB = (b[khaiThacSortField as keyof typeof b] as number) || 0;
+        }
+
+        return khaiThacSortAsc ? valA - valB : valB - valA;
+      });
+    }
+
     return filteredStats;
-  }, [rawYcxRows, filteredRawYcxRows, drillFilterStaff]);
+  }, [rawYcxRows, filteredRawYcxRows, drillFilterStaff, showKhaiThacCols, khaiThacSortField, khaiThacSortAsc]);
+
+  const crossSellingStats = useMemo(() => {
+    if (rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return [];
+    
+    const headers = rawYcxRows[0].map(h => String(h || '').trim());
+    const findIdx = (names: string[], defaultIdx: number) => {
+      const normalizedNames = names.map(n => removeAccents(n).toLowerCase().trim());
+      for (const name of normalizedNames) {
+        const exactIdx = headers.findIndex(h => removeAccents(h).toLowerCase().trim() === name);
+        if (exactIdx !== -1) return exactIdx;
+        const partialIdx = headers.findIndex(h => removeAccents(h).toLowerCase().trim().includes(name));
+        if (partialIdx !== -1) return partialIdx;
+      }
+      return defaultIdx;
+    };
+
+    const idxStaff = findIdx(['người tạo'], 23);
+    const idxDate = findIdx(['ngày tạo'], -1);
+    const idxHtx = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu'], -1);
+    const idxProduct = findIdx(['tên sản phẩm', 'tên hàng'], 33);
+    const idxNhomHang = findIdx(['nhóm hàng'], 40);
+    const idxNganhHang = findIdx(['ngành hàng'], -1);
+    const idxCustomerName = findIdx(['khách hàng', 'tên kh', 'tên khách hàng', 'người mua'], -1);
+    const idxTrangThaiHoSo = findIdx(['trạng thái hồ sơ'], -1);
+
+    const bills = new Map<string, { staffName: string, dateVal: string, customerName: string, itemCount: number, items: Array<{ product: string, htx: string }> }>();
+
+    filteredRawYcxRows.forEach(row => {
+      const htx = idxHtx !== -1 ? removeAccents(String(row[idxHtx] || '')).toLowerCase() : '';
+      const nhomHangStr = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
+      const nganhHangStr = idxNganhHang !== -1 ? String(row[idxNganhHang] || '').trim() : '';
+      const nhomHang = removeAccents(nhomHangStr).toLowerCase();
+      const sp = idxProduct !== -1 ? removeAccents(String(row[idxProduct] || '')).toLowerCase() : '';
+      const trangThai = idxTrangThaiHoSo !== -1 ? removeAccents(String(row[idxTrangThaiHoSo] || '')).toLowerCase().trim() : '';
+      
+      if (idxTrangThaiHoSo !== -1 && trangThai !== '' && !trangThai.includes('moi')) return;
+      if (htx.includes('tra gop')) return;
+      if (nhomHang.includes('thu ho') || nhomHang.includes('the cao') || sp.includes('thu ho') || sp.includes('the cao') || nhomHang.includes('phi thu tien')) return;
+
+      const excludedPrefixes = ['17 -', '164 -', '344 -', '424 -', '224 -', '905 -', '1231 -', '4199 -', '58 -', '18 -', '664 -'];
+      const isExcluded = (val: string) => excludedPrefixes.some(p => val.startsWith(p));
+      if (isExcluded(nhomHangStr) || isExcluded(nganhHangStr)) return;
+      if (sp.startsWith('pin aa')) return;
+
+      // Filter out insurance (B.HIỂM) rows from employee cross-selling table calculations
+      const rawProdName = idxProduct !== -1 ? String(row[idxProduct] || '') : '';
+      let largeCat = classifyNhomHangLarge(nhomHangStr, rawProdName);
+      const prodNameUpper = rawProdName.toUpperCase();
+      if (prodNameUpper.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodNameUpper.includes('BẢO VỆ MÀN HÌNH') || prodNameUpper.includes('BVMH')) {
+        largeCat = 'B.HIỂM';
+      } else if (nhomHangStr.includes('1994') || nhomHangStr.includes('4479')) {
+        largeCat = 'B.HIỂM';
+      } else if (largeCat === 'BẢO HIỂM') {
+        largeCat = 'B.HIỂM';
+      }
+      if (largeCat === 'B.HIỂM') return;
+
+      const staffName = String(row[idxStaff] || '').trim() || 'Unknown';
+      if (selectedStaffs.length > 0 && !selectedStaffs.some(s => staffName.toLowerCase().includes(s.toLowerCase()))) return;
+      if (drillFilterStaff.length > 0 && !drillFilterStaff.includes(staffName)) return;
+
+      const dateVal = idxDate !== -1 ? fmtRawDate(String(row[idxDate] || '').trim()) : '';
+      const billKey = `${staffName}_${dateVal}`;
+      const customerName = idxCustomerName !== -1 ? String(row[idxCustomerName] || '').trim() : '';
+
+      if (!bills.has(billKey)) {
+        bills.set(billKey, { staffName, dateVal, customerName, itemCount: 0, items: [] });
+      }
+      const bill = bills.get(billKey)!;
+      bill.itemCount += 1;
+      
+      bill.items.push({
+        product: String(row[idxProduct] || '').trim(),
+        htx: String(row[idxHtx] || '').trim()
+      });
+    });
+
+    const staffMap = new Map<string, {
+      staffName: string;
+      boPhan: string;
+      totalBills: number;
+      kemBills: number;
+      noKemBills: number;
+      twoItemsBills: number;
+      moreThanTwoItemsBills: number;
+      billsList: Array<{ dateVal: string, customerName: string, itemCount: number, items: Array<{ product: string, htx: string }> }>;
+    }>();
+
+    for (const bill of bills.values()) {
+      if (!staffMap.has(bill.staffName)) {
+        staffMap.set(bill.staffName, {
+          staffName: bill.staffName,
+          boPhan: 'BP ALL IN ONE',
+          totalBills: 0,
+          kemBills: 0,
+          noKemBills: 0,
+          twoItemsBills: 0,
+          moreThanTwoItemsBills: 0,
+          billsList: [],
+        });
+      }
+      
+      const stats = staffMap.get(bill.staffName)!;
+      stats.totalBills += 1;
+      stats.billsList.push({
+        dateVal: bill.dateVal,
+        customerName: bill.customerName,
+        itemCount: bill.itemCount,
+        items: bill.items
+      });
+      
+      if (bill.itemCount >= 2) {
+        stats.kemBills += 1;
+        if (bill.itemCount === 2) {
+          stats.twoItemsBills += 1;
+        } else {
+          stats.moreThanTwoItemsBills += 1;
+        }
+      } else {
+        stats.noKemBills += 1;
+      }
+    }
+
+    const result = Array.from(staffMap.values()).map(s => {
+      const pctKem = s.totalBills > 0 ? Math.round((s.kemBills / s.totalBills) * 100) : 0;
+      return { ...s, pctKem };
+    });
+
+    result.sort((a, b) => b.pctKem - a.pctKem || b.totalBills - a.totalBills);
+
+    return result;
+  }, [rawYcxRows, filteredRawYcxRows, selectedStaffs, drillFilterStaff]);
 
   // Available options per filter level (dynamic from data)
-  const availableNhomSmall = useMemo(() => {
-    const src = selectedDrillGroups.length > 0
-      ? drillDownData.filter((g: any) => selectedDrillGroups.includes(g.key))
-      : drillDownData;
-    const map = new Map<string, string>();
-    src.forEach((g: any) => g.subs?.forEach((s: any) => { if (!map.has(s.key)) map.set(s.key, s.name); }));
-    return Array.from(map.entries()).map(([k, n]) => ({ key: k, name: n })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [drillDownData, selectedDrillGroups]);
+  // Available options per filter level (dynamic from data)
+  const availableOptions = useMemo(() => {
+    const stores = new Set<string>();
+    const nganhs = new Set<string>();
+    const nhoms = new Set<string>();
+    const brands = new Set<string>();
+    const staffs = new Set<string>();
+    const products = new Set<string>();
+    const trangThaiSPs = new Set<string>();
 
-  const availableStaff = useMemo(() => {
-    const src = selectedDrillGroups.length > 0
-      ? drillDownData.filter((g: any) => selectedDrillGroups.includes(g.key))
-      : drillDownData;
-    const set = new Set<string>();
-    src.forEach((g: any) => g.subs?.forEach((s: any) =>
-      drillFilterNhomSmall.length === 0 || drillFilterNhomSmall.includes(s.key)
-        ? s.staffRows?.forEach((st: any) => set.add(st.name)) : null
-    ));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [drillDownData, selectedDrillGroups, drillFilterNhomSmall]);
+    if (rawYcxRows.length > 1) {
+      const headers = rawYcxRows[0].map(h => String(h || '').trim());
+      const findIdx = (names: string[], defaultIdx: number) => {
+        const normalizedNames = names.map(n => removeAccents(n).toLowerCase().trim());
+        for (const name of normalizedNames) {
+          const idx = headers.findIndex(h => removeAccents(h).toLowerCase().trim() === name);
+          if (idx !== -1) return idx;
+        }
+        for (const name of normalizedNames) {
+          const idx = headers.findIndex(h => {
+            const norm = removeAccents(h).toLowerCase().trim();
+            if (name === 'nhom hang' && norm.includes('nho')) return false;
+            if (name === 'nganh hang' && norm.includes('lon')) return false;
+            return norm.includes(name);
+          });
+          if (idx !== -1) return idx;
+        }
+        return defaultIdx;
+      };
+      const idxStaff = findIdx(['người tạo'], 23);
+      const idxCategory = findIdx(['ngành hàng', 'nhóm ngành hàng', 'nhóm hàng'], 40);
+      const idxSmallCat = findIdx(['nhóm hàng nhỏ'], -1);
+      const idxProduct = (() => {
+        const exact = headers.findIndex(h => h.toLowerCase() === 'tên sản phẩm');
+        if (exact !== -1) return exact;
+        const partial = headers.findIndex(h => h.toLowerCase().startsWith('tên sản phẩm') || h.toLowerCase() === 'tên hàng');
+        return partial !== -1 ? partial : 33;
+      })();
+      const idxMarket = findIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm', 'kho', 'cửa hàng'], 1);
+      const idxTrangThaiSP = findIdx(['trạng thái hồ sơ'], -1);
 
-  const availableBrand = useMemo(() => {
-    const src = selectedDrillGroups.length > 0
-      ? drillDownData.filter((g: any) => selectedDrillGroups.includes(g.key))
-      : drillDownData;
-    const set = new Set<string>();
-    src.forEach((g: any) => g.subs?.forEach((s: any) => s.staffRows?.forEach((st: any) =>
-      (drillFilterStaff.length === 0 || drillFilterStaff.includes(st.name))
-        ? st.brands?.forEach((b: any) => set.add(b.name)) : null
-    )));
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [drillDownData, selectedDrillGroups, drillFilterNhomSmall, drillFilterStaff]);
+      for (let i = 1; i < rawYcxRows.length; i++) {
+        const row = rawYcxRows[i];
+        const rawMarket = String(row[idxMarket] || '').trim();
+        const storeId = rawMarket.match(/^([a-zA-Z0-9]+)/)?.[1] || rawMarket || 'Không rõ';
+
+        const productName = String(row[idxProduct] || '').trim() || 'Không rõ';
+        const category = String(row[idxCategory] || '').trim();
+        const nhomLarge = classifyNhomHangLarge(category, productName);
+
+        if (nhomLarge === 'Khác' || nhomLarge === 'THỂ CÀO') continue;
+
+        const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
+        const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
+
+        const brand = resolveBrandForProduct(productName, nhomSmall);
+        const staffName = String(row[idxStaff] || '').trim() || 'Không rõ';
+
+        if (storeId) stores.add(storeId);
+        if (nhomLarge) nganhs.add(nhomLarge);
+        if (nhomSmall) nhoms.add(nhomSmall);
+        if (brand) brands.add(brand);
+        if (staffName) staffs.add(staffName);
+        if (productName) products.add(productName);
+        const statusValue = idxTrangThaiSP !== -1 ? String(row[idxTrangThaiSP] || '').trim() : 'Không rõ';
+        if (statusValue) trangThaiSPs.add(statusValue);
+      }
+    }
+
+    return {
+      stores: Array.from(stores).sort().map(s => ({ key: s, name: s })),
+      nganhs: Array.from(nganhs).sort().map(n => ({ key: n, name: getNganhName(n) })),
+      nhoms: Array.from(nhoms).sort().map(n => ({ key: n, name: NHOM_SMALL_DISPLAY[n] || n })),
+      brands: Array.from(brands).sort().map(b => ({ key: b, name: b })),
+      staffs: Array.from(staffs).sort().map(s => ({ key: s, name: s })),
+      products: Array.from(products).sort().map(p => ({ key: p, name: p })),
+      trangThaiSPs: Array.from(trangThaiSPs).sort().map(s => ({ key: s, name: s })),
+    };
+  }, [rawYcxRows]);
+
+  const availableNhomSmall = availableOptions.nhoms;
+  const availableStaff = availableOptions.staffs.map(s => s.name);
+  const availableBrand = availableOptions.brands.map(b => b.name);
+
+  // Drag and drop states for drill-down pills
+  const [draggedLevelIndex, setDraggedLevelIndex] = useState<number | null>(null);
+
+  const handleDragStart = (index: number) => {
+    setDraggedLevelIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (index: number) => {
+    if (draggedLevelIndex === null) return;
+    const newLevels = [...drillLevels];
+    const [removed] = newLevels.splice(draggedLevelIndex, 1);
+    newLevels.splice(index, 0, removed);
+    setDrillLevels(newLevels);
+    setDraggedLevelIndex(null);
+  };
+
+  const prevNodesMap = useMemo(() => {
+    const map = new Map<string, any>();
+    const traverse = (nodes: any[]) => {
+      nodes.forEach(n => {
+        map.set(n.key, n);
+        if (n.children) traverse(n.children);
+      });
+    };
+    traverse(drillDownDataPrev);
+    return map;
+  }, [drillDownDataPrev]);
+
+  // Recursively flatten tree for dynamic row rendering
+  const flattenTree = useCallback((
+    nodes: any[],
+    depth = 0,
+    isVisible = true
+  ): any[] => {
+    const result: any[] = [];
+    nodes.forEach(node => {
+      if (!isVisible) return;
+      result.push({ ...node, depth });
+      const isOpen = expandedDrillRows[node.key] !== undefined
+        ? expandedDrillRows[node.key] === true
+        : depth < drillExpandDepth;
+      if (node.children && node.children.length > 0) {
+        const flatChildren = flattenTree(node.children, depth + 1, isOpen);
+        result.push(...flatChildren);
+      }
+    });
+    return result;
+  }, [expandedDrillRows, drillExpandDepth]);
+
+  const flatRows = useMemo(() => {
+    return flattenTree(drillDownData, 0, true);
+  }, [drillDownData, flattenTree]);
+
+  const totals = useMemo(() => {
+    let sl = 0;
+    let dt = 0;
+    let tc_dt = 0;
+    let dtqd = 0;
+    drillDownData.forEach((node: any) => {
+      sl += node.sl;
+      dt += node.dt;
+      tc_dt += node.tc_dt;
+      dtqd += node.dtqd;
+    });
+    return { sl, dt, tc_dt, dtqd };
+  }, [drillDownData]);
+
+  const handleExpandAll = () => {
+    setExpandedDrillRows({});
+    setDrillExpandDepth(prev => Math.min(prev + 1, drillLevels.length));
+  };
+
+  const handleCollapseAll = () => {
+    setExpandedDrillRows({});
+    setDrillExpandDepth(prev => Math.max(prev - 1, 0));
+  };
+
+
 
   // Close filter dropdown when clicking outside
   useEffect(() => {
@@ -1318,6 +3637,145 @@ export default function NewRealtimePage() {
     });
     return Array.from(cats).sort();
   }, [processedData.staff]);
+
+  const captureElement = async (ref: React.RefObject<HTMLDivElement | null>, filename: string) => {
+    const element = ref.current;
+    if (element) {
+      const originalWidth = element.style.width;
+      const originalHeight = element.style.height;
+      try {
+        element.classList.add('capturing-target');
+        document.body.classList.add('capturing-screenshot');
+
+        element.style.width = 'fit-content';
+        element.style.height = 'fit-content';
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        const dataUrl = await domToPng(element, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+        });
+        setPreviewImage(dataUrl);
+      } catch (error) {
+        console.error(`Lỗi khi chụp ảnh ${filename}:`, error);
+      } finally {
+        if (element) {
+          element.style.width = originalWidth;
+          element.style.height = originalHeight;
+          element.classList.remove('capturing-target');
+        }
+        document.body.classList.remove('capturing-screenshot');
+      }
+    }
+  };
+
+  const captureOverview = async () => {
+    if (overviewRef.current) {
+      try {
+        document.body.classList.add('capturing-screenshot');
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        const dataUrl = await domToPng(overviewRef.current, {
+          backgroundColor: '#f8fafc',
+          scale: 2,
+        });
+        setPreviewImage(dataUrl);
+      } catch (error) {
+        console.error('Lỗi khi chụp ảnh tổng quan:', error);
+      } finally {
+        document.body.classList.remove('capturing-screenshot');
+      }
+    }
+  };
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const greeting = useMemo(() => {
+    const hour = currentTime.getHours();
+    if (hour < 10) return 'Chào buổi sáng';
+    if (hour < 13) return 'Chào buổi trưa';
+    if (hour < 18) return 'Chào buổi chiều';
+    return 'Chào buổi tối';
+  }, [currentTime]);
+
+  const summary = useMemo(() => {
+    if (!processedData.markets.length) return null;
+
+    if (marketFilter !== 'ALL') {
+      const match = processedData.markets.find(m =>
+        normalize(m.name).includes(normalize(marketFilter)) ||
+        normalize(marketFilter).includes(normalize(m.name))
+      );
+      if (match) return match;
+    }
+
+    const totalRow = processedData.markets.find(m => m.name === 'TỔNG' || m.isSummary);
+    return totalRow || processedData.markets[0];
+  }, [processedData.markets, marketFilter]);
+
+  const filteredCategories = useMemo(() => {
+    if (!processedData.categories || processedData.categories.length === 0) return [];
+
+    const visibleCats = processedData.categories.filter(cat =>
+      marketFilter === 'ALL' || !cat.marketName ||
+      normalize(cat.marketName).includes(normalize(marketFilter)) ||
+      normalize(marketFilter).includes(normalize(cat.marketName))
+    );
+
+    const aggregated: Record<string, any> = {};
+
+    visibleCats.forEach(cat => {
+      const key = `${cat.name}_${cat.type}`;
+      if (!aggregated[key]) {
+        aggregated[key] = { ...cat };
+      } else {
+        aggregated[key].target += cat.target;
+        aggregated[key].actual = (aggregated[key].actual || 0) + (cat.actual || 0);
+        aggregated[key].revenue = (aggregated[key].revenue || 0) + (cat.revenue || 0);
+      }
+    });
+
+    return Object.values(aggregated).map(cat => {
+      const rate = cat.target > 0 ? (cat.revenue / cat.target) * 100 : 0;
+      return {
+        ...cat,
+        rate: Math.round(rate * 10) / 10
+      };
+    });
+  }, [processedData.categories, marketFilter]);
+
+  const filteredStaff = useMemo(() => {
+    if (!processedData.staff) return [];
+    if (allCategories.length === 0 || selectedCategories.length === 0) return processedData.staff;
+
+    return processedData.staff.map(s => {
+      const filteredItems = s.items.filter(item => selectedCategories.includes(item.category));
+
+      const totalRevenue = filteredItems.reduce((sum, item) => sum + item.revenue, 0);
+      const convertedRevenue = filteredItems.reduce((sum, item) => sum + item.convertedRevenue, 0);
+      const installmentRevenue = filteredItems.reduce((sum, item) => sum + (item.isInstallment ? item.revenue : 0), 0);
+
+      const giaDungTotal = filteredItems.filter(item => item.category === 'Gia dụng').reduce((sum, item) => sum + item.revenue, 0);
+      const baoHiemTotal = filteredItems.filter(item => item.category === 'Bảo hiểm').reduce((sum, item) => sum + item.revenue, 0);
+      const ictTotal = filteredItems.filter(item => item.category === 'ICT').reduce((sum, item) => sum + item.revenue, 0);
+      const ceTotal = filteredItems.filter(item => item.category === 'CE').reduce((sum, item) => sum + item.revenue, 0);
+
+      return {
+        ...s,
+        items: filteredItems,
+        totalRevenue,
+        convertedRevenue,
+        installmentRevenue,
+        giaDung: { ...s.giaDung, total: giaDungTotal },
+        baoHiem: { ...s.baoHiem, total: baoHiemTotal },
+        ce: { ...s.ce, total: ceTotal }
+      };
+    }).filter(s => s.totalRevenue > 0);
+  }, [processedData.staff, selectedCategories, allCategories]);
 
   // Initialize selectedCategories with all categories when data loads
   useEffect(() => {
@@ -1365,7 +3823,7 @@ export default function NewRealtimePage() {
   const generateCategoryComment = () => {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    
+
     let commentText = `📊 REALTIME NGÀNH HÀNG ĐẾN ${timeStr}\n\n`;
 
     // SL categories under 100%
@@ -1411,10 +3869,7 @@ export default function NewRealtimePage() {
           backgroundColor: '#f8fafc',
           scale: 2,
         });
-        const link = document.createElement('a');
-        link.href = dataUrl;
-        link.download = `NganhHang_Realtime_${userProfile?.ma_kho || 'Report'}.png`;
-        link.click();
+        setPreviewImage(dataUrl);
       } catch (error) {
         console.error('Lỗi khi chụp ảnh:', error);
       } finally {
@@ -1422,159 +3877,6 @@ export default function NewRealtimePage() {
       }
     }
   };
-
-  const captureElement = async (ref: React.RefObject<HTMLDivElement | null>, filename: string) => {
-    const element = ref.current;
-    if (element) {
-      const originalWidth = element.style.width;
-      const originalHeight = element.style.height;
-      try {
-        element.classList.add('capturing-target');
-        document.body.classList.add('capturing-screenshot');
-        
-        // Tự động vừa khít dữ liệu
-        element.style.width = 'fit-content';
-        element.style.height = 'fit-content';
-
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        const dataUrl = await domToPng(element, {
-          backgroundColor: '#ffffff',
-          scale: 2,
-        });
-        const link = document.createElement('a');
-        link.href = dataUrl;
-        link.download = `${filename}_${userProfile?.ma_kho || 'Report'}.png`;
-        link.click();
-      } catch (error) {
-        console.error(`Lỗi khi chụp ảnh ${filename}:`, error);
-      } finally {
-        if (element) {
-          element.style.width = originalWidth;
-          element.style.height = originalHeight;
-          element.classList.remove('capturing-target');
-        }
-        document.body.classList.remove('capturing-screenshot');
-      }
-    }
-  };
-
-  const captureOverview = async () => {
-    if (overviewRef.current) {
-      try {
-        document.body.classList.add('capturing-screenshot');
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        const dataUrl = await domToPng(overviewRef.current, {
-          backgroundColor: '#f8fafc',
-          scale: 2,
-        });
-        const link = document.createElement('a');
-        link.href = dataUrl;
-        link.download = `TongQuan_Realtime_${userProfile?.ma_kho || 'Report'}.png`;
-        link.click();
-      } catch (error) {
-        console.error('Lỗi khi chụp ảnh tổng quan:', error);
-      } finally {
-        document.body.classList.remove('capturing-screenshot');
-      }
-    }
-  };
-
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const greeting = useMemo(() => {
-    const hour = currentTime.getHours();
-    if (hour < 10) return 'Chào buổi sáng';
-    if (hour < 13) return 'Chào buổi trưa';
-    if (hour < 18) return 'Chào buổi chiều';
-    return 'Chào buổi tối';
-  }, [currentTime]);
-
-  // Synchronized with DB-declared stores list via useMarket()
-
-  const summary = useMemo(() => {
-    if (!processedData.markets.length) return null;
-    
-    if (marketFilter !== 'ALL') {
-      const match = processedData.markets.find(m => 
-        normalize(m.name).includes(normalize(marketFilter)) ||
-        normalize(marketFilter).includes(normalize(m.name))
-      );
-      if (match) return match;
-    }
-    
-    // Try to find the "TỔNG" row first, otherwise take the first one
-    const totalRow = processedData.markets.find(m => m.name === 'TỔNG' || m.isSummary);
-    return totalRow || processedData.markets[0];
-  }, [processedData.markets, marketFilter]);
-
-  const filteredCategories = useMemo(() => {
-    if (!processedData.categories || processedData.categories.length === 0) return [];
-
-    // 1. Filter by global market filter
-    const visibleCats = processedData.categories.filter(cat =>
-      marketFilter === 'ALL' || !cat.marketName || 
-      normalize(cat.marketName).includes(normalize(marketFilter)) ||
-      normalize(marketFilter).includes(normalize(cat.marketName))
-    );
-
-    // 2. Aggregate by name and type
-    const aggregated: Record<string, any> = {};
-
-    visibleCats.forEach(cat => {
-      const key = `${cat.name}_${cat.type}`;
-      if (!aggregated[key]) {
-        aggregated[key] = { ...cat };
-      } else {
-        aggregated[key].target += cat.target;
-        aggregated[key].actual = (aggregated[key].actual || 0) + (cat.actual || 0);
-        aggregated[key].revenue = (aggregated[key].revenue || 0) + (cat.revenue || 0);
-      }
-    });
-
-    // 3. Re-calculate rates
-    return Object.values(aggregated).map(cat => {
-      const rate = cat.target > 0 ? (cat.revenue / cat.target) * 100 : 0;
-      return {
-        ...cat,
-        rate: Math.round(rate * 10) / 10
-      };
-    });
-  }, [processedData.categories, marketFilter]);
-
-  const filteredStaff = useMemo(() => {
-    if (!processedData.staff) return [];
-    if (allCategories.length === 0 || selectedCategories.length === 0) return processedData.staff;
-
-    return processedData.staff.map(s => {
-      const filteredItems = s.items.filter(item => selectedCategories.includes(item.category));
-
-      const totalRevenue = filteredItems.reduce((sum, item) => sum + item.revenue, 0);
-      const convertedRevenue = filteredItems.reduce((sum, item) => sum + item.convertedRevenue, 0);
-      const installmentRevenue = filteredItems.reduce((sum, item) => sum + (item.isInstallment ? item.revenue : 0), 0);
-
-      const giaDungTotal = filteredItems.filter(item => item.category === 'Gia dụng').reduce((sum, item) => sum + item.revenue, 0);
-      const baoHiemTotal = filteredItems.filter(item => item.category === 'Bảo hiểm').reduce((sum, item) => sum + item.revenue, 0);
-      const ictTotal = filteredItems.filter(item => item.category === 'ICT').reduce((sum, item) => sum + item.revenue, 0);
-      const ceTotal = filteredItems.filter(item => item.category === 'CE').reduce((sum, item) => sum + item.revenue, 0);
-
-      return {
-        ...s,
-        items: filteredItems,
-        totalRevenue,
-        convertedRevenue,
-        installmentRevenue,
-        giaDung: { ...s.giaDung, total: giaDungTotal },
-        baoHiem: { ...s.baoHiem, total: baoHiemTotal },
-        ce: { ...s.ce, total: ceTotal }
-      };
-    }).filter(s => s.totalRevenue > 0);
-  }, [processedData.staff, selectedCategories, allCategories]);
 
   const exploitationMetrics = useMemo(() => {
     const total = {
@@ -1607,73 +3909,82 @@ export default function NewRealtimePage() {
   // Don't block the entire page while loading - show cached data immediately
   // Only show a small loading indicator at the top
 
+  const renderKhaiThacHeader = (field: string, label: string, colorClass: string, bgClass: string, widthClass: string) => {
+    const isSorted = khaiThacSortField === field;
+    return (
+      <th
+        onClick={() => handleKhaiThacSort(field)}
+        className={`py-1 px-2 text-center ${colorClass} ${bgClass} border-r border-slate-200/50 ${widthClass} font-black cursor-pointer select-none hover:opacity-80 transition-all`}
+      >
+        <div className="flex items-center justify-center gap-0.5">
+          <span>{label}</span>
+          <span className={`text-[10px] ${isSorted ? 'text-indigo-600 font-extrabold' : 'text-slate-400'}`}>
+            {isSorted ? (khaiThacSortAsc ? '▲' : '▼') : '⇅'}
+          </span>
+        </div>
+      </th>
+    );
+  };
+
   return (
     <>
-    <div className="min-h-screen bg-[#f8fafc]" style={{ fontFamily: '"Inter", sans-serif' }}>
-      {/* Non-blocking loading indicator */}
-      {isLoadingRealtime && (
-        <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-slate-100 overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 animate-pulse w-full" 
-               style={{ animation: 'loading-slide 1s ease-in-out infinite' }} />
-        </div>
-      )}
-      {/* Professional Header - Hidden */}
-      <div className="hidden bg-white border-b border-slate-200 px-8 py-5 sticky top-[116px] z-40 shadow-sm">
-        <div className="max-w-[1800px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-center gap-5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-400 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
-              <Activity size={24} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600">Hệ thống trực tuyến</span>
-              </div>
-              <h1 className="text-xl font-black text-slate-800 tracking-tight uppercase">Sức khỏe siêu thị</h1>
-            </div>
+      <div className="min-h-screen bg-[#f8fafc]" style={{ fontFamily: '"Inter", sans-serif' }}>
+        {/* Non-blocking loading indicator */}
+        {isLoadingRealtime && (
+          <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-slate-100 overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 animate-pulse w-full" 
+                 style={{ animation: 'loading-slide 1s ease-in-out infinite' }} />
           </div>
-          
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
-              <Calendar size={14} className="text-slate-400" />
-              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-tighter">
-                {currentTime.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}
-              </span>
+        )}
+        {/* Professional Header - Hidden */}
+        <div className="hidden bg-white border-b border-slate-200 px-8 py-5 sticky top-[116px] z-40 shadow-sm">
+          <div className="max-w-[1800px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-center gap-5">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-400 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                <Activity size={24} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600">Hệ thống trực tuyến</span>
+                </div>
+                <h1 className="text-xl font-black text-slate-800 tracking-tight uppercase">Sức khỏe siêu thị</h1>
+              </div>
             </div>
             
-            <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl flex items-center gap-4 shadow-sm">
-              <div className="flex items-center gap-2">
-                <Clock size={14} className="text-indigo-500" />
-                <span className="text-sm font-black font-oswald tracking-wider text-slate-800">
-                  {currentTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
+                <Calendar size={14} className="text-slate-400" />
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-tighter">
+                  {currentTime.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}
                 </span>
               </div>
-              <div className="w-px h-6 bg-slate-100" />
-              <div className="flex items-center gap-2">
-                <RefreshCw size={14} className={isLoadingRealtime ? 'animate-spin text-indigo-500' : 'text-emerald-500'} />
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">
-                  {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '---'}
-                </span>
+              
+              <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl flex items-center gap-4 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <Clock size={14} className="text-indigo-500" />
+                  <span className="text-sm font-black font-oswald tracking-wider text-slate-800">
+                    {currentTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <div className="w-px h-6 bg-slate-100" />
+                <div className="flex items-center gap-2">
+                  <RefreshCw size={14} className={isLoadingRealtime ? 'animate-spin text-indigo-500' : 'text-emerald-500'} />
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">
+                    {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '---'}
+                  </span>
+                </div>
               </div>
-              <button
-                onClick={() => loadData()}
-                className="ml-2 w-8 h-8 flex items-center justify-center bg-slate-50 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-lg transition-all duration-300"
-              >
-                <RefreshCw size={16} className={isLoadingRealtime ? 'animate-spin' : ''} />
-              </button>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-[1800px] mx-auto flex flex-col lg:flex-row gap-8 p-8">
-        {/* Left Vertical Navigation */}
-        <div className="w-full lg:w-[320px] shrink-0">
-          <div className="flex flex-col gap-3 py-4 sticky top-[116px]">
-            
+        <div className="max-w-[1800px] mx-auto flex flex-col lg:flex-row gap-4 md:gap-8 p-3 md:p-8">
+          {/* Mobile Horizontal Tab Bar */}
+          <div className="lg:hidden flex items-center gap-2 overflow-x-auto no-scrollbar bg-white rounded-2xl p-2 border border-slate-100">
             {[
               { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, color: 'text-indigo-600' },
-              { id: 'khai_thac', label: 'DASHBOARD YCX', icon: Activity, color: 'text-emerald-600' }
+              { id: 'khai_thac', label: 'DATA YCX', icon: Activity, color: 'text-emerald-600' }
             ].map((item) => {
               const isActive = activeTab === item.id;
               const Icon = item.icon;
@@ -1684,1931 +3995,2473 @@ export default function NewRealtimePage() {
                     setActiveTab(item.id as any);
                     if (item.id === 'khai_thac') setRawTablePage(0);
                   })}
-                  className={`flex items-center gap-4 px-6 py-5 rounded-[22px] border transition-all duration-300 group ${
-                    isActive 
-                      ? 'bg-white border-indigo-500 shadow-[0_15px_35px_-10px_rgba(79,70,229,0.15)] -translate-y-0.5 translate-x-1' 
-                      : 'bg-transparent border-transparent hover:bg-white/50 hover:border-slate-200 text-slate-500'
-                  }`}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all shrink-0 ${isActive
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                    }`}
                 >
-                  <div className={`p-2.5 rounded-xl transition-all duration-300 ${
-                    isActive ? 'bg-indigo-50 ' + item.color : 'bg-slate-100 text-slate-400 group-hover:bg-white group-hover:text-slate-500'
-                  }`}>
-                    <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-                  </div>
-                  <span className={`text-[15px] font-black tracking-tight uppercase ${isActive ? 'text-slate-800' : 'text-slate-500'}`}>
-                    {item.label}
-                  </span>
-                  {isActive && (
-                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.5)]" />
-                  )}
+                  <Icon size={16} strokeWidth={isActive ? 2.5 : 2} />
+                  {item.label}
                 </button>
               );
             })}
           </div>
-        </div>
 
-        {/* Main Content Area - Right Side */}
-        <div className="flex-1 min-w-0 space-y-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white p-8 rounded-[32px] border border-slate-100"
-          >
-            <div className="flex items-center justify-between mb-8">
-              <div className="space-y-1">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Lời chào</h3>
-                <h2 className="text-2xl font-black text-slate-800 tracking-tight">
-                  {greeting}, <span className="text-indigo-600">{userProfile?.username?.split(' ')[0]}</span>
-                </h2>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Mục tiêu ngày</p>
-                <span className="text-3xl font-black text-indigo-600 font-oswald tracking-tighter">{Math.round(summary?.percentHT || 0)}%</span>
-              </div>
-            </div>
-            <div className="h-3 bg-slate-50 rounded-full overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(Math.round(summary?.percentHT || 0), 100)}%` }}
-                transition={{ duration: 1.5, ease: "circOut" }}
-                className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full"
-              />
-            </div>
-          </motion.div>
+          {/* Desktop Left Vertical Navigation */}
+          <div className="hidden lg:block w-[320px] shrink-0">
+            <div className="flex flex-col gap-3 py-4 sticky top-[116px]">
 
-
-      <AnimatePresence mode="wait">
-        {activeTab === 'summary' && (
-          <motion.div
-            key="summary"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="space-y-6"
-            ref={overviewRef}
-          >
-            {/* Overview Header with Capture Button */}
-            <div className="flex flex-col gap-4 bg-white p-4 rounded-2xl border border-slate-100 no-capture">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
-                    <LayoutGrid size={20} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                      <h2 className="text-[24px] font-bold text-slate-800 uppercase tracking-tight">
-                        {userProfile?.ten_sieu_thi || activeStore || 'Tổng quan hiệu quả'}
-                      </h2>
-                      {/* Temporarily hidden */}
-                      {false && (
-                      <div className="relative">
-                        <button
-                          onClick={async () => {
-                            // Request clipboard permission during user gesture
-                            try { await navigator.clipboard.readText(); } catch {}
-                            setBiImportMode('realtime');
-                            window.open('https://bi.thegioididong.com/khoi-ban-hang-sub?id=73920&tab=bcth&rt=1&dm=1', '_blank');
-                            showNotification('📄 Đang mở trang BI... Hãy Ctrl+A → Ctrl+C rồi quay lại, dữ liệu sẽ tự động cập nhật!', 'success');
-                          }}
-                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-400 to-amber-500 text-white rounded-xl text-[11px] font-black uppercase tracking-widest hover:from-amber-500 hover:to-amber-600 transition-all shadow-lg shadow-amber-200/50 active:scale-95 border-t border-white/20"
-                        >
-                          <Globe size={16} />
-                          Cập nhật BI Realtime
-                        </button>
-                      </div>
-                      )}
-                      {userProfile?.role === 'admin' && (
-                        <button
-                          onClick={() => setIsStoreSelectorOpen(!isStoreSelectorOpen)}
-                          className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
-                          title="Lọc siêu thị"
-                        >
-                          <Filter size={18} className="text-slate-400" />
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-[10px] font-medium text-slate-400">KPI & Chi tiết ngành hàng</p>
-
-                    {isStoreSelectorOpen && stores.length > 0 && (
-                      <div className="absolute z-50 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl p-2 animate-in fade-in slide-in-from-top-2">
-                        <div className="max-h-60 overflow-y-auto">
-                          {stores.map(store => (
-                            <button
-                              key={store.warehouse_code}
-                              onClick={() => {
-                                setSelectedMaKho(store.warehouse_code);
-                                setActiveStore(store.ten_sieu_thi);
-                                setIsStoreSelectorOpen(false);
-                              }}
-                              className="w-full text-left px-3 py-2 hover:bg-slate-50 rounded-lg text-sm font-medium text-slate-700 transition-colors"
-                            >
-                              {store.ten_sieu_thi} ({store.warehouse_code})
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={captureOverview}
-                  className="no-capture flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all duration-300 shadow-lg shadow-indigo-200 active:scale-95"
-                >
-                  <Camera size={14} />
-                  <span>Chụp tổng quan</span>
-                </button>
-              </div>
-
-            </div>
-
-            {/* Stats Grid Container */}
-            <div className="space-y-6">
-              {filteredMarkets
-                .filter(m => marketFilter === 'ALL' || m.name === marketFilter)
-                .map((declaredMarket, mIdx) => {
-                  // Find matching parsed store from processedData.markets (parsed from pasted REALTIME DT BI text)
-                  const parsedMarket = processedData.markets.find(pm => 
-                    normalize(pm.name).includes(normalize(declaredMarket.name)) ||
-                    normalize(declaredMarket.name).includes(normalize(pm.name))
-                  ) || {
-                    name: declaredMarket.name,
-                    targetQD: 0,
-                    actualVirtual: 0,
-                    percentHT: 0,
-                    installmentRate: 0,
-                    luotBillBanHang: 0,
-                    luotBillThuHo: 0
-                  };
-
-                  return (
-                    <div key={mIdx} className="bg-white p-5 rounded-3xl border border-slate-100 space-y-4">
-                      <div className="flex flex-wrap items-center justify-between gap-4 px-2 border-b border-slate-50 pb-3">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-3 h-3 rounded-full ${(parsedMarket as any).isSummary || parsedMarket.name === 'TỔNG' ? 'bg-rose-500 animate-pulse' : 'bg-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.3)]'}`} />
-                          <h3 className="text-[28px] font-black text-slate-800 uppercase tracking-wider">{declaredMarket.name}</h3>
-                        </div>
-                        <div className="text-[12px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
-                          {Math.round(parsedMarket.percentHT || 0)}% HT
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-                        <StatCard
-                          title="TAGET QĐ"
-                          value={formatCurrencyUnit(parsedMarket.targetQD || 0)}
-                          subValue=""
-                          icon={Target}
-                          color="rose"
-                          isColored={true}
-                        />
-                        <StatCard
-                          title="DOANH THU QUY ĐỔI"
-                          value={formatCurrencyUnit(parsedMarket.actualVirtual || 0)}
-                          subValue=""
-                          icon={TrendingUp}
-                          color="indigo"
-                          isColored={true}
-                        />
-                        <StatCard
-                          title="%HT"
-                          value={`${Math.round(parsedMarket.percentHT || 0)}%`}
-                          subValue=""
-                          icon={Activity}
-                          color="emerald"
-                          isColored={true}
-                        />
-                        <StatCard
-                          title="Tỷ Trọng Trả Góp"
-                          value={`${(parsedMarket.installmentRate || 0).toFixed(1)}%`}
-                          subValue=""
-                          icon={ShoppingBag}
-                          color="amber"
-                          isColored={true}
-                        />
-                        <StatCard
-                          title="Lượt Bill Bán Hàng"
-                          value={Math.round(parsedMarket.luotBillBanHang || 0).toLocaleString()}
-                          subValue=""
-                          icon={Zap}
-                          color="orange"
-                          isColored={true}
-                        />
-                        <StatCard
-                          title="Lượt Bill Thu Hộ"
-                          value={Math.round(parsedMarket.luotBillThuHo || 0).toLocaleString()}
-                          subValue=""
-                          icon={CreditCard}
-                          color="blue"
-                          isColored={true}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-
-            {/* Categories Tables moved to Summary */}
-            <div className="space-y-6 pt-8 border-t border-slate-200">
-              <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                <div className="flex flex-col items-center gap-4">
-                  <h2 className="text-[27px] font-black text-slate-900 uppercase tracking-tight text-center">Chi tiết ngành hàng</h2>
-                  <p className="text-[17px] text-slate-500">Theo dõi tiến độ hoàn thành mục tiêu ngành hàng</p>
-                  <div className="flex flex-wrap items-center justify-center gap-2 no-capture">
-                    <button
-                      onClick={() => setShowTargetCols(!showTargetCols)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 ${showTargetCols
-                        ? 'bg-yellow-50 text-yellow-700 border-yellow-300'
-                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-white'
-                        }`}
-                    >
-                      <div className={`w-2 h-2 rounded-full ${showTargetCols ? 'bg-yellow-500' : 'bg-slate-400'}`}></div>
-                      TARGET · REAL · %HT · CÒN LẠI
-                    </button>
-                    <button
-                      onClick={() => setShowOrangeCols(!showOrangeCols)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 ${showOrangeCols
-                        ? 'bg-orange-50 text-orange-700 border-orange-300'
-                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-white'
-                        }`}
-                    >
-                      <div className={`w-2 h-2 rounded-full ${showOrangeCols ? 'bg-orange-500' : 'bg-slate-400'}`}></div>
-                      LUỸ KẾ · MỤC TIÊU
-                    </button>
-                    <button
-                      onClick={generateCategoryComment}
-                      className="flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
-                    >
-                      <MessageSquare size={14} />
-                      NHẬN XÉT
-                    </button>
-                    <button
-                      onClick={captureCategories}
-                      className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[12px] font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 no-capture"
-                    >
-                      <Camera size={16} />
-                      <span>Chụp ảnh</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div ref={categoriesRef} className="bg-white rounded-3xl overflow-hidden border border-slate-200">
-                <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Left Table: SLLK */}
-                  <div ref={categorySLRef} className="border border-slate-300 overflow-hidden">
-                    <div className="bg-white p-[15px]">
-                      <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
-                        <div className="p-4 flex flex-col items-center justify-center">
-                          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">NGÀNH HÀNG (SL)</h2>
-                          <div className="flex items-center justify-center gap-1.5">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">REALTIME</span>
-                            <button
-                              onClick={() => captureElement(categorySLRef, 'NganhHang_SL_Realtime')}
-                              className="no-capture p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
-                              title="Chụp ảnh bảng Ngành hàng SL"
-                            >
-                              <Camera size={12} />
-                            </button>
-                          </div>
-                        </div>
-                        <div className="p-4 flex flex-col items-center justify-center">
-                          <h2 className="text-xl font-black text-rose-600 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">DỰ KIẾN</h2>
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
-                            ĐẠT : {filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length}/{filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').length}
-                          </span>
-                        </div>
-                      </div>
-
-                      {showSllkComment && (
-                        <div className="my-4 no-capture">
-                          <textarea
-                            value={sllkComment}
-                            onChange={(e) => setSllkComment(e.target.value)}
-                            placeholder="Nhập nhận xét cho bảng SLLK..."
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 resize-none min-h-[60px] screenshot-comment"
-                          />
-                        </div>
-                      )}
-
-                      <div className="overflow-hidden">
-                        <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300">
-                          <thead>
-                            <tr className="text-slate-900 h-[60px]">
-                              <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
-                              <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
-                              {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">TARGET</th>}
-                              {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">REAL</th>}
-                              {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>}
-                              {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">CÒN LẠI</th>}
-                              {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">LUỸ KẾ</th>}
-                              {showOrangeCols && <th className="px-2 py-0 text-[11px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[70px] leading-tight">MỤC TIÊU<br/>100%/NGÀY</th>}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filteredCategories
-                              .filter(c => c.type === 'SL' || c.type === 'ALL')
-                              .sort((a, b) => (b.rate || 0) - (a.rate || 0))
-                              .map((cat, idx) => {
-                                const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type}`;
-                                const lkRemaining = luykeRemainingMap.get(lkKey);
-                                const remaining = cat.target - cat.revenue;
-                                return (
-                                  <tr key={idx} className="hover:bg-slate-50 transition-colors h-[40px]">
-                                    <td className="px-2 py-0 text-[13px] font-extrabold text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
-                                    <td className="px-2 py-0 text-[13px] font-extrabold uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
-                                    {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
-                                    {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
-                                    {showTargetCols && <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
-                                    {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>}
-                                    {showOrangeCols && showLuykeColumn && (
-                                      <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
-                                    )}
-                                    {showOrangeCols && (() => {
-                                      const lkCat = luykeCatMap.get(lkKey);
-                                      if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-400"></td>;
-                                      const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
-                                      return <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
-                                    })()}
-                                  </tr>
-                                );
-                              })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Table: DTLK */}
-                  <div ref={categoryDTRef} className="border border-slate-300 overflow-hidden">
-                    <div className="bg-white p-[15px]">
-                      <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
-                        <div className="p-4 flex flex-col items-center justify-center">
-                          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">NGÀNH HÀNG (DT)</h2>
-                          <div className="flex items-center justify-center gap-1.5">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">REALTIME</span>
-                            <button
-                              onClick={() => captureElement(categoryDTRef, 'NganhHang_DT_Realtime')}
-                              className="no-capture p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
-                              title="Chụp ảnh bảng Ngành hàng DT"
-                            >
-                              <Camera size={12} />
-                            </button>
-                          </div>
-                        </div>
-                        <div className="p-4 flex flex-col items-center justify-center">
-                          <h2 className="text-xl font-black text-rose-600 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">DỰ KIẾN</h2>
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
-                            ĐẠT : {filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length}/{filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').length}
-                          </span>
-                        </div>
-                      </div>
-
-                      {showDtlkComment && (
-                        <div className="my-4 no-capture">
-                          <textarea
-                            value={dtlkComment}
-                            onChange={(e) => setDtlkComment(e.target.value)}
-                            placeholder="Nhập nhận xét cho bảng DTLK..."
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 resize-none min-h-[60px] screenshot-comment"
-                          />
-                        </div>
-                      )}
-
-                      <div className="overflow-hidden">
-                        <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300">
-                          <thead>
-                            <tr className="text-slate-900 h-[60px]">
-                              <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
-                              <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
-                              {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">TARGET</th>}
-                              {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">REAL</th>}
-                              {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>}
-                              {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">CÒN LẠI</th>}
-                              {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">LUỸ KẾ</th>}
-                              {showOrangeCols && <th className="px-2 py-0 text-[11px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[70px] leading-tight">MỤC TIÊU<br/>100%/NGÀY</th>}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filteredCategories
-                              .filter(c => c.type === 'DT' || c.type === 'ALL')
-                              .sort((a, b) => (b.rate || 0) - (a.rate || 0))
-                              .map((cat, idx) => {
-                                const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type === 'ALL' ? 'DT' : cat.type}`;
-                                const lkRemaining = luykeRemainingMap.get(lkKey) || luykeRemainingMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
-                                const remaining = cat.target - cat.revenue;
-                                return (
-                                  <tr key={idx} className="hover:bg-slate-50 transition-colors h-[40px]">
-                                    <td className="px-2 py-0 text-[13px] font-extrabold text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
-                                    <td className="px-2 py-0 text-[13px] font-extrabold uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
-                                    {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
-                                    {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
-                                    {showTargetCols && <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
-                                    {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>}
-                                    {showOrangeCols && showLuykeColumn && (
-                                      <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
-                                    )}
-                                    {showOrangeCols && (() => {
-                                      const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
-                                      if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-400"></td>;
-                                      const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
-                                      return <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
-                                    })()}
-                                  </tr>
-                                );
-                              })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {activeTab === 'khai_thac' && (
-          <motion.div
-            key="khai_thac"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-6"
-            style={{ zoom: 1.3 }}
-          >
-
-            {/* YCX NHÂN VIÊN Upload Card */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-dashed border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/30 transition-all cursor-pointer flex-1 min-w-0">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${ycxFileName ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                    <FileSpreadsheet size={16} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <span className={`text-[12px] font-black uppercase tracking-wide block ${ycxFileName ? 'text-teal-700' : 'text-slate-500'}`}>YCX NHÂN VIÊN</span>
-                    {ycxFileName ? (
-                      <p className="text-[10px] text-slate-400 truncate max-w-xl">{ycxFileName}</p>
-                    ) : (
-                      <p className="text-[10px] text-slate-400">Nhấp để tải lên file Excel YCX nhân viên</p>
-                    )}
-                  </div>
-                  <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelUpload} />
-                </label>
-                {ycxFileName && (
+              {[
+                { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, color: 'text-indigo-600' },
+                { id: 'khai_thac', label: 'DATA YCX', icon: Activity, color: 'text-emerald-600' }
+              ].map((item) => {
+                const isActive = activeTab === item.id;
+                const Icon = item.icon;
+                return (
                   <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setYcxFileName('');
-                      setYcxData('');
-                    }}
-                    className="ml-3 w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0 cursor-pointer border border-slate-100"
-                    title="Xoá dữ liệu YCX"
+                    key={item.id}
+                    onClick={() => startTransition(() => {
+                      setActiveTab(item.id as any);
+                      if (item.id === 'khai_thac') setRawTablePage(0);
+                    })}
+                    className={`flex items-center gap-4 px-6 py-5 rounded-[22px] border transition-all duration-300 group ${isActive
+                      ? 'bg-white border-indigo-500 shadow-[0_15px_35px_-10px_rgba(79,70,229,0.15)] -translate-y-0.5 translate-x-1'
+                      : 'bg-transparent border-transparent hover:bg-white/50 hover:border-slate-200 text-slate-500'
+                      }`}
                   >
-                    <X size={16} />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* CHI TIẾT NGÀNH HÀNG - Drill-down table */}
-            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200">
-              {/* Header */}
-              <div className="px-6 pt-5 pb-4 border-b border-slate-100">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="text-[18px] font-black text-slate-900 tracking-tight">
-                      {compareMode !== 'none' ? 'SO SÁNH CÙNG KỲ' : 'CHI TIẾT NGÀNH HÀNG'}
-                    </h3>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Thống kê chi tiết theo ngành hàng và nhóm hàng.</p>
-                  </div>
-                  {/* Comparison period buttons & Capture button */}
-                  <div className="flex items-center gap-2 no-capture">
-                    <button
-                      onClick={() => handleCaptureTable('chi-tiet-nganh-hang-table-container', 'chi_tiet_nganh_hang')}
-                      className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-[11px] font-bold flex items-center gap-1.5 shadow-sm"
-                      title="Chụp ảnh bảng này"
-                    >
-                      <Camera size={13} className="text-slate-500 hover:text-indigo-600" />
-                      <span>Chụp ảnh</span>
-                    </button>
-                    <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
-                      {([
-                        { key: 'none', label: 'Mặc định' },
-                        { key: 'day', label: 'Cùng ngày', sub: 'Hôm nay vs Hôm qua' },
-                        { key: 'week', label: 'Cùng tuần', sub: 'Tuần này vs Tuần trước' },
-                        { key: 'month', label: 'Cùng tháng', sub: 'Tháng này vs Tháng trước' },
-                      ] as const).map(opt => (
-                        <button
-                          key={opt.key}
-                          onClick={() => setCompareMode(opt.key)}
-                          title={'sub' in opt ? opt.sub : ''}
-                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all whitespace-nowrap ${compareMode === opt.key
-                              ? 'bg-white text-indigo-700 shadow-sm border border-indigo-200'
-                              : 'text-slate-500 hover:text-slate-700'
-                            }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
+                    <div className={`p-2.5 rounded-xl transition-all duration-300 ${isActive ? 'bg-indigo-50 ' + item.color : 'bg-slate-100 text-slate-400 group-hover:bg-white group-hover:text-slate-500'
+                      }`}>
+                      <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
                     </div>
-                  </div>
-                </div>
-                {compareMode !== 'none' && (
-                  <div className="flex items-center gap-2 mb-3 text-[11px]">
-                    <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full font-bold border border-indigo-100">📅 {currLabel}</span>
-                    <span className="text-slate-400">vs</span>
-                    <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full font-bold border border-slate-200">📅 {prevLabel}</span>
-                    {drillDownDataPrev.length === 0 && (
-                      <span className="text-rose-500 text-[10px] italic">⚠ Không có dữ liệu kỳ trước trong dataset</span>
+                    <span className={`text-[15px] font-black tracking-tight uppercase ${isActive ? 'text-slate-800' : 'text-slate-500'}`}>
+                      {item.label}
+                    </span>
+                    {isActive && (
+                      <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.5)]" />
                     )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Main Content Area */}
+          <div className="flex-1 min-w-0">
+            <AnimatePresence mode="wait">
+              {activeTab === 'summary' && (
+                <motion.div
+                  key="summary"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="space-y-6"
+                  ref={overviewRef}
+                >
+                  {/* Greeting & Birthday Banner */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-[0_15px_50px_-15px_rgba(0,0,0,0.03)] space-y-6"
+                  >
+                    <div>
+                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Lời chào</h3>
+                      <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                        {greeting}, <span className="text-indigo-600">{userProfile?.username?.split(' ')[0]}</span>
+                      </h2>
+                    </div>
+
+                    {/* Integrated Birthday Greeting */}
+                    {(todayBirthdays.length > 0 || tomorrowBirthdays.length > 0) && (
+                      <div className="flex flex-col gap-4">
+                        {todayBirthdays.length > 0 && (
+                          <div className="flex items-start gap-4 bg-rose-50/50 border border-rose-100 p-4 rounded-2xl relative overflow-hidden">
+                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-rose-100">
+                              🎂
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                                <span className="text-rose-500 font-black">Hôm nay sinh nhật:</span>
+                                <span className="bg-rose-100 text-rose-600 px-2 py-0.5 rounded-lg font-black text-xs">
+                                  {todayBirthdays.join(', ')}
+                                </span>
+                                <span className="text-rose-500 font-black">! 🎉</span>
+                              </p>
+                              <p className="text-[11px] text-slate-500 font-medium">
+                                Hãy gửi lời chúc hoặc gửi kèm một món quà/lời chúc ý nghĩa đến nhân viên nhé!
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {tomorrowBirthdays.length > 0 && (
+                          <div className="flex items-start gap-4 bg-indigo-50/30 border border-indigo-100/50 p-4 rounded-2xl relative overflow-hidden">
+                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-indigo-100/50">
+                              🎁
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                                <span className="text-indigo-500 font-black">Ngày mai sinh nhật:</span>
+                                <span className="bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-lg font-black text-xs">
+                                  {tomorrowBirthdays.join(', ')}
+                                </span>
+                                <span className="text-indigo-500 font-black">! ✨</span>
+                              </p>
+                              <p className="text-[11px] text-slate-500 font-medium">
+                                Hãy chuẩn bị những lời chúc hoặc món quà bất ngờ cho đồng nghiệp vào ngày mai nhé!
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </motion.div>
+
+                  {/* Stats Grid Container */}
+                  <div className="space-y-6">
+                    {filteredMarkets
+                      .filter(m => marketFilter === 'ALL' || m.name === marketFilter)
+                      .map((declaredMarket, mIdx) => {
+                        // Find matching parsed store from processedData.markets (parsed from pasted REALTIME DT BI text)
+                        const parsedMarket = processedData.markets.find(pm =>
+                          normalize(pm.name).includes(normalize(declaredMarket.name)) ||
+                          normalize(declaredMarket.name).includes(normalize(pm.name))
+                        ) || {
+                          name: declaredMarket.name,
+                          targetQD: 0,
+                          actualVirtual: 0,
+                          percentHT: 0,
+                          installmentRate: 0,
+                          luotBillBanHang: 0,
+                          luotBillThuHo: 0
+                        };
+
+                        return (
+                          <div key={mIdx} className="bg-white p-5 rounded-3xl border border-slate-100 space-y-4">
+                            <div className="flex flex-wrap items-center justify-between gap-4 px-2 border-b border-slate-50 pb-3">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-3 h-3 rounded-full ${(parsedMarket as any).isSummary || parsedMarket.name === 'TỔNG' ? 'bg-rose-500 animate-pulse' : 'bg-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.3)]'}`} />
+                                <h3 className="text-[28px] font-black text-slate-800 uppercase tracking-wider">{declaredMarket.name}</h3>
+                              </div>
+                              <button
+                                onClick={captureOverview}
+                                className="no-capture flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all duration-300 shadow-lg shadow-indigo-100 active:scale-95 shrink-0"
+                              >
+                                <Camera size={14} />
+                                <span>Chụp tổng quan</span>
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+                              <StatCard
+                                title="TAGET QĐ"
+                                value={formatCurrencyUnit(parsedMarket.targetQD || 0)}
+                                subValue=""
+                                icon={Target}
+                                color="rose"
+                                isColored={true}
+                              />
+                              <StatCard
+                                title="DOANH THU QUY ĐỔI"
+                                value={formatCurrencyUnit(parsedMarket.actualVirtual || 0)}
+                                subValue=""
+                                icon={TrendingUp}
+                                color="indigo"
+                                isColored={true}
+                              />
+                              <StatCard
+                                title="%HT"
+                                value={`${Math.round(parsedMarket.percentHT || 0)}%`}
+                                subValue=""
+                                icon={Activity}
+                                color="emerald"
+                                isColored={true}
+                              />
+                              <StatCard
+                                title="Tỷ Trọng Trả Góp"
+                                value={`${(parsedMarket.installmentRate || 0).toFixed(1)}%`}
+                                subValue=""
+                                icon={ShoppingBag}
+                                color="amber"
+                                isColored={true}
+                              />
+                              <StatCard
+                                title="Lượt Bill Bán Hàng"
+                                value={Math.round(parsedMarket.luotBillBanHang || 0).toLocaleString()}
+                                subValue=""
+                                icon={Zap}
+                                color="orange"
+                                isColored={true}
+                              />
+                              <StatCard
+                                title="Lượt Bill Thu Hộ"
+                                value={Math.round(parsedMarket.luotBillThuHo || 0).toLocaleString()}
+                                subValue=""
+                                icon={CreditCard}
+                                color="blue"
+                                isColored={true}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
                   </div>
-                )}
 
-                {/* Filter bar - reference image style */}
-                <div ref={drillFilterBarRef} className="flex flex-wrap items-center gap-2 bg-slate-50 rounded-xl px-4 py-3 relative">
-                  <div className="flex items-center gap-1.5 text-[12px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap flex-shrink-0">
-                    <GripVertical size={12} />
-                    THỨ TỰ DRILL-DOWN:
-                  </div>
+                  {/* Categories Tables moved to Summary */}
+                  <div className="space-y-6 pt-8 border-t border-slate-200">
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                      <div className="flex flex-col items-center gap-4">
+                        <h2 className="text-[27px] font-black text-slate-900 uppercase tracking-tight text-center">Chi tiết ngành hàng</h2>
+                        <p className="text-[17px] text-slate-500">Theo dõi tiến độ hoàn thành mục tiêu ngành hàng</p>
+                        <div className="flex flex-wrap items-center justify-center gap-2 no-capture">
+                          <button
+                            onClick={() => setShowTargetCols(!showTargetCols)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 ${showTargetCols
+                              ? 'bg-yellow-50 text-yellow-700 border-yellow-300'
+                              : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-white'
+                              }`}
+                          >
+                            <div className={`w-2 h-2 rounded-full ${showTargetCols ? 'bg-yellow-500' : 'bg-slate-400'}`}></div>
+                            TARGET · REAL · %HT · CÒN LẠI
+                          </button>
+                          <button
+                            onClick={() => setShowOrangeCols(!showOrangeCols)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 ${showOrangeCols
+                              ? 'bg-orange-50 text-orange-700 border-orange-300'
+                              : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-white'
+                              }`}
+                          >
+                            <div className={`w-2 h-2 rounded-full ${showOrangeCols ? 'bg-orange-500' : 'bg-slate-400'}`}></div>
+                            LUỸ KẾ · MỤC TIÊU
+                          </button>
+                          <button
+                            onClick={generateCategoryComment}
+                            className="flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                          >
+                            <MessageSquare size={14} />
+                            NHẬN XÉT
+                          </button>
+                          <button
+                            onClick={captureCategories}
+                            className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[12px] font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 no-capture"
+                          >
+                            <Camera size={16} />
+                            <span>Chụp ảnh</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
 
-                  {/* Level pills */}
-                  {[
-                    {
-                      key: 'nganh', label: 'Ngành hàng', icon: LayoutGrid,
-                      activeCount: selectedDrillGroups.length, color: 'pink',
-                      bgActive: 'bg-pink-100 border-pink-300', bgInactive: 'bg-white border-slate-200',
-                      textActive: 'text-pink-700', textInactive: 'text-slate-600',
-                      filterActive: 'text-orange-500', filterInactive: 'text-slate-300',
-                      options: drillDownData.map((g: any) => ({ key: g.key, name: g.name })),
-                      selected: selectedDrillGroups,
-                      toggleFn: (k: string) => setSelectedDrillGroups(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]),
-                      selectAll: () => setSelectedDrillGroups(drillDownData.map((g: any) => g.key)),
-                      clearAll: () => setSelectedDrillGroups([]),
-                      toggleColor: 'bg-indigo-600',
-                    },
-                    {
-                      key: 'nhom', label: 'Nhóm hàng', icon: LayoutGrid,
-                      activeCount: drillFilterNhomSmall.length, color: 'blue',
-                      bgActive: 'bg-blue-100 border-blue-300', bgInactive: 'bg-white border-slate-200',
-                      textActive: 'text-blue-700', textInactive: 'text-slate-600',
-                      filterActive: 'text-blue-500', filterInactive: 'text-slate-300',
-                      options: availableNhomSmall,
-                      selected: drillFilterNhomSmall,
-                      toggleFn: (k: string) => setDrillFilterNhomSmall(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]),
-                      selectAll: () => setDrillFilterNhomSmall(availableNhomSmall.map(o => o.key)),
-                      clearAll: () => setDrillFilterNhomSmall([]),
-                      toggleColor: 'bg-indigo-600',
-                    },
-                    {
-                      key: 'nhanvien', label: 'Nhân viên', icon: User,
-                      activeCount: drillFilterStaff.length, color: 'yellow',
-                      bgActive: 'bg-yellow-100 border-yellow-300', bgInactive: 'bg-white border-slate-200',
-                      textActive: 'text-yellow-700', textInactive: 'text-slate-600',
-                      filterActive: 'text-yellow-500', filterInactive: 'text-slate-300',
-                      options: availableStaff.map(s => ({ key: s, name: s })),
-                      selected: drillFilterStaff,
-                      toggleFn: (k: string) => setDrillFilterStaff(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]),
-                      selectAll: () => setDrillFilterStaff(availableStaff),
-                      clearAll: () => setDrillFilterStaff([]),
-                      toggleColor: 'bg-indigo-600',
-                    },
-                    {
-                      key: 'hang', label: 'Hãng SX', icon: Building2,
-                      activeCount: drillFilterBrand.length, color: 'green',
-                      bgActive: 'bg-emerald-100 border-emerald-300', bgInactive: 'bg-white border-slate-200',
-                      textActive: 'text-emerald-700', textInactive: 'text-slate-600',
-                      filterActive: 'text-emerald-500', filterInactive: 'text-slate-300',
-                      options: availableBrand.map(b => ({ key: b, name: b })),
-                      selected: drillFilterBrand,
-                      toggleFn: (k: string) => setDrillFilterBrand(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]),
-                      selectAll: () => setDrillFilterBrand(availableBrand),
-                      clearAll: () => setDrillFilterBrand([]),
-                      toggleColor: 'bg-indigo-600',
-                    },
-                    {
-                      key: 'sanpham', label: 'Tên sản phẩm', icon: Package,
-                      activeCount: 0, color: 'purple',
-                      bgActive: 'bg-purple-100 border-purple-300', bgInactive: 'bg-white border-slate-200',
-                      textActive: 'text-purple-700', textInactive: 'text-slate-600',
-                      filterActive: 'text-purple-500', filterInactive: 'text-slate-300',
-                      options: [], selected: [], toggleFn: () => { }, selectAll: () => { }, clearAll: () => { },
-                      toggleColor: 'bg-indigo-600',
-                    },
-                  ].map((level) => {
-                    const IconComp = level.icon;
-                    const isActive = level.activeCount > 0;
-                    const isOpen = activeDrillFilter === level.key;
-                    const filtered = level.options.filter(o =>
-                      !drillFilterSearch || o.name.toLowerCase().includes(drillFilterSearch.toLowerCase())
-                    );
-                    return (
-                      <div key={level.key} className="relative">
-                        {/* Pill button */}
-                        <button
-                          onClick={() => {
-                            setActiveDrillFilter(isOpen ? null : level.key);
-                            setDrillFilterSearch('');
-                          }}
-                          className={`flex items-center gap-1.5 px-4 py-2 rounded-full border text-[13px] font-bold transition-all select-none whitespace-nowrap shadow-sm
-                            ${isActive ? `${level.bgActive} ${level.textActive}` : `${level.bgInactive} ${level.textInactive} hover:border-slate-300`}`}
-                        >
-                          <IconComp size={13} />
-                          <span>{level.label}</span>
-                          {level.activeCount > 0 && (
-                            <span className="ml-0.5 bg-orange-500 text-white rounded-full text-[11px] w-5 h-5 flex items-center justify-center font-black">{level.activeCount}</span>
-                          )}
-                          <Filter size={12} className={`ml-0.5 ${isActive ? level.filterActive : level.filterInactive}`} />
-                        </button>
-
-                        {/* Dropdown panel */}
-                        {isOpen && level.options.length > 0 && (
-                          <div className="absolute top-full left-0 mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 w-[280px] overflow-hidden">
-                            {/* Search box */}
-                            <div className="p-3 pb-0">
-                              <div className="flex items-center gap-2 border-2 border-indigo-400 rounded-xl px-3 py-2 bg-white">
-                                <Filter size={15} className="text-indigo-400 flex-shrink-0" />
-                                <input
-                                  autoFocus
-                                  value={drillFilterSearch}
-                                  onChange={e => setDrillFilterSearch(e.target.value)}
-                                  placeholder={`Tìm kiếm ${level.label}...`}
-                                  className="flex-1 text-[14px] text-slate-600 outline-none bg-transparent placeholder-slate-400"
-                                />
+                    <div ref={categoriesRef} className="bg-white rounded-3xl overflow-hidden border border-slate-200">
+                      <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Left Table: SLLK */}
+                        <div ref={categorySLRef} className="border border-slate-300 overflow-hidden">
+                          <div className="bg-white p-[15px]">
+                            <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
+                              <div className="p-4 flex flex-col items-center justify-center">
+                                <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">NGÀNH HÀNG (SL)</h2>
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">REALTIME</span>
+                                  <button
+                                    onClick={() => captureElement(categorySLRef, 'NganhHang_SL_Realtime')}
+                                    className="no-capture p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                                    title="Chụp ảnh bảng Ngành hàng SL"
+                                  >
+                                    <Camera size={12} />
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="p-4 flex flex-col items-center justify-center">
+                                <h2 className="text-xl font-black text-rose-600 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">DỰ KIẾN</h2>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                                  ĐẠT : {filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length}/{filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').length}
+                                </span>
                               </div>
                             </div>
-                            {/* Select / Deselect all */}
-                            <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100">
-                              <button
-                                onClick={() => { level.selectAll(); }}
-                                className="text-[13px] font-bold text-indigo-600 hover:text-indigo-800"
-                              >Chọn tất cả</button>
-                              <button
-                                onClick={() => { level.clearAll(); }}
-                                className="text-[13px] font-bold text-slate-500 hover:text-slate-700"
-                              >Bỏ chọn</button>
+
+                            {showSllkComment && (
+                              <div className="my-4 no-capture">
+                                <textarea
+                                  value={sllkComment}
+                                  onChange={(e) => setSllkComment(e.target.value)}
+                                  placeholder="Nhập nhận xét cho bảng SLLK..."
+                                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 resize-none min-h-[60px] screenshot-comment"
+                                />
+                              </div>
+                            )}
+
+                            <div className="overflow-x-auto">
+                              <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300">
+                                <thead>
+                                  <tr className="text-slate-900 h-[60px]">
+                                    <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
+                                    <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
+                                    {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">TARGET</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">REAL</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">CÒN LẠI</th>}
+                                    {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">LUỸ KẾ</th>}
+                                    {showOrangeCols && <th className="px-2 py-0 text-[11px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[70px] leading-tight">MỤC TIÊU<br />100%/NGÀY</th>}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {filteredCategories
+                                    .filter(c => c.type === 'SL' || c.type === 'ALL')
+                                    .sort((a, b) => (b.rate || 0) - (a.rate || 0))
+                                    .map((cat, idx) => {
+                                      const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type}`;
+                                      const lkRemaining = luykeRemainingMap.get(lkKey);
+                                      const remaining = cat.target - cat.revenue;
+                                      return (
+                                        <tr key={idx} className="hover:bg-slate-50 transition-colors h-[40px]">
+                                          <td className="px-2 py-0 text-[13px] font-extrabold text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
+                                          <td className="px-2 py-0 text-[13px] font-extrabold uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
+                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
+                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
+                                          {showTargetCols && <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
+                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>}
+                                          {showOrangeCols && showLuykeColumn && (
+                                            <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                          )}
+                                          {showOrangeCols && (() => {
+                                            const lkCat = luykeCatMap.get(lkKey);
+                                            if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-400"></td>;
+                                            const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
+                                            return <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                          })()}
+                                        </tr>
+                                      );
+                                    })}
+                                </tbody>
+                              </table>
                             </div>
-                            {/* Items list with toggle switch */}
-                            <div className="max-h-[280px] overflow-y-auto">
-                              {filtered.map(opt => {
-                                const isOn = level.selected.includes(opt.key);
+                          </div>
+                        </div>
+
+                        {/* Right Table: DTLK */}
+                        <div ref={categoryDTRef} className="border border-slate-300 overflow-hidden">
+                          <div className="bg-white p-[15px]">
+                            <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
+                              <div className="p-4 flex flex-col items-center justify-center">
+                                <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">NGÀNH HÀNG (DT)</h2>
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">REALTIME</span>
+                                  <button
+                                    onClick={() => captureElement(categoryDTRef, 'NganhHang_DT_Realtime')}
+                                    className="no-capture p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                                    title="Chụp ảnh bảng Ngành hàng DT"
+                                  >
+                                    <Camera size={12} />
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="p-4 flex flex-col items-center justify-center">
+                                <h2 className="text-xl font-black text-rose-600 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">DỰ KIẾN</h2>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                                  ĐẠT : {filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length}/{filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').length}
+                                </span>
+                              </div>
+                            </div>
+
+                            {showDtlkComment && (
+                              <div className="my-4 no-capture">
+                                <textarea
+                                  value={dtlkComment}
+                                  onChange={(e) => setDtlkComment(e.target.value)}
+                                  placeholder="Nhập nhận xét cho bảng DTLK..."
+                                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 resize-none min-h-[60px] screenshot-comment"
+                                />
+                              </div>
+                            )}
+
+                            <div className="overflow-x-auto">
+                              <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300">
+                                <thead>
+                                  <tr className="text-slate-900 h-[60px]">
+                                    <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
+                                    <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
+                                    {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">TARGET</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">REAL</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">CÒN LẠI</th>}
+                                    {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">LUỸ KẾ</th>}
+                                    {showOrangeCols && <th className="px-2 py-0 text-[11px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[70px] leading-tight">MỤC TIÊU<br />100%/NGÀY</th>}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {filteredCategories
+                                    .filter(c => c.type === 'DT' || c.type === 'ALL')
+                                    .sort((a, b) => (b.rate || 0) - (a.rate || 0))
+                                    .map((cat, idx) => {
+                                      const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type === 'ALL' ? 'DT' : cat.type}`;
+                                      const lkRemaining = luykeRemainingMap.get(lkKey) || luykeRemainingMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
+                                      const remaining = cat.target - cat.revenue;
+                                      return (
+                                        <tr key={idx} className="hover:bg-slate-50 transition-colors h-[40px]">
+                                          <td className="px-2 py-0 text-[13px] font-extrabold text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
+                                          <td className="px-2 py-0 text-[13px] font-extrabold uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
+                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
+                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
+                                          {showTargetCols && <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
+                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>}
+                                          {showOrangeCols && showLuykeColumn && (
+                                            <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                          )}
+                                          {showOrangeCols && (() => {
+                                            const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
+                                            if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-400"></td>;
+                                            const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
+                                            return <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                          })()}
+                                        </tr>
+                                      );
+                                    })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === 'khai_thac' && (
+                <motion.div
+                  key="khai_thac"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="space-y-6"
+                  style={{ zoom: 1.3 }}
+                >
+                  {/* HƯỚNG DẪN TẢI BÁO CÁO YCX */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
+                        <Globe size={18} />
+                      </div>
+                      <div>
+                        <h4 className="text-[12px] font-black text-slate-800 uppercase tracking-wider">HƯỚNG DẪN TẢI DỮ LIỆU YCX</h4>
+                        <p className="text-[10px] text-slate-400">Trình tự thao tác tải file báo cáo YCX từ trang nguồn</p>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-4">
+                      <div className="space-y-3">
+                        <div className="text-[11px] text-slate-600 space-y-2">
+                          <p className="font-bold">Trình tự thao tác:</p>
+                          <ol className="list-decimal pl-4 space-y-1 text-slate-500 font-medium">
+                            <li>Chọn <span className="font-black text-indigo-600">Bán hàng</span></li>
+                            <li>Chọn tiếp danh mục con <span className="font-black text-indigo-600">Bán hàng</span></li>
+                            <li>Click vào mục <span className="font-black text-indigo-600">Chi tiết yêu cầu xuất</span></li>
+                            <li>Chọn <span className="font-black text-indigo-600">từ ngày đến ngày</span></li>
+                            <li>Chọn <span className="font-black text-indigo-600">kho tạo</span></li>
+                            <li>Chọn <span className="font-black text-indigo-600">mã siêu thị</span></li>
+                          </ol>
+                        </div>
+
+                        <div className="pt-2">
+                          <a
+                            href="https://report.mwgroup.vn/home/dashboard/77"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 shadow-md shadow-indigo-100 hover:shadow-indigo-200"
+                          >
+                            <Globe size={12} />
+                            <span>Truy cập Link tải báo cáo</span>
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* YCX NHÂN VIÊN Upload Card */}
+                  <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-dashed border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/30 transition-all cursor-pointer flex-1 min-w-0">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${ycxFileName ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                          <FileSpreadsheet size={16} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className={`text-[12px] font-black uppercase tracking-wide block ${ycxFileName ? 'text-teal-700' : 'text-slate-500'}`}>YCX NHÂN VIÊN</span>
+                          {ycxFileName ? (
+                            <p className="text-[10px] text-slate-400 truncate max-w-xl">{ycxFileName}</p>
+                          ) : (
+                            <p className="text-[10px] text-slate-400">Nhấp để tải lên file Excel YCX nhân viên</p>
+                          )}
+                        </div>
+                        <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelUpload} />
+                      </label>
+                      {ycxFileName && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setYcxFileName('');
+                            setYcxData('');
+                            setTimeout(() => {
+                              saveRealtimeData(true);
+                              showNotification('Đã xoá dữ liệu YCX', 'success');
+                            }, 100);
+                          }}
+                          className="ml-3 w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0 cursor-pointer border border-slate-100"
+                          title="Xoá dữ liệu YCX"
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* CHI TIẾT NGÀNH HÀNG - Drill-down table */}
+                  <div className={`bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm ${isDrillFullscreen ? 'fixed inset-0 z-[9999] p-6 flex flex-col bg-white' : ''
+                    }`}>
+                    {/* Header */}
+                    <div className="px-6 pt-5 pb-4 border-b border-slate-100 bg-white">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3" id="chi-tiet-nganh-hang-title-block">
+                          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 font-bold border border-blue-100">
+                            <LayoutGrid size={20} />
+                          </div>
+                          <div>
+                            <h3 className="text-[18px] font-black text-red-600 tracking-tight uppercase">
+                              {compareMode !== 'none' ? 'SO SÁNH CÙNG KỲ' : 'CHI TIẾT NGÀNH HÀNG'}
+                            </h3>
+                            <p className="text-[11px] font-normal text-slate-500 uppercase tracking-wide">
+                              THỐNG KÊ CHI TIẾT THEO NGÀNH HÀNG VÀ NHÓM HÀNG.
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-0.5 font-normal uppercase tracking-wider">
+                              TRẠNG THÁI XUẤT: ĐÃ XUẤT | TỪ {minDateStr} ĐẾN {maxDateStr}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Comparison period select & Layout group */}
+                        <div className="flex items-center gap-3 no-capture">
+                          <div className="flex items-center gap-1 bg-slate-100 border border-slate-200/60 rounded-xl p-1">
+                            {([
+                              { key: 'none', label: 'Mặc định' },
+                              { key: 'day', label: 'Cùng ngày' },
+                              { key: 'week', label: 'Cùng tuần' },
+                              { key: 'month', label: 'Cùng tháng' },
+                            ] as const).map(opt => (
+                              <button
+                                key={opt.key}
+                                onClick={() => setCompareMode(opt.key)}
+                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all whitespace-nowrap uppercase ${compareMode === opt.key
+                                  ? 'bg-white text-indigo-700 shadow-sm border border-indigo-200/50'
+                                  : 'text-slate-500 hover:text-slate-700'
+                                  }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="flex items-center gap-1.5 border border-slate-200 rounded-xl p-1 bg-white shadow-sm">
+                            <button className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center transition-all hover:bg-blue-100 cursor-pointer" title="Xem dạng lưới">
+                              <LayoutGrid size={15} />
+                            </button>
+                            <button className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 flex items-center justify-center transition-all hover:bg-slate-50 cursor-pointer" title="Bố cục cột">
+                              <Columns size={15} />
+                            </button>
+                            <button className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 flex items-center justify-center transition-all hover:bg-slate-50 cursor-pointer" title="Cấu hình hiển thị">
+                              <Sliders size={15} />
+                            </button>
+                            <button
+                              onClick={() => handleCaptureTable('chi-tiet-nganh-hang-capture-wrapper', 'chi_tiet_nganh_hang')}
+                              className="w-8 h-8 rounded-lg text-slate-400 hover:text-indigo-600 flex items-center justify-center transition-all hover:bg-indigo-50 cursor-pointer"
+                              title="Chụp ảnh bảng này (bao gồm tiêu đề)"
+                            >
+                              <Camera size={15} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      {compareMode !== 'none' && (
+                        <div className="flex items-center gap-2 mb-3 text-[11px] no-capture">
+                          <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full font-bold border border-indigo-100">📅 {currLabel}</span>
+                          <span className="text-slate-400">vs</span>
+                          <span className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full font-bold border border-slate-200">📅 {prevLabel}</span>
+                          {drillDownDataPrev.length === 0 && (
+                            <span className="text-rose-500 text-[10px] italic">⚠ Không có dữ liệu kỳ trước trong dataset</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Filter bar - reference image style (hidden in capture) */}
+                      <div ref={drillFilterBarRef} className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4 bg-white relative no-capture">
+                        <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-500 uppercase tracking-wider whitespace-nowrap flex-shrink-0">
+                          Cấu trúc hiển thị & lọc (kéo thả để sắp xếp):
+                        </div>
+
+                        {/* Level pills in the order of drillLevels */}
+                        {(() => {
+                          const configs: Record<string, {
+                            key: string;
+                            label: string;
+                            icon: any;
+                            bgActive: string;
+                            bgInactive: string;
+                            textActive: string;
+                            textInactive: string;
+                            filterActive: string;
+                            filterInactive: string;
+                            activeCount: number;
+                            selected: string[];
+                            options: { key: string; name: string }[];
+                            toggleFn: (k: string) => void;
+                            selectAll: () => void;
+                            clearAll: () => void;
+                          }> = {
+                            kho: {
+                              key: 'kho',
+                              label: 'Kho',
+                              icon: Store,
+                              bgActive: 'bg-[#ceead6] border-[#137333]',
+                              bgInactive: 'bg-[#e6f4ea] border-[#ceead6]',
+                              textActive: 'text-[#137333]',
+                              textInactive: 'text-[#137333]',
+                              filterActive: 'text-[#137333]',
+                              filterInactive: 'text-[#137333]/60',
+                              activeCount: drillFilterStore.length,
+                              selected: drillFilterStore,
+                              options: availableOptions.stores,
+                              toggleFn: (k) => setDrillFilterStore(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]),
+                              selectAll: () => setDrillFilterStore(availableOptions.stores.map(o => o.key)),
+                              clearAll: () => setDrillFilterStore([]),
+                            },
+                            nganh: {
+                              key: 'nganh',
+                              label: 'Ngành',
+                              icon: LayoutGrid,
+                              bgActive: 'bg-[#fad2cf] border-[#c5221f]',
+                              bgInactive: 'bg-[#fce8e6] border-[#fad2cf]',
+                              textActive: 'text-[#c5221f]',
+                              textInactive: 'text-[#c5221f]',
+                              filterActive: 'text-[#c5221f]',
+                              filterInactive: 'text-[#c5221f]/60',
+                              activeCount: selectedDrillGroups.length,
+                              selected: selectedDrillGroups,
+                              options: availableOptions.nganhs,
+                              toggleFn: (k) => setSelectedDrillGroups(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]),
+                              selectAll: () => setSelectedDrillGroups(availableOptions.nganhs.map(o => o.key)),
+                              clearAll: () => setSelectedDrillGroups([]),
+                            },
+                            nhom: {
+                              key: 'nhom',
+                              label: 'Nhóm',
+                              icon: LayoutGrid,
+                              bgActive: 'bg-[#d2e3fc] border-[#1a73e8]',
+                              bgInactive: 'bg-[#e8f0fe] border-[#d2e3fc]',
+                              textActive: 'text-[#1a73e8]',
+                              textInactive: 'text-[#1a73e8]',
+                              filterActive: 'text-[#1a73e8]',
+                              filterInactive: 'text-[#1a73e8]/60',
+                              activeCount: drillFilterNhomSmall.length,
+                              selected: drillFilterNhomSmall,
+                              options: availableOptions.nhoms,
+                              toggleFn: (k) => setDrillFilterNhomSmall(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]),
+                              selectAll: () => setDrillFilterNhomSmall(availableOptions.nhoms.map(o => o.key)),
+                              clearAll: () => setDrillFilterNhomSmall([]),
+                            },
+                            hang: {
+                              key: 'hang',
+                              label: 'Hãng SX',
+                              icon: Building2,
+                              bgActive: 'bg-[#fbcce2] border-[#d0157a]',
+                              bgInactive: 'bg-[#fdf0f5] border-[#fbcce2]',
+                              textActive: 'text-[#d0157a]',
+                              textInactive: 'text-[#d0157a]',
+                              filterActive: 'text-[#d0157a]',
+                              filterInactive: 'text-[#d0157a]/60',
+                              activeCount: drillFilterBrand.length,
+                              selected: drillFilterBrand,
+                              options: availableOptions.brands,
+                              toggleFn: (k) => setDrillFilterBrand(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]),
+                              selectAll: () => setDrillFilterBrand(availableOptions.brands.map(o => o.key)),
+                              clearAll: () => setDrillFilterBrand([]),
+                            },
+                            nguoitao: {
+                              key: 'nguoitao',
+                              label: 'Người tạo',
+                              icon: User,
+                              bgActive: 'bg-[#feebc8] border-[#b06000]',
+                              bgInactive: 'bg-[#fef7e0] border-[#feebc8]',
+                              textActive: 'text-[#b06000]',
+                              textInactive: 'text-[#b06000]',
+                              filterActive: 'text-[#b06000]',
+                              filterInactive: 'text-[#b06000]/60',
+                              activeCount: drillFilterStaff.length,
+                              selected: drillFilterStaff,
+                              options: availableOptions.staffs,
+                              toggleFn: (k) => setDrillFilterStaff(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]),
+                              selectAll: () => setDrillFilterStaff(availableOptions.staffs.map(o => o.key)),
+                              clearAll: () => setDrillFilterStaff([]),
+                            },
+                            sanpham: {
+                              key: 'sanpham',
+                              label: 'Sản phẩm',
+                              icon: Package,
+                              bgActive: 'bg-[#e9d5ff] border-[#6b21a8]',
+                              bgInactive: 'bg-[#f3e8ff] border-[#e9d5ff]',
+                              textActive: 'text-[#6b21a8]',
+                              textInactive: 'text-[#6b21a8]',
+                              filterActive: 'text-[#6b21a8]',
+                              filterInactive: 'text-[#6b21a8]/60',
+                              activeCount: drillFilterProduct.length,
+                              selected: drillFilterProduct,
+                              options: availableOptions.products,
+                              toggleFn: (k) => setDrillFilterProduct(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]),
+                              selectAll: () => setDrillFilterProduct(availableOptions.products.map(o => o.key)),
+                              clearAll: () => setDrillFilterProduct([]),
+                            },
+                            trangthaisp: {
+                              key: 'trangthaisp',
+                              label: 'Trạng thái SP',
+                              icon: Tag,
+                              bgActive: 'bg-[#e2e8f0] border-[#475569]',
+                              bgInactive: 'bg-[#f1f5f9] border-[#e2e8f0]',
+                              textActive: 'text-[#475569]',
+                              textInactive: 'text-[#475569]',
+                              filterActive: 'text-[#475569]',
+                              filterInactive: 'text-[#475569]/60',
+                              activeCount: drillFilterTrangThaiSP.length,
+                              selected: drillFilterTrangThaiSP,
+                              options: availableOptions.trangThaiSPs || [],
+                              toggleFn: (k) => setDrillFilterTrangThaiSP(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]),
+                              selectAll: () => setDrillFilterTrangThaiSP((availableOptions.trangThaiSPs || []).map(o => o.key)),
+                              clearAll: () => setDrillFilterTrangThaiSP([]),
+                            },
+                          };
+
+                          return drillLevels.map((lvlKey, idx) => {
+                            const level = configs[lvlKey];
+                            if (!level) return null;
+                            const IconComp = level.icon;
+                            const isActive = level.activeCount > 0;
+                            const isOpen = activeDrillFilter === level.key;
+                            const filtered = level.options.filter(o =>
+                              !drillFilterSearch || o.name.toLowerCase().includes(drillFilterSearch.toLowerCase())
+                            );
+                            const LIMIT = 100;
+                            const displayed = filtered.slice(0, LIMIT);
+
+                            return (
+                              <div
+                                key={level.key}
+                                className="relative"
+                                draggable
+                                onDragStart={() => handleDragStart(idx)}
+                                onDragOver={(e) => handleDragOver(e, idx)}
+                                onDrop={() => handleDrop(idx)}
+                              >
+                                {/* Pill button */}
+                                <button
+                                  onClick={() => {
+                                    setActiveDrillFilter(isOpen ? null : level.key);
+                                    setDrillFilterSearch('');
+                                  }}
+                                  className={`flex items-center gap-1.5 px-4 py-2 rounded-full border text-[13px] font-bold transition-all select-none whitespace-nowrap shadow-sm cursor-grab active:cursor-grabbing
+                              ${isActive ? `${level.bgActive} ${level.textActive}` : `${level.bgInactive} ${level.textInactive} hover:border-slate-300`}`}
+                                >
+                                  <IconComp size={13} />
+                                  <span>{level.label}</span>
+                                  {level.activeCount > 0 && (
+                                    <span className="ml-0.5 bg-orange-500 text-white rounded-full text-[11px] w-5 h-5 flex items-center justify-center font-black">{level.activeCount}</span>
+                                  )}
+                                  <Filter size={12} className={`ml-0.5 ${isActive ? level.filterActive : level.filterInactive}`} />
+                                </button>
+
+                                {/* Dropdown panel */}
+                                {isOpen && level.options.length > 0 && (
+                                  <div className="absolute top-full left-0 mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 w-[280px] overflow-hidden">
+                                    {/* Search box */}
+                                    <div className="p-3 pb-0">
+                                      <div className="flex items-center gap-2 border-2 border-indigo-400 rounded-xl px-3 py-2 bg-white">
+                                        <Filter size={15} className="text-indigo-400 flex-shrink-0" />
+                                        <input
+                                          autoFocus
+                                          value={drillFilterSearch}
+                                          onChange={e => setDrillFilterSearch(e.target.value)}
+                                          placeholder={`Tìm kiếm ${level.label}...`}
+                                          className="flex-1 text-[14px] text-slate-600 outline-none bg-transparent placeholder-slate-400"
+                                        />
+                                      </div>
+                                    </div>
+                                    {/* Select / Deselect all */}
+                                    <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100">
+                                      <button
+                                        onClick={() => { level.selectAll(); }}
+                                        className="text-[13px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                                      >Chọn tất cả</button>
+                                      <button
+                                        onClick={() => { level.clearAll(); }}
+                                        className="text-[13px] font-bold text-slate-500 hover:text-slate-700 cursor-pointer"
+                                      >Bỏ chọn</button>
+                                    </div>
+                                    {/* Items list with toggle switch */}
+                                    <div className="max-h-[280px] overflow-y-auto">
+                                      {displayed.map(opt => {
+                                        const isOn = level.selected.includes(opt.key);
+                                        return (
+                                          <button
+                                            key={opt.key}
+                                            onClick={() => level.toggleFn(opt.key)}
+                                            className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-50 cursor-pointer"
+                                          >
+                                            <span className="text-[15px] font-bold text-slate-800 text-left">{opt.name}</span>
+                                            {/* iOS toggle switch */}
+                                            <div className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200 ${isOn ? 'bg-indigo-600' : 'bg-slate-200'}`}>
+                                              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${isOn ? 'translate-x-5' : 'translate-x-0'}`} />
+                                            </div>
+                                          </button>
+                                        );
+                                      })}
+                                      {filtered.length === 0 && (
+                                        <div className="px-4 py-6 text-center text-[11px] text-slate-400 italic">Không tìm thấy kết quả</div>
+                                      )}
+                                      {filtered.length > LIMIT && (
+                                        <div className="px-4 py-3 bg-indigo-50 border-t border-slate-100 text-[11px] text-indigo-700 font-bold text-center leading-relaxed">
+                                          💡 Hiển thị {LIMIT} / {filtered.length} kết quả.<br />Hãy nhập từ khóa để tìm kiếm chính xác hơn.
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          });
+                        })()}
+
+                        {/* Actions & Clear filters wrapper */}
+                        <div className="ml-auto flex items-center gap-2">
+                          {/* Clear filter */}
+                          {(drillFilterStore.length > 0 || selectedDrillGroups.length > 0 || drillFilterNhomSmall.length > 0 || drillFilterBrand.length > 0 || drillFilterStaff.length > 0 || drillFilterProduct.length > 0 || drillFilterTrangThaiSP.length > 0) && (
+                            <button
+                              onClick={() => {
+                                setDrillFilterStore([]);
+                                setSelectedDrillGroups([]);
+                                setDrillFilterNhomSmall([]);
+                                setDrillFilterBrand([]);
+                                setDrillFilterStaff([]);
+                                setDrillFilterProduct([]);
+                                setDrillFilterTrangThaiSP([]);
+                                setActiveDrillFilter(null);
+                              }}
+                              className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-700 whitespace-nowrap cursor-pointer mr-2"
+                            >
+                              <RotateCcw size={11} /> Xóa bộ lọc
+                            </button>
+                          )}
+
+                          {/* Divider */}
+                          <div className="w-px h-6 bg-slate-200 mx-1 flex-shrink-0" />
+
+                          {/* Tree controls (Expand, Collapse, Fullscreen) */}
+                          <div className="flex items-center gap-1.5 no-capture">
+                            <button
+                              onClick={handleExpandAll}
+                              className="w-8 h-8 rounded-lg bg-[#e6f4ea] text-[#137333] hover:bg-[#d2ebd9] flex items-center justify-center transition-all cursor-pointer shadow-sm relative"
+                              title="Mở rộng 1 cấp"
+                            >
+                              <ChevronsUpDown size={14} />
+                              {drillExpandDepth > 0 && (
+                                <span className="absolute -top-1 -right-1 bg-[#137333] text-white text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center border border-white font-bold">
+                                  {drillExpandDepth}
+                                </span>
+                              )}
+                            </button>
+                            <button
+                              onClick={handleCollapseAll}
+                              className="w-8 h-8 rounded-lg bg-[#fef7e0] text-[#b06000] hover:bg-[#fde0a3] flex items-center justify-center transition-all cursor-pointer shadow-sm"
+                              title="Thu gọn 1 cấp"
+                            >
+                              <ChevronsDownUp size={14} />
+                            </button>
+                            <button
+                              onClick={() => setIsDrillFullscreen(!isDrillFullscreen)}
+                              className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 flex items-center justify-center transition-all cursor-pointer shadow-sm"
+                              title={isDrillFullscreen ? "Thu nhỏ" : "Toàn màn hình"}
+                            >
+                              {isDrillFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Capture wrapper: includes title + table, excludes filters */}
+                    <div id="chi-tiet-nganh-hang-capture-wrapper" className="bg-white">
+                    {/* Title block clone for capture (hidden on screen, visible in capture) */}
+                    <div className="hidden capture-only-title px-6 py-4 bg-white border-b border-slate-100">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 font-bold border border-blue-100">
+                          <LayoutGrid size={20} />
+                        </div>
+                        <div>
+                          <h3 className="text-[18px] font-black text-red-600 tracking-tight uppercase">
+                            {compareMode !== 'none' ? 'SO SÁNH CÙNG KỲ' : 'CHI TIẾT NGÀNH HÀNG'}
+                          </h3>
+                          <p className="text-[11px] font-normal text-slate-500 uppercase tracking-wide">
+                            THỐNG KÊ CHI TIẾT THEO NGÀNH HÀNG VÀ NHÓM HÀNG.
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-0.5 font-normal uppercase tracking-wider">
+                            TRẠNG THÁI XUẤT: ĐÃ XUẤT | TỪ {minDateStr} ĐẾN {maxDateStr}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Table */}
+                    <div className={`overflow-x-auto bg-white ${isDrillFullscreen ? 'flex-1 mt-4' : ''}`} id="chi-tiet-nganh-hang-table-container">
+                      <table className="w-full border-collapse border border-slate-200/50 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-200/50 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap" style={{ borderSpacing: 0 }}>
+                        <thead>
+                          {compareMode === 'none' ? (
+                            <>
+                              <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[13px] font-black uppercase">
+                                <th rowSpan={2} className="py-2.5 px-4 text-left bg-slate-50 min-w-[240px] border-r border-slate-200/50 font-black align-middle">CHI TIẾT NGÀNH HÀNG</th>
+                                <th colSpan={2} className="py-1 px-4 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black text-[13px] border-b border-emerald-100">SỐ LƯỢNG</th>
+                                <th colSpan={2} className="py-1 px-4 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 font-black text-[13px] border-b border-blue-100">DOANH THU</th>
+                                <th rowSpan={2} className="py-2.5 px-4 text-center text-[#b45309] bg-[#fef3c7] border-r border-slate-200/50 w-28 font-black align-middle">DTQĐ</th>
+                                <th rowSpan={2} className="py-2.5 px-4 text-center text-[#6b21a8] bg-[#f3e8ff] border-r border-slate-200/50 w-28 font-black align-middle">GIÁ TRỊ ĐH</th>
+                                <th rowSpan={2} className="py-2.5 px-4 text-center text-[#be123c] bg-[#ffe4e6] w-28 font-black align-middle">TRẢ CHẬM</th>
+                              </tr>
+                              <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[11px] font-black uppercase">
+                                <th className="py-1 px-4 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 w-24 font-black">SL</th>
+                                <th className="py-1 px-4 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 w-24 font-black">%SL</th>
+                                <th className="py-1 px-4 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 w-28 font-black">DT ⬇</th>
+                                <th className="py-1 px-4 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 w-24 font-black">%DT</th>
+                              </tr>
+                            </>
+                          ) : (
+                            <>
+                              <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[13px] font-black uppercase">
+                                <th rowSpan={2} className="py-2.5 px-4 text-left bg-slate-50 min-w-[240px] border-r border-slate-200/50 font-black align-middle">CHI TIẾT NGÀNH HÀNG</th>
+                                <th colSpan={3} className="py-1 px-4 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black border-b border-emerald-100">SỐ LƯỢNG</th>
+                                <th colSpan={3} className="py-1 px-4 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 font-black border-b border-blue-100">DOANH THU</th>
+                                <th colSpan={3} className="py-1 px-4 text-center text-[#b45309] bg-[#fef3c7] border-r border-slate-200/50 font-black border-b border-amber-100">DTQĐ</th>
+                                <th colSpan={3} className="py-1 px-4 text-center text-[#6b21a8] bg-[#f3e8ff] border-r border-slate-200/50 font-black border-b border-purple-100">GIÁ TRỊ ĐH</th>
+                                <th colSpan={3} className="py-1 px-4 text-center text-[#be123c] bg-[#ffe4e6] font-black border-b border-rose-100">TRẢ CHẬM</th>
+                              </tr>
+                              <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[10px] font-black uppercase">
+                                <th className="py-1 px-2 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 w-20 font-black">SL Kỳ này</th>
+                                <th className="py-1 px-2 text-center text-slate-400 bg-slate-50/50 border-r border-slate-200/50 w-20 font-black">{prevLabel}</th>
+                                <th className="py-1 px-2 text-center text-rose-500 bg-[#ffe4e6] border-r border-slate-200/50 w-16 font-black">+/-</th>
+
+                                <th className="py-1 px-2 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 w-20 font-black">DT Kỳ này</th>
+                                <th className="py-1 px-2 text-center text-slate-400 bg-slate-50/50 border-r border-slate-200/50 w-20 font-black">{prevLabel}</th>
+                                <th className="py-1 px-2 text-center text-rose-500 bg-[#ffe4e6] border-r border-slate-200/50 w-16 font-black">+/-</th>
+
+                                <th className="py-1 px-2 text-center text-[#b45309] bg-[#fef3c7] border-r border-slate-200/50 w-20 font-black">DTQĐ Kỳ này</th>
+                                <th className="py-1 px-2 text-center text-slate-400 bg-slate-50/50 border-r border-slate-200/50 w-20 font-black">{prevLabel}</th>
+                                <th className="py-1 px-2 text-center text-rose-500 bg-[#ffe4e6] border-r border-slate-200/50 w-16 font-black">+/-</th>
+
+                                <th className="py-1 px-2 text-center text-[#6b21a8] bg-[#f3e8ff] border-r border-slate-200/50 w-20 font-black">GTĐH Kỳ này</th>
+                                <th className="py-1 px-2 text-center text-slate-400 bg-slate-50/50 border-r border-slate-200/50 w-20 font-black">{prevLabel}</th>
+                                <th className="py-1 px-2 text-center text-rose-500 bg-[#ffe4e6] border-r border-slate-200/50 w-16 font-black">+/-</th>
+
+                                <th className="py-1 px-2 text-center text-[#be123c] bg-[#ffe4e6] border-r border-slate-200/50 w-20 font-black">Trả chậm</th>
+                                <th className="py-1 px-2 text-center text-slate-400 bg-slate-50/50 border-r border-slate-200/50 w-20 font-black">{prevLabel}</th>
+                                <th className="py-1 px-2 text-center text-rose-500 bg-[#ffe4e6] w-16 font-black">+/-</th>
+                              </tr>
+                            </>
+                          )}
+                        </thead>
+                        <tbody>
+                          {(() => {
+                            if (flatRows.length === 0) {
+                              return (
+                                <tr>
+                                  <td colSpan={compareMode === 'none' ? 8 : 16} className="py-12 text-center text-slate-400 italic text-[13px]">
+                                    {isLoadingRealtime ? 'Đang tải dữ liệu...' : 'Chưa có dữ liệu thỏa mãn điều kiện.'}
+                                  </td>
+                                </tr>
+                              );
+                            }
+
+                            return flatRows.map((row: any) => {
+                              const nodePrev = prevNodesMap.get(row.key);
+                              const hasChildren = row.children && row.children.length > 0;
+                              const isExpanded = expandedDrillRows[row.key] !== undefined
+                                ? expandedDrillRows[row.key] === true
+                                : row.depth < drillExpandDepth;
+
+                              const slPct = totals.sl > 0 ? (row.sl / totals.sl) * 100 : 0;
+                              const dtPct = totals.dt > 0 ? (row.dt / totals.dt) * 100 : 0;
+                              const orderValue = row.sl > 0 ? (row.dt / 1000000) / row.sl : 0;
+                              const tcPct = row.dt > 0 ? (row.tc_dt / row.dt) * 100 : 0;
+
+                              let textClass = 'text-slate-800';
+                              if (row.levelKey === 'nganh') {
+                                textClass = 'text-[#e11d48] font-black';
+                              } else if (row.levelKey === 'nhom') {
+                                textClass = 'text-indigo-600 font-bold';
+                              } else if (row.levelKey === 'nguoitao') {
+                                textClass = 'text-amber-600 font-bold';
+                              } else {
+                                textClass = 'text-slate-800 font-bold';
+                              }
+
+                              const prevOrderValue = nodePrev && nodePrev.sl > 0 ? (nodePrev.dt / 1000000) / nodePrev.sl : 0;
+                              const prevTcPct = nodePrev && nodePrev.dt > 0 ? (nodePrev.tc_dt / nodePrev.dt) * 100 : 0;
+
+                              return (
+                                <tr key={row.key} className="border-b border-slate-100/70 hover:bg-slate-50/80 transition-colors h-10">
+                                  {/* Danh mục / Indented */}
+                                  <td className="py-2 px-4 text-left border-r border-slate-200/50" style={{ paddingLeft: `${16 + row.depth * 20}px` }}>
+                                    <div className="flex items-center">
+                                      {hasChildren ? (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setExpandedDrillRows(prev => ({
+                                              ...prev,
+                                              [row.key]: !isExpanded
+                                            }));
+                                          }}
+                                          className="w-5 h-5 rounded hover:bg-slate-100 flex items-center justify-center text-slate-400 mr-1.5 transition-colors cursor-pointer shrink-0"
+                                        >
+                                          <ChevronRight size={14} className={`transform transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+                                        </button>
+                                      ) : (
+                                        <div className="w-5 h-5 mr-1.5 shrink-0" />
+                                      )}
+                                      <span className={`text-[13px] tracking-tight ${textClass}`}>{row.name}</span>
+                                    </div>
+                                  </td>
+
+                                  {/* SL & %SL */}
+                                  <td className="py-2 px-4 text-right text-[13px] font-black text-slate-800 w-24 border-r border-slate-200/50">{row.sl === 0 ? '-' : row.sl.toLocaleString('vi-VN')}</td>
+                                  {compareMode !== 'none' && (
+                                    <>
+                                      <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                                        {nodePrev ? nodePrev.sl.toLocaleString('vi-VN') : "-"}
+                                      </td>
+                                      <td className="py-2 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">
+                                        {nodePrev ? fmtDiff(row.sl, nodePrev.sl) : <span className="text-slate-300">-</span>}
+                                      </td>
+                                    </>
+                                  )}
+                                  {compareMode === 'none' && (
+                                    <td className="py-2 px-4 text-center text-[13px] font-black text-[#0f766e] w-24 border-r border-slate-200/50">{slPct.toFixed(0)}%</td>
+                                  )}
+
+                                  {/* DT & %DT */}
+                                  <td className={`py-2 px-4 text-right text-[13px] font-black w-28 border-r border-slate-200/50 ${row.dt === 0 ? 'text-rose-600 font-black' : 'text-slate-800'}`}>{fmtTr(row.dt)}</td>
+                                  {compareMode !== 'none' && (
+                                    <>
+                                      <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                                        {nodePrev ? fmtTr(nodePrev.dt) : "-"}
+                                      </td>
+                                      <td className="py-2 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">
+                                        {nodePrev ? fmtDiff(row.dt, nodePrev.dt, true) : <span className="text-slate-300">-</span>}
+                                      </td>
+                                    </>
+                                  )}
+                                  {compareMode === 'none' && (
+                                    <td className={`py-2 px-4 text-center text-[13px] font-black w-24 border-r border-slate-200/50 ${row.dt === 0 ? 'text-rose-600 font-black' : 'text-[#ea580c]'}`}>
+                                      {row.dt > 0 ? `${dtPct.toFixed(0)}%` : '-'}
+                                    </td>
+                                  )}
+
+                                  {/* DTQĐ */}
+                                  <td className={`py-2 px-4 text-right text-[13px] font-black w-28 border-r border-slate-200/50 ${row.dtqd === 0 ? 'text-rose-600 font-black' : 'text-slate-800'}`}>{fmtTr(row.dtqd)}</td>
+                                  {compareMode !== 'none' && (
+                                    <>
+                                      <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                                        {nodePrev ? fmtTr(nodePrev.dtqd) : "-"}
+                                      </td>
+                                      <td className="py-2 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">
+                                        {nodePrev ? fmtDiff(row.dtqd, nodePrev.dtqd, true) : <span className="text-slate-300">-</span>}
+                                      </td>
+                                    </>
+                                  )}
+
+                                  {/* GIÁ TRỊ ĐH */}
+                                  <td className={`py-2 px-4 text-right text-[13px] font-black w-28 border-r border-slate-200/50 ${orderValue < 1.0 ? 'text-rose-600 font-black' : 'text-slate-800'}`}>
+                                    {orderValue > 0 ? orderValue.toFixed(1) : '-'}
+                                  </td>
+                                  {compareMode !== 'none' && (
+                                    <>
+                                      <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                                        {nodePrev && prevOrderValue > 0 ? prevOrderValue.toFixed(1) : "-"}
+                                      </td>
+                                      <td className="py-2 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">
+                                        {nodePrev ? fmtDiff(orderValue, prevOrderValue, false, 1) : <span className="text-slate-300">-</span>}
+                                      </td>
+                                    </>
+                                  )}
+
+                                  {/* TRẢ CHẬM */}
+                                  <td className={`py-2 px-4 text-center text-[13px] font-black w-28 border-r border-slate-200/50 ${row.dt === 0 || row.tc_dt === 0
+                                    ? 'text-rose-600 font-black'
+                                    : tcPct >= 50
+                                      ? 'text-[#047857]'
+                                      : 'text-amber-500'
+                                    }`}>
+                                    {row.dt > 0 && row.tc_dt > 0 ? `${tcPct.toFixed(0)}%` : '-'}
+                                  </td>
+                                  {compareMode !== 'none' && (
+                                    <>
+                                      <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                                        {nodePrev && nodePrev.dt > 0 && nodePrev.tc_dt > 0 ? `${prevTcPct.toFixed(0)}%` : "-"}
+                                      </td>
+                                      <td className="py-2 px-2 text-center bg-slate-50/30">
+                                        {nodePrev ? fmtDiff(row.tc_dt, nodePrev.tc_dt, true) : <span className="text-slate-300">-</span>}
+                                      </td>
+                                    </>
+                                  )}
+                                </tr>
+                              );
+                            });
+                          })()}
+
+                          {/* Total Row */}
+                          {flatRows.length > 0 && (() => {
+                            const slTotal = totals.sl;
+                            const dtTotal = totals.dt;
+                            const tcTotal = totals.tc_dt;
+                            const dtqdTotal = totals.dtqd;
+
+                            const totalOrderValue = slTotal > 0 ? (dtTotal / 1000000) / slTotal : 0;
+                            const totalTcPct = dtTotal > 0 ? (tcTotal / dtTotal) * 100 : 0;
+
+                            let prevSlTotal = 0;
+                            let prevDtTotal = 0;
+                            let prevTcTotal = 0;
+                            let prevDtqdTotal = 0;
+                            drillDownDataPrev.forEach((node: any) => {
+                              prevSlTotal += node.sl;
+                              prevDtTotal += node.dt;
+                              prevTcTotal += node.tc_dt;
+                              prevDtqdTotal += node.dtqd;
+                            });
+                            const prevTotalOrderValue = prevSlTotal > 0 ? (prevDtTotal / 1000000) / prevSlTotal : 0;
+                            const prevTotalTcPct = prevDtTotal > 0 ? (prevTcTotal / prevDtTotal) * 100 : 0;
+
+                            if (compareMode === 'none') {
+                              return (
+                                <tr className="bg-[#ccfbf1]/80 border-t-2 border-teal-300 font-black text-slate-900 h-10 uppercase">
+                                  <td className="py-3 px-4 text-left text-[14px] text-teal-800 font-black pl-6 border-r border-slate-200/50">TỔNG</td>
+                                  <td className="py-3 px-4 text-right text-[13px] text-slate-800 font-black border-r border-slate-200/50">{slTotal.toLocaleString('vi-VN')}</td>
+                                  <td className="py-3 px-4 text-center text-[13px] text-[#0f766e] font-black border-r border-slate-200/50">100%</td>
+                                  <td className="py-3 px-4 text-right text-[13px] text-slate-800 font-black border-r border-slate-200/50">{fmtTr(dtTotal)}</td>
+                                  <td className="py-3 px-4 text-center text-[13px] text-[#ea580c] font-black border-r border-slate-200/50">100%</td>
+                                  <td className="py-3 px-4 text-right text-[13px] text-slate-800 font-black border-r border-slate-200/50">{fmtTr(dtqdTotal)}</td>
+                                  <td className="py-3 px-4 text-right text-[13px] text-slate-800 font-black border-r border-slate-200/50">{totalOrderValue > 0 ? totalOrderValue.toFixed(1) : '-'}</td>
+                                  <td className={`py-3 px-4 text-center text-[13px] font-black ${totalTcPct >= 50 ? 'text-[#047857]' : totalTcPct > 0 ? 'text-amber-600' : 'text-rose-600'}`}>
+                                    {totalTcPct > 0 ? totalTcPct.toFixed(0) + '%' : '-'}
+                                  </td>
+                                </tr>
+                              );
+                            } else {
+                              return (
+                                <tr className="bg-[#ccfbf1]/80 border-t-2 border-teal-300 font-black text-slate-900 h-10 uppercase">
+                                  <td className="py-3 px-4 text-left text-[14px] text-teal-800 font-black pl-6 border-r border-slate-200/50">TỔNG</td>
+                                  <td className="py-3 px-4 text-right text-[13px] text-slate-800 font-black border-r border-slate-200/50">{slTotal.toLocaleString('vi-VN')}</td>
+                                  <td className="py-3 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">{prevSlTotal.toLocaleString('vi-VN')}</td>
+                                  <td className="py-3 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">{fmtDiff(slTotal, prevSlTotal)}</td>
+                                  <td className="py-3 px-4 text-right text-[13px] text-slate-800 font-black border-r border-slate-200/50">{fmtTr(dtTotal)}</td>
+                                  <td className="py-3 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">{fmtTr(prevDtTotal)}</td>
+                                  <td className="py-3 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">{fmtDiff(dtTotal, prevDtTotal, true)}</td>
+                                  <td className="py-3 px-4 text-right text-[13px] text-slate-800 font-black border-r border-slate-200/50">{fmtTr(dtqdTotal)}</td>
+                                  <td className="py-3 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">{fmtTr(prevDtqdTotal)}</td>
+                                  <td className="py-3 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">{fmtDiff(dtqdTotal, prevDtqdTotal, true)}</td>
+                                  <td className="py-3 px-4 text-right text-[13px] text-slate-800 font-black border-r border-slate-200/50">{totalOrderValue > 0 ? totalOrderValue.toFixed(1) : '-'}</td>
+                                  <td className="py-3 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">{prevTotalOrderValue > 0 ? prevTotalOrderValue.toFixed(1) : "-"}</td>
+                                  <td className="py-3 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">{fmtDiff(totalOrderValue, prevTotalOrderValue, false, 1)}</td>
+                                  <td className={`py-3 px-4 text-center text-[13px] font-black border-r border-slate-200/50 ${totalTcPct >= 50 ? 'text-[#047857]' : totalTcPct > 0 ? 'text-[#ea580c]' : 'text-rose-600'}`}>{totalTcPct > 0 ? totalTcPct.toFixed(0) + '%' : '-'}</td>
+                                  <td className="py-3 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">{prevTotalTcPct > 0 ? prevTotalTcPct.toFixed(0) + '%' : "-"}</td>
+                                  <td className="py-3 px-2 text-center bg-slate-50/30">{fmtDiff(tcTotal, prevTcTotal, true)}</td>
+                                </tr>
+                              );
+                            }
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                    </div>{/* close chi-tiet-nganh-hang-capture-wrapper */}
+                  </div>
+
+                  {/* PHÂN TÍCH KHAI THÁC - Menu Hiển thị & Bảng dữ liệu */}
+                  <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6" id="phan-tich-khai-thac-card-container">
+                    {/* Header */}
+                    <div className="px-6 pt-5 pb-4 border-b border-slate-100">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0 font-bold border border-red-100">
+                            <BarChart3 size={20} />
+                          </div>
+                          <div>
+                            <h3 className="text-[18px] font-black text-red-600 tracking-tight uppercase">PHÂN TÍCH KHAI THÁC</h3>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Chi tiết sản phẩm & hiệu quả bán kèm THEO USER TẠO</p>
+                          </div>
+                        </div>
+                        {/* Nút chụp ảnh */}
+                        <button
+                          onClick={() => handleCaptureTable('phan-tich-khai-thac-card-container', 'phan_tich_khai_thac')}
+                          className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-[11px] font-bold flex items-center gap-1.5 shadow-sm no-capture"
+                          title="Chụp ảnh bảng này"
+                        >
+                          <Camera size={13} className="text-slate-500 hover:text-indigo-600" />
+                          <span>Chụp ảnh</span>
+                        </button>
+                      </div>
+
+                      {/* Filter bar - menu hiển thị */}
+                      <div className="flex flex-col gap-3 bg-slate-50 rounded-xl px-5 py-4 no-capture">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <span className="text-[12px] font-black text-slate-500 uppercase tracking-wider whitespace-nowrap mr-1 flex items-center gap-1.5">
+                            <Filter size={13} />
+                            HIỂN THỊ:
+                          </span>
+                           {[
+                            { key: 'doanhThu', label: 'DOANH THU', icon: '💰', activeBg: 'bg-blue-50', activeText: 'text-[#1d4ed8]', activeBorder: 'border-blue-300' },
+                            { key: 'spChinh', label: 'SP CHÍNH', icon: '📱', activeBg: 'bg-emerald-50', activeText: 'text-[#047857]', activeBorder: 'border-emerald-300' },
+                            { key: 'baoHiem', label: 'VAS', icon: '🛡️', activeBg: 'bg-rose-50', activeText: 'text-[#be123c]', activeBorder: 'border-rose-300' },
+                            { key: 'sim', label: 'SIM', icon: '📡', activeBg: 'bg-amber-50', activeText: 'text-[#b45309]', activeBorder: 'border-amber-300' },
+                            { key: 'dongHo', label: 'ĐỒNG HỒ', icon: '⌚', activeBg: 'bg-purple-50', activeText: 'text-[#6b21a8]', activeBorder: 'border-purple-300' },
+                            { key: 'phuKien', label: 'PHỤ KIỆN', icon: '🎧', activeBg: 'bg-rose-50', activeText: 'text-[#be123c]', activeBorder: 'border-rose-300' },
+                            { key: 'giaDung', label: 'GIA DỤNG', icon: '🏠', activeBg: 'bg-cyan-50', activeText: 'text-[#0e7490]', activeBorder: 'border-cyan-300' }
+                          ].map(btn => {
+                            const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
+                            return (
+                              <button
+                                key={btn.key}
+                                onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                                className={`px-4 py-2 rounded-xl text-[12px] font-black transition-all border whitespace-nowrap flex items-center gap-1.5 ${isActive
+                                  ? `${btn.activeBg} ${btn.activeText} ${btn.activeBorder} shadow-sm`
+                                  : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                                  }`}
+                              >
+                                <span className="text-[14px]">{btn.icon}</span>
+                                {btn.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="flex flex-col gap-2.5 pl-[90px]">
+                          {showKhaiThacCols.spChinh && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-[10px] font-black text-[#047857] w-20 flex items-center gap-1">📱 SP CHÍNH:</span>
+                              {[
+                                { key: 'spcSmf', label: 'SMF' },
+                                { key: 'spcLap', label: 'LAP' },
+                                { key: 'spcTab', label: 'TAB' },
+                                { key: 'spcTivi', label: 'TIVI' },
+                                { key: 'spcMl', label: 'ML' },
+                                { key: 'spcTl', label: 'TL,TĐ,TM' },
+                                { key: 'spcMg', label: 'MG,MS,MRC' }
+                              ].map(btn => {
+                                const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
                                 return (
                                   <button
-                                    key={opt.key}
-                                    onClick={() => level.toggleFn(opt.key)}
-                                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-50"
+                                    key={btn.key}
+                                    onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
+                                      ? 'bg-emerald-50 text-[#047857] border-emerald-200 shadow-sm'
+                                      : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                                      }`}
                                   >
-                                    <span className="text-[15px] font-bold text-slate-800 text-left">{opt.name}</span>
-                                    {/* iOS toggle switch */}
-                                    <div className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200 ${isOn ? 'bg-indigo-600' : 'bg-slate-200'}`}>
-                                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${isOn ? 'translate-x-5' : 'translate-x-0'}`} />
-                                    </div>
+                                    {btn.label}
                                   </button>
                                 );
                               })}
-                              {filtered.length === 0 && (
-                                <div className="px-4 py-6 text-center text-[11px] text-slate-400 italic">Không tìm thấy kết quả</div>
+                            </div>
+                          )}
+                          {showKhaiThacCols.baoHiem && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-[10px] font-black text-[#be123c] w-20 flex items-center gap-1">🛡️ VAS:</span>
+                              {[
+                                { key: 'vasBh', label: 'SL B.HIỂM' },
+                                { key: 'vasVieon', label: 'SL VIEON' }
+                              ].map(btn => {
+                                const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
+                                return (
+                                  <button
+                                    key={btn.key}
+                                    onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
+                                      ? 'bg-rose-50 text-[#be123c] border-rose-200 shadow-sm'
+                                      : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                                      }`}
+                                  >
+                                    {btn.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {showKhaiThacCols.phuKien && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-[10px] font-black text-[#be123c] w-20 flex items-center gap-1">🎧 PHỤ KIỆN:</span>
+                              {[
+                                { key: 'pkCam', label: 'SL CÁP/SẠC' },
+                                { key: 'pkLoa', label: 'SL LOA' },
+                                { key: 'pkPin', label: 'SL PIN' },
+                                { key: 'pkTn', label: 'SL TAI NGHE' },
+                                { key: 'pkDenMt', label: 'SL ĐÈN MT' }
+                              ].map(btn => {
+                                const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
+                                return (
+                                  <button
+                                    key={btn.key}
+                                    onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
+                                      ? 'bg-rose-50 text-[#be123c] border-rose-200 shadow-sm'
+                                      : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                                      }`}
+                                  >
+                                    {btn.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {showKhaiThacCols.giaDung && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-[10px] font-black text-[#0e7490] w-20 flex items-center gap-1">🏠 GIA DỤNG:</span>
+                              {[
+                                { key: 'gdMln', label: 'SL MLN' },
+                                { key: 'gdNcom', label: 'SL NCƠM' },
+                                { key: 'gdNchien', label: 'SL NCHIÊN' },
+                                { key: 'gdQuat', label: 'SL QUẠT' },
+                                { key: 'gdQdh', label: 'SL QĐH' }
+                              ].map(btn => {
+                                const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
+                                return (
+                                  <button
+                                    key={btn.key}
+                                    onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
+                                      ? 'bg-cyan-50 text-[#0e7490] border-cyan-200 shadow-sm'
+                                      : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                                      }`}
+                                  >
+                                    {btn.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Table */}
+                    <div className="overflow-x-auto bg-white" id="phan-tich-khai-thac-table-container">
+                      <table className="w-full border-collapse border border-slate-200/50 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-200/50 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap [&_tr>th:last-child]:border-r-0 [&_tr>td:last-child]:border-r-0" style={{ borderSpacing: 0 }}>
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[13px] font-black uppercase">
+                            <th
+                              rowSpan={2}
+                              onClick={() => handleKhaiThacSort('staffName')}
+                              className="py-2.5 px-4 text-left bg-slate-50 min-w-[200px] border-r border-slate-200/50 font-black align-middle cursor-pointer select-none hover:bg-slate-100 transition-colors"
+                            >
+                              <div className="flex items-center gap-0.5">
+                                <span>NHÂN VIÊN</span>
+                                <span className={`text-[10px] ${khaiThacSortField === 'staffName' ? 'text-indigo-600 font-extrabold' : 'text-slate-400'}`}>
+                                  {khaiThacSortField === 'staffName' ? (khaiThacSortAsc ? '▲' : '▼') : '⇅'}
+                                </span>
+                              </div>
+                            </th>
+                            {showKhaiThacCols.doanhThu && (
+                              <th colSpan={5} className="py-1 px-3 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 font-black text-[13px] border-b border-blue-100">DOANH THU</th>
+                            )}
+                            {showKhaiThacCols.spChinh && (
+                              <th colSpan={1 + (showKhaiThacCols.spcSmf ? 1 : 0) + (showKhaiThacCols.spcLap ? 1 : 0) + (showKhaiThacCols.spcTab ? 1 : 0) + (showKhaiThacCols.spcTivi ? 1 : 0) + (showKhaiThacCols.spcMl ? 1 : 0) + (showKhaiThacCols.spcTl ? 1 : 0) + (showKhaiThacCols.spcMg ? 1 : 0)} className="py-1 px-3 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black text-[13px] border-b border-emerald-100">SP CHÍNH</th>
+                            )}
+                            {showKhaiThacCols.baoHiem && (
+                              <th colSpan={1 + (showKhaiThacCols.vasBh ? 1 : 0) + (showKhaiThacCols.vasVieon ? 1 : 0)} className="py-1 px-3 text-center text-[#be123c] bg-[#ffe4e6] border-r border-slate-200/50 font-black text-[13px] border-b border-rose-100">VAS</th>
+                            )}
+                            {showKhaiThacCols.sim && (
+                              <th colSpan={2} className="py-1 px-3 text-center text-[#b45309] bg-[#fef3c7] border-r border-slate-200/50 font-black text-[13px] border-b border-amber-100">SIM</th>
+                            )}
+                            {showKhaiThacCols.dongHo && (
+                              <th colSpan={showKhaiThacCols.doanhThu ? 3 : 2} className="py-1 px-3 text-center text-[#6b21a8] bg-[#f3e8ff] border-r border-slate-200/50 font-black text-[13px] border-b border-purple-100">ĐỒNG HỒ</th>
+                            )}
+                            {showKhaiThacCols.phuKien && (
+                              <th colSpan={1 + (showKhaiThacCols.pkCam ? 1 : 0) + (showKhaiThacCols.pkLoa ? 1 : 0) + (showKhaiThacCols.pkPin ? 1 : 0) + (showKhaiThacCols.pkTn ? 1 : 0) + (showKhaiThacCols.pkDenMt ? 1 : 0)} className="py-1 px-3 text-center text-[#be123c] bg-[#ffe4e6] border-r border-slate-200/50 font-black text-[13px] border-b border-rose-100">PHỤ KIỆN</th>
+                            )}
+                            {showKhaiThacCols.giaDung && (
+                              <th colSpan={1 + (showKhaiThacCols.gdMln ? 1 : 0) + (showKhaiThacCols.gdNcom ? 1 : 0) + (showKhaiThacCols.gdNchien ? 1 : 0) + (showKhaiThacCols.gdQuat ? 1 : 0) + (showKhaiThacCols.gdQdh ? 1 : 0)} className="py-1 px-3 text-center text-[#0e7490] bg-[#ecfeff] border-r border-slate-200/50 font-black text-[13px] border-b border-cyan-100">GIA DỤNG</th>
+                            )}
+                          </tr>
+                          <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[11px] font-black uppercase">
+                            {showKhaiThacCols.doanhThu && (
+                              <>
+                                {renderKhaiThacHeader('dtThuc', 'DT THỰC', 'text-[#1d4ed8]', 'bg-[#eff6ff]', 'w-20')}
+                                {renderKhaiThacHeader('dtqd', 'DTQĐ', 'text-[#1d4ed8]', 'bg-[#eff6ff]', 'w-20')}
+                                {renderKhaiThacHeader('hqqd', 'HQQĐ', 'text-[#1d4ed8]', 'bg-[#eff6ff]', 'w-20')}
+                                {renderKhaiThacHeader('dtTraGop', 'DT T.GÓP', 'text-[#1d4ed8]', 'bg-[#eff6ff]', 'w-20')}
+                                {renderKhaiThacHeader('tc', '%TC', 'text-[#1d4ed8]', 'bg-[#eff6ff]', 'w-20')}
+                              </>
+                            )}
+                            {/* SP CHÍNH Sub Headers */}
+                            {showKhaiThacCols.spChinh && (
+                              <>
+                                {showKhaiThacCols.spcSmf && renderKhaiThacHeader('spcSmfQty', 'SMF', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-14')}
+                                {showKhaiThacCols.spcLap && renderKhaiThacHeader('spcLapQty', 'LAP', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-14')}
+                                {showKhaiThacCols.spcTab && renderKhaiThacHeader('spcTabQty', 'TAB', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-14')}
+                                {showKhaiThacCols.spcTivi && renderKhaiThacHeader('spcTiviQty', 'TIVI', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-14')}
+                                {showKhaiThacCols.spcMl && renderKhaiThacHeader('spcMlQty', 'ML', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-14')}
+                                {showKhaiThacCols.spcTl && renderKhaiThacHeader('spcTlQty', 'TL,TĐ,TM', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-16')}
+                                {showKhaiThacCols.spcMg && renderKhaiThacHeader('spcMgQty', 'MG,MS,MRC', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-16')}
+                                {renderKhaiThacHeader('spChinhTotalQty', 'TỔNG', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-16')}
+                              </>
+                            )}
+                            {/* VAS Sub Headers */}
+                            {showKhaiThacCols.baoHiem && (
+                              <>
+                                {showKhaiThacCols.vasBh && renderKhaiThacHeader('bhQty', 'SL B.HIỂM', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
+                                {showKhaiThacCols.vasVieon && renderKhaiThacHeader('vieonQty', 'SL VIEON', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
+
+                                {renderKhaiThacHeader('vasPct', '%', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
+                              </>
+                            )}
+                            {/* SIM Sub Headers */}
+                            {showKhaiThacCols.sim && (
+                              <>
+                                {renderKhaiThacHeader('simQty', 'SL', 'text-[#b45309]', 'bg-[#fef3c7]', 'w-14')}
+
+                                {renderKhaiThacHeader('simPct', '%', 'text-[#b45309]', 'bg-[#fef3c7]', 'w-14')}
+                              </>
+                            )}
+                            {/* ĐỒNG HỒ Sub Headers */}
+                            {showKhaiThacCols.dongHo && (
+                              <>
+                                {renderKhaiThacHeader('dhQty', 'SL', 'text-[#6b21a8]', 'bg-[#f3e8ff]', 'w-14')}
+                                {showKhaiThacCols.doanhThu && renderKhaiThacHeader('dhRev', 'D.THU', 'text-[#6b21a8]', 'bg-[#f3e8ff]', 'w-20')}
+                                {renderKhaiThacHeader('dhPct', '%', 'text-[#6b21a8]', 'bg-[#f3e8ff]', 'w-14')}
+                              </>
+                            )}
+                            {/* PHỤ KIỆN Sub Headers */}
+                            {showKhaiThacCols.phuKien && (
+                              <>
+                                {showKhaiThacCols.pkCam && renderKhaiThacHeader('pkCamQty', 'SL CAM', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
+                                {showKhaiThacCols.pkLoa && renderKhaiThacHeader('pkLoaQty', 'SL LOA', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
+                                {showKhaiThacCols.pkPin && renderKhaiThacHeader('pkPinQty', 'SL PIN', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
+                                {showKhaiThacCols.pkTn && renderKhaiThacHeader('pkTnQty', 'SL TNGHE', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
+                                {showKhaiThacCols.pkDenMt && renderKhaiThacHeader('pkDenMtQty', 'SL ĐÈN MT', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-16')}
+                                {renderKhaiThacHeader('pkPct', '%', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
+                              </>
+                            )}
+                            {/* GIA DỤNG Sub Headers */}
+                            {showKhaiThacCols.giaDung && (
+                              <>
+                                {showKhaiThacCols.gdMln && renderKhaiThacHeader('gdMlnQty', 'SL MLN', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-16')}
+                                {showKhaiThacCols.gdNcom && renderKhaiThacHeader('gdNcomQty', 'SL NCƠM', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-18')}
+                                {showKhaiThacCols.gdNchien && renderKhaiThacHeader('gdNchienQty', 'SL NCHIÊN', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-20')}
+                                {showKhaiThacCols.gdQuat && renderKhaiThacHeader('gdQuatQty', 'SL QUẠT', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-16')}
+                                {showKhaiThacCols.gdQdh && renderKhaiThacHeader('gdQdhQty', 'SL QĐH', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-16')}
+                                {renderKhaiThacHeader('gdPct', '%', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-14')}
+                              </>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {(() => {
+                            const getVisibleSpChinhQty = (item: any) => {
+                              return (showKhaiThacCols.spcSmf ? item.spcSmfQty : 0) +
+                                (showKhaiThacCols.spcLap ? item.spcLapQty : 0) +
+                                (showKhaiThacCols.spcTab ? item.spcTabQty : 0) +
+                                (showKhaiThacCols.spcTivi ? item.spcTiviQty : 0) +
+                                (showKhaiThacCols.spcMl ? item.spcMlQty : 0) +
+                                (showKhaiThacCols.spcTl ? item.spcTlQty : 0) +
+                                (showKhaiThacCols.spcMg ? item.spcMgQty : 0);
+                            };
+                            const formatVal = (val: number) => val === 0 ? <span className="text-slate-300">-</span> : val;
+                            const formatRev = (val: number) => {
+                              if (val === 0) return <span className="text-slate-300">-</span>;
+                              if (val >= 1_000_000) {
+                                const m = val / 1_000_000;
+                                if (m >= 1000) {
+                                  return `${Math.round(m).toLocaleString('en-US')} Tỷ`;
+                                }
+                                return `${m % 1 === 0 ? m : m.toFixed(1)} Tr`;
+                              }
+                              if (val >= 1_000) {
+                                return `${Math.round(val / 1_000)} K`;
+                              }
+                              return val.toLocaleString('vi-VN');
+                            };
+                            const renderPct = (num: number, den: number, colorClass = 'text-[#be123c]') => {
+                              if (den === 0 || num === 0) {
+                                return (
+                                  <span className="text-slate-300">-</span>
+                                );
+                              }
+                              const pct = Math.round((num / den) * 100);
+                              return (
+                                <span className={`${colorClass} font-black text-[13px]`}>
+                                  {pct}%
+                                </span>
+                              );
+                            };
+                            const renderHqqd = (val: number) => {
+                              if (val === 0) {
+                                return (
+                                  <span className="text-slate-300">-</span>
+                                );
+                              }
+                              const colorClass = val < 45 ? 'text-red-600' : 'text-emerald-600';
+                              return (
+                                <span className={`${colorClass} font-black text-[13px]`}>
+                                  {val}%
+                                </span>
+                              );
+                            };
+                            const renderTcPct = (tc: number, total: number) => {
+                              if (total === 0 || tc === 0) {
+                                return (
+                                  <span className="text-slate-300">-</span>
+                                );
+                              }
+                              const pct = Math.round((tc / total) * 100);
+                              const colorClass = pct < 60 ? 'text-red-600' : 'text-emerald-600';
+                              return (
+                                <span className={`${colorClass} font-black text-[13px]`}>
+                                  {pct}%
+                                </span>
+                              );
+                            };
+
+                            const totalStaffCount = staffKhaiThacStats.length;
+                            const top20Idx = Math.max(1, Math.ceil(totalStaffCount * 0.2));
+                            const bot20Idx = totalStaffCount - Math.max(1, Math.ceil(totalStaffCount * 0.2));
+                            const getStaffIcon = (idx: number) => {
+                              if (idx === 0) return '🥇';
+                              if (idx === 1) return '🥈';
+                              if (idx === 2) return '🥉';
+                              if (idx < top20Idx) return '🏅';
+                              if (idx >= bot20Idx) return '⚠️';
+                              return `#${idx + 1}`;
+                            };
+                            return staffKhaiThacStats.length > 0 ? staffKhaiThacStats.map((item, idx) => {
+                              const visibleSpChinhTotalQty = getVisibleSpChinhQty(item);
+
+                              const visibleVasTotalQty =
+                                (showKhaiThacCols.vasBh ? item.bhQty : 0) +
+                                (showKhaiThacCols.vasVieon ? item.vieonQty : 0);
+
+                              const visiblePkTotalQty =
+                                (showKhaiThacCols.pkCam ? item.pkCamQty : 0) +
+                                (showKhaiThacCols.pkLoa ? item.pkLoaQty : 0) +
+                                (showKhaiThacCols.pkPin ? item.pkPinQty : 0) +
+                                (showKhaiThacCols.pkTn ? item.pkTnQty : 0) +
+                                (showKhaiThacCols.pkDenMt ? item.pkDenMtQty : 0);
+
+                              const visibleGdTotalQty =
+                                (showKhaiThacCols.gdMln ? item.gdMlnQty : 0) +
+                                (showKhaiThacCols.gdNcom ? item.gdNcomQty : 0) +
+                                (showKhaiThacCols.gdNchien ? item.gdNchienQty : 0) +
+                                (showKhaiThacCols.gdQuat ? item.gdQuatQty : 0) +
+                                (showKhaiThacCols.gdQdh ? item.gdQdhQty : 0);
+
+                              return (
+                                <tr key={item.staffName} className="border-b border-slate-100/70 hover:bg-slate-50/80 transition-colors h-10">
+                                  <td className="py-2 px-4 text-left font-black text-slate-800 border-r border-slate-200/50">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-lg font-black ${idx < 3 ? 'text-[18px]' : 'text-[13px]'}`}>
+                                        {getStaffIcon(idx)}
+                                      </span>
+                                      <span>{item.staffName}</span>
+                                    </div>
+                                  </td>
+                                  {/* DOANH THU Cells */}
+                                  {showKhaiThacCols.doanhThu && (
+                                    <>
+                                      <td className="py-2 px-2 text-center text-[13px] font-black text-[#1d4ed8] border-r border-slate-200/50">{formatRev(item.dtThuc)}</td>
+                                      <td className="py-2 px-2 text-center text-[13px] font-black text-[#1d4ed8] border-r border-slate-200/50">{formatRev(item.dtqd)}</td>
+                                      <td className="py-2 px-2 text-center border-r border-slate-200/50">{renderHqqd(item.hqqd)}</td>
+                                      <td className="py-2 px-2 text-center text-[13px] font-black text-[#1d4ed8] border-r border-slate-200/50">{formatRev(item.dtTraGop)}</td>
+                                      <td className="py-2 px-2 text-center border-r border-slate-200/50">{renderTcPct(item.dtTraGop, item.dtThuc)}</td>
+                                    </>
+                                  )}
+                                  {/* SP CHÍNH Cells */}
+                                  {showKhaiThacCols.spChinh && (
+                                    <>
+                                      {showKhaiThacCols.spcSmf && <td className="py-2 px-2 text-center text-[13px] font-black text-[#047857] border-r border-slate-200/50">{formatVal(item.spcSmfQty)}</td>}
+                                      {showKhaiThacCols.spcLap && <td className="py-2 px-2 text-center text-[13px] font-black text-[#047857] border-r border-slate-200/50">{formatVal(item.spcLapQty)}</td>}
+                                      {showKhaiThacCols.spcTab && <td className="py-2 px-2 text-center text-[13px] font-black text-[#047857] border-r border-slate-200/50">{formatVal(item.spcTabQty)}</td>}
+                                      {showKhaiThacCols.spcTivi && <td className="py-2 px-2 text-center text-[13px] font-black text-[#047857] border-r border-slate-200/50">{formatVal(item.spcTiviQty)}</td>}
+                                      {showKhaiThacCols.spcMl && <td className="py-2 px-2 text-center text-[13px] font-black text-[#047857] border-r border-slate-200/50">{formatVal(item.spcMlQty)}</td>}
+                                      {showKhaiThacCols.spcTl && <td className="py-2 px-2 text-center text-[13px] font-black text-[#047857] border-r border-slate-200/50">{formatVal(item.spcTlQty)}</td>}
+                                      {showKhaiThacCols.spcMg && <td className="py-2 px-2 text-center text-[13px] font-black text-[#047857] border-r border-slate-200/50">{formatVal(item.spcMgQty)}</td>}
+                                      <td className="py-2 px-2 text-center text-[13px] font-black text-[#047857] bg-[#e6fbf4]/20 border-r border-slate-200/50">{formatVal(visibleSpChinhTotalQty)}</td>
+                                    </>
+                                  )}
+                                  {/* VAS Cells */}
+                                  {showKhaiThacCols.baoHiem && (
+                                    <>
+                                      {showKhaiThacCols.vasBh && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.bhQty)}</td>}
+                                      {showKhaiThacCols.vasVieon && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.vieonQty)}</td>}
+
+                                      <td className="py-2 px-2 text-center border-r border-slate-200/50">{renderPct(visibleVasTotalQty, visibleSpChinhTotalQty, 'text-[#be123c]')}</td>
+                                    </>
+                                  )}
+                                  {/* SIM Cells */}
+                                  {showKhaiThacCols.sim && (
+                                    <>
+                                      <td className="py-2 px-2 text-center text-[13px] font-black text-[#b45309] border-r border-slate-200/50">{formatVal(item.simQty)}</td>
+
+                                      <td className="py-2 px-2 text-center border-r border-slate-200/50">{renderPct(item.simQty, visibleSpChinhTotalQty, 'text-[#b45309]')}</td>
+                                    </>
+                                  )}
+                                  {/* ĐỒNG HỒ Cells */}
+                                  {showKhaiThacCols.dongHo && (
+                                    <>
+                                      <td className="py-2 px-2 text-center text-[13px] font-black text-[#6b21a8] border-r border-slate-200/50">{formatVal(item.dhQty)}</td>
+                                      {showKhaiThacCols.doanhThu && <td className="py-2 px-2 text-center text-[13px] font-black text-[#6b21a8] border-r border-slate-200/50">{formatRev(item.dhRev)}</td>}
+                                      <td className="py-2 px-2 text-center border-r border-slate-200/50">{renderPct(item.dhQty, visibleSpChinhTotalQty, 'text-[#6b21a8]')}</td>
+                                    </>
+                                  )}
+                                  {/* PHỤ KIỆN Cells */}
+                                  {showKhaiThacCols.phuKien && (
+                                    <>
+                                      {showKhaiThacCols.pkCam && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.pkCamQty)}</td>}
+                                      {showKhaiThacCols.pkLoa && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.pkLoaQty)}</td>}
+                                      {showKhaiThacCols.pkPin && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.pkPinQty)}</td>}
+                                      {showKhaiThacCols.pkTn && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.pkTnQty)}</td>}
+                                      {showKhaiThacCols.pkDenMt && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.pkDenMtQty)}</td>}
+                                      <td className="py-2 px-2 text-center border-r border-slate-200/50">{renderPct(visiblePkTotalQty, visibleSpChinhTotalQty, 'text-[#be123c]')}</td>
+                                    </>
+                                  )}
+                                  {/* GIA DỤNG Cells */}
+                                  {showKhaiThacCols.giaDung && (
+                                    <>
+                                      {showKhaiThacCols.gdMln && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdMlnQty)}</td>}
+                                      {showKhaiThacCols.gdNcom && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdNcomQty)}</td>}
+                                      {showKhaiThacCols.gdNchien && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdNchienQty)}</td>}
+                                      {showKhaiThacCols.gdQuat && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdQuatQty)}</td>}
+                                      {showKhaiThacCols.gdQdh && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdQdhQty)}</td>}
+                                      <td className="py-2 px-2 text-center border-r border-slate-200/50">{renderPct(visibleGdTotalQty, visibleSpChinhTotalQty, 'text-[#0e7490]')}</td>
+                                    </>
+                                  )}
+                                </tr>
+                              );
+                            }) : (
+                              <tr>
+                                <td colSpan={30} className="py-12 text-center text-slate-400 italic text-[11px] border-r border-slate-200/50">
+                                  {isLoadingRealtime ? 'Đang tải dữ liệu...' : 'Chưa có dữ liệu.'}
+                                </td>
+                              </tr>
+                            );
+                          })()}
+                        </tbody>
+                        {/* Footer - TỔNG CỘNG */}
+                        {staffKhaiThacStats.length > 0 && (
+                          <tfoot className="bg-slate-50 font-black text-slate-800 text-[13px] border-t border-slate-200">
+                            {(() => {
+                              const totalDtThuc = staffKhaiThacStats.reduce((s, x) => s + x.dtThuc, 0);
+                              const totalDtqd = staffKhaiThacStats.reduce((s, x) => s + x.dtqd, 0);
+                              const totalHqqd = totalDtThuc > 0 ? Math.round(((totalDtqd - totalDtThuc) / totalDtThuc) * 100) : 0;
+                              const totalDtTraGop = staffKhaiThacStats.reduce((s, x) => s + (x.dtTraGop || 0), 0);
+
+                              const totalSpcSmf = staffKhaiThacStats.reduce((s, x) => s + x.spcSmfQty, 0);
+                              const totalSpcLap = staffKhaiThacStats.reduce((s, x) => s + x.spcLapQty, 0);
+                              const totalSpcTab = staffKhaiThacStats.reduce((s, x) => s + x.spcTabQty, 0);
+                              const totalSpcTivi = staffKhaiThacStats.reduce((s, x) => s + x.spcTiviQty, 0);
+                              const totalSpcMl = staffKhaiThacStats.reduce((s, x) => s + x.spcMlQty, 0);
+                              const totalSpcTl = staffKhaiThacStats.reduce((s, x) => s + x.spcTlQty, 0);
+                              const totalSpcMg = staffKhaiThacStats.reduce((s, x) => s + x.spcMgQty, 0);
+
+                              const totalSpChinhQty =
+                                (showKhaiThacCols.spcSmf ? totalSpcSmf : 0) +
+                                (showKhaiThacCols.spcLap ? totalSpcLap : 0) +
+                                (showKhaiThacCols.spcTab ? totalSpcTab : 0) +
+                                (showKhaiThacCols.spcTivi ? totalSpcTivi : 0) +
+                                (showKhaiThacCols.spcMl ? totalSpcMl : 0) +
+                                (showKhaiThacCols.spcTl ? totalSpcTl : 0) +
+                                (showKhaiThacCols.spcMg ? totalSpcMg : 0);
+
+                              const totalBhQty = staffKhaiThacStats.reduce((s, x) => s + x.bhQty, 0);
+                              const totalBhRev = staffKhaiThacStats.reduce((s, x) => s + x.bhRev, 0);
+                              const totalVieonQty = staffKhaiThacStats.reduce((s, x) => s + x.vieonQty, 0);
+                              const totalVieonRev = staffKhaiThacStats.reduce((s, x) => s + x.vieonRev, 0);
+
+                              const totalSimQty = staffKhaiThacStats.reduce((s, x) => s + x.simQty, 0);
+                              const totalSimRev = staffKhaiThacStats.reduce((s, x) => s + x.simRev, 0);
+
+                              const totalDhQty = staffKhaiThacStats.reduce((s, x) => s + x.dhQty, 0);
+                              const totalDhRev = staffKhaiThacStats.reduce((s, x) => s + x.dhRev, 0);
+
+                              const totalPkCam = staffKhaiThacStats.reduce((s, x) => s + x.pkCamQty, 0);
+                              const totalPkLoa = staffKhaiThacStats.reduce((s, x) => s + x.pkLoaQty, 0);
+                              const totalPkPin = staffKhaiThacStats.reduce((s, x) => s + x.pkPinQty, 0);
+                              const totalPkTn = staffKhaiThacStats.reduce((s, x) => s + x.pkTnQty, 0);
+                              const totalPkDenMt = staffKhaiThacStats.reduce((s, x) => s + x.pkDenMtQty, 0);
+                              const totalPkTotalQty = staffKhaiThacStats.reduce((s, x) => s + x.pkTotalQty, 0);
+                              const totalPkRev = staffKhaiThacStats.reduce((s, x) => s + x.pkRev, 0);
+
+                              const totalGdQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQty, 0);
+                              const totalGdMlnQty = staffKhaiThacStats.reduce((s, x) => s + x.gdMlnQty, 0);
+                              const totalGdNcomQty = staffKhaiThacStats.reduce((s, x) => s + x.gdNcomQty, 0);
+                              const totalGdNchienQty = staffKhaiThacStats.reduce((s, x) => s + x.gdNchienQty, 0);
+                              const totalGdQuatQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQuatQty, 0);
+                              const totalGdQdhQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQdhQty, 0);
+                              const totalGdRev = staffKhaiThacStats.reduce((s, x) => s + x.gdRev, 0);
+
+                              const formatFooterVal = (val: number) => val === 0 ? '-' : val;
+                              const formatFooterRev = (val: number) => {
+                                if (val === 0) return '-';
+                                if (val >= 1_000_000) {
+                                  const m = val / 1_000_000;
+                                  if (m >= 1000) {
+                                    return `${Math.round(m).toLocaleString('en-US')} Tỷ`;
+                                  }
+                                  return `${m % 1 === 0 ? m : m.toFixed(1)} Tr`;
+                                }
+                                if (val >= 1_000) {
+                                  return `${Math.round(val / 1_000)} K`;
+                                }
+                                return val.toLocaleString('vi-VN');
+                              };
+                              const renderFooterPct = (num: number, den: number) => {
+                                if (den === 0 || num === 0) return '-';
+                                return `${Math.round((num / den) * 100)}%`;
+                              };
+                              const renderFooterHqqd = (val: number) => {
+                                if (val === 0) return <span className="text-slate-300">-</span>;
+                                const colorClass = val < 45 ? 'text-red-600' : 'text-emerald-600';
+                                return (
+                                  <span className={`${colorClass} font-black`}>
+                                    {val}%
+                                  </span>
+                                );
+                              };
+                              const renderFooterTcPct = (tc: number, total: number) => {
+                                if (total === 0 || tc === 0) return <span className="text-slate-300">-</span>;
+                                const pct = Math.round((tc / total) * 100);
+                                const colorClass = pct < 60 ? 'text-red-600' : 'text-emerald-600';
+                                return (
+                                  <span className={`${colorClass} font-black`}>
+                                    {pct}%
+                                  </span>
+                                );
+                              };
+
+                              const totalVisibleSpChinhQty = totalSpChinhQty;
+
+                              const totalVisibleVasTotalQty =
+                                (showKhaiThacCols.vasBh ? totalBhQty : 0) +
+                                (showKhaiThacCols.vasVieon ? totalVieonQty : 0);
+
+                              const totalVisiblePkTotalQty =
+                                (showKhaiThacCols.pkCam ? totalPkCam : 0) +
+                                (showKhaiThacCols.pkLoa ? totalPkLoa : 0) +
+                                (showKhaiThacCols.pkPin ? totalPkPin : 0) +
+                                (showKhaiThacCols.pkTn ? totalPkTn : 0) +
+                                (showKhaiThacCols.pkDenMt ? totalPkDenMt : 0);
+
+                              const totalVisibleGdTotalQty =
+                                (showKhaiThacCols.gdMln ? totalGdMlnQty : 0) +
+                                (showKhaiThacCols.gdNcom ? totalGdNcomQty : 0) +
+                                (showKhaiThacCols.gdNchien ? totalGdNchienQty : 0) +
+                                (showKhaiThacCols.gdQuat ? totalGdQuatQty : 0) +
+                                (showKhaiThacCols.gdQdh ? totalGdQdhQty : 0);
+
+                              return (
+                                <tr className="bg-[#e6fbf4] border-t-2 border-emerald-300 font-black text-slate-900 h-10 uppercase">
+                                  <td className="py-2.5 px-4 text-left text-[14px] text-[#047857] font-black pl-6 border-r border-slate-200/50">TỔNG CỘNG</td>
+                                  {/* DOANH THU Totals */}
+                                  {showKhaiThacCols.doanhThu && (
+                                    <>
+                                      <td className="py-2 px-2 text-center text-[13px] text-[#1d4ed8] font-black border-r border-slate-200/50">{formatFooterRev(totalDtThuc)}</td>
+                                      <td className="py-2 px-2 text-center text-[13px] text-[#1d4ed8] font-black border-r border-slate-200/50">{formatFooterRev(totalDtqd)}</td>
+                                      <td className="py-2 px-2 text-center text-[13px] text-[#1d4ed8] font-black border-r border-slate-200/50">
+                                        {renderFooterHqqd(totalHqqd)}
+                                      </td>
+                                      <td className="py-2 px-2 text-center text-[13px] text-[#1d4ed8] font-black border-r border-slate-200/50">{formatFooterRev(totalDtTraGop)}</td>
+                                      <td className="py-2 px-2 text-center border-r border-slate-200/50">
+                                        {renderFooterTcPct(totalDtTraGop, totalDtThuc)}
+                                      </td>
+                                    </>
+                                  )}
+                                  {/* SP CHÍNH Totals */}
+                                  {showKhaiThacCols.spChinh && (
+                                    <>
+                                      {showKhaiThacCols.spcSmf && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcSmf)}</td>}
+                                      {showKhaiThacCols.spcLap && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcLap)}</td>}
+                                      {showKhaiThacCols.spcTab && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcTab)}</td>}
+                                      {showKhaiThacCols.spcTivi && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcTivi)}</td>}
+                                      {showKhaiThacCols.spcMl && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcMl)}</td>}
+                                      {showKhaiThacCols.spcTl && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcTl)}</td>}
+                                      {showKhaiThacCols.spcMg && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcMg)}</td>}
+                                      <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpChinhQty)}</td>
+                                    </>
+                                  )}
+                                  {/* VAS Totals */}
+                                  {showKhaiThacCols.baoHiem && (
+                                    <>
+                                      {showKhaiThacCols.vasBh && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalBhQty)}</td>}
+                                      {showKhaiThacCols.vasVieon && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalVieonQty)}</td>}
+
+                                      <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{renderFooterPct(totalVisibleVasTotalQty, totalVisibleSpChinhQty)}</td>
+                                    </>
+                                  )}
+                                  {/* SIM Totals */}
+                                  {showKhaiThacCols.sim && (
+                                    <>
+                                      <td className="py-2 px-2 text-center text-[13px] text-[#b45309] font-black border-r border-slate-200/50">{formatFooterVal(totalSimQty)}</td>
+
+                                      <td className="py-2 px-2 text-center text-[13px] text-[#b45309] font-black border-r border-slate-200/50">{renderFooterPct(totalSimQty, totalSpChinhQty)}</td>
+                                    </>
+                                  )}
+                                  {/* ĐỒNG HỒ Totals */}
+                                  {showKhaiThacCols.dongHo && (
+                                    <>
+                                      <td className="py-2 px-2 text-center text-[13px] text-[#6b21a8] font-black border-r border-slate-200/50">{formatFooterVal(totalDhQty)}</td>
+                                      {showKhaiThacCols.doanhThu && <td className="py-2 px-2 text-center text-[13px] text-[#6b21a8] font-black border-r border-slate-200/50">{formatFooterRev(totalDhRev)}</td>}
+                                      <td className="py-2 px-2 text-center text-[13px] text-[#6b21a8] font-black border-r border-slate-200/50">{renderFooterPct(totalDhQty, totalSpChinhQty)}</td>
+                                    </>
+                                  )}
+                                  {/* PHỤ KIỆN Totals */}
+                                  {showKhaiThacCols.phuKien && (
+                                    <>
+                                      {showKhaiThacCols.pkCam && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalPkCam)}</td>}
+                                      {showKhaiThacCols.pkLoa && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalPkLoa)}</td>}
+                                      {showKhaiThacCols.pkPin && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalPkPin)}</td>}
+                                      {showKhaiThacCols.pkTn && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalPkTn)}</td>}
+                                      {showKhaiThacCols.pkDenMt && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalPkDenMt)}</td>}
+                                      <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{renderFooterPct(totalVisiblePkTotalQty, totalVisibleSpChinhQty)}</td>
+                                    </>
+                                  )}
+                                  {/* GIA DỤNG Totals */}
+                                  {showKhaiThacCols.giaDung && (
+                                    <>
+                                      {showKhaiThacCols.gdMln && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdMlnQty)}</td>}
+                                      {showKhaiThacCols.gdNcom && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdNcomQty)}</td>}
+                                      {showKhaiThacCols.gdNchien && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdNchienQty)}</td>}
+                                      {showKhaiThacCols.gdQuat && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdQuatQty)}</td>}
+                                      {showKhaiThacCols.gdQdh && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdQdhQty)}</td>}
+                                      <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{renderFooterPct(totalVisibleGdTotalQty, totalVisibleSpChinhQty)}</td>
+                                    </>
+                                  )}
+                                </tr>
+                              );
+                            })()}
+                          </tfoot>
+                        )}
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* HIỆU QUẢ BÁN KÈM THEO NHÂN VIÊN */}
+                  <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6 mb-12" id="hieu-qua-ban-kem-card-container">
+                    <div className="bg-[#93c5fd] px-6 py-4 flex items-center justify-between border-b border-[#60a5fa] relative">
+                      <div className="flex items-center gap-3 mx-auto">
+                        <h3 className="text-2xl font-black text-[#1e3a8a] uppercase tracking-widest text-center" style={{ textShadow: '1px 1px 0px rgba(255,255,255,0.5)' }}>
+                          HIỆU QUẢ BÁN KÈM THEO NHÂN VIÊN
+                        </h3>
+                      </div>
+                      <div className="flex items-center gap-2 absolute right-6 top-1/2 -translate-y-1/2">
+                        <button
+                          onClick={() => {
+                            const allExpanded = crossSellingStats.length > 0 && crossSellingStats.every(s => expandedCrossSellingStaff[s.staffName]);
+                            const newState: Record<string, boolean> = {};
+                            if (!allExpanded) {
+                              crossSellingStats.forEach(s => {
+                                newState[s.staffName] = true;
+                              });
+                            }
+                            setExpandedCrossSellingStaff(newState);
+                          }}
+                          className={`px-3 py-1.5 rounded-lg border border-[#3b82f6] text-[10px] font-bold transition-colors flex items-center gap-1.5 no-capture shadow-sm ${crossSellingStats.length > 0 && crossSellingStats.every(s => expandedCrossSellingStaff[s.staffName]) ? 'bg-[#3b82f6] text-white' : 'bg-white/50 text-[#1e3a8a] hover:bg-[#3b82f6] hover:text-white'}`}
+                          title="Xổ / Đóng tất cả chi tiết"
+                        >
+                          <ChevronsUpDown size={12} />
+                          <span>{crossSellingStats.length > 0 && crossSellingStats.every(s => expandedCrossSellingStaff[s.staffName]) ? 'Đóng tất cả' : 'Xổ tất cả'}</span>
+                        </button>
+                        <button
+                          onClick={() => handleCaptureTable('hieu-qua-ban-kem-card-container', 'hieu_qua_ban_kem')}
+                          className="px-3 py-1.5 rounded-lg border border-[#3b82f6] text-[10px] font-bold text-[#1e3a8a] hover:bg-[#3b82f6] hover:text-white transition-colors flex items-center gap-1.5 no-capture shadow-sm bg-white/50"
+                        >
+                          <Camera size={12} />
+                          <span>Chụp ảnh</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse text-center" style={{ borderSpacing: 0 }}>
+                        <thead>
+                          <tr>
+                            <th rowSpan={2} className="py-2.5 px-4 text-center bg-[#fed7aa] text-[#9a3412] font-black border-r border-[#fdba74] border-b align-middle min-w-[200px]">NHÂN VIÊN</th>
+                            <th rowSpan={2} className="py-2.5 px-4 text-center bg-[#bbf7d0] text-[#166534] font-black border-r border-[#86efac] border-b align-middle min-w-[120px]">BỘ PHẬN</th>
+                            <th colSpan={5} className="py-2.5 px-4 text-center bg-[#fef08a] text-[#854d0e] font-black border-r border-[#fde047] border-b">SỐ LƯỢNG BILL</th>
+                            <th colSpan={2} className="py-2.5 px-4 text-center bg-[#fde047] text-[#a16207] font-black border-b border-[#facc15]">H.QUẢ SL</th>
+                          </tr>
+                          <tr>
+                            <th className="py-2 px-2 text-center text-[11px] bg-[#fef08a] text-[#b91c1c] font-black border-r border-[#fde047] border-b w-[120px]">TỔNG BILL<br/>(- thu hộ -<br/>thẻ cào -<br/>trả góp)</th>
+                            <th className="py-2 px-2 text-center text-[11px] bg-[#fef08a] text-[#854d0e] font-black border-r border-[#fde047] border-b w-[80px]">SL BILL<br/>B.KÈM</th>
+                            <th className="py-2 px-2 text-center text-[11px] bg-[#fef08a] text-[#854d0e] font-black border-r border-[#fde047] border-b w-[80px]">SL BILL<br/>KO B.KÈM</th>
+                            <th className="py-2 px-2 text-center text-[11px] bg-[#fef08a] text-[#854d0e] font-black border-r border-[#fde047] border-b w-[80px]">%BILL<br/>B.KÈM</th>
+                            <th className="py-2 px-2 text-center text-[11px] bg-[#fef08a] text-[#854d0e] font-black border-r border-[#fde047] border-b w-[80px]">ĐÁNH<br/>GIÁ</th>
+                            <th className="py-2 px-2 text-center text-[11px] bg-[#fde047] text-[#a16207] font-black border-r border-[#facc15] border-b w-[80px]">SL BILL<br/>2 MÓN</th>
+                            <th className="py-2 px-2 text-center text-[11px] bg-[#fde047] text-[#a16207] font-black border-b border-[#facc15] w-[80px]">SL BILL<br/>&gt;2 MÓN</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(() => {
+                            const totalBills = crossSellingStats.reduce((s, x) => s + x.totalBills, 0);
+                            const totalKem = crossSellingStats.reduce((s, x) => s + x.kemBills, 0);
+                            const totalNoKem = crossSellingStats.reduce((s, x) => s + x.noKemBills, 0);
+                            const totalPct = totalBills > 0 ? Math.round((totalKem / totalBills) * 100) : 0;
+                            const total2 = crossSellingStats.reduce((s, x) => s + x.twoItemsBills, 0);
+                            const totalMore2 = crossSellingStats.reduce((s, x) => s + x.moreThanTwoItemsBills, 0);
+
+                            return (
+                              <tr className="bg-[#fef9c3] border-b border-slate-200">
+                                <td colSpan={2} className="py-2.5 px-4 text-center text-[14px] text-slate-900 font-black border-r border-slate-200">TỔNG</td>
+                                <td className="py-2.5 px-2 text-center text-[14px] text-slate-900 font-black border-r border-slate-200">{totalBills || ''}</td>
+                                <td className="py-2.5 px-2 text-center text-[14px] text-slate-900 font-black border-r border-slate-200">{totalKem || ''}</td>
+                                <td className="py-2.5 px-2 text-center text-[14px] text-slate-900 font-black border-r border-slate-200">{totalNoKem || ''}</td>
+                                <td className="py-2.5 px-2 text-center text-[14px] text-slate-900 font-black border-r border-slate-200">{totalPct}%</td>
+                                <td className="py-2.5 px-2 text-center border-r border-slate-200"></td>
+                                <td className="py-2.5 px-2 text-center text-[14px] text-slate-900 font-black border-r border-slate-200">{total2 || ''}</td>
+                                <td className="py-2.5 px-2 text-center text-[14px] text-slate-900 font-black border-slate-200">{totalMore2 || ''}</td>
+                              </tr>
+                            );
+                          })()}
+
+                          {crossSellingStats.map((item, idx) => (
+                            <React.Fragment key={idx}>
+                              <tr className="border-b border-slate-200 hover:bg-slate-50 transition-colors bg-white">
+                                <td 
+                                  className="py-2 px-4 text-left text-[13px] text-slate-900 font-bold border-r border-slate-200 cursor-pointer hover:text-[#2563eb] whitespace-nowrap"
+                                  onClick={() => setExpandedCrossSellingStaff(prev => ({ ...prev, [item.staffName]: !prev[item.staffName] }))}
+                                >
+                                  <div className="flex items-center gap-1.5">
+                                    <ChevronRight size={14} className={`transition-transform duration-200 flex-shrink-0 ${expandedCrossSellingStaff[item.staffName] ? 'rotate-90 text-[#2563eb]' : 'text-slate-400'}`} />
+                                    <span>{item.staffName}</span>
+                                  </div>
+                                </td>
+                                <td className="py-2 px-4 text-center text-[12px] text-slate-700 font-bold border-r border-slate-200">{item.boPhan}</td>
+                                <td className="py-2 px-2 text-center text-[13px] text-slate-900 font-bold border-r border-slate-200">{item.totalBills || ''}</td>
+                                <td className="py-2 px-2 text-center text-[13px] text-[#ef4444] font-black border-r border-slate-200">{item.kemBills || ''}</td>
+                                <td className="py-2 px-2 text-center text-[13px] text-slate-900 font-bold border-r border-slate-200">{item.noKemBills || ''}</td>
+                                <td className={`py-2 px-2 text-center text-[13px] font-black border-r border-slate-200 ${item.pctKem === 0 ? 'bg-[#fecaca] text-[#ef4444]' : 'text-slate-900'}`}>{item.pctKem}%</td>
+                                <td className={`py-2 px-2 text-center border-r border-slate-200 ${item.pctKem === 0 ? 'bg-[#fecaca]' : ''}`}>
+                                  {item.pctKem === 0 ? <span className="text-[14px]">⛔️</span> : ''}
+                                </td>
+                                <td className="py-2 px-2 text-center text-[13px] text-slate-900 font-bold border-r border-slate-200">{item.twoItemsBills || ''}</td>
+                                <td className="py-2 px-2 text-center text-[13px] text-slate-900 font-bold border-slate-200">{item.moreThanTwoItemsBills || ''}</td>
+                              </tr>
+                              {expandedCrossSellingStaff[item.staffName] && (
+                                <tr className="bg-slate-50 border-b border-slate-200 shadow-inner">
+                                  <td colSpan={9} className="p-4">
+                                    <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 text-left">
+                                      <h4 className="text-[13px] font-bold text-slate-700 mb-3 border-b border-slate-100 pb-2">Danh sách Đơn Hàng ({item.totalBills}) - <span className="text-[#2563eb]">{item.staffName}</span></h4>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                                        {item.billsList.map((bill, bIdx) => (
+                                          <div key={bIdx} className={`p-3 rounded-md border ${bill.itemCount >= 2 ? 'border-green-200 bg-green-50' : 'border-slate-200 bg-slate-50'} relative mt-2`}>
+                                            {bill.itemCount >= 2 && <div className="absolute -top-2.5 -right-2.5 bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-white shadow-sm whitespace-nowrap z-10">Bán Kèm</div>}
+                                            <div className="text-[11px] text-slate-500 font-medium mb-1">📅 {bill.dateVal}</div>
+                                            {bill.customerName && <div className="text-[11px] text-[#2563eb] font-bold mb-1.5 truncate" title={bill.customerName}>👤 {bill.customerName}</div>}
+                                            <div className="text-[12px] font-bold text-slate-800 mb-1.5">{bill.itemCount} Món:</div>
+                                            <ul className="list-disc pl-4 space-y-1">
+                                              {bill.items.map((prod, pIdx) => (
+                                                <li key={pIdx} className="text-[11px] text-slate-600 leading-tight">
+                                                  {prod.product} {prod.htx && <span className="text-[10px] text-slate-400 ml-1">({prod.htx})</span>}
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
                               )}
+                            </React.Fragment>
+                          ))}
+                          
+                          {/* Empty rows to match design */}
+                          {crossSellingStats.length < 5 && Array.from({ length: 5 - crossSellingStats.length }).map((_, i) => (
+                            <tr key={`empty-${i}`} className="border-b border-slate-200 bg-white">
+                              <td className="py-5 border-r border-slate-200"></td>
+                              <td className="py-5 border-r border-slate-200"></td>
+                              <td className="py-5 border-r border-slate-200"></td>
+                              <td className="py-5 border-r border-slate-200"></td>
+                              <td className="py-5 border-r border-slate-200"></td>
+                              <td className="py-5 border-r border-slate-200"></td>
+                              <td className="py-5 border-r border-slate-200"></td>
+                              <td className="py-5 border-r border-slate-200"></td>
+                              <td className="py-5 border-slate-200"></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Raw Data Table: 3. THÊM YCX RT */}
+                  <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-md mt-8 mb-12">
+                    <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <ShoppingBag size={18} className="text-slate-700 flex-shrink-0" />
+                        <div>
+                          <h3 className="text-[15px] font-black text-slate-900 uppercase tracking-widest">3. THÊM YCX RT (DỮ LIỆU NGUỒN)</h3>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Lọc: Đã xuất &amp; Chưa trả</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleCaptureTable('ycx-raw-data-container', 'data_ycx_rt')}
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-colors flex items-center gap-1.5 no-capture"
+                        >
+                          <Camera size={12} className="text-slate-500 hover:text-indigo-600" />
+                          <span>Chụp ảnh</span>
+                        </button>
+                        <button
+                          onClick={() => setShowRawTable(!showRawTable)}
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+                        >
+                        {showRawTable ? (
+                          <>
+                            <ChevronUp size={12} />
+                            <span>ẨN BẢNG</span>
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown size={12} />
+                            <span>HIỂN THỊ</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                    {showRawTable && (
+                      <div id="ycx-raw-data-container">
+                        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+                          <table className="w-full border-collapse text-center min-w-[3000px]" style={{ borderSpacing: 0 }}>
+                            <thead className="sticky top-0 z-10">
+                              <tr>
+                                {rawYcxRows.length > 0 &&
+                                  rawYcxRows[0].map((cell, idx) => {
+                                    const hasFilter = columnFilters[idx]?.selectedValues !== null && columnFilters[idx]?.selectedValues !== undefined;
+                                    return (
+                                      <th key={idx} className="relative border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span>{cell || `Cột ${String.fromCharCode(65 + idx)}`}</span>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setActiveFilterDropdown(activeFilterDropdown === idx ? null : idx);
+                                            }}
+                                            className={`p-1 rounded hover:bg-slate-600 transition-colors ${hasFilter ? 'text-indigo-400 font-bold' : 'text-slate-400'
+                                              }`}
+                                          >
+                                            <Filter size={10} />
+                                          </button>
+                                        </div>
+                                        {activeFilterDropdown === idx && (
+                                          <ColumnFilterDropdown
+                                            colIdx={idx}
+                                            columnName={cell || `Cột ${String.fromCharCode(65 + idx)}`}
+                                            uniqueVals={openColumnUniqueValues}
+                                            filterState={columnFilters[idx]}
+                                            onApply={(search, selectedValues) => {
+                                              setColumnFilters(prev => ({ ...prev, [idx]: { search, selectedValues } }));
+                                              setActiveFilterDropdown(null);
+                                            }}
+                                            onClear={() => {
+                                              setColumnFilters(prev => {
+                                                const next = { ...prev };
+                                                delete next[idx];
+                                                return next;
+                                              });
+                                              setActiveFilterDropdown(null);
+                                            }}
+                                            onClose={() => setActiveFilterDropdown(null)}
+                                          />
+                                        )}
+                                      </th>
+                                    );
+                                  })
+                                }
+                                {[
+                                  { name: 'PHÂN LOẠI', key: 'classify', offset: 0 },
+                                  { name: 'NGÀNH HÀNG LỚN', key: 'large', offset: 1 },
+                                  { name: 'NHÓM HÀNG NHỎ', key: 'small', offset: 2 },
+                                  { name: 'PHÂN LOẠI YCX', key: 'ycx', offset: 3 },
+                                ].map((col) => {
+                                  const filterIdx = (rawYcxRows[0]?.length || 0) + col.offset;
+                                  const hasFilter = columnFilters[filterIdx]?.selectedValues !== null && columnFilters[filterIdx]?.selectedValues !== undefined;
+                                  return (
+                                    <th key={`calc-${col.key}`} className="relative border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span>{col.name}</span>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveFilterDropdown(activeFilterDropdown === filterIdx ? null : filterIdx);
+                                          }}
+                                          className={`p-1 rounded hover:bg-slate-600 transition-colors ${hasFilter ? 'text-indigo-400 font-bold' : 'text-slate-400'
+                                            }`}
+                                        >
+                                          <Filter size={10} />
+                                        </button>
+                                      </div>
+                                      {activeFilterDropdown === filterIdx && (
+                                        <ColumnFilterDropdown
+                                          colIdx={filterIdx}
+                                          columnName={col.name}
+                                          uniqueVals={openColumnUniqueValues}
+                                          filterState={columnFilters[filterIdx]}
+                                          onApply={(search, selectedValues) => {
+                                            setColumnFilters(prev => ({ ...prev, [filterIdx]: { search, selectedValues } }));
+                                            setActiveFilterDropdown(null);
+                                          }}
+                                          onClear={() => {
+                                            setColumnFilters(prev => {
+                                              const next = { ...prev };
+                                              delete next[filterIdx];
+                                              return next;
+                                            });
+                                            setActiveFilterDropdown(null);
+                                          }}
+                                          onClose={() => setActiveFilterDropdown(null)}
+                                        />
+                                      )}
+                                    </th>
+                                  );
+                                })}
+                              </tr>
+                            </thead>
+
+                            <tbody>
+                              {filteredRawTableRows.length > 0 ? (
+                                (() => {
+                                  // Find index of Tên sản phẩm
+                                  const headers = rawYcxRows[0]?.map(h => String(h || '').trim()) || [];
+                                  const idxProduct = (() => {
+                                    const idx = headers.findIndex(h => h.toLowerCase().includes('tên sản phẩm') || h.toLowerCase() === 'tên hàng');
+                                    return idx !== -1 ? idx : 33;
+                                  })();
+                                  const idxProductCode = (() => {
+                                    const idx = headers.findIndex(h => {
+                                      const norm = removeAccents(h).toLowerCase();
+                                      return norm === 'ma san pham' || norm === 'ma sp' || norm === 'ma hang' || norm.includes('ma san pham');
+                                    });
+                                    return idx !== -1 ? idx : 28;
+                                  })();
+                                  const idxSmallCategoryHeader = headers.findIndex(h => h.toLowerCase().includes('nhóm hàng nhỏ'));
+                                  const idxNhomHang = (() => {
+                                    const idx = headers.findIndex(h => {
+                                      const norm = removeAccents(h).toLowerCase();
+                                      return (norm.includes('nganh hang') && !norm.includes('lon')) ||
+                                             norm.includes('nhom nganh hang') ||
+                                             (norm.includes('nhom hang') && !norm.includes('nhom hang nho'));
+                                    });
+                                    return idx !== -1 ? idx : 40;
+                                  })();
+                                  const idxHinhThucXuat = headers.findIndex(h => {
+                                    const lh = h.toLowerCase();
+                                    return lh.includes('hình thức xuất') || lh.includes('loại ycx') || lh.includes('loại yêu cầu') || lh.includes('phân loại ycx');
+                                  });
+                                  // Date columns to format
+                                  const dateColIndices = new Set<number>(
+                                    headers.reduce((acc: number[], h, i) => {
+                                      if (isDateColumnHeader(h)) acc.push(i);
+                                      return acc;
+                                    }, [])
+                                  );
+
+
+                                  const classifyHinhThucXuat = (htx: string): string | null => {
+                                    const clean = htx.trim().toLowerCase();
+                                    if (!clean) return null;
+
+                                    if (clean.includes('yêu cầu xuất dv thu hộ bảo hiểm') || clean.includes('yeu cau xuat dv thu ho bao hiem')) {
+                                      return 'Yêu cầu xuất DV thu hộ bảo hiểm';
+                                    }
+                                    if (clean.includes('thu hộ')) return 'Thu hộ';
+                                    if (clean.includes('trả góp')) return 'Trả góp';
+                                    if (
+                                      clean.includes('tiền mặt') ||
+                                      clean.includes('xuất bán hàng online') ||
+                                      clean.includes('xuất bán hàng tại siêu thị') ||
+                                      clean.includes('xuất bán online') ||
+                                      clean.includes('xuất bán pre-order') ||
+                                      clean.includes('xuất bán ưu đãi') ||
+                                      clean.includes('xuất đổi bảo hành') ||
+                                      clean.includes('xuất sim')
+                                    ) {
+                                      return 'Tiền mặt';
+                                    }
+
+                                    return null;
+                                  };
+
+                                  // Paginate: only render current page rows
+                                  const pageRows = filteredRawTableRows.slice(
+                                    rawTablePage * RAW_PAGE_SIZE,
+                                    (rawTablePage + 1) * RAW_PAGE_SIZE
+                                  );
+
+                                  return pageRows.map((row, rowIdx) => (
+                                    <tr key={rowIdx} className={`transition-colors ${rowIdx % 2 === 1 ? 'bg-slate-50' : 'bg-white'} hover:bg-slate-100`}>
+                                      {row.map((cell, cellIdx) => (
+                                        <td key={cellIdx} className={`border border-slate-200 py-2 px-3 text-[9px] font-medium whitespace-nowrap ${dateColIndices.has(cellIdx) ? 'text-indigo-700 font-bold' : 'text-slate-900'}`}>
+                                          {dateColIndices.has(cellIdx)
+                                            ? fmtRawDate(String(cell || ''))
+                                            : cell}
+                                        </td>
+                                      ))}
+                                      <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
+                                        {(() => {
+                                          const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+                                          const codeClass = classifyProductByCode(prodCode);
+                                          if (codeClass) return codeClass;
+
+                                          const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
+                                          const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
+                                          if (prodName.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodName.includes('BẢO VỆ MÀN HÌNH') || prodName.includes('BVMH')) {
+                                            return 'BVMH';
+                                          }
+                                          if (catVal.includes('7139') || catVal.includes('BẢO HÀNH MỞ RỘNG')) {
+                                            return 'BHMR';
+                                          }
+                                          if (catVal.includes('BẢO HÀNH RƠI VỠ')) {
+                                            return 'BHRV';
+                                          }
+                                          if (catVal.includes('4479')) {
+                                            return 'GIC';
+                                          }
+                                          if (catVal.includes('1 ĐỔI 1')) {
+                                            return '1 ĐỔI 1';
+                                          }
+                                          return classifyProduct(prodName);
+                                        })()}
+                                      </td>
+                                      <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
+                                        {(() => {
+                                          const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+                                          const codeClass = classifyProductByCode(prodCode);
+                                          if (codeClass) return 'B.HIỂM';
+
+                                          const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
+                                          const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
+                                          if (prodName.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodName.includes('BẢO VỆ MÀN HÌNH') || prodName.includes('BVMH')) {
+                                            return 'B.HIỂM';
+                                          }
+                                          if (catVal.includes('1994') || catVal.includes('4479')) {
+                                            return 'B.HIỂM';
+                                          }
+                                          const valLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', String(row[idxProduct] || '')) || '-';
+                                          return valLarge === 'BẢO HIỂM' ? 'B.HIỂM' : valLarge;
+                                        })()}
+                                      </td>
+                                      <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
+                                        {resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode)}
+                                      </td>
+                                      <td className="border border-slate-200 py-2 px-3 text-[9px] whitespace-nowrap font-black text-center">
+                                        {(() => {
+                                          const val = idxHinhThucXuat !== -1 ? classifyHinhThucXuat(String(row[idxHinhThucXuat] || '')) : null;
+                                          return val === 'Tiền mặt'
+                                            ? <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-black">Tiền mặt</span>
+                                            : val === 'Trả góp'
+                                              ? <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-black">Trả góp</span>
+                                              : val === 'Thu hộ'
+                                                ? <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-black">Thu hộ</span>
+                                                : <span className="text-slate-400">-</span>;
+                                        })()}
+                                      </td>
+                                    </tr>
+                                  ));
+                                })()
+                              ) : (
+                                <tr>
+                                  <td className="py-12 text-center text-slate-400 italic text-[11px]" colSpan={(rawYcxRows[0]?.length || 0) + 1}>
+                                    Chưa có dữ liệu nguồn hoặc không có bản ghi nào thỏa mãn điều kiện lọc.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                            <tfoot>
+                              {rawYcxRows.length > 0 && (() => {
+                                const headers = rawYcxRows[0]?.map(h => String(h || '').trim()) || [];
+
+                                // Find index of quantity column
+                                const idxQty = headers.findIndex(h => {
+                                  const lh = h.toLowerCase();
+                                  return lh === 'số lượng' || lh === 'sl' || lh.includes('số lượng');
+                                });
+
+                                // Find index of price/revenue column
+                                const idxGiaBan = (() => {
+                                  const priorityTerms = ['doanh thu', 'thành tiền', 'giá bán', 'giá bán_1', 'phải thu', 'tổng tiền'];
+                                  for (const term of priorityTerms) {
+                                    const idx = headers.findIndex(h => h.toLowerCase().includes(term));
+                                    if (idx !== -1) return idx;
+                                  }
+                                  return -1;
+                                })();
+
+                                const sumQty = idxQty !== -1 ? filteredRawTableRows.reduce((acc, row) => {
+                                  const rawVal = String(row[idxQty] || '').replace(/,/g, '').trim();
+                                  const val = parseFloat(rawVal);
+                                  return acc + (isNaN(val) ? 0 : val);
+                                }, 0) : 0;
+
+                                const sumGiaBan = idxGiaBan !== -1 ? filteredRawTableRows.reduce((acc, row) => {
+                                  const rawVal = String(row[idxGiaBan] || '').replace(/,/g, '').trim();
+                                  const val = parseFloat(rawVal);
+                                  return acc + (isNaN(val) ? 0 : val);
+                                }, 0) : 0;
+
+                                return (
+                                  <tr className="bg-slate-100 font-extrabold border-t border-slate-300 text-[10px] text-slate-800">
+                                    {rawYcxRows[0].map((_, idx) => {
+                                      if (idx === 0) {
+                                        return (
+                                          <td key={idx} className="border border-slate-200 py-2 px-3 text-center uppercase tracking-wider text-slate-700 whitespace-nowrap">
+                                            TỔNG CỘNG
+                                          </td>
+                                        );
+                                      }
+                                      if (idx === idxQty && idxQty !== -1) {
+                                        return (
+                                          <td key={idx} className="border border-slate-200 py-2 px-3 text-center text-slate-900 font-black whitespace-nowrap bg-emerald-50/50">
+                                            {sumQty.toLocaleString('vi-VN')}
+                                          </td>
+                                        );
+                                      }
+                                      if (idx === idxGiaBan && idxGiaBan !== -1) {
+                                        return (
+                                          <td key={idx} className="border border-slate-200 py-2 px-3 text-center text-slate-900 font-black whitespace-nowrap bg-blue-50/50">
+                                            {sumGiaBan.toLocaleString('vi-VN')}
+                                          </td>
+                                        );
+                                      }
+                                      return (
+                                        <td key={idx} className="border border-slate-200 py-2 px-3"></td>
+                                      );
+                                    })}
+                                    <td className="border border-slate-200 py-2 px-3"></td>
+                                    <td className="border border-slate-200 py-2 px-3"></td>
+                                    <td className="border border-slate-200 py-2 px-3"></td>
+                                    <td className="border border-slate-200 py-2 px-3"></td>
+                                  </tr>
+                                );
+                              })()}
+                            </tfoot>
+                          </table>
+                        </div>
+
+                        {/* Pagination controls */}
+                        {filteredRawTableRows.length > RAW_PAGE_SIZE && (
+                          <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-slate-50/50">
+                            <span className="text-[11px] font-bold text-slate-500">
+                              Hiển thị {rawTablePage * RAW_PAGE_SIZE + 1}–{Math.min((rawTablePage + 1) * RAW_PAGE_SIZE, filteredRawTableRows.length)} / {filteredRawTableRows.length} dòng
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                disabled={rawTablePage === 0}
+                                onClick={() => setRawTablePage(p => Math.max(0, p - 1))}
+                                className="px-3 py-1 text-[11px] font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                              >← Trước</button>
+                              <span className="text-[11px] font-bold text-slate-600">
+                                Trang {rawTablePage + 1} / {Math.ceil(filteredRawTableRows.length / RAW_PAGE_SIZE)}
+                              </span>
+                              <button
+                                disabled={(rawTablePage + 1) * RAW_PAGE_SIZE >= filteredRawTableRows.length}
+                                onClick={() => setRawTablePage(p => p + 1)}
+                                className="px-3 py-1 text-[11px] font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                              >Tiếp →</button>
                             </div>
                           </div>
                         )}
                       </div>
-                    );
-                  })}
+                    )}
+                  </div>
 
-                  {/* Clear filter */}
-                  {(selectedDrillGroups.length > 0 || drillFilterNhomSmall.length > 0 || drillFilterStaff.length > 0 || drillFilterBrand.length > 0) && (
-                    <button
-                      onClick={() => {
-                        setSelectedDrillGroups([]);
-                        setDrillFilterNhomSmall([]);
-                        setDrillFilterStaff([]);
-                        setDrillFilterBrand([]);
-                        setActiveDrillFilter(null);
-                      }}
-                      className="ml-auto flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-700 whitespace-nowrap"
-                    >
-                      <RotateCcw size={11} /> Xóa bộ lọc
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Table */}
-              <div className="overflow-x-auto bg-white" id="chi-tiet-nganh-hang-table-container">
-                <table className="w-full border-collapse border border-slate-200 [&_th]:border-r [&_th]:border-slate-200 [&_td]:border-r [&_td]:border-slate-200 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap" style={{ borderSpacing: 0 }}>
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="py-3 px-4 text-[11px] font-black text-slate-500 uppercase tracking-wider text-left min-w-[240px]">NGÀNH HÀNG</th>
-                      <th className="py-3 px-4 text-[11px] font-black text-slate-500 uppercase tracking-wider text-right w-24">S.LƯỢNG</th>
-                      {compareMode !== 'none' && <th className="py-3 px-2 text-[10px] font-black text-slate-400 bg-slate-50/50 uppercase tracking-wider text-center w-20">{prevLabel}</th>}
-                      {compareMode !== 'none' && <th className="py-3 px-2 text-[10px] font-black text-rose-500 bg-rose-50/30 uppercase tracking-wider text-center w-16">Tăng/Giảm</th>}
-                      <th className="py-3 px-4 text-[11px] font-black text-slate-500 uppercase tracking-wider text-right w-24">D.THU</th>
-                      {compareMode !== 'none' && <th className="py-3 px-2 text-[10px] font-black text-slate-400 bg-slate-50/50 uppercase tracking-wider text-center w-20">{prevLabel}</th>}
-                      {compareMode !== 'none' && <th className="py-3 px-2 text-[10px] font-black text-rose-500 bg-rose-50/30 uppercase tracking-wider text-center w-16">Tăng/Giảm</th>}
-                      <th className="py-3 px-4 text-[11px] font-black text-slate-500 uppercase tracking-wider text-right w-24">DTQĐ</th>
-                      {compareMode !== 'none' && <th className="py-3 px-2 text-[10px] font-black text-slate-400 bg-slate-50/50 uppercase tracking-wider text-center w-20">{prevLabel}</th>}
-                      {compareMode !== 'none' && <th className="py-3 px-2 text-[10px] font-black text-rose-500 bg-rose-50/30 uppercase tracking-wider text-center w-16">Tăng/Giảm</th>}
-                      <th className="py-3 px-4 text-[11px] font-black text-slate-500 uppercase tracking-wider text-right w-24">GTĐH</th>
-                      {compareMode !== 'none' && <th className="py-3 px-2 text-[10px] font-black text-slate-400 bg-slate-50/50 uppercase tracking-wider text-center w-20">{prevLabel}</th>}
-                      {compareMode !== 'none' && <th className="py-3 px-2 text-[10px] font-black text-rose-500 bg-rose-50/30 uppercase tracking-wider text-center w-16">Tăng/Giảm</th>}
-                      <th className="py-3 px-4 text-[11px] font-black text-amber-600 uppercase tracking-wider text-right w-24">% T.CHẬM</th>
-                      {compareMode !== 'none' && <th className="py-3 px-2 text-[10px] font-black text-slate-400 bg-slate-50/50 uppercase tracking-wider text-center w-20">{prevLabel}</th>}
-                      {compareMode !== 'none' && <th className="py-3 px-2 text-[10px] font-black text-rose-500 bg-rose-50/30 uppercase tracking-wider text-center w-16">Tăng/Giảm</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      const visibleData = selectedDrillGroups.length > 0
-                        ? drillDownData.filter((g: any) => selectedDrillGroups.includes(g.key))
-                        : drillDownData;
-                      return visibleData.length > 0 ? visibleData.map((group: any) => {
-                        const groupKey = group.key;
-                        const isGroupOpen = isDrillAllOpen
-                          ? expandedDrillRows[groupKey] !== false
-                          : expandedDrillRows[groupKey] === true;
-                        const showGroup = !isDrillCollapsed && isGroupOpen;
-                        const groupPrev = compareMode !== 'none' ? drillDownDataPrev.find((g: any) => g.key === group.key) : null;
-                        return (
-                          <React.Fragment key={groupKey}>
-                            <tr
-                              className="border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors"
-                              onClick={() => { setExpandedDrillRows(prev => ({ ...prev, [groupKey]: !isGroupOpen })); }}
-                            >
-                              <td className="py-3 px-4 text-left">
-                                <div className="flex items-center gap-2">
-                                  <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 flex-shrink-0 ${isGroupOpen ? '' : '-rotate-90'}`} />
-                                  <span className="text-[13px] font-black text-slate-800">{group.name}</span>
-                                </div>
-                              </td>
-                              <td className="py-3 px-4 text-right text-[13px] font-bold text-slate-700">{group.sl}</td>
-                              {compareMode !== 'none' && (
-                                <td className="py-3 px-2 text-center bg-slate-50/50 border-l border-slate-100 text-[11px] font-bold text-slate-400">
-                                  {groupPrev ? groupPrev.sl.toLocaleString() : "-"}
-                                </td>
-                              )}
-                              {compareMode !== 'none' && (
-                                <td className="py-3 px-2 text-center bg-slate-50/30 border-l border-slate-100">
-                                  {groupPrev ? fmtDiff(group.sl, groupPrev.sl) : <span className="text-slate-300">-</span>}
-                                </td>
-                              )}
-                              <td className="py-3 px-4 text-right text-[13px] font-bold text-slate-700">{fmtTr(group.dt)}</td>
-                              {compareMode !== 'none' && (
-                                <td className="py-3 px-2 text-center bg-slate-50/50 border-l border-slate-100 text-[11px] font-bold text-slate-400">
-                                  {groupPrev ? fmtTr(groupPrev.dt) : "-"}
-                                </td>
-                              )}
-                              {compareMode !== 'none' && (
-                                <td className="py-3 px-2 text-center bg-slate-50/30 border-l border-slate-100">
-                                  {groupPrev ? fmtDiff(group.dt, groupPrev.dt, true) : <span className="text-slate-300">-</span>}
-                                </td>
-                              )}
-                              <td className="py-3 px-4 text-right text-[13px] font-bold text-indigo-600">{fmtTr(group.dt)}</td>
-                              {compareMode !== 'none' && (
-                                <td className="py-3 px-2 text-center bg-slate-50/50 border-l border-slate-100 text-[11px] font-bold text-slate-400">
-                                  {groupPrev ? fmtTr(groupPrev.dt) : "-"}
-                                </td>
-                              )}
-                              {compareMode !== 'none' && (
-                                <td className="py-3 px-2 text-center bg-slate-50/30 border-l border-slate-100">
-                                  {groupPrev ? fmtDiff(group.dt, groupPrev.dt, true) : <span className="text-slate-300">-</span>}
-                                </td>
-                              )}
-                              <td className="py-3 px-4 text-right text-[13px] font-bold text-slate-600">{fmtTr(group.sl > 0 ? group.dt / group.sl : 0)}</td>
-                              {compareMode !== 'none' && (
-                                <td className="py-3 px-2 text-center bg-slate-50/50 border-l border-slate-100 text-[11px] font-bold text-slate-400">
-                                  {groupPrev ? fmtTr(groupPrev.sl > 0 ? groupPrev.dt / groupPrev.sl : 0) : "-"}
-                                </td>
-                              )}
-                              {compareMode !== 'none' && (
-                                <td className="py-3 px-2 text-center bg-slate-50/30 border-l border-slate-100">
-                                  {groupPrev ? fmtDiff(group.sl > 0 ? group.dt / group.sl : 0, groupPrev.sl > 0 ? groupPrev.dt / groupPrev.sl : 0, true) : <span className="text-slate-300">-</span>}
-                                </td>
-                              )}
-                              <td className="py-3 px-4 text-right text-[13px] font-black text-amber-600">{fmtPct(group.tc_dt, group.dt)}</td>
-                              {compareMode !== 'none' && (
-                                <td className="py-3 px-2 text-center bg-slate-50/50 border-l border-slate-100 text-[11px] font-bold text-slate-400">
-                                  {groupPrev ? fmtPct(groupPrev.tc_dt, groupPrev.dt) : "-"}
-                                </td>
-                              )}
-                              {compareMode !== 'none' && (
-                                <td className="py-3 px-2 text-center bg-slate-50/30 border-l border-slate-100">
-                                  {groupPrev ? fmtDiff(group.tc_dt, groupPrev.tc_dt, true) : <span className="text-slate-300">-</span>}
-                                </td>
-                              )}
-                            </tr>
-
-                            {showGroup && group.subs?.map((sub: any, si: number) => {
-                              const subKey = `${groupKey}.${sub.key}`;
-                              const isSubOpen = isDrillAllOpen
-                                ? expandedDrillRows[subKey] !== false
-                                : expandedDrillRows[subKey] === true;
-                              const showSub = !isDrillCollapsed && isSubOpen;
-                              const subPrev = groupPrev?.subs?.find((ps: any) => ps.key === sub.key);
-                              return (
-                                <React.Fragment key={subKey}>
-                                  <tr
-                                    className="border-b border-slate-100 cursor-pointer hover:bg-blue-50/30 transition-colors bg-slate-50/50"
-                                    onClick={() => { setExpandedDrillRows(prev => ({ ...prev, [subKey]: !isSubOpen })); }}
-                                  >
-                                    <td className="py-2.5 px-4 pl-10 text-left">
-                                      <div className="flex items-center gap-2">
-                                        <ChevronDown size={12} className={`text-blue-400 transition-transform duration-200 flex-shrink-0 ${isSubOpen ? '' : '-rotate-90'}`} />
-                                        <span className="text-[12px] font-bold text-blue-600">{sub.name}</span>
-                                      </div>
-                                    </td>
-                                    <td className="py-2.5 px-4 text-right text-[12px] font-bold text-slate-600">{sub.sl}</td>
-                                    {compareMode !== 'none' && (
-                                      <td className="py-2 px-2 text-center bg-slate-100/50 border-l border-slate-100 text-[10px] font-bold text-slate-400">
-                                        {subPrev ? subPrev.sl.toLocaleString() : "-"}
-                                      </td>
-                                    )}
-                                    {compareMode !== 'none' && (
-                                      <td className="py-2 px-2 text-center bg-slate-100/30 border-l border-slate-100">
-                                        {subPrev ? fmtDiff(sub.sl, subPrev.sl) : <span className="text-slate-300">-</span>}
-                                      </td>
-                                    )}
-                                    <td className="py-2.5 px-4 text-right text-[12px] font-bold text-slate-600">{fmtTr(sub.dt)}</td>
-                                    {compareMode !== 'none' && (
-                                      <td className="py-2 px-2 text-center bg-slate-100/50 border-l border-slate-100 text-[10px] font-bold text-slate-400">
-                                        {subPrev ? fmtTr(subPrev.dt) : "-"}
-                                      </td>
-                                    )}
-                                    {compareMode !== 'none' && (
-                                      <td className="py-2 px-2 text-center bg-slate-100/30 border-l border-slate-100">
-                                        {subPrev ? fmtDiff(sub.dt, subPrev.dt, true) : <span className="text-slate-300">-</span>}
-                                      </td>
-                                    )}
-                                    <td className="py-2.5 px-4 text-right text-[12px] font-bold text-indigo-500">{fmtTr(sub.dt)}</td>
-                                    {compareMode !== 'none' && (
-                                      <td className="py-2 px-2 text-center bg-slate-100/50 border-l border-slate-100 text-[10px] font-bold text-slate-400">
-                                        {subPrev ? fmtTr(subPrev.dt) : "-"}
-                                      </td>
-                                    )}
-                                    {compareMode !== 'none' && (
-                                      <td className="py-2 px-2 text-center bg-slate-100/30 border-l border-slate-100">
-                                        {subPrev ? fmtDiff(sub.dt, subPrev.dt, true) : <span className="text-slate-300">-</span>}
-                                      </td>
-                                    )}
-                                    <td className="py-2.5 px-4 text-right text-[12px] font-bold text-slate-500">{fmtTr(sub.sl > 0 ? sub.dt / sub.sl : 0)}</td>
-                                    {compareMode !== 'none' && (
-                                      <td className="py-2 px-2 text-center bg-slate-100/50 border-l border-slate-100 text-[10px] font-bold text-slate-400">
-                                        {subPrev ? fmtTr(subPrev.sl > 0 ? subPrev.dt / subPrev.sl : 0) : "-"}
-                                      </td>
-                                    )}
-                                    {compareMode !== 'none' && (
-                                      <td className="py-2 px-2 text-center bg-slate-100/30 border-l border-slate-100">
-                                        {subPrev ? fmtDiff(sub.sl > 0 ? sub.dt / sub.sl : 0, subPrev.sl > 0 ? subPrev.dt / subPrev.sl : 0, true) : <span className="text-slate-300">-</span>}
-                                      </td>
-                                    )}
-                                    <td className="py-2.5 px-4 text-right text-[12px] font-black text-amber-500">{fmtPct(sub.tc_dt, sub.dt)}</td>
-                                    {compareMode !== 'none' && (
-                                      <td className="py-2 px-2 text-center bg-slate-100/50 border-l border-slate-100 text-[10px] font-bold text-slate-400">
-                                        {subPrev ? fmtPct(subPrev.tc_dt, subPrev.dt) : "-"}
-                                      </td>
-                                    )}
-                                    {compareMode !== 'none' && (
-                                      <td className="py-2 px-2 text-center bg-slate-100/30 border-l border-slate-100">
-                                        {subPrev ? fmtDiff(sub.tc_dt, subPrev.tc_dt, true) : <span className="text-slate-300">-</span>}
-                                      </td>
-                                    )}
-                                  </tr>
-
-                                  {showSub && sub.staffRows?.filter((staff: any) => drillFilterStaff.length === 0 || drillFilterStaff.includes(staff.name)).map((staff: any, sti: number) => {
-                                    const staffKey = `${subKey}.${sti}`;
-                                    const isStaffOpen = isDrillAllOpen
-                                      ? expandedDrillRows[staffKey] !== false
-                                      : expandedDrillRows[staffKey] === true;
-                                    const showStaff = !isDrillCollapsed && isStaffOpen;
-                                    const staffPrev = subPrev?.staffRows?.find((pst: any) => pst.name === staff.name);
-                                    return (
-                                      <React.Fragment key={staffKey}>
-                                        <tr
-                                          className="border-b border-slate-50 cursor-pointer hover:bg-orange-50/30 transition-colors"
-                                          onClick={() => { setExpandedDrillRows(prev => ({ ...prev, [staffKey]: !isStaffOpen })); }}
-                                        >
-                                          <td className="py-2 px-4 pl-16 text-left">
-                                            <div className="flex items-center gap-2">
-                                              <ChevronDown size={11} className={`text-orange-400 transition-transform duration-200 flex-shrink-0 ${isStaffOpen ? '' : '-rotate-90'}`} />
-                                              <span className="text-[11px] font-bold text-orange-600">{staff.name}</span>
-                                            </div>
-                                          </td>
-                                          <td className="py-2 px-4 text-right text-[11px] font-medium text-slate-500">{staff.sl}</td>
-                                          {compareMode !== 'none' && (
-                                            <td className="py-1.5 px-2 text-center bg-slate-50/40 border-l border-slate-50 text-[10px] font-medium text-slate-400">
-                                              {staffPrev ? staffPrev.sl.toLocaleString() : "-"}
-                                            </td>
-                                          )}
-                                          {compareMode !== 'none' && (
-                                            <td className="py-1.5 px-2 text-center bg-slate-50/20 border-l border-slate-50">
-                                              {staffPrev ? fmtDiff(staff.sl, staffPrev.sl) : <span className="text-slate-300">-</span>}
-                                            </td>
-                                          )}
-                                          <td className="py-2 px-4 text-right text-[11px] font-medium text-slate-500">{fmtTr(staff.dt)}</td>
-                                          {compareMode !== 'none' && (
-                                            <td className="py-1.5 px-2 text-center bg-slate-50/40 border-l border-slate-50 text-[10px] font-medium text-slate-400">
-                                              {staffPrev ? fmtTr(staffPrev.dt) : "-"}
-                                            </td>
-                                          )}
-                                          {compareMode !== 'none' && (
-                                            <td className="py-1.5 px-2 text-center bg-slate-50/20 border-l border-slate-50">
-                                              {staffPrev ? fmtDiff(staff.dt, staffPrev.dt, true) : <span className="text-slate-300">-</span>}
-                                            </td>
-                                          )}
-                                          <td className="py-2 px-4 text-right text-[11px] font-medium text-indigo-400">{fmtTr(staff.dt)}</td>
-                                          {compareMode !== 'none' && (
-                                            <td className="py-1.5 px-2 text-center bg-slate-50/40 border-l border-slate-50 text-[10px] font-medium text-slate-400">
-                                              {staffPrev ? fmtTr(staffPrev.dt) : "-"}
-                                            </td>
-                                          )}
-                                          {compareMode !== 'none' && (
-                                            <td className="py-1.5 px-2 text-center bg-slate-50/20 border-l border-slate-50">
-                                              {staffPrev ? fmtDiff(staff.dt, staffPrev.dt, true) : <span className="text-slate-300">-</span>}
-                                            </td>
-                                          )}
-                                          <td className="py-2 px-4 text-right text-[11px] font-medium text-slate-400">{fmtTr(staff.sl > 0 ? staff.dt / staff.sl : 0)}</td>
-                                          {compareMode !== 'none' && (
-                                            <td className="py-1.5 px-2 text-center bg-slate-50/40 border-l border-slate-50 text-[10px] font-medium text-slate-400">
-                                              {staffPrev ? fmtTr(staffPrev.sl > 0 ? staffPrev.dt / staffPrev.sl : 0) : "-"}
-                                            </td>
-                                          )}
-                                          {compareMode !== 'none' && (
-                                            <td className="py-1.5 px-2 text-center bg-slate-50/20 border-l border-slate-50">
-                                              {staffPrev ? fmtDiff(staff.sl > 0 ? staff.dt / staff.sl : 0, staffPrev.sl > 0 ? staffPrev.dt / staffPrev.sl : 0, true) : <span className="text-slate-300">-</span>}
-                                            </td>
-                                          )}
-                                          <td className="py-2 px-4 text-right text-[11px] font-black text-amber-500">{fmtPct(staff.tc_dt, staff.dt)}</td>
-                                          {compareMode !== 'none' && (
-                                            <td className="py-1.5 px-2 text-center bg-slate-50/40 border-l border-slate-50 text-[10px] font-medium text-slate-400">
-                                              {staffPrev ? fmtPct(staffPrev.tc_dt, staffPrev.dt) : "-"}
-                                            </td>
-                                          )}
-                                          {compareMode !== 'none' && (
-                                            <td className="py-1.5 px-2 text-center bg-slate-50/20 border-l border-slate-50">
-                                              {staffPrev ? fmtDiff(staff.tc_dt, staffPrev.tc_dt, true) : <span className="text-slate-300">-</span>}
-                                            </td>
-                                          )}
-                                        </tr>
-
-                                        {showStaff && staff.brands?.filter((brand: any) => drillFilterBrand.length === 0 || drillFilterBrand.includes(brand.name)).map((brand: any, bi: number) => {
-                                          const brandKey = `${staffKey}.${bi}`;
-                                          const isBrandOpen = isDrillAllOpen
-                                            ? expandedDrillBrand[brandKey] !== false
-                                            : expandedDrillBrand[brandKey] === true;
-                                          const showBrand = !isDrillCollapsed && isBrandOpen;
-                                          const brandPrev = staffPrev?.brands?.find((pb: any) => pb.name === brand.name);
-                                          return (
-                                            <React.Fragment key={brandKey}>
-                                              <tr
-                                                className="border-b border-slate-50 cursor-pointer hover:bg-purple-50/20 transition-colors bg-slate-50/30"
-                                                onClick={() => { setExpandedDrillBrand(prev => ({ ...prev, [brandKey]: !isBrandOpen })); }}
-                                              >
-                                                <td className="py-1.5 px-4 pl-24 text-left">
-                                                  <div className="flex items-center gap-2">
-                                                    <ChevronDown size={10} className={`text-purple-400 transition-transform duration-200 flex-shrink-0 ${isBrandOpen ? '' : '-rotate-90'}`} />
-                                                    <span className="text-[11px] font-bold text-purple-700">{brand.name}</span>
-                                                  </div>
-                                                </td>
-                                                <td className="py-1.5 px-4 text-right text-[10px] font-medium text-slate-400">{brand.sl}</td>
-                                                {compareMode !== 'none' && (
-                                                  <td className="py-1 px-2 text-center bg-slate-50/20 border-l border-slate-100 text-[9px] text-slate-400">
-                                                    {brandPrev ? brandPrev.sl.toLocaleString() : "-"}
-                                                  </td>
-                                                )}
-                                                {compareMode !== 'none' && (
-                                                  <td className="py-1 px-2 text-center bg-slate-50/10 border-l border-slate-100">
-                                                    {brandPrev ? fmtDiff(brand.sl, brandPrev.sl) : <span className="text-slate-300">-</span>}
-                                                  </td>
-                                                )}
-                                                <td className="py-1.5 px-4 text-right text-[10px] font-medium text-slate-400">{fmtTr(brand.dt)}</td>
-                                                {compareMode !== 'none' && (
-                                                  <td className="py-1 px-2 text-center bg-slate-50/20 border-l border-slate-100 text-[9px] text-slate-400">
-                                                    {brandPrev ? fmtTr(brandPrev.dt) : "-"}
-                                                  </td>
-                                                )}
-                                                {compareMode !== 'none' && (
-                                                  <td className="py-1 px-2 text-center bg-slate-50/10 border-l border-slate-100">
-                                                    {brandPrev ? fmtDiff(brand.dt, brandPrev.dt, true) : <span className="text-slate-300">-</span>}
-                                                  </td>
-                                                )}
-                                                <td className="py-1.5 px-4 text-right text-[10px] font-medium text-indigo-300">{fmtTr(brand.dt)}</td>
-                                                {compareMode !== 'none' && (
-                                                  <td className="py-1 px-2 text-center bg-slate-50/20 border-l border-slate-100 text-[9px] text-slate-400">
-                                                    {brandPrev ? fmtTr(brandPrev.dt) : "-"}
-                                                  </td>
-                                                )}
-                                                {compareMode !== 'none' && (
-                                                  <td className="py-1 px-2 text-center bg-slate-50/10 border-l border-slate-100">
-                                                    {brandPrev ? fmtDiff(brand.dt, brandPrev.dt, true) : <span className="text-slate-300">-</span>}
-                                                  </td>
-                                                )}
-                                                <td className="py-1.5 px-4 text-right text-[10px] font-medium text-slate-400">{fmtTr(brand.sl > 0 ? brand.dt / brand.sl : 0)}</td>
-                                                {compareMode !== 'none' && (
-                                                  <td className="py-1 px-2 text-center bg-slate-50/20 border-l border-slate-100 text-[9px] text-slate-400">
-                                                    {brandPrev ? fmtTr(brandPrev.sl > 0 ? brandPrev.dt / brandPrev.sl : 0) : "-"}
-                                                  </td>
-                                                )}
-                                                {compareMode !== 'none' && (
-                                                  <td className="py-1 px-2 text-center bg-slate-50/10 border-l border-slate-100">
-                                                    {brandPrev ? fmtDiff(brand.sl > 0 ? brand.dt / brand.sl : 0, brandPrev.sl > 0 ? brandPrev.dt / brandPrev.sl : 0, true) : <span className="text-slate-300">-</span>}
-                                                  </td>
-                                                )}
-                                                <td className="py-1.5 px-4 text-right text-[10px] font-black text-amber-400">{fmtPct(brand.tc_dt, brand.dt)}</td>
-                                                {compareMode !== 'none' && (
-                                                  <td className="py-1 px-2 text-center bg-slate-50/20 border-l border-slate-100 text-[9px] text-slate-400">
-                                                    {brandPrev ? fmtPct(brandPrev.tc_dt, brandPrev.dt) : "-"}
-                                                  </td>
-                                                )}
-                                                {compareMode !== 'none' && (
-                                                  <td className="py-1 px-2 text-center bg-slate-50/10 border-l border-slate-100">
-                                                    {brandPrev ? fmtDiff(brand.tc_dt, brandPrev.tc_dt, true) : <span className="text-slate-300">-</span>}
-                                                  </td>
-                                                )}
-                                              </tr>
-                                              {showBrand && brand.products?.map((prod: any, pi: number) => {
-                                                const prodPrev = brandPrev?.products?.find((pp: any) => pp.name === prod.name);
-                                                return (
-                                                  <tr key={`${brandKey}.${pi}`} className="border-b border-slate-50/50 hover:bg-blue-50/10 transition-colors">
-                                                    <td className="py-1.5 px-4 pl-32 text-left">
-                                                      <span className="text-[10px] font-semibold text-blue-700">{prod.name}</span>
-                                                    </td>
-                                                    <td className="py-1.5 px-4 text-right text-[10px] text-slate-400">{prod.sl}</td>
-                                                    {compareMode !== 'none' && (
-                                                      <td className="py-1 px-2 text-center border-l border-slate-50/50 text-[9px] text-slate-400">
-                                                        {prodPrev ? prodPrev.sl.toLocaleString() : "-"}
-                                                      </td>
-                                                    )}
-                                                    {compareMode !== 'none' && (
-                                                      <td className="py-1 px-2 text-center border-l border-slate-50/50">
-                                                        {prodPrev ? fmtDiff(prod.sl, prodPrev.sl) : <span className="text-slate-300">-</span>}
-                                                      </td>
-                                                    )}
-                                                    <td className="py-1.5 px-4 text-right text-[10px] text-slate-400">{fmtTr(prod.dt)}</td>
-                                                    {compareMode !== 'none' && (
-                                                      <td className="py-1 px-2 text-center border-l border-slate-50/50 text-[9px] text-slate-400">
-                                                        {prodPrev ? fmtTr(prodPrev.dt) : "-"}
-                                                      </td>
-                                                    )}
-                                                    {compareMode !== 'none' && (
-                                                      <td className="py-1 px-2 text-center border-l border-slate-50/50">
-                                                        {prodPrev ? fmtDiff(prod.dt, prodPrev.dt, true) : <span className="text-slate-300">-</span>}
-                                                      </td>
-                                                    )}
-                                                    <td className="py-1.5 px-4 text-right text-[10px] text-indigo-300">{fmtTr(prod.dt)}</td>
-                                                    {compareMode !== 'none' && (
-                                                      <td className="py-1 px-2 text-center border-l border-slate-50/50 text-[9px] text-slate-400">
-                                                        {prodPrev ? fmtTr(prodPrev.dt) : "-"}
-                                                      </td>
-                                                    )}
-                                                    {compareMode !== 'none' && (
-                                                      <td className="py-1 px-2 text-center border-l border-slate-50/50">
-                                                        {prodPrev ? fmtDiff(prod.dt, prodPrev.dt, true) : <span className="text-slate-300">-</span>}
-                                                      </td>
-                                                    )}
-                                                    <td className="py-1.5 px-4 text-right text-[10px] text-slate-400">{fmtTr(prod.sl > 0 ? prod.dt / prod.sl : 0)}</td>
-                                                    {compareMode !== 'none' && (
-                                                      <td className="py-1 px-2 text-center border-l border-slate-50/50 text-[9px] text-slate-400">
-                                                        {prodPrev ? fmtTr(prodPrev.sl > 0 ? prodPrev.dt / prodPrev.sl : 0) : "-"}
-                                                      </td>
-                                                    )}
-                                                    {compareMode !== 'none' && (
-                                                      <td className="py-1 px-2 text-center border-l border-slate-50/50">
-                                                        {prodPrev ? fmtDiff(prod.sl > 0 ? prod.dt / prod.sl : 0, prodPrev.sl > 0 ? prodPrev.dt / prodPrev.sl : 0, true) : <span className="text-slate-300">-</span>}
-                                                      </td>
-                                                    )}
-                                                    <td className="py-1.5 px-4 text-right text-[10px] font-black text-amber-400">{fmtPct(prod.tc_dt, prod.dt)}</td>
-                                                    {compareMode !== 'none' && (
-                                                      <td className="py-1 px-2 text-center border-l border-slate-50/50 text-[9px] text-slate-400">
-                                                        {prodPrev ? fmtPct(prodPrev.tc_dt, prodPrev.dt) : "-"}
-                                                      </td>
-                                                    )}
-                                                    {compareMode !== 'none' && (
-                                                      <td className="py-1 px-2 text-center border-l border-slate-50/50">
-                                                        {prodPrev ? fmtDiff(prod.tc_dt, prodPrev.tc_dt, true) : <span className="text-slate-300">-</span>}
-                                                      </td>
-                                                    )}
-                                                  </tr>
-                                                );
-                                              })}
-                                            </React.Fragment>
-                                          );
-                                        })}
-                                      </React.Fragment>
-                                    );
-                                  })}
-                                </React.Fragment>
-                              );
-                            })}
-                          </React.Fragment>
-                        );
-                      }) : (
-                        <tr>
-                          <td colSpan={6} className="py-12 text-center text-slate-400 italic text-[11px]">
-                            {isLoadingRealtime ? 'Đang tải dữ liệu...' : 'Chưa có dữ liệu thỏa mãn điều kiện.'}
-                          </td>
-                        </tr>
-                      );
-                    })()}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* PHÂN TÍCH KHAI THÁC - Menu Hiển thị & Bảng dữ liệu */}
-            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6">
-              {/* Header */}
-              <div className="px-6 pt-5 pb-4 border-b border-slate-100">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0 font-bold">
-                      PK
+                  {/* Custom Category Mapping Card - Hidden by User Request */}
+                  {/*
+                  <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-md mt-6">
+                    <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Database size={18} className="text-slate-700 flex-shrink-0" />
+                        <div>
+                          <h3 className="text-[15px] font-black text-slate-900 uppercase tracking-widest">4. CẤU HÌNH MAPPING NGÀNH HÀNG</h3>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Dùng để phân loại cột Ngành hàng LỚN &amp; Nhóm hàng NHỎ</p>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-[18px] font-black text-slate-900 tracking-tight">Phân Tích Khai Thác</h3>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Chi tiết sản phẩm & hiệu quả bán kèm</p>
-                    </div>
-                  </div>
-                  {/* Nút chụp ảnh */}
-                  <button
-                    onClick={() => handleCaptureTable('phan-tich-khai-thac-table-container', 'phan_tich_khai_thac')}
-                    className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-[11px] font-bold flex items-center gap-1.5 shadow-sm no-capture"
-                    title="Chụp ảnh bảng này"
-                  >
-                    <Camera size={13} className="text-slate-500 hover:text-indigo-600" />
-                    <span>Chụp ảnh</span>
-                  </button>
-                </div>
-
-                {/* Filter bar - menu hiển thị */}
-                <div className="flex flex-col gap-2 bg-slate-50 rounded-xl px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider whitespace-nowrap mr-2">HIỂN THỊ:</span>
-                    {[
-                      { key: 'spChinh', label: 'SP CHÍNH' },
-                      { key: 'baoHiem', label: 'VAS' },
-                      { key: 'sim', label: 'SIM' },
-                      { key: 'dongHo', label: 'ĐỒNG HỒ' },
-                      { key: 'phuKien', label: 'PHỤ KIỆN' },
-                      { key: 'giaDung', label: 'GIA DỤNG' }
-                    ].map(btn => {
-                      const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
-                      return (
-                        <button
-                          key={btn.key}
-                          onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
-                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${
-                            isActive
-                              ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm'
-                              : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700 hover:border-slate-300'
-                          }`}
-                        >
-                          {btn.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="flex flex-col gap-2 pl-[70px]">
-                    {showKhaiThacCols.spChinh && (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[9px] font-bold text-slate-400 w-16">SP CHÍNH:</span>
-                        {[
-                          { key: 'ict', label: 'ICT' },
-                          { key: 'ce', label: 'CE' },
-                          { key: 'dgd', label: 'ĐGD' }
-                        ].map(btn => {
-                          const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
-                          return (
-                            <button
-                              key={btn.key}
-                              onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
-                              className={`px-2.5 py-1 rounded-lg text-[9px] font-bold transition-all border whitespace-nowrap ${
-                                isActive
-                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                  : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
-                              }`}
-                            >
-                              {btn.label}
-                            </button>
-                          );
-                        })}
+                    <div className="p-6 space-y-4">
+                      <div className="text-[11px] text-slate-500 font-medium leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100 font-sans">
+                        <p className="font-bold text-slate-700 mb-1">💡 Hướng dẫn sử dụng:</p>
+                        Copy toàn bộ bảng excel gồm 4 cột: <span className="font-black text-indigo-600">Ngành hàng | Nhóm hàng | Ngành hàng LỚN | Nhóm hàng NHỎ</span> (có hoặc không có dòng tiêu đề), dán vào ô dưới đây. Hệ thống sẽ tự động cập nhật phân loại và tính toán DTQĐ theo luật mới.
                       </div>
-                    )}
-                    {showKhaiThacCols.baoHiem && (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[9px] font-bold text-slate-400 w-16">VAS:</span>
-                        {[
-                          { key: 'vasBh', label: 'SL B.HIỂM' },
-                          { key: 'vasVieon', label: 'SL VIEON' }
-                        ].map(btn => {
-                          const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
-                          return (
-                            <button
-                              key={btn.key}
-                              onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
-                              className={`px-2.5 py-1 rounded-lg text-[9px] font-bold transition-all border whitespace-nowrap ${
-                                isActive
-                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                  : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
-                              }`}
-                            >
-                              {btn.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                    {showKhaiThacCols.phuKien && (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[9px] font-bold text-slate-400 w-16">PHỤ KIỆN:</span>
-                        {[
-                          { key: 'pkCam', label: 'SL CÁP/SẠC' },
-                          { key: 'pkLoa', label: 'SL LOA' },
-                          { key: 'pkPin', label: 'SL PIN' },
-                          { key: 'pkTn', label: 'SL TAI NGHE' }
-                        ].map(btn => {
-                          const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
-                          return (
-                            <button
-                              key={btn.key}
-                              onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
-                              className={`px-2.5 py-1 rounded-lg text-[9px] font-bold transition-all border whitespace-nowrap ${
-                                isActive
-                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                  : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
-                              }`}
-                            >
-                              {btn.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                    {showKhaiThacCols.giaDung && (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[9px] font-bold text-slate-400 w-16">GIA DỤNG:</span>
-                        {[
-                          { key: 'gdMln', label: 'SL MLN' },
-                          { key: 'gdNcom', label: 'SL NCƠM' },
-                          { key: 'gdNchien', label: 'SL NCHIÊN' },
-                          { key: 'gdQuat', label: 'SL QUẠT' }
-                        ].map(btn => {
-                          const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
-                          return (
-                            <button
-                              key={btn.key}
-                              onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
-                              className={`px-2.5 py-1 rounded-lg text-[9px] font-bold transition-all border whitespace-nowrap ${
-                                isActive
-                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                  : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
-                              }`}
-                            >
-                              {btn.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Table */}
-              <div className="overflow-x-auto bg-white" id="phan-tich-khai-thac-table-container">
-                <table className="w-full border-collapse border border-slate-100 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-100 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap" style={{ borderSpacing: 0 }}>
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                      <th rowSpan={2} className="py-3 px-4 text-left min-w-[200px] border-b border-slate-200/50">NHÂN VIÊN</th>
-                      {showKhaiThacCols.doanhThu && (
-                        <th colSpan={3} className="py-2 px-3 text-center border-b border-slate-200/50">DOANH THU</th>
-                      )}
-                      {showKhaiThacCols.spChinh && (
-                        <th colSpan={1 + (showKhaiThacCols.ict ? 1 : 0) + (showKhaiThacCols.ce ? 1 : 0) + (showKhaiThacCols.dgd ? 1 : 0)} className="py-2 px-3 text-center border-b border-slate-200/50">SP CHÍNH</th>
-                      )}
-                      {showKhaiThacCols.baoHiem && (
-                        <th colSpan={1 + (showKhaiThacCols.doanhThu ? 1 : 0) + (showKhaiThacCols.vasBh ? 1 : 0) + (showKhaiThacCols.vasVieon ? 1 : 0)} className="py-2 px-3 text-center border-b border-slate-200/50">VAS</th>
-                      )}
-                      {showKhaiThacCols.sim && (
-                        <th colSpan={showKhaiThacCols.doanhThu ? 3 : 2} className="py-2 px-3 text-center border-b border-slate-200/50">SIM</th>
-                      )}
-                      {showKhaiThacCols.dongHo && (
-                        <th colSpan={showKhaiThacCols.doanhThu ? 3 : 2} className="py-2 px-3 text-center border-b border-slate-200/50">ĐỒNG HỒ</th>
-                      )}
-                      {showKhaiThacCols.phuKien && (
-                        <th colSpan={1 + (showKhaiThacCols.doanhThu ? 1 : 0) + (showKhaiThacCols.pkCam ? 1 : 0) + (showKhaiThacCols.pkLoa ? 1 : 0) + (showKhaiThacCols.pkPin ? 1 : 0) + (showKhaiThacCols.pkTn ? 1 : 0)} className="py-2 px-3 text-center border-b border-slate-200/50">PHỤ KIỆN</th>
-                      )}
-                      {showKhaiThacCols.giaDung && (
-                        <th colSpan={1 + (showKhaiThacCols.gdMln ? 1 : 0) + (showKhaiThacCols.gdNcom ? 1 : 0) + (showKhaiThacCols.gdNchien ? 1 : 0) + (showKhaiThacCols.gdQuat ? 1 : 0)} className="py-2 px-3 text-center border-b border-slate-200/50">GIA DỤNG</th>
-                      )}
-                    </tr>
-                    <tr className="bg-slate-50 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                      {/* DOANH THU Sub Headers */}
-                      {showKhaiThacCols.doanhThu && (
-                        <>
-                          <th className="py-2 px-2 text-center w-20">DT THỰC</th>
-                          <th className="py-2 px-2 text-center w-20">DTQĐ</th>
-                          <th className="py-2 px-2 text-center w-20">HQQĐ</th>
-                        </>
-                      )}
-                      {/* SP CHÍNH Sub Headers */}
-                      {showKhaiThacCols.spChinh && (
-                        <>
-                          {showKhaiThacCols.ict && <th className="py-2 px-2 text-center w-14">ICT</th>}
-                          {showKhaiThacCols.ce && <th className="py-2 px-2 text-center w-14">CE</th>}
-                          {showKhaiThacCols.dgd && <th className="py-2 px-2 text-center w-14">ĐGD</th>}
-                          <th className="py-2 px-2 text-center w-16 text-indigo-600 font-bold bg-indigo-50/20">TỔNG</th>
-                        </>
-                      )}
-                      {/* VAS Sub Headers */}
-                      {showKhaiThacCols.baoHiem && (
-                        <>
-                          {showKhaiThacCols.vasBh && <th className="py-2 px-2 text-center w-14">SL B.HIỂM</th>}
-                          {showKhaiThacCols.vasVieon && <th className="py-2 px-2 text-center w-14">SL VIEON</th>}
-                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">D.THU</th>}
-                          <th className="py-2 px-2 text-center w-14">%</th>
-                        </>
-                      )}
-                      {/* SIM Sub Headers */}
-                      {showKhaiThacCols.sim && (
-                        <>
-                          <th className="py-2 px-2 text-center w-14">SL</th>
-                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">D.THU</th>}
-                          <th className="py-2 px-2 text-center w-14">%</th>
-                        </>
-                      )}
-                      {/* ĐỒNG HỒ Sub Headers */}
-                      {showKhaiThacCols.dongHo && (
-                        <>
-                          <th className="py-2 px-2 text-center w-14">SL</th>
-                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">D.THU</th>}
-                          <th className="py-2 px-2 text-center w-14">%</th>
-                        </>
-                      )}
-                      {/* PHỤ KIỆN Sub Headers */}
-                      {showKhaiThacCols.phuKien && (
-                        <>
-                          {showKhaiThacCols.pkCam && <th className="py-2 px-2 text-center w-14">SL CAM</th>}
-                          {showKhaiThacCols.pkLoa && <th className="py-2 px-2 text-center w-14">SL LOA</th>}
-                          {showKhaiThacCols.pkPin && <th className="py-2 px-2 text-center w-14">SL PIN</th>}
-                          {showKhaiThacCols.pkTn && <th className="py-2 px-2 text-center w-14">SL TNGHE</th>}
-                          {showKhaiThacCols.doanhThu && <th className="py-2 px-2 text-center w-20">D.THU</th>}
-                          <th className="py-2 px-2 text-center w-14">%</th>
-                        </>
-                      )}
-                      {/* GIA DỤNG Sub Headers */}
-                      {showKhaiThacCols.giaDung && (
-                        <>
-                          {showKhaiThacCols.gdMln && <th className="py-2 px-2 text-center w-14">SL MLN</th>}
-                          {showKhaiThacCols.gdNcom && <th className="py-2 px-2 text-center w-14">SL NCƠM</th>}
-                          {showKhaiThacCols.gdNchien && <th className="py-2 px-2 text-center w-14">SL NCHIÊN</th>}
-                          {showKhaiThacCols.gdQuat && <th className="py-2 px-2 text-center w-14">SL QUẠT</th>}
-                          <th className="py-2 px-2 text-center w-14">%</th>
-                        </>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {(() => {
-                      const getVisibleSpChinhQty = (item: any) => {
-                        return (showKhaiThacCols.ict ? item.ictQty : 0) +
-                               (showKhaiThacCols.ce ? item.ceQty : 0) +
-                               (showKhaiThacCols.dgd ? item.dgdQty : 0);
-                      };
-                      const formatVal = (val: number) => val === 0 ? <span className="text-slate-300">-</span> : val;
-                      const formatRev = (val: number) => {
-                        if (val === 0) return <span className="text-slate-300">-</span>;
-                        if (val >= 1_000_000) {
-                          const m = val / 1_000_000;
-                          return `${m % 1 === 0 ? m : m.toFixed(1)} Tr`;
-                        }
-                        if (val >= 1_000) {
-                          return `${Math.round(val / 1_000)} K`;
-                        }
-                        return val.toLocaleString('vi-VN');
-                      };
-                      const renderPct = (num: number, den: number) => {
-                        if (den === 0 || num === 0) {
-                          return (
-                            <span className="inline-flex px-1.5 py-0.5 rounded bg-rose-50/50 text-rose-400 font-bold text-[10px]">
-                              -
-                            </span>
-                          );
-                        }
-                        const pct = Math.round((num / den) * 100);
-                        return (
-                          <span className="inline-flex px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 font-bold text-[10px]">
-                            {pct}%
-                          </span>
-                        );
-                      };
-                      const renderHqqd = (val: number) => {
-                        if (val === 0) {
-                          return (
-                            <span className="inline-flex px-1.5 py-0.5 rounded bg-indigo-50/50 text-indigo-400 font-bold text-[10px]">
-                              -
-                            </span>
-                          );
-                        }
-                        return (
-                          <span className="inline-flex px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-bold text-[10px]">
-                            {val}%
-                          </span>
-                        );
-                      };
-
-                      return staffKhaiThacStats.length > 0 ? staffKhaiThacStats.map((item, idx) => {
-                        const visibleSpChinhTotalQty = getVisibleSpChinhQty(item);
-
-                        const visibleVasTotalQty = 
-                          (showKhaiThacCols.vasBh ? item.bhQty : 0) + 
-                          (showKhaiThacCols.vasVieon ? item.vieonQty : 0);
-
-                        const visiblePkTotalQty = 
-                          (showKhaiThacCols.pkCam ? item.pkCamQty : 0) + 
-                          (showKhaiThacCols.pkLoa ? item.pkLoaQty : 0) + 
-                          (showKhaiThacCols.pkPin ? item.pkPinQty : 0) + 
-                          (showKhaiThacCols.pkTn ? item.pkTnQty : 0);
-
-                        const visibleGdTotalQty = 
-                          (showKhaiThacCols.gdMln ? item.gdMlnQty : 0) + 
-                          (showKhaiThacCols.gdNcom ? item.gdNcomQty : 0) + 
-                          (showKhaiThacCols.gdNchien ? item.gdNchienQty : 0) + 
-                          (showKhaiThacCols.gdQuat ? item.gdQuatQty : 0);
-
-                        return (
-                          <tr key={item.staffName} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="py-3 px-4 text-left font-bold text-slate-800">
-                              <div className="flex items-center gap-2">
-                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[13px]">
-                                  {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
-                                </span>
-                                <span>{item.staffName}</span>
-                              </div>
-                            </td>
-                            {/* DOANH THU Cells */}
-                            {showKhaiThacCols.doanhThu && (
-                              <>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.dtThuc)}</td>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.dtqd)}</td>
-                                <td className="py-3 px-2 text-center">{renderHqqd(item.hqqd)}</td>
-                              </>
-                            )}
-                            {/* SP CHÍNH Cells */}
-                            {showKhaiThacCols.spChinh && (
-                              <>
-                                {showKhaiThacCols.ict && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.ictQty)}</td>}
-                                {showKhaiThacCols.ce && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.ceQty)}</td>}
-                                {showKhaiThacCols.dgd && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.dgdQty)}</td>}
-                                <td className="py-3 px-2 text-center text-[13px] font-bold text-indigo-600 bg-indigo-50/10">{formatVal(visibleSpChinhTotalQty)}</td>
-                              </>
-                            )}
-                            {/* VAS Cells */}
-                            {showKhaiThacCols.baoHiem && (
-                              <>
-                                {showKhaiThacCols.vasBh && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.bhQty)}</td>}
-                                {showKhaiThacCols.vasVieon && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.vieonQty)}</td>}
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.bhRev + item.vieonRev)}</td>}
-                                <td className="py-3 px-2 text-center">{renderPct(visibleVasTotalQty, visibleSpChinhTotalQty)}</td>
-                              </>
-                            )}
-                            {/* SIM Cells */}
-                            {showKhaiThacCols.sim && (
-                              <>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.simQty)}</td>
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.simRev)}</td>}
-                                <td className="py-3 px-2 text-center">{renderPct(item.simQty, visibleSpChinhTotalQty)}</td>
-                              </>
-                            )}
-                            {/* ĐỒNG HỒ Cells */}
-                            {showKhaiThacCols.dongHo && (
-                              <>
-                                <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.dhQty)}</td>
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.dhRev)}</td>}
-                                <td className="py-3 px-2 text-center">{renderPct(item.dhQty, visibleSpChinhTotalQty)}</td>
-                              </>
-                            )}
-                            {/* PHỤ KIỆN Cells */}
-                            {showKhaiThacCols.phuKien && (
-                              <>
-                                {showKhaiThacCols.pkCam && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkCamQty)}</td>}
-                                {showKhaiThacCols.pkLoa && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkLoaQty)}</td>}
-                                {showKhaiThacCols.pkPin && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkPinQty)}</td>}
-                                {showKhaiThacCols.pkTn && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.pkTnQty)}</td>}
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatRev(item.pkRev)}</td>}
-                                <td className="py-3 px-2 text-center">{renderPct(visiblePkTotalQty, visibleSpChinhTotalQty)}</td>
-                              </>
-                            )}
-                            {/* GIA DỤNG Cells */}
-                            {showKhaiThacCols.giaDung && (
-                              <>
-                                {showKhaiThacCols.gdMln && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdMlnQty)}</td>}
-                                {showKhaiThacCols.gdNcom && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdNcomQty)}</td>}
-                                {showKhaiThacCols.gdNchien && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdNchienQty)}</td>}
-                                {showKhaiThacCols.gdQuat && <td className="py-3 px-2 text-center text-[13px] font-semibold text-slate-600">{formatVal(item.gdQuatQty)}</td>}
-                                <td className="py-3 px-2 text-center">{renderPct(visibleGdTotalQty, visibleSpChinhTotalQty)}</td>
-                              </>
-                            )}
-                          </tr>
-                        );
-                      }) : (
-                        <tr>
-                          <td colSpan={30} className="py-12 text-center text-slate-400 italic text-[11px]">
-                            {isLoadingRealtime ? 'Đang tải dữ liệu...' : 'Chưa có dữ liệu.'}
-                          </td>
-                        </tr>
-                      );
-                    })()}
-                  </tbody>
-                  {/* Footer - TỔNG CỘNG */}
-                  {staffKhaiThacStats.length > 0 && (
-                    <tfoot className="bg-slate-50 font-black text-slate-800 text-[13px] border-t border-slate-200">
-                      {(() => {
-                        const totalDtThuc = staffKhaiThacStats.reduce((s, x) => s + x.dtThuc, 0);
-                        const totalDtqd = staffKhaiThacStats.reduce((s, x) => s + x.dtqd, 0);
-                        const totalHqqd = totalDtThuc > 0 ? Math.round(((totalDtqd - totalDtThuc) / totalDtThuc) * 100) : 0;
-
-                        const totalIctQty = staffKhaiThacStats.reduce((s, x) => s + x.ictQty, 0);
-                        const totalCeQty = staffKhaiThacStats.reduce((s, x) => s + x.ceQty, 0);
-                        const totalDgdQty = staffKhaiThacStats.reduce((s, x) => s + x.dgdQty, 0);
-                        const totalSpChinhQty = (showKhaiThacCols.ict ? totalIctQty : 0) + (showKhaiThacCols.ce ? totalCeQty : 0) + (showKhaiThacCols.dgd ? totalDgdQty : 0);
-
-                        const totalBhQty = staffKhaiThacStats.reduce((s, x) => s + x.bhQty, 0);
-                        const totalBhRev = staffKhaiThacStats.reduce((s, x) => s + x.bhRev, 0);
-                        const totalVieonQty = staffKhaiThacStats.reduce((s, x) => s + x.vieonQty, 0);
-                        const totalVieonRev = staffKhaiThacStats.reduce((s, x) => s + x.vieonRev, 0);
-
-                        const totalSimQty = staffKhaiThacStats.reduce((s, x) => s + x.simQty, 0);
-                        const totalSimRev = staffKhaiThacStats.reduce((s, x) => s + x.simRev, 0);
-
-                        const totalDhQty = staffKhaiThacStats.reduce((s, x) => s + x.dhQty, 0);
-                        const totalDhRev = staffKhaiThacStats.reduce((s, x) => s + x.dhRev, 0);
-
-                        const totalPkCam = staffKhaiThacStats.reduce((s, x) => s + x.pkCamQty, 0);
-                        const totalPkLoa = staffKhaiThacStats.reduce((s, x) => s + x.pkLoaQty, 0);
-                        const totalPkPin = staffKhaiThacStats.reduce((s, x) => s + x.pkPinQty, 0);
-                        const totalPkTn = staffKhaiThacStats.reduce((s, x) => s + x.pkTnQty, 0);
-                        const totalPkTotalQty = staffKhaiThacStats.reduce((s, x) => s + x.pkTotalQty, 0);
-                        const totalPkRev = staffKhaiThacStats.reduce((s, x) => s + x.pkRev, 0);
-
-                        const totalGdQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQty, 0);
-                        const totalGdMlnQty = staffKhaiThacStats.reduce((s, x) => s + x.gdMlnQty, 0);
-                        const totalGdNcomQty = staffKhaiThacStats.reduce((s, x) => s + x.gdNcomQty, 0);
-                        const totalGdNchienQty = staffKhaiThacStats.reduce((s, x) => s + x.gdNchienQty, 0);
-                        const totalGdQuatQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQuatQty, 0);
-                        const totalGdRev = staffKhaiThacStats.reduce((s, x) => s + x.gdRev, 0);
-
-                        const formatFooterVal = (val: number) => val === 0 ? '-' : val;
-                        const formatFooterRev = (val: number) => {
-                          if (val === 0) return '-';
-                          if (val >= 1_000_000) {
-                            const m = val / 1_000_000;
-                            return `${m % 1 === 0 ? m : m.toFixed(1)} Tr`;
+                      <textarea
+                        value={categoryMappingInput || ''}
+                        onChange={(e) => setCategoryMappingInput(e.target.value)}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pastedText = e.clipboardData.getData('text');
+                          if (pastedText) {
+                            setCategoryMappingInput(pastedText);
                           }
-                          if (val >= 1_000) {
-                            return `${Math.round(val / 1_000)} K`;
-                          }
-                          return val.toLocaleString('vi-VN');
-                        };
-                        const renderFooterPct = (num: number, den: number) => {
-                          if (den === 0 || num === 0) return '-';
-                          return `${Math.round((num / den) * 100)}%`;
-                        };
-                        const renderFooterHqqd = (val: number) => {
-                          if (val === 0) return '-';
-                          return `${val}%`;
-                        };
-
-                        const totalVisibleSpChinhQty = 
-                          (showKhaiThacCols.ict ? totalIctQty : 0) + 
-                          (showKhaiThacCols.ce ? totalCeQty : 0) + 
-                          (showKhaiThacCols.dgd ? totalDgdQty : 0);
-
-                        const totalVisibleVasTotalQty = 
-                          (showKhaiThacCols.vasBh ? totalBhQty : 0) + 
-                          (showKhaiThacCols.vasVieon ? totalVieonQty : 0);
-
-                        const totalVisiblePkTotalQty = 
-                          (showKhaiThacCols.pkCam ? totalPkCam : 0) + 
-                          (showKhaiThacCols.pkLoa ? totalPkLoa : 0) + 
-                          (showKhaiThacCols.pkPin ? totalPkPin : 0) + 
-                          (showKhaiThacCols.pkTn ? totalPkTn : 0);
-
-                        const totalVisibleGdTotalQty = 
-                          (showKhaiThacCols.gdMln ? totalGdMlnQty : 0) + 
-                          (showKhaiThacCols.gdNcom ? totalGdNcomQty : 0) + 
-                          (showKhaiThacCols.gdNchien ? totalGdNchienQty : 0) + 
-                          (showKhaiThacCols.gdQuat ? totalGdQuatQty : 0);
-
-                        return (
-                          <tr>
-                            <td className="py-3 px-4 text-left">TỔNG CỘNG</td>
-                            {/* DOANH THU Totals */}
-                            {showKhaiThacCols.doanhThu && (
-                              <>
-                                <td className="py-3 px-2 text-center">{formatFooterRev(totalDtThuc)}</td>
-                                <td className="py-3 px-2 text-center">{formatFooterRev(totalDtqd)}</td>
-                                <td className="py-3 px-2 text-center text-indigo-600 font-bold bg-indigo-50/20">
-                                  {renderFooterHqqd(totalHqqd)}
-                                </td>
-                              </>
-                            )}
-                            {/* SP CHÍNH Totals */}
-                            {showKhaiThacCols.spChinh && (
-                              <>
-                                {showKhaiThacCols.ict && <td className="py-3 px-2 text-center">{formatFooterVal(totalIctQty)}</td>}
-                                {showKhaiThacCols.ce && <td className="py-3 px-2 text-center">{formatFooterVal(totalCeQty)}</td>}
-                                {showKhaiThacCols.dgd && <td className="py-3 px-2 text-center">{formatFooterVal(totalDgdQty)}</td>}
-                                <td className="py-3 px-2 text-center text-indigo-600 bg-indigo-50/20">{formatFooterVal(totalSpChinhQty)}</td>
-                              </>
-                            )}
-                            {/* VAS Totals */}
-                            {showKhaiThacCols.baoHiem && (
-                              <>
-                                {showKhaiThacCols.vasBh && <td className="py-3 px-2 text-center">{formatFooterVal(totalBhQty)}</td>}
-                                {showKhaiThacCols.vasVieon && <td className="py-3 px-2 text-center">{formatFooterVal(totalVieonQty)}</td>}
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalBhRev + totalVieonRev)}</td>}
-                                <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalVisibleVasTotalQty, totalVisibleSpChinhQty)}</td>
-                              </>
-                            )}
-                            {/* SIM Totals */}
-                            {showKhaiThacCols.sim && (
-                              <>
-                                <td className="py-3 px-2 text-center">{formatFooterVal(totalSimQty)}</td>
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalSimRev)}</td>}
-                                <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalSimQty, totalSpChinhQty)}</td>
-                              </>
-                            )}
-                            {/* ĐỒNG HỒ Totals */}
-                            {showKhaiThacCols.dongHo && (
-                              <>
-                                <td className="py-3 px-2 text-center">{formatFooterVal(totalDhQty)}</td>
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalDhRev)}</td>}
-                                <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalDhQty, totalSpChinhQty)}</td>
-                              </>
-                            )}
-                            {/* PHỤ KIỆN Totals */}
-                            {showKhaiThacCols.phuKien && (
-                              <>
-                                {showKhaiThacCols.pkCam && <td className="py-3 px-2 text-center">{formatFooterVal(totalPkCam)}</td>}
-                                {showKhaiThacCols.pkLoa && <td className="py-3 px-2 text-center">{formatFooterVal(totalPkLoa)}</td>}
-                                {showKhaiThacCols.pkPin && <td className="py-3 px-2 text-center">{formatFooterVal(totalPkPin)}</td>}
-                                {showKhaiThacCols.pkTn && <td className="py-3 px-2 text-center">{formatFooterVal(totalPkTn)}</td>}
-                                {showKhaiThacCols.doanhThu && <td className="py-3 px-2 text-center">{formatFooterRev(totalPkRev)}</td>}
-                                <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalVisiblePkTotalQty, totalVisibleSpChinhQty)}</td>
-                              </>
-                            )}
-                            {/* GIA DỤNG Totals */}
-                            {showKhaiThacCols.giaDung && (
-                              <>
-                                {showKhaiThacCols.gdMln && <td className="py-3 px-2 text-center">{formatFooterVal(totalGdMlnQty)}</td>}
-                                {showKhaiThacCols.gdNcom && <td className="py-3 px-2 text-center">{formatFooterVal(totalGdNcomQty)}</td>}
-                                {showKhaiThacCols.gdNchien && <td className="py-3 px-2 text-center">{formatFooterVal(totalGdNchienQty)}</td>}
-                                {showKhaiThacCols.gdQuat && <td className="py-3 px-2 text-center">{formatFooterVal(totalGdQuatQty)}</td>}
-                                <td className="py-3 px-2 text-center text-rose-600">{renderFooterPct(totalVisibleGdTotalQty, totalVisibleSpChinhQty)}</td>
-                              </>
-                            )}
-                          </tr>
-                        );
-                      })()}
-                    </tfoot>
-                  )}
-                </table>
-              </div>
-            </div>
-
-            {/* Raw Data Table: 3. THÊM YCX RT */}
-            <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-md mt-8 mb-12">
-              <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <ShoppingBag size={18} className="text-slate-700 flex-shrink-0" />
-                  <div>
-                    <h3 className="text-[15px] font-black text-slate-900 uppercase tracking-widest">3. THÊM YCX RT (DỮ LIỆU NGUỒN)</h3>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Lọc: Đã xuất &amp; Chưa trả</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowRawTable(!showRawTable)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
-                >
-                  {showRawTable ? (
-                    <>
-                      <ChevronUp size={12} />
-                      <span>ẨN BẢNG</span>
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown size={12} />
-                      <span>HIỂN THỊ</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {showRawTable && (
-                <>
-                  <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-                    <table className="w-full border-collapse text-center min-w-[3000px]" style={{ borderSpacing: 0 }}>
-                      <thead className="sticky top-0 z-10">
-                        <tr>
-                          {rawYcxRows.length > 0 &&
-                            rawYcxRows[0].map((cell, idx) => (
-                              <th key={idx} className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">
-                                {cell || `Cột ${String.fromCharCode(65 + idx)}`}
-                              </th>
-                            ))
-                          }
-                          <th className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">PHÂN LOẠI</th>
-                          <th className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">NHÓM HÀNG LỚN</th>
-                          <th className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">NHÓM HÀNG NHỎ</th>
-                          <th className="border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">PHÂN LOẠI YCX</th>
-                        </tr>
-                      </thead>
-
-                      <tbody>
-                        {deferredFilteredRows.length > 0 ? (
-                          (() => {
-                            // Find index of Tên sản phẩm
-                            const headers = rawYcxRows[0]?.map(h => String(h || '').trim()) || [];
-                            const idxProduct = headers.findIndex(h => h.toLowerCase().includes('tên sản phẩm'));
-                            const idxSmallCategoryHeader = headers.findIndex(h => h.toLowerCase().includes('nhóm hàng nhỏ'));
-                            const idxNhomHang = headers.findIndex(h => h.includes('Nhóm hàng'));
-                            const idxHinhThucXuat = headers.findIndex(h => {
-                               const lh = h.toLowerCase();
-                               return lh.includes('hình thức xuất') || lh.includes('loại ycx') || lh.includes('loại yêu cầu');
-                             });
-                            // Date columns to format
-                            const dateColIndices = new Set<number>(
-                              headers.reduce((acc: number[], h, i) => {
-                                const lh = h.toLowerCase();
-                                if (lh.includes('ngày tạo') || lh.includes('ngày lập') || lh.includes('ngày xuất') || lh.includes('ngày giao') || lh.includes('ngày hoàn')) acc.push(i);
-                                return acc;
-                              }, [])
-                            );
-
-                            // Format raw date string → dd/MM/yyyy
-                            const fmtRawDate = (raw: string): string => {
-                              if (!raw || raw.trim() === '') return '-';
-                              const p2 = (n: number) => String(n).padStart(2, '0');
-
-                              // ── Excel serial date number (e.g. 46143.40754975694) ──
-                              const num = parseFloat(raw);
-                              if (!isNaN(num) && /^\d+(\.\d+)?$/.test(raw.trim()) && num > 40000 && num < 60000) {
-                                const days = Math.floor(num);
-                                const fraction = num - days;
-                                // Date portion: offset from Unix epoch (25569 days = days between 1/1/1900 and 1/1/1970, minus Excel's fake leap day)
-                                const dateMs = (days - 25569) * 86400000;
-                                const d = new Date(dateMs);
-                                const dd = p2(d.getUTCDate());
-                                const mm = p2(d.getUTCMonth() + 1);
-                                const yyyy = d.getUTCFullYear();
-                                // Time portion from fractional day (Excel stores local time)
-                                const totalSec = Math.round(fraction * 86400);
-                                const hh = p2(Math.floor(totalSec / 3600));
-                                const min = p2(Math.floor((totalSec % 3600) / 60));
-                                const ss = p2(totalSec % 60);
-                                return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
-                              }
-
-                              // ── dd/MM/yyyy or dd/MM/yyyy HH:mm:ss ──
-                              const m1 = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})([\s\T](.+))?/);
-                              if (m1) {
-                                const datePart = `${p2(+m1[1])}/${p2(+m1[2])}/${m1[3]}`;
-                                const timePart = m1[5] ? ` ${m1[5].substring(0, 8)}` : '';
-                                return `${datePart}${timePart}`;
-                              }
-
-                              // ── ISO yyyy-MM-dd[THH:mm:ss] ──
-                              const m2 = raw.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})[\sT]?(.*)$/);
-                              if (m2) {
-                                const timePart = m2[4] ? ` ${m2[4].substring(0, 8)}` : '';
-                                return `${p2(+m2[3])}/${p2(+m2[2])}/${m2[1]}${timePart}`;
-                              }
-
-                              return raw;
-                            };
-
-                            const classifyProduct = (name: string) => {
-                              const n = name.toUpperCase();
-                              if (n.includes('1 ĐỔI 1')) return '1 ĐỔI 1';
-                              if (n.includes('BẢO HIỂM KHOẢN VAY')) return 'BHKV';
-                              if (n.includes('BẢO HÀNH MỞ RỘNG')) return 'BHMR';
-                              if (n.includes('BẢO HIỂM RƠI VỠ')) return 'BHRV';
-                              if (n.includes('BẢO HIỂM SC+')) return 'SC+';
-                              if (n.includes('BẢO HÀNH APPLECARE+')) return 'BHAP';
-                              if (n.includes('BẢO HIỂM Ô TÔ')) return 'BHOT';
-                              if (n.includes('BẢO HIỂM VẬT CHẤT')) return 'BHVC';
-                              if (n.includes('BẢO HIỂM XE MÁY')) return 'BHXM';
-                              if (n.includes('BẢO HIỂM XE MOTO')) return 'BHMT';
-                              if (n.includes('BẢO HIỂM XÃ HỘI')) return 'BHXH';
-                              if (n.includes('BẢO HIỂM Y TẾ')) return 'BHYT';
-                              if (n.includes('01 THÁNG')) return 'V1';
-                              if (n.includes('03 THÁNG')) return 'V2';
-                              if (n.includes('06 THÁNG')) return 'V4';
-                              return '-';
-                            };
-
-                            const classifyHinhThucXuat = (htx: string): string | null => {
-                               const clean = htx.trim().toLowerCase();
-                               if (!clean) return null;
-                               
-                               if (clean.includes('thu hộ')) return 'Thu hộ';
-                               if (clean.includes('trả góp')) return 'Trả góp';
-                               if (
-                                 clean.includes('tiền mặt') ||
-                                 clean.includes('xuất bán hàng online') ||
-                                 clean.includes('xuất bán hàng tại siêu thị') ||
-                                 clean.includes('xuất bán online') ||
-                                 clean.includes('xuất bán pre-order') ||
-                                 clean.includes('xuất bán ưu đãi') ||
-                                 clean.includes('xuất đổi bảo hành') ||
-                                 clean.includes('xuất sim')
-                               ) {
-                                 return 'Tiền mặt';
-                               }
-                               
-                               return null;
-                             };
-
-                            // Paginate: only render current page rows
-                            const pageRows = deferredFilteredRows.slice(
-                              rawTablePage * RAW_PAGE_SIZE,
-                              (rawTablePage + 1) * RAW_PAGE_SIZE
-                            );
-
-                            return pageRows.map((row, rowIdx) => (
-                              <tr key={rowIdx} className={`transition-colors ${rowIdx % 2 === 1 ? 'bg-slate-50' : 'bg-white'} hover:bg-slate-100`}>
-                                {row.map((cell, cellIdx) => (
-                                  <td key={cellIdx} className={`border border-slate-200 py-2 px-3 text-[9px] font-medium whitespace-nowrap ${dateColIndices.has(cellIdx) ? 'text-indigo-700 font-bold' : 'text-slate-900'}`}>
-                                    {dateColIndices.has(cellIdx)
-                                      ? fmtRawDate(String(cell || ''))
-                                      : cell}
-                                  </td>
-                                ))}
-                                <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
-                                  {classifyProduct(String(row[idxProduct] || '').toUpperCase())}
-                                </td>
-                                <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
-                                  {idxNhomHang !== -1 ? (NHOM_HANG_MAP[row[idxNhomHang]]?.large || '-') : '-'}
-                                </td>
-                                <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
-                                  {idxSmallCategoryHeader !== -1 ? (row[idxSmallCategoryHeader] || '-') : (idxNhomHang !== -1 ? (NHOM_HANG_MAP[row[idxNhomHang]]?.small || '-') : '-')}
-                                </td>
-                                <td className="border border-slate-200 py-2 px-3 text-[9px] whitespace-nowrap font-black text-center">
-                                  {(() => {
-                                    const val = idxHinhThucXuat !== -1 ? classifyHinhThucXuat(String(row[idxHinhThucXuat] || '')) : null;
-                                    return val === 'Tiền mặt'
-                                      ? <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-black">Tiền mặt</span>
-                                      : val === 'Trả góp'
-                                        ? <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded font-black">Trả góp</span>
-                                        : val === 'Thu hộ'
-                                          ? <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-black">Thu hộ</span>
-                                          : <span className="text-slate-400">-</span>;
-                                  })()}
-                                </td>
-                              </tr>
-                            ));
-                          })()
-                        ) : (
-                          <tr>
-                            <td className="py-12 text-center text-slate-400 italic text-[11px]" colSpan={(rawYcxRows[0]?.length || 0) + 1}>
-                              Chưa có dữ liệu nguồn hoặc không có bản ghi nào thỏa mãn điều kiện lọc.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Pagination controls */}
-                  {deferredFilteredRows.length > RAW_PAGE_SIZE && (
-                    <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-slate-50/50">
-                      <span className="text-[11px] font-bold text-slate-500">
-                        Hiển thị {rawTablePage * RAW_PAGE_SIZE + 1}–{Math.min((rawTablePage + 1) * RAW_PAGE_SIZE, deferredFilteredRows.length)} / {deferredFilteredRows.length} dòng
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          disabled={rawTablePage === 0}
-                          onClick={() => setRawTablePage(p => Math.max(0, p - 1))}
-                          className="px-3 py-1 text-[11px] font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                        >← Trước</button>
-                        <span className="text-[11px] font-bold text-slate-600">
-                          Trang {rawTablePage + 1} / {Math.ceil(deferredFilteredRows.length / RAW_PAGE_SIZE)}
+                        }}
+                        rows={8}
+                        placeholder="Dán dữ liệu mapping từ Excel (Ctrl+V) tại đây..."
+                        className="w-full bg-white border-2 border-slate-200 focus:border-blue-400 rounded-xl p-4 text-[11px] focus:ring-4 focus:ring-blue-100 outline-none resize-y font-sans font-normal transition-all"
+                      />
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-400 font-bold">
+                          {categoryMappingInput ? `Đã nhập ${categoryMappingInput.split('\n').filter(Boolean).length} dòng dữ liệu` : 'Chưa có dữ liệu mapping'}
                         </span>
-                        <button
-                          disabled={(rawTablePage + 1) * RAW_PAGE_SIZE >= deferredFilteredRows.length}
-                          onClick={() => setRawTablePage(p => p + 1)}
-                          className="px-3 py-1 text-[11px] font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                        >Tiếp →</button>
+                        {categoryMappingInput && (
+                          <button
+                            onClick={() => setCategoryMappingInput('')}
+                            className="px-4 py-2 border border-red-200 text-red-600 rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-red-50 transition-all cursor-pointer active:scale-95 shadow-sm"
+                          >
+                            Xóa dữ liệu
+                          </button>
+                        )}
                       </div>
                     </div>
-                  )}
-                </>
+                  </div>
+                  */}
+                </motion.div>
               )}
-            </div>
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+
+      {/* Excel processing overlay */}
+      <AnimatePresence>
+        {isProcessingData && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white/80 backdrop-blur-lg border border-white/20 p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm text-center"
+            >
+              <div className="relative w-20 h-20 mb-6 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full border-4 border-indigo-100 animate-pulse"></div>
+                <div className="absolute inset-0 rounded-full border-4 border-t-indigo-600 border-r-indigo-400 border-b-transparent border-l-transparent animate-spin"></div>
+                <FileSpreadsheet size={32} className="text-indigo-600 animate-bounce" />
+              </div>
+
+              <h3 className="text-lg font-black text-slate-800 uppercase tracking-wider mb-2">Đang xử lý dữ liệu...</h3>
+              <p className="text-[12px] font-medium text-slate-500 max-w-[240px]">
+                Hệ thống đang phân tích cấu trúc cột, làm sạch dữ liệu và tự động nhóm các ngành hàng/hãng sản xuất. Vui lòng chờ trong giây lát.
+              </p>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-        </div>
-      </div>
-    </div>
 
       {/* BI Import Overlay */}
       <AnimatePresence>
@@ -3663,6 +6516,8 @@ export default function NewRealtimePage() {
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Image Preview Modal */}
+      <ImagePreviewModal previewImage={previewImage} setPreviewImage={setPreviewImage} />
     </>
   );
 }
