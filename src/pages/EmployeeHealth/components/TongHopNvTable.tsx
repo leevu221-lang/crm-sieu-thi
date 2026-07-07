@@ -616,9 +616,25 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
 
     const table = clone.querySelector('table') as HTMLTableElement;
     if (table) {
-      table.style.width = 'max-content';
-      table.style.minWidth = 'max-content';
+      table.style.width = 'auto';
+      table.style.minWidth = 'auto';
       table.style.tableLayout = 'auto';
+      
+      // Remove fixed widths on all cells so columns auto-shrink to fit content
+      const allCells = table.querySelectorAll('th, td');
+      allCells.forEach((cell) => {
+        const htmlCell = cell as HTMLElement;
+        htmlCell.style.width = 'auto';
+        htmlCell.style.minWidth = 'auto';
+        htmlCell.style.maxWidth = 'none';
+        htmlCell.style.whiteSpace = 'nowrap';
+        htmlCell.style.paddingLeft = '8px';
+        htmlCell.style.paddingRight = '8px';
+      });
+
+      // Remove colgroup if exists
+      const colgroup = table.querySelector('colgroup');
+      if (colgroup) colgroup.remove();
     }
 
     container.appendChild(clone);
