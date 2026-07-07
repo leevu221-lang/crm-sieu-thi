@@ -1194,7 +1194,7 @@ export default function ToolHoTro() {
   const inventoryInputRef = useRef<HTMLInputElement>(null);
   const priceInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement> | File, type: 'inventory' | 'price', shouldAppend: boolean = false) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement> | File, type: 'inventory' | 'price', shouldAppend: boolean = false) => {
     const file = e instanceof File ? e : e.target.files?.[0];
     if (!file) return;
 
