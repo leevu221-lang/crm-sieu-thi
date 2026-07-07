@@ -1205,7 +1205,7 @@ export default function ToolHoTro() {
     }
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       const dataBuffer = evt.target?.result as ArrayBuffer;
       const wb = XLSX.read(dataBuffer, { type: 'array' });
       const wsname = wb.SheetNames[0];
