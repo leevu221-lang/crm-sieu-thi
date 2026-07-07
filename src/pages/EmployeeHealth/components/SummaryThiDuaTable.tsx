@@ -781,46 +781,35 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
           <thead>
             <tr className="text-slate-900 border-b-2 border-slate-300 h-[85px]">
               <th 
-                onClick={() => handleHeaderClick('default')}
-                className="px-2 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-200 bg-[#10b981] text-slate-900 cursor-pointer hover:bg-[#059669] transition-colors select-none"
+                className="px-2 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-200 bg-[#10b981] text-slate-900 select-none"
                 style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}
               >
-                STT {renderSortIcon('default')}
+                STT
               </th>
               <th 
-                onClick={() => handleHeaderClick('name')}
-                className="px-3 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-200 bg-[#10b981] text-slate-900 cursor-pointer hover:bg-[#059669] transition-colors select-none"
+                className="px-3 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-200 bg-[#10b981] text-slate-900 select-none"
                 style={{ width: '320px', minWidth: '320px', maxWidth: '320px' }}
               >
-                NHÂN VIÊN {renderSortIcon('name')}
+                NHÂN VIÊN
               </th>
               <th 
-                onClick={() => handleHeaderClick('achieved')}
-                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-200 bg-[#10b981] text-slate-900 cursor-pointer hover:bg-[#059669] transition-colors select-none"
+                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-200 bg-[#10b981] text-slate-900 select-none"
                 style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}
               >
-                ĐẠT {renderSortIcon('achieved')}
+                ĐẠT
               </th>
               <th 
-                onClick={() => handleHeaderClick('rate')}
-                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border-b border-slate-200 bg-[#10b981] text-slate-900 cursor-pointer hover:bg-[#059669] transition-colors select-none"
+                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-200 bg-[#10b981] text-slate-900 select-none"
                 style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}
               >
-                TỶ LỆ {renderSortIcon('rate')}
+                TỶ LỆ
               </th>
               {categories.filter(catName => visibleCategories.includes(catName)).map(catName => (
                 <React.Fragment key={catName}>
                   <th 
-                    draggable={isAdmin}
-                    onDragStart={(e) => handleDragStart(e, catName)}
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e, catName)}
-                    onClick={() => handleHeaderClick('category', catName)}
                     className={cn(
-                      "px-1 py-1 text-[10px] font-black uppercase tracking-tight text-center border border-slate-200 cursor-pointer transition-colors select-none",
-                      getCategoryBadgeStyleClasses(catName).bgText,
-                      getCategoryBadgeStyleClasses(catName).hover,
-                      isAdmin && "hover:border-indigo-500 border-2 border-transparent"
+                      "px-1 py-1 text-[10px] font-black uppercase tracking-tight text-center border border-slate-200 select-none",
+                      getCategoryBadgeStyleClasses(catName).bgText
                     )}
                     style={{
                       width: '70px',
@@ -828,11 +817,9 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                       maxWidth: '70px',
                       wordBreak: 'break-word',
                       whiteSpace: 'normal',
-                      ...(isAdmin ? { border: '1px solid #4f46e5', cursor: 'grab' } : {})
                     }}
-                    title={isAdmin ? "Kéo thả để sắp xếp vị trí cột" : undefined}
                   >
-                    {catName} {renderSortIcon('category', catName)}
+                    {catName}
                   </th>
                   {cleanCategoryName(catName) === 'maylanhdacquyen' && (
                     <th className="bg-white border border-slate-200" style={{ width: '40px', minWidth: '40px', maxWidth: '40px' }}></th>
