@@ -753,7 +753,7 @@ export default function ToolHoTro() {
   };
 
   const combinedPriceData = React.useMemo(() => {
-    const inventoryMap = new Map<string, { nganhHang: string, nhomHang: string }>();
+    const inventoryMap = new Map<string, { nganhHang: string, nhomHang: string, qty: number }>();
     const scannedCodesMap = new Map<string, string>();
     const scannedCodesSet = new Set<string>();
 
@@ -766,6 +766,13 @@ export default function ToolHoTro() {
             const prefix = cleanCode.split('-')[0].trim();
             scannedCodesSet.add(prefix);
             scannedCodesMap.set(prefix, cleanCode);
+            
+            const existing = inventoryMap.get(prefix);
+            inventoryMap.set(prefix, {
+              nganhHang: '',
+              nhomHang: '',
+              qty: (existing?.qty || 0) + 1
+            });
           }
         });
       } else if (Array.isArray(inventoryData[0])) {
@@ -787,6 +794,7 @@ export default function ToolHoTro() {
           const nganhHangIdx = headerRow.findIndex((h: string) => h === 'ngành hàng');
           const nhomHangIdx = headerRow.findIndex((h: string) => h === 'nhóm hàng');
           const qrIdx = headerRow.findIndex((h: string) => h.includes('qr') || h.includes('quét') || h.includes('điện thoại'));
+          const tonKhoIdx = headerRow.findIndex((h: string) => h === 'tồn cuối' || h === 'tồn kho' || h === 'tồn' || h.includes('số lượng') || h.includes('sl') || h.includes('kho') || h.includes('qty'));
 
           if (maSpIdx !== -1) {
             for (let i = headerRowIdx + 1; i < inventoryData.length; i++) {
@@ -795,9 +803,13 @@ export default function ToolHoTro() {
               const maSp = String(row[maSpIdx] || '').trim();
               if (maSp) {
                 const qrVal = qrIdx !== -1 ? String(row[qrIdx] || '').trim() : '';
+                const tonKhoVal = tonKhoIdx !== -1 ? parseInt(String(row[tonKhoIdx]).replace(/\./g, '').replace(/,/g, '')) || 0 : 1;
+                const existing = inventoryMap.get(maSp);
+                
                 inventoryMap.set(maSp, {
                   nganhHang: nganhHangIdx !== -1 ? String(row[nganhHangIdx] || '').trim() : '',
-                  nhomHang: nhomHangIdx !== -1 ? String(row[nhomHangIdx] || '').trim() : ''
+                  nhomHang: nhomHangIdx !== -1 ? String(row[nhomHangIdx] || '').trim() : '',
+                  qty: (existing?.qty || 0) + tonKhoVal
                 });
                 if (qrVal) {
                   scannedCodesSet.add(maSp);
@@ -811,9 +823,12 @@ export default function ToolHoTro() {
         // Array of objects from database
         inventoryData.forEach((item: any) => {
           if (item.ma_san_pham) {
+            const existing = inventoryMap.get(item.ma_san_pham);
+            const itemQty = item.so_luong || item.soluong || item.qty || item.quantity || 1;
             inventoryMap.set(item.ma_san_pham, {
               nganhHang: item.nganh_hang || '',
-              nhomHang: item.nhom_hang || ''
+              nhomHang: item.nhom_hang || '',
+              qty: (existing?.qty || 0) + itemQty
             });
             const qrVal = item.qr_data || item.qrData || item.scanned_code;
             if (qrVal) {
@@ -835,7 +850,8 @@ export default function ToolHoTro() {
         inStock,
         qrData,
         nganhHang: invInfo?.nganhHang || item.nganhHang || '',
-        nhomHang: invInfo?.nhomHang || item.nhomHang || ''
+        nhomHang: invInfo?.nhomHang || item.nhomHang || '',
+        tonKho: invInfo?.qty || 0
       };
     });
   }, [priceData, inventoryData]);
@@ -946,6 +962,30 @@ export default function ToolHoTro() {
     } else {
       setSelectedIndices(prev => prev.filter(i => i !== index));
     }
+  };
+
+  const handleSetPrintQtyToInventoryAll = () => {
+    const newQuantities = { ...printQuantities };
+    const newSelected = [...selectedIndices];
+    
+    filteredPriceData.forEach((item, index) => {
+      const qty = item.tonKho || 0;
+      newQuantities[index] = qty;
+      if (qty > 0) {
+        if (!newSelected.includes(index)) {
+          newSelected.push(index);
+        }
+      } else {
+        const selIdx = newSelected.indexOf(index);
+        if (selIdx !== -1) {
+          newSelected.splice(selIdx, 1);
+        }
+      }
+    });
+    
+    setPrintQuantities(newQuantities);
+    setSelectedIndices(newSelected);
+    showNotification(`Đã đặt số lượng in theo tồn kho cho ${filteredPriceData.length} sản phẩm hiển thị!`, 'success');
   };
 
   const totalStickersToPrint = React.useMemo(() => {
@@ -2521,7 +2561,20 @@ export default function ToolHoTro() {
                                 />
                               </th>
                               <th className="py-2.5 px-3 text-[10px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">STT</th>
-                              <th className="py-2.5 px-3 text-[10px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-center">SL</th>
+                              <th className="py-2.5 px-3 text-[10px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-center">SL IN</th>
+                              <th className="py-2.5 px-3 text-[10px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-center w-28">
+                                <div className="flex flex-col items-center gap-1">
+                                  <span>Tồn kho</span>
+                                  <button
+                                    type="button"
+                                    onClick={handleSetPrintQtyToInventoryAll}
+                                    className="px-1.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-[6px] text-[8px] font-black uppercase tracking-wider scale-90"
+                                    title="In theo tồn kho cho tất cả sản phẩm hiển thị"
+                                  >
+                                    In theo tồn ALL
+                                  </button>
+                                </div>
+                              </th>
                               <th className="py-2.5 px-3 text-[10px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Mã SP</th>
                               <th className="py-2.5 px-3 text-[10px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Tên sản phẩm</th>
                               <th className="py-2.5 px-3 text-[10px] font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Ngành hàng</th>
@@ -2550,6 +2603,9 @@ export default function ToolHoTro() {
                                     value={printQuantities[index] ?? 0}
                                     onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 0)}
                                   />
+                                </td>
+                                <td className="py-2 px-3 text-center text-xs font-black text-slate-600 bg-slate-50/50">
+                                  {item.tonKho ?? 0}
                                 </td>
                                 <td className="py-2 px-3 text-xs font-bold text-indigo-600">{item.maSanPham || item.productCode || '-'}</td>
                                 <td className="py-2 px-3 text-xs font-bold text-slate-800">{item.name}</td>
@@ -2941,11 +2997,28 @@ export default function ToolHoTro() {
 
               {/* Right Column */}
               <div className={`col-span-1 ${(activeTab === 'sticker-dcnb' || activeTab === 'sticker-event-dmx') ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-6`}>
+                {activeTab === 'sticker-event-dmx' && lastUpdatePrice && (
+                  <div className="bg-emerald-50 border border-emerald-200/80 rounded-3xl p-5 flex items-start gap-4 text-emerald-800 shadow-sm shadow-emerald-50/50 animate-fade-in">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 shadow-sm border border-emerald-200/50">
+                      <span className="text-xl">⚡</span>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-emerald-900">Bảng giá sự kiện ĐMX đã được cập nhật</h4>
+                      <p className="text-[11px] font-bold text-emerald-600/90 mt-1 leading-relaxed">
+                        Thời gian đồng bộ: <span className="font-black text-emerald-800 text-[12px] bg-emerald-100/50 px-2 py-0.5 rounded-lg border border-emerald-200/60 ml-0.5 mr-1">{lastUpdatePrice}</span> bởi Quản trị viên <span className="font-black text-emerald-800 bg-emerald-100/50 px-2 py-0.5 rounded-lg border border-emerald-200/60">{updatedBy || '43751'}</span>.
+                      </p>
+                      <p className="text-[9px] font-bold text-emerald-500/80 mt-1.5 uppercase tracking-wide">
+                        * Áp dụng đồng bộ thời gian thực cho tất cả người dùng trên hệ thống.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {activeTab === 'sticker-event-dmx' && (
                   <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 flex flex-col md:flex-row md:items-center justify-between gap-6">
                     {/* Left side: Thông tin người in */}
                     <div className="flex-1 min-w-[200px]">
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between">
                         <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">Thông tin người in <span className="text-red-500">*</span></h3>
                         <button 
                           onClick={handleClearData}
@@ -2955,15 +3028,40 @@ export default function ToolHoTro() {
                           <span className="text-[10px] font-bold">Xóa dữ liệu</span>
                         </button>
                       </div>
-                      <div className="flex items-center gap-3 py-2 px-4 bg-slate-50 border border-slate-100 rounded-2xl w-full">
-                        <span className="text-xs font-bold text-slate-400">Username:</span>
-                        <span className="text-sm font-black text-slate-800">{userProfile?.username || '43751'}</span>
-                        <span className="text-[10px] font-bold text-blue-500 cursor-pointer hover:underline" onClick={() => showNotification('Liên hệ Admin để sửa thông tin!', 'info')}>(Sửa)</span>
-                      </div>
                     </div>
 
                     {/* Right side: Buttons */}
                     <div className="flex flex-row items-center gap-4 shrink-0">
+                      <input 
+                        type="file" 
+                        accept=".xlsx, .xls" 
+                        className="hidden" 
+                        ref={inventoryInputRef}
+                        onChange={(e) => handleFileUpload(e, 'inventory')}
+                      />
+                      <button 
+                        onClick={() => inventoryInputRef.current?.click()}
+                        className={`flex items-center justify-center gap-2.5 py-3.5 px-5 rounded-2xl border transition-all h-[52px] min-w-[170px] ${
+                          inventoryFile || lastUpdateInventory
+                            ? 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100/50 shadow-sm'
+                            : 'border-indigo-200 bg-indigo-50/20 text-indigo-600 hover:bg-indigo-50/50'
+                        }`}
+                      >
+                        {inventoryFile || lastUpdateInventory ? (
+                          <CheckCircle2 size={18} className="text-indigo-500 shrink-0" />
+                        ) : (
+                          <Archive size={18} className="text-indigo-600 shrink-0" />
+                        )}
+                        <div className="text-left leading-tight">
+                          <div className="text-xs font-black uppercase tracking-wider">
+                            {inventoryFile || lastUpdateInventory ? 'Đã tải Tồn Kho' : 'Tải Tồn Kho'}
+                          </div>
+                          {lastUpdateInventory && !inventoryFile && <div className="text-[8px] font-bold text-indigo-400">Cập nhật: {lastUpdateInventory}</div>}
+                          {inventoryFile && <div className="text-[8px] font-bold text-indigo-400 truncate max-w-[100px]">{inventoryFile.name}</div>}
+                          {!lastUpdateInventory && !inventoryFile && <div className="text-[8px] font-bold text-indigo-400">Chưa tải file</div>}
+                        </div>
+                      </button>
+
                       <button 
                         onClick={handleSyncGoogleSheet}
                         disabled={isSyncing}
@@ -3373,22 +3471,7 @@ export default function ToolHoTro() {
                   </div>
                 )}
 
-                {activeTab === 'sticker-event-dmx' && lastUpdatePrice && (
-                  <div className="bg-emerald-50 border border-emerald-200/80 rounded-3xl p-5 flex items-start gap-4 text-emerald-800 shadow-sm shadow-emerald-50/50 animate-fade-in">
-                    <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 shadow-sm border border-emerald-200/50">
-                      <span className="text-xl">⚡</span>
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black uppercase tracking-wider text-emerald-900">Bảng giá sự kiện ĐMX đã được cập nhật</h4>
-                      <p className="text-[11px] font-bold text-emerald-600/90 mt-1 leading-relaxed">
-                        Thời gian đồng bộ: <span className="font-black text-emerald-800 text-[12px] bg-emerald-100/50 px-2 py-0.5 rounded-lg border border-emerald-200/60 ml-0.5 mr-1">{lastUpdatePrice}</span> bởi Quản trị viên <span className="font-black text-emerald-800 bg-emerald-100/50 px-2 py-0.5 rounded-lg border border-emerald-200/60">{updatedBy || '43751'}</span>.
-                      </p>
-                      <p className="text-[9px] font-bold text-emerald-500/80 mt-1.5 uppercase tracking-wide">
-                        * Áp dụng đồng bộ thời gian thực cho tất cả người dùng trên hệ thống.
-                      </p>
-                    </div>
-                  </div>
-                )}
+
 
                 {activeTab !== 'sticker-dcnb' && (
                   <>
