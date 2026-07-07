@@ -4084,7 +4084,7 @@ export default function NewRealtimePage() {
                                   {activeInventoryNotification.title}
                                 </span>
                               </p>
-                              <p className="text-[11px] text-slate-650 font-black tracking-tight leading-relaxed">
+                              <p className="text-[11px] text-slate-655 font-black tracking-tight leading-relaxed">
                                 {activeInventoryNotification.diffDays === 0 ? (
                                   <span className="text-rose-600 animate-pulse font-black uppercase">⚠️ HÔM NAY ĐANG KIỂM KÊ! Vui lòng tập trung và kiểm kê chính xác, nhanh chóng!</span>
                                 ) : (
