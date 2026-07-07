@@ -777,26 +777,26 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #cbd5e1' }}>
+        <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0' }}>
           <thead>
             <tr className="text-slate-900 border-b-2 border-slate-300 h-[85px]">
               <th 
                 onClick={() => handleHeaderClick('default')}
-                className="px-2 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-300 bg-[#10b981] text-slate-900 cursor-pointer hover:bg-[#059669] transition-colors select-none"
+                className="px-2 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-200 bg-[#10b981] text-slate-900 cursor-pointer hover:bg-[#059669] transition-colors select-none"
                 style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}
               >
                 STT {renderSortIcon('default')}
               </th>
               <th 
                 onClick={() => handleHeaderClick('name')}
-                className="px-3 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-300 bg-[#10b981] text-slate-900 cursor-pointer hover:bg-[#059669] transition-colors select-none"
+                className="px-3 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-200 bg-[#10b981] text-slate-900 cursor-pointer hover:bg-[#059669] transition-colors select-none"
                 style={{ width: '320px', minWidth: '320px', maxWidth: '320px' }}
               >
                 NHÂN VIÊN {renderSortIcon('name')}
               </th>
               <th 
                 onClick={() => handleHeaderClick('achieved')}
-                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-300 bg-[#10b981] text-slate-900 cursor-pointer hover:bg-[#059669] transition-colors select-none"
+                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-200 bg-[#10b981] text-slate-900 cursor-pointer hover:bg-[#059669] transition-colors select-none"
                 style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}
               >
                 ĐẠT {renderSortIcon('achieved')}
@@ -817,7 +817,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                     onDrop={(e) => handleDrop(e, catName)}
                     onClick={() => handleHeaderClick('category', catName)}
                     className={cn(
-                      "px-1 py-1 text-[10px] font-black uppercase tracking-tight text-center border border-white/40 cursor-pointer transition-colors select-none",
+                      "px-1 py-1 text-[10px] font-black uppercase tracking-tight text-center border border-slate-200 cursor-pointer transition-colors select-none",
                       getCategoryBadgeStyleClasses(catName).bgText,
                       getCategoryBadgeStyleClasses(catName).hover,
                       isAdmin && "hover:border-indigo-500 border-2 border-transparent"
@@ -835,7 +835,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                     {catName} {renderSortIcon('category', catName)}
                   </th>
                   {cleanCategoryName(catName) === 'maylanhdacquyen' && (
-                    <th className="bg-white border border-slate-300" style={{ width: '40px', minWidth: '40px', maxWidth: '40px' }}></th>
+                    <th className="bg-white border border-slate-200" style={{ width: '40px', minWidth: '40px', maxWidth: '40px' }}></th>
                   )}
                 </React.Fragment>
               ))}
@@ -854,10 +854,10 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
 
               return (
                 <tr key={staff.fullId} className={cn("hover:bg-slate-50 transition-colors h-[40px]", staff.displayName.includes('30016') ? 'border-b border-slate-200' : '')}>
-                  <td className="px-2 py-0 text-center border border-slate-300 bg-[#d1fae5] text-slate-900 font-black text-[13px] truncate">
+                  <td className="px-2 py-0 text-center border border-slate-200 bg-[#d1fae5] text-slate-900 font-black text-[13px] truncate">
                     {index + 1}
                   </td>
-                  <td className="px-3 py-0 border border-slate-300 text-[13px] font-black uppercase tracking-tight text-slate-700">
+                  <td className="px-3 py-0 border border-slate-200 text-[13px] font-black uppercase tracking-tight text-slate-700">
                     <div className="flex items-center justify-between group h-full">
                       <span className="truncate">{staff.displayName}</span>
                       <button 
@@ -871,11 +871,11 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                       </button>
                     </div>
                   </td>
-                  <td className="px-1 py-0 text-[13px] font-black text-center border border-slate-300 bg-[#ecfdf5] text-[#065f46]">
+                  <td className="px-1 py-0 text-[13px] font-black text-center border border-slate-200 bg-[#ecfdf5] text-[#065f46]">
                     {visibleAchieved}/{visibleCategories.length}
                   </td>
                   <td className={cn(
-                    "px-1 py-0 text-[13px] font-black text-center border border-slate-300 bg-[#ecfdf5]",
+                    "px-1 py-0 text-[13px] font-black text-center border border-slate-200 bg-[#ecfdf5]",
                     isBelowHalf ? "text-[#b91c1c]" : "text-[#065f46]"
                   )}>
                     {ratePercentStr}
@@ -887,13 +887,13 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                   return (
                     <React.Fragment key={idx}>
                       <td className={cn(
-                          "px-1 py-0 text-[13px] font-black text-center border border-slate-300 truncate",
+                          "px-1 py-0 text-[13px] font-black text-center border border-slate-200 truncate",
                           roundedRate >= 100 ? "text-[#047857]" : "text-[#b91c1c]"
                       )}>
                           {roundedRate}%
                       </td>
                       {cleanCategoryName(catName) === 'maylanhdacquyen' && (
-                        <td className="bg-white border border-slate-300"></td>
+                        <td className="bg-white border border-slate-200"></td>
                       )}
                     </React.Fragment>
                   );
