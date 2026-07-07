@@ -23,18 +23,10 @@ const getCategoryBadgeStyleClasses = (catName: string): { bgText: string; hover:
   // 2. NHÓM ICT (Điện thoại, Laptop, Đồng hồ, Phụ kiện, v.v...) - Màu cam đậm, chữ đen
   const ICT_KEYS = [
     "dienthoaitabletandroid", "dienthoairealme", "dienthoaivivo", "laptop",
-    "donghophukien", "doanhthudongho", "loa", "camera", "giado", "kinhcuonglucmiengdan", "baohiem", "baohanh", "mayanh", "eda"
+    "donghophukien", "doanhthudongho", "loa", "camera", "eda", "mayanh", "giado"
   ];
   if (ICT_KEYS.some(k => cleanStr === k || cleanStr.includes(k) || k.includes(cleanStr))) {
     return { bgText: 'bg-[#f59e0b] text-black', hover: 'hover:bg-[#d97706]' };
-  }
-
-  // 5. SIM - Warm Yellow/Dark Brown
-  const SIM_KEYS = [
-    "simtong", "simmobifonevinaphonesimdmx"
-  ];
-  if (SIM_KEYS.some(k => cleanStr === k || cleanStr.includes(k) || k.includes(cleanStr))) {
-    return { bgText: 'bg-[#fefce8] text-[#854d0e]', hover: 'hover:bg-[#fef08a]' };
   }
 
   // 6. GIA DỤNG (Household/ĐMX) - Màu xanh dương (giống widget Thu Hộ), chữ đen
