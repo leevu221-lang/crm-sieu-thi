@@ -2652,6 +2652,22 @@ export default function NewRealtimePage() {
     }
   };
 
+  const renderKhaiThacHeader = (field: string, label: string, textColor: string, bgColor: string, width: string) => {
+    return (
+      <th
+        onClick={() => handleKhaiThacSort(field)}
+        className={`py-1 px-3 ${bgColor} border-r border-slate-200/50 font-black text-[11px] ${textColor} cursor-pointer select-none text-center ${width} border-b border-slate-100`}
+      >
+        <div className="flex items-center justify-center gap-0.5">
+          <span>{label}</span>
+          <span className={`text-[9px] ${khaiThacSortField === field ? 'text-indigo-600 font-extrabold' : 'text-slate-400'}`}>
+            {khaiThacSortField === field ? (khaiThacSortAsc ? '▲' : '▼') : '⇅'}
+          </span>
+        </div>
+      </th>
+    );
+  };
+
   const handleCaptureTable = async (elementId: string, fileName: string) => {
     const element = document.getElementById(elementId);
     if (!element) return;
