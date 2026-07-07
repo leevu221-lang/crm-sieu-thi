@@ -18,18 +18,15 @@ const removeAccentsLocal = (str: string): string => {
 const getCategoryBadgeStyleClasses = (catName: string): { bgText: string; hover: string } => {
   const cleanStr = removeAccentsLocal(catName).toLowerCase().replace(/[^a-z0-9]/g, '');
 
-  // 1. DOANH THU (Revenue) - Light Blue/Navy
-  if (cleanStr === 'doanhthudongho') {
-    return { bgText: 'bg-[#ebf3ff] text-[#1d4ed8]', hover: 'hover:bg-[#d0e3ff]' };
-  }
+  // 1. DOANH THU (Revenue) - Bỏ doanhthudongho để nó tự lọt vào nhóm ICT bên dưới
 
-  // 2. NHÓM ICT (Điện thoại, Laptop, Đồng hồ, Phụ kiện, v.v...) - Đổi màu vàng cam đậm (giống widget Trả Góp)
+  // 2. NHÓM ICT (Điện thoại, Laptop, Đồng hồ, Phụ kiện, v.v...) - Màu cam đậm, chữ đen
   const ICT_KEYS = [
     "dienthoaitabletandroid", "dienthoairealme", "dienthoaivivo", "laptop",
     "donghophukien", "doanhthudongho", "loa", "camera", "giado", "kinhcuonglucmiengdan", "baohiem", "baohanh", "mayanh", "eda"
   ];
   if (ICT_KEYS.some(k => cleanStr === k || cleanStr.includes(k) || k.includes(cleanStr))) {
-    return { bgText: 'bg-[#f59e0b] text-white', hover: 'hover:bg-[#d97706]' };
+    return { bgText: 'bg-[#f59e0b] text-black', hover: 'hover:bg-[#d97706]' };
   }
 
   // 5. SIM - Warm Yellow/Dark Brown
@@ -40,7 +37,7 @@ const getCategoryBadgeStyleClasses = (catName: string): { bgText: string; hover:
     return { bgText: 'bg-[#fefce8] text-[#854d0e]', hover: 'hover:bg-[#fef08a]' };
   }
 
-  // 6. GIA DỤNG (Household/ĐMX) - Light Cyan/Dark Teal
+  // 6. GIA DỤNG (Household/ĐMX) - Màu xanh dương (giống widget Thu Hộ), chữ đen
   const GIA_DUNG_KEYS = [
     "hisense", "dientu", "dientusamsung", "maygiat", "maysaymayruachen",
     "cehanghaiermaylanhaqua", "cehanghaiernaylanhaqua", "maylanhcasper", "maylanhnagakawa",
@@ -49,11 +46,11 @@ const getCategoryBadgeStyleClasses = (catName: string): { bgText: string; hover:
     "maylanhdacquyen"
   ];
   if (GIA_DUNG_KEYS.some(k => cleanStr === k || cleanStr.includes(k) || k.includes(cleanStr))) {
-    return { bgText: 'bg-[#ecfeff] text-[#155e75]', hover: 'hover:bg-[#cffafe]' };
+    return { bgText: 'bg-[#2563eb] text-black', hover: 'hover:bg-[#1d4ed8]' };
   }
 
-  // 7. VAS / SERVICES - Light Green/Dark Green (Changed to match SP CHÍNH color theme)
-  return { bgText: 'bg-[#ecfdf5] text-[#065f46]', hover: 'hover:bg-[#d1fae5]' };
+  // 7. VAS / DỊCH VỤ - Màu xanh lá (giống widget %HT), chữ đen
+  return { bgText: 'bg-[#10b981] text-black', hover: 'hover:bg-[#059669]' };
 };
 
 // Reusing parsing logic to avoid affecting EmployeeDetailTable
