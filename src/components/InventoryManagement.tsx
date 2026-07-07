@@ -276,8 +276,7 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({ warehouseCode
       const sDate = new Date(s.date);
       const diffTime = sDate.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return { ...s, daysLeft: diffDays };
-    }).filter(s => s.daysLeft >= 0 && s.daysLeft <= 14)
+    }).filter(s => s.daysLeft >= 0 && s.daysLeft <= 31)
       .sort((a, b) => a.daysLeft - b.daysLeft);
   }, [schedules]);
 

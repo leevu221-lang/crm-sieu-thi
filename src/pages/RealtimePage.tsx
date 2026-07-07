@@ -1876,7 +1876,7 @@ export default function NewRealtimePage() {
       const sDate = new Date(s.inventory_date);
       const diffTime = sDate.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays >= 0 && diffDays <= 7;
+      return diffDays >= 0 && diffDays <= 31;
     });
 
     if (!active) return null;
