@@ -16,7 +16,9 @@ import {
   TrendingUp,
   Layout,
   Bug,
-  HelpCircle
+  HelpCircle,
+  CornerDownRight,
+  ShieldCheck
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
@@ -29,6 +31,15 @@ export interface FeedbackItem {
   rating: number;
   category: string;
   comment: string;
+  created_at?: any;
+}
+
+export interface ReplyItem {
+  id?: string;
+  feedback_id: string;
+  username: string;
+  ma_kho: string;
+  content: string;
   created_at?: any;
 }
 
@@ -54,21 +65,40 @@ export default function FeedbackPage() {
 
   // Feed states
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
+  const [replies, setReplies] = useState<ReplyItem[]>([]);
   const [isLoadingFeed, setIsLoadingFeed] = useState(true);
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Fetch feedbacks
-  const fetchFeedbacks = async () => {
+  // Replies states
+  const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<string[]>([]);
+  const [replyInputs, setReplyInputs] = useState<Record<string, string>>({});
+  const [submittingReplies, setSubmittingReplies] = useState<Record<string, boolean>>({});
+
+  // Fetch feedbacks & replies
+  const fetchFeedbacksAndReplies = async () => {
     setIsLoadingFeed(true);
     try {
-      const { data, error } = await supabase
+      // 1. Fetch feedbacks
+      const { data: feedbacksData, error: feedbacksError } = await supabase
         .from('website_feedbacks')
         .select('*')
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
-      setFeedbacks(data || []);
+      if (feedbacksError) throw feedbacksError;
+      setFeedbacks(feedbacksData || []);
+
+      // 2. Fetch replies
+      const { data: repliesData, error: repliesError } = await supabase
+        .from('website_feedback_replies')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (repliesError) {
+        console.warn('[FeedbackPage] Error loading replies, they might not exist yet:', repliesError);
+      } else {
+        setReplies(repliesData || []);
+      }
     } catch (err) {
       console.error('[FeedbackPage] Fetch error:', err);
     } finally {
@@ -77,10 +107,10 @@ export default function FeedbackPage() {
   };
 
   useEffect(() => {
-    fetchFeedbacks();
+    fetchFeedbacksAndReplies();
   }, []);
 
-  // Handle submit
+  // Handle submit new feedback
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userProfile) return;
@@ -108,7 +138,7 @@ export default function FeedbackPage() {
       setComment('');
       setRating(5);
       // Reload feed
-      fetchFeedbacks();
+      fetchFeedbacksAndReplies();
       setTimeout(() => setShowSuccess(false), 4000);
     } catch (err: any) {
       console.error('[FeedbackPage] Submit error:', err);
@@ -116,6 +146,45 @@ export default function FeedbackPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Submit reply to a feedback
+  const handleSendReply = async (feedbackId: string) => {
+    if (!userProfile) return;
+    const text = replyInputs[feedbackId]?.trim();
+    if (!text) return;
+
+    setSubmittingReplies(prev => ({ ...prev, [feedbackId]: true }));
+    try {
+      const payload = {
+        feedback_id: feedbackId,
+        username: userProfile.username,
+        ma_kho: userProfile.ma_kho || 'N/A',
+        content: text
+      };
+
+      const { error } = await supabase.from('website_feedback_replies').insert(payload);
+      if (error) throw error;
+
+      // Clear input
+      setReplyInputs(prev => ({ ...prev, [feedbackId]: '' }));
+      // Reload feed to get new reply
+      await fetchFeedbacksAndReplies();
+      // Ensure replies view remains open
+      if (!expandedFeedbackIds.includes(feedbackId)) {
+        setExpandedFeedbackIds(prev => [...prev, feedbackId]);
+      }
+    } catch (err) {
+      console.error('[FeedbackPage] Submit reply error:', err);
+    } finally {
+      setSubmittingReplies(prev => ({ ...prev, [feedbackId]: false }));
+    }
+  };
+
+  const toggleRepliesView = (feedbackId: string) => {
+    setExpandedFeedbackIds(prev => 
+      prev.includes(feedbackId) ? prev.filter(id => id !== feedbackId) : [...prev, feedbackId]
+    );
   };
 
   // Helper formatting dates
@@ -454,7 +523,7 @@ export default function FeedbackPage() {
             </div>
 
             {/* List Feedbacks Container */}
-            <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1">
+            <div className="space-y-4 max-h-[700px] overflow-y-auto pr-1">
               {isLoadingFeed ? (
                 <div className="flex flex-col items-center justify-center py-12 space-y-3">
                   <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
@@ -471,6 +540,7 @@ export default function FeedbackPage() {
               ) : (
                 <div className="space-y-4">
                   {filteredFeedbacks.map((fb, idx) => {
+                    const feedbackId = fb.id || `fb-${idx}`;
                     const catObj = CATEGORIES.find(c => c.id === fb.category) || CATEGORIES[4];
                     const initials = fb.username.slice(0, 2).toUpperCase();
                     
@@ -485,10 +555,15 @@ export default function FeedbackPage() {
                     const colorIndex = Math.abs(fb.username.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)) % colors.length;
                     const avatarColor = colors[colorIndex];
 
+                    // Find replies for this feedback
+                    const feedbackReplies = replies.filter(r => r.feedback_id === feedbackId);
+                    const hasReplies = feedbackReplies.length > 0;
+                    const isExpanded = expandedFeedbackIds.includes(feedbackId);
+
                     return (
                       <div 
-                        key={fb.id || idx}
-                        className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 space-y-3 relative group"
+                        key={feedbackId}
+                        className="bg-white border border-slate-150 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 space-y-4 relative group"
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex items-center gap-3">
@@ -533,6 +608,101 @@ export default function FeedbackPage() {
                         <div className="text-xs text-slate-650 leading-relaxed font-medium bg-slate-50/50 p-3 rounded-xl border border-slate-100">
                           {fb.comment}
                         </div>
+
+                        {/* Actions block: Reply trigger */}
+                        <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-[11px] font-bold text-slate-500">
+                          <button
+                            onClick={() => toggleRepliesView(feedbackId)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-slate-50 hover:text-indigo-600 rounded-lg transition-colors"
+                          >
+                            <MessageCircle size={14} className="text-slate-400" />
+                            <span>
+                              {feedbackReplies.length > 0 ? `${feedbackReplies.length} phản hồi` : 'Phản hồi / Bình luận'}
+                            </span>
+                          </button>
+                        </div>
+
+                        {/* Expanded Replies section */}
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="overflow-hidden space-y-3 pl-3 border-l-2 border-slate-200 mt-2"
+                            >
+                              {/* Replies feed */}
+                              {hasReplies && (
+                                <div className="space-y-2 mt-2">
+                                  {feedbackReplies.map((rep, rIdx) => {
+                                    const repInitials = rep.username.slice(0, 2).toUpperCase();
+                                    const repColorIndex = Math.abs(rep.username.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)) % colors.length;
+                                    const repAvatarColor = colors[repColorIndex];
+                                    const isAdminRep = rep.username.toUpperCase() === 'ADMIN' || rep.username === '43751';
+
+                                    return (
+                                      <div key={rep.id || rIdx} className="bg-slate-50/55 p-3 rounded-xl border border-slate-100 space-y-1.5 relative">
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2">
+                                            <div className={cn("w-6 h-6 rounded-lg bg-gradient-to-br flex items-center justify-center text-white text-[8px] font-black", repAvatarColor)}>
+                                              {repInitials}
+                                            </div>
+                                            <div>
+                                              <span className="text-xs font-black text-slate-700 uppercase tracking-tight flex items-center gap-1">
+                                                {rep.username}
+                                                {isAdminRep && (
+                                                  <span className="inline-flex items-center gap-0.5 bg-indigo-150 text-indigo-700 px-1 rounded font-black text-[8px]">
+                                                    <ShieldCheck size={8} />
+                                                    ADMIN
+                                                  </span>
+                                                )}
+                                              </span>
+                                              <div className="flex items-center gap-1.5 text-[8px] text-slate-400 font-bold uppercase">
+                                                <span>Kho: {rep.ma_kho}</span>
+                                                <span>•</span>
+                                                <span>{formatRelativeTime(rep.created_at)}</span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <p className="text-[11px] font-medium text-slate-650 pl-8">
+                                          {rep.content}
+                                        </p>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Quick Reply Form */}
+                              <div className="flex gap-2 items-center mt-3 pt-2 border-t border-slate-100/60">
+                                <input
+                                  type="text"
+                                  value={replyInputs[feedbackId] || ''}
+                                  onChange={(e) => setReplyInputs(prev => ({ ...prev, [feedbackId]: e.target.value }))}
+                                  placeholder="Viết phản hồi của bạn..."
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSendReply(feedbackId);
+                                  }}
+                                  className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-400 outline-none transition-all placeholder-slate-400"
+                                />
+                                <button
+                                  onClick={() => handleSendReply(feedbackId)}
+                                  disabled={submittingReplies[feedbackId] || !replyInputs[feedbackId]?.trim()}
+                                  className="p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                                >
+                                  {submittingReplies[feedbackId] ? (
+                                    <div className="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <Send size={12} />
+                                  )}
+                                </button>
+                              </div>
+
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
                       </div>
                     );
                   })}
