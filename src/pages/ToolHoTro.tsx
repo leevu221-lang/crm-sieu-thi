@@ -2721,7 +2721,7 @@ export default function ToolHoTro() {
                 )}
 
                 {/* Card 2: Nhập thủ công */}
-                {activeTab !== 'sticker-dcnb' && (
+                {activeTab !== 'sticker-dcnb' && activeTab !== 'sticker-event-dmx' && (
                   <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
