@@ -10,12 +10,8 @@ export interface EmployeeBirthday {
 }
 
 const normalizeStoreId = (name: string) => {
-  if (!name) return 'UNKNOWN';
-  return name.normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd').replace(/Đ/g, 'D')
-    .replace(/[^a-zA-Z0-9]/g, '_')
-    .toUpperCase();
+  if (!name) return '';
+  return name.trim().normalize('NFC').toUpperCase();
 };
 
 export const birthdayService = {
