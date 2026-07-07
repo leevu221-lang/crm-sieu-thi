@@ -10,9 +10,10 @@ interface StickerPrintModalProps {
   config?: { style: string; layout: string; showPromoLabel?: boolean };
   mlnHeaderTemplate?: string;
   mlnFooterTemplate?: string;
+  promoLabelText?: string;
 }
 
-export default function StickerPrintModal({ isOpen, onClose, data, config = { style: 'classic', layout: '4', showPromoLabel: true }, mlnHeaderTemplate = '', mlnFooterTemplate = '' }: StickerPrintModalProps) {
+export default function StickerPrintModal({ isOpen, onClose, data, config = { style: 'classic', layout: '4', showPromoLabel: true }, mlnHeaderTemplate = '', mlnFooterTemplate = '', promoLabelText = 'sản phẩm giá sốc - event T7 & CN' }: StickerPrintModalProps) {
   const [previewScale, setPreviewScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
   const isA5 = ((config.style === 'display' || config.style === 'giovang') && config.layout === '1') || ((config.style === 'sticker_ce' || config.style === 'sticker_lk') && config.layout === '1') || (config.style === 'phieu_bh' && config.layout === 'right');
@@ -237,7 +238,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                           flexShrink: 0 
                         }}>
                           {item ? (
-                             <Sticker item={item} style={config.style} layout={config.layout} showPromoLabel={config.showPromoLabel} mlnHeaderTemplate={mlnHeaderTemplate} mlnFooterTemplate={mlnFooterTemplate} />
+                             <Sticker item={item} style={config.style} layout={config.layout} showPromoLabel={config.showPromoLabel} mlnHeaderTemplate={mlnHeaderTemplate} mlnFooterTemplate={mlnFooterTemplate} promoLabelText={promoLabelText} />
                           ) : null}
                         </div>
                       </div>
@@ -262,7 +263,7 @@ export function DcnbCard() {
   );
 }
 
-export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderTemplate = '', mlnFooterTemplate = '' }: { item: any, style: string, layout: string, showPromoLabel?: boolean, mlnHeaderTemplate?: string, mlnFooterTemplate?: string }) {
+export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderTemplate = '', mlnFooterTemplate = '', promoLabelText = 'sản phẩm giá sốc - event T7 & CN' }: { item: any, style: string, layout: string, showPromoLabel?: boolean, mlnHeaderTemplate?: string, mlnFooterTemplate?: string, promoLabelText?: string }) {
   // Get current time for the sticker
   const now = new Date();
   const day = now.getDate().toString().padStart(2, '0');
@@ -967,8 +968,8 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
 
         {/* Bottom Section - Promos */}
         {showPromoLabel && (
-          <div className="text-center font-bold text-[16px] mb-6 tracking-tight uppercase">
-            sản phẩm giá sốc - event T7 & CN
+          <div className="text-center font-bold text-[16.5px] mb-6 tracking-tight uppercase">
+            {promoLabelText}
           </div>
         )}
 

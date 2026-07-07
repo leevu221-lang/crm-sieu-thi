@@ -355,6 +355,11 @@ export default function ToolHoTro() {
           inventory: 'rtst_sticker_dcnb_inventory_data',
           price: 'rtst_sticker_dcnb_price_data'
         };
+      case 'sticker-event-dmx':
+        return {
+          inventory: 'rtst_sticker_event_dmx_inventory_data',
+          price: 'rtst_sticker_event_dmx_price_data'
+        };
       default:
         return {
           inventory: STORAGE_KEYS.STICKER_INVENTORY_DATA,
@@ -437,6 +442,7 @@ export default function ToolHoTro() {
       activeTab === 'sticker-ce' || 
       activeTab === 'sticker-mln' || 
       activeTab === 'sticker-dcnb' || 
+      activeTab === 'sticker-event-dmx' ||
       activeTab === 'sticker-event' || 
       activeTab === 'sticker'
     ) {
@@ -1730,6 +1736,17 @@ export default function ToolHoTro() {
           >
             <span className="text-lg">🍳</span> DCNB
           </button>
+
+          <button
+            onClick={() => setActiveTab('sticker-event-dmx')}
+            className={`flex items-center gap-2.5 py-3 px-6 rounded-full text-sm font-extrabold uppercase tracking-wide transition-all border-2 shadow-sm ${
+              activeTab === 'sticker-event-dmx'
+                ? 'border-rose-400 bg-rose-50 text-rose-700'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700'
+            }`}
+          >
+            <span className="text-lg">🎪</span> EVENT ĐMX
+          </button>
         </div>
       </div>
     );
@@ -2803,7 +2820,8 @@ export default function ToolHoTro() {
                                           item={{ name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }}
                                           style="classic"
                                           layout="1"
-                                          showPromoLabel={showEventPromoLabel}
+                                          showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' ? false : showEventPromoLabel}
+                                          promoLabelText={activeTab === 'sticker-event-dmx' ? 'GIÁ KM 43346-TRẦN TRỌNG THIỆN GỬI' : undefined}
                                         />
                                       </div>
                                     </div>
@@ -2825,13 +2843,14 @@ export default function ToolHoTro() {
                               style={activeTab === 'sticker-mln' ? 'display' : activeTab === 'sticker-lk' ? 'sticker_lk' : activeTab === 'sticker-ce' ? 'sticker_ce' : 'classic'}
                               layout={activeTab === 'sticker-lk' ? lkPrintLayout : activeTab === 'sticker-ce' ? cePrintLayout : activeTab === 'sticker-mln' ? mlnPrintLayout : '1'}
                               showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' ? false : showEventPromoLabel}
+                              promoLabelText={activeTab === 'sticker-event-dmx' ? 'GIÁ KM 43346-TRẦN TRỌNG THIỆN GỬI' : undefined}
                               mlnHeaderTemplate={mlnHeaderTemplate}
                               mlnFooterTemplate={mlnFooterTemplate}
                             />
                           )}
                         </div>
                       </div>
-                      {(activeTab === 'all-sticker' || activeTab === 'sticker-event') && (
+                      {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event') && (
                         <div className="p-3.5 bg-slate-50/40 backdrop-blur-sm border-t border-indigo-50/60">
                           <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
                             <input 
@@ -2840,7 +2859,7 @@ export default function ToolHoTro() {
                               onChange={(e) => setShowEventPromoLabel(e.target.checked)}
                               className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                             />
-                            <span>Hiển thị nhãn "SẢN PHẨM GIÁ SỐC - EVENT T7 & CN"</span>
+                            <span>Hiển thị nhãn "{activeTab === 'sticker-event-dmx' ? 'GIÁ KM 43346-TRẦN TRỌNG THIỆN GỬI' : 'SẢN PHẨM GIÁ SỐC - EVENT T7 & CN'}"</span>
                           </label>
                         </div>
                       )}
@@ -3922,6 +3941,7 @@ export default function ToolHoTro() {
         }
         mlnHeaderTemplate={mlnHeaderTemplate}
         mlnFooterTemplate={mlnFooterTemplate}
+        promoLabelText={activeTab === 'sticker-event-dmx' ? 'GIÁ KM 43346-TRẦN TRỌNG THIỆN GỬI' : undefined}
       />
 
       {/* Scanner Modal */}
