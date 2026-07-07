@@ -38,11 +38,11 @@ const getCategoryBadgeStyleClasses = (catName: string): { bgText: string; hover:
     "maylanhdacquyen"
   ];
   if (GIA_DUNG_KEYS.some(k => cleanStr === k || cleanStr.includes(k) || k.includes(cleanStr))) {
-    return { bgText: 'bg-[#2563eb] text-black', hover: 'hover:bg-[#1d4ed8]' };
+    return { bgText: 'bg-[#2563eb] text-white', hover: 'hover:bg-[#1d4ed8]' };
   }
 
-  // 7. VAS / DỊCH VỤ - Màu xanh lá (giống widget %HT), chữ đen
-  return { bgText: 'bg-[#10b981] text-black', hover: 'hover:bg-[#059669]' };
+  // 7. VAS / DỊCH VỤ - Màu xanh lá (giống widget %HT), chữ trắng
+  return { bgText: 'bg-[#10b981] text-white', hover: 'hover:bg-[#059669]' };
 };
 
 // Reusing parsing logic to avoid affecting EmployeeDetailTable
@@ -790,7 +790,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
               <th 
                 onClick={() => handleHeaderClick('name')}
                 className="px-3 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-300 bg-[#10b981] text-slate-900 cursor-pointer hover:bg-[#059669] transition-colors select-none"
-                style={{ width: '220px', minWidth: '220px', maxWidth: '220px' }}
+                style={{ width: '320px', minWidth: '320px', maxWidth: '320px' }}
               >
                 NHÂN VIÊN {renderSortIcon('name')}
               </th>
@@ -817,7 +817,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                     onDrop={(e) => handleDrop(e, catName)}
                     onClick={() => handleHeaderClick('category', catName)}
                     className={cn(
-                      "px-1 py-1 text-[10px] font-black uppercase tracking-tight text-center border border-slate-300 cursor-pointer transition-colors select-none",
+                      "px-1 py-1 text-[10px] font-black uppercase tracking-tight text-center border border-white/40 cursor-pointer transition-colors select-none",
                       getCategoryBadgeStyleClasses(catName).bgText,
                       getCategoryBadgeStyleClasses(catName).hover,
                       isAdmin && "hover:border-indigo-500 border-2 border-transparent"
@@ -857,7 +857,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                   <td className="px-2 py-0 text-center border border-slate-300 bg-[#d1fae5] text-slate-900 font-black text-[13px] truncate">
                     {index + 1}
                   </td>
-                  <td className="px-3 py-0 border border-slate-300 text-[13px] font-black uppercase tracking-tight text-slate-700 truncate">
+                  <td className="px-3 py-0 border border-slate-300 text-[13px] font-black uppercase tracking-tight text-slate-700">
                     <div className="flex items-center justify-between group h-full">
                       <span className="truncate">{staff.displayName}</span>
                       <button 
