@@ -23,13 +23,13 @@ const getCategoryBadgeStyleClasses = (catName: string): { bgText: string; hover:
     return { bgText: 'bg-[#ebf3ff] text-[#1d4ed8]', hover: 'hover:bg-[#d0e3ff]' };
   }
 
-  // 2. NHÓM ICT (Điện thoại, Laptop, Đồng hồ, Phụ kiện, v.v...) - Đổi màu vàng như yêu cầu
+  // 2. NHÓM ICT (Điện thoại, Laptop, Đồng hồ, Phụ kiện, v.v...) - Đổi màu vàng cam đậm (giống widget Trả Góp)
   const ICT_KEYS = [
     "dienthoaitabletandroid", "dienthoairealme", "dienthoaivivo", "laptop",
     "donghophukien", "doanhthudongho", "loa", "camera", "giado", "kinhcuonglucmiengdan", "baohiem", "baohanh", "mayanh", "eda"
   ];
   if (ICT_KEYS.some(k => cleanStr === k || cleanStr.includes(k) || k.includes(cleanStr))) {
-    return { bgText: 'bg-amber-100 text-amber-900', hover: 'hover:bg-amber-200' };
+    return { bgText: 'bg-[#f59e0b] text-white', hover: 'hover:bg-[#d97706]' };
   }
 
   // 5. SIM - Warm Yellow/Dark Brown
