@@ -522,20 +522,20 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             key={row.staffName}
                             className="hover:bg-slate-50 transition-colors h-[53px]"
                           >
-                            <td className="px-1 py-2.5 text-[13px] font-utm-avo font-black text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a] h-full">
+                            <td className="px-1 py-2.5 text-[15px] font-utm-avo font-black text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a] h-full">
                               {index + 1}
                             </td>
-                            <td className="px-2 py-2.5 text-[13px] font-utm-avo font-black uppercase border-r border-b border-slate-300 text-slate-700 truncate max-w-[150px] h-full">
+                            <td className="px-2 py-2.5 text-[15px] font-utm-avo font-black uppercase border-r border-b border-slate-300 text-slate-700 truncate max-w-[150px] h-full">
                               {row.staffName}
                             </td>
-                            <td className="px-1 py-2.5 text-[13px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-slate-800 h-full">
+                            <td className="px-1 py-2.5 text-[15px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-slate-800 h-full">
                               {row.target.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
                             </td>
-                            <td className="px-1 py-2.5 text-[13px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-emerald-700 h-full">
+                            <td className="px-1 py-2.5 text-[15px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-emerald-700 h-full">
                               {row.accumulated.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
                             </td>
                             <td className={cn(
-                              "px-1 py-2.5 text-[13px] font-utm-avo font-black text-center border-r border-b border-slate-300 h-full",
+                              "px-1 py-2.5 text-[15px] font-utm-avo font-black text-center border-r border-b border-slate-300 h-full",
                               roundedRate >= 100 ? "text-emerald-600" : roundedRate >= 50 ? "text-amber-600" : "text-rose-600"
                             )}>
                               {roundedRate}%

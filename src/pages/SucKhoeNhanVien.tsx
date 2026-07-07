@@ -2018,10 +2018,10 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                           <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-visible shadow-xl shadow-slate-200/50">
                             <div className="w-full overflow-x-auto">
-                              <table className="w-full border-collapse min-w-[900px]">
+                              <table className="w-full border-collapse min-w-[900px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                                 <thead className="sticky top-0 z-20">
                                   <tr className="text-[#0f172a] font-sans font-black text-[17px] uppercase tracking-wider h-[45px]">
-                                    <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="bg-[#00965e] px-2 py-0 text-center border-r border-white/10 h-[35px] font-sans font-black text-[#0f172a]">STT</th>
+                                    <th style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }} className="bg-[#00965e] px-2 py-0 text-center border-r border-white/10 h-[35px] font-sans font-black text-[#0f172a]">STT</th>
                                     {visibleIndices.map((idx, i) => {
                                       // Map color regions like the image
                                       let bgColor = 'bg-[#00965e]'; // First group (Emerald)
@@ -2198,7 +2198,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                               <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-hidden shadow-lg shadow-slate-200/30">
                                 <div className="overflow-x-auto">
-                                  <table className="w-full text-left font-sans text-[#0f172a] border-collapse">
+                                  <table className="w-full text-left text-[#0f172a] border-collapse" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                                     <thead className="text-slate-900 uppercase border-b border-slate-200">
                                       <tr style={{ height: '50px' }}>
                                         <th style={{ width: '60px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">STT</th>
@@ -2443,7 +2443,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                           return (
                             <>
                               <div className="overflow-x-auto">
-                              <table className="w-full border-collapse font-sans min-w-[1000px]">
+                              <table className="w-full border-collapse min-w-[1000px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                                 <thead>
                                   <tr className="bg-[#facc15] text-[14px] font-black text-slate-900 uppercase tracking-tight h-[45px] border-b border-slate-300">
                                     <th rowSpan={2} style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="px-3 py-0 text-center w-10 border-r border-slate-300 font-sans font-black">STT</th>
@@ -2683,7 +2683,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                           <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-hidden shadow-lg shadow-slate-200/30">
                             <div className="overflow-x-auto">
-                              <table className="w-full text-left font-sans text-[#0f172a] border-collapse">
+                              <table className="w-full text-left text-[#0f172a] border-collapse" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                                 <thead className="text-slate-900 uppercase border-b border-slate-200">
                                   <tr style={{ height: '50px' }}>
                                     <th style={{ width: '60px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">STT</th>
@@ -2843,7 +2843,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                           <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-hidden shadow-lg shadow-slate-200/30">
                             <div className="overflow-x-auto">
-                              <table className="w-full text-left font-sans text-[#0f172a] border-collapse">
+                              <table className="w-full text-left text-[#0f172a] border-collapse" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                                 <thead className="text-slate-900 uppercase border-b border-slate-200">
                                   <tr style={{ height: '50px' }}>
                                     <th style={{ width: '60px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">STT</th>
@@ -3081,7 +3081,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                           <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-hidden shadow-lg shadow-slate-200/30">
                             <div className="overflow-x-auto">
-                              <table className="w-full text-left font-sans text-[#0f172a] border-collapse">
+                              <table className="w-full text-left text-[#0f172a] border-collapse" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                                 <thead className="text-slate-900 uppercase border-b border-slate-200">
                                   <tr style={{ height: '60px' }}>
                                     <th style={{ width: '60px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">STT</th>

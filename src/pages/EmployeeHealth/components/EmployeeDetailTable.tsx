@@ -254,15 +254,15 @@ const SectionTable: React.FC<{
           ĐẠT: {reachedCount}/{rowData.length} || {rowData.length > 0 ? ((reachedCount / rowData.length) * 100).toFixed(0) : 0}%
         </span>
       </div>
-      <table className="w-full border-separate border-spacing-0 border-l border-slate-300">
+      <table className="w-full border-separate border-spacing-0 border-l border-slate-300" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
         <thead>
           <tr className="text-slate-900 h-[34px]">
-            <th className={cn("px-2 py-0 text-[12px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300", headerBg)}>STT</th>
-            <th className={cn("px-2 py-0 text-[12px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300", headerBg)}>NGÀNH HÀNG</th>
-            <th className={cn("px-2 py-0 text-[12px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300", headerBg)}>TARGET</th>
-            <th className="px-2 py-0 text-[12px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#facc15]">LUỸ KẾ</th>
-            <th className="px-2 py-0 text-[12px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#facc15]">% HT</th>
-            <th className="px-2 py-0 text-[12px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#f97316]">CÒN LẠI</th>
+            <th className={cn("px-2 py-0 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300", headerBg)}>STT</th>
+            <th className={cn("px-2 py-0 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300", headerBg)}>NGÀNH HÀNG</th>
+            <th className={cn("px-2 py-0 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300", headerBg)}>TARGET</th>
+            <th className="px-2 py-0 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#facc15]">LUỸ KẾ</th>
+            <th className="px-2 py-0 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#facc15]">% HT</th>
+            <th className="px-2 py-0 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#f97316]">CÒN LẠI</th>
           </tr>
         </thead>
         <tbody>
@@ -271,29 +271,29 @@ const SectionTable: React.FC<{
               key={row.name}
               className="hover:bg-slate-50 transition-colors h-[34px]"
             >
-              <td className="px-2 py-0 text-[12px] font-utm-avo font-black text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">
+              <td className="px-2 py-0 text-[14px] font-utm-avo font-black text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">
                 {index + 1}
               </td>
               <td className={cn(
-                "px-2 py-0 text-[12px] font-utm-avo font-black uppercase border-r border-b border-slate-300",
+                "px-2 py-0 text-[14px] font-utm-avo font-black uppercase border-r border-b border-slate-300",
                 row.percentHT < 100 ? "text-rose-600" : "text-black"
               )}>
                 {row.name}
               </td>
-              <td className="px-2 py-0 text-[12px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-slate-800">
+              <td className="px-2 py-0 text-[14px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-slate-800">
                 {row.target.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
               </td>
-              <td className="px-2 py-0 text-[12px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-emerald-700">
+              <td className="px-2 py-0 text-[14px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-emerald-700">
                 {row.accumulated.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
               </td>
               <td className={cn(
-                "px-2 py-0 text-[12px] font-utm-avo font-black text-center border-r border-b border-slate-300",
+                "px-2 py-0 text-[14px] font-utm-avo font-black text-center border-r border-b border-slate-300",
                 row.percentHT >= 100 ? "text-emerald-600" : row.percentHT >= 50 ? "text-amber-600" : "text-rose-600"
               )}>
                 {row.percentHT.toFixed(0)}%
               </td>
               <td className={cn(
-                "px-2 py-0 text-[12px] font-utm-avo font-black text-center border-r border-b border-slate-300",
+                "px-2 py-0 text-[14px] font-utm-avo font-black text-center border-r border-b border-slate-300",
                 row.remainingVal > 0 ? "text-emerald-600" : "text-rose-600 font-black"
               )}>
                 <div className="flex items-center justify-center h-[34px] w-full">
