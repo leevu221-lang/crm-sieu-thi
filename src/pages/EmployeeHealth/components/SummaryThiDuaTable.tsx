@@ -779,7 +779,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       <div className="overflow-x-auto">
         <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0' }}>
           <thead>
-            <tr className="text-slate-900 border-b-2 border-slate-300 h-[85px]">
+            <tr className="text-slate-900 border-b border-slate-200 h-[85px]">
               <th 
                 className="px-2 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-slate-200 bg-[#10b981] text-slate-900 select-none"
                 style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}
@@ -846,7 +846,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                   </td>
                   <td className="px-3 py-0 border border-slate-200 text-[13px] font-black uppercase tracking-tight text-slate-700">
                     <div className="flex items-center justify-between group h-full">
-                      <span className="truncate">{staff.displayName}</span>
+                      <span>{staff.displayName}</span>
                       <button 
                         onClick={() => handleCopyStaff(staff)}
                         className={cn(
