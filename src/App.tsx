@@ -106,7 +106,7 @@ export default function App() {
   useEffect(() => {
     // Redirect if we are on a page that is not allowed
     if (userProfile) {
-      if (currentPage !== 'users' && !effectiveAllowedPages.includes(currentPage)) {
+      if (currentPage !== 'users' && currentPage !== 'feedback' && !effectiveAllowedPages.includes(currentPage)) {
         if (effectiveAllowedPages.length > 0) {
           const firstAllowedNavPage = effectiveAllowedPages.find(p => p !== 'users');
           if (firstAllowedNavPage) {
@@ -181,7 +181,10 @@ export default function App() {
     // { id: 'tnb_data', label: 'TNB DATA', icon: Trophy, color: 'indigo' },
   ];
   
-  const NAV_ITEMS = BASE_NAV_ITEMS.filter(item => effectiveAllowedPages.includes(item.id));
+  const NAV_ITEMS = [
+    ...BASE_NAV_ITEMS.filter(item => item.id !== 'feedback' && effectiveAllowedPages.includes(item.id)),
+    { id: 'feedback', label: 'Góp ý', icon: MessageSquare, color: 'indigo' },
+  ];
 
 
 
@@ -400,7 +403,7 @@ export default function App() {
                 }
                 if (currentPage === 'health' && effectiveAllowedPages.includes('health')) return <EmployeeHealth />;
                 if (currentPage === 'birthday' && effectiveAllowedPages.includes('birthday')) return <SinhNhatNv />;
-                if (currentPage === 'feedback' && effectiveAllowedPages.includes('feedback')) return <FeedbackPage />;
+                if (currentPage === 'feedback') return <FeedbackPage />;
                 return null;
               })()}
             </Suspense>
