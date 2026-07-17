@@ -1874,7 +1874,7 @@ export default function NewRealtimePage() {
       const diffTime = sDate.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       return { ...s, diffDays };
-    }).filter((s): s is any => s !== null && s.diffDays >= 0 && s.diffDays <= 31);
+    }).filter((s): s is any => s !== null && s.diffDays === 0);
 
     if (items.length === 0) return null;
 
