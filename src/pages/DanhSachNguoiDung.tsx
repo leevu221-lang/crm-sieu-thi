@@ -72,7 +72,8 @@ export default function UserManagement({ onBack }: UserManagementProps) {
         paymentConfirmed: u.paymentConfirmed,
         requestedRenewPackage: u.requestedRenewPackage,
         requestedAt: u.requestedAt,
-        phone: u.phone
+        phone: u.phone,
+        isDemo: u.isDemo
       }));
       
       setUsers(mappedUsers);
@@ -105,7 +106,8 @@ export default function UserManagement({ onBack }: UserManagementProps) {
           paymentConfirmed: isEditing.paymentConfirmed ?? false,
           expiredAt: isEditing.expiredAt || null,
           packageDays: isEditing.packageDays || null,
-          phone: isEditing.phone || null
+          phone: isEditing.phone || null,
+          isDemo: isEditing.isDemo ?? false
         };
         
         // Only include password in update if the admin actually typed a new one
@@ -158,6 +160,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
           expiredAt: isEditing.expiredAt || null,
           packageDays: isEditing.packageDays || null,
           phone: isEditing.phone || null,
+          isDemo: isEditing.isDemo ?? false,
           created_at: new Date().toISOString()
         };
 
@@ -481,7 +484,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                       {user.password || '---'}
                     </td>
                     <td className="px-6 py-4">
-                      {user.username === '43751' || user.username === 'ADMIN' ? (
+                      {user.username === '43751' || user.username === 'ADMIN' || user.isDemo ? (
                         <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-lg">Miễn phí / Demo</span>
                       ) : (
                         <div className="space-y-1.5">
@@ -816,17 +819,31 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                         />
                       </div>
 
-                      <div className="flex items-center gap-3 pt-6">
-                        <input
-                          type="checkbox"
-                          id="paymentConfirmed"
-                          checked={isEditing.paymentConfirmed || false}
-                          onChange={(e) => setIsEditing({ ...isEditing, paymentConfirmed: e.target.checked })}
-                          className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-600 cursor-pointer"
-                        />
-                        <label htmlFor="paymentConfirmed" className="text-sm font-bold text-slate-700 cursor-pointer select-none">
-                          Đã xác nhận thanh toán
-                        </label>
+                      <div className="flex flex-col gap-3 pt-4 sm:pt-6">
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            id="paymentConfirmed"
+                            checked={isEditing.paymentConfirmed || false}
+                            onChange={(e) => setIsEditing({ ...isEditing, paymentConfirmed: e.target.checked })}
+                            className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-600 cursor-pointer"
+                          />
+                          <label htmlFor="paymentConfirmed" className="text-sm font-bold text-slate-700 cursor-pointer select-none">
+                            Đã xác nhận thanh toán
+                          </label>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            id="isDemo"
+                            checked={isEditing.isDemo || false}
+                            onChange={(e) => setIsEditing({ ...isEditing, isDemo: e.target.checked })}
+                            className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-600 cursor-pointer"
+                          />
+                          <label htmlFor="isDemo" className="text-sm font-bold text-indigo-600 cursor-pointer select-none uppercase tracking-wider">
+                            Tài khoản Demo / Free
+                          </label>
+                        </div>
                       </div>
                     </div>
 

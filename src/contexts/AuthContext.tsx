@@ -55,7 +55,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               packageDays: userData.packageDays,
               paymentConfirmed: userData.paymentConfirmed,
               requestedRenewPackage: userData.requestedRenewPackage,
-              requestedAt: userData.requestedAt
+              requestedAt: userData.requestedAt,
+              isDemo: userData.isDemo
             } : {}),
             userPermissions: {
               ...prev.userPermissions,
@@ -115,7 +116,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             paymentConfirmed: userData.paymentConfirmed,
             requestedRenewPackage: userData.requestedRenewPackage,
             requestedAt: userData.requestedAt,
-            phone: userData.phone
+            phone: userData.phone,
+            isDemo: userData.isDemo
           };
 
           // Save to local storage

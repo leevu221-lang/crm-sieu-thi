@@ -23,6 +23,7 @@ export interface UserProfile {
   paymentConfirmed?: boolean;
   requestedRenewPackage?: number;
   requestedAt?: string;
+  isDemo?: boolean;
 }
 
 export interface UserData {

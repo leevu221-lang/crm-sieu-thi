@@ -86,6 +86,7 @@ export default function App() {
   const isLocked = useMemo(() => {
     if (isSuperAdminHardcoded) return false;
     if (!userProfile) return false;
+    if (userProfile.isDemo) return false;
     
     const lockEffectiveDate = new Date('2026-08-01T00:00:00+07:00');
     const isEnforced = new Date() >= lockEffectiveDate;
@@ -351,7 +352,7 @@ export default function App() {
                 </button>
               )}
 
-              {userProfile && userProfile.username !== '43751' && userProfile.username !== 'ADMIN' && (
+              {userProfile && userProfile.username !== '43751' && userProfile.username !== 'ADMIN' && !userProfile.isDemo && (
                 <button 
                   onClick={() => setShowSubscriptionForce(true)}
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all relative"
