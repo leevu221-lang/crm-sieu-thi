@@ -149,12 +149,21 @@ export default function App() {
     );
   }
 
-  // Subscription Gatekeeper check
-  const isLocked = !isSuperAdminHardcoded && (
-    userProfile.status !== 'active' || 
-    userProfile.paymentConfirmed !== true || 
-    (userProfile.expiredAt ? new Date() > new Date(userProfile.expiredAt) : true)
-  );
+  // Subscription Gatekeeper check: Enforced only starting from 1/8/2026
+  const isLocked = useMemo(() => {
+    if (isSuperAdminHardcoded) return false;
+    if (!userProfile) return true;
+    
+    const lockEffectiveDate = new Date('2026-08-01T00:00:00+07:00');
+    const isEnforced = new Date() >= lockEffectiveDate;
+    if (!isEnforced) return false;
+
+    const isUserActive = userProfile.status === 'active';
+    const isConfirmed = userProfile.paymentConfirmed === true;
+    const isExpired = userProfile.expiredAt ? new Date() > new Date(userProfile.expiredAt) : true;
+    
+    return !isUserActive || !isConfirmed || isExpired;
+  }, [userProfile, isSuperAdminHardcoded]);
 
   const { refreshProfile } = useAuth();
 

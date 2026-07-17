@@ -1793,6 +1793,16 @@ export default function NewRealtimePage() {
   const [selectedMaKho, setSelectedMaKho] = useState(userProfile?.ma_kho || '');
   const { ycxData, setYcxData, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
 
+  const daysRemaining = useMemo(() => {
+    if (!userProfile?.expiredAt) return null;
+    const exp = new Date(userProfile.expiredAt);
+    const today = new Date();
+    exp.setHours(0,0,0,0);
+    today.setHours(0,0,0,0);
+    const diff = exp.getTime() - today.getTime();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  }, [userProfile?.expiredAt]);
+
   // States and hooks for Birthday greetings in card (Placed safely after standard hook initializations)
   const [birthdaysList, setBirthdaysList] = useState<any[]>([]);
 
@@ -4081,6 +4091,38 @@ export default function NewRealtimePage() {
                         {greeting}, <span className="text-indigo-600">{userProfile?.username?.split(' ')[0]}</span>
                       </h2>
                     </div>
+
+                    {/* Global System Announcement */}
+                    <div className="flex items-start gap-4 bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl relative overflow-hidden shadow-sm shadow-indigo-50/30">
+                      <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-indigo-100 animate-pulse">
+                        📢
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-[13px] font-black text-indigo-700 uppercase tracking-wider">
+                          Thông báo duy trì hệ thống
+                        </p>
+                        <p className="text-[12px] text-slate-650 font-bold tracking-tight leading-relaxed">
+                          Nhằm duy trì hệ thống hoạt động ổn định và liên tục nâng cấp các tính năng mới, Từ ngày 1/8/2026 website sẽ áp dụng phí duy trì là 49.000đ /30 ngày. Xin chân thành cảm ơn Quý Anh/ Chị đã luôn đồng hành và ủng hộ.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Personal Expiration Alert */}
+                    {daysRemaining === 1 && (
+                      <div className="flex items-start gap-4 bg-rose-50/50 border border-rose-100 p-5 rounded-2xl relative overflow-hidden shadow-sm shadow-rose-50/30">
+                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-rose-200/50 animate-bounce">
+                          ⚠️
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <p className="text-[13px] font-black text-rose-600 uppercase tracking-wider">
+                            Cảnh báo hết hạn cước phí
+                          </p>
+                          <p className="text-[12px] text-rose-700 font-bold tracking-tight leading-relaxed">
+                            Gói cước sử dụng của bạn chỉ còn lại <span className="font-black">1 ngày</span> (Hết hạn vào ngày {userProfile?.expiredAt ? new Date(userProfile.expiredAt).toLocaleDateString('vi-VN') : '---'}). Vui lòng chuyển khoản thanh toán gia hạn sớm để tránh gián đoạn dịch vụ truy cập website.
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Integrated Birthday & Inventory Greetings */}
                     {(todayBirthdays.length > 0 || tomorrowBirthdays.length > 0 || activeInventoryNotification) && (
