@@ -3551,7 +3551,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                     <th style={{ width: '140px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-6 py-3 border-r border-white/20 text-white font-sans font-black text-center">NGÀNH HÀNG TD</th>
                                     <th style={{ width: '140px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#0ea5e9' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black text-center">GIỜ CÔNG</th>
                                     <th style={{ width: '150px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black text-center">HIỆU QUẢ QĐ</th>
-                                    <th style={{ width: '160px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-6 py-3 text-center text-[#0f172a] font-sans font-black">THU NHẬP</th>
+                                    <th style={{ width: '160px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-6 py-3 text-center text-[#0f172a] font-sans font-black">THU NHẬP TB</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, fontSize: '14px' }}>
@@ -3582,9 +3582,12 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                           {effPercent}%
                                         </td>
                                         <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center font-mono text-[#00965e]">
-                                          {row.thunhap >= 1000000 
-                                            ? `${(row.thunhap / 1000000).toFixed(1).replace('.', ',')} tr`
-                                            : Math.round(row.thunhap).toLocaleString('vi-VN')}
+                                          {(() => {
+                                            const avgTn = row.thunhap / 3;
+                                            return avgTn >= 1000000 
+                                              ? `${(avgTn / 1000000).toFixed(1).replace('.', ',')} tr`
+                                              : Math.round(avgTn).toLocaleString('vi-VN');
+                                          })()}
                                         </td>
                                       </tr>
                                     );
