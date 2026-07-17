@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { HeartPulse, Camera, TrendingUp, Search, ChevronDown, Check, MessageSquare, FileText, ChevronRight, LayoutGrid, Info, Users, Printer, UploadCloud, Trophy, TrendingDown, Gift, Target, Trash2, Clock, X } from 'lucide-react';
+import { HeartPulse, Camera, TrendingUp, Search, ChevronDown, ChevronUp, Check, MessageSquare, FileText, ChevronRight, LayoutGrid, Info, Users, Printer, UploadCloud, Trophy, TrendingDown, Gift, Target, Trash2, Clock, X } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { motion, AnimatePresence } from 'motion/react';
 import * as htmlToImage from 'html-to-image';
@@ -401,6 +401,10 @@ const EmployeeHealth: React.FC = () => {
   const { tragopMatran, categoryTargets, processedData, staffInput, staffCategoryInput, loadData: loadLuykeData, isLoading: isLuykeLoading } = useLuykeData(maKho);
 
   const isDataLoading = isHealthLoading || isLuykeLoading;
+
+  const [showIncome1, setShowIncome1] = useState(false);
+  const [showIncome2, setShowIncome2] = useState(false);
+  const [showIncome3, setShowIncome3] = useState(false);
 
   // Filter processed markets
   const allowedMarkets = useMemo(() => {
@@ -3099,16 +3103,24 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             />
                           </div>
                           <div>
-                            <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu Thu Nhập ({rankMonth1})</label>
+                            <div 
+                              onClick={() => setShowIncome1(!showIncome1)}
+                              className="flex justify-between items-center mb-1.5 cursor-pointer hover:opacity-80 transition-all select-none"
+                            >
+                              <div className="flex items-center gap-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block cursor-pointer">Dữ Liệu Thu Nhập ({rankMonth1})</label>
+                                {showIncome1 ? <ChevronUp size={12} className="text-slate-400" /> : <ChevronDown size={12} className="text-slate-400" />}
+                              </div>
                               <span className="text-[10px] font-black text-emerald-600">{formatValueForDisplay(thunhap1Sum, true)}</span>
                             </div>
-                            <textarea
-                              value={thunhap3t1}
-                              onChange={(e) => setThunhap3t1(e.target.value)}
-                              placeholder={`Dán cột Nhân viên & Thu nhập ${rankMonth1}...`}
-                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
-                            />
+                            {showIncome1 && (
+                              <textarea
+                                value={thunhap3t1}
+                                onChange={(e) => setThunhap3t1(e.target.value)}
+                                placeholder={`Dán cột Nhân viên & Thu nhập ${rankMonth1}...`}
+                                className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                              />
+                            )}
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
@@ -3168,16 +3180,24 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             />
                           </div>
                           <div>
-                            <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu Thu Nhập ({rankMonth2})</label>
+                            <div 
+                              onClick={() => setShowIncome2(!showIncome2)}
+                              className="flex justify-between items-center mb-1.5 cursor-pointer hover:opacity-80 transition-all select-none"
+                            >
+                              <div className="flex items-center gap-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block cursor-pointer">Dữ Liệu Thu Nhập ({rankMonth2})</label>
+                                {showIncome2 ? <ChevronUp size={12} className="text-slate-400" /> : <ChevronDown size={12} className="text-slate-400" />}
+                              </div>
                               <span className="text-[10px] font-black text-emerald-600">{formatValueForDisplay(thunhap2Sum, true)}</span>
                             </div>
-                            <textarea
-                              value={thunhap3t2}
-                              onChange={(e) => setThunhap3t2(e.target.value)}
-                              placeholder={`Dán cột Nhân viên & Thu nhập ${rankMonth2}...`}
-                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
-                            />
+                            {showIncome2 && (
+                              <textarea
+                                value={thunhap3t2}
+                                onChange={(e) => setThunhap3t2(e.target.value)}
+                                placeholder={`Dán cột Nhân viên & Thu nhập ${rankMonth2}...`}
+                                className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                              />
+                            )}
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
@@ -3237,16 +3257,24 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             />
                           </div>
                           <div>
-                            <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu Thu Nhập ({rankMonth3})</label>
+                            <div 
+                              onClick={() => setShowIncome3(!showIncome3)}
+                              className="flex justify-between items-center mb-1.5 cursor-pointer hover:opacity-80 transition-all select-none"
+                            >
+                              <div className="flex items-center gap-1">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block cursor-pointer">Dữ Liệu Thu Nhập ({rankMonth3})</label>
+                                {showIncome3 ? <ChevronUp size={12} className="text-slate-400" /> : <ChevronDown size={12} className="text-slate-400" />}
+                              </div>
                               <span className="text-[10px] font-black text-emerald-600">{formatValueForDisplay(thunhap3Sum, true)}</span>
                             </div>
-                            <textarea
-                              value={thunhap3t3}
-                              onChange={(e) => setThunhap3t3(e.target.value)}
-                              placeholder={`Dán cột Nhân viên & Thu nhập ${rankMonth3}...`}
-                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
-                            />
+                            {showIncome3 && (
+                              <textarea
+                                value={thunhap3t3}
+                                onChange={(e) => setThunhap3t3(e.target.value)}
+                                placeholder={`Dán cột Nhân viên & Thu nhập ${rankMonth3}...`}
+                                className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                              />
+                            )}
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
