@@ -983,8 +983,13 @@ const EmployeeHealth: React.FC = () => {
     const currentIndex = filteredBiData.findIndex(s => s.fullId === currentStaffId);
     if (currentIndex !== -1 && currentIndex < filteredBiData.length - 1) {
       const nextStaff = filteredBiData[currentIndex + 1];
-      const match = nextStaff.fullId.match(/\d+/);
-      const nextStaffId = match ? match[0] : nextStaff.fullId;
+      let nextStaffId = '';
+      if (nextStaff.fullId.includes('-')) {
+        nextStaffId = nextStaff.fullId.split('-')[0].trim();
+      } else {
+        const match = nextStaff.fullId.match(/\d+/);
+        nextStaffId = match ? match[0] : nextStaff.fullId;
+      }
       navigator.clipboard.writeText(nextStaffId).then(() => {
         showNotification(`Đã copy mã NV tiếp theo: ${nextStaffId} (${nextStaff.displayName.split(' - ').pop()})`, 'success');
       }).catch(err => {
@@ -2434,7 +2439,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                         <div className="space-y-2.5">
                           {filteredBiData.map((staff) => (
                             <div key={`truoc-${staff.fullId}`}>
-                              <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5 block truncate">{staff.displayName}</label>
+                              <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5 block">{staff.displayName}</label>
                               <textarea
                                 className="w-full p-2 rounded-lg border border-slate-200 text-[10px] font-black font-sans focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 outline-none transition-all bg-slate-50/50 hover:bg-white resize-none"
                                 rows={1}
@@ -2476,7 +2481,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                         <div className="space-y-2.5">
                           {filteredBiData.map((staff) => (
                             <div key={`hientai-${staff.fullId}`}>
-                              <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5 block truncate">{staff.displayName}</label>
+                              <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-0.5 block">{staff.displayName}</label>
                               <textarea
                                 className="w-full p-2 rounded-lg border border-purple-200 text-[10px] font-black font-sans focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 outline-none transition-all bg-purple-50/30 hover:bg-white resize-none"
                                 rows={1}
@@ -3143,9 +3148,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                     const { tong } = parseBonusData(rawVal, staff, marketFilter);
                                     return (
                                       <div key={`tn1-${staff.fullId}`} className="bg-white p-2 rounded-xl border border-slate-200/80 shadow-sm">
-                                        <div className="flex justify-between items-center mb-1">
-                                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-wider truncate max-w-[170px]">{staff.displayName}</span>
-                                          <span className="text-[9px] font-black text-emerald-600">{formatValueForDisplay(tong || 0, true)}</span>
+                                        <div className="flex justify-between items-center mb-1 gap-2">
+                                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-wider">{staff.displayName}</span>
+                                          <span className="text-[9px] font-black text-emerald-600 flex-shrink-0">{formatValueForDisplay(tong || 0, true)}</span>
                                         </div>
                                         <textarea
                                           className="w-full p-1.5 rounded-lg border border-slate-200 text-[10px] font-black font-sans focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-all bg-slate-50/50 hover:bg-white resize-none"
@@ -3247,9 +3252,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                     const { tong } = parseBonusData(rawVal, staff, marketFilter);
                                     return (
                                       <div key={`tn2-${staff.fullId}`} className="bg-white p-2 rounded-xl border border-slate-200/80 shadow-sm">
-                                        <div className="flex justify-between items-center mb-1">
-                                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-wider truncate max-w-[170px]">{staff.displayName}</span>
-                                          <span className="text-[9px] font-black text-emerald-600">{formatValueForDisplay(tong || 0, true)}</span>
+                                        <div className="flex justify-between items-center mb-1 gap-2">
+                                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-wider">{staff.displayName}</span>
+                                          <span className="text-[9px] font-black text-emerald-600 flex-shrink-0">{formatValueForDisplay(tong || 0, true)}</span>
                                         </div>
                                         <textarea
                                           className="w-full p-1.5 rounded-lg border border-slate-200 text-[10px] font-black font-sans focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-all bg-slate-50/50 hover:bg-white resize-none"
@@ -3351,9 +3356,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                     const { tong } = parseBonusData(rawVal, staff, marketFilter);
                                     return (
                                       <div key={`tn3-${staff.fullId}`} className="bg-white p-2 rounded-xl border border-slate-200/80 shadow-sm">
-                                        <div className="flex justify-between items-center mb-1">
-                                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-wider truncate max-w-[170px]">{staff.displayName}</span>
-                                          <span className="text-[9px] font-black text-emerald-600">{formatValueForDisplay(tong || 0, true)}</span>
+                                        <div className="flex justify-between items-center mb-1 gap-2">
+                                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-wider">{staff.displayName}</span>
+                                          <span className="text-[9px] font-black text-emerald-600 flex-shrink-0">{formatValueForDisplay(tong || 0, true)}</span>
                                         </div>
                                         <textarea
                                           className="w-full p-1.5 rounded-lg border border-slate-200 text-[10px] font-black font-sans focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-all bg-slate-50/50 hover:bg-white resize-none"
