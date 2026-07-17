@@ -373,6 +373,9 @@ const EmployeeHealth: React.FC = () => {
     giocong3t1, setGiocong3t1,
     giocong3t2, setGiocong3t2,
     giocong3t3, setGiocong3t3,
+    rankMonth1, setRankMonth1,
+    rankMonth2, setRankMonth2,
+    rankMonth3, setRankMonth3,
     setBanKemNv,
     setTragopNv,
     isLoading: isHealthLoading,
@@ -3035,21 +3038,21 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     {/* Summary row for the 3 monthly inputs */}
                     <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-[20px] border border-slate-100">
                       <div className="text-center p-3 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tổng DTQĐ Tháng 1</div>
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tổng DTQĐ {rankMonth1}</div>
                         <div className="text-sm font-black text-blue-600 mt-1">{formatValueForDisplay(dtqd1Sum)}</div>
                         <div className="text-[9px] font-bold text-slate-400 mt-0.5">
                           TN: {formatValueForDisplay(thunhap1Sum, true)} | NH: {nganhhang1Sum.toLocaleString('vi-VN')} | GC: {giocong1Sum.toLocaleString('vi-VN')}h
                         </div>
                       </div>
                       <div className="text-center p-3 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tổng DTQĐ Tháng 2</div>
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tổng DTQĐ {rankMonth2}</div>
                         <div className="text-sm font-black text-indigo-600 mt-1">{formatValueForDisplay(dtqd2Sum)}</div>
                         <div className="text-[9px] font-bold text-slate-400 mt-0.5">
                           TN: {formatValueForDisplay(thunhap2Sum, true)} | NH: {nganhhang2Sum.toLocaleString('vi-VN')} | GC: {giocong2Sum.toLocaleString('vi-VN')}h
                         </div>
                       </div>
                       <div className="text-center p-3 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tổng DTQĐ Tháng 3</div>
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tổng DTQĐ {rankMonth3}</div>
                         <div className="text-sm font-black text-violet-600 mt-1">{formatValueForDisplay(dtqd3Sum)}</div>
                         <div className="text-[9px] font-bold text-slate-400 mt-0.5">
                           TN: {formatValueForDisplay(thunhap3Sum, true)} | NH: {nganhhang3Sum.toLocaleString('vi-VN')} | GC: {giocong3Sum.toLocaleString('vi-VN')}h
@@ -3067,56 +3070,67 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       {/* Month 1 Inputs */}
                       <div className="bg-slate-50/50 p-5 rounded-[24px] border border-slate-100">
-                        <div className="flex items-center gap-2 mb-4">
-                          <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-black">1</span>
-                          <h4 className="text-sm font-black text-slate-700 uppercase tracking-wider">Tháng Thứ Nhất</h4>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-black">1</span>
+                            <h4 className="text-sm font-black text-slate-700 uppercase tracking-wider">Cột 1</h4>
+                          </div>
+                          <select
+                            value={rankMonth1}
+                            onChange={(e) => setRankMonth1(e.target.value)}
+                            className="text-xs font-black text-blue-600 bg-blue-50/50 border border-blue-100 rounded-xl px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+                          >
+                            {Array.from({ length: 12 }, (_, index) => `Tháng ${index + 1}`).map(m => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
                         </div>
                         <div className="space-y-4">
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu DTQĐ 1</label>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu DTQĐ ({rankMonth1})</label>
                               <span className="text-[10px] font-black text-blue-600">{formatValueForDisplay(dtqd1Sum)}</span>
                             </div>
                             <textarea
                               value={dtqd3t1}
                               onChange={(e) => setDtqd3t1(e.target.value)}
-                              placeholder="Dán cột Nhân viên & DTQĐ tháng 1..."
+                              placeholder={`Dán cột Nhân viên & DTQĐ ${rankMonth1}...`}
                               className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu Thu Nhập 1</label>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu Thu Nhập ({rankMonth1})</label>
                               <span className="text-[10px] font-black text-emerald-600">{formatValueForDisplay(thunhap1Sum, true)}</span>
                             </div>
                             <textarea
                               value={thunhap3t1}
                               onChange={(e) => setThunhap3t1(e.target.value)}
-                              placeholder="Dán cột Nhân viên & Thu nhập tháng 1..."
+                              placeholder={`Dán cột Nhân viên & Thu nhập ${rankMonth1}...`}
                               className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Ngành Hàng Thi Đua 1</label>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Ngành Hàng Thi Đua ({rankMonth1})</label>
                               <span className="text-[10px] font-black text-indigo-600">{nganhhang1Sum.toLocaleString('vi-VN')}</span>
                             </div>
                             <textarea
                               value={nganhhang3t1}
                               onChange={(e) => setNganhhang3t1(e.target.value)}
-                              placeholder="Dán cột Nhân viên & Ngành hàng tháng 1..."
+                              placeholder={`Dán cột Nhân viên & Ngành hàng ${rankMonth1}...`}
                               className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Giờ Công 1</label>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Giờ Công ({rankMonth1})</label>
                               <span className="text-[10px] font-black text-amber-600">{giocong1Sum.toLocaleString('vi-VN')} h</span>
                             </div>
                             <textarea
                               value={giocong3t1}
                               onChange={(e) => setGiocong3t1(e.target.value)}
-                              placeholder="Dán cột Nhân viên & Giờ công tháng 1..."
+                              placeholder={`Dán cột Nhân viên & Giờ công ${rankMonth1}...`}
                               className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
@@ -3125,56 +3139,67 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                       {/* Month 2 Inputs */}
                       <div className="bg-slate-50/50 p-5 rounded-[24px] border border-slate-100">
-                        <div className="flex items-center gap-2 mb-4">
-                          <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-black">2</span>
-                          <h4 className="text-sm font-black text-slate-700 uppercase tracking-wider">Tháng Thứ Hai</h4>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-black">2</span>
+                            <h4 className="text-sm font-black text-slate-700 uppercase tracking-wider">Cột 2</h4>
+                          </div>
+                          <select
+                            value={rankMonth2}
+                            onChange={(e) => setRankMonth2(e.target.value)}
+                            className="text-xs font-black text-indigo-600 bg-indigo-50/50 border border-indigo-100 rounded-xl px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                          >
+                            {Array.from({ length: 12 }, (_, index) => `Tháng ${index + 1}`).map(m => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
                         </div>
                         <div className="space-y-4">
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu DTQĐ 2</label>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu DTQĐ ({rankMonth2})</label>
                               <span className="text-[10px] font-black text-indigo-600">{formatValueForDisplay(dtqd2Sum)}</span>
                             </div>
                             <textarea
                               value={dtqd3t2}
                               onChange={(e) => setDtqd3t2(e.target.value)}
-                              placeholder="Dán cột Nhân viên & DTQĐ tháng 2..."
+                              placeholder={`Dán cột Nhân viên & DTQĐ ${rankMonth2}...`}
                               className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu Thu Nhập 2</label>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu Thu Nhập ({rankMonth2})</label>
                               <span className="text-[10px] font-black text-emerald-600">{formatValueForDisplay(thunhap2Sum, true)}</span>
                             </div>
                             <textarea
                               value={thunhap3t2}
                               onChange={(e) => setThunhap3t2(e.target.value)}
-                              placeholder="Dán cột Nhân viên & Thu nhập tháng 2..."
+                              placeholder={`Dán cột Nhân viên & Thu nhập ${rankMonth2}...`}
                               className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Ngành Hàng Thi Đua 2</label>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Ngành Hàng Thi Đua ({rankMonth2})</label>
                               <span className="text-[10px] font-black text-indigo-600">{nganhhang2Sum.toLocaleString('vi-VN')}</span>
                             </div>
                             <textarea
                               value={nganhhang3t2}
                               onChange={(e) => setNganhhang3t2(e.target.value)}
-                              placeholder="Dán cột Nhân viên & Ngành hàng tháng 2..."
+                              placeholder={`Dán cột Nhân viên & Ngành hàng ${rankMonth2}...`}
                               className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Giờ Công 2</label>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Giờ Công ({rankMonth2})</label>
                               <span className="text-[10px] font-black text-amber-600">{giocong2Sum.toLocaleString('vi-VN')} h</span>
                             </div>
                             <textarea
                               value={giocong3t2}
                               onChange={(e) => setGiocong3t2(e.target.value)}
-                              placeholder="Dán cột Nhân viên & Giờ công tháng 2..."
+                              placeholder={`Dán cột Nhân viên & Giờ công ${rankMonth2}...`}
                               className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
@@ -3183,56 +3208,67 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                       {/* Month 3 Inputs */}
                       <div className="bg-slate-50/50 p-5 rounded-[24px] border border-slate-100">
-                        <div className="flex items-center gap-2 mb-4">
-                          <span className="w-6 h-6 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center text-xs font-black">3</span>
-                          <h4 className="text-sm font-black text-slate-700 uppercase tracking-wider">Tháng Thứ Ba</h4>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center text-xs font-black">3</span>
+                            <h4 className="text-sm font-black text-slate-700 uppercase tracking-wider">Cột 3</h4>
+                          </div>
+                          <select
+                            value={rankMonth3}
+                            onChange={(e) => setRankMonth3(e.target.value)}
+                            className="text-xs font-black text-violet-600 bg-violet-50/50 border border-violet-100 rounded-xl px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-violet-500/20 cursor-pointer"
+                          >
+                            {Array.from({ length: 12 }, (_, index) => `Tháng ${index + 1}`).map(m => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
                         </div>
                         <div className="space-y-4">
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu DTQĐ 3</label>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu DTQĐ ({rankMonth3})</label>
                               <span className="text-[10px] font-black text-violet-600">{formatValueForDisplay(dtqd3Sum)}</span>
                             </div>
                             <textarea
                               value={dtqd3t3}
                               onChange={(e) => setDtqd3t3(e.target.value)}
-                              placeholder="Dán cột Nhân viên & DTQĐ tháng 3..."
+                              placeholder={`Dán cột Nhân viên & DTQĐ ${rankMonth3}...`}
                               className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu Thu Nhập 3</label>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Dữ Liệu Thu Nhập ({rankMonth3})</label>
                               <span className="text-[10px] font-black text-emerald-600">{formatValueForDisplay(thunhap3Sum, true)}</span>
                             </div>
                             <textarea
                               value={thunhap3t3}
                               onChange={(e) => setThunhap3t3(e.target.value)}
-                              placeholder="Dán cột Nhân viên & Thu nhập tháng 3..."
+                              placeholder={`Dán cột Nhân viên & Thu nhập ${rankMonth3}...`}
                               className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Ngành Hàng Thi Đua 3</label>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Ngành Hàng Thi Đua ({rankMonth3})</label>
                               <span className="text-[10px] font-black text-indigo-600">{nganhhang3Sum.toLocaleString('vi-VN')}</span>
                             </div>
                             <textarea
                               value={nganhhang3t3}
                               onChange={(e) => setNganhhang3t3(e.target.value)}
-                              placeholder="Dán cột Nhân viên & Ngành hàng tháng 3..."
+                              placeholder={`Dán cột Nhân viên & Ngành hàng ${rankMonth3}...`}
                               className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Giờ Công 3</label>
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Giờ Công ({rankMonth3})</label>
                               <span className="text-[10px] font-black text-amber-600">{giocong3Sum.toLocaleString('vi-VN')} h</span>
                             </div>
                             <textarea
                               value={giocong3t3}
                               onChange={(e) => setGiocong3t3(e.target.value)}
-                              placeholder="Dán cột Nhân viên & Giờ công tháng 3..."
+                              placeholder={`Dán cột Nhân viên & Giờ công ${rankMonth3}...`}
                               className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>

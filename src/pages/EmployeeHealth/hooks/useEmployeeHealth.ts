@@ -34,6 +34,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
   const [giocong3t1, setGiocong3t1Internal] = useState<string>(() => initialCache?.giocong3t1 || '');
   const [giocong3t2, setGiocong3t2Internal] = useState<string>(() => initialCache?.giocong3t2 || '');
   const [giocong3t3, setGiocong3t3Internal] = useState<string>(() => initialCache?.giocong3t3 || '');
+  const [rankMonth1, setRankMonth1Internal] = useState<string>(() => initialCache?.rankMonth1 || 'Tháng 1');
+  const [rankMonth2, setRankMonth2Internal] = useState<string>(() => initialCache?.rankMonth2 || 'Tháng 2');
+  const [rankMonth3, setRankMonth3Internal] = useState<string>(() => initialCache?.rankMonth3 || 'Tháng 3');
   const [tenSieuThi, setTenSieuThi] = useState<string>(() => initialCache?.tenSieuThi || '');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -134,6 +137,24 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     if (globalHealthCache[targetKey]) globalHealthCache[targetKey].giocong3t3 = val;
   }, [targetKey]);
 
+  const setRankMonth1 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setRankMonth1Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].rankMonth1 = val;
+  }, [targetKey]);
+
+  const setRankMonth2 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setRankMonth2Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].rankMonth2 = val;
+  }, [targetKey]);
+
+  const setRankMonth3 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setRankMonth3Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].rankMonth3 = val;
+  }, [targetKey]);
+
   const fetchAndMergeData = useCallback(async () => {
     if (!maKho) return;
     setIsLoading(true);
@@ -156,7 +177,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           .eq('ten_sieu_thi', cleanStore);
         lkQuery = supabase
           .from('store')
-          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, ten_sieu_thi, updated_at')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, rank_month_1, rank_month_2, rank_month_3, ten_sieu_thi, updated_at')
           .eq('id', normalizeStoreId(cleanStore));
       } else {
         // ALL stores mode: query by warehouse_code
@@ -166,7 +187,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           .or(warehouseFilter);
         lkQuery = supabase
           .from('store')
-          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, ten_sieu_thi, updated_at')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, rank_month_1, rank_month_2, rank_month_3, ten_sieu_thi, updated_at')
           .or(warehouseFilter);
       }
 
@@ -194,7 +215,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         console.log(`[EmployeeHealth] lkQuery by ID returned empty, falling back to warehouse_code query...`);
         const { data: fallbackData } = await supabase
           .from('store')
-          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, ten_sieu_thi, updated_at')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, rank_month_1, rank_month_2, rank_month_3, ten_sieu_thi, updated_at')
           .or(warehouseFilter);
         console.log(`[EmployeeHealth] Fallback lk data:`, fallbackData);
         if (fallbackData) {
@@ -308,6 +329,16 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         ? (lkDataArr || []).map(r => r.giocong_3t_3 || '').filter(Boolean).join('\n')
         : (lkData?.giocong_3t_3 || '');
 
+      const rankMonth1Raw = isAllMode
+        ? 'Tháng 1'
+        : (lkData?.rank_month_1 || 'Tháng 1');
+      const rankMonth2Raw = isAllMode
+        ? 'Tháng 2'
+        : (lkData?.rank_month_2 || 'Tháng 2');
+      const rankMonth3Raw = isAllMode
+        ? 'Tháng 3'
+        : (lkData?.rank_month_3 || 'Tháng 3');
+
       const tenSieuThiVal = isAllMode
         ? 'TẤT CẢ SIÊU THỊ'
         : (lkData?.ten_sieu_thi || rtData?.ten_sieu_thi || storeName || '');
@@ -337,6 +368,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         setGiocong3t1Internal(giocong3t1Raw);
         setGiocong3t2Internal(giocong3t2Raw);
         setGiocong3t3Internal(giocong3t3Raw);
+        setRankMonth1Internal(rankMonth1Raw);
+        setRankMonth2Internal(rankMonth2Raw);
+        setRankMonth3Internal(rankMonth3Raw);
       }
       setTenSieuThi(tenSieuThiVal);
       hasLoadedRef.current = true;
@@ -383,6 +417,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         giocong3t1: giocong3t1Raw,
         giocong3t2: giocong3t2Raw,
         giocong3t3: giocong3t3Raw,
+        rankMonth1: rankMonth1Raw,
+        rankMonth2: rankMonth2Raw,
+        rankMonth3: rankMonth3Raw,
         tenSieuThi: tenSieuThiVal
       };
 
@@ -436,6 +473,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         setGiocong3t1Internal(cached.giocong3t1 || '');
         setGiocong3t2Internal(cached.giocong3t2 || '');
         setGiocong3t3Internal(cached.giocong3t3 || '');
+        setRankMonth1Internal(cached.rankMonth1 || 'Tháng 1');
+        setRankMonth2Internal(cached.rankMonth2 || 'Tháng 2');
+        setRankMonth3Internal(cached.rankMonth3 || 'Tháng 3');
       }
     }
     
@@ -532,6 +572,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
             giocong_3t_1: giocong3t1,
             giocong_3t_2: giocong3t2,
             giocong_3t_3: giocong3t3,
+            rank_month_1: rankMonth1,
+            rank_month_2: rankMonth2,
+            rank_month_3: rankMonth3,
             updated_at: new Date().toISOString()
           }, { onConflict: 'id' });
         if (error) {
@@ -569,6 +612,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
               giocong_3t_1: giocong3t1,
               giocong_3t_2: giocong3t2,
               giocong_3t_3: giocong3t3,
+              rank_month_1: rankMonth1,
+              rank_month_2: rankMonth2,
+              rank_month_3: rankMonth3,
               updated_at: new Date().toISOString()
             }, { onConflict: 'id' })
             .then((res: any) => {
@@ -577,7 +623,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         }
       }
     };
-  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, maKho, storeName, tenSieuThi, isStoreReady]);
+  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, rankMonth1, rankMonth2, rankMonth3, maKho, storeName, tenSieuThi, isStoreReady]);
 
   // Auto-save banKemNv to DB with 2s debounce
   useEffect(() => {
@@ -817,6 +863,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     giocong3t1, setGiocong3t1,
     giocong3t2, setGiocong3t2,
     giocong3t3, setGiocong3t3,
+    rankMonth1, setRankMonth1,
+    rankMonth2, setRankMonth2,
+    rankMonth3, setRankMonth3,
     setBanKemNv,
     setTragopNv,
     isLoading,
