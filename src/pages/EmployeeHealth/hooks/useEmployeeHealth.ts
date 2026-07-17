@@ -28,6 +28,12 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
   const [thunhap3t1, setThunhap3t1Internal] = useState<string>(() => initialCache?.thunhap3t1 || '');
   const [thunhap3t2, setThunhap3t2Internal] = useState<string>(() => initialCache?.thunhap3t2 || '');
   const [thunhap3t3, setThunhap3t3Internal] = useState<string>(() => initialCache?.thunhap3t3 || '');
+  const [nganhhang3t1, setNganhhang3t1Internal] = useState<string>(() => initialCache?.nganhhang3t1 || '');
+  const [nganhhang3t2, setNganhhang3t2Internal] = useState<string>(() => initialCache?.nganhhang3t2 || '');
+  const [nganhhang3t3, setNganhhang3t3Internal] = useState<string>(() => initialCache?.nganhhang3t3 || '');
+  const [giocong3t1, setGiocong3t1Internal] = useState<string>(() => initialCache?.giocong3t1 || '');
+  const [giocong3t2, setGiocong3t2Internal] = useState<string>(() => initialCache?.giocong3t2 || '');
+  const [giocong3t3, setGiocong3t3Internal] = useState<string>(() => initialCache?.giocong3t3 || '');
   const [tenSieuThi, setTenSieuThi] = useState<string>(() => initialCache?.tenSieuThi || '');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -92,6 +98,42 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     if (globalHealthCache[targetKey]) globalHealthCache[targetKey].thunhap3t3 = val;
   }, [targetKey]);
 
+  const setNganhhang3t1 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setNganhhang3t1Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].nganhhang3t1 = val;
+  }, [targetKey]);
+
+  const setNganhhang3t2 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setNganhhang3t2Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].nganhhang3t2 = val;
+  }, [targetKey]);
+
+  const setNganhhang3t3 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setNganhhang3t3Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].nganhhang3t3 = val;
+  }, [targetKey]);
+
+  const setGiocong3t1 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setGiocong3t1Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].giocong3t1 = val;
+  }, [targetKey]);
+
+  const setGiocong3t2 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setGiocong3t2Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].giocong3t2 = val;
+  }, [targetKey]);
+
+  const setGiocong3t3 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setGiocong3t3Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].giocong3t3 = val;
+  }, [targetKey]);
+
   const fetchAndMergeData = useCallback(async () => {
     if (!maKho) return;
     setIsLoading(true);
@@ -114,7 +156,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           .eq('ten_sieu_thi', cleanStore);
         lkQuery = supabase
           .from('store')
-          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, ten_sieu_thi, updated_at')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, ten_sieu_thi, updated_at')
           .eq('id', normalizeStoreId(cleanStore));
       } else {
         // ALL stores mode: query by warehouse_code
@@ -124,7 +166,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           .or(warehouseFilter);
         lkQuery = supabase
           .from('store')
-          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, ten_sieu_thi, updated_at')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, ten_sieu_thi, updated_at')
           .or(warehouseFilter);
       }
 
@@ -152,7 +194,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         console.log(`[EmployeeHealth] lkQuery by ID returned empty, falling back to warehouse_code query...`);
         const { data: fallbackData } = await supabase
           .from('store')
-          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, ten_sieu_thi, updated_at')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, ten_sieu_thi, updated_at')
           .or(warehouseFilter);
         console.log(`[EmployeeHealth] Fallback lk data:`, fallbackData);
         if (fallbackData) {
@@ -246,6 +288,26 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         ? (lkDataArr || []).map(r => r.thunhap_3t_3 || '').filter(Boolean).join('\n')
         : (lkData?.thunhap_3t_3 || '');
 
+      const nganhhang3t1Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.nganhhang_3t_1 || '').filter(Boolean).join('\n')
+        : (lkData?.nganhhang_3t_1 || '');
+      const nganhhang3t2Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.nganhhang_3t_2 || '').filter(Boolean).join('\n')
+        : (lkData?.nganhhang_3t_2 || '');
+      const nganhhang3t3Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.nganhhang_3t_3 || '').filter(Boolean).join('\n')
+        : (lkData?.nganhhang_3t_3 || '');
+
+      const giocong3t1Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.giocong_3t_1 || '').filter(Boolean).join('\n')
+        : (lkData?.giocong_3t_1 || '');
+      const giocong3t2Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.giocong_3t_2 || '').filter(Boolean).join('\n')
+        : (lkData?.giocong_3t_2 || '');
+      const giocong3t3Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.giocong_3t_3 || '').filter(Boolean).join('\n')
+        : (lkData?.giocong_3t_3 || '');
+
       const tenSieuThiVal = isAllMode
         ? 'TẤT CẢ SIÊU THỊ'
         : (lkData?.ten_sieu_thi || rtData?.ten_sieu_thi || storeName || '');
@@ -269,6 +331,12 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         setThunhap3t1Internal(thunhap3t1Raw);
         setThunhap3t2Internal(thunhap3t2Raw);
         setThunhap3t3Internal(thunhap3t3Raw);
+        setNganhhang3t1Internal(nganhhang3t1Raw);
+        setNganhhang3t2Internal(nganhhang3t2Raw);
+        setNganhhang3t3Internal(nganhhang3t3Raw);
+        setGiocong3t1Internal(giocong3t1Raw);
+        setGiocong3t2Internal(giocong3t2Raw);
+        setGiocong3t3Internal(giocong3t3Raw);
       }
       setTenSieuThi(tenSieuThiVal);
       hasLoadedRef.current = true;
@@ -309,6 +377,12 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         thunhap3t1: thunhap3t1Raw,
         thunhap3t2: thunhap3t2Raw,
         thunhap3t3: thunhap3t3Raw,
+        nganhhang3t1: nganhhang3t1Raw,
+        nganhhang3t2: nganhhang3t2Raw,
+        nganhhang3t3: nganhhang3t3Raw,
+        giocong3t1: giocong3t1Raw,
+        giocong3t2: giocong3t2Raw,
+        giocong3t3: giocong3t3Raw,
         tenSieuThi: tenSieuThiVal
       };
 
@@ -356,6 +430,12 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         setThunhap3t1Internal(cached.thunhap3t1 || '');
         setThunhap3t2Internal(cached.thunhap3t2 || '');
         setThunhap3t3Internal(cached.thunhap3t3 || '');
+        setNganhhang3t1Internal(cached.nganhhang3t1 || '');
+        setNganhhang3t2Internal(cached.nganhhang3t2 || '');
+        setNganhhang3t3Internal(cached.nganhhang3t3 || '');
+        setGiocong3t1Internal(cached.giocong3t1 || '');
+        setGiocong3t2Internal(cached.giocong3t2 || '');
+        setGiocong3t3Internal(cached.giocong3t3 || '');
       }
     }
     
@@ -446,6 +526,12 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
             thunhap_3t_1: thunhap3t1,
             thunhap_3t_2: thunhap3t2,
             thunhap_3t_3: thunhap3t3,
+            nganhhang_3t_1: nganhhang3t1,
+            nganhhang_3t_2: nganhhang3t2,
+            nganhhang_3t_3: nganhhang3t3,
+            giocong_3t_1: giocong3t1,
+            giocong_3t_2: giocong3t2,
+            giocong_3t_3: giocong3t3,
             updated_at: new Date().toISOString()
           }, { onConflict: 'id' });
         if (error) {
@@ -477,6 +563,12 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
               thunhap_3t_1: thunhap3t1,
               thunhap_3t_2: thunhap3t2,
               thunhap_3t_3: thunhap3t3,
+              nganhhang_3t_1: nganhhang3t1,
+              nganhhang_3t_2: nganhhang3t2,
+              nganhhang_3t_3: nganhhang3t3,
+              giocong_3t_1: giocong3t1,
+              giocong_3t_2: giocong3t2,
+              giocong_3t_3: giocong3t3,
               updated_at: new Date().toISOString()
             }, { onConflict: 'id' })
             .then((res: any) => {
@@ -485,7 +577,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         }
       }
     };
-  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, maKho, storeName, tenSieuThi, isStoreReady]);
+  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, maKho, storeName, tenSieuThi, isStoreReady]);
 
   // Auto-save banKemNv to DB with 2s debounce
   useEffect(() => {
@@ -719,6 +811,12 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     thunhap3t1, setThunhap3t1,
     thunhap3t2, setThunhap3t2,
     thunhap3t3, setThunhap3t3,
+    nganhhang3t1, setNganhhang3t1,
+    nganhhang3t2, setNganhhang3t2,
+    nganhhang3t3, setNganhhang3t3,
+    giocong3t1, setGiocong3t1,
+    giocong3t2, setGiocong3t2,
+    giocong3t3, setGiocong3t3,
     setBanKemNv,
     setTragopNv,
     isLoading,

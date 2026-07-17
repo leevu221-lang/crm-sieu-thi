@@ -367,6 +367,12 @@ const EmployeeHealth: React.FC = () => {
     thunhap3t1, setThunhap3t1,
     thunhap3t2, setThunhap3t2,
     thunhap3t3, setThunhap3t3,
+    nganhhang3t1, setNganhhang3t1,
+    nganhhang3t2, setNganhhang3t2,
+    nganhhang3t3, setNganhhang3t3,
+    giocong3t1, setGiocong3t1,
+    giocong3t2, setGiocong3t2,
+    giocong3t3, setGiocong3t3,
     setBanKemNv,
     setTragopNv,
     isLoading: isHealthLoading,
@@ -1073,7 +1079,13 @@ const EmployeeHealth: React.FC = () => {
     dtqd3Sum,
     thunhap1Sum,
     thunhap2Sum,
-    thunhap3Sum
+    thunhap3Sum,
+    nganhhang1Sum,
+    nganhhang2Sum,
+    nganhhang3Sum,
+    giocong1Sum,
+    giocong2Sum,
+    giocong3Sum
   } = useMemo(() => {
     const parsedDtqd1 = parseStaffValueList(dtqd3t1);
     const parsedDtqd2 = parseStaffValueList(dtqd3t2);
@@ -1083,11 +1095,21 @@ const EmployeeHealth: React.FC = () => {
     const parsedTn2 = parseStaffValueList(thunhap3t2);
     const parsedTn3 = parseStaffValueList(thunhap3t3);
 
+    const parsedNh1 = parseStaffValueList(nganhhang3t1);
+    const parsedNh2 = parseStaffValueList(nganhhang3t2);
+    const parsedNh3 = parseStaffValueList(nganhhang3t3);
+
+    const parsedGc1 = parseStaffValueList(giocong3t1);
+    const parsedGc2 = parseStaffValueList(giocong3t2);
+    const parsedGc3 = parseStaffValueList(giocong3t3);
+
     const calcSum = (parsed: any[]) => parsed.reduce((acc, item) => {
       let val = item.value;
       if (val > 0 && val < 1000000) val = val * 1000000;
       return acc + val;
     }, 0);
+
+    const calcRawSum = (parsed: any[]) => parsed.reduce((acc, item) => acc + item.value, 0);
 
     return {
       dtqd1Sum: calcSum(parsedDtqd1),
@@ -1096,8 +1118,14 @@ const EmployeeHealth: React.FC = () => {
       thunhap1Sum: calcSum(parsedTn1),
       thunhap2Sum: calcSum(parsedTn2),
       thunhap3Sum: calcSum(parsedTn3),
+      nganhhang1Sum: calcRawSum(parsedNh1),
+      nganhhang2Sum: calcRawSum(parsedNh2),
+      nganhhang3Sum: calcRawSum(parsedNh3),
+      giocong1Sum: calcRawSum(parsedGc1),
+      giocong2Sum: calcRawSum(parsedGc2),
+      giocong3Sum: calcRawSum(parsedGc3),
     };
-  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3]);
+  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3]);
 
   const formatValueForDisplay = (val: number, isCurrency: boolean = false) => {
     if (val === 0) return isCurrency ? '0 đ' : '0';
@@ -1122,11 +1150,21 @@ const EmployeeHealth: React.FC = () => {
     const parsedTn2 = parseStaffValueList(thunhap3t2);
     const parsedTn3 = parseStaffValueList(thunhap3t3);
 
+    const parsedNh1 = parseStaffValueList(nganhhang3t1);
+    const parsedNh2 = parseStaffValueList(nganhhang3t2);
+    const parsedNh3 = parseStaffValueList(nganhhang3t3);
+
+    const parsedGc1 = parseStaffValueList(giocong3t1);
+    const parsedGc2 = parseStaffValueList(giocong3t2);
+    const parsedGc3 = parseStaffValueList(giocong3t3);
+
     const employeeMap = new Map<string, {
       id: string;
       name: string;
       dtqd: number;
       thunhap: number;
+      nganhhang: number;
+      giocong: number;
     }>();
 
     const getEmpKey = (emp: { id: string; name: string }) => {
@@ -1143,7 +1181,9 @@ const EmployeeHealth: React.FC = () => {
           id: emp.id && /^\d{5,}$/.test(emp.id) ? emp.id : '',
           name: emp.name || emp.id,
           dtqd: 0,
-          thunhap: 0
+          thunhap: 0,
+          nganhhang: 0,
+          giocong: 0
         });
       }
       return employeeMap.get(key)!;
@@ -1175,6 +1215,32 @@ const EmployeeHealth: React.FC = () => {
       entry.thunhap += item.value;
     });
 
+    parsedNh1.forEach(item => {
+      const entry = getOrCreate(item);
+      entry.nganhhang += item.value;
+    });
+    parsedNh2.forEach(item => {
+      const entry = getOrCreate(item);
+      entry.nganhhang += item.value;
+    });
+    parsedNh3.forEach(item => {
+      const entry = getOrCreate(item);
+      entry.nganhhang += item.value;
+    });
+
+    parsedGc1.forEach(item => {
+      const entry = getOrCreate(item);
+      entry.giocong += item.value;
+    });
+    parsedGc2.forEach(item => {
+      const entry = getOrCreate(item);
+      entry.giocong += item.value;
+    });
+    parsedGc3.forEach(item => {
+      const entry = getOrCreate(item);
+      entry.giocong += item.value;
+    });
+
     return Array.from(employeeMap.values()).map(emp => {
       let dtqd = emp.dtqd;
       if (dtqd > 0 && dtqd < 1000000) dtqd = dtqd * 1000000;
@@ -1189,12 +1255,14 @@ const EmployeeHealth: React.FC = () => {
         name: emp.name,
         dtqd,
         thunhap,
+        nganhhang: emp.nganhhang,
+        giocong: emp.giocong,
         effQd
       };
     })
-    .filter(emp => emp.dtqd > 0 || emp.thunhap > 0)
+    .filter(emp => emp.dtqd > 0 || emp.thunhap > 0 || emp.nganhhang > 0 || emp.giocong > 0)
     .sort((a, b) => b.dtqd - a.dtqd);
-  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3]);
+  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3]);
 
   const filteredRank3TData = useMemo(() => {
     // Filter against selectedStaffIds
@@ -2969,22 +3037,30 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                       <div className="text-center p-3 bg-white rounded-2xl border border-slate-100 shadow-sm">
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tổng DTQĐ Tháng 1</div>
                         <div className="text-sm font-black text-blue-600 mt-1">{formatValueForDisplay(dtqd1Sum)}</div>
-                        <div className="text-[9px] font-bold text-slate-400 mt-0.5">TN: {formatValueForDisplay(thunhap1Sum, true)}</div>
+                        <div className="text-[9px] font-bold text-slate-400 mt-0.5">
+                          TN: {formatValueForDisplay(thunhap1Sum, true)} | NH: {nganhhang1Sum.toLocaleString('vi-VN')} | GC: {giocong1Sum.toLocaleString('vi-VN')}h
+                        </div>
                       </div>
                       <div className="text-center p-3 bg-white rounded-2xl border border-slate-100 shadow-sm">
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tổng DTQĐ Tháng 2</div>
                         <div className="text-sm font-black text-indigo-600 mt-1">{formatValueForDisplay(dtqd2Sum)}</div>
-                        <div className="text-[9px] font-bold text-slate-400 mt-0.5">TN: {formatValueForDisplay(thunhap2Sum, true)}</div>
+                        <div className="text-[9px] font-bold text-slate-400 mt-0.5">
+                          TN: {formatValueForDisplay(thunhap2Sum, true)} | NH: {nganhhang2Sum.toLocaleString('vi-VN')} | GC: {giocong2Sum.toLocaleString('vi-VN')}h
+                        </div>
                       </div>
                       <div className="text-center p-3 bg-white rounded-2xl border border-slate-100 shadow-sm">
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tổng DTQĐ Tháng 3</div>
                         <div className="text-sm font-black text-violet-600 mt-1">{formatValueForDisplay(dtqd3Sum)}</div>
-                        <div className="text-[9px] font-bold text-slate-400 mt-0.5">TN: {formatValueForDisplay(thunhap3Sum, true)}</div>
+                        <div className="text-[9px] font-bold text-slate-400 mt-0.5">
+                          TN: {formatValueForDisplay(thunhap3Sum, true)} | NH: {nganhhang3Sum.toLocaleString('vi-VN')} | GC: {giocong3Sum.toLocaleString('vi-VN')}h
+                        </div>
                       </div>
                       <div className="text-center p-3 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl shadow-sm text-white flex flex-col justify-center">
                         <div className="text-[10px] font-black text-white/80 uppercase tracking-wider">Tổng Cộng 3 Tháng</div>
                         <div className="text-sm font-black mt-1">{formatValueForDisplay(dtqd1Sum + dtqd2Sum + dtqd3Sum)}</div>
-                        <div className="text-[9px] font-bold text-white/80 mt-0.5">Tổng TN: {formatValueForDisplay(thunhap1Sum + thunhap2Sum + thunhap3Sum, true)}</div>
+                        <div className="text-[9px] font-bold text-white/85 mt-0.5">
+                          TN: {formatValueForDisplay(thunhap1Sum + thunhap2Sum + thunhap3Sum, true)} | NH: {(nganhhang1Sum + nganhhang2Sum + nganhhang3Sum).toLocaleString('vi-VN')} | GC: {(giocong1Sum + giocong2Sum + giocong3Sum).toLocaleString('vi-VN')}h
+                        </div>
                       </div>
                     </div>
 
@@ -3005,7 +3081,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               value={dtqd3t1}
                               onChange={(e) => setDtqd3t1(e.target.value)}
                               placeholder="Dán cột Nhân viên & DTQĐ tháng 1..."
-                              className="w-full h-28 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
                           <div>
@@ -3017,7 +3093,31 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               value={thunhap3t1}
                               onChange={(e) => setThunhap3t1(e.target.value)}
                               placeholder="Dán cột Nhân viên & Thu nhập tháng 1..."
-                              className="w-full h-28 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                            />
+                          </div>
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Ngành Hàng Thi Đua 1</label>
+                              <span className="text-[10px] font-black text-indigo-600">{nganhhang1Sum.toLocaleString('vi-VN')}</span>
+                            </div>
+                            <textarea
+                              value={nganhhang3t1}
+                              onChange={(e) => setNganhhang3t1(e.target.value)}
+                              placeholder="Dán cột Nhân viên & Ngành hàng tháng 1..."
+                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                            />
+                          </div>
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Giờ Công 1</label>
+                              <span className="text-[10px] font-black text-amber-600">{giocong1Sum.toLocaleString('vi-VN')} h</span>
+                            </div>
+                            <textarea
+                              value={giocong3t1}
+                              onChange={(e) => setGiocong3t1(e.target.value)}
+                              placeholder="Dán cột Nhân viên & Giờ công tháng 1..."
+                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
                         </div>
@@ -3039,7 +3139,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               value={dtqd3t2}
                               onChange={(e) => setDtqd3t2(e.target.value)}
                               placeholder="Dán cột Nhân viên & DTQĐ tháng 2..."
-                              className="w-full h-28 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
                           <div>
@@ -3051,7 +3151,31 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               value={thunhap3t2}
                               onChange={(e) => setThunhap3t2(e.target.value)}
                               placeholder="Dán cột Nhân viên & Thu nhập tháng 2..."
-                              className="w-full h-28 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                            />
+                          </div>
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Ngành Hàng Thi Đua 2</label>
+                              <span className="text-[10px] font-black text-indigo-600">{nganhhang2Sum.toLocaleString('vi-VN')}</span>
+                            </div>
+                            <textarea
+                              value={nganhhang3t2}
+                              onChange={(e) => setNganhhang3t2(e.target.value)}
+                              placeholder="Dán cột Nhân viên & Ngành hàng tháng 2..."
+                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                            />
+                          </div>
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Giờ Công 2</label>
+                              <span className="text-[10px] font-black text-amber-600">{giocong2Sum.toLocaleString('vi-VN')} h</span>
+                            </div>
+                            <textarea
+                              value={giocong3t2}
+                              onChange={(e) => setGiocong3t2(e.target.value)}
+                              placeholder="Dán cột Nhân viên & Giờ công tháng 2..."
+                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
                         </div>
@@ -3073,7 +3197,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               value={dtqd3t3}
                               onChange={(e) => setDtqd3t3(e.target.value)}
                               placeholder="Dán cột Nhân viên & DTQĐ tháng 3..."
-                              className="w-full h-28 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
                           <div>
@@ -3085,7 +3209,31 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               value={thunhap3t3}
                               onChange={(e) => setThunhap3t3(e.target.value)}
                               placeholder="Dán cột Nhân viên & Thu nhập tháng 3..."
-                              className="w-full h-28 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                            />
+                          </div>
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Ngành Hàng Thi Đua 3</label>
+                              <span className="text-[10px] font-black text-indigo-600">{nganhhang3Sum.toLocaleString('vi-VN')}</span>
+                            </div>
+                            <textarea
+                              value={nganhhang3t3}
+                              onChange={(e) => setNganhhang3t3(e.target.value)}
+                              placeholder="Dán cột Nhân viên & Ngành hàng tháng 3..."
+                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                            />
+                          </div>
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Giờ Công 3</label>
+                              <span className="text-[10px] font-black text-amber-600">{giocong3Sum.toLocaleString('vi-VN')} h</span>
+                            </div>
+                            <textarea
+                              value={giocong3t3}
+                              onChange={(e) => setGiocong3t3(e.target.value)}
+                              placeholder="Dán cột Nhân viên & Giờ công tháng 3..."
+                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
                         </div>
@@ -3124,9 +3272,11 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                   <tr style={{ height: '60px' }}>
                                     <th style={{ width: '60px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">STT</th>
                                     <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black">NHÂN VIÊN</th>
-                                    <th style={{ width: '180px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black text-center">DTQĐ</th>
-                                    <th style={{ width: '180px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black text-center">HIỆU QUẢ QĐ</th>
-                                    <th style={{ width: '180px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-6 py-3 text-center text-[#0f172a] font-sans font-black">THU NHẬP</th>
+                                    <th style={{ width: '150px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black text-center">DTQĐ</th>
+                                    <th style={{ width: '140px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-6 py-3 border-r border-white/20 text-white font-sans font-black text-center">NGÀNH HÀNG TD</th>
+                                    <th style={{ width: '140px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#0ea5e9' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black text-center">GIỜ CÔNG</th>
+                                    <th style={{ width: '150px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black text-center">HIỆU QUẢ QĐ</th>
+                                    <th style={{ width: '160px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-6 py-3 text-center text-[#0f172a] font-sans font-black">THU NHẬP</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, fontSize: '14px' }}>
@@ -3143,6 +3293,12 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                           {row.dtqd >= 1000000 
                                             ? `${Math.round(row.dtqd / 1000000).toLocaleString('vi-VN')} Tr`
                                             : Math.round(row.dtqd).toLocaleString('vi-VN')}
+                                        </td>
+                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-indigo-600">
+                                          {row.nganhhang.toLocaleString('vi-VN')}
+                                        </td>
+                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-sky-600">
+                                          {row.giocong.toLocaleString('vi-VN')} h
                                         </td>
                                         <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
                                           "px-6 py-3 text-center border-r border-slate-200 font-mono",
@@ -3171,6 +3327,12 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                           ? `${Math.round(sum / 1000000).toLocaleString('vi-VN')} Tr`
                                           : Math.round(sum).toLocaleString('vi-VN');
                                       })()}
+                                    </td>
+                                    <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-indigo-600 font-bold">
+                                      {filteredRank3TData.reduce((acc: number, r: any) => acc + r.nganhhang, 0).toLocaleString('vi-VN')}
+                                    </td>
+                                    <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-sky-600 font-bold">
+                                      {filteredRank3TData.reduce((acc: number, r: any) => acc + r.giocong, 0).toLocaleString('vi-VN')} h
                                     </td>
                                     <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-slate-800">
                                       {(() => {
