@@ -4102,7 +4102,7 @@ export default function NewRealtimePage() {
                           Thông báo duy trì hệ thống
                         </p>
                         <p className="text-[12px] text-slate-650 font-bold tracking-tight leading-relaxed">
-                          Nhằm duy trì hệ thống hoạt động ổn định và liên tục nâng cấp các tính năng mới, Từ ngày 1/8/2026 website sẽ áp dụng phí duy trì là 49.000đ /30 ngày. Xin chân thành cảm ơn Quý Anh/ Chị đã luôn đồng hành và ủng hộ.
+                          Nhằm duy trì hệ thống hoạt động ổn định và liên tục nâng cấp các tính năng mới, Từ ngày 1/8/2026 website sẽ áp dụng phí duy trì là <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-black text-xs border border-amber-200">49.000đ / 30 ngày</span>. Xin chân thành cảm ơn Quý Anh/ Chị đã luôn đồng hành và ủng hộ.
                         </p>
                       </div>
                     </div>
