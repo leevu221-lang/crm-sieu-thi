@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldAlert, CreditCard, LogOut, Loader2, CheckCircle2, Sparkles, Check, Info } from 'lucide-react';
+import { ShieldAlert, CreditCard, LogOut, Loader2, CheckCircle2, Sparkles, Check, Info, RefreshCw } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { UserProfile } from '../types';
 
