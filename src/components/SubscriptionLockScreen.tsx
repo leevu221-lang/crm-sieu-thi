@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldAlert, CreditCard, LogOut, Loader2, CheckCircle2, Sparkles, Check, Info, RefreshCw, X } from 'lucide-react';
 import { supabase } from '../supabaseClient';
@@ -18,6 +18,21 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isApproved, setIsApproved] = useState(false);
+
+  useEffect(() => {
+    // Detect if user transitioned to active status
+    const isPending = isSuccess || userProfile.status === 'pending';
+    if (isPending && userProfile.status === 'active' && userProfile.paymentConfirmed === true) {
+      setIsApproved(true);
+      const timer = setTimeout(() => {
+        if (onClose) {
+          onClose();
+        }
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [userProfile.status, userProfile.paymentConfirmed, isSuccess, onClose]);
 
   const packages = [
     { days: 30, label: '30 ngày', price: '' },
@@ -206,24 +221,49 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
         {/* Right column: Package Select & Renew Form */}
         <div className="md:col-span-5 p-8 md:p-12 flex flex-col justify-center">
           <AnimatePresence mode="wait">
-            {isSuccess ? (
+            {isApproved ? (
+              <motion.div
+                key="approved"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="text-center space-y-4"
+              >
+                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 border border-emerald-250 flex items-center justify-center mx-auto shadow-sm">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+                <h3 className="text-lg font-black text-emerald-600 uppercase tracking-tight">THANH TOÁN THÀNH CÔNG!</h3>
+                <p className="text-slate-500 font-bold text-xs leading-relaxed max-w-xs mx-auto">
+                  Cước dịch vụ của bạn đã được kích hoạt thành công. Website đang tự động mở khóa truy cập...
+                </p>
+                <div className="flex items-center justify-center gap-2 text-emerald-600 font-black text-xs uppercase tracking-widest pt-4 animate-pulse">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Đang chuyển hướng...
+                </div>
+              </motion.div>
+            ) : (isSuccess || userProfile.status === 'pending') ? (
               <motion.div
                 key="success"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="text-center space-y-4"
               >
-                <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-500 border border-emerald-100 flex items-center justify-center mx-auto shadow-sm">
+                <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-500 border border-emerald-100 flex items-center justify-center mx-auto shadow-sm animate-bounce">
                   <CheckCircle2 className="w-8 h-8" />
                 </div>
                 <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Gửi yêu cầu thành công</h3>
                 <p className="text-slate-500 font-bold text-xs leading-relaxed max-w-xs mx-auto">
                   Yêu cầu gia hạn của bạn đang được chuyển đến Admin duyệt. Hệ thống sẽ tự động đăng nhập khi cước được kích hoạt.
                 </p>
-                <div className="flex items-center justify-center gap-2 text-indigo-600 font-black text-xs uppercase tracking-widest pt-4 animate-pulse">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Đang đồng bộ...
-                </div>
+                
+                <button
+                  type="button"
+                  onClick={handleSyncStatus}
+                  disabled={isSyncing}
+                  className="mt-6 w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl text-xs uppercase tracking-widest transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  {isSyncing ? 'ĐANG TẢI LẠI...' : 'TẢI LẠI / KIỂM TRA DUYỆT'}
+                </button>
               </motion.div>
             ) : (
               <motion.div
