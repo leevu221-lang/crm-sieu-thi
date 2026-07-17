@@ -236,6 +236,7 @@ const EmployeeHealth: React.FC = () => {
   const [isCapturing, setIsCapturing] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const pendingCopyStaffIdRef = useRef<{ staffId: string; nextStaffId: string } | null>(null);
   const captureRef = useRef<HTMLDivElement>(null);
   const capturePhucVuRef = useRef<HTMLDivElement>(null);
   const captureBanKemRef = useRef<HTMLDivElement>(null);
@@ -1043,7 +1044,7 @@ const EmployeeHealth: React.FC = () => {
     });
   };
 
-  const autoCopyNextStaff = (currentStaffId: string) => {
+  const autoCopyNextStaff = (currentStaffId: string, isFromKeyUp: boolean = false) => {
     const currentIndex = filteredBiData.findIndex(s => s.fullId === currentStaffId);
     if (currentIndex !== -1 && currentIndex < filteredBiData.length - 1) {
       const nextStaff = filteredBiData[currentIndex + 1];
@@ -1057,13 +1058,28 @@ const EmployeeHealth: React.FC = () => {
         nextStaffId = match ? match[0] : nextStaff.fullId;
       }
       
-      // Call copyToClipboard synchronously with isPasteHandler = true
+      // Store next ID in ref for keyup fallback
+      pendingCopyStaffIdRef.current = { staffId: currentStaffId, nextStaffId };
+      
       copyToClipboard(nextStaffId, true).then(() => {
+        // Clear pending copy if succeeded
+        pendingCopyStaffIdRef.current = null;
         showNotification(`Đã copy mã NV tiếp theo: ${nextStaffId} (${nextStaff.displayName.split(' - ').pop()})`, 'success');
       }).catch(err => {
-        console.error('Failed to copy next staff ID: ', err);
-        showNotification(`Không thể copy mã NV tiếp theo: ${nextStaffId}`, 'error');
+        console.warn('Sync copy failed inside event handler, waiting for keyup gesture fallback: ', err);
+        // Only show error notification if this was called from keyup (where gesture fallback also failed)
+        if (isFromKeyUp) {
+          showNotification(`Không thể copy mã NV tiếp theo: ${nextStaffId}`, 'error');
+        }
       });
+    }
+  };
+
+  const handleStaffInputKeyUp = (currentStaffId: string) => {
+    const pending = pendingCopyStaffIdRef.current;
+    if (pending && pending.staffId === currentStaffId) {
+      // Trigger copy with isFromKeyUp = true so it shows error if it actually fails under keyup
+      autoCopyNextStaff(currentStaffId, true);
     }
   };
 
@@ -2520,6 +2536,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                 onPaste={() => {
                                   autoCopyNextStaff(staff.fullId);
                                 }}
+                                onKeyUp={() => {
+                                  handleStaffInputKeyUp(staff.fullId);
+                                }}
                               />
                             </div>
                           ))}
@@ -2561,6 +2580,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                 }}
                                 onPaste={() => {
                                   autoCopyNextStaff(staff.fullId);
+                                }}
+                                onKeyUp={() => {
+                                  handleStaffInputKeyUp(staff.fullId);
                                 }}
                               />
                             </div>
@@ -3233,6 +3255,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                           onPaste={() => {
                                             autoCopyNextStaff(staff.fullId);
                                           }}
+                                          onKeyUp={() => {
+                                            handleStaffInputKeyUp(staff.fullId);
+                                          }}
                                         />
                                       </div>
                                     );
@@ -3337,6 +3362,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                           onPaste={() => {
                                             autoCopyNextStaff(staff.fullId);
                                           }}
+                                          onKeyUp={() => {
+                                            handleStaffInputKeyUp(staff.fullId);
+                                          }}
                                         />
                                       </div>
                                     );
@@ -3440,6 +3468,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                           }}
                                           onPaste={() => {
                                             autoCopyNextStaff(staff.fullId);
+                                          }}
+                                          onKeyUp={() => {
+                                            handleStaffInputKeyUp(staff.fullId);
                                           }}
                                         />
                                       </div>
