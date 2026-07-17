@@ -3547,7 +3547,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                   <tr style={{ height: '60px' }}>
                                     <th style={{ width: '60px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">STT</th>
                                     <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black">NHÂN VIÊN</th>
-                                    <th style={{ width: '150px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black text-center">DTQĐ</th>
+                                    <th style={{ width: '150px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black text-center">DTQĐ TB</th>
                                     <th style={{ width: '140px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-6 py-3 border-r border-white/20 text-white font-sans font-black text-center">NGÀNH HÀNG TD</th>
                                     <th style={{ width: '140px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#0ea5e9' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black text-center">GIỜ CÔNG</th>
                                     <th style={{ width: '150px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black text-center">HIỆU QUẢ QĐ</th>
@@ -3565,9 +3565,12 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                         <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-3 text-center border-r border-slate-200 bg-[#fef08a] text-[#0f172a]">{i + 1}</td>
                                         <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 border-r border-slate-200 text-[#0f172a] uppercase">{row.name}</td>
                                         <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-slate-700">
-                                          {row.dtqd >= 1000000 
-                                            ? `${Math.round(row.dtqd / 1000000).toLocaleString('vi-VN')} Tr`
-                                            : Math.round(row.dtqd).toLocaleString('vi-VN')}
+                                          {(() => {
+                                            const avgDtqd = row.dtqd / 3;
+                                            return avgDtqd >= 1000000 
+                                              ? `${(avgDtqd / 1000000).toFixed(1).replace('.', ',')} Tr`
+                                              : Math.round(avgDtqd).toLocaleString('vi-VN');
+                                          })()}
                                         </td>
                                         <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-indigo-600">
                                           {row.nganhhang.toLocaleString('vi-VN')}
@@ -3601,9 +3604,10 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                     <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-slate-800">
                                       {(() => {
                                         const sum = filteredRank3TData.reduce((acc: number, r: any) => acc + r.dtqd, 0);
-                                        return sum >= 1000000 
-                                          ? `${Math.round(sum / 1000000).toLocaleString('vi-VN')} Tr`
-                                          : Math.round(sum).toLocaleString('vi-VN');
+                                        const avgSum = sum / 3;
+                                        return avgSum >= 1000000 
+                                          ? `${(avgSum / 1000000).toFixed(1).replace('.', ',')} Tr`
+                                          : Math.round(avgSum).toLocaleString('vi-VN');
                                       })()}
                                     </td>
                                     <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-indigo-600 font-bold">
