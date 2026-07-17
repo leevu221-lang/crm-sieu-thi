@@ -979,10 +979,31 @@ const EmployeeHealth: React.FC = () => {
     });
   };
 
-  const copyToClipboard = (text: string): Promise<void> => {
+  const copyToClipboard = (text: string, isPasteHandler: boolean = false): Promise<void> => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      return navigator.clipboard.writeText(text).catch(() => {
-        return copyToClipboardFallback(text);
+      if (isPasteHandler) {
+        // Run synchronously to preserve user gesture context (especially for Safari)
+        // and avoid shifting focus during the paste event.
+        return navigator.clipboard.writeText(text).catch(() => {
+          // If it fails, schedule fallback copy asynchronously so we don't steal focus during paste
+          return new Promise<void>((resolve, reject) => {
+            setTimeout(() => {
+              copyToClipboardFallback(text).then(resolve).catch(reject);
+            }, 100);
+          });
+        });
+      } else {
+        return navigator.clipboard.writeText(text).catch(() => {
+          return copyToClipboardFallback(text);
+        });
+      }
+    }
+    
+    if (isPasteHandler) {
+      return new Promise<void>((resolve, reject) => {
+        setTimeout(() => {
+          copyToClipboardFallback(text).then(resolve).catch(reject);
+        }, 100);
       });
     }
     return copyToClipboardFallback(text);
@@ -1036,15 +1057,13 @@ const EmployeeHealth: React.FC = () => {
         nextStaffId = match ? match[0] : nextStaff.fullId;
       }
       
-      // Delay clipboard write to 150ms to let paste event finish completely before updating clipboard
-      setTimeout(() => {
-        copyToClipboard(nextStaffId).then(() => {
-          showNotification(`Đã copy mã NV tiếp theo: ${nextStaffId} (${nextStaff.displayName.split(' - ').pop()})`, 'success');
-        }).catch(err => {
-          console.error('Failed to copy next staff ID: ', err);
-          showNotification(`Không thể copy mã NV tiếp theo: ${nextStaffId}`, 'error');
-        });
-      }, 150);
+      // Call copyToClipboard synchronously with isPasteHandler = true
+      copyToClipboard(nextStaffId, true).then(() => {
+        showNotification(`Đã copy mã NV tiếp theo: ${nextStaffId} (${nextStaff.displayName.split(' - ').pop()})`, 'success');
+      }).catch(err => {
+        console.error('Failed to copy next staff ID: ', err);
+        showNotification(`Không thể copy mã NV tiếp theo: ${nextStaffId}`, 'error');
+      });
     }
   };
 
