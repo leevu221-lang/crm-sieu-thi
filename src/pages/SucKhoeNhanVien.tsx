@@ -452,11 +452,54 @@ const EmployeeHealth: React.FC = () => {
 
   // Use KHAI BÁO inputs (DOANH THU + THI ĐUA NV) when available, otherwise use DB data
   const biRevenueData = React.useMemo(() => {
+    // 1. Extract unique employees from DTQĐ textareas (dtqd3t1, dtqd3t2, dtqd3t3)
+    const parsedDtqd1 = parseStaffValueList(dtqd3t1);
+    const parsedDtqd2 = parseStaffValueList(dtqd3t2);
+    const parsedDtqd3 = parseStaffValueList(dtqd3t3);
+
+    const allParsed = [...parsedDtqd1, ...parsedDtqd2, ...parsedDtqd3];
+    
+    if (allParsed.length > 0) {
+      const employeeMap = new Map<string, { fullId: string; displayName: string; actualVal: number; virtualVal: number; effVal: number }>();
+      
+      const getEmpKey = (emp: { id: string; name: string }) => {
+        if (emp.id && /^\d{5,}$/.test(emp.id)) {
+          return `ID_${emp.id}`;
+        }
+        return `NAME_${normalize(emp.name || emp.id)}`;
+      };
+
+      // Base list of raw staff to look up actual values/virtual values
+      const baseStaffList = staffInput ? parseStaffRankData(staffInput) : dbBiRevenueData;
+
+      allParsed.forEach(item => {
+        const key = getEmpKey(item);
+        if (!employeeMap.has(key)) {
+          const id = item.id && /^\d{5,}$/.test(item.id) ? item.id : '';
+          const name = item.name || item.id;
+          const fullId = id || name;
+          const displayName = id ? `${id} - ${name}` : name;
+          
+          const rawStaff = baseStaffList.find(s => s.fullId === fullId || (id && s.fullId.includes(id)));
+          
+          employeeMap.set(key, {
+            fullId,
+            displayName,
+            actualVal: rawStaff ? rawStaff.actualVal : 0,
+            virtualVal: rawStaff ? rawStaff.virtualVal : 0,
+            effVal: rawStaff ? rawStaff.effVal : 0
+          });
+        }
+      });
+
+      return Array.from(employeeMap.values());
+    }
+
     if (staffInput) {
       return parseStaffRankData(staffInput);
     }
     return dbBiRevenueData;
-  }, [staffInput, dbBiRevenueData]);
+  }, [staffInput, dbBiRevenueData, dtqd3t1, dtqd3t2, dtqd3t3]);
 
   const thiDuaNv = staffCategoryInput || dbThiDuaNv;
 
