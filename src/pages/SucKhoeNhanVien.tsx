@@ -990,6 +990,7 @@ const EmployeeHealth: React.FC = () => {
 
   const copyToClipboardFallback = (text: string): Promise<void> => {
     return new Promise((resolve, reject) => {
+      const activeEl = document.activeElement as HTMLElement | null;
       try {
         const textArea = document.createElement("textarea");
         textArea.value = text;
@@ -1002,12 +1003,20 @@ const EmployeeHealth: React.FC = () => {
         textArea.select();
         const successful = document.execCommand('copy');
         document.body.removeChild(textArea);
+        
+        if (activeEl && typeof activeEl.focus === 'function') {
+          activeEl.focus();
+        }
+        
         if (successful) {
           resolve();
         } else {
           reject(new Error('execCommand copy failed'));
         }
       } catch (err) {
+        if (activeEl && typeof activeEl.focus === 'function') {
+          activeEl.focus();
+        }
         reject(err);
       }
     });
@@ -1027,13 +1036,15 @@ const EmployeeHealth: React.FC = () => {
         nextStaffId = match ? match[0] : nextStaff.fullId;
       }
       
-      // Execute copy synchronously inside the user-gesture onPaste handler
-      copyToClipboard(nextStaffId).then(() => {
-        showNotification(`Đã copy mã NV tiếp theo: ${nextStaffId} (${nextStaff.displayName.split(' - ').pop()})`, 'success');
-      }).catch(err => {
-        console.error('Failed to copy next staff ID: ', err);
-        showNotification(`Không thể copy mã NV tiếp theo: ${nextStaffId}`, 'error');
-      });
+      // Delay clipboard write to 150ms to let paste event finish completely before updating clipboard
+      setTimeout(() => {
+        copyToClipboard(nextStaffId).then(() => {
+          showNotification(`Đã copy mã NV tiếp theo: ${nextStaffId} (${nextStaff.displayName.split(' - ').pop()})`, 'success');
+        }).catch(err => {
+          console.error('Failed to copy next staff ID: ', err);
+          showNotification(`Không thể copy mã NV tiếp theo: ${nextStaffId}`, 'error');
+        });
+      }, 150);
     }
   };
 
