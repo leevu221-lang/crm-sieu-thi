@@ -849,7 +849,12 @@ export const extractStoreNameFromCluster = (input: string): string[] => {
 const isMarketNameLike = (name: string): boolean => {
   const norm = normalize(name);
   const prefixes = ['dml', 'dmm', 'dms', 'tgd', 'aar', 'bhx', 'dm3', 'ch'];
-  const hasPrefix = prefixes.some(p => norm.startsWith(p));
+  const hasPrefix = prefixes.some(p => {
+    if (p === 'ch') {
+      return norm.startsWith('ch') && !norm.startsWith('cho');
+    }
+    return norm.startsWith(p);
+  });
   const hasStoreKeywords = norm.startsWith('sieu thi') || norm.startsWith('cua hang') || norm.startsWith('dien may') || norm.startsWith('the gioi');
   const startsWithCode = /^\d+\s*[-–—]/.test(norm) || /^\d+\s+[a-z]/.test(norm);
   return hasPrefix || hasStoreKeywords || startsWithCode;
