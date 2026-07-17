@@ -984,17 +984,23 @@ const EmployeeHealth: React.FC = () => {
     if (currentIndex !== -1 && currentIndex < filteredBiData.length - 1) {
       const nextStaff = filteredBiData[currentIndex + 1];
       let nextStaffId = '';
-      if (nextStaff.fullId.includes('-')) {
+      if (nextStaff.displayName && nextStaff.displayName.includes('-')) {
+        nextStaffId = nextStaff.displayName.split('-')[0].trim();
+      } else if (nextStaff.fullId.includes('-')) {
         nextStaffId = nextStaff.fullId.split('-')[0].trim();
       } else {
         const match = nextStaff.fullId.match(/\d+/);
         nextStaffId = match ? match[0] : nextStaff.fullId;
       }
-      navigator.clipboard.writeText(nextStaffId).then(() => {
-        showNotification(`Đã copy mã NV tiếp theo: ${nextStaffId} (${nextStaff.displayName.split(' - ').pop()})`, 'success');
-      }).catch(err => {
-        console.error('Failed to copy next staff ID: ', err);
-      });
+      
+      // Delay clipboard write slightly to avoid race condition with active paste event
+      setTimeout(() => {
+        navigator.clipboard.writeText(nextStaffId).then(() => {
+          showNotification(`Đã copy mã NV tiếp theo: ${nextStaffId} (${nextStaff.displayName.split(' - ').pop()})`, 'success');
+        }).catch(err => {
+          console.error('Failed to copy next staff ID: ', err);
+        });
+      }, 80);
     }
   };
 
