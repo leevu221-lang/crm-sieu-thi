@@ -1,5 +1,5 @@
 import React, { useState, Suspense, lazy, useEffect, useMemo, useRef } from 'react';
-import { Database, BarChart3, Activity, HeartPulse, LogOut, User, Store, Loader2, Users, Shield, Settings, Type, Minus, Plus as PlusIcon, Monitor, Smartphone, LayoutGrid, AlertCircle, Wrench, ShieldAlert, RefreshCw, Zap, ShoppingBag, Globe, Trophy, Gift, X, MessageSquare } from 'lucide-react';
+import { Database, BarChart3, Activity, HeartPulse, LogOut, User, Store, Loader2, Users, Shield, Settings, Type, Minus, Plus as PlusIcon, Monitor, Smartphone, LayoutGrid, AlertCircle, Wrench, ShieldAlert, RefreshCw, Zap, ShoppingBag, Globe, Trophy, Gift, X, MessageSquare, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from './contexts/AuthContext';
 import { useSettings } from './contexts/SettingsContext';
@@ -57,6 +57,7 @@ export default function App() {
   const { marketFilter, setMarketFilter, availableMarkets } = useStore();
   const [showSettings, setShowSettings] = useState(false);
   const [isDesktopView, setIsDesktopView] = useState(true);
+  const [showSubscriptionForce, setShowSubscriptionForce] = useState(false);
 
 
 
@@ -350,6 +351,26 @@ export default function App() {
                 </button>
               )}
 
+              {userProfile && userProfile.username !== '43751' && userProfile.username !== 'ADMIN' && (
+                <button 
+                  onClick={() => setShowSubscriptionForce(true)}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all relative"
+                  title="Đăng ký gói cước / Gia hạn"
+                >
+                  <CreditCard size={20} />
+                  {userProfile.expiredAt && (() => {
+                    const exp = new Date(userProfile.expiredAt);
+                    const today = new Date();
+                    const diff = exp.getTime() - today.getTime();
+                    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                    if (days <= 3) {
+                      return <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full animate-pulse" />;
+                    }
+                    return null;
+                  })()}
+                </button>
+              )}
+
               <button 
                 onClick={() => setDeclarationCompleted(false)}
                 className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
@@ -603,6 +624,15 @@ export default function App() {
                 Hoàn tất
               </button>
             </motion.div>
+          </div>
+        )}
+        {showSubscriptionForce && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <SubscriptionLockScreen 
+              userProfile={userProfile} 
+              onRefresh={refreshProfile} 
+              onClose={() => setShowSubscriptionForce(false)} 
+            />
           </div>
         )}
       </AnimatePresence>

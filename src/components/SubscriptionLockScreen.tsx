@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldAlert, CreditCard, LogOut, Loader2, CheckCircle2, Sparkles, Check, Info, RefreshCw } from 'lucide-react';
+import { ShieldAlert, CreditCard, LogOut, Loader2, CheckCircle2, Sparkles, Check, Info, RefreshCw, X } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { UserProfile } from '../types';
 
 interface SubscriptionLockScreenProps {
   userProfile: UserProfile;
-  onLogout: () => void;
+  onLogout?: () => void;
   onRefresh: () => Promise<void>;
+  onClose?: () => void;
 }
 
-export default function SubscriptionLockScreen({ userProfile, onLogout, onRefresh }: SubscriptionLockScreenProps) {
+export default function SubscriptionLockScreen({ userProfile, onLogout, onRefresh, onClose }: SubscriptionLockScreenProps) {
   const [selectedPackage, setSelectedPackage] = useState<number>(30);
   const [phone, setPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,37 +86,63 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
       <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-rose-50/50 blur-3xl pointer-events-none" />
 
       <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
         className="w-full max-w-[950px] bg-white rounded-[32px] border border-slate-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] overflow-hidden grid grid-cols-1 md:grid-cols-12 relative z-10"
       >
+        {onClose && (
+          <button 
+            onClick={onClose}
+            className="absolute top-6 right-6 w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors z-20 cursor-pointer border border-slate-200/50 shadow-sm"
+            title="Đóng"
+          >
+            <X size={18} />
+          </button>
+        )}
+
         {/* Left column: Lock message and QR */}
         <div className="md:col-span-7 p-8 md:p-12 flex flex-col justify-between border-b md:border-b-0 md:border-r border-slate-100 bg-slate-50/30">
           <div className="space-y-6">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 shadow-sm animate-pulse">
+              <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center shadow-sm animate-pulse ${onClose ? 'bg-indigo-50 border-indigo-100 text-indigo-500' : 'bg-rose-50 border-rose-100 text-rose-500'}`}>
                 <ShieldAlert className="w-6 h-6" />
               </div>
               <div>
-                <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest block">TRUY CẬP BỊ GIỚI HẠN</span>
-                <h2 className="text-xl font-black text-slate-800 tracking-tight uppercase">{getStatusText()}</h2>
+                <span className={`text-[10px] font-black uppercase tracking-widest block ${onClose ? 'text-indigo-500' : 'text-rose-500'}`}>
+                  {onClose ? 'GIA HẠN CƯỚC DỊCH VỤ' : 'TRUY CẬP BỊ GIỚI HẠN'}
+                </span>
+                <h2 className="text-xl font-black text-slate-800 tracking-tight uppercase">
+                  {onClose ? 'Đăng ký gói cước' : getStatusText()}
+                </h2>
               </div>
             </div>
 
-            <div className="bg-amber-50/60 border border-amber-100 p-5 rounded-2xl space-y-2">
-              <p className="text-sm font-bold text-amber-800 flex items-center gap-2">
-                <Info className="w-4 h-4 text-amber-600 shrink-0" />
-                Tài khoản chưa được kích hoạt cước
-              </p>
-              <p className="text-xs text-amber-700 font-bold leading-relaxed">
-                Tài khoản mã nhân viên <span className="text-rose-600 font-black">{userProfile.username}</span> của siêu thị <span className="text-slate-800 font-black">{userProfile.ma_kho}</span> cần được gia hạn cước phí sử dụng để tiếp tục truy cập vào ứng dụng.
-              </p>
-              {userProfile.expiredAt && (
-                <p className="text-xs text-rose-600 font-black pt-1">
-                  * Hạn dùng cũ đã kết thúc vào ngày: {new Date(userProfile.expiredAt).toLocaleDateString('vi-VN')}
+            {onClose ? (
+              <div className="bg-indigo-50/60 border border-indigo-100 p-5 rounded-2xl space-y-2">
+                <p className="text-sm font-bold text-indigo-800 flex items-center gap-2">
+                  <Info className="w-4 h-4 text-indigo-600 shrink-0" />
+                  Đăng ký tích lũy ngày sử dụng
                 </p>
-              )}
-            </div>
+                <p className="text-xs text-indigo-700 font-bold leading-relaxed">
+                  Tài khoản của anh/chị đang hoạt động bình thường. Anh/chị có thể lựa chọn đăng ký gia hạn sớm các gói cước để tích lũy cộng dồn ngày sử dụng.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-amber-50/60 border border-amber-100 p-5 rounded-2xl space-y-2">
+                <p className="text-sm font-bold text-amber-800 flex items-center gap-2">
+                  <Info className="w-4 h-4 text-amber-600 shrink-0" />
+                  Tài khoản chưa được kích hoạt cước
+                </p>
+                <p className="text-xs text-amber-700 font-bold leading-relaxed">
+                  Tài khoản mã nhân viên <span className="text-rose-600 font-black">{userProfile.username}</span> của siêu thị <span className="text-slate-800 font-black">{userProfile.ma_kho}</span> cần được gia hạn cước phí sử dụng để tiếp tục truy cập vào ứng dụng.
+                </p>
+                {userProfile.expiredAt && (
+                  <p className="text-xs text-rose-600 font-black pt-1">
+                    * Hạn dùng cũ đã kết thúc vào ngày: {new Date(userProfile.expiredAt).toLocaleDateString('vi-VN')}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Bank details */}
             <div className="space-y-4">
@@ -164,13 +191,15 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
               <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
               ĐỒNG BỘ TRẠNG THÁI
             </button>
-            <button
-              onClick={onLogout}
-              className="flex items-center gap-2 px-5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-black rounded-xl text-xs uppercase tracking-wider transition-colors shadow-sm shrink-0 ml-auto"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              Đăng xuất
-            </button>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="flex items-center gap-2 px-5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-black rounded-xl text-xs uppercase tracking-wider transition-colors shadow-sm shrink-0 ml-auto"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Đăng xuất
+              </button>
+            )}
           </div>
         </div>
 
