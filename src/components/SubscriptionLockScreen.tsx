@@ -19,9 +19,9 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
   const [isSyncing, setIsSyncing] = useState(false);
 
   const packages = [
-    { days: 30, label: '30 ngày', price: 'Miễn phí / Demo' },
-    { days: 60, label: '60 ngày', price: 'Liên hệ Admin' },
-    { days: 90, label: '90 ngày', price: 'Liên hệ Admin' },
+    { days: 30, label: '30 ngày', price: '' },
+    { days: 60, label: '60 ngày', price: '' },
+    { days: 90, label: '90 ngày', price: '' },
     { days: 180, label: '6 tháng', price: 'Ưu đãi đặc biệt' },
     { days: 270, label: '9 tháng', price: 'Ưu đãi đặc biệt' },
     { days: 360, label: '12 tháng', price: 'Premium' },
@@ -124,11 +124,11 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
                 <div className="space-y-3 font-bold text-xs text-slate-700">
                   <div>
                     <span className="text-slate-400 block text-[10px] uppercase font-black tracking-wide">Ngân hàng</span>
-                    <span className="text-slate-800 font-black">MB Bank (Ngân hàng Quân Đội)</span>
+                    <span className="text-slate-800 font-black">Timo Bank (Ngân hàng số Timo)</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px] uppercase font-black tracking-wide">Số tài khoản</span>
-                    <span className="text-indigo-600 text-sm font-black tracking-wide">0903337989</span>
+                    <span className="text-indigo-600 text-sm font-black tracking-wide">0943099221</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px] uppercase font-black tracking-wide">Chủ tài khoản</span>
@@ -144,8 +144,8 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
                 <div className="flex flex-col items-center justify-center border-t sm:border-t-0 sm:border-l border-slate-100 pt-4 sm:pt-0 sm:pl-4">
                   <div className="w-[120px] h-[120px] bg-slate-50 border border-slate-200/60 rounded-xl flex items-center justify-center relative overflow-hidden shadow-inner">
                     <img 
-                      src={`https://api.vietqr.io/image/970422-0903337989-tI7y82w.jpg?accountName=VO%20VU%20LINH&amount=0&addInfo=CRM%20${userProfile.username}`}
-                      alt="VietQR MB Bank 0903337989"
+                      src={`https://api.vietqr.io/image/timo-0943099221-tI7y82w.jpg?accountName=VO%20VU%20LINH&amount=0&addInfo=CRM%20${userProfile.username}`}
+                      alt="VietQR Timo Bank 0943099221"
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -219,7 +219,7 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
                           key={pkg.days}
                           type="button"
                           onClick={() => setSelectedPackage(pkg.days)}
-                          className={`p-3.5 rounded-2xl border text-left font-bold transition-all relative overflow-hidden group flex flex-col justify-between h-[82px] ${
+                          className={`p-3.5 rounded-2xl border text-left font-bold transition-all relative overflow-hidden group flex flex-col justify-center gap-1 h-[82px] ${
                             isSelected 
                               ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-100' 
                               : 'bg-white hover:bg-slate-50 border-slate-200/70 text-slate-700'
@@ -228,9 +228,11 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
                           <span className={`text-[13px] font-black uppercase ${isSelected ? 'text-white' : 'text-slate-800'}`}>
                             {pkg.label}
                           </span>
-                          <span className={`text-[10px] block font-black uppercase tracking-wider ${isSelected ? 'text-indigo-100' : 'text-slate-400'}`}>
-                            {pkg.price}
-                          </span>
+                          {pkg.price && (
+                            <span className={`text-[10px] block font-black uppercase tracking-wider ${isSelected ? 'text-indigo-100' : 'text-slate-400'}`}>
+                              {pkg.price}
+                            </span>
+                          )}
                           {isSelected && (
                             <div className="absolute right-2 bottom-2 w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-white">
                               <Check className="w-2.5 h-2.5" />
