@@ -981,8 +981,14 @@ const EmployeeHealth: React.FC = () => {
 
   const copyToClipboard = (text: string): Promise<void> => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      return navigator.clipboard.writeText(text);
+      return navigator.clipboard.writeText(text).catch(() => {
+        return copyToClipboardFallback(text);
+      });
     }
+    return copyToClipboardFallback(text);
+  };
+
+  const copyToClipboardFallback = (text: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       try {
         const textArea = document.createElement("textarea");
@@ -990,6 +996,7 @@ const EmployeeHealth: React.FC = () => {
         textArea.style.top = "0";
         textArea.style.left = "0";
         textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
         document.body.appendChild(textArea);
         textArea.focus();
         textArea.select();
@@ -1020,15 +1027,13 @@ const EmployeeHealth: React.FC = () => {
         nextStaffId = match ? match[0] : nextStaff.fullId;
       }
       
-      // Delay clipboard write slightly to avoid race condition with active paste event
-      setTimeout(() => {
-        copyToClipboard(nextStaffId).then(() => {
-          showNotification(`Đã copy mã NV tiếp theo: ${nextStaffId} (${nextStaff.displayName.split(' - ').pop()})`, 'success');
-        }).catch(err => {
-          console.error('Failed to copy next staff ID: ', err);
-          showNotification(`Không thể copy mã NV tiếp theo: ${nextStaffId}`, 'error');
-        });
-      }, 100);
+      // Execute copy synchronously inside the user-gesture onPaste handler
+      copyToClipboard(nextStaffId).then(() => {
+        showNotification(`Đã copy mã NV tiếp theo: ${nextStaffId} (${nextStaff.displayName.split(' - ').pop()})`, 'success');
+      }).catch(err => {
+        console.error('Failed to copy next staff ID: ', err);
+        showNotification(`Không thể copy mã NV tiếp theo: ${nextStaffId}`, 'error');
+      });
     }
   };
 
