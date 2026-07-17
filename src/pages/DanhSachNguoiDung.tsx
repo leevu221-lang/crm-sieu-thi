@@ -309,12 +309,12 @@ export default function UserManagement({ onBack }: UserManagementProps) {
   // Pricing calculations
   const getPackagePrice = (days?: number) => {
     if (!days) return 0;
-    if (days <= 30) return 100000;
-    if (days <= 60) return 200000;
-    if (days <= 90) return 270000;
-    if (days <= 180) return 500000;
-    if (days <= 270) return 720000;
-    return 900000; // 360 days
+    if (days <= 30) return 49000;
+    if (days <= 60) return 98000;
+    if (days <= 90) return 147000;
+    if (days <= 180) return 294000;
+    if (days <= 270) return 441000;
+    return 588000; // 360 days
   };
 
   const getMonthlyEquivalent = (days?: number) => {
@@ -792,12 +792,12 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                           className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none"
                         >
                           <option value="">-- Chưa chọn gói --</option>
-                          <option value="30">Gói 30 ngày (100,000đ)</option>
-                          <option value="60">Gói 60 ngày (200,000đ)</option>
-                          <option value="90">Gói 90 ngày (270,000đ)</option>
-                          <option value="180">Gói 6 tháng (500,000đ)</option>
-                          <option value="270">Gói 9 tháng (720,000đ)</option>
-                          <option value="360">Gói 12 tháng (900,000đ)</option>
+                          <option value="30">Gói 30 ngày (49,000đ)</option>
+                          <option value="60">Gói 60 ngày (98,000đ)</option>
+                          <option value="90">Gói 90 ngày (147,000đ)</option>
+                          <option value="180">Gói 6 tháng (294,000đ)</option>
+                          <option value="270">Gói 9 tháng (441,000đ)</option>
+                          <option value="360">Gói 12 tháng (588,000đ)</option>
                         </select>
                       </div>
                     </div>

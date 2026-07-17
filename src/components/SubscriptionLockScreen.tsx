@@ -35,12 +35,12 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
   }, [userProfile.status, userProfile.paymentConfirmed, isSuccess, onClose]);
 
   const packages = [
-    { days: 30, label: '30 ngày', price: '' },
-    { days: 60, label: '60 ngày', price: '' },
-    { days: 90, label: '90 ngày', price: '' },
-    { days: 180, label: '6 tháng', price: 'Ưu đãi đặc biệt' },
-    { days: 270, label: '9 tháng', price: 'Ưu đãi đặc biệt' },
-    { days: 360, label: '12 tháng', price: 'Premium' },
+    { days: 30, label: '30 ngày', price: '49.000đ' },
+    { days: 60, label: '60 ngày', price: '98.000đ' },
+    { days: 90, label: '90 ngày', price: '147.000đ' },
+    { days: 180, label: '6 tháng', price: '294.000đ' },
+    { days: 270, label: '9 tháng', price: '441.000đ' },
+    { days: 360, label: '12 tháng', price: '588.000đ' },
   ];
 
   const handleRenewRequest = async (e: React.FormEvent) => {
