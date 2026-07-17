@@ -305,13 +305,53 @@ export default function UserManagement({ onBack }: UserManagementProps) {
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   };
 
+  // Pricing calculations
+  const getPackagePrice = (days?: number) => {
+    if (!days) return 0;
+    if (days <= 30) return 100000;
+    if (days <= 60) return 200000;
+    if (days <= 90) return 270000;
+    if (days <= 180) return 500000;
+    if (days <= 270) return 720000;
+    return 900000; // 360 days
+  };
+
+  const getMonthlyEquivalent = (days?: number) => {
+    if (!days) return 0;
+    const price = getPackagePrice(days);
+    const months = days / 30;
+    return Math.round(price / months);
+  };
+
+  const stats = React.useMemo(() => {
+    const activeUsers = users.filter(u => 
+      u.username !== '43751' && 
+      u.username !== 'ADMIN' && 
+      u.status === 'active' && 
+      u.expiredAt && 
+      new Date(u.expiredAt) > new Date()
+    );
+    
+    let totalMonthly = 0;
+    activeUsers.forEach(u => {
+      totalMonthly += getMonthlyEquivalent(u.packageDays);
+    });
+
+    return {
+      activeCount: activeUsers.length,
+      monthly: totalMonthly,
+      quarterly: totalMonthly * 3,
+      yearly: totalMonthly * 12
+    };
+  }, [users]);
+
   const filteredUsers = users.filter(u => 
     u.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (u.ma_kho && u.ma_kho.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
+    <div className="max-w-[1400px] w-full mx-auto px-6 py-8" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tight mb-2 flex items-center gap-3">
@@ -328,6 +368,34 @@ export default function UserManagement({ onBack }: UserManagementProps) {
         >
           Quay lại
         </button>
+      </div>
+
+      {/* Revenue Statistics Dashboard */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col justify-between">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Tài khoản hoạt động</span>
+          <span className="text-2xl font-black text-slate-800 mt-2">
+            {stats.activeCount} <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">User</span>
+          </span>
+        </div>
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col justify-between">
+          <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest block">Doanh thu tháng (Ước tính)</span>
+          <span className="text-2xl font-black text-emerald-600 mt-2">
+            {stats.monthly.toLocaleString()} <span className="text-xs font-bold text-slate-400">đ</span>
+          </span>
+        </div>
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col justify-between">
+          <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Doanh thu quý (Ước tính)</span>
+          <span className="text-2xl font-black text-blue-600 mt-2">
+            {stats.quarterly.toLocaleString()} <span className="text-xs font-bold text-slate-400">đ</span>
+          </span>
+        </div>
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col justify-between">
+          <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block">Doanh thu năm (Ước tính)</span>
+          <span className="text-2xl font-black text-indigo-600 mt-2">
+            {stats.yearly.toLocaleString()} <span className="text-xs font-bold text-slate-400">đ</span>
+          </span>
+        </div>
       </div>
 
       <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
@@ -584,9 +652,9 @@ export default function UserManagement({ onBack }: UserManagementProps) {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-6 my-8"
+              className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full p-6 my-8 space-y-6"
             >
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-4">
                 <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
                   {!isNewUser ? <Edit2 size={24} className="text-indigo-600" /> : <Plus size={24} className="text-indigo-600" />}
                   {!isNewUser ? 'Chỉnh sửa người dùng' : 'Thêm người dùng mới'}
@@ -597,62 +665,95 @@ export default function UserManagement({ onBack }: UserManagementProps) {
               </div>
               
               <form onSubmit={handleSaveUser} className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Mã Nhân Viên</label>
-                    <input
-                      type="text"
-                      required
-                      disabled={!isNewUser}
-                      value={isEditing.username}
-                      onChange={(e) => setIsEditing({ ...isEditing, username: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                      placeholder="VD: NV001"
-                    />
+                
+                {/* THẺ THÔNG TIN TÀI KHOẢN */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">💳 Thẻ Thông tin tài khoản</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Mã Nhân Viên</label>
+                      <input
+                        type="text"
+                        required
+                        disabled={!isNewUser}
+                        value={isEditing.username}
+                        onChange={(e) => setIsEditing({ ...isEditing, username: e.target.value })}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        placeholder="VD: NV001"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Mã Kho</label>
+                      <input
+                        type="text"
+                        required
+                        value={isEditing.ma_kho}
+                        onChange={(e) => setIsEditing({ ...isEditing, ma_kho: e.target.value })}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
+                        placeholder="VD: KHO_HCM_01"
+                      />
+                    </div>
                   </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                        Mật khẩu {!isNewUser && '(Bỏ trống nếu giữ nguyên)'}
+                      </label>
+                      <input
+                        type="password"
+                        required={isNewUser}
+                        value={isEditing.password || ''}
+                        onChange={(e) => setIsEditing({ ...isEditing, password: e.target.value })}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
+                        placeholder={isNewUser ? "Nhập mật khẩu" : "Nhập mật khẩu mới nếu muốn đổi..."}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Số điện thoại</label>
+                      <input
+                        type="text"
+                        value={isEditing.phone || ''}
+                        onChange={(e) => setIsEditing({ ...isEditing, phone: e.target.value })}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
+                        placeholder="Số điện thoại liên hệ"
+                      />
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Mã Kho</label>
-                    <input
-                      type="text"
-                      required
-                      value={isEditing.ma_kho}
-                      onChange={(e) => setIsEditing({ ...isEditing, ma_kho: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
-                      placeholder="VD: KHO_HCM_01"
-                    />
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Vai trò</label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="role"
+                          value="user"
+                          checked={isEditing.role === 'user' || !isEditing.role}
+                          onChange={() => setIsEditing({ ...isEditing, role: 'user' })}
+                          className="w-4 h-4 text-indigo-600 focus:ring-indigo-600 border-slate-300"
+                        />
+                        <span className="text-sm font-medium text-slate-700">Nhân viên</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="role"
+                          value="admin"
+                          checked={isEditing.role === 'admin'}
+                          onChange={() => setIsEditing({ ...isEditing, role: 'admin' })}
+                          className="w-4 h-4 text-indigo-600 focus:ring-indigo-600 border-slate-300"
+                        />
+                        <span className="text-sm font-medium text-slate-700">Quản trị viên</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                      Mật khẩu {!isNewUser && '(Bỏ trống nếu giữ nguyên)'}
-                    </label>
-                    <input
-                      type="password"
-                      required={isNewUser}
-                      value={isEditing.password || ''}
-                      onChange={(e) => setIsEditing({ ...isEditing, password: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
-                      placeholder={isNewUser ? "Nhập mật khẩu" : "Nhập mật khẩu mới nếu muốn đổi..."}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Số điện thoại</label>
-                    <input
-                      type="text"
-                      value={isEditing.phone || ''}
-                      onChange={(e) => setIsEditing({ ...isEditing, phone: e.target.value })}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
-                      placeholder="Số điện thoại liên hệ"
-                    />
-                  </div>
-                </div>
-
-                {/* Subscriptions Setting Section */}
+                {/* THẺ GÓI CƯỚC & GIA HẠN */}
                 {isEditing.username !== '43751' && isEditing.username !== 'ADMIN' && (
-                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
-                    <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block">Thông tin cước phí sử dụng</span>
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                    <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block">💰 Thẻ Gói cước & Gia hạn</span>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -660,7 +761,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                         <select
                           value={isEditing.status || 'inactive'}
                           onChange={(e) => setIsEditing({ ...isEditing, status: e.target.value as any })}
-                          className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none"
                         >
                           <option value="inactive">Chưa đăng ký (inactive)</option>
                           <option value="pending">Chờ phê duyệt (pending)</option>
@@ -670,7 +771,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Chọn gói (ngày)</label>
+                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Chọn gói gia hạn</label>
                         <select
                           value={isEditing.packageDays || ''}
                           onChange={(e) => {
@@ -687,22 +788,22 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                               expiredAt: newExp
                             });
                           }}
-                          className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none"
                         >
                           <option value="">-- Chưa chọn gói --</option>
-                          <option value="30">Gói 30 ngày</option>
-                          <option value="60">Gói 60 ngày</option>
-                          <option value="90">Gói 90 ngày</option>
-                          <option value="180">Gói 6 tháng (180 ngày)</option>
-                          <option value="270">Gói 9 tháng (270 ngày)</option>
-                          <option value="360">Gói 12 tháng (360 ngày)</option>
+                          <option value="30">Gói 30 ngày (100,000đ)</option>
+                          <option value="60">Gói 60 ngày (200,000đ)</option>
+                          <option value="90">Gói 90 ngày (270,000đ)</option>
+                          <option value="180">Gói 6 tháng (500,000đ)</option>
+                          <option value="270">Gói 9 tháng (720,000đ)</option>
+                          <option value="360">Gói 12 tháng (900,000đ)</option>
                         </select>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Hạn cước đến ngày</label>
+                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Ngày hết hạn cước</label>
                         <input
                           type="date"
                           value={isEditing.expiredAt ? new Date(isEditing.expiredAt).toISOString().split('T')[0] : ''}
@@ -710,7 +811,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                             const isoStr = e.target.value ? new Date(e.target.value).toISOString() : undefined;
                             setIsEditing({ ...isEditing, expiredAt: isoStr });
                           }}
-                          className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-850 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none"
                         />
                       </div>
 
@@ -729,7 +830,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                     </div>
 
                     {isEditing.status === 'pending' && isEditing.requestedRenewPackage && (
-                      <div className="bg-amber-100/50 border border-amber-200 p-3 rounded-xl text-xs font-bold text-amber-800 leading-normal flex flex-col gap-1 mt-2 select-none">
+                      <div className="bg-amber-100/50 border border-amber-200 p-4 rounded-xl text-xs font-bold text-amber-800 leading-normal flex flex-col gap-1 mt-2">
                         <div>⚠️ Đang yêu cầu gia hạn gói: <span className="text-slate-900 font-black">{isEditing.requestedRenewPackage} ngày</span></div>
                         {isEditing.requestedAt && (
                           <div className="text-[10px] text-slate-500">Yêu cầu lúc: {new Date(isEditing.requestedAt).toLocaleString('vi-VN')}</div>
@@ -753,7 +854,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                               requestedAt: undefined
                             });
                           }}
-                          className="mt-1.5 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[10px] rounded-lg font-black uppercase tracking-wider self-start transition-colors"
+                          className="mt-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[10px] rounded-lg font-black uppercase tracking-wider self-start transition-colors"
                         >
                           Duyệt yêu cầu ngay lập tức
                         </button>
@@ -762,36 +863,9 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Vai trò</label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="role"
-                        value="user"
-                        checked={isEditing.role === 'user' || !isEditing.role}
-                        onChange={() => setIsEditing({ ...isEditing, role: 'user' })}
-                        className="w-4 h-4 text-indigo-600 focus:ring-indigo-600 border-slate-300"
-                      />
-                      <span className="text-sm font-medium text-slate-700">Nhân viên</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="role"
-                        value="admin"
-                        checked={isEditing.role === 'admin'}
-                        onChange={() => setIsEditing({ ...isEditing, role: 'admin' })}
-                        className="w-4 h-4 text-indigo-600 focus:ring-indigo-600 border-slate-300"
-                      />
-                      <span className="text-sm font-medium text-slate-700">Quản trị viên</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Quyền truy cập các Trang</label>
+                {/* THẺ PHÂN QUYỀN TRUY CẬP */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                  <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest block">🔑 Thẻ Phân quyền truy cập các Trang</span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {[
                       { id: 'realtime', label: 'Báo cáo Ngày (BC NGÀY)', color: 'bg-indigo-500' },
