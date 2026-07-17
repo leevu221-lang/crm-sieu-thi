@@ -3493,7 +3493,14 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
                               <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[13px] text-slate-500 uppercase tracking-widest">TỔNG HỢP LUỸ KẾ 3T</span>
                             </div>
-                            <div className="w-2/5 p-6 flex flex-col items-center justify-center bg-slate-50/50">
+                            <div className="w-2/5 p-6 flex flex-col items-center justify-center bg-slate-50/50 relative">
+                              <button
+                                onClick={handleCaptureRank3T}
+                                disabled={isCapturing}
+                                className="capture-btn absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                              >
+                                <Camera size={12} className="text-orange-600" /> Chụp ảnh
+                              </button>
                               <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[24px] text-[#00965e] uppercase tracking-tight mb-2 text-center">TỔNG HỢP</h2>
                               <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
                               <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[13px] text-slate-500 uppercase tracking-widest">
@@ -3545,8 +3552,8 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                         </td>
                                         <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center font-mono text-[#00965e]">
                                           {row.thunhap >= 1000000 
-                                            ? `${(row.thunhap / 1000000).toFixed(2).toLocaleString()} Tr`
-                                            : Math.round(row.thunhap).toLocaleString('vi-VN')} đ
+                                            ? `${(row.thunhap / 1000000).toFixed(1).replace('.', ',')} tr`
+                                            : Math.round(row.thunhap).toLocaleString('vi-VN')}
                                         </td>
                                       </tr>
                                     );
@@ -3583,8 +3590,8 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                       {(() => {
                                         const sum = filteredRank3TData.reduce((acc: number, r: any) => acc + r.thunhap, 0);
                                         return sum >= 1000000 
-                                          ? `${(sum / 1000000).toFixed(2).toLocaleString()} Tr`
-                                          : Math.round(sum).toLocaleString('vi-VN') + ' đ';
+                                          ? `${(sum / 1000000).toFixed(1).replace('.', ',')} tr`
+                                          : Math.round(sum).toLocaleString('vi-VN');
                                       })()}
                                     </td>
                                   </tr>
