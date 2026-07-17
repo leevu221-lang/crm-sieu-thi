@@ -1080,6 +1080,24 @@ const EmployeeHealth: React.FC = () => {
       .sort((a, b) => b.percent - a.percent);
   }, [tragopNv, selectedStaffIds, biRevenueData, parseTraChamData]);
 
+  const parseTn = useCallback((rawText: string) => {
+    try {
+      const json = JSON.parse(rawText);
+      if (json && typeof json === 'object') {
+        return biRevenueData.map(staff => {
+          const text = json[staff.fullId] || '';
+          const { tong } = parseBonusData(text, staff, marketFilter);
+          return {
+            id: staff.fullId.match(/\d+/) ? staff.fullId.match(/\d+/)![0] : staff.fullId,
+            name: staff.displayName,
+            value: tong || 0
+          };
+        });
+      }
+    } catch {}
+    return parseStaffValueList(rawText);
+  }, [biRevenueData, marketFilter]);
+
   const {
     dtqd1Sum,
     dtqd2Sum,
@@ -1098,9 +1116,9 @@ const EmployeeHealth: React.FC = () => {
     const parsedDtqd2 = parseStaffValueList(dtqd3t2);
     const parsedDtqd3 = parseStaffValueList(dtqd3t3);
     
-    const parsedTn1 = parseStaffValueList(thunhap3t1);
-    const parsedTn2 = parseStaffValueList(thunhap3t2);
-    const parsedTn3 = parseStaffValueList(thunhap3t3);
+    const parsedTn1 = parseTn(thunhap3t1);
+    const parsedTn2 = parseTn(thunhap3t2);
+    const parsedTn3 = parseTn(thunhap3t3);
 
     const parsedNh1 = parseStaffValueList(nganhhang3t1);
     const parsedNh2 = parseStaffValueList(nganhhang3t2);
@@ -1132,7 +1150,7 @@ const EmployeeHealth: React.FC = () => {
       giocong2Sum: calcRawSum(parsedGc2),
       giocong3Sum: calcRawSum(parsedGc3),
     };
-  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3]);
+  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, parseTn]);
 
   const formatValueForDisplay = (val: number, isCurrency: boolean = false) => {
     if (val === 0) return isCurrency ? '0 đ' : '0';
@@ -1153,9 +1171,9 @@ const EmployeeHealth: React.FC = () => {
     const parsedDtqd2 = parseStaffValueList(dtqd3t2);
     const parsedDtqd3 = parseStaffValueList(dtqd3t3);
     
-    const parsedTn1 = parseStaffValueList(thunhap3t1);
-    const parsedTn2 = parseStaffValueList(thunhap3t2);
-    const parsedTn3 = parseStaffValueList(thunhap3t3);
+    const parsedTn1 = parseTn(thunhap3t1);
+    const parsedTn2 = parseTn(thunhap3t2);
+    const parsedTn3 = parseTn(thunhap3t3);
 
     const parsedNh1 = parseStaffValueList(nganhhang3t1);
     const parsedNh2 = parseStaffValueList(nganhhang3t2);
@@ -1269,7 +1287,7 @@ const EmployeeHealth: React.FC = () => {
     })
     .filter(emp => emp.dtqd > 0 || emp.thunhap > 0 || emp.nganhhang > 0 || emp.giocong > 0)
     .sort((a, b) => b.dtqd - a.dtqd);
-  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3]);
+  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, parseTn]);
 
   const filteredRank3TData = useMemo(() => {
     // Filter against selectedStaffIds
@@ -3114,12 +3132,39 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               <span className="text-[10px] font-black text-emerald-600">{formatValueForDisplay(thunhap1Sum, true)}</span>
                             </div>
                             {showIncome1 && (
-                              <textarea
-                                value={thunhap3t1}
-                                onChange={(e) => setThunhap3t1(e.target.value)}
-                                placeholder={`Dán cột Nhân viên & Thu nhập ${rankMonth1}...`}
-                                className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
-                              />
+                              <div className="space-y-3 max-h-[320px] overflow-y-auto p-3 bg-slate-100/50 rounded-2xl border border-slate-200/60 shadow-inner">
+                                {(() => {
+                                  let parsedTnData: Record<string, string> = {};
+                                  try {
+                                    parsedTnData = JSON.parse(thunhap3t1) || {};
+                                  } catch {}
+                                  return filteredBiData.map((staff) => {
+                                    const rawVal = parsedTnData[staff.fullId] || '';
+                                    const { tong } = parseBonusData(rawVal, staff, marketFilter);
+                                    return (
+                                      <div key={`tn1-${staff.fullId}`} className="bg-white p-2 rounded-xl border border-slate-200/80 shadow-sm">
+                                        <div className="flex justify-between items-center mb-1">
+                                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-wider truncate max-w-[170px]">{staff.displayName}</span>
+                                          <span className="text-[9px] font-black text-emerald-600">{formatValueForDisplay(tong || 0, true)}</span>
+                                        </div>
+                                        <textarea
+                                          className="w-full p-1.5 rounded-lg border border-slate-200 text-[10px] font-black font-sans focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-all bg-slate-50/50 hover:bg-white resize-none"
+                                          rows={1}
+                                          placeholder="Dán dữ liệu thưởng..."
+                                          value={rawVal}
+                                          onChange={(e) => {
+                                            const updated = { ...parsedTnData, [staff.fullId]: e.target.value };
+                                            setThunhap3t1(JSON.stringify(updated));
+                                          }}
+                                          onPaste={() => {
+                                            autoCopyNextStaff(staff.fullId);
+                                          }}
+                                        />
+                                      </div>
+                                    );
+                                  });
+                                })()}
+                              </div>
                             )}
                           </div>
                           <div>
@@ -3191,12 +3236,39 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               <span className="text-[10px] font-black text-emerald-600">{formatValueForDisplay(thunhap2Sum, true)}</span>
                             </div>
                             {showIncome2 && (
-                              <textarea
-                                value={thunhap3t2}
-                                onChange={(e) => setThunhap3t2(e.target.value)}
-                                placeholder={`Dán cột Nhân viên & Thu nhập ${rankMonth2}...`}
-                                className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
-                              />
+                              <div className="space-y-3 max-h-[320px] overflow-y-auto p-3 bg-slate-100/50 rounded-2xl border border-slate-200/60 shadow-inner">
+                                {(() => {
+                                  let parsedTnData: Record<string, string> = {};
+                                  try {
+                                    parsedTnData = JSON.parse(thunhap3t2) || {};
+                                  } catch {}
+                                  return filteredBiData.map((staff) => {
+                                    const rawVal = parsedTnData[staff.fullId] || '';
+                                    const { tong } = parseBonusData(rawVal, staff, marketFilter);
+                                    return (
+                                      <div key={`tn2-${staff.fullId}`} className="bg-white p-2 rounded-xl border border-slate-200/80 shadow-sm">
+                                        <div className="flex justify-between items-center mb-1">
+                                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-wider truncate max-w-[170px]">{staff.displayName}</span>
+                                          <span className="text-[9px] font-black text-emerald-600">{formatValueForDisplay(tong || 0, true)}</span>
+                                        </div>
+                                        <textarea
+                                          className="w-full p-1.5 rounded-lg border border-slate-200 text-[10px] font-black font-sans focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-all bg-slate-50/50 hover:bg-white resize-none"
+                                          rows={1}
+                                          placeholder="Dán dữ liệu thưởng..."
+                                          value={rawVal}
+                                          onChange={(e) => {
+                                            const updated = { ...parsedTnData, [staff.fullId]: e.target.value };
+                                            setThunhap3t2(JSON.stringify(updated));
+                                          }}
+                                          onPaste={() => {
+                                            autoCopyNextStaff(staff.fullId);
+                                          }}
+                                        />
+                                      </div>
+                                    );
+                                  });
+                                })()}
+                              </div>
                             )}
                           </div>
                           <div>
@@ -3268,12 +3340,39 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               <span className="text-[10px] font-black text-emerald-600">{formatValueForDisplay(thunhap3Sum, true)}</span>
                             </div>
                             {showIncome3 && (
-                              <textarea
-                                value={thunhap3t3}
-                                onChange={(e) => setThunhap3t3(e.target.value)}
-                                placeholder={`Dán cột Nhân viên & Thu nhập ${rankMonth3}...`}
-                                className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
-                              />
+                              <div className="space-y-3 max-h-[320px] overflow-y-auto p-3 bg-slate-100/50 rounded-2xl border border-slate-200/60 shadow-inner">
+                                {(() => {
+                                  let parsedTnData: Record<string, string> = {};
+                                  try {
+                                    parsedTnData = JSON.parse(thunhap3t3) || {};
+                                  } catch {}
+                                  return filteredBiData.map((staff) => {
+                                    const rawVal = parsedTnData[staff.fullId] || '';
+                                    const { tong } = parseBonusData(rawVal, staff, marketFilter);
+                                    return (
+                                      <div key={`tn3-${staff.fullId}`} className="bg-white p-2 rounded-xl border border-slate-200/80 shadow-sm">
+                                        <div className="flex justify-between items-center mb-1">
+                                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-wider truncate max-w-[170px]">{staff.displayName}</span>
+                                          <span className="text-[9px] font-black text-emerald-600">{formatValueForDisplay(tong || 0, true)}</span>
+                                        </div>
+                                        <textarea
+                                          className="w-full p-1.5 rounded-lg border border-slate-200 text-[10px] font-black font-sans focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none transition-all bg-slate-50/50 hover:bg-white resize-none"
+                                          rows={1}
+                                          placeholder="Dán dữ liệu thưởng..."
+                                          value={rawVal}
+                                          onChange={(e) => {
+                                            const updated = { ...parsedTnData, [staff.fullId]: e.target.value };
+                                            setThunhap3t3(JSON.stringify(updated));
+                                          }}
+                                          onPaste={() => {
+                                            autoCopyNextStaff(staff.fullId);
+                                          }}
+                                        />
+                                      </div>
+                                    );
+                                  });
+                                })()}
+                              </div>
                             )}
                           </div>
                           <div>
