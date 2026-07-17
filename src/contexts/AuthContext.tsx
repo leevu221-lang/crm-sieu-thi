@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { UserProfile } from '../types';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 interface AuthContextType {
   userProfile: UserProfile | null;
@@ -88,7 +90,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshProfile();
     }
   }, [userProfile?.username]);
+  // Real-time Firestore Listener for subscription status
+  useEffect(() => {
+    if (!userProfile?.username || userProfile.username === 'ADMIN') return;
 
+    const q = query(
+      collection(db, 'ql_nguoi_dung'),
+      where('username', '==', userProfile.username)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const userData = snapshot.docs[0].data();
+        
+        // Update user profile with real-time Firestore updates
+        setUserProfile(prev => {
+          if (!prev) return null;
+          
+          const updated = {
+            ...prev,
+            expiredAt: userData.expiredAt,
+            status: userData.status,
+            packageDays: userData.packageDays,
+            paymentConfirmed: userData.paymentConfirmed,
+            requestedRenewPackage: userData.requestedRenewPackage,
+            requestedAt: userData.requestedAt,
+            phone: userData.phone
+          };
+
+          // Save to local storage
+          localStorage.setItem('userProfile', JSON.stringify(updated));
+          return updated;
+        });
+      }
+    }, (error) => {
+      console.error('[AuthContext] Real-time listener error:', error);
+    });
+
+    return () => unsubscribe();
+  }, [userProfile?.username]);
   async function login(username: string, maKho: string, password?: string): Promise<{ success: boolean; message: string }> {
     try {
       const { data, error } = await supabase
