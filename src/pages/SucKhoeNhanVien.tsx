@@ -979,6 +979,33 @@ const EmployeeHealth: React.FC = () => {
     });
   };
 
+  const copyToClipboard = (text: string): Promise<void> => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise((resolve, reject) => {
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.position = "fixed";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (successful) {
+          resolve();
+        } else {
+          reject(new Error('execCommand copy failed'));
+        }
+      } catch (err) {
+        reject(err);
+      }
+    });
+  };
+
   const autoCopyNextStaff = (currentStaffId: string) => {
     const currentIndex = filteredBiData.findIndex(s => s.fullId === currentStaffId);
     if (currentIndex !== -1 && currentIndex < filteredBiData.length - 1) {
@@ -995,12 +1022,13 @@ const EmployeeHealth: React.FC = () => {
       
       // Delay clipboard write slightly to avoid race condition with active paste event
       setTimeout(() => {
-        navigator.clipboard.writeText(nextStaffId).then(() => {
+        copyToClipboard(nextStaffId).then(() => {
           showNotification(`Đã copy mã NV tiếp theo: ${nextStaffId} (${nextStaff.displayName.split(' - ').pop()})`, 'success');
         }).catch(err => {
           console.error('Failed to copy next staff ID: ', err);
+          showNotification(`Không thể copy mã NV tiếp theo: ${nextStaffId}`, 'error');
         });
-      }, 80);
+      }, 100);
     }
   };
 
