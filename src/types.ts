@@ -17,6 +17,12 @@ export interface UserProfile {
   permissions?: PageName[];
   userPermissions?: UserPermissions;
   created_at?: string;
+  expiredAt?: string;
+  status?: 'active' | 'pending' | 'expired' | 'inactive';
+  packageDays?: number;
+  paymentConfirmed?: boolean;
+  requestedRenewPackage?: number;
+  requestedAt?: string;
 }
 
 export interface UserData {

@@ -10,6 +10,7 @@ import StoreDeclaration from './pages/StoreDeclaration';
 import { testSupabaseConnection } from './supabaseClient';
 import VersionUpdateNotifier from './components/VersionUpdateNotifier';
 import { birthdayService } from './services/birthdayService';
+import SubscriptionLockScreen from './components/SubscriptionLockScreen';
 
 // Lazy load pages for better performance
 const NewRealtimePage = lazy(() => import('./pages/RealtimePage'));
@@ -145,6 +146,25 @@ export default function App() {
       <>
         <Login />
       </>
+    );
+  }
+
+  // Subscription Gatekeeper check
+  const isLocked = !isSuperAdminHardcoded && (
+    userProfile.status !== 'active' || 
+    userProfile.paymentConfirmed !== true || 
+    (userProfile.expiredAt ? new Date() > new Date(userProfile.expiredAt) : true)
+  );
+
+  const { refreshProfile } = useAuth();
+
+  if (isLocked) {
+    return (
+      <SubscriptionLockScreen 
+        userProfile={userProfile} 
+        onLogout={logout} 
+        onRefresh={refreshProfile} 
+      />
     );
   }
 

@@ -9,6 +9,7 @@ interface AuthContextType {
   register: (username: string, maKho: string, password?: string) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
   updateStoreName: (newStoreName: string) => void;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,6 +26,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const refreshProfile = async () => {
+    if (!userProfile?.username || userProfile.username === 'ADMIN') return;
+    try {
+      const [{ data: permData }, { data: userData }] = await Promise.all([
+        supabase
+          .from('user_permissions')
+          .select('allowed_pages')
+          .eq('user_id', userProfile.username)
+          .maybeSingle(),
+        supabase
+          .from('ql_nguoi_dung')
+          .select('*')
+          .eq('username', userProfile.username)
+          .maybeSingle()
+      ]);
+
+      if (permData || userData) {
+        setUserProfile(prev => {
+          if (!prev) return null;
+          const updated = {
+            ...prev,
+            ...(userData ? {
+              expiredAt: userData.expiredAt,
+              status: userData.status,
+              packageDays: userData.packageDays,
+              paymentConfirmed: userData.paymentConfirmed,
+              requestedRenewPackage: userData.requestedRenewPackage,
+              requestedAt: userData.requestedAt
+            } : {}),
+            userPermissions: {
+              ...prev.userPermissions,
+              allowedPages: permData?.allowed_pages || prev.userPermissions?.allowedPages || []
+            }
+          };
+          localStorage.setItem('userProfile', JSON.stringify(updated));
+          return updated;
+        });
+      }
+    } catch (err) {
+      console.error('Failed to sync permissions & subscription:', err);
+    }
+  };
+
   useEffect(() => {
     // Check localStorage on mount
     const storedUser = localStorage.getItem('userProfile');
@@ -38,45 +82,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
+  // Sync permissions and subscription status on mount / username change
   useEffect(() => {
-    if (!userProfile?.username || userProfile.username === 'ADMIN') return;
-
-    const refreshPermissions = async () => {
-      try {
-        const { data: permData } = await supabase
-          .from('user_permissions')
-          .select('allowed_pages')
-          .eq('user_id', userProfile.username)
-          .maybeSingle();
-
-        if (permData) {
-          setUserProfile(prev => {
-            if (!prev) return null;
-            const updated = {
-              ...prev,
-              userPermissions: {
-                ...prev.userPermissions,
-                allowedPages: permData.allowed_pages || []
-              }
-            };
-            localStorage.setItem('userProfile', JSON.stringify(updated));
-            return updated;
-          });
-        }
-      } catch (err) {
-        console.error('Failed to sync permissions:', err);
-      }
-    };
-
-    refreshPermissions();
+    if (userProfile?.username && userProfile.username !== 'ADMIN') {
+      refreshProfile();
+    }
   }, [userProfile?.username]);
-
 
   async function login(username: string, maKho: string, password?: string): Promise<{ success: boolean; message: string }> {
     try {
       const { data, error } = await supabase
         .from('ql_nguoi_dung')
-        .select('username, storeCode, password')
+        .select('*')
         .eq('username', username)
         .eq('storeCode', maKho)
         .eq('password', password)
@@ -95,7 +112,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               canEditUser: true,
               allowedPages: ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'birthday']
             },
-            ten_sieu_thi: `Siêu thị ${maKho} (Offline Mode)`
+            ten_sieu_thi: `Siêu thị ${maKho} (Offline Mode)`,
+            status: 'active',
+            paymentConfirmed: true
           };
           localStorage.setItem('userProfile', JSON.stringify(profile));
           sessionStorage.setItem('justLoggedIn', 'true');
@@ -134,8 +153,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           canEditUser: isSuperAdmin,
           allowedPages: isSuperAdmin ? ALL_PAGES : (permData?.allowed_pages || [])
         },
-        ten_sieu_thi: storeData?.ten_kho || data.storeCode
+        ten_sieu_thi: storeData?.ten_kho || data.storeCode,
+        expiredAt: data.expiredAt,
+        status: data.status,
+        packageDays: data.packageDays,
+        paymentConfirmed: data.paymentConfirmed,
+        requestedRenewPackage: data.requestedRenewPackage,
+        requestedAt: data.requestedAt
       };
+
       localStorage.setItem('userProfile', JSON.stringify(profile));
       sessionStorage.setItem('justLoggedIn', 'true');
       
@@ -160,7 +186,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             canEditUser: true,
             allowedPages: ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'birthday']
           },
-          ten_sieu_thi: `Siêu thị ${maKho} (Offline Mode)`
+          ten_sieu_thi: `Siêu thị ${maKho} (Offline Mode)`,
+          status: 'active',
+          paymentConfirmed: true
         };
         localStorage.setItem('userProfile', JSON.stringify(profile));
         sessionStorage.setItem('justLoggedIn', 'true');
@@ -277,7 +305,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     register,
     logout,
-    updateStoreName
+    updateStoreName,
+    refreshProfile
   };
 
   return (

@@ -27,7 +27,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
 
   if (!isSuperAdminHardcoded && !userProfile?.userPermissions?.canEditUser) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 bg-white m-4 rounded-3xl shadow-sm border border-red-100 min-h-[50vh]">
+      <div className="flex flex-col items-center justify-center p-8 bg-white m-4 rounded-3xl shadow-sm border border-red-100 min-h-[50vh]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
         <Shield className="w-16 h-16 text-red-500 mb-4" />
         <h2 className="text-xl font-bold text-slate-800 uppercase tracking-tight">Truy cập bị từ chối</h2>
         <p className="text-slate-500 mt-2">Chỉ quản trị viên cấp cao mới có quyền truy cập trang này.</p>
@@ -44,7 +44,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
       const [{ data, error }, { data: permData }] = await Promise.all([
         supabase
           .from('ql_nguoi_dung')
-          .select('username, storeCode, password') // Remove created_at as it does not exist
+          .select('*')
           .limit(500),
         supabase
           .from('user_permissions')
@@ -59,12 +59,19 @@ export default function UserManagement({ onBack }: UserManagementProps) {
         username: u.username,
         ma_kho: u.storeCode,
         password: u.password,
-        role: 'user' as any,
+        role: (u.username === '43751' || u.username === 'ADMIN') ? 'admin' : ('user' as any),
         userPermissions: {
           canEditUser: u.username === '43751',
           allowedPages: permMap.get(u.username) || []
         },
-        permissions: ['lkst', 'rtst', 'sknv', 'updata'] as any
+        permissions: ['lkst', 'rtst', 'sknv', 'updata'] as any,
+        expiredAt: u.expiredAt,
+        status: u.status,
+        packageDays: u.packageDays,
+        paymentConfirmed: u.paymentConfirmed,
+        requestedRenewPackage: u.requestedRenewPackage,
+        requestedAt: u.requestedAt,
+        phone: u.phone
       }));
       
       setUsers(mappedUsers);
@@ -92,12 +99,25 @@ export default function UserManagement({ onBack }: UserManagementProps) {
       if (!isNewUser) {
         // Update existing user
         const updateData: any = {
-          storeCode: isEditing.ma_kho
+          storeCode: isEditing.ma_kho,
+          status: isEditing.status || 'inactive',
+          paymentConfirmed: isEditing.paymentConfirmed ?? false,
+          expiredAt: isEditing.expiredAt || null,
+          packageDays: isEditing.packageDays || null,
+          phone: isEditing.phone || null
         };
         
         // Only include password in update if the admin actually typed a new one
         if (isEditing.password && isEditing.password.trim() !== '') {
           updateData.password = isEditing.password;
+        }
+
+        // If status set to active, make sure paymentConfirmed is synced
+        if (updateData.status === 'active') {
+          updateData.paymentConfirmed = true;
+          // Clear renew requested states
+          updateData.requestedRenewPackage = null;
+          updateData.requestedAt = null;
         }
 
         const { error } = await supabase
@@ -131,7 +151,13 @@ export default function UserManagement({ onBack }: UserManagementProps) {
         const newUser = {
           username: isEditing.username,
           storeCode: isEditing.ma_kho,
-          password: isEditing.password
+          password: isEditing.password,
+          status: isEditing.status || 'inactive',
+          paymentConfirmed: isEditing.paymentConfirmed ?? false,
+          expiredAt: isEditing.expiredAt || null,
+          packageDays: isEditing.packageDays || null,
+          phone: isEditing.phone || null,
+          created_at: new Date().toISOString()
         };
 
         const { error: userError } = await supabase
@@ -157,8 +183,6 @@ export default function UserManagement({ onBack }: UserManagementProps) {
       setIsNewUser(false);
     } catch (err: any) {
       console.error("Error saving user:", err);
-      // Log full error details for debugging
-      console.log('Error details:', err);
       setError(err.message || 'Không thể lưu thông tin người dùng.');
     } finally {
       setSaving(false);
@@ -228,6 +252,58 @@ export default function UserManagement({ onBack }: UserManagementProps) {
     }
   };
 
+  const handleApproveQuick = async (username: string, requestedPackage: number) => {
+    try {
+      const days = requestedPackage || 30;
+      const now = new Date();
+      const currentUser = users.find(u => u.username === username);
+      let baseDate = new Date();
+      if (currentUser?.expiredAt && new Date(currentUser.expiredAt) > now) {
+        baseDate = new Date(currentUser.expiredAt);
+      }
+      baseDate.setDate(baseDate.getDate() + days);
+      const newExpiredAt = baseDate.toISOString();
+
+      const { error: updateError } = await supabase
+        .from('ql_nguoi_dung')
+        .update({
+          status: 'active',
+          paymentConfirmed: true,
+          packageDays: days,
+          expiredAt: newExpiredAt,
+          requestedRenewPackage: null,
+          requestedAt: null
+        })
+        .eq('username', username);
+
+      if (updateError) throw updateError;
+
+      setUsers(prev => prev.map(u => u.username === username ? {
+        ...u,
+        status: 'active',
+        paymentConfirmed: true,
+        packageDays: days,
+        expiredAt: newExpiredAt,
+        requestedRenewPackage: undefined,
+        requestedAt: undefined
+      } : u));
+      
+      alert(`Đã phê duyệt thành công gói ${days} ngày cho nhân viên ${username}.`);
+    } catch (err: any) {
+      console.error("Lỗi duyệt cước nhanh:", err);
+      alert("Duyệt nhanh thất bại: " + err.message);
+    }
+  };
+
+  const getRemainingDays = (expiredAt?: string) => {
+    if (!expiredAt) return null;
+    const exp = new Date(expiredAt);
+    const today = new Date();
+    exp.setHours(0,0,0,0);
+    today.setHours(0,0,0,0);
+    const diff = exp.getTime() - today.getTime();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  };
 
   const filteredUsers = users.filter(u => 
     u.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -235,7 +311,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
   );
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="max-w-6xl mx-auto px-4 py-8" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tight mb-2 flex items-center gap-3">
@@ -279,7 +355,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
             <button
               onClick={() => {
                 setIsNewUser(true);
-                setIsEditing({ username: '', ma_kho: '', role: 'user' });
+                setIsEditing({ username: '', ma_kho: '', role: 'user', status: 'inactive', paymentConfirmed: false });
               }}
               className="flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 cursor-pointer whitespace-nowrap"
             >
@@ -317,6 +393,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                   <th className="px-6 py-4 border-b border-slate-200">Mã NV</th>
                   <th className="px-6 py-4 border-b border-slate-200">Mã Kho</th>
                   <th className="px-6 py-4 border-b border-slate-200">Mật khẩu</th>
+                  <th className="px-6 py-4 border-b border-slate-200">Cước phí</th>
                   <th className="px-6 py-4 border-b border-slate-200">Vai trò</th>
                   <th className="px-6 py-4 border-b border-slate-200">Quyền truy cập</th>
                   <th className="px-6 py-4 border-b border-slate-200 text-right">Thao tác</th>
@@ -333,6 +410,66 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                     </td>
                     <td className="px-6 py-4 font-mono text-slate-500 text-xs font-bold">
                       {user.password || '---'}
+                    </td>
+                    <td className="px-6 py-4">
+                      {user.username === '43751' || user.username === 'ADMIN' ? (
+                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-lg">Miễn phí / Demo</span>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-1.5">
+                            {user.status === 'active' && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200/50">
+                                Đã gia hạn
+                              </span>
+                            )}
+                            {user.status === 'pending' && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200/50 animate-pulse">
+                                Chờ duyệt
+                              </span>
+                            )}
+                            {(user.status === 'expired' || (user.expiredAt && new Date() > new Date(user.expiredAt))) && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-200/50">
+                                Hết hạn
+                              </span>
+                            )}
+                            {(user.status === 'inactive' || !user.status) && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200/50">
+                                Chưa đăng ký
+                              </span>
+                            )}
+                          </div>
+                          
+                          {user.expiredAt && (
+                            <div className="text-[11px] text-slate-500 font-bold leading-normal">
+                              <div>Gói: <span className="text-slate-800 font-black">{user.packageDays} ngày</span></div>
+                              <div className="text-[10px] text-slate-400">Hạn: {new Date(user.expiredAt).toLocaleDateString('vi-VN')}</div>
+                              {user.status === 'active' && (() => {
+                                const days = getRemainingDays(user.expiredAt);
+                                if (days !== null) {
+                                  return days > 0 
+                                    ? <span className="text-emerald-600 text-[10px] block font-black">Còn {days} ngày</span>
+                                    : <span className="text-rose-600 text-[10px] block font-black">Đã hết hạn</span>;
+                                }
+                                return null;
+                              })()}
+                            </div>
+                          )}
+
+                          {user.status === 'pending' && user.requestedRenewPackage && (
+                            <div className="pt-1 select-none">
+                              <button
+                                onClick={() => handleApproveQuick(user.username, user.requestedRenewPackage!)}
+                                className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white font-black text-[9px] rounded-lg uppercase tracking-wider transition-colors shadow-sm"
+                              >
+                                Duyệt gói {user.requestedRenewPackage} ngày
+                              </button>
+                              {user.phone && (
+                                <span className="block text-[9px] text-slate-400 font-bold mt-1">SĐT: {user.phone}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       {user.username === '43751' ? (
@@ -466,7 +603,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                     <input
                       type="text"
                       required
-                      disabled={!isNewUser} // Disable if editing existing user
+                      disabled={!isNewUser}
                       value={isEditing.username}
                       onChange={(e) => setIsEditing({ ...isEditing, username: e.target.value })}
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -486,19 +623,144 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                    Mật khẩu {!isNewUser && '(Bỏ trống nếu giữ nguyên)'}
-                  </label>
-                  <input
-                    type="password"
-                    required={isNewUser}
-                    value={isEditing.password || ''}
-                    onChange={(e) => setIsEditing({ ...isEditing, password: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
-                    placeholder={isNewUser ? "Nhập mật khẩu" : "Nhập mật khẩu mới nếu muốn đổi..."}
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                      Mật khẩu {!isNewUser && '(Bỏ trống nếu giữ nguyên)'}
+                    </label>
+                    <input
+                      type="password"
+                      required={isNewUser}
+                      value={isEditing.password || ''}
+                      onChange={(e) => setIsEditing({ ...isEditing, password: e.target.value })}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
+                      placeholder={isNewUser ? "Nhập mật khẩu" : "Nhập mật khẩu mới nếu muốn đổi..."}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Số điện thoại</label>
+                    <input
+                      type="text"
+                      value={isEditing.phone || ''}
+                      onChange={(e) => setIsEditing({ ...isEditing, phone: e.target.value })}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
+                      placeholder="Số điện thoại liên hệ"
+                    />
+                  </div>
                 </div>
+
+                {/* Subscriptions Setting Section */}
+                {isEditing.username !== '43751' && isEditing.username !== 'ADMIN' && (
+                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
+                    <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block">Thông tin cước phí sử dụng</span>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Trạng thái cước</label>
+                        <select
+                          value={isEditing.status || 'inactive'}
+                          onChange={(e) => setIsEditing({ ...isEditing, status: e.target.value as any })}
+                          className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                        >
+                          <option value="inactive">Chưa đăng ký (inactive)</option>
+                          <option value="pending">Chờ phê duyệt (pending)</option>
+                          <option value="active">Đã gia hạn / Hoạt động (active)</option>
+                          <option value="expired">Đã hết hạn (expired)</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Chọn gói (ngày)</label>
+                        <select
+                          value={isEditing.packageDays || ''}
+                          onChange={(e) => {
+                            const val = e.target.value ? Number(e.target.value) : undefined;
+                            let newExp = isEditing.expiredAt;
+                            if (val) {
+                              const expDate = new Date();
+                              expDate.setDate(expDate.getDate() + val);
+                              newExp = expDate.toISOString();
+                            }
+                            setIsEditing({ 
+                              ...isEditing, 
+                              packageDays: val,
+                              expiredAt: newExp
+                            });
+                          }}
+                          className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                        >
+                          <option value="">-- Chưa chọn gói --</option>
+                          <option value="30">Gói 30 ngày</option>
+                          <option value="60">Gói 60 ngày</option>
+                          <option value="90">Gói 90 ngày</option>
+                          <option value="180">Gói 6 tháng (180 ngày)</option>
+                          <option value="270">Gói 9 tháng (270 ngày)</option>
+                          <option value="360">Gói 12 tháng (360 ngày)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Hạn cước đến ngày</label>
+                        <input
+                          type="date"
+                          value={isEditing.expiredAt ? new Date(isEditing.expiredAt).toISOString().split('T')[0] : ''}
+                          onChange={(e) => {
+                            const isoStr = e.target.value ? new Date(e.target.value).toISOString() : undefined;
+                            setIsEditing({ ...isEditing, expiredAt: isoStr });
+                          }}
+                          className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-850 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-3 pt-6">
+                        <input
+                          type="checkbox"
+                          id="paymentConfirmed"
+                          checked={isEditing.paymentConfirmed || false}
+                          onChange={(e) => setIsEditing({ ...isEditing, paymentConfirmed: e.target.checked })}
+                          className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-600 cursor-pointer"
+                        />
+                        <label htmlFor="paymentConfirmed" className="text-sm font-bold text-slate-700 cursor-pointer select-none">
+                          Đã xác nhận thanh toán
+                        </label>
+                      </div>
+                    </div>
+
+                    {isEditing.status === 'pending' && isEditing.requestedRenewPackage && (
+                      <div className="bg-amber-100/50 border border-amber-200 p-3 rounded-xl text-xs font-bold text-amber-800 leading-normal flex flex-col gap-1 mt-2 select-none">
+                        <div>⚠️ Đang yêu cầu gia hạn gói: <span className="text-slate-900 font-black">{isEditing.requestedRenewPackage} ngày</span></div>
+                        {isEditing.requestedAt && (
+                          <div className="text-[10px] text-slate-500">Yêu cầu lúc: {new Date(isEditing.requestedAt).toLocaleString('vi-VN')}</div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const days = isEditing.requestedRenewPackage!;
+                            const now = new Date();
+                            const baseDate = isEditing.expiredAt ? new Date(isEditing.expiredAt) : new Date();
+                            const activeBaseDate = baseDate > now ? baseDate : now;
+                            activeBaseDate.setDate(activeBaseDate.getDate() + days);
+                            
+                            setIsEditing({
+                              ...isEditing,
+                              status: 'active',
+                              paymentConfirmed: true,
+                              packageDays: days,
+                              expiredAt: activeBaseDate.toISOString(),
+                              requestedRenewPackage: undefined,
+                              requestedAt: undefined
+                            });
+                          }}
+                          className="mt-1.5 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[10px] rounded-lg font-black uppercase tracking-wider self-start transition-colors"
+                        >
+                          Duyệt yêu cầu ngay lập tức
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Vai trò</label>
@@ -572,7 +834,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                 </div>
 
                 <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => { setIsEditing(null); setIsNewUser(false); }}
                     className="px-6 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors"
