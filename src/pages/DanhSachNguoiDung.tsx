@@ -18,6 +18,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
   const [isNewUser, setIsNewUser] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [alertConfig, setAlertConfig] = useState<{ title: string; message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const { userProfile } = useAuth();
   const isSuperAdminHardcoded = userProfile?.username === '43751' || userProfile?.username === 'ADMIN';
 
@@ -225,7 +226,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
       
       if (fetchErr) throw fetchErr;
       if (!dbUsers || dbUsers.length === 0) {
-        alert("Không tìm thấy người dùng nào trong cơ sở dữ liệu.");
+        setAlertConfig({ title: "Thông báo", message: "Không tìm thấy người dùng nào trong cơ sở dữ liệu.", type: "info" });
         setSaving(false);
         return;
       }
@@ -242,7 +243,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
 
       if (updateErr) throw updateErr;
 
-      alert(`Đã cập nhật mật khẩu của ${dbUsers.length} người dùng thành công!`);
+      setAlertConfig({ title: "Thành công", message: `Đã cập nhật mật khẩu của ${dbUsers.length} người dùng thành công!`, type: "success" });
       fetchUsers();
     } catch (err: any) {
       console.error("Error resetting all passwords:", err);
@@ -288,10 +289,10 @@ export default function UserManagement({ onBack }: UserManagementProps) {
         requestedAt: undefined
       } : u));
       
-      alert(`Đã phê duyệt thành công gói ${days} ngày cho nhân viên ${username}.`);
+      setAlertConfig({ title: "Phê duyệt thành công", message: `Đã phê duyệt thành công gói ${days} ngày cho nhân viên ${username}.`, type: "success" });
     } catch (err: any) {
       console.error("Lỗi duyệt cước nhanh:", err);
-      alert("Duyệt nhanh thất bại: " + err.message);
+      setAlertConfig({ title: "Phê duyệt thất bại", message: "Duyệt nhanh thất bại: " + err.message, type: "error" });
     }
   };
 
@@ -934,6 +935,58 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Custom Alert Modal */}
+      <AnimatePresence>
+        {alertConfig && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 border border-slate-100/80 relative"
+            >
+              <div className="flex flex-col items-center text-center">
+                {alertConfig.type === 'success' && (
+                  <div className="w-16 h-16 bg-emerald-50 text-emerald-500 border border-emerald-100 rounded-full flex items-center justify-center mb-4 shadow-sm animate-bounce">
+                    <CheckCircle2 size={32} />
+                  </div>
+                )}
+                {alertConfig.type === 'error' && (
+                  <div className="w-16 h-16 bg-rose-50 text-rose-500 border border-rose-100 rounded-full flex items-center justify-center mb-4 shadow-sm animate-pulse">
+                    <AlertCircle size={32} />
+                  </div>
+                )}
+                {alertConfig.type === 'info' && (
+                  <div className="w-16 h-16 bg-indigo-50 text-indigo-500 border border-indigo-100 rounded-full flex items-center justify-center mb-4 shadow-sm">
+                    <Users size={32} />
+                  </div>
+                )}
+                
+                <h3 className={`text-lg font-black uppercase tracking-tight mb-2 ${
+                  alertConfig.type === 'success' ? 'text-emerald-600' :
+                  alertConfig.type === 'error' ? 'text-rose-600' : 'text-slate-800'
+                }`}>
+                  {alertConfig.title}
+                </h3>
+                <p className="text-slate-500 font-bold text-xs leading-relaxed mb-6">
+                  {alertConfig.message}
+                </p>
+                <button 
+                  onClick={() => setAlertConfig(null)}
+                  className={`w-full py-3 text-white font-black rounded-xl transition-all shadow-md active:scale-[0.98] cursor-pointer ${
+                    alertConfig.type === 'success' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100' :
+                    alertConfig.type === 'error' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-100' :
+                    'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100'
+                  }`}
+                >
+                  Đồng ý
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
