@@ -73,7 +73,7 @@ import {
   Gift
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { doc, onSnapshot, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, collection } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Edit3, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -1821,31 +1821,30 @@ export default function NewRealtimePage() {
   // States and hooks for Birthday greetings in card (Placed safely after standard hook initializations)
   const [birthdaysList, setBirthdaysList] = useState<any[]>([]);
 
-  const [announcement, setAnnouncement] = useState<{ title: string; content: string } | null>(null);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
   const [isEditingAnnounce, setIsEditingAnnounce] = useState(false);
+  const [editingDocId, setEditingDocId] = useState<string | 'new' | null>(null);
   const [announceTitleInput, setAnnounceTitleInput] = useState('');
   const [announceContentInput, setAnnounceContentInput] = useState('');
   const [isSavingAnnounce, setIsSavingAnnounce] = useState(false);
 
   useEffect(() => {
-    const docRef = doc(db, 'system_announcements', 'global');
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.active && data.content) {
-          setAnnouncement({ title: data.title || '', content: data.content });
-          setAnnounceTitleInput(data.title || '');
-          setAnnounceContentInput(data.content || '');
-        } else {
-          setAnnouncement(null);
-          setAnnounceTitleInput('');
-          setAnnounceContentInput('');
+    const q = collection(db, 'system_announcements');
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const docs: any[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.active) {
+          docs.push({ id: doc.id, ...data });
         }
-      } else {
-        setAnnouncement(null);
-        setAnnounceTitleInput('');
-        setAnnounceContentInput('');
-      }
+      });
+      // Sort in JS by updatedAt desc
+      docs.sort((a, b) => {
+        const tA = a.updatedAt?.seconds || 0;
+        const tB = b.updatedAt?.seconds || 0;
+        return tB - tA;
+      });
+      setAnnouncements(docs);
     }, (error) => {
       console.error('[RealtimePage] Lỗi listener thông báo:', error);
     });
@@ -1859,14 +1858,22 @@ export default function NewRealtimePage() {
     }
     setIsSavingAnnounce(true);
     try {
-      await setDoc(doc(db, 'system_announcements', 'global'), {
+      const isNew = editingDocId === 'new';
+      const docRef = isNew 
+        ? doc(collection(db, 'system_announcements'))
+        : doc(db, 'system_announcements', String(editingDocId));
+
+      await setDoc(docRef, {
         title: announceTitleInput.trim() || 'Thông báo hệ thống',
         content: announceContentInput.trim(),
         active: true,
         updatedAt: serverTimestamp()
-      });
-      showNotification('Cập nhật thông báo thành công.', 'success');
-      setIsEditingAnnounce(false);
+      }, { merge: true });
+
+      showNotification(isNew ? 'Thêm thông báo mới thành công.' : 'Cập nhật thông báo thành công.', 'success');
+      setEditingDocId(null);
+      setAnnounceTitleInput('');
+      setAnnounceContentInput('');
     } catch (err) {
       console.error('Failed to save announcement:', err);
       showNotification('Lỗi khi lưu thông báo.', 'error');
@@ -1875,13 +1882,17 @@ export default function NewRealtimePage() {
     }
   };
 
-  const handleDeleteAnnouncement = async () => {
+  const handleDeleteAnnouncement = async (id: string) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa thông báo này không?')) return;
     setIsSavingAnnounce(true);
     try {
-      await deleteDoc(doc(db, 'system_announcements', 'global'));
+      await deleteDoc(doc(db, 'system_announcements', id));
       showNotification('Đã xóa thông báo thành công.', 'success');
-      setIsEditingAnnounce(false);
+      if (editingDocId === id) {
+        setEditingDocId(null);
+        setAnnounceTitleInput('');
+        setAnnounceContentInput('');
+      }
     } catch (err) {
       console.error('Failed to delete announcement:', err);
       showNotification('Lỗi khi xóa thông báo.', 'error');
@@ -4209,79 +4220,184 @@ export default function NewRealtimePage() {
 
                     {isEditingAnnounce && (
                       <div className="bg-slate-50 border border-slate-200/80 p-5 rounded-2xl space-y-4 no-capture">
-                        <div className="text-[12px] font-black text-slate-700 uppercase tracking-wider">
-                          📢 Cấu hình thông báo toàn hệ thống
-                        </div>
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">
-                              Tiêu đề thông báo
-                            </label>
-                            <input
-                              type="text"
-                              value={announceTitleInput}
-                              onChange={(e) => setAnnounceTitleInput(e.target.value)}
-                              placeholder="Ví dụ: THÔNG BÁO DUY TRÌ HỆ THỐNG"
-                              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-[12px] font-bold text-slate-850 focus:outline-none focus:border-indigo-500 transition-all shadow-inner"
-                            />
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                          <div className="text-[12px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                            📢 QUẢN LÝ DANH SÁCH THÔNG BÁO ({announcements.length})
                           </div>
-                          <div>
-                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">
-                              Nội dung thông báo
-                            </label>
-                            <textarea
-                              value={announceContentInput}
-                              onChange={(e) => setAnnounceContentInput(e.target.value)}
-                              placeholder="Nhập nội dung thông báo hiển thị cho tất cả các tài khoản người dùng..."
-                              rows={3}
-                              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-[12px] font-bold text-slate-850 focus:outline-none focus:border-indigo-500 transition-all shadow-inner leading-relaxed"
-                            />
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
-                          <button
-                            onClick={handleDeleteAnnouncement}
-                            disabled={isSavingAnnounce}
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-rose-600 hover:text-white border border-rose-200 hover:bg-rose-600 transition-all font-bold text-xs cursor-pointer shadow-sm disabled:opacity-50"
-                          >
-                            <Trash2 size={13} />
-                            <span>Xóa thông báo</span>
-                          </button>
-                          <div className="flex items-center gap-2">
+                          {editingDocId !== 'new' && (
                             <button
-                              onClick={() => setIsEditingAnnounce(false)}
-                              className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-200/50 transition-all font-bold text-xs cursor-pointer border border-transparent"
+                              onClick={() => {
+                                setEditingDocId('new');
+                                setAnnounceTitleInput('');
+                                setAnnounceContentInput('');
+                              }}
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl transition-all font-black text-[10px] uppercase tracking-wider cursor-pointer shadow-sm shadow-indigo-100 flex items-center gap-1 shrink-0"
                             >
-                              Hủy
+                              ➕ Thêm thông báo mới
                             </button>
-                            <button
-                              onClick={handleSaveAnnouncement}
-                              disabled={isSavingAnnounce}
-                              className="bg-indigo-600 text-white hover:bg-indigo-700 px-5 py-2 rounded-xl transition-all font-bold text-xs cursor-pointer shadow-md shadow-indigo-100 disabled:opacity-50"
-                            >
-                              {isSavingAnnounce ? 'Đang lưu...' : 'Lưu / Cập nhật'}
-                            </button>
+                          )}
+                        </div>
+
+                        {/* Add New Announcement Form inline */}
+                        {editingDocId === 'new' && (
+                          <div className="bg-white border border-indigo-100 p-4 rounded-xl space-y-3 shadow-sm">
+                            <div className="text-[11px] font-black text-indigo-700 uppercase tracking-wider">
+                              ✨ Tạo thông báo mới
+                            </div>
+                            <div className="space-y-3">
+                              <div>
+                                <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1">
+                                  Tiêu đề thông báo
+                                </label>
+                                <input
+                                  type="text"
+                                  value={announceTitleInput}
+                                  onChange={(e) => setAnnounceTitleInput(e.target.value)}
+                                  placeholder="Ví dụ: THÔNG BÁO DUY TRÌ HỆ THỐNG"
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-[11px] font-bold text-slate-850 focus:outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1">
+                                  Nội dung thông báo
+                                </label>
+                                <textarea
+                                  value={announceContentInput}
+                                  onChange={(e) => setAnnounceContentInput(e.target.value)}
+                                  placeholder="Nhập nội dung thông báo hiển thị cho tất cả người dùng..."
+                                  rows={3}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-[11px] font-bold text-slate-850 focus:outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner leading-relaxed"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex justify-end gap-2 pt-1">
+                              <button
+                                onClick={() => setEditingDocId(null)}
+                                className="px-3.5 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-all font-bold text-xs cursor-pointer border border-transparent"
+                              >
+                                Hủy
+                              </button>
+                              <button
+                                onClick={handleSaveAnnouncement}
+                                disabled={isSavingAnnounce}
+                                className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-1.5 rounded-lg transition-all font-bold text-xs cursor-pointer shadow-md disabled:opacity-50"
+                              >
+                                {isSavingAnnounce ? 'Đang lưu...' : 'Lưu / Thêm mới'}
+                              </button>
+                            </div>
                           </div>
+                        )}
+
+                        {/* List of current announcements to Edit/Delete */}
+                        <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                          {announcements.length === 0 ? (
+                            <div className="text-center py-6 text-slate-400 italic text-[11px] font-bold">
+                              Chưa có thông báo nào được tạo.
+                            </div>
+                          ) : (
+                            announcements.map((item) => {
+                              const isEditingThis = editingDocId === item.id;
+                              return (
+                                <div key={item.id} className="bg-white border border-slate-200/80 p-4 rounded-xl shadow-sm space-y-3">
+                                  {isEditingThis ? (
+                                    <div className="space-y-3">
+                                      <div className="text-[11px] font-black text-indigo-700 uppercase tracking-wider">
+                                        ✏️ Chỉnh sửa thông báo
+                                      </div>
+                                      <div>
+                                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1">
+                                          Tiêu đề thông báo
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={announceTitleInput}
+                                          onChange={(e) => setAnnounceTitleInput(e.target.value)}
+                                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-[11px] font-bold text-slate-850 focus:outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1">
+                                          Nội dung thông báo
+                                        </label>
+                                        <textarea
+                                          value={announceContentInput}
+                                          onChange={(e) => setAnnounceContentInput(e.target.value)}
+                                          rows={3}
+                                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-[11px] font-bold text-slate-850 focus:outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner leading-relaxed"
+                                        />
+                                      </div>
+                                      <div className="flex justify-end gap-2 pt-1">
+                                        <button
+                                          onClick={() => setEditingDocId(null)}
+                                          className="px-3.5 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-all font-bold text-xs cursor-pointer border border-transparent"
+                                        >
+                                          Hủy
+                                        </button>
+                                        <button
+                                          onClick={handleSaveAnnouncement}
+                                          disabled={isSavingAnnounce}
+                                          className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-1.5 rounded-lg transition-all font-bold text-xs cursor-pointer shadow-md disabled:opacity-50"
+                                        >
+                                          {isSavingAnnounce ? 'Đang lưu...' : 'Lưu / Cập nhật'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-start justify-between gap-4">
+                                      <div className="flex-1 space-y-1">
+                                        <h4 className="text-[12px] font-black text-rose-600 uppercase tracking-wider">
+                                          {item.title}
+                                        </h4>
+                                        <p className="text-[11px] text-slate-650 font-bold leading-relaxed whitespace-pre-wrap">
+                                          {item.content}
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                          onClick={() => {
+                                            setEditingDocId(item.id);
+                                            setAnnounceTitleInput(item.title || '');
+                                            setAnnounceContentInput(item.content || '');
+                                          }}
+                                          className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-all cursor-pointer"
+                                          title="Chỉnh sửa"
+                                        >
+                                          <Edit3 size={12} />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteAnnouncement(item.id)}
+                                          className="p-1.5 rounded-lg border border-slate-200 text-slate-550 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
+                                          title="Xóa"
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
                         </div>
                       </div>
                     )}
 
-                    {/* Global System Announcement */}
-                    {announcement && (
-                      <div className="flex items-start gap-4 bg-rose-50/50 border border-rose-100 p-5 rounded-2xl relative overflow-hidden shadow-sm shadow-rose-50/30">
+                    {/* Global System Announcement list */}
+                    {!isEditingAnnounce && announcements.map((announce) => (
+                      <div key={announce.id} className="flex items-start gap-4 bg-rose-50/50 border border-rose-100 p-5 rounded-2xl relative overflow-hidden shadow-sm shadow-rose-50/30">
                         <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-rose-100 animate-pulse">
                           📢
                         </div>
                         <div className="flex-1 space-y-1">
                           <p className="text-[13px] font-black text-rose-600 uppercase tracking-wider">
-                            {announcement.title}
+                            {announce.title}
                           </p>
                           <p className="text-[12px] text-slate-650 font-bold tracking-tight leading-relaxed whitespace-pre-wrap">
-                            {announcement.content}
+                            {announce.content}
                           </p>
                         </div>
                       </div>
-                    )}
+                    ))}
 
                     {/* Personal Expiration Alert */}
                     {daysRemaining === 1 && (
