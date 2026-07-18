@@ -73,6 +73,9 @@ import {
   Gift
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { doc, onSnapshot, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
+import { Edit3, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useMarket } from '../contexts/MarketContext';
@@ -1796,6 +1799,7 @@ const fmtRawDate = (raw: string): string => {
 
 export default function NewRealtimePage() {
   const { userProfile } = useAuth();
+  const isAdmin = userProfile?.username === '43751' || userProfile?.username === 'ADMIN' || userProfile?.role === 'admin';
   const [isProcessingData, setIsProcessingData] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const { showNotification } = useNotification();
@@ -1816,6 +1820,75 @@ export default function NewRealtimePage() {
 
   // States and hooks for Birthday greetings in card (Placed safely after standard hook initializations)
   const [birthdaysList, setBirthdaysList] = useState<any[]>([]);
+
+  const [announcement, setAnnouncement] = useState<{ title: string; content: string } | null>(null);
+  const [isEditingAnnounce, setIsEditingAnnounce] = useState(false);
+  const [announceTitleInput, setAnnounceTitleInput] = useState('');
+  const [announceContentInput, setAnnounceContentInput] = useState('');
+  const [isSavingAnnounce, setIsSavingAnnounce] = useState(false);
+
+  useEffect(() => {
+    const docRef = doc(db, 'system_announcements', 'global');
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.active && data.content) {
+          setAnnouncement({ title: data.title || '', content: data.content });
+          setAnnounceTitleInput(data.title || '');
+          setAnnounceContentInput(data.content || '');
+        } else {
+          setAnnouncement(null);
+          setAnnounceTitleInput('');
+          setAnnounceContentInput('');
+        }
+      } else {
+        setAnnouncement(null);
+        setAnnounceTitleInput('');
+        setAnnounceContentInput('');
+      }
+    }, (error) => {
+      console.error('[RealtimePage] Lỗi listener thông báo:', error);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleSaveAnnouncement = async () => {
+    if (!announceContentInput.trim()) {
+      showNotification('Nội dung thông báo không được để trống.', 'error');
+      return;
+    }
+    setIsSavingAnnounce(true);
+    try {
+      await setDoc(doc(db, 'system_announcements', 'global'), {
+        title: announceTitleInput.trim() || 'Thông báo hệ thống',
+        content: announceContentInput.trim(),
+        active: true,
+        updatedAt: serverTimestamp()
+      });
+      showNotification('Cập nhật thông báo thành công.', 'success');
+      setIsEditingAnnounce(false);
+    } catch (err) {
+      console.error('Failed to save announcement:', err);
+      showNotification('Lỗi khi lưu thông báo.', 'error');
+    } finally {
+      setIsSavingAnnounce(false);
+    }
+  };
+
+  const handleDeleteAnnouncement = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa thông báo này không?')) return;
+    setIsSavingAnnounce(true);
+    try {
+      await deleteDoc(doc(db, 'system_announcements', 'global'));
+      showNotification('Đã xóa thông báo thành công.', 'success');
+      setIsEditingAnnounce(false);
+    } catch (err) {
+      console.error('Failed to delete announcement:', err);
+      showNotification('Lỗi khi xóa thông báo.', 'error');
+    } finally {
+      setIsSavingAnnounce(false);
+    }
+  };
 
   useEffect(() => {
     if (userProfile) {
@@ -4116,27 +4189,99 @@ export default function NewRealtimePage() {
                     animate={{ opacity: 1, y: 0 }}
                     className="no-capture bg-white p-8 rounded-[32px] border border-slate-100 shadow-[0_15px_50px_-15px_rgba(0,0,0,0.03)] space-y-6"
                   >
-                    <div>
-                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Lời chào</h3>
-                      <h2 className="text-2xl font-black text-slate-800 tracking-tight">
-                        {greeting}, <span className="text-indigo-600">{userProfile?.username?.split(' ')[0]}</span>
-                      </h2>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Lời chào</h3>
+                        <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                          {greeting}, <span className="text-indigo-600">{userProfile?.username?.split(' ')[0]}</span>
+                        </h2>
+                      </div>
+                      {isAdmin && (
+                        <button
+                          onClick={() => setIsEditingAnnounce(prev => !prev)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all font-bold text-xs cursor-pointer shadow-sm bg-white shrink-0 no-capture"
+                        >
+                          <Edit3 size={13} />
+                          <span>{isEditingAnnounce ? 'Đóng chỉnh sửa' : 'Chỉnh sửa thông báo'}</span>
+                        </button>
+                      )}
                     </div>
 
+                    {isEditingAnnounce && (
+                      <div className="bg-slate-50 border border-slate-200/80 p-5 rounded-2xl space-y-4 no-capture">
+                        <div className="text-[12px] font-black text-slate-700 uppercase tracking-wider">
+                          📢 Cấu hình thông báo toàn hệ thống
+                        </div>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">
+                              Tiêu đề thông báo
+                            </label>
+                            <input
+                              type="text"
+                              value={announceTitleInput}
+                              onChange={(e) => setAnnounceTitleInput(e.target.value)}
+                              placeholder="Ví dụ: THÔNG BÁO DUY TRÌ HỆ THỐNG"
+                              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-[12px] font-bold text-slate-850 focus:outline-none focus:border-indigo-500 transition-all shadow-inner"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">
+                              Nội dung thông báo
+                            </label>
+                            <textarea
+                              value={announceContentInput}
+                              onChange={(e) => setAnnounceContentInput(e.target.value)}
+                              placeholder="Nhập nội dung thông báo hiển thị cho tất cả các tài khoản người dùng..."
+                              rows={3}
+                              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-[12px] font-bold text-slate-850 focus:outline-none focus:border-indigo-500 transition-all shadow-inner leading-relaxed"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
+                          <button
+                            onClick={handleDeleteAnnouncement}
+                            disabled={isSavingAnnounce}
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-rose-600 hover:text-white border border-rose-200 hover:bg-rose-600 transition-all font-bold text-xs cursor-pointer shadow-sm disabled:opacity-50"
+                          >
+                            <Trash2 size={13} />
+                            <span>Xóa thông báo</span>
+                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setIsEditingAnnounce(false)}
+                              className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-200/50 transition-all font-bold text-xs cursor-pointer border border-transparent"
+                            >
+                              Hủy
+                            </button>
+                            <button
+                              onClick={handleSaveAnnouncement}
+                              disabled={isSavingAnnounce}
+                              className="bg-indigo-600 text-white hover:bg-indigo-700 px-5 py-2 rounded-xl transition-all font-bold text-xs cursor-pointer shadow-md shadow-indigo-100 disabled:opacity-50"
+                            >
+                              {isSavingAnnounce ? 'Đang lưu...' : 'Lưu / Cập nhật'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Global System Announcement */}
-                    <div className="flex items-start gap-4 bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl relative overflow-hidden shadow-sm shadow-indigo-50/30">
-                      <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-indigo-100 animate-pulse">
-                        📢
+                    {announcement && (
+                      <div className="flex items-start gap-4 bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl relative overflow-hidden shadow-sm shadow-indigo-50/30">
+                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-indigo-100 animate-pulse">
+                          📢
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <p className="text-[13px] font-black text-indigo-700 uppercase tracking-wider">
+                            {announcement.title}
+                          </p>
+                          <p className="text-[12px] text-slate-650 font-bold tracking-tight leading-relaxed whitespace-pre-wrap">
+                            {announcement.content}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex-1 space-y-1">
-                        <p className="text-[13px] font-black text-indigo-700 uppercase tracking-wider">
-                          Thông báo duy trì hệ thống
-                        </p>
-                        <p className="text-[12px] text-slate-650 font-bold tracking-tight leading-relaxed">
-                          Nhằm duy trì hệ thống hoạt động ổn định và liên tục nâng cấp các tính năng mới, Từ ngày 1/8/2026 website sẽ áp dụng phí duy trì là <span className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md font-black text-xs border border-amber-200">49.000đ / 30 ngày</span>. Xin chân thành cảm ơn Quý Anh/ Chị đã luôn đồng hành và ủng hộ.
-                        </p>
-                      </div>
-                    </div>
+                    )}
 
                     {/* Personal Expiration Alert */}
                     {daysRemaining === 1 && (
