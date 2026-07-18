@@ -4400,7 +4400,7 @@ export default function NewRealtimePage() {
                     ))}
 
                     {/* Personal Expiration Alert */}
-                    {daysRemaining === 1 && (
+                    {daysRemaining !== null && daysRemaining > 0 && daysRemaining <= 3 && (
                       <div className="flex items-start gap-4 bg-rose-50/50 border border-rose-100 p-5 rounded-2xl relative overflow-hidden shadow-sm shadow-rose-50/30">
                         <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-rose-200/50 animate-bounce">
                           ⚠️
@@ -4410,7 +4410,7 @@ export default function NewRealtimePage() {
                             Cảnh báo hết hạn cước phí
                           </p>
                           <p className="text-[12px] text-rose-700 font-bold tracking-tight leading-relaxed">
-                            Gói cước sử dụng của bạn chỉ còn lại <span className="font-black">1 ngày</span> (Hết hạn vào ngày {userProfile?.expiredAt ? new Date(userProfile.expiredAt).toLocaleDateString('vi-VN') : '---'}). Vui lòng chuyển khoản thanh toán gia hạn sớm để tránh gián đoạn dịch vụ truy cập website.
+                            Gói cước sử dụng của bạn chỉ còn lại <span className="font-black">{daysRemaining} ngày</span> (Hết hạn vào ngày {userProfile?.expiredAt ? new Date(userProfile.expiredAt).toLocaleDateString('vi-VN') : '---'}). Vui lòng chuyển khoản thanh toán gia hạn sớm để tránh gián đoạn dịch vụ truy cập website.
                           </p>
                         </div>
                       </div>
