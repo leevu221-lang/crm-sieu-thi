@@ -909,6 +909,15 @@ const NGANH_DISPLAY: Record<string, string> = {
 };
 
 const PRODUCT_CODE_MAP: Record<string, string> = {
+  // Icall
+  '1640571000491': 'Icall',
+  '1640571000492': 'Icall',
+  // Mango
+  '1640571000500': 'Mango',
+  '1640571000501': 'Mango',
+  '1640571000502': 'Mango',
+  '1640571000503': 'Mango',
+  '1640571000504': 'Mango',
   // 1 ĐỔI 1
   '1644479000058': '1 ĐỔI 1',
   '1644479000071': '1 ĐỔI 1',
@@ -990,6 +999,8 @@ const classifyProductByCode = (code: string): string | null => {
 
 const classifyProduct = (name: string) => {
   const n = String(name || '').toUpperCase();
+  if (n.includes('ICALLME') || n.includes('ICALL')) return 'Icall';
+  if (n.includes('MANGO')) return 'Mango';
   if (n.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || n.includes('BẢO VỆ MÀN HÌNH') || n.includes('BVMH')) return 'BVMH';
   if (n.includes('1 ĐỔI 1')) return '1 ĐỔI 1';
   if (n.includes('BẢO HIỂM KHOẢN VAY')) return 'BHKV';
