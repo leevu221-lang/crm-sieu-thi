@@ -2373,38 +2373,71 @@ export const parseStaffValueList = (text: string): { id: string; name: string; v
     let name = '';
     let value = 0;
 
-    let foundValue = false;
-    let nameCandidates: string[] = [];
-
+    // Parse combined ID/Name in columns first
     cols.forEach(col => {
       if (!col) return;
-
-      const cleanCol = col.replace(/[^\d,.-]/g, '');
-      const isNum = cleanCol.length > 0 && !isNaN(parseFloat(cleanCol.replace(/,/g, '')));
-
-      if (isNum && !foundValue) {
-        value = cleanNum(col);
-        foundValue = true;
-      } else {
-        const m1 = col.match(/(.+)[\s-–—]+(\d{5,})$/);
-        const m2 = col.match(/^(\d{5,})[\s-–—]+(.+)$/);
-
-        if (m1) {
-          id = m1[2].trim();
-          name = m1[1].trim();
-        } else if (m2) {
-          id = m2[1].trim();
-          name = m2[2].trim();
-        } else if (/^\d{5,}$/.test(col)) {
-          id = col;
-        } else if (/[a-zA-Z]/.test(normalize(col))) {
-          nameCandidates.push(col);
-        }
+      const m1 = col.match(/(.+)[\s-–—]+(\d{4,8})$/);
+      const m2 = col.match(/^(\d{4,8})[\s-–—]+(.+)$/);
+      if (m1) {
+        id = m1[2].trim();
+        name = m1[1].trim();
+      } else if (m2) {
+        id = m2[1].trim();
+        name = m2[2].trim();
       }
     });
 
-    if (!name && nameCandidates.length > 0) {
-      name = nameCandidates[0];
+    // Classify all columns as either pure numbers, potential IDs, or text
+    const pureNumbers: { val: number; colIdx: number; raw: string }[] = [];
+    const textColumns: { val: string; colIdx: number }[] = [];
+
+    cols.forEach((col, idx) => {
+      if (!col) return;
+
+      const colCleaned = col.trim().toLowerCase().replace(/(h|tr|đ|vnd|hours|tr\.|đ\.)/g, '').trim();
+      const cleanCol = colCleaned.replace(/[^\d,.-]/g, '');
+      const isNum = cleanCol.length > 0 && /^\s*[-+]?[0-9,.]+\s*$/.test(colCleaned);
+
+      if (isNum) {
+        pureNumbers.push({ val: cleanNum(col), colIdx: idx, raw: col.trim() });
+      } else {
+        textColumns.push({ val: col, colIdx: idx });
+      }
+    });
+
+    // Assign ID and Value based on pure numbers count
+    if (pureNumbers.length > 0) {
+      if (pureNumbers.length >= 2) {
+        // We have at least 2 numbers. Let's see which one is the Employee ID.
+        // Usually, a number matching a 4-8 digit pattern is the ID.
+        const idIndex = pureNumbers.findIndex(pn => /^\d{4,8}$/.test(pn.raw));
+        if (idIndex !== -1) {
+          id = pureNumbers[idIndex].raw;
+          const valIndex = idIndex === 0 ? 1 : 0;
+          value = pureNumbers[valIndex].val;
+        } else {
+          value = pureNumbers[0].val;
+          id = pureNumbers[1].raw;
+        }
+      } else {
+        value = pureNumbers[0].val;
+        if (!id) {
+          textColumns.forEach(tc => {
+            const m = tc.val.match(/\b(\d{4,8})\b/);
+            if (m) id = m[1];
+          });
+        }
+      }
+    }
+
+    // Determine Name
+    if (!name) {
+      const nameCandidates = textColumns
+        .filter(tc => !tc.val.includes(id) && tc.val !== id && /[a-zA-Z]/.test(normalize(tc.val)))
+        .map(tc => tc.val);
+      if (nameCandidates.length > 0) {
+        name = nameCandidates[0];
+      }
     }
 
     if (name) {
