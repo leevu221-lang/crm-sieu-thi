@@ -3263,7 +3263,7 @@ export default function NewRealtimePage() {
       const nSmall = nhomSmall.toUpperCase();
 
       // Phân tích SP CHÍNH chi tiết
-      if (nSmall === 'SMP' || nSmall === 'ĐIỆN THOẠI DI ĐỘNG') {
+      if (nSmall === 'SMP') {
         item.spcSmfQty += qty;
       } else if (nSmall === 'LAP') {
         item.spcLapQty += qty;
