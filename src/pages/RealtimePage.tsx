@@ -2637,6 +2637,7 @@ export default function NewRealtimePage() {
     baoHiem: true,
     vasBh: true,
     vasVieon: true,
+    vasMangoIcall: true,
     sim: true,
     dongHo: true,
     phuKien: true,
@@ -3068,6 +3069,13 @@ export default function NewRealtimePage() {
       const partial = headers.findIndex(h => h.toLowerCase().startsWith('tên sản phẩm') || h.toLowerCase() === 'tên hàng');
       return partial !== -1 ? partial : 33;
     })();
+    const idxProductCode = (() => {
+      const idx = headers.findIndex(h => {
+        const norm = removeAccents(h).toLowerCase();
+        return norm === 'ma san pham' || norm === 'ma sp' || norm === 'ma hang' || norm.includes('ma san pham');
+      });
+      return idx !== -1 ? idx : 28;
+    })();
 
     const statsMap = new Map<string, {
       staffName: string;
@@ -3091,6 +3099,8 @@ export default function NewRealtimePage() {
       bhRev: number;
       vieonQty: number;
       vieonRev: number;
+      mangoIcallQty: number;
+      mangoIcallRev: number;
       simQty: number;
       simRev: number;
       dhQty: number;
@@ -3166,6 +3176,8 @@ export default function NewRealtimePage() {
           bhRev: 0,
           vieonQty: 0,
           vieonRev: 0,
+          mangoIcallQty: 0,
+          mangoIcallRev: 0,
           simQty: 0,
           simRev: 0,
           dhQty: 0,
@@ -3192,6 +3204,13 @@ export default function NewRealtimePage() {
       }
 
       const item = statsMap.get(staffName)!;
+
+      const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+      const pClass = classifyProductByCode(prodCode) || classifyProduct(productName);
+      if (pClass === 'Mango' || pClass === 'Icall') {
+        item.mangoIcallQty += qty;
+        item.mangoIcallRev += revenue;
+      }
 
       if (nhomLarge === 'ICT') {
         item.ictQty += qty;
@@ -3312,7 +3331,8 @@ export default function NewRealtimePage() {
 
       const getVisibleVasTotalQty = (item: any) => {
         return (showKhaiThacCols.vasBh ? item.bhQty : 0) +
-          (showKhaiThacCols.vasVieon ? item.vieonQty : 0);
+          (showKhaiThacCols.vasVieon ? item.vieonQty : 0) +
+          (showKhaiThacCols.vasMangoIcall ? item.mangoIcallQty : 0);
       };
 
       const getVisiblePkTotalQty = (item: any) => {
@@ -5369,7 +5389,8 @@ export default function NewRealtimePage() {
                               <span className="text-[10px] font-black text-[#be123c] w-20 flex items-center gap-1">🛡️ VAS:</span>
                               {[
                                 { key: 'vasBh', label: 'SL B.HIỂM' },
-                                { key: 'vasVieon', label: 'SL VIEON' }
+                                { key: 'vasVieon', label: 'SL VIEON' },
+                                { key: 'vasMangoIcall', label: 'SL Mango/Icall' }
                               ].map(btn => {
                                 const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
                                 return (
@@ -5467,7 +5488,7 @@ export default function NewRealtimePage() {
                               <th colSpan={1 + (showKhaiThacCols.spcSmf ? 1 : 0) + (showKhaiThacCols.spcLap ? 1 : 0) + (showKhaiThacCols.spcTab ? 1 : 0) + (showKhaiThacCols.spcTivi ? 1 : 0) + (showKhaiThacCols.spcMl ? 1 : 0) + (showKhaiThacCols.spcTl ? 1 : 0) + (showKhaiThacCols.spcMg ? 1 : 0)} className="py-1 px-3 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black text-[13px] border-b border-emerald-100">SP CHÍNH</th>
                             )}
                             {showKhaiThacCols.baoHiem && (
-                              <th colSpan={1 + (showKhaiThacCols.vasBh ? 1 : 0) + (showKhaiThacCols.vasVieon ? 1 : 0)} className="py-1 px-3 text-center text-[#be123c] bg-[#ffe4e6] border-r border-slate-200/50 font-black text-[13px] border-b border-rose-100">VAS</th>
+                              <th colSpan={1 + (showKhaiThacCols.vasBh ? 1 : 0) + (showKhaiThacCols.vasVieon ? 1 : 0) + (showKhaiThacCols.vasMangoIcall ? 1 : 0)} className="py-1 px-3 text-center text-[#be123c] bg-[#ffe4e6] border-r border-slate-200/50 font-black text-[13px] border-b border-rose-100">VAS</th>
                             )}
                             {showKhaiThacCols.sim && (
                               <th colSpan={2} className="py-1 px-3 text-center text-[#b45309] bg-[#fef3c7] border-r border-slate-200/50 font-black text-[13px] border-b border-amber-100">SIM</th>
@@ -5510,6 +5531,7 @@ export default function NewRealtimePage() {
                               <>
                                 {showKhaiThacCols.vasBh && renderKhaiThacHeader('bhQty', 'SL B.HIỂM', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
                                 {showKhaiThacCols.vasVieon && renderKhaiThacHeader('vieonQty', 'SL VIEON', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
+                                {showKhaiThacCols.vasMangoIcall && renderKhaiThacHeader('mangoIcallQty', 'SL Mango/Icall', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-24')}
 
                                 {renderKhaiThacHeader('vasPct', '%', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
                               </>
@@ -5637,7 +5659,8 @@ export default function NewRealtimePage() {
 
                               const visibleVasTotalQty =
                                 (showKhaiThacCols.vasBh ? item.bhQty : 0) +
-                                (showKhaiThacCols.vasVieon ? item.vieonQty : 0);
+                                (showKhaiThacCols.vasVieon ? item.vieonQty : 0) +
+                                (showKhaiThacCols.vasMangoIcall ? item.mangoIcallQty : 0);
 
                               const visiblePkTotalQty =
                                 (showKhaiThacCols.pkCam ? item.pkCamQty : 0) +
@@ -5691,6 +5714,7 @@ export default function NewRealtimePage() {
                                     <>
                                       {showKhaiThacCols.vasBh && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.bhQty)}</td>}
                                       {showKhaiThacCols.vasVieon && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.vieonQty)}</td>}
+                                      {showKhaiThacCols.vasMangoIcall && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.mangoIcallQty)}</td>}
 
                                       <td className="py-2 px-2 text-center border-r border-slate-200/50">{renderPct(visibleVasTotalQty, visibleSpChinhTotalQty, 'text-[#be123c]')}</td>
                                     </>
@@ -5774,6 +5798,8 @@ export default function NewRealtimePage() {
                               const totalBhRev = staffKhaiThacStats.reduce((s, x) => s + x.bhRev, 0);
                               const totalVieonQty = staffKhaiThacStats.reduce((s, x) => s + x.vieonQty, 0);
                               const totalVieonRev = staffKhaiThacStats.reduce((s, x) => s + x.vieonRev, 0);
+                              const totalMangoIcallQty = staffKhaiThacStats.reduce((s, x) => s + x.mangoIcallQty, 0);
+                              const totalMangoIcallRev = staffKhaiThacStats.reduce((s, x) => s + x.mangoIcallRev, 0);
 
                               const totalSimQty = staffKhaiThacStats.reduce((s, x) => s + x.simQty, 0);
                               const totalSimRev = staffKhaiThacStats.reduce((s, x) => s + x.simRev, 0);
@@ -5840,7 +5866,8 @@ export default function NewRealtimePage() {
 
                               const totalVisibleVasTotalQty =
                                 (showKhaiThacCols.vasBh ? totalBhQty : 0) +
-                                (showKhaiThacCols.vasVieon ? totalVieonQty : 0);
+                                (showKhaiThacCols.vasVieon ? totalVieonQty : 0) +
+                                (showKhaiThacCols.vasMangoIcall ? totalMangoIcallQty : 0);
 
                               const totalVisiblePkTotalQty =
                                 (showKhaiThacCols.pkCam ? totalPkCam : 0) +
@@ -5891,6 +5918,7 @@ export default function NewRealtimePage() {
                                     <>
                                       {showKhaiThacCols.vasBh && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalBhQty)}</td>}
                                       {showKhaiThacCols.vasVieon && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalVieonQty)}</td>}
+                                      {showKhaiThacCols.vasMangoIcall && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalMangoIcallQty)}</td>}
 
                                       <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{renderFooterPct(totalVisibleVasTotalQty, totalVisibleSpChinhQty)}</td>
                                     </>
