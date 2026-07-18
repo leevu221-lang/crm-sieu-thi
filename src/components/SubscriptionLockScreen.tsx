@@ -35,6 +35,7 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
   }, [userProfile.status, userProfile.paymentConfirmed, isSuccess, onClose]);
 
   const packages = [
+    { days: 7, label: 'Dùng thử 7 ngày (áp dụng tài khoản mới)', price: '0đ' },
     { days: 30, label: '30 ngày', price: '49.000đ' },
     { days: 60, label: '60 ngày', price: '98.000đ' },
     { days: 90, label: '90 ngày', price: '147.000đ' },

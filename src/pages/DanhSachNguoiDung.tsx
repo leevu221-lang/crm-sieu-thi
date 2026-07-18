@@ -312,6 +312,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
   // Pricing calculations
   const getPackagePrice = (days?: number) => {
     if (!days) return 0;
+    if (days <= 7) return 0;
     if (days <= 30) return 49000;
     if (days <= 60) return 98000;
     if (days <= 90) return 147000;
@@ -321,7 +322,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
   };
 
   const getMonthlyEquivalent = (days?: number) => {
-    if (!days) return 0;
+    if (!days || days <= 7) return 0;
     const price = getPackagePrice(days);
     const months = days / 30;
     return Math.round(price / months);
@@ -795,6 +796,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                           className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none"
                         >
                           <option value="">-- Chưa chọn gói --</option>
+                          <option value="7">Dùng thử 7 ngày (áp dụng tài khoản mới) (0đ)</option>
                           <option value="30">Gói 30 ngày (49,000đ)</option>
                           <option value="60">Gói 60 ngày (98,000đ)</option>
                           <option value="90">Gói 90 ngày (147,000đ)</option>
