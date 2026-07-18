@@ -4268,12 +4268,12 @@ export default function NewRealtimePage() {
 
                     {/* Global System Announcement */}
                     {announcement && (
-                      <div className="flex items-start gap-4 bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl relative overflow-hidden shadow-sm shadow-indigo-50/30">
-                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-indigo-100 animate-pulse">
+                      <div className="flex items-start gap-4 bg-rose-50/50 border border-rose-100 p-5 rounded-2xl relative overflow-hidden shadow-sm shadow-rose-50/30">
+                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-rose-100 animate-pulse">
                           📢
                         </div>
                         <div className="flex-1 space-y-1">
-                          <p className="text-[13px] font-black text-indigo-700 uppercase tracking-wider">
+                          <p className="text-[13px] font-black text-rose-600 uppercase tracking-wider">
                             {announcement.title}
                           </p>
                           <p className="text-[12px] text-slate-650 font-bold tracking-tight leading-relaxed whitespace-pre-wrap">
