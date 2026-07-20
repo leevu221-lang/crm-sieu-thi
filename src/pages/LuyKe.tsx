@@ -19,6 +19,7 @@ import { BonusCalculatorForm } from './BonusCalculatorForm';
 
 import { ConfirmationModal } from './RTST/components/Modals';
 import { normalize, isKhoLuuDong } from './RTST/utils';
+import BcDtNganhHang from './BcDtNganhHang';
 
 const getCategoryGroup = (name: string): 'yellow' | 'green' | 'blue' => {
   const normalized = name.toLowerCase().trim();
@@ -103,7 +104,7 @@ const LuyKe: React.FC = () => {
     return (availableMarkets || []).filter(m => !isKhoLuuDong(m.name));
   }, [availableMarkets]);
   const [maKho, setMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
-  const [activeTab, setActiveTab] = useState<'summary' | 'efficiency' | 'thuong_st'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'efficiency' | 'thuong_st' | 'bcdtnh'>('summary');
 
   const {
     clusterSummaryInput, setClusterSummaryInput,
@@ -726,6 +727,21 @@ const LuyKe: React.FC = () => {
 
 
 
+  const forceDesktopLayout = (element: HTMLElement) => {
+    // Force categories grid to 2 columns
+    const categoriesGrid = element.querySelector('.grid-cols-1.xl\\:grid-cols-2');
+    if (categoriesGrid) {
+      categoriesGrid.classList.add('force-grid-cols-2');
+    }
+  };
+
+  const removeDesktopLayout = (element: HTMLElement) => {
+    const categoriesGrid = element.querySelector('.grid-cols-1.xl\\:grid-cols-2');
+    if (categoriesGrid) {
+      categoriesGrid.classList.remove('force-grid-cols-2');
+    }
+  };
+
   const captureElement = async (ref: React.RefObject<HTMLDivElement | null>, fileName: string) => {
     if (!ref.current) return;
     setIsCapturing(true);
@@ -738,22 +754,28 @@ const LuyKe: React.FC = () => {
     try {
       // Store original overflow styles and set to visible to get true scrollWidth
       const scrollContainers = element.querySelectorAll('.overflow-x-auto');
-      const originalOverflows: { el: HTMLElement, overflowX: string }[] = [];
+      const hiddenContainers = element.querySelectorAll('.overflow-hidden');
+      const originalOverflows: { el: HTMLElement, overflowX: string, overflowY?: string }[] = [];
       
       scrollContainers.forEach(el => {
         const htmlEl = el as HTMLElement;
         originalOverflows.push({ el: htmlEl, overflowX: htmlEl.style.overflowX });
         htmlEl.style.overflowX = 'visible';
       });
+      hiddenContainers.forEach(el => {
+        const htmlEl = el as HTMLElement;
+        originalOverflows.push({ el: htmlEl, overflowX: htmlEl.style.overflowX, overflowY: htmlEl.style.overflowY });
+        htmlEl.style.overflowX = 'visible';
+        htmlEl.style.overflowY = 'visible';
+        htmlEl.style.overflow = 'visible';
+      });
 
-      // Temporarily set width to max-content to allow flex containers to expand fully
-      element.style.width = 'max-content';
-      element.style.minWidth = 'max-content';
-      
-      // Get the true full width after expanding
-      const fullWidth = element.scrollWidth;
-      element.style.width = `${fullWidth}px`;
-      element.style.minWidth = `${fullWidth}px`;
+      // Force desktop layout configurations for screenshot
+      forceDesktopLayout(element);
+
+      // Lock width to standard desktop width during capture to prevent column wrapping/clipping
+      element.style.width = '1400px';
+      element.style.minWidth = '1400px';
 
       // Small delay for CSS to apply
       await new Promise(resolve => setTimeout(resolve, 150));
@@ -772,14 +794,16 @@ const LuyKe: React.FC = () => {
       setPreviewImage(dataUrl);
 
       // Restore overflows
-      originalOverflows.forEach(({ el, overflowX }) => {
+      originalOverflows.forEach(({ el, overflowX, overflowY }) => {
         el.style.overflowX = overflowX;
+        if (overflowY !== undefined) el.style.overflowY = overflowY;
       });
     } catch (error) {
       console.error('Error capturing element:', error);
     } finally {
       element.style.width = originalWidth;
       element.style.minWidth = originalMinWidth;
+      removeDesktopLayout(element);
       document.body.classList.remove('capturing-screenshot');
       setIsCapturing(false);
     }
@@ -787,6 +811,35 @@ const LuyKe: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 selection:bg-indigo-100 selection:text-indigo-900" style={{ fontFamily: '"Inter", sans-serif' }}>
+      <style dangerouslySetInnerHTML={{__html: `
+        .capturing-screenshot .no-capture { display: none !important; }
+        .capturing-screenshot .capturing-screenshot-inline { display: inline !important; }
+        
+        /* Force CSS Grid columns to render identically to on-screen column layout during screenshot capture */
+        .capturing-screenshot .force-grid-cols-6 {
+          grid-template-columns: repeat(6, 1fr) !important;
+          display: grid !important;
+        }
+        .capturing-screenshot .force-grid-cols-3 {
+          grid-template-columns: repeat(3, 1fr) !important;
+          display: grid !important;
+        }
+        .capturing-screenshot .force-grid-cols-2 {
+          grid-template-columns: repeat(2, 1fr) !important;
+          display: grid !important;
+        }
+        .capturing-screenshot .force-grid-cols-1 {
+          grid-template-columns: 1fr !important;
+          display: grid !important;
+        }
+        
+        /* Ensure no elements inside the capturing target crop their content */
+        .capturing-screenshot .capturing-target,
+        .capturing-screenshot .capturing-target *,
+        .capturing-screenshot .overflow-hidden {
+          overflow: visible !important;
+        }
+      `}} />
       {/* Excel loading & processing overlay */}
       <AnimatePresence>
         {(isProcessingData || isInitialLoading) && (
@@ -827,7 +880,8 @@ const LuyKe: React.FC = () => {
           {[
             { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, color: 'text-indigo-600' },
             { id: 'efficiency', label: 'THƯỞNG QL/TC', icon: Activity, color: 'text-emerald-600' },
-            { id: 'thuong_st', label: 'THƯỞNG ST', icon: Zap, color: 'text-amber-500' }
+            { id: 'thuong_st', label: 'THƯỞNG ST', icon: Zap, color: 'text-amber-500' },
+            { id: 'bcdtnh', label: 'BC DT NGÀNH HÀNG', icon: LayoutGrid, color: 'text-emerald-600' }
           ].map((item) => {
             const isActive = activeTab === item.id;
             const Icon = item.icon;
@@ -854,7 +908,8 @@ const LuyKe: React.FC = () => {
             {[
               { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, color: 'text-indigo-600' },
               { id: 'efficiency', label: 'THƯỞNG QL/TC', icon: Activity, color: 'text-emerald-600' },
-              { id: 'thuong_st', label: 'THƯỞNG ST', icon: Zap, color: 'text-amber-500' }
+              { id: 'thuong_st', label: 'THƯỞNG ST', icon: Zap, color: 'text-amber-500' },
+              { id: 'bcdtnh', label: 'BC DT NGÀNH HÀNG', icon: LayoutGrid, color: 'text-emerald-600' }
             ].map((item) => {
               const isActive = activeTab === item.id;
               const Icon = item.icon;
@@ -941,9 +996,9 @@ const LuyKe: React.FC = () => {
               </div>
 
               <div ref={captureRefs.categorySL} className="bg-white rounded-3xl overflow-hidden border border-slate-300">
-                <div className="p-10 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="p-10 grid grid-cols-1 xl:grid-cols-2 gap-6">
                   {/* Left Table: SLLK */}
-                  <div className="border border-slate-300 overflow-hidden">
+                  <div className="border border-slate-300 overflow-hidden min-w-0">
                    <div className="bg-white p-[15px]">
                     <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
                       <div className="p-4 flex flex-col items-center justify-center">
@@ -1003,7 +1058,7 @@ const LuyKe: React.FC = () => {
                   </div>
 
                   {/* Right Table: DTLK */}
-                  <div className="border border-slate-300 overflow-hidden">
+                  <div className="border border-slate-300 overflow-hidden min-w-0">
                    <div className="bg-white p-[15px]">
                     <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
                       <div className="p-4 flex flex-col items-center justify-center">
@@ -1114,10 +1169,6 @@ const LuyKe: React.FC = () => {
                 transition={{ duration: 0.2 }}
                 className="space-y-6"
               >
-                <style dangerouslySetInnerHTML={{__html: `
-                  .capturing-screenshot .no-capture { display: none !important; }
-                  .capturing-screenshot .capturing-screenshot-inline { display: inline !important; }
-                `}} />
 
                 {/* Excel File active status and control buttons */}
                 {isExcelActive && (
@@ -1324,6 +1375,18 @@ const LuyKe: React.FC = () => {
                     </div>
                   </div>
                 )}
+              </motion.div>
+            )}
+
+            {activeTab === 'bcdtnh' && (
+              <motion.div
+                key="bcdtnh"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                <BcDtNganhHang />
               </motion.div>
             )}
           </AnimatePresence>

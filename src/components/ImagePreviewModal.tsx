@@ -47,8 +47,12 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({ previewIma
               </button>
             </div>
             
-            <div className="overflow-auto p-4 bg-slate-100 flex items-center justify-center min-h-[50vh]">
-              <img src={previewImage} alt="Preview" className="max-w-full h-auto shadow-md rounded-xl border border-slate-200" />
+            <div className="p-4 bg-slate-100 flex items-center justify-center min-h-[50vh] overflow-hidden">
+              <img 
+                src={previewImage} 
+                alt="Preview" 
+                className="max-w-full max-h-[calc(90vh-120px)] object-contain shadow-md rounded-xl border border-slate-200" 
+              />
             </div>
           </motion.div>
         </motion.div>

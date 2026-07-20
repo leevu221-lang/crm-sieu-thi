@@ -48,6 +48,13 @@ html {
   }
 }
 
+/* Desktop layout zoom adjustments to fit more content naturally at 100% browser zoom */
+@media (min-width: 769px) {
+  body {
+    zoom: 0.8;
+  }
+}
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-lexend: "Lexend", sans-serif;

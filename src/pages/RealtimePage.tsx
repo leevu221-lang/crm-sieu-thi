@@ -2714,6 +2714,153 @@ export default function NewRealtimePage() {
     };
   }, [rawYcxRows, filteredRawYcxRows, selectedStaffs, compareMode, drillLevels, drillFilterStore, selectedDrillGroups, drillFilterNhomSmall, drillFilterBrand, drillFilterStaff, drillFilterProduct, drillFilterTrangThaiSP]);
 
+  const captureOffscreenHelper = async (
+    element: HTMLElement,
+    options: {
+      width: string;
+      minWidth: string;
+      backgroundColor?: string;
+      isOverview?: boolean;
+    }
+  ) => {
+    // 1. Create a temporary off-screen wrapper container
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.top = '0';
+    tempContainer.style.left = '0';
+    
+    // Parse target width and add safety margins
+    const targetWidthVal = parseInt(options.width);
+    tempContainer.style.width = isNaN(targetWidthVal) ? '4000px' : `${targetWidthVal + 100}px`;
+    tempContainer.style.height = '0';
+    tempContainer.style.overflow = 'hidden';
+    tempContainer.style.zIndex = '-9999';
+    tempContainer.style.pointerEvents = 'none';
+
+    // 2. Clone the element
+    const clone = element.cloneNode(true) as HTMLElement;
+
+    try {
+      // Add the body class to trigger global screenshot styles
+      document.body.classList.add('capturing-screenshot');
+
+      // 3. Hide all no-capture controls and interactive buttons in the clone
+      const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, input');
+      noCaptureElements.forEach(el => {
+        (el as HTMLElement).style.display = 'none';
+      });
+
+      // 4. Force all scrollable and overflow containers to render fully expanded
+      const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+      scrollContainers.forEach(el => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.overflow = 'visible';
+        htmlEl.style.overflowX = 'visible';
+        htmlEl.style.overflowY = 'visible';
+        htmlEl.style.maxWidth = 'none';
+        htmlEl.style.maxHeight = 'none';
+      });
+
+      // Clear any other inline overflow restrictions
+      const allCloneElements = clone.querySelectorAll('*');
+      allCloneElements.forEach(el => {
+        const htmlEl = el as HTMLElement;
+        if (htmlEl.style.overflow || htmlEl.style.overflowX || htmlEl.style.overflowY) {
+          htmlEl.style.overflow = 'visible';
+          htmlEl.style.overflowX = 'visible';
+          htmlEl.style.overflowY = 'visible';
+          htmlEl.style.maxWidth = 'none';
+          htmlEl.style.maxHeight = 'none';
+        }
+      });
+
+      // 5. Force desktop layout configurations
+      forceDesktopLayout(clone);
+
+      // 6. Style the cloned element itself so it lays out nicely
+      clone.style.width = options.width;
+      clone.style.minWidth = options.minWidth;
+      clone.style.height = 'auto';
+      clone.style.margin = '0';
+      clone.style.boxSizing = 'border-box';
+      if (options.backgroundColor) {
+        clone.style.backgroundColor = options.backgroundColor;
+      }
+      
+      // Add nice padding and margins to make the screenshot look premium
+      if (options.isOverview) {
+        clone.style.padding = '32px';
+        clone.style.borderRadius = '32px';
+      } else {
+        clone.style.padding = '16px';
+        clone.style.borderRadius = '24px';
+      }
+
+      // 7. Special handling for tables inside the clone to render completely without text wrapping or clipping
+      const tables = clone.querySelectorAll('table');
+      tables.forEach(table => {
+        const htmlTable = table as HTMLTableElement;
+        htmlTable.style.width = 'auto';
+        htmlTable.style.minWidth = 'max-content';
+        htmlTable.style.tableLayout = 'auto';
+
+        const cells = htmlTable.querySelectorAll('th, td');
+        cells.forEach(cell => {
+          (cell as HTMLElement).style.whiteSpace = 'nowrap';
+        });
+
+        // Traverse up the parent chain and set width to max-content to prevent truncation
+        let parent = htmlTable.parentElement;
+        while (parent && parent !== clone) {
+          parent.style.width = 'max-content';
+          parent.style.minWidth = '100%';
+          parent.style.maxWidth = 'none';
+          parent = parent.parentElement;
+        }
+      });
+
+      // Add clone to DOM inside the hidden off-screen container
+      tempContainer.appendChild(clone);
+      document.body.appendChild(tempContainer);
+
+      // 8. Small delay to allow the browser's layout engine to compute sizes
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // 9. Capture the image using domToPng from the off-screen clone element
+      const dataUrl = await domToPng(clone, {
+        backgroundColor: options.backgroundColor || '#ffffff',
+        scale: 2,
+      });
+
+      return dataUrl;
+    } finally {
+      // Cleanup the temporary container
+      if (document.body.contains(tempContainer)) {
+        document.body.removeChild(tempContainer);
+      }
+      document.body.classList.remove('capturing-screenshot');
+    }
+  };
+
+  const handleCaptureTable = async (elementId: string, fileName: string) => {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+    try {
+      setIsCapturing(true);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const dataUrl = await captureOffscreenHelper(element, {
+        width: 'max-content',
+        minWidth: '1400px',
+        backgroundColor: '#ffffff'
+      });
+      setPreviewImage(dataUrl);
+    } catch (err) {
+      console.error('Lỗi chụp ảnh bảng:', err);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<'summary' | 'khai_thac'>('summary');
   const [showKhaiThacCols, setShowKhaiThacCols] = useState({
     doanhThu: true,
@@ -2773,44 +2920,9 @@ export default function NewRealtimePage() {
     );
   };
 
-  const handleCaptureTable = async (elementId: string, fileName: string) => {
-    const element = document.getElementById(elementId);
-    if (!element) return;
-    const originalPadding = element.style.padding;
-    const originalBg = element.style.backgroundColor;
-    const originalWidth = element.style.width;
-    const originalHeight = element.style.height;
-    try {
-      element.classList.add('capturing-target');
-      document.body.classList.add('capturing-screenshot');
 
-      // Áp dụng style tạm thời tạo viền trắng xung quanh bảng (24px) và tự động vừa khít dữ liệu
-      element.style.padding = '4px';
-      element.style.backgroundColor = '#ffffff';
-      element.style.width = 'fit-content';
-      element.style.height = 'fit-content';
-
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      const dataUrl = await domToPng(element, {
-        backgroundColor: '#ffffff',
-        scale: 2,
-      });
-      setPreviewImage(dataUrl);
-    } catch (err) {
-      console.error('Lỗi chụp ảnh bảng:', err);
-    } finally {
-      if (element) {
-        element.style.padding = originalPadding;
-        element.style.backgroundColor = originalBg;
-        element.style.width = originalWidth;
-        element.style.height = originalHeight;
-        element.classList.remove('capturing-target');
-      }
-      document.body.classList.remove('capturing-screenshot');
-    }
-  };
   const [isPending, startTransition] = useTransition();
+  const [isCapturing, setIsCapturing] = useState(false);
   const [rawTablePage, setRawTablePage] = useState(0);
   const [columnFilters, setColumnFilters] = useState<Record<number, { search: string; selectedValues: string[] | null }>>({});
   const [activeFilterDropdown, setActiveFilterDropdown] = useState<number | null>(null);
@@ -3823,34 +3935,42 @@ export default function NewRealtimePage() {
     return Array.from(cats).sort();
   }, [processedData.staff]);
 
+  const forceDesktopLayout = (element: HTMLElement) => {
+    // Force cards grid to 6 columns
+    const cardsGrid = element.querySelector('.grid-cols-2.md\\:grid-cols-3.lg\\:grid-cols-3.xl\\:grid-cols-6');
+    if (cardsGrid) {
+      cardsGrid.classList.add('force-grid-cols-6');
+    }
+    // Force categories grid to 2 columns
+    const categoriesGrid = element.querySelector('.grid-cols-1.xl\\:grid-cols-2');
+    if (categoriesGrid) {
+      categoriesGrid.classList.add('force-grid-cols-2');
+    }
+  };
+
+  const removeDesktopLayout = (element: HTMLElement) => {
+    const cardsGrid = element.querySelector('.grid-cols-2.md\\:grid-cols-3.lg\\:grid-cols-3.xl\\:grid-cols-6');
+    if (cardsGrid) {
+      cardsGrid.classList.remove('force-grid-cols-6');
+    }
+    const categoriesGrid = element.querySelector('.grid-cols-1.xl\\:grid-cols-2');
+    if (categoriesGrid) {
+      categoriesGrid.classList.remove('force-grid-cols-2');
+    }
+  };
+
   const captureElement = async (ref: React.RefObject<HTMLDivElement | null>, filename: string) => {
     const element = ref.current;
     if (element) {
-      const originalWidth = element.style.width;
-      const originalHeight = element.style.height;
       try {
-        element.classList.add('capturing-target');
-        document.body.classList.add('capturing-screenshot');
-
-        element.style.width = 'fit-content';
-        element.style.height = 'fit-content';
-
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        const dataUrl = await domToPng(element, {
-          backgroundColor: '#ffffff',
-          scale: 2,
+        const dataUrl = await captureOffscreenHelper(element, {
+          width: 'max-content',
+          minWidth: '750px',
+          backgroundColor: '#ffffff'
         });
         setPreviewImage(dataUrl);
       } catch (error) {
         console.error(`Lỗi khi chụp ảnh ${filename}:`, error);
-      } finally {
-        if (element) {
-          element.style.width = originalWidth;
-          element.style.height = originalHeight;
-          element.classList.remove('capturing-target');
-        }
-        document.body.classList.remove('capturing-screenshot');
       }
     }
   };
@@ -3858,18 +3978,19 @@ export default function NewRealtimePage() {
   const captureOverview = async () => {
     if (overviewRef.current) {
       try {
-        document.body.classList.add('capturing-screenshot');
+        setIsCapturing(true);
         await new Promise(resolve => setTimeout(resolve, 100));
-
-        const dataUrl = await domToPng(overviewRef.current, {
+        const dataUrl = await captureOffscreenHelper(overviewRef.current, {
+          width: 'max-content',
+          minWidth: '1450px',
           backgroundColor: '#f8fafc',
-          scale: 2,
+          isOverview: true
         });
         setPreviewImage(dataUrl);
       } catch (error) {
         console.error('Lỗi khi chụp ảnh tổng quan:', error);
       } finally {
-        document.body.classList.remove('capturing-screenshot');
+        setIsCapturing(false);
       }
     }
   };
@@ -4046,25 +4167,49 @@ export default function NewRealtimePage() {
   const captureCategories = async () => {
     if (categoriesRef.current) {
       try {
-        document.body.classList.add('capturing-screenshot');
-        // Đợi một chút để CSS áp dụng (loại bỏ scrollbar, mở rộng table)
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        const dataUrl = await domToPng(categoriesRef.current, {
-          backgroundColor: '#f8fafc',
-          scale: 2,
+        const dataUrl = await captureOffscreenHelper(categoriesRef.current, {
+          width: 'max-content',
+          minWidth: '1400px',
+          backgroundColor: '#f8fafc'
         });
         setPreviewImage(dataUrl);
       } catch (error) {
         console.error('Lỗi khi chụp ảnh:', error);
-      } finally {
-        document.body.classList.remove('capturing-screenshot');
       }
     }
   };
 
   return (
     <>
+      <style dangerouslySetInnerHTML={{__html: `
+        .capturing-screenshot .no-capture { display: none !important; }
+        .capturing-screenshot .capturing-screenshot-inline { display: inline !important; }
+        
+        /* Force CSS Grid columns to render identically to on-screen column layout during screenshot capture */
+        .capturing-screenshot .force-grid-cols-6 {
+          grid-template-columns: repeat(6, 1fr) !important;
+          display: grid !important;
+        }
+        .capturing-screenshot .force-grid-cols-3 {
+          grid-template-columns: repeat(3, 1fr) !important;
+          display: grid !important;
+        }
+        .capturing-screenshot .force-grid-cols-2 {
+          grid-template-columns: repeat(2, 1fr) !important;
+          display: grid !important;
+        }
+        .capturing-screenshot .force-grid-cols-1 {
+          grid-template-columns: 1fr !important;
+          display: grid !important;
+        }
+        
+        /* Ensure no elements inside the capturing target crop their content */
+        .capturing-screenshot .capturing-target,
+        .capturing-screenshot .capturing-target *,
+        .capturing-screenshot .overflow-hidden {
+          overflow: visible !important;
+        }
+      `}} />
       <div className="min-h-screen bg-[#f8fafc]" style={{ fontFamily: '"Inter", sans-serif' }}>
         {/* Non-blocking loading indicator */}
         {isLoadingRealtime && (
@@ -4520,7 +4665,7 @@ export default function NewRealtimePage() {
                                 <span>Chụp tổng quan</span>
                               </button>
                             </div>
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-6">
                               <StatCard
                                 title="TAGET QĐ"
                                 value={formatCurrencyUnit(parsedMarket.targetQD || 0)}
@@ -4627,9 +4772,9 @@ export default function NewRealtimePage() {
                     </div>
 
                     <div ref={categoriesRef} className="bg-white rounded-3xl overflow-hidden border border-slate-200">
-                      <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
                         {/* Left Table: SLLK */}
-                        <div ref={categorySLRef} className="border border-slate-300 overflow-hidden">
+                        <div ref={categorySLRef} className="border border-slate-300 overflow-hidden min-w-0">
                           <div className="bg-white p-[15px]">
                             <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
                               <div className="p-4 flex flex-col items-center justify-center">
@@ -4713,7 +4858,7 @@ export default function NewRealtimePage() {
                         </div>
 
                         {/* Right Table: DTLK */}
-                        <div ref={categoryDTRef} className="border border-slate-300 overflow-hidden">
+                        <div ref={categoryDTRef} className="border border-slate-300 overflow-hidden min-w-0">
                           <div className="bg-white p-[15px]">
                             <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
                               <div className="p-4 flex flex-col items-center justify-center">
@@ -6580,11 +6725,13 @@ export default function NewRealtimePage() {
                                     return null;
                                   };
 
-                                  // Paginate: only render current page rows
-                                  const pageRows = filteredRawTableRows.slice(
-                                    rawTablePage * RAW_PAGE_SIZE,
-                                    (rawTablePage + 1) * RAW_PAGE_SIZE
-                                  );
+                                  // Paginate: only render current page rows if not capturing
+                                  const pageRows = isCapturing
+                                    ? filteredRawTableRows
+                                    : filteredRawTableRows.slice(
+                                      rawTablePage * RAW_PAGE_SIZE,
+                                      (rawTablePage + 1) * RAW_PAGE_SIZE
+                                    );
 
                                   return pageRows.map((row, rowIdx) => (
                                     <tr key={rowIdx} className={`transition-colors ${rowIdx % 2 === 1 ? 'bg-slate-50' : 'bg-white'} hover:bg-slate-100`}>

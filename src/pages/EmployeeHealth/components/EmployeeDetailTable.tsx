@@ -59,6 +59,7 @@ interface EmployeeDetailTableProps {
   staffPercentHT?: number;
   staffBonusHientai?: number | null;
   staffInstallmentPercent?: number | null;
+  onPreviewImage?: (dataUrl: string) => void;
 }
 
 // Parse all staff matrix data (same as before - one unified parse)
@@ -325,7 +326,8 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
   staffDtqd = 0,
   staffPercentHT = 0,
   staffBonusHientai = null,
-  staffInstallmentPercent = null
+  staffInstallmentPercent = null,
+  onPreviewImage
 }) => {
   // Parse staff matrix using original unified parser
   const { results: staffMatrix, categories: detailCategories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays);
@@ -407,6 +409,75 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
 
+  const captureElementHelper = async (element: HTMLElement) => {
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.top = '0';
+    tempContainer.style.left = '0';
+    tempContainer.style.width = '4000px';
+    tempContainer.style.height = '0';
+    tempContainer.style.overflow = 'hidden';
+    tempContainer.style.zIndex = '-9999';
+    tempContainer.style.pointerEvents = 'none';
+
+    const clone = element.cloneNode(true) as HTMLElement;
+
+    const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, .capture-btn');
+    noCaptureElements.forEach(el => {
+      (el as HTMLElement).style.display = 'none';
+    });
+
+    clone.style.width = 'max-content';
+    clone.style.minWidth = '750px';
+    clone.style.height = 'auto';
+    clone.style.margin = '0';
+    clone.style.padding = '15px';
+    clone.style.backgroundColor = '#ffffff';
+    clone.style.display = 'inline-block';
+
+    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+    scrollContainers.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.overflow = 'visible';
+      htmlEl.style.width = 'auto';
+      htmlEl.style.height = 'auto';
+      htmlEl.style.maxWidth = 'none';
+      htmlEl.style.maxHeight = 'none';
+    });
+
+    const tables = clone.querySelectorAll('table');
+    tables.forEach((table) => {
+      const htmlTable = table as HTMLTableElement;
+      htmlTable.style.width = '100%';
+      htmlTable.style.minWidth = 'auto';
+      htmlTable.style.tableLayout = 'auto';
+
+      const allCells = htmlTable.querySelectorAll('th, td');
+      allCells.forEach((cell) => {
+        const htmlCell = cell as HTMLElement;
+        htmlCell.style.width = 'auto';
+        htmlCell.style.minWidth = 'auto';
+        htmlCell.style.maxWidth = 'none';
+        htmlCell.style.whiteSpace = 'nowrap';
+      });
+    });
+
+    tempContainer.appendChild(clone);
+    document.body.appendChild(tempContainer);
+
+    try {
+      await new Promise(r => setTimeout(r, 200));
+      const dataUrl = await htmlToImage.toPng(clone, {
+        backgroundColor: '#ffffff',
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+      return dataUrl;
+    } finally {
+      document.body.removeChild(tempContainer);
+    }
+  };
+
   return (
     <div id={`employee-detail-${staffName}`} className="bg-white p-[15px]">
     <div className="border-2 border-slate-400 overflow-visible">
@@ -416,20 +487,22 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
           <h2 className="text-3xl font-utm-avo font-black text-slate-900 uppercase tracking-tight pb-2 mb-0 border-b border-slate-300 w-full text-center whitespace-nowrap p-4">CHI TIẾT NHÂN VIÊN</h2>
           <div className="flex items-center gap-2 bg-slate-700 w-full justify-center h-[40px]">
             <button 
-              onClick={() => {
+              onClick={async () => {
                 const element = document.getElementById(`employee-detail-${staffName}`);
                 if (element) {
-                  htmlToImage.toPng(element, { 
-                    backgroundColor: '#ffffff', 
-                    pixelRatio: 2,
-                    style: { fontSize: '9px', padding: '4px' }
-                  })
-                    .then(dataUrl => {
+                  try {
+                    const dataUrl = await captureElementHelper(element);
+                    if (onPreviewImage) {
+                      onPreviewImage(dataUrl);
+                    } else {
                       const link = document.createElement('a');
                       link.download = `ChiTietNV_${staffName.replace(/\s+/g, '_')}.png`;
                       link.href = dataUrl;
                       link.click();
-                    });
+                    }
+                  } catch (err) {
+                    console.error('Export failed:', err);
+                  }
                 }
               }}
               className="hover:bg-slate-400 p-1 rounded-full transition-colors"
