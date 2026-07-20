@@ -397,9 +397,12 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
 
     const lowerLine = cleanLine.toLowerCase();
     
-    if (lowerLine.includes("stt") || lowerLine.includes("tên siêu thị")) {
+    if (lowerLine.includes("stt") || lowerLine.includes("tên siêu thị") || lowerLine.includes("tên miền")) {
       const cols = cleanLine.split(/\t|\s{2,}/);
-      headerNameIdx = cols.findIndex(c => c.toLowerCase().includes("tên siêu thị"));
+      headerNameIdx = cols.findIndex(c => {
+        const lower = c.toLowerCase();
+        return lower.includes("tên siêu thị") || lower.includes("tên miền");
+      });
       tyTrongTraGopIdx = cols.findIndex(c => {
         const lower = c.toLowerCase();
         return lower.includes("tỷ trọng trả góp") || lower.includes("tỷ trọng tg") || lower.includes("tt tg");

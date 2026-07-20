@@ -43,7 +43,6 @@ export const useRealtimeData = (maKho: string) => {
   const [activeStore, setActiveStore] = useState<string>(maKho);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [hasLoadedFromDB, setHasLoadedFromDB] = useState(false);
-  const [processError, setProcessError] = useState<string | null>(null);
   const [conversionRates, setConversionRates] = useState<Record<string, { normal: number, installment: number }>>(CONVERSION_RATES);
 
   // Keep refs of inputs to prevent stale closures during saving
@@ -164,10 +163,8 @@ export const useRealtimeData = (maKho: string) => {
         staff,
         ycxRankData
       });
-      setProcessError(null);
     } catch (error: any) {
       console.error('Error processing realtime data:', error);
-      setProcessError(error.stack || error.message || String(error));
     }
     }
   }, [marketInput, categoryInput, ycxData, categoryRevenueInput, categoryTargetInput, conversionRates]);
@@ -564,7 +561,6 @@ export const useRealtimeData = (maKho: string) => {
     isYcxDirty,
     lastUpdated,
     hasLoadedFromDB,
-    processError,
     processData: handleProcess,
     saveRealtimeData,
     syncRealtimeData,
