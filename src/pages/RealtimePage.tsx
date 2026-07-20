@@ -2731,7 +2731,7 @@ export default function NewRealtimePage() {
     
     // Parse target width and add safety margins
     const targetWidthVal = parseInt(options.width);
-    tempContainer.style.width = isNaN(targetWidthVal) ? '4000px' : `${targetWidthVal + 100}px`;
+    tempContainer.style.width = isNaN(targetWidthVal) ? '20000px' : `${targetWidthVal + 100}px`;
     tempContainer.style.height = 'auto';
     tempContainer.style.overflow = 'visible';
     tempContainer.style.zIndex = '-9999';
