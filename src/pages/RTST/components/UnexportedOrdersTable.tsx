@@ -150,10 +150,10 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
               <th className="py-2.5 px-4 text-left border-r border-b border-slate-300">Sản phẩm</th>
               <th className="py-2.5 px-4 text-center border-r border-b border-slate-300 w-24">Số lượng</th>
               <th className="py-2.5 px-4 text-right border-r border-b border-slate-300 w-32">Số tiền</th>
-              <th className="py-2.5 px-2 text-center border-r border-b border-slate-300 min-w-[140px] no-capture">
+              <th className="py-2.5 px-2 text-center border-r border-b border-slate-300 min-w-[140px]">
                 <div className="flex flex-col gap-1 items-center justify-center">
                   <span>Trạng thái thu tiền</span>
-                  <div className="relative w-full max-w-[120px]">
+                  <div className="relative w-full max-w-[120px] no-capture">
                     <select
                       className="w-full appearance-none bg-white border border-slate-200 text-slate-700 py-1 pl-2 pr-6 rounded text-[10px] focus:outline-none focus:border-rose-300 font-medium cursor-pointer"
                       value={paymentFilter}
@@ -168,10 +168,10 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
                   </div>
                 </div>
               </th>
-              <th className="py-2.5 px-2 text-center border-r border-b border-slate-300 min-w-[140px] no-capture">
+              <th className="py-2.5 px-2 text-center border-r border-b border-slate-300 min-w-[140px]">
                 <div className="flex flex-col gap-1 items-center justify-center">
                   <span>Trạng thái xuất</span>
-                  <div className="relative w-full max-w-[120px]">
+                  <div className="relative w-full max-w-[120px] no-capture">
                     <select
                       className="w-full appearance-none bg-white border border-slate-200 text-slate-700 py-1 pl-2 pr-6 rounded text-[10px] focus:outline-none focus:border-rose-300 font-medium cursor-pointer"
                       value={exportFilter}
