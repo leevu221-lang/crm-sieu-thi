@@ -6563,6 +6563,15 @@ export default function NewRealtimePage() {
                     </div>
                   </div>
 
+                  {/* Unexported Orders Table */}
+                  {rawYcxRows && rawYcxRows.length > 1 && (
+                    <UnexportedOrdersTable 
+                      rawYcxRows={rawYcxRows}
+                      marketFilter={marketFilter} 
+                      onCapture={() => handleCaptureTable('unexported-orders-table-container', 'don_hang_chua_xuat')}
+                    />
+                  )}
+
                   {/* Raw Data Table: 3. THÊM YCX RT */}
                   <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-md mt-8 mb-12">
                     <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
@@ -6998,13 +7007,7 @@ export default function NewRealtimePage() {
                   {/* Custom Category Mapping Card - Hidden by User Request */}
                   {/* ... */}
                   
-                  {/* Unexported Orders Table */}
-                  {rawYcxRows && rawYcxRows.length > 1 && (
-                    <UnexportedOrdersTable 
-                      rawYcxRows={rawYcxRows}
-                      marketFilter={marketFilter} 
-                    />
-                  )}
+                  {/* Unexported Orders Table moved to above Raw Data Table */}
                 </motion.div>
               )}
             </AnimatePresence>

@@ -1,11 +1,13 @@
 import React, { useMemo } from 'react';
+import { Camera } from 'lucide-react';
 
 interface UnexportedOrdersTableProps {
   rawYcxRows: string[][];
   marketFilter: string;
+  onCapture?: () => void;
 }
 
-export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ rawYcxRows, marketFilter }) => {
+export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ rawYcxRows, marketFilter, onCapture }) => {
   const unexportedOrders = useMemo(() => {
     if (!rawYcxRows || rawYcxRows.length <= 1) return [];
     
@@ -39,7 +41,8 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
       return -1;
     })();
     
-    const idxStaffName = getIdx(['tên nhân viên', 'nhân viên', 'người tạo']);
+    const idxPaymentStatus = getIdx(['trạng thái thu tiền', 'tt thu tiền']);
+    const idxStaffName = getIdx(['người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo']);
 
     const orders = [];
     
@@ -68,7 +71,9 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
           productName: idxProduct !== -1 ? String(row[idxProduct] || '').trim() : '',
           quantity: quantity,
           revenue: revenue,
-          staffName: idxStaffName !== -1 ? String(row[idxStaffName] || '').trim() : ''
+          staffName: idxStaffName !== -1 ? String(row[idxStaffName] || '').trim() : '',
+          paymentStatus: idxPaymentStatus !== -1 ? String(row[idxPaymentStatus] || '').trim() : 'Đã thu',
+          exportStatus: idxStatus !== -1 ? String(row[idxStatus] || '').trim() : 'Chưa xuất'
         });
       }
     }
@@ -85,16 +90,25 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
   };
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6 mb-12">
+    <div id="unexported-orders-table-container" className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6 mb-12 relative bg-white">
       <div className="bg-rose-100 px-6 py-4 flex items-center justify-between border-b border-rose-200 relative">
         <div className="flex items-center gap-3 mx-auto">
           <h3 className="text-2xl font-black text-rose-700 uppercase tracking-widest text-center" style={{ textShadow: '1px 1px 0px rgba(255,255,255,0.5)' }}>
             ĐƠN HÀNG ĐÃ THU TIỀN NHƯNG CHƯA XUẤT
           </h3>
         </div>
+        {onCapture && (
+          <button
+            onClick={onCapture}
+            className="px-3 py-1.5 rounded-lg border border-rose-400 text-[10px] font-bold text-rose-700 hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-colors flex items-center gap-1.5 absolute right-6 bg-white no-capture shadow-sm"
+          >
+            <Camera size={14} />
+            <span>Chụp ảnh</span>
+          </button>
+        )}
       </div>
       
-      <div className="overflow-x-auto p-6">
+      <div className="overflow-x-auto p-6 bg-white">
         <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300">
           <thead>
             <tr className="bg-slate-50 text-slate-800 text-[12px] font-black uppercase">
@@ -105,6 +119,8 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
               <th className="py-2.5 px-4 text-left border-r border-b border-slate-300">Sản phẩm</th>
               <th className="py-2.5 px-4 text-center border-r border-b border-slate-300 w-24">Số lượng</th>
               <th className="py-2.5 px-4 text-right border-r border-b border-slate-300 w-32">Số tiền</th>
+              <th className="py-2.5 px-4 text-center border-r border-b border-slate-300 w-32">Trạng thái thu tiền</th>
+              <th className="py-2.5 px-4 text-center border-r border-b border-slate-300 w-32">Trạng thái xuất</th>
               <th className="py-2.5 px-4 text-left border-r border-b border-slate-300 w-48">Nhân viên</th>
             </tr>
           </thead>
@@ -118,6 +134,8 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
                 <td className="py-2.5 px-4 text-left border-r border-b border-slate-200 text-slate-900">{order.productName}</td>
                 <td className="py-2.5 px-4 text-center border-r border-b border-slate-200 font-bold">{order.quantity}</td>
                 <td className="py-2.5 px-4 text-right border-r border-b border-slate-200 font-black text-rose-600">{formatMoney(order.revenue)}</td>
+                <td className="py-2.5 px-4 text-center border-r border-b border-slate-200 font-bold text-emerald-600">{order.paymentStatus}</td>
+                <td className="py-2.5 px-4 text-center border-r border-b border-slate-200 font-bold text-amber-600">{order.exportStatus}</td>
                 <td className="py-2.5 px-4 text-left border-r border-b border-slate-200">{order.staffName || '-'}</td>
               </tr>
             ))}
@@ -131,6 +149,8 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
               <td className="py-3 px-4 text-right border-r border-b border-slate-300 text-rose-600">
                 {formatMoney(unexportedOrders.reduce((sum, order) => sum + order.revenue, 0))}
               </td>
+              <td className="py-3 px-4 text-left border-r border-b border-slate-300"></td>
+              <td className="py-3 px-4 text-left border-r border-b border-slate-300"></td>
               <td className="py-3 px-4 text-left border-r border-b border-slate-300"></td>
             </tr>
           </tfoot>
