@@ -1706,7 +1706,7 @@ export const minifyYcxData = (data: string): string => {
     const isThuHoBH = type.includes('thu hộ bảo hiểm') || type.includes('thu ho bao hiem') ||
                       method.includes('thu hộ bảo hiểm') || method.includes('thu ho bao hiem');
     if (!method.startsWith('xuất bán') && !method.startsWith('xuất đổi') && !isThuHoBH) continue;
-    if (status !== 'đã xuất' || returnStatus !== 'chưa trả') continue;
+    if ((status !== 'đã xuất' && status !== 'chưa xuất') || returnStatus !== 'chưa trả') continue;
 
     validRows.push(cols);
   }
