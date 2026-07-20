@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Camera, Filter } from 'lucide-react';
 
 interface UnexportedOrdersTableProps {
@@ -11,6 +11,7 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
   const [paymentFilter, setPaymentFilter] = useState<string>('');
   const [exportFilter, setExportFilter] = useState<string>('');
   const [cancelFilter, setCancelFilter] = useState<string>('');
+  const [hasSetDefaults, setHasSetDefaults] = useState(false);
 
   const unexportedOrders = useMemo(() => {
     if (!rawYcxRows || rawYcxRows.length <= 1) return [];
@@ -100,10 +101,11 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
   }, [rawYcxRows]);
 
   const filteredOrders = useMemo(() => {
+    const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
     return unexportedOrders.filter(order => {
-      const matchPayment = paymentFilter ? order.paymentStatus.toLowerCase().includes(paymentFilter.toLowerCase()) : true;
-      const matchExport = exportFilter ? order.exportStatus.toLowerCase().includes(exportFilter.toLowerCase()) : true;
-      const matchCancel = cancelFilter ? order.cancelStatus.toLowerCase().includes(cancelFilter.toLowerCase()) : true;
+      const matchPayment = paymentFilter ? normalize(order.paymentStatus).includes(normalize(paymentFilter)) : true;
+      const matchExport = exportFilter ? normalize(order.exportStatus).includes(normalize(exportFilter)) : true;
+      const matchCancel = cancelFilter ? normalize(order.cancelStatus).includes(normalize(cancelFilter)) : true;
       return matchPayment && matchExport && matchCancel;
     });
   }, [unexportedOrders, paymentFilter, exportFilter, cancelFilter]);
@@ -120,6 +122,23 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
     return Array.from(new Set(unexportedOrders.map(o => o.cancelStatus))).filter(Boolean).sort();
   }, [unexportedOrders]);
 
+  useEffect(() => {
+    if (uniquePaymentStatuses.length > 0 && !hasSetDefaults) {
+      const pMatch = uniquePaymentStatuses.find(s => s.toLowerCase().includes('chưa thu'));
+      const eMatch = uniqueExportStatuses.find(s => s.toLowerCase().includes('chưa xuất'));
+      const cMatch = uniqueCancelStatuses.find(s => {
+        const norm = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        return norm.includes('chua huy');
+      });
+      
+      if (pMatch) setPaymentFilter(pMatch);
+      if (eMatch) setExportFilter(eMatch);
+      if (cMatch) setCancelFilter(cMatch);
+      
+      setHasSetDefaults(true);
+    }
+  }, [uniquePaymentStatuses, uniqueExportStatuses, uniqueCancelStatuses, hasSetDefaults]);
+
   if (unexportedOrders.length === 0) {
     return null; // Don't show the table if there are no unexported orders
   }
@@ -128,12 +147,22 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
     return val.toLocaleString('vi-VN');
   };
 
+  const dynamicTitle = useMemo(() => {
+    const parts = [];
+    if (paymentFilter) parts.push(paymentFilter.toUpperCase());
+    if (exportFilter) parts.push(exportFilter.toUpperCase());
+    if (cancelFilter) parts.push(cancelFilter.toUpperCase());
+    
+    if (parts.length === 0) return 'TẤT CẢ ĐƠN HÀNG';
+    return `ĐƠN HÀNG ${parts.join(' - ')}`;
+  }, [paymentFilter, exportFilter, cancelFilter]);
+
   return (
     <div id="unexported-orders-table-container" className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6 mb-12 relative bg-white">
       <div className="bg-rose-100 px-6 py-4 flex items-center justify-between border-b border-rose-200 relative">
         <div className="flex items-center gap-3 mx-auto">
           <h3 className="text-2xl font-black text-rose-700 uppercase tracking-widest text-center" style={{ textShadow: '1px 1px 0px rgba(255,255,255,0.5)' }}>
-            ĐƠN HÀNG ĐÃ THU TIỀN NHƯNG CHƯA XUẤT
+            {dynamicTitle}
           </h3>
         </div>
         {onCapture && (
