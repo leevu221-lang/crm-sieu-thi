@@ -1812,7 +1812,7 @@ export default function NewRealtimePage() {
   const { isStoreReady } = useStore();
   const [selectedStaffs, setSelectedStaffs] = useState<string[]>([]);
   const [selectedMaKho, setSelectedMaKho] = useState(userProfile?.ma_kho || '');
-  const { ycxData, setYcxData, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, hasLoadedFromDB, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
+  const { ycxData, setYcxData, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, hasLoadedFromDB, processError, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
 
   const daysRemaining = useMemo(() => {
     if (!userProfile?.expiredAt) return null;
@@ -4720,6 +4720,13 @@ export default function NewRealtimePage() {
                             <p><span className="text-slate-500">Categories parsed count:</span> {processedData.categories?.length || 0}</p>
                             <p><span className="text-slate-500">Filtered markets:</span> {JSON.stringify(filteredMarkets.map(m => m.name))}</p>
                           </div>
+
+                          {processError && (
+                            <div className="border-t border-rose-900 pt-3 text-rose-400">
+                              <p className="font-bold mb-1">⚠️ Lỗi xảy ra trong quá trình xử lý (Parse Error):</p>
+                              <pre className="whitespace-pre-wrap bg-rose-950/30 p-3 rounded-2xl border border-rose-900/50 leading-relaxed font-mono text-[10px]">{processError}</pre>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
