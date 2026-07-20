@@ -720,8 +720,8 @@ const BcDtNganhHang: React.FC = () => {
   const [lastMonthFileName, setLastMonthFileName] = useState(() => localStorage.getItem('bcdtnh_last_month_filename') || '');
   const [thisMonthFileName, setThisMonthFileName] = useState(() => localStorage.getItem('bcdtnh_this_month_filename') || '');
 
-  const [lastMonthCollapsed, setLastMonthCollapsed] = useState(true);
-  const [thisMonthCollapsed, setThisMonthCollapsed] = useState(true);
+  const [lastMonthCollapsed, setLastMonthCollapsed] = useState(false);
+  const [thisMonthCollapsed, setThisMonthCollapsed] = useState(false);
 
   const [drillLevels, setDrillLevels] = useState<string[]>(['nganh', 'nhom', 'hang', 'sanpham']);
   const [draggedLevelIndex, setDraggedLevelIndex] = useState<number | null>(null);
@@ -1263,22 +1263,7 @@ const BcDtNganhHang: React.FC = () => {
             )}
           </div>
 
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-dashed border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/20 transition-all cursor-pointer flex-1 min-w-0">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${lastMonthFileName ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-400'}`}>
-                <FileSpreadsheet size={16} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <span className={`text-[12px] font-black uppercase tracking-wide block ${lastMonthFileName ? 'text-emerald-700' : 'text-slate-500'}`}>
-                  {lastMonthFileName ? 'Đã tải lên tệp' : 'YCX Tháng Trước'}
-                </span>
-                <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                  {lastMonthFileName || 'Nhấp để tải lên tệp Excel YCX (.xlsx/.xls/.csv)'}
-                </p>
-              </div>
-              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => handleExcelUpload(e, false)} />
-            </label>
-          </div>
+
 
           <div>
             <button
@@ -1316,22 +1301,7 @@ const BcDtNganhHang: React.FC = () => {
             )}
           </div>
 
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-dashed border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/20 transition-all cursor-pointer flex-1 min-w-0">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${thisMonthFileName ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-400'}`}>
-                <FileSpreadsheet size={16} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <span className={`text-[12px] font-black uppercase tracking-wide block ${thisMonthFileName ? 'text-emerald-700' : 'text-slate-500'}`}>
-                  {thisMonthFileName ? 'Đã tải lên tệp' : 'YCX Tháng Hiện Tại'}
-                </span>
-                <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                  {thisMonthFileName || 'Nhấp để tải lên tệp Excel YCX (.xlsx/.xls/.csv)'}
-                </p>
-              </div>
-              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => handleExcelUpload(e, true)} />
-            </label>
-          </div>
+
 
           <div>
             <button
