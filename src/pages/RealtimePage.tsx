@@ -2271,7 +2271,7 @@ export default function NewRealtimePage() {
     const filtered = rawYcxRows.slice(1).filter(row => {
       const statusValue = String(row[idxStatus] || '').trim().toLowerCase();
       const traValue = String(row[idxTra] || '').trim().toLowerCase();
-      return statusValue === 'đã xuất' && traValue === 'chưa trả';
+      return statusValue === 'đã xuất' && (traValue === 'chưa trả' || traValue === '');
     });
 
     // Deduplicate: tìm cột mã đơn hàng (Số YCX/Số phiếu) + tên SP + SL làm key dedup
@@ -2339,7 +2339,7 @@ export default function NewRealtimePage() {
     return rawYcxRows.slice(1).filter(row => {
       const statusValue = String(row[idxStatus] || '').trim().toLowerCase();
       const traValue = String(row[idxTra] || '').trim().toLowerCase();
-      return (statusValue === 'đã xuất' || statusValue === 'chưa xuất') && traValue === 'chưa trả';
+      return (statusValue === 'đã xuất' || statusValue === 'chưa xuất') && (traValue === 'chưa trả' || traValue === '');
     });
   }, [rawYcxRows]);
 

@@ -1706,7 +1706,8 @@ export const minifyYcxData = (data: string): string => {
     const isThuHoBH = type.includes('thu hộ bảo hiểm') || type.includes('thu ho bao hiem') ||
                       method.includes('thu hộ bảo hiểm') || method.includes('thu ho bao hiem');
     if (!method.startsWith('xuất bán') && !method.startsWith('xuất đổi') && !isThuHoBH) continue;
-    if ((status !== 'đã xuất' && status !== 'chưa xuất') || returnStatus !== 'chưa trả') continue;
+    // FILTER: Only include "ĐÃ XUẤT" or "CHƯA XUẤT" (Column N) and "CHƯA TRẢ" or blank (Column AS) for revenue calculations
+    if ((status !== 'đã xuất' && status !== 'chưa xuất') || (returnStatus !== 'chưa trả' && returnStatus !== '')) continue;
 
     validRows.push(cols);
   }
@@ -1907,7 +1908,7 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
     // Use more robust comparison for the category name just in case
     const isMayLanhImei = columnAOValue === "1098 - Máy lạnh (IMEI)" || columnAOValue.includes("1098 - Máy lạnh (IMEI)");
     
-    if (isMayLanhImei && statusValN === "đã xuất" && returnStatusValAS === "chưa trả") {
+    if (isMayLanhImei && statusValN === "đã xuất" && (returnStatusValAS === "chưa trả" || returnStatusValAS === '')) {
        const staffData = staffMap.get(staffKey)!;
        staffData.mayLanhImeiQty += quantityVal;
        
@@ -1928,11 +1929,19 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
     const status = String(cols[colStatus] || '').trim().toLowerCase();
     const returnStatus = String(cols[colReturnStatus] || '').trim().toLowerCase();
     
-    // FILTER: Only include "ĐÃ XUẤT" (Column N) and "CHƯA TRẢ" (Column AS) for revenue calculations
-    if (status !== 'đã xuất' || returnStatus !== 'chưa trả') continue;
+    // FILTER: Only include "ĐÃ XUẤT" (Column N) and "CHƯA TRẢ" or blank (Column AS) for revenue calculations
+    if (status !== 'đã xuất' || (returnStatus !== 'chưa trả' && returnStatus !== '')) continue;
 
     const market = String(cols[colMarket] || '').trim();
     const columnAO = String(cols[colColumnAO] || '').trim();
+    
+    if (i <= 5) {
+      console.log(`[parseYcxData Row ${i}]`, {
+        method, status, returnStatus, market,
+        colMethod, colStatus, colMarket
+      });
+    }
+
     const quantityStr = String(cols[colQty] || '0').replace(/,/g, '');
     const quantity = Math.round(parseFloat(quantityStr) || 0);
     
@@ -2235,7 +2244,7 @@ export const parseYcxRankData = (data: string, customRates?: Record<string, { no
     const returnStatus = String(cols[colReturnStatus] || '').trim().toLowerCase();
     
     // FILTER: Only include "ĐÃ XUẤT" (Column N) and "CHƯA TRẢ" (Column AS)
-    if (status !== 'đã xuất' || returnStatus !== 'chưa trả') continue;
+    if (status !== 'đã xuất' || (returnStatus !== 'chưa trả' && returnStatus !== '')) continue;
 
     const staffNameRaw = String(cols[colStaffName] || '').trim();
     const staffIdRaw = String(cols[colStaffId] || '').trim();
