@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Camera } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Camera, Filter } from 'lucide-react';
 
 interface UnexportedOrdersTableProps {
   rawYcxRows: string[][];
@@ -8,6 +8,9 @@ interface UnexportedOrdersTableProps {
 }
 
 export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ rawYcxRows, marketFilter, onCapture }) => {
+  const [paymentFilter, setPaymentFilter] = useState<string>('');
+  const [exportFilter, setExportFilter] = useState<string>('');
+
   const unexportedOrders = useMemo(() => {
     if (!rawYcxRows || rawYcxRows.length <= 1) return [];
     
@@ -15,7 +18,19 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
     const headersLower = headers.map(h => h.toLowerCase());
     
     // Find column indices
-    const getIdx = (keywords: string[]) => headersLower.findIndex(h => keywords.some(k => h.includes(k)));
+    const getIdx = (keywords: string[]) => {
+      // 1. Exact match
+      for (const kw of keywords) {
+        const exactIdx = headersLower.findIndex(h => h === kw);
+        if (exactIdx !== -1) return exactIdx;
+      }
+      // 2. Partial match
+      for (const kw of keywords) {
+        const partialIdx = headersLower.findIndex(h => h.includes(kw));
+        if (partialIdx !== -1) return partialIdx;
+      }
+      return -1;
+    };
     
     let idxStatus = headersLower.findIndex(h => h === 'trạng thái xuất');
     if (idxStatus === -1) idxStatus = 13;
@@ -81,6 +96,22 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
     return orders.sort((a, b) => b.revenue - a.revenue);
   }, [rawYcxRows]);
 
+  const filteredOrders = useMemo(() => {
+    return unexportedOrders.filter(order => {
+      const matchPayment = paymentFilter ? order.paymentStatus.toLowerCase().includes(paymentFilter.toLowerCase()) : true;
+      const matchExport = exportFilter ? order.exportStatus.toLowerCase().includes(exportFilter.toLowerCase()) : true;
+      return matchPayment && matchExport;
+    });
+  }, [unexportedOrders, paymentFilter, exportFilter]);
+
+  const uniquePaymentStatuses = useMemo(() => {
+    return Array.from(new Set(unexportedOrders.map(o => o.paymentStatus))).filter(Boolean).sort();
+  }, [unexportedOrders]);
+
+  const uniqueExportStatuses = useMemo(() => {
+    return Array.from(new Set(unexportedOrders.map(o => o.exportStatus))).filter(Boolean).sort();
+  }, [unexportedOrders]);
+
   if (unexportedOrders.length === 0) {
     return null; // Don't show the table if there are no unexported orders
   }
@@ -119,35 +150,77 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
               <th className="py-2.5 px-4 text-left border-r border-b border-slate-300">Sản phẩm</th>
               <th className="py-2.5 px-4 text-center border-r border-b border-slate-300 w-24">Số lượng</th>
               <th className="py-2.5 px-4 text-right border-r border-b border-slate-300 w-32">Số tiền</th>
-              <th className="py-2.5 px-4 text-center border-r border-b border-slate-300 w-32">Trạng thái thu tiền</th>
-              <th className="py-2.5 px-4 text-center border-r border-b border-slate-300 w-32">Trạng thái xuất</th>
+              <th className="py-2.5 px-2 text-center border-r border-b border-slate-300 min-w-[140px] no-capture">
+                <div className="flex flex-col gap-1 items-center justify-center">
+                  <span>Trạng thái thu tiền</span>
+                  <div className="relative w-full max-w-[120px]">
+                    <select
+                      className="w-full appearance-none bg-white border border-slate-200 text-slate-700 py-1 pl-2 pr-6 rounded text-[10px] focus:outline-none focus:border-rose-300 font-medium cursor-pointer"
+                      value={paymentFilter}
+                      onChange={(e) => setPaymentFilter(e.target.value)}
+                    >
+                      <option value="">Tất cả</option>
+                      {uniquePaymentStatuses.map(status => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
+                    <Filter size={10} className="absolute right-2 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+              </th>
+              <th className="py-2.5 px-2 text-center border-r border-b border-slate-300 min-w-[140px] no-capture">
+                <div className="flex flex-col gap-1 items-center justify-center">
+                  <span>Trạng thái xuất</span>
+                  <div className="relative w-full max-w-[120px]">
+                    <select
+                      className="w-full appearance-none bg-white border border-slate-200 text-slate-700 py-1 pl-2 pr-6 rounded text-[10px] focus:outline-none focus:border-rose-300 font-medium cursor-pointer"
+                      value={exportFilter}
+                      onChange={(e) => setExportFilter(e.target.value)}
+                    >
+                      <option value="">Tất cả</option>
+                      {uniqueExportStatuses.map(status => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
+                    <Filter size={10} className="absolute right-2 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+              </th>
               <th className="py-2.5 px-4 text-left border-r border-b border-slate-300 w-48">Nhân viên</th>
             </tr>
           </thead>
           <tbody className="text-[13px] font-medium text-slate-700">
-            {unexportedOrders.map((order, index) => (
-              <tr key={index} className="hover:bg-rose-50/50 transition-colors">
-                <td className="py-2.5 px-4 text-center border-r border-b border-slate-200 font-bold">{index + 1}</td>
-                <td className="py-2.5 px-4 text-center border-r border-b border-slate-200 font-bold text-indigo-600">{order.orderId || '-'}</td>
-                <td className="py-2.5 px-4 text-left border-r border-b border-slate-200">{order.customerName || '-'}</td>
-                <td className="py-2.5 px-4 text-center border-r border-b border-slate-200">{order.customerPhone || '-'}</td>
-                <td className="py-2.5 px-4 text-left border-r border-b border-slate-200 text-slate-900">{order.productName}</td>
-                <td className="py-2.5 px-4 text-center border-r border-b border-slate-200 font-bold">{order.quantity}</td>
-                <td className="py-2.5 px-4 text-right border-r border-b border-slate-200 font-black text-rose-600">{formatMoney(order.revenue)}</td>
-                <td className="py-2.5 px-4 text-center border-r border-b border-slate-200 font-bold text-emerald-600">{order.paymentStatus}</td>
-                <td className="py-2.5 px-4 text-center border-r border-b border-slate-200 font-bold text-amber-600">{order.exportStatus}</td>
-                <td className="py-2.5 px-4 text-left border-r border-b border-slate-200">{order.staffName || '-'}</td>
+            {filteredOrders.length > 0 ? (
+              filteredOrders.map((order, index) => (
+                <tr key={index} className="hover:bg-rose-50/50 transition-colors">
+                  <td className="py-2.5 px-4 text-center border-r border-b border-slate-200 font-bold">{index + 1}</td>
+                  <td className="py-2.5 px-4 text-center border-r border-b border-slate-200 font-bold text-indigo-600">{order.orderId || '-'}</td>
+                  <td className="py-2.5 px-4 text-left border-r border-b border-slate-200">{order.customerName || '-'}</td>
+                  <td className="py-2.5 px-4 text-center border-r border-b border-slate-200">{order.customerPhone || '-'}</td>
+                  <td className="py-2.5 px-4 text-left border-r border-b border-slate-200 text-slate-900">{order.productName}</td>
+                  <td className="py-2.5 px-4 text-center border-r border-b border-slate-200 font-bold">{order.quantity}</td>
+                  <td className="py-2.5 px-4 text-right border-r border-b border-slate-200 font-black text-rose-600">{formatMoney(order.revenue)}</td>
+                  <td className="py-2.5 px-4 text-center border-r border-b border-slate-200 font-bold text-emerald-600">{order.paymentStatus}</td>
+                  <td className="py-2.5 px-4 text-center border-r border-b border-slate-200 font-bold text-amber-600">{order.exportStatus}</td>
+                  <td className="py-2.5 px-4 text-left border-r border-b border-slate-200">{order.staffName || '-'}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={10} className="py-8 text-center text-slate-500 border-b border-slate-200">
+                  Không có đơn hàng nào khớp với bộ lọc.
+                </td>
               </tr>
-            ))}
+            )}
           </tbody>
           <tfoot className="bg-slate-50 font-black text-slate-800 text-[13px]">
             <tr>
               <td colSpan={5} className="py-3 px-4 text-right border-r border-b border-slate-300">TỔNG CỘNG</td>
               <td className="py-3 px-4 text-center border-r border-b border-slate-300 text-rose-600">
-                {unexportedOrders.reduce((sum, order) => sum + order.quantity, 0)}
+                {filteredOrders.reduce((sum, order) => sum + order.quantity, 0)}
               </td>
               <td className="py-3 px-4 text-right border-r border-b border-slate-300 text-rose-600">
-                {formatMoney(unexportedOrders.reduce((sum, order) => sum + order.revenue, 0))}
+                {formatMoney(filteredOrders.reduce((sum, order) => sum + order.revenue, 0))}
               </td>
               <td className="py-3 px-4 text-left border-r border-b border-slate-300"></td>
               <td className="py-3 px-4 text-left border-r border-b border-slate-300"></td>
