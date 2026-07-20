@@ -4721,6 +4721,27 @@ export default function NewRealtimePage() {
                             <p><span className="text-slate-500">Filtered markets:</span> {JSON.stringify(filteredMarkets.map(m => m.name))}</p>
                           </div>
 
+                          <div className="border-t border-slate-800 pt-3">
+                            <p className="font-bold text-yellow-400 mb-1">Chi tiết phân tích dòng (Line analysis):</p>
+                            <p><span className="text-slate-500">Số dòng split('\n'):</span> {marketInput?.split('\n')?.length || 0}</p>
+                            <p><span className="text-slate-500">5 dòng đầu:</span></p>
+                            <pre className="text-[10px] text-slate-400 bg-slate-950/20 p-2 rounded-xl mt-1 select-text overflow-auto max-h-40">
+                              {JSON.stringify(marketInput?.split('\n')?.slice(0, 5), null, 2)}
+                            </pre>
+                            <p className="mt-2"><span className="text-slate-500">Dòng chứa "155A":</span></p>
+                            <pre className="text-[10px] text-slate-400 bg-slate-950/20 p-2 rounded-xl mt-1 select-text overflow-auto max-h-40">
+                              {JSON.stringify(marketInput?.split('\n')?.filter(l => l.includes("155A")), null, 2)}
+                            </pre>
+                            <p className="mt-2"><span className="text-slate-500">Cột của dòng chứa "155A" sau khi split:</span></p>
+                            <pre className="text-[10px] text-slate-400 bg-slate-950/20 p-2 rounded-xl mt-1 select-text overflow-auto max-h-40">
+                              {JSON.stringify(
+                                marketInput?.split('\n')?.filter(l => l.includes("155A"))?.map(l => l.split(/\t|\||\s{2,}/)),
+                                null,
+                                2
+                              )}
+                            </pre>
+                          </div>
+
                           {processError && (
                             <div className="border-t border-rose-900 pt-3 text-rose-400">
                               <p className="font-bold mb-1">⚠️ Lỗi xảy ra trong quá trình xử lý (Parse Error):</p>
