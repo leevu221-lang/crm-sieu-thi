@@ -18,19 +18,14 @@ async function check() {
   const docRef = doc(db, 'store', 'ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH');
   const snap = await getDoc(docRef);
   if (!snap.exists()) {
-    console.log("Document does not exist");
+    console.log("No store doc");
     return;
   }
   const data = snap.data();
-  console.log("Keys in document:", Object.keys(data));
-  console.log("rt_bi_tong_quan value length:", data.rt_bi_tong_quan ? data.rt_bi_tong_quan.length : 'undefined/null');
-  if (data.rt_bi_tong_quan) {
-    console.log("rt_bi_tong_quan content:\n", data.rt_bi_tong_quan);
-  }
-  console.log("rt_nh_cum value length:", data.rt_nh_cum ? data.rt_nh_cum.length : 'undefined/null');
-  if (data.rt_nh_cum) {
-    console.log("rt_nh_cum content:\n", data.rt_nh_cum.substring(0, 500));
-  }
+  console.log("--- rt_bi_tong_quan raw: ---");
+  console.log(JSON.stringify(data.rt_bi_tong_quan));
+  console.log("--- rt_nh_cum raw: ---");
+  console.log(JSON.stringify(data.rt_nh_cum ? data.rt_nh_cum.substring(0, 500) : 'none'));
 }
 
 check().catch(console.error);

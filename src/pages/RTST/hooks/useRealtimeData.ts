@@ -138,12 +138,23 @@ export const useRealtimeData = (maKho: string) => {
 
   const handleProcess = useCallback(() => {
     try {
+      console.log('[RealtimeData] handleProcess triggered:', {
+        marketInputLength: marketInput?.length || 0,
+        categoryInputLength: categoryInput?.length || 0,
+        ycxDataLength: ycxData?.length || 0
+      });
       const markets = parseMarketData(marketInput, 0, 'RTST');
       const luykeMarkets = categoryRevenueInput ? parseMarketData(categoryRevenueInput, 0, 'LUYKE') : [];
       const categories = parseCategoryData(categoryInput, 0, 30, markets);
       const staff = parseYcxData(ycxData, conversionRates);
-      // console.log('[useRealtimeData] handleProcess: staff count:', staff?.length || 0);
       const ycxRankData = parseYcxRankData(ycxData, conversionRates);
+
+      console.log('[RealtimeData] handleProcess output:', {
+        parsedMarketsCount: markets?.length || 0,
+        parsedLuykeMarketsCount: luykeMarkets?.length || 0,
+        parsedCategoriesCount: categories?.length || 0,
+        parsedStaffCount: staff?.length || 0
+      });
 
       setProcessedData({
         markets,
@@ -326,17 +337,27 @@ export const useRealtimeData = (maKho: string) => {
     console.log(`[RealtimeData] loadData → store: "${targetStore}"`);
 
     try {
+      const targetDocId = normalizeStoreId(targetStore.trim());
+      console.log(`[RealtimeData] Querying document ID: "${targetDocId}"`);
       // Query directly using the selected store name as the unique document ID
       const { data: record, error } = await supabase
         .from('store')
         .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ten_sieu_thi, updated_at')
-        .eq('id', normalizeStoreId(targetStore.trim()))
+        .eq('id', targetDocId)
         .maybeSingle();
 
       if (error) {
         console.error('[RTST] Error loading realtime data:', error);
         return;
       }
+
+      console.log(`[RealtimeData] loadData record result:`, {
+        exists: !!record,
+        id: record?.id,
+        ten_sieu_thi: record?.ten_sieu_thi,
+        rt_bi_length: record?.rt_bi_tong_quan?.length || 0,
+        rt_nh_cum_length: record?.rt_nh_cum?.length || 0
+      });
 
       if (record) {
         skipAutoSaveRef.current = true;
@@ -357,6 +378,8 @@ export const useRealtimeData = (maKho: string) => {
         } else {
           setLastUpdated(null);
         }
+      } else {
+        console.log(`[RealtimeData] No record found in DB for ID: "${targetDocId}"`);
       }
     } catch (err) {
       console.error('[RTST] Unexpected error in loadData:', err);

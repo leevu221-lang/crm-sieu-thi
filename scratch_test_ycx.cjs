@@ -14,23 +14,24 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-async function check() {
+// Simple stub for normalize, conversionRates, etc.
+const CONVERSION_RATES = {};
+
+// We can just import parseYcxData and parseYcxRankData from utils if possible, or replicate them.
+// But wait, let's write a script that loads them from the file or check if they throw.
+// Since we have the absolute path, we can try to require or run a node command with tsx.
+
+async function test() {
   const docRef = doc(db, 'store', 'ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH');
   const snap = await getDoc(docRef);
   if (!snap.exists()) {
-    console.log("Document does not exist");
+    console.log("No store doc");
     return;
   }
   const data = snap.data();
-  console.log("Keys in document:", Object.keys(data));
-  console.log("rt_bi_tong_quan value length:", data.rt_bi_tong_quan ? data.rt_bi_tong_quan.length : 'undefined/null');
-  if (data.rt_bi_tong_quan) {
-    console.log("rt_bi_tong_quan content:\n", data.rt_bi_tong_quan);
-  }
-  console.log("rt_nh_cum value length:", data.rt_nh_cum ? data.rt_nh_cum.length : 'undefined/null');
-  if (data.rt_nh_cum) {
-    console.log("rt_nh_cum content:\n", data.rt_nh_cum.substring(0, 500));
-  }
+  console.log("ycx_data length:", data.ycx_data ? data.ycx_data.length : 'none');
+  
+  // Let's run a TS script via npx tsx to import the real utils functions and test them!
 }
 
-check().catch(console.error);
+test().catch(console.error);

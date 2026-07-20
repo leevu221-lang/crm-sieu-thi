@@ -375,8 +375,6 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
   let actualVirtualIdx = -1;
   let dtHomQuaIdx = -1;
   let percentHTIdx = -1;
-  let luotBillBanHangIdx = -1;
-  let luotBillThuHoIdx = -1;
   let offset = 0; // Định nghĩa offset
 
   for (const line of lines) {
@@ -427,14 +425,6 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
       percentHTIdx = cols.findIndex(c => {
         const lower = c.toLowerCase();
         return lower.includes("% ht") || lower.includes("tiến độ");
-      });
-      luotBillBanHangIdx = cols.findIndex(c => {
-        const lower = c.toLowerCase();
-        return lower.includes("bill bán") || lower.includes("bill ban") || (lower.includes("lượt bill") && !lower.includes("thu hộ"));
-      });
-      luotBillThuHoIdx = cols.findIndex(c => {
-        const lower = c.toLowerCase();
-        return lower.includes("thu hộ") || lower.includes("thu ho");
       });
       continue;
     }
@@ -521,33 +511,12 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
         // Cột 5 (index 4) -> TIẾN ĐỘ THÁNG (percentHTVal)
         // Cột 13 (index 12) -> Tỷ Trọng Trả Góp (installmentRateVal)
         
-        const actualVirtual = actualVirtualIdx !== -1 && actualVirtualIdx < cols.length
-          ? cleanNum(cols[actualVirtualIdx])
-          : (nameColIdx !== -1 && nameColIdx + 1 < cols.length ? cleanNum(cols[nameColIdx + 1]) : cleanNum(cols[2]));
-
-        const targetQDVal = targetQDIdx !== -1 && targetQDIdx < cols.length
-          ? cleanNum(cols[targetQDIdx])
-          : (nameColIdx !== -1 && nameColIdx + 2 < cols.length ? cleanNum(cols[nameColIdx + 2]) : cleanNum(cols[3]));
-
-        const percentHTVal = percentHTIdx !== -1 && percentHTIdx < cols.length
-          ? cleanNum(cols[percentHTIdx])
-          : (nameColIdx !== -1 && nameColIdx + 3 < cols.length ? cleanNum(cols[nameColIdx + 3]) : cleanNum(cols[4]));
-
-        const actualRealVal = actualRealIdx !== -1 && actualRealIdx < cols.length
-          ? cleanNum(cols[actualRealIdx])
-          : (nameColIdx !== -1 && nameColIdx + 4 < cols.length && cols.length > 5 ? cleanNum(cols[nameColIdx + 4]) : 0);
-
-        const luotBillBanHangVal = luotBillBanHangIdx !== -1 && luotBillBanHangIdx < cols.length
-          ? cleanNum(cols[luotBillBanHangIdx])
-          : (nameColIdx !== -1 && nameColIdx + 8 < cols.length ? cleanNum(cols[nameColIdx + 8]) : (cols.length > 9 ? cleanNum(cols[9]) : 0));
-
-        const luotBillThuHoVal = luotBillThuHoIdx !== -1 && luotBillThuHoIdx < cols.length
-          ? cleanNum(cols[luotBillThuHoIdx])
-          : (nameColIdx !== -1 && nameColIdx + 9 < cols.length ? cleanNum(cols[nameColIdx + 9]) : (cols.length > 10 ? cleanNum(cols[10]) : 0));
-
-        const installmentRateVal = tyTrongTraGopIdx !== -1 && tyTrongTraGopIdx < cols.length
-          ? cleanNum(cols[tyTrongTraGopIdx])
-          : (nameColIdx !== -1 && nameColIdx + 11 < cols.length ? cleanNum(cols[nameColIdx + 11]) : (cols.length > 12 ? cleanNum(cols[12]) : 0));
+        const actualVirtual = cleanNum(cols[2]);
+        const targetQDVal = cleanNum(cols[3]);
+        const percentHTVal = cleanNum(cols[4]);
+        const luotBillBanHangVal = cols.length > 9 ? cleanNum(cols[9]) : 0;
+        const luotBillThuHoVal = cols.length > 10 ? cleanNum(cols[10]) : 0;
+        const installmentRateVal = cols.length > 12 ? cleanNum(cols[12]) : 0;
         
         console.log(`[parseMarketData] RTST Line: "${cleanLine.substring(0, 30)}..." Cols: ${cols.length}, Name: ${marketName}, DTQĐ: ${actualVirtual}, Target: ${targetQDVal}, HT: ${percentHTVal}%, BanHang: ${luotBillBanHangVal}, ThuHo: ${luotBillThuHoVal}`);
         
@@ -556,7 +525,7 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
             name: marketName, 
             targetST: 0, 
             targetQD: targetQDVal,
-            actualReal: actualRealVal,
+            actualReal: cleanNum(cols[1]), // DTLK usually at index 1
             actualVirtual,
             dtHomQua: 0,
             percentHT: percentHTVal,

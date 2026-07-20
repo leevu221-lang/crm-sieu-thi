@@ -79,6 +79,7 @@ import { Edit3, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useMarket } from '../contexts/MarketContext';
+import { useStore } from '../contexts/StoreContext';
 import { useRealtimeData } from './RTST/hooks/useRealtimeData';
 import { ImagePreviewModal } from '../components/ImagePreviewModal';
 import { useLuykeData } from './RTST/hooks/useLuykeData';
@@ -1803,10 +1804,12 @@ const fmtRawDate = (raw: string): string => {
 export default function NewRealtimePage() {
   const { userProfile } = useAuth();
   const isAdmin = userProfile?.username === '43751' || userProfile?.username === 'ADMIN' || userProfile?.role === 'admin';
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [isProcessingData, setIsProcessingData] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const { showNotification } = useNotification();
   const { marketFilter, setMarketFilter, availableMarkets: filteredMarkets } = useMarket();
+  const { isStoreReady } = useStore();
   const [selectedStaffs, setSelectedStaffs] = useState<string[]>([]);
   const [selectedMaKho, setSelectedMaKho] = useState(userProfile?.ma_kho || '');
   const { ycxData, setYcxData, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
@@ -4669,6 +4672,58 @@ export default function NewRealtimePage() {
                       </div>
                     )}
                   </motion.div>
+
+                  {isAdmin && (
+                    <div className="bg-slate-900 text-slate-200 p-6 rounded-3xl border border-slate-800 space-y-4 mb-6 select-text">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          <h4 className="font-black text-xs uppercase tracking-widest text-slate-400">Hệ thống chẩn đoán lỗi</h4>
+                        </div>
+                        <button
+                          onClick={() => setShowDebugPanel(!showDebugPanel)}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-colors"
+                        >
+                          {showDebugPanel ? 'Ẩn thông tin' : 'Hiện thông tin'}
+                        </button>
+                      </div>
+                      
+                      {showDebugPanel && (
+                        <div className="text-xs font-mono space-y-3 leading-relaxed">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <p><span className="text-slate-500">selectedMaKho:</span> {selectedMaKho || 'null'}</p>
+                              <p><span className="text-slate-500">activeStore:</span> {activeStore || 'null'}</p>
+                              <p><span className="text-slate-500">marketFilter:</span> {marketFilter || 'null'}</p>
+                              <p><span className="text-slate-500">isStoreReady:</span> {isStoreReady ? 'true' : 'false'}</p>
+                            </div>
+                            <div>
+                              <p><span className="text-slate-500">isLoadingRealtime:</span> {isLoadingRealtime ? 'true' : 'false'}</p>
+                              <p><span className="text-slate-500">isProcessingRealtime:</span> {isProcessingRealtime ? 'true' : 'false'}</p>
+                              <p><span className="text-slate-500">hasLoadedFromDB:</span> {hasLoadedFromDB ? 'true' : 'false'}</p>
+                              <p><span className="text-slate-500">lastUpdated:</span> {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN') : 'null'}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="border-t border-slate-800 pt-3">
+                            <p className="font-bold text-indigo-400 mb-1">Dữ liệu thô trong State:</p>
+                            <p><span className="text-slate-500">marketInput length:</span> {marketInput?.length || 0}</p>
+                            <p><span className="text-slate-500">categoryInput length:</span> {categoryInput?.length || 0}</p>
+                            <p><span className="text-slate-500">ycxData length:</span> {ycxData?.length || 0}</p>
+                            <p><span className="text-slate-500">categoryRevenueInput length:</span> {categoryRevenueInput?.length || 0}</p>
+                          </div>
+
+                          <div className="border-t border-slate-800 pt-3">
+                            <p className="font-bold text-emerald-400 mb-1">Dữ liệu sau khi parse:</p>
+                            <p><span className="text-slate-500">Markets parsed count:</span> {processedData.markets?.length || 0}</p>
+                            <p><span className="text-slate-500">Markets list:</span> {JSON.stringify(processedData.markets?.map(m => ({ name: m.name, targetQD: m.targetQD, actualVirtual: m.actualVirtual })))}</p>
+                            <p><span className="text-slate-500">Categories parsed count:</span> {processedData.categories?.length || 0}</p>
+                            <p><span className="text-slate-500">Filtered markets:</span> {JSON.stringify(filteredMarkets.map(m => m.name))}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Stats Grid Container */}
                   <div className="space-y-6">
