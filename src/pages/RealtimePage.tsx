@@ -2836,6 +2836,8 @@ export default function NewRealtimePage() {
       const dataUrl = await domToPng(clone, {
         backgroundColor: options.backgroundColor || '#ffffff',
         scale: 2,
+        width: clone.scrollWidth,
+        height: clone.scrollHeight,
       });
 
       return dataUrl;
@@ -4737,7 +4739,9 @@ export default function NewRealtimePage() {
                   <div className="space-y-6 pt-8 border-t border-slate-200">
                     <div className="bg-white rounded-2xl border border-slate-200 p-6">
                       <div className="flex flex-col items-center gap-4">
-                        <h2 className="text-[27px] font-black text-slate-900 uppercase tracking-tight text-center">Chi tiết ngành hàng</h2>
+                        <h2 className="text-[27px] font-black text-slate-900 uppercase tracking-tight text-center">
+                          Chi tiết ngành hàng <span className="text-[10px] text-slate-300 ml-2">v2.0</span>
+                        </h2>
                         <p className="text-[17px] text-slate-500">Theo dõi tiến độ hoàn thành mục tiêu ngành hàng</p>
                         <div className="flex flex-wrap items-center justify-center gap-2 no-capture">
                           <button
