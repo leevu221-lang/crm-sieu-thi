@@ -2319,6 +2319,30 @@ export default function NewRealtimePage() {
     return result;
   }, [rawYcxRows]);
 
+  const rawYcxRowsForTable = useMemo(() => {
+    if (rawYcxRows.length <= 1) return [];
+    const headers = rawYcxRows[0].map(h => h.trim());
+    
+    let idxStatus = headers.findIndex(h => h.toLowerCase() === 'trạng thái xuất');
+    let idxTra = headers.findIndex(h => {
+      const lower = h.toLowerCase();
+      return lower === 'tình trạng nhập trả của sản phẩm đổi với sản phẩm chính' ||
+        lower === 'tình trạng nhập trả' ||
+        lower === 'trạng thái trả' ||
+        lower === 'trả hàng' ||
+        lower.includes('nhập trả');
+    });
+
+    if (idxStatus === -1) idxStatus = 13;
+    if (idxTra === -1) idxTra = 44;
+
+    return rawYcxRows.slice(1).filter(row => {
+      const statusValue = String(row[idxStatus] || '').trim();
+      const traValue = String(row[idxTra] || '').trim();
+      return (statusValue === 'Đã xuất' || statusValue === 'Chưa xuất') && traValue === 'Chưa trả';
+    });
+  }, [rawYcxRows]);
+
   // Defer heavy row list so useMemo stats don't block render
   const deferredFilteredRows = useDeferredValue(filteredRawYcxRows);
 
@@ -2943,7 +2967,7 @@ export default function NewRealtimePage() {
   }, [columnFilters]);
 
   const filteredRawTableRows = useMemo(() => {
-    if (deferredFilteredRows.length === 0) return [];
+    if (rawYcxRowsForTable.length === 0) return [];
     const headers = rawYcxRows[0]?.map(h => String(h || '').trim()) || [];
     const idxProduct = (() => {
       const idx = headers.findIndex(h => h.toLowerCase().includes('tên sản phẩm') || h.toLowerCase() === 'tên hàng');
@@ -2996,7 +3020,7 @@ export default function NewRealtimePage() {
       return null;
     };
 
-    return deferredFilteredRows.filter(row => {
+    return rawYcxRowsForTable.filter(row => {
       return Object.entries(columnFilters).every(([colIdxStr, filter]) => {
         if (!filter) return true;
         const colIdx = parseInt(colIdxStr, 10);
@@ -6546,7 +6570,7 @@ export default function NewRealtimePage() {
                         <ShoppingBag size={18} className="text-slate-700 flex-shrink-0" />
                         <div>
                           <h3 className="text-[15px] font-black text-slate-900 uppercase tracking-widest">3. THÊM YCX RT (DỮ LIỆU NGUỒN)</h3>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Lọc: Đã xuất &amp; Chưa trả</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Lọc: Đã xuất, Chưa xuất &amp; Chưa trả</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -6975,9 +6999,9 @@ export default function NewRealtimePage() {
                   {/* ... */}
                   
                   {/* Unexported Orders Table */}
-                  {processedData?.ycxData && processedData.ycxData.length > 0 && (
+                  {rawYcxRows && rawYcxRows.length > 1 && (
                     <UnexportedOrdersTable 
-                      ycxData={processedData.ycxData} 
+                      rawYcxRows={rawYcxRows}
                       marketFilter={marketFilter} 
                     />
                   )}
