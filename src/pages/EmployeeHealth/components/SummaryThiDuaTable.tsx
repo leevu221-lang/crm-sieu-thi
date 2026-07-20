@@ -637,11 +637,17 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       const originalTable = originalElement.querySelector('table');
       const table = clone.querySelector('table') as HTMLTableElement;
       if (table && originalTable) {
-        const screenWidth = Math.max(originalTable.offsetWidth, originalTable.scrollWidth);
-        table.style.width = `${screenWidth}px`;
-        table.style.minWidth = `${screenWidth}px`;
-        table.style.maxWidth = `${screenWidth}px`;
-        table.style.tableLayout = 'fixed';
+        table.style.width = 'max-content';
+        table.style.minWidth = 'max-content';
+        table.style.tableLayout = 'auto';
+        
+        let parent = table.parentElement;
+        while (parent && parent !== clone) {
+          parent.style.width = 'max-content';
+          parent.style.minWidth = '100%';
+          parent.style.maxWidth = 'none';
+          parent = parent.parentElement;
+        }
       }
 
       container.appendChild(clone);
@@ -653,6 +659,8 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
         const dataUrl = await domToPng(clone, {
           backgroundColor: '#ffffff',
           scale: 2,
+          width: clone.scrollWidth,
+          height: clone.scrollHeight,
         });
 
         setPreviewImage(dataUrl);
