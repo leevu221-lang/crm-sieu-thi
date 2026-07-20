@@ -1786,8 +1786,11 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
   const idxMarket = getIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm', 'kho', 'cửa hàng']);
   const idxColumnAO = getIdx(['nhóm ngành hàng', 'nhóm hàng', 'ngành hàng', 'nhóm']);
   const idxReturnStatus = getIdx(['trạng thái trả', 'trả hàng', 'tình trạng nhập trả', 'nhập trả']);
+  const idxOrderId = getIdx(['mã ycx', 'mã yêu cầu', 'mã đơn', 'số chứng từ']);
+  const idxCustomerName = getIdx(['tên khách hàng', 'khách hàng', 'tên kh']);
+  const idxCustomerPhone = getIdx(['điện thoại', 'số điện thoại', 'sđt', 'phone']);
 
-  console.log('[parseYcxData] Column indices detected:', { idxStaffName, idxRevenue, idxMarket, idxStatus, idxType, idxMethod });
+  console.log('[parseYcxData] Column indices detected:', { idxStaffName, idxRevenue, idxMarket, idxStatus, idxType, idxMethod, idxOrderId });
 
   // Fallback indices if header not found
   const colType = idxType !== -1 ? idxType : 3;
@@ -1800,6 +1803,9 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
   const colMarket = idxMarket !== -1 ? idxMarket : 1;
   const colColumnAO = idxColumnAO !== -1 ? idxColumnAO : 40;
   const colReturnStatus = idxReturnStatus !== -1 ? idxReturnStatus : 44; // Cột AS (Index 44)
+  const colOrderId = idxOrderId !== -1 ? idxOrderId : 0;
+  const colCustomerName = idxCustomerName !== -1 ? idxCustomerName : 8; // Estimate
+  const colCustomerPhone = idxCustomerPhone !== -1 ? idxCustomerPhone : 9; // Estimate
 
   const staffMap = new Map<string, { 
     totalRevenue: number, 
@@ -2105,7 +2111,13 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
            convertedRevenue: convertedRev,
            category: matchedCat,
            isInstallment,
-           quantity
+           quantity,
+           status: String(row[colStatus] || ''),
+           returnStatus: String(row[colReturnStatus] || ''),
+           orderId: String(row[colOrderId] || ''),
+           customerName: String(row[colCustomerName] || ''),
+           customerPhone: String(row[colCustomerPhone] || ''),
+           staffName: displayName
          });
       }
     }

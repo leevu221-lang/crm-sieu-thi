@@ -83,6 +83,9 @@ import { useRealtimeData } from './RTST/hooks/useRealtimeData';
 import { ImagePreviewModal } from '../components/ImagePreviewModal';
 import { useLuykeData } from './RTST/hooks/useLuykeData';
 import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';
+import { YcxStaffData } from './RTST/types';
+import { UnexportedOrdersTable } from './RTST/components/UnexportedOrdersTable';
+import * as Tooltip from '@radix-ui/react-tooltip';
 import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
 import { isValidStoreName, normalize } from './RTST/utils';
@@ -6968,6 +6971,16 @@ export default function NewRealtimePage() {
                     </div>
                   </div>
                   */}
+                  {/* Custom Category Mapping Card - Hidden by User Request */}
+                  {/* ... */}
+                  
+                  {/* Unexported Orders Table */}
+                  {processedData?.ycxData && processedData.ycxData.length > 0 && (
+                    <UnexportedOrdersTable 
+                      ycxData={processedData.ycxData} 
+                      marketFilter={marketFilter} 
+                    />
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>

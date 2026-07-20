@@ -107,6 +107,10 @@ export interface YcxItemDetail {
   quantity: number;
   status?: string;
   returnStatus?: string;
+  orderId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  staffName?: string;
 }
 
 export interface YcxRankData {
