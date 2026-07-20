@@ -6569,7 +6569,7 @@ export default function NewRealtimePage() {
                       <div className="flex items-center gap-3">
                         <ShoppingBag size={18} className="text-slate-700 flex-shrink-0" />
                         <div>
-                          <h3 className="text-[15px] font-black text-slate-900 uppercase tracking-widest">3. THÊM YCX RT (DỮ LIỆU NGUỒN)</h3>
+                          <h3 className="text-[15px] font-black text-slate-900 uppercase tracking-widest">3. DỮ LIỆU NGUỒN</h3>
                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Lọc: Đã xuất, Chưa xuất &amp; Chưa trả</p>
                         </div>
                       </div>
