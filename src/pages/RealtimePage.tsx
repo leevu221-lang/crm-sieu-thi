@@ -2726,14 +2726,14 @@ export default function NewRealtimePage() {
     // 1. Create a temporary off-screen wrapper container
     const tempContainer = document.createElement('div');
     tempContainer.style.position = 'absolute';
-    tempContainer.style.top = '0';
-    tempContainer.style.left = '0';
+    tempContainer.style.top = '-9999px';
+    tempContainer.style.left = '-9999px';
     
     // Parse target width and add safety margins
     const targetWidthVal = parseInt(options.width);
     tempContainer.style.width = isNaN(targetWidthVal) ? '4000px' : `${targetWidthVal + 100}px`;
-    tempContainer.style.height = '0';
-    tempContainer.style.overflow = 'hidden';
+    tempContainer.style.height = 'auto';
+    tempContainer.style.overflow = 'visible';
     tempContainer.style.zIndex = '-9999';
     tempContainer.style.pointerEvents = 'none';
 
@@ -2783,6 +2783,9 @@ export default function NewRealtimePage() {
       clone.style.height = 'auto';
       clone.style.margin = '0';
       clone.style.boxSizing = 'border-box';
+      clone.style.overflow = 'visible';
+      clone.style.overflowX = 'visible';
+      clone.style.overflowY = 'visible';
       if (options.backgroundColor) {
         clone.style.backgroundColor = options.backgroundColor;
       }

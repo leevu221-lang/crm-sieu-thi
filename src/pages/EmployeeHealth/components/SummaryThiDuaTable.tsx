@@ -581,11 +581,11 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       // Create a temporary container to hold the clone
       const container = document.createElement('div');
       container.style.position = 'absolute';
-      container.style.top = '0';
-      container.style.left = '0';
-      container.style.width = '3000px'; // Extremely wide to prevent wrapping
-      container.style.height = '0';
-      container.style.overflow = 'hidden';
+      container.style.top = '-9999px';
+      container.style.left = '-9999px';
+      container.style.width = '15000px'; // Extremely wide to prevent wrapping
+      container.style.height = 'auto';
+      container.style.overflow = 'visible';
       container.style.zIndex = '-9999';
       container.style.pointerEvents = 'none';
       
@@ -604,23 +604,44 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       clone.style.padding = '32px'; // 32px white border all around
       clone.style.backgroundColor = '#ffffff';
       clone.style.display = 'inline-block';
+      clone.style.overflow = 'visible';
+      clone.style.overflowX = 'visible';
+      clone.style.overflowY = 'visible';
       
       // Make sure overflow wrappers in the clone are visible
-      const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden');
+      const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
       scrollContainers.forEach((el) => {
         const htmlEl = el as HTMLElement;
         htmlEl.style.overflow = 'visible';
+        htmlEl.style.overflowX = 'visible';
+        htmlEl.style.overflowY = 'visible';
         htmlEl.style.width = 'auto';
         htmlEl.style.height = 'auto';
         htmlEl.style.maxWidth = 'none';
         htmlEl.style.maxHeight = 'none';
       });
 
+      // Clear any other inline overflow restrictions
+      const allCloneElements = clone.querySelectorAll('*');
+      allCloneElements.forEach(el => {
+        const htmlEl = el as HTMLElement;
+        if (htmlEl.style.overflow || htmlEl.style.overflowX || htmlEl.style.overflowY) {
+          htmlEl.style.overflow = 'visible';
+          htmlEl.style.overflowX = 'visible';
+          htmlEl.style.overflowY = 'visible';
+          htmlEl.style.maxWidth = 'none';
+          htmlEl.style.maxHeight = 'none';
+        }
+      });
+
+      const originalTable = originalElement.querySelector('table');
       const table = clone.querySelector('table') as HTMLTableElement;
-      if (table) {
-        table.style.width = 'max-content';
-        table.style.minWidth = 'max-content';
-        table.style.tableLayout = 'auto';
+      if (table && originalTable) {
+        const screenWidth = Math.max(originalTable.offsetWidth, originalTable.scrollWidth);
+        table.style.width = `${screenWidth}px`;
+        table.style.minWidth = `${screenWidth}px`;
+        table.style.maxWidth = `${screenWidth}px`;
+        table.style.tableLayout = 'fixed';
       }
 
       container.appendChild(clone);
