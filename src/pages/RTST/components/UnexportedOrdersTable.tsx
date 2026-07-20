@@ -10,6 +10,7 @@ interface UnexportedOrdersTableProps {
 export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ rawYcxRows, marketFilter, onCapture }) => {
   const [paymentFilter, setPaymentFilter] = useState<string>('');
   const [exportFilter, setExportFilter] = useState<string>('');
+  const [cancelFilter, setCancelFilter] = useState<string>('');
 
   const unexportedOrders = useMemo(() => {
     if (!rawYcxRows || rawYcxRows.length <= 1) return [];
@@ -58,6 +59,7 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
     
     const idxPaymentStatus = getIdx(['trạng thái thu tiền', 'tt thu tiền']);
     const idxStaffName = getIdx(['người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo']);
+    const idxCancelStatus = getIdx(['trạng thái hủy', 'trạng thái huỷ', 'huỷ', 'hủy']);
 
     const orders = [];
     
@@ -88,7 +90,8 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
           revenue: revenue,
           staffName: idxStaffName !== -1 ? String(row[idxStaffName] || '').trim() : '',
           paymentStatus: idxPaymentStatus !== -1 ? String(row[idxPaymentStatus] || '').trim() : 'Đã thu',
-          exportStatus: idxStatus !== -1 ? String(row[idxStatus] || '').trim() : 'Chưa xuất'
+          exportStatus: idxStatus !== -1 ? String(row[idxStatus] || '').trim() : 'Chưa xuất',
+          cancelStatus: idxCancelStatus !== -1 ? String(row[idxCancelStatus] || '').trim() : '-'
         });
       }
     }
@@ -100,9 +103,10 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
     return unexportedOrders.filter(order => {
       const matchPayment = paymentFilter ? order.paymentStatus.toLowerCase().includes(paymentFilter.toLowerCase()) : true;
       const matchExport = exportFilter ? order.exportStatus.toLowerCase().includes(exportFilter.toLowerCase()) : true;
-      return matchPayment && matchExport;
+      const matchCancel = cancelFilter ? order.cancelStatus.toLowerCase().includes(cancelFilter.toLowerCase()) : true;
+      return matchPayment && matchExport && matchCancel;
     });
-  }, [unexportedOrders, paymentFilter, exportFilter]);
+  }, [unexportedOrders, paymentFilter, exportFilter, cancelFilter]);
 
   const uniquePaymentStatuses = useMemo(() => {
     return Array.from(new Set(unexportedOrders.map(o => o.paymentStatus))).filter(Boolean).sort();
@@ -110,6 +114,10 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
 
   const uniqueExportStatuses = useMemo(() => {
     return Array.from(new Set(unexportedOrders.map(o => o.exportStatus))).filter(Boolean).sort();
+  }, [unexportedOrders]);
+
+  const uniqueCancelStatuses = useMemo(() => {
+    return Array.from(new Set(unexportedOrders.map(o => o.cancelStatus))).filter(Boolean).sort();
   }, [unexportedOrders]);
 
   if (unexportedOrders.length === 0) {
@@ -186,6 +194,24 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
                   </div>
                 </div>
               </th>
+              <th className="py-2.5 px-2 text-center border-r border-b border-slate-300 min-w-[140px]">
+                <div className="flex flex-col gap-1 items-center justify-center">
+                  <span>Trạng thái huỷ</span>
+                  <div className="relative w-full max-w-[120px] no-capture">
+                    <select
+                      className="w-full appearance-none bg-white border border-slate-200 text-slate-700 py-1 pl-2 pr-6 rounded text-[10px] focus:outline-none focus:border-rose-300 font-medium cursor-pointer"
+                      value={cancelFilter}
+                      onChange={(e) => setCancelFilter(e.target.value)}
+                    >
+                      <option value="">Tất cả</option>
+                      {uniqueCancelStatuses.map(status => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
+                    <Filter size={10} className="absolute right-2 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+              </th>
               <th className="py-2.5 px-4 text-left border-r border-b border-slate-300 w-48">Nhân viên</th>
             </tr>
           </thead>
@@ -202,12 +228,13 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
                   <td className="py-2.5 px-4 text-right border-r border-b border-slate-200 font-black text-rose-600">{formatMoney(order.revenue)}</td>
                   <td className="py-2.5 px-4 text-center border-r border-b border-slate-200 font-bold text-emerald-600">{order.paymentStatus}</td>
                   <td className="py-2.5 px-4 text-center border-r border-b border-slate-200 font-bold text-amber-600">{order.exportStatus}</td>
+                  <td className="py-2.5 px-4 text-center border-r border-b border-slate-200 font-bold text-red-600">{order.cancelStatus}</td>
                   <td className="py-2.5 px-4 text-left border-r border-b border-slate-200">{order.staffName || '-'}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={10} className="py-8 text-center text-slate-500 border-b border-slate-200">
+                <td colSpan={11} className="py-8 text-center text-slate-500 border-b border-slate-200">
                   Không có đơn hàng nào khớp với bộ lọc.
                 </td>
               </tr>
@@ -222,6 +249,7 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
               <td className="py-3 px-4 text-right border-r border-b border-slate-300 text-rose-600">
                 {formatMoney(filteredOrders.reduce((sum, order) => sum + order.revenue, 0))}
               </td>
+              <td className="py-3 px-4 text-left border-r border-b border-slate-300"></td>
               <td className="py-3 px-4 text-left border-r border-b border-slate-300"></td>
               <td className="py-3 px-4 text-left border-r border-b border-slate-300"></td>
               <td className="py-3 px-4 text-left border-r border-b border-slate-300"></td>
