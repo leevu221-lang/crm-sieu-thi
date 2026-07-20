@@ -682,18 +682,58 @@ const getColumnIndices = (headers: string[]) => {
   };
 };
 
+const processRowSignAndAlign = (row: any[]) => {
+  if (!row || row.length === 0) return null;
+  
+  let sign: '+' | '-' | null = null;
+  let cleanRow = [...row];
+  
+  const firstCell = String(row[0] || '').trim();
+  
+  if (firstCell === '+' || firstCell === '-' || firstCell === '—' || firstCell === '–') {
+    sign = (firstCell === '+') ? '+' : '-';
+    cleanRow = row.slice(1);
+  } else {
+    // Check if it starts with the sign prefix (e.g. "+ Chảo", "- NNH Điện gia dụng")
+    if (firstCell.startsWith('+') || firstCell.startsWith('-') || firstCell.startsWith('—') || firstCell.startsWith('–')) {
+      sign = firstCell.startsWith('+') ? '+' : '-';
+      cleanRow[0] = firstCell.replace(/^[+\-—–]\s*/, '');
+    } else {
+      // Guess sign: if starts with "NNH ", it's parent (-), else child (+)
+      if (firstCell.toLowerCase().startsWith('nnh ')) {
+        sign = '-';
+      } else {
+        sign = '+';
+      }
+    }
+  }
+  
+  return { sign, cleanRow };
+};
+
 const filterDataset = (rows: any[][], idxs: any) => {
   if (rows.length <= 1) return [];
-  return rows.slice(1).filter(row => {
-    const statusVal = String(row[idxs.idxStatus] || '').trim().toLowerCase();
-    const traVal = String(row[idxs.idxTra] || '').trim().toLowerCase();
+  
+  const results: any[][] = [];
+  
+  rows.slice(1).forEach(row => {
+    const res = processRowSignAndAlign(row);
+    if (!res) return;
     
-    // Skip aggregate category header rows starting with "NNH " to avoid double counting
-    const catVal = String(row[idxs.idxCategory] || '').trim();
-    if (catVal.startsWith('NNH ')) return false;
+    // Skip aggregate category header rows (where sign is '-') to avoid double counting
+    if (res.sign === '-') return;
+    
+    const cleanRow = res.cleanRow;
+    const statusVal = String(cleanRow[idxs.idxStatus] || '').trim().toLowerCase();
+    const traVal = String(cleanRow[idxs.idxTra] || '').trim().toLowerCase();
 
-    return (statusVal === 'đã xuất' || !statusVal) && (traVal === 'chưa trả' || !traVal);
+    const isMatch = (statusVal === 'đã xuất' || !statusVal) && (traVal === 'chưa trả' || !traVal);
+    if (isMatch) {
+      results.push(cleanRow);
+    }
   });
+  
+  return results;
 };
 
 const parseYcxRows = (data: string): any[][] => {
