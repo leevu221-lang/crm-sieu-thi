@@ -685,9 +685,9 @@ const getColumnIndices = (headers: string[]) => {
 const filterDataset = (rows: any[][], idxs: any) => {
   if (rows.length <= 1) return [];
   return rows.slice(1).filter(row => {
-    const statusVal = String(row[idxs.idxStatus] || '').trim();
-    const traVal = String(row[idxs.idxTra] || '').trim();
-    return (statusVal === 'Đã xuất' || !statusVal) && (traVal === 'Chưa trả' || !traVal);
+    const statusVal = String(row[idxs.idxStatus] || '').trim().toLowerCase();
+    const traVal = String(row[idxs.idxTra] || '').trim().toLowerCase();
+    return (statusVal === 'đã xuất' || !statusVal) && (traVal === 'chưa trả' || !traVal);
   });
 };
 

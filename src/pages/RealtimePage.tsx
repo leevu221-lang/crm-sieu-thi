@@ -2250,7 +2250,7 @@ export default function NewRealtimePage() {
   }, [ycxData]);
 
   const filteredRawYcxRows = useMemo(() => {
-    if (rawYcxRows.length <= 1) return [];
+    if (!rawYcxRows || rawYcxRows.length <= 1) return [];
     const headers = rawYcxRows[0].map(h => h.trim());
     const headersLower = headers.map(h => h.toLowerCase());
 
@@ -2269,9 +2269,9 @@ export default function NewRealtimePage() {
     if (idxTra === -1) idxTra = 44;
 
     const filtered = rawYcxRows.slice(1).filter(row => {
-      const statusValue = String(row[idxStatus] || '').trim();
-      const traValue = String(row[idxTra] || '').trim();
-      return statusValue === 'Đã xuất' && traValue === 'Chưa trả';
+      const statusValue = String(row[idxStatus] || '').trim().toLowerCase();
+      const traValue = String(row[idxTra] || '').trim().toLowerCase();
+      return statusValue === 'đã xuất' && traValue === 'chưa trả';
     });
 
     // Deduplicate: tìm cột mã đơn hàng (Số YCX/Số phiếu) + tên SP + SL làm key dedup
@@ -2337,9 +2337,9 @@ export default function NewRealtimePage() {
     if (idxTra === -1) idxTra = 44;
 
     return rawYcxRows.slice(1).filter(row => {
-      const statusValue = String(row[idxStatus] || '').trim();
-      const traValue = String(row[idxTra] || '').trim();
-      return (statusValue === 'Đã xuất' || statusValue === 'Chưa xuất') && traValue === 'Chưa trả';
+      const statusValue = String(row[idxStatus] || '').trim().toLowerCase();
+      const traValue = String(row[idxTra] || '').trim().toLowerCase();
+      return (statusValue === 'đã xuất' || statusValue === 'chưa xuất') && traValue === 'chưa trả';
     });
   }, [rawYcxRows]);
 
