@@ -2813,12 +2813,15 @@ export default function NewRealtimePage() {
         });
 
         // Traverse up the parent chain and set width to max-content to prevent truncation
-        let parent = htmlTable.parentElement;
-        while (parent && parent !== clone) {
-          parent.style.width = 'max-content';
-          parent.style.minWidth = '100%';
-          parent.style.maxWidth = 'none';
-          parent = parent.parentElement;
+        // ONLY DO THIS IF WE ARE NOT CAPTURING OVERVIEW (to prevent breaking dashboard grid layouts)
+        if (!options.isOverview) {
+          let parent = htmlTable.parentElement;
+          while (parent && parent !== clone) {
+            parent.style.width = 'max-content';
+            parent.style.minWidth = '100%';
+            parent.style.maxWidth = 'none';
+            parent = parent.parentElement;
+          }
         }
       });
 
@@ -3983,9 +3986,10 @@ export default function NewRealtimePage() {
       try {
         setIsCapturing(true);
         await new Promise(resolve => setTimeout(resolve, 100));
+        const screenWidth = Math.max(overviewRef.current.offsetWidth, 1450);
         const dataUrl = await captureOffscreenHelper(overviewRef.current, {
-          width: 'max-content',
-          minWidth: '1450px',
+          width: `${screenWidth}px`,
+          minWidth: `${screenWidth}px`,
           backgroundColor: '#f8fafc',
           isOverview: true
         });
