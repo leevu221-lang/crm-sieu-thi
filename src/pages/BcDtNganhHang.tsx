@@ -1107,9 +1107,9 @@ const BcDtNganhHang: React.FC = () => {
       // Force desktop layout configurations for screenshot
       forceDesktopLayout(element);
 
-      // Lock width to standard desktop width during capture to prevent column wrapping/clipping
-      element.style.width = '1400px';
-      element.style.minWidth = '1400px';
+      // Lock width to max-content to prevent column wrapping/clipping, but allow shrink-wrapping to eliminate whitespace
+      element.style.width = 'max-content';
+      element.style.minWidth = 'min-content';
       element.style.padding = '12px';
       element.style.backgroundColor = '#ffffff';
 

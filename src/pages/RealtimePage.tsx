@@ -2858,7 +2858,7 @@ export default function NewRealtimePage() {
       await new Promise(resolve => setTimeout(resolve, 100));
       const dataUrl = await captureOffscreenHelper(element, {
         width: 'max-content',
-        minWidth: '1400px',
+        minWidth: 'min-content',
         backgroundColor: '#ffffff'
       });
       setPreviewImage(dataUrl);
@@ -4178,7 +4178,7 @@ export default function NewRealtimePage() {
       try {
         const dataUrl = await captureOffscreenHelper(categoriesRef.current, {
           width: 'max-content',
-          minWidth: '1400px',
+          minWidth: 'min-content',
           backgroundColor: '#f8fafc'
         });
         setPreviewImage(dataUrl);
