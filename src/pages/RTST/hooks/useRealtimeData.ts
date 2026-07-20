@@ -166,7 +166,6 @@ export const useRealtimeData = (maKho: string) => {
     } catch (error: any) {
       console.error('Error processing realtime data:', error);
     }
-    }
   }, [marketInput, categoryInput, ycxData, categoryRevenueInput, categoryTargetInput, conversionRates]);
 
   // Fetch conversion rates on mount
