@@ -2800,21 +2800,21 @@ export default function NewRealtimePage() {
       }
 
       // 7. Special handling for tables inside the clone to render completely without text wrapping or clipping
-      const tables = clone.querySelectorAll('table');
-      tables.forEach(table => {
-        const htmlTable = table as HTMLTableElement;
-        htmlTable.style.width = 'auto';
-        htmlTable.style.minWidth = 'max-content';
-        htmlTable.style.tableLayout = 'auto';
+      // ONLY DO THIS IF WE ARE NOT CAPTURING OVERVIEW (to prevent breaking dashboard grid and full-width layouts)
+      if (!options.isOverview) {
+        const tables = clone.querySelectorAll('table');
+        tables.forEach(table => {
+          const htmlTable = table as HTMLTableElement;
+          htmlTable.style.width = 'auto';
+          htmlTable.style.minWidth = 'max-content';
+          htmlTable.style.tableLayout = 'auto';
 
-        const cells = htmlTable.querySelectorAll('th, td');
-        cells.forEach(cell => {
-          (cell as HTMLElement).style.whiteSpace = 'nowrap';
-        });
+          const cells = htmlTable.querySelectorAll('th, td');
+          cells.forEach(cell => {
+            (cell as HTMLElement).style.whiteSpace = 'nowrap';
+          });
 
-        // Traverse up the parent chain and set width to max-content to prevent truncation
-        // ONLY DO THIS IF WE ARE NOT CAPTURING OVERVIEW (to prevent breaking dashboard grid layouts)
-        if (!options.isOverview) {
+          // Traverse up the parent chain and set width to max-content to prevent truncation
           let parent = htmlTable.parentElement;
           while (parent && parent !== clone) {
             parent.style.width = 'max-content';
@@ -2822,8 +2822,8 @@ export default function NewRealtimePage() {
             parent.style.maxWidth = 'none';
             parent = parent.parentElement;
           }
-        }
-      });
+        });
+      }
 
       // Add clone to DOM inside the hidden off-screen container
       tempContainer.appendChild(clone);
