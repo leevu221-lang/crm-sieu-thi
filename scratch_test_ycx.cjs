@@ -1,5 +1,6 @@
 const { initializeApp } = require('firebase/app');
 const { getFirestore, doc, getDoc } = require('firebase/firestore');
+const fs = require('fs');
 require('dotenv').config();
 
 const firebaseConfig = {
@@ -14,12 +15,42 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Simple stub for normalize, conversionRates, etc.
-const CONVERSION_RATES = {};
+// Extract cleanNum, formatMarketName, normalize, parseYcxData, parseYcxRankData
+const utilsCode = fs.readFileSync('src/pages/RTST/utils.ts', 'utf8');
 
-// We can just import parseYcxData and parseYcxRankData from utils if possible, or replicate them.
-// But wait, let's write a script that loads them from the file or check if they throw.
-// Since we have the absolute path, we can try to require or run a node command with tsx.
+const parseYcxDataMatch = utilsCode.match(/export const parseYcxData = ([\s\S]+?)(?=\nexport const parseYcxRankData)/);
+if (!parseYcxDataMatch) {
+  console.error("Could not find parseYcxData in utils.ts");
+  process.exit(1);
+}
+
+// Convert typescript annotations in parseYcxData Match to javascript
+let parseYcxDataCode = "const parseYcxData = " + parseYcxDataMatch[1].trim()
+  .replace(/:\s*string/g, '')
+  .replace(/:\s*number/g, '')
+  .replace(/:\s*boolean/g, '')
+  .replace(/:\s*any/g, '')
+  .replace(/:\s*Record<[^>]+>/g, '')
+  .replace(/as\s+any/g, '');
+
+const CONVERSION_RATES = {
+  normal: 1,
+  installment: 1
+};
+
+// Add dependencies mock
+const fullJSCode = `
+const CONVERSION_RATES = ${JSON.stringify(CONVERSION_RATES)};
+const normalize = (s) => s ? s.trim().normalize('NFC').replace(/[\\s\\-_]+/g, ' ').toLowerCase() : '';
+const cleanNum = (s) => s ? parseFloat(s.replace(/,/g, '')) : 0;
+const getRowConversionRate = (colAO, rowStr, isInstallment, rates) => ({ rate: 1, matchedCat: 'Other' });
+${parseYcxDataCode}
+
+module.exports = { parseYcxData };
+`;
+
+fs.writeFileSync('scratch_temp_ycx.cjs', fullJSCode);
+const { parseYcxData } = require('./scratch_temp_ycx.cjs');
 
 async function test() {
   const docRef = doc(db, 'store', 'ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH');
@@ -29,9 +60,18 @@ async function test() {
     return;
   }
   const data = snap.data();
-  console.log("ycx_data length:", data.ycx_data ? data.ycx_data.length : 'none');
-  
-  // Let's run a TS script via npx tsx to import the real utils functions and test them!
+  console.log("Testing parseYcxData:");
+  const rates = {
+    'ICT': { normal: 1, installment: 1 }
+  };
+  const staffData = parseYcxData(data.ycx_data, rates);
+  console.log("Parsed staff count:", staffData.length);
+  console.log("Success! Parsed without errors.");
 }
 
-test().catch(console.error);
+test().then(() => {
+  fs.unlinkSync('scratch_temp_ycx.cjs');
+}).catch(err => {
+  console.error(err);
+  fs.unlinkSync('scratch_temp_ycx.cjs');
+});

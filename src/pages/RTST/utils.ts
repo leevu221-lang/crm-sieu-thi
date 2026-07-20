@@ -2157,11 +2157,11 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
            category: matchedCat,
            isInstallment,
            quantity,
-           status: String(row[colStatus] || ''),
-           returnStatus: String(row[colReturnStatus] || ''),
-           orderId: String(row[colOrderId] || ''),
-           customerName: String(row[colCustomerName] || ''),
-           customerPhone: String(row[colCustomerPhone] || ''),
+           status: String(cols[colStatus] || ''),
+           returnStatus: String(cols[colReturnStatus] || ''),
+           orderId: String(cols[colOrderId] || ''),
+           customerName: String(cols[colCustomerName] || ''),
+           customerPhone: String(cols[colCustomerPhone] || ''),
            staffName: displayName
          });
       }
