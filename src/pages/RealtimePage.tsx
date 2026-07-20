@@ -1811,7 +1811,7 @@ export default function NewRealtimePage() {
   const { isStoreReady } = useStore();
   const [selectedStaffs, setSelectedStaffs] = useState<string[]>([]);
   const [selectedMaKho, setSelectedMaKho] = useState(userProfile?.ma_kho || '');
-  const { ycxData, setYcxData, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, hasLoadedFromDB, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
+  const { ycxData, setYcxData, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, hasLoadedFromDB, processError, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
 
   const daysRemaining = useMemo(() => {
     if (!userProfile?.expiredAt) return null;
@@ -7106,6 +7106,13 @@ export default function NewRealtimePage() {
       </AnimatePresence>
       {/* Image Preview Modal */}
       <ImagePreviewModal previewImage={previewImage} setPreviewImage={setPreviewImage} />
+
+      {processError && (
+        <div className="fixed bottom-4 right-4 bg-rose-950 text-rose-200 border border-rose-800 p-4 rounded-2xl max-w-md shadow-2xl z-[9999] text-xs font-mono select-text">
+          <p className="font-bold text-rose-400 mb-1">⚠️ Lỗi xử lý dữ liệu (Realtime Parse Error):</p>
+          <pre className="whitespace-pre-wrap leading-relaxed max-h-40 overflow-auto">{processError}</pre>
+        </div>
+      )}
     </>
   );
 }
