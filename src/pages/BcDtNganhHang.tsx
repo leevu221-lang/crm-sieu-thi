@@ -687,6 +687,11 @@ const filterDataset = (rows: any[][], idxs: any) => {
   return rows.slice(1).filter(row => {
     const statusVal = String(row[idxs.idxStatus] || '').trim().toLowerCase();
     const traVal = String(row[idxs.idxTra] || '').trim().toLowerCase();
+    
+    // Skip aggregate category header rows starting with "NNH " to avoid double counting
+    const catVal = String(row[idxs.idxCategory] || '').trim();
+    if (catVal.startsWith('NNH ')) return false;
+
     return (statusVal === 'đã xuất' || !statusVal) && (traVal === 'chưa trả' || !traVal);
   });
 };
@@ -885,16 +890,36 @@ const BcDtNganhHang: React.FC = () => {
   const prevRawRows = useMemo(() => parseYcxRows(lastMonthData), [lastMonthData]);
 
   const { flatRows, prevNodesMap, totals } = useMemo(() => {
-    const empty = { flatRows: [] as any[], prevNodesMap: new Map<string, any>(), totals: { sl: 0, dt: 0, tc_dt: 0, dtqd: 0 } };
+    const empty = { flatRows: [] as any[], prevNodesMap: new Map<string, any>(), totals: { sl: 0, dt: 0, tc_dt: 0, dtqd: 0, prevSl: 0, prevDt: 0 } };
     if (currentRawRows.length === 0) return empty;
 
-    const currentHeaders = currentRawRows[0].map(h => String(h || '').trim());
-    const idxsCurrent = getColumnIndices(currentHeaders);
-    const filteredCurrent = filterDataset(currentRawRows, idxsCurrent);
+    // Helper to find the actual header row in copy-pasted or excel data
+    const findHeaderRowIdx = (rows: any[][]) => {
+      return rows.findIndex(row => {
+        if (!row || row.length < 2) return false;
+        const rowStr = row.join(' ').toLowerCase();
+        return rowStr.includes('số lượng') || rowStr.includes('sl') || rowStr.includes('doanh thu') || rowStr.includes('dt') || rowStr.includes('nhóm ngành hàng') || rowStr.includes('ngành hàng');
+      });
+    };
 
-    const prevHeaders = prevRawRows.length > 0 ? prevRawRows[0].map(h => String(h || '').trim()) : [];
+    const headerIdxCurrent = findHeaderRowIdx(currentRawRows);
+    const currentHeaders = headerIdxCurrent !== -1 
+      ? currentRawRows[headerIdxCurrent].map(h => String(h || '').trim())
+      : currentRawRows[0].map(h => String(h || '').trim());
+    const idxsCurrent = getColumnIndices(currentHeaders);
+    const filteredCurrent = filterDataset(
+      headerIdxCurrent !== -1 ? currentRawRows.slice(headerIdxCurrent) : currentRawRows,
+      idxsCurrent
+    );
+
+    const headerIdxPrev = findHeaderRowIdx(prevRawRows);
+    const prevHeaders = prevRawRows.length > 0
+      ? (headerIdxPrev !== -1 ? prevRawRows[headerIdxPrev].map(h => String(h || '').trim()) : prevRawRows[0].map(h => String(h || '').trim()))
+      : [];
     const idxsPrev = prevRawRows.length > 0 ? getColumnIndices(prevHeaders) : idxsCurrent;
-    const filteredPrev = prevRawRows.length > 0 ? filterDataset(prevRawRows, idxsPrev) : [];
+    const filteredPrev = prevRawRows.length > 0
+      ? filterDataset(headerIdxPrev !== -1 ? prevRawRows.slice(headerIdxPrev) : prevRawRows, idxsPrev)
+      : [];
 
     const getLevelValueAndName = (lvl: string, row: any[], idxs: any) => {
       if (lvl === 'kho') {
