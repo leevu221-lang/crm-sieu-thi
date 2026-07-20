@@ -559,6 +559,7 @@ export const useRealtimeData = (maKho: string) => {
     isProcessingRealtime,
     isYcxDirty,
     lastUpdated,
+    hasLoadedFromDB,
     processData: handleProcess,
     saveRealtimeData,
     syncRealtimeData,
