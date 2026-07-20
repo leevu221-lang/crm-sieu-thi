@@ -1039,10 +1039,17 @@ const BcDtNganhHang: React.FC = () => {
       totDtqd += n.dtqd;
     });
 
+    let prevSl = 0;
+    let prevDt = 0;
+    if (prevRawRows.length > 0) {
+      prevSl = filteredPrev.reduce((acc, r) => acc + (parseInt(r[idxsPrev.idxQty]) || 0), 0);
+      prevDt = filteredPrev.reduce((acc, r) => acc + (parseInt(r[idxsPrev.idxRevenue]) || 0), 0);
+    }
+
     return {
       flatRows: rawFlatRows,
       prevNodesMap: map,
-      totals: { sl: totSl, dt: totDt, tc_dt: totTc, dtqd: totDtqd }
+      totals: { sl: totSl, dt: totDt, tc_dt: totTc, dtqd: totDtqd, prevSl, prevDt }
     };
   }, [currentRawRows, prevRawRows, drillLevels, expandedRows, drillExpandDepth]);
 
@@ -1559,19 +1566,19 @@ const BcDtNganhHang: React.FC = () => {
                     {/* SL Total */}
                     <td className="py-2 px-4 text-right border-r border-slate-200/50">{totals.sl.toLocaleString('vi-VN')}</td>
                     <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
-                      {prevRawRows.length > 0 ? parseYcxRows(lastMonthData).slice(1).reduce((acc, r) => acc + (parseInt(r[idxsCurrent.idxQty]) || 0), 0).toLocaleString('vi-VN') : '-'}
+                      {prevRawRows.length > 0 ? totals.prevSl.toLocaleString('vi-VN') : '-'}
                     </td>
                     <td className="py-2 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">
-                      {prevRawRows.length > 0 ? fmtDiff(totals.sl, parseYcxRows(lastMonthData).slice(1).reduce((acc, r) => acc + (parseInt(r[idxsCurrent.idxQty]) || 0), 0)) : '-'}
+                      {prevRawRows.length > 0 ? fmtDiff(totals.sl, totals.prevSl) : '-'}
                     </td>
 
                     {/* DT Total */}
                     <td className="py-2 px-4 text-right border-r border-slate-200/50">{fmtTr(totals.dt)}</td>
                     <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
-                      {prevRawRows.length > 0 ? fmtTr(parseYcxRows(lastMonthData).slice(1).reduce((acc, r) => acc + (parseInt(r[idxsCurrent.idxRevenue]) || 0), 0)) : '-'}
+                      {prevRawRows.length > 0 ? fmtTr(totals.prevDt) : '-'}
                     </td>
                     <td className="py-2 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">
-                      {prevRawRows.length > 0 ? fmtDiff(totals.dt, parseYcxRows(lastMonthData).slice(1).reduce((acc, r) => acc + (parseInt(r[idxsCurrent.idxRevenue]) || 0), 0), true) : '-'}
+                      {prevRawRows.length > 0 ? fmtDiff(totals.dt, totals.prevDt, true) : '-'}
                     </td>
 
                     {/* DTQD Total */}
