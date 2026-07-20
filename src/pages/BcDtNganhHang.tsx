@@ -341,6 +341,7 @@ const NHOM_SMALL_DISPLAY: Record<string, string> = {
   'BHXM': 'BHXM', 'BHRV': 'BHRV', 'BHMR': 'BHMR', 'BHKV': 'BHKV', 'SC+': 'SC+', '1 ĐỔI 1': '1 ĐỔI 1',
   'APPLE+': 'APPLE+', 'ANM': 'ANM', 'BH.HOME': 'BH.HOME', 'BHYT': 'BHYT', 'BHXH': 'BHXH', 'BVMH': 'BVMH',
   'PK LẮP ĐẶT': 'PK lắp đặt', 'PHỤ KIỆN LẮP ĐẶT': 'PK lắp đặt',
+  'DCNB': 'Dụng cụ nhà bếp',
   'PK KHÁC': 'PK khác', 'MÁY IN': 'Máy in', 'ĐÈN NĂNG LƯỢNG MẶT TRỜI': 'Đèn năng lượng mặt trời',
 };
 
@@ -396,7 +397,7 @@ const classifyProduct = (name: string) => {
   return '-';
 };
 
-const classifyNhomHangLarge = (category: string, productName?: string): string => {
+const classifyNhomHangLargeRaw = (category: string, productName?: string): string => {
   const cat = String(category || '').trim();
   const prod = String(productName || '').trim();
   const catLower = cat.toLowerCase();
@@ -491,6 +492,12 @@ const classifyNhomHangLarge = (category: string, productName?: string): string =
   return 'Khác';
 };
 
+const classifyNhomHangLarge = (category: string, productName?: string): string => {
+  const res = classifyNhomHangLargeRaw(category, productName);
+  if (res === 'DCNB') return 'ĐIỆN GD';
+  return res;
+};
+
 const resolveNhomSmall = (category: string, nhomSmallValue: string, nhomLarge: string, productName?: string): string => {
   const cat = String(category || '').trim();
   const prod = String(productName || '').trim();
@@ -498,6 +505,11 @@ const resolveNhomSmall = (category: string, nhomSmallValue: string, nhomLarge: s
   
   if (nhomLarge === 'BẢO HIỂM') {
     return classifyProduct(prod);
+  }
+
+  if (nhomLarge === 'ĐIỆN GD') {
+    const rawLarge = classifyNhomHangLargeRaw(category, productName);
+    if (rawLarge === 'DCNB') return 'DCNB';
   }
 
   if (NHOM_HANG_MAP[cat]?.small) {
@@ -564,7 +576,11 @@ const getRowDtqd = (nhomLarge: string, qty: number, revenue: number, nhomSmall?:
       rate = 1.29;
     }
   } else if (nhomLarge === 'ĐIỆN GD' || nhomLarge === 'PHỤ KIỆN LẮP ĐẶT' || nhomLarge === 'Gia dụng lắp đặt') {
-    rate = 1.85;
+    if (nhomSmall === 'DCNB') {
+      rate = 1.92;
+    } else {
+      rate = 1.85;
+    }
   } else if (nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM') {
     rate = 4.18;
   } else if (nhomLarge === 'SIM') {
