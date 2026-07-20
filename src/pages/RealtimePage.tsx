@@ -1804,7 +1804,7 @@ const fmtRawDate = (raw: string): string => {
 export default function NewRealtimePage() {
   const { userProfile } = useAuth();
   const isAdmin = userProfile?.username === '43751' || userProfile?.username === 'ADMIN' || userProfile?.role === 'admin';
-  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [showDebugPanel, setShowDebugPanel] = useState(true);
   const [isProcessingData, setIsProcessingData] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const { showNotification } = useNotification();
