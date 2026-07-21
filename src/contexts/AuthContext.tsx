@@ -330,6 +330,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   function logout() {
     setUserProfile(null);
     localStorage.removeItem('userProfile');
+    localStorage.removeItem('currentStoreId');
+    localStorage.removeItem('rtst_global_market_filter');
+    localStorage.removeItem('ST_NAME_V1');
     sessionStorage.removeItem('justLoggedIn');
   }
 

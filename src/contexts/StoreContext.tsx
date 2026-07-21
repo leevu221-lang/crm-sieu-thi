@@ -212,6 +212,43 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     localStorage.setItem('rtst_global_market_filter', currentStoreId);
   }, [currentStoreId]);
 
+  // Track previous user to detect account switches on the same browser
+  const lastUserRef = useRef<string | null>(null);
+
+  // Auto-validate & sync currentStoreId whenever userProfile or availableStores change
+  useEffect(() => {
+    if (!userProfile) return;
+
+    const currentUsername = userProfile.username;
+    const isUserChanged = lastUserRef.current !== null && lastUserRef.current !== currentUsername;
+    lastUserRef.current = currentUsername;
+
+    const availableNames = availableStores.map(s => s.name);
+
+    if (availableNames.length > 0) {
+      const isCurrentValid = availableNames.includes(currentStoreId);
+      if (!isCurrentValid || isUserChanged) {
+        const userPreferred = userProfile.ten_sieu_thi && availableNames.includes(userProfile.ten_sieu_thi)
+          ? userProfile.ten_sieu_thi
+          : availableNames[0];
+
+        if (userPreferred && userPreferred !== currentStoreId) {
+          console.log(`[StoreContext] Syncing store selection: "${currentStoreId}" → "${userPreferred}" for user "${currentUsername}"`);
+          setCurrentStoreIdRaw(userPreferred);
+          setStoreReady(false);
+          setStoreVersion(v => v + 1);
+        }
+      }
+    } else if (userProfile.ten_sieu_thi && (currentStoreId === 'ALL' || !currentStoreId || isUserChanged)) {
+      if (currentStoreId !== userProfile.ten_sieu_thi) {
+        console.log(`[StoreContext] Fallback syncing currentStoreId to userProfile.ten_sieu_thi: "${userProfile.ten_sieu_thi}"`);
+        setCurrentStoreIdRaw(userProfile.ten_sieu_thi);
+        setStoreReady(false);
+        setStoreVersion(v => v + 1);
+      }
+    }
+  }, [userProfile, availableStores, currentStoreId]);
+
   // When user changes store, mark as NOT ready until data loads
   const setCurrentStoreId = useCallback((id: string) => {
     setCurrentStoreIdRaw(prev => {
