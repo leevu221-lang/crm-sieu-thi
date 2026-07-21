@@ -103,6 +103,7 @@ const LuyKe: React.FC = () => {
   const filteredMarkets = React.useMemo(() => {
     return (availableMarkets || []).filter(m => !isKhoLuuDong(m.name));
   }, [availableMarkets]);
+  const [maKho, setMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
   const [activeTab, setActiveTab] = useState<'summary' | 'efficiency' | 'thuong_st' | 'bcdtnh'>('summary');
 
   const is43751 = userProfile?.username === '43751';
