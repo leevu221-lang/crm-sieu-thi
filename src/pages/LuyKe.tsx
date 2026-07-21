@@ -103,8 +103,15 @@ const LuyKe: React.FC = () => {
   const filteredMarkets = React.useMemo(() => {
     return (availableMarkets || []).filter(m => !isKhoLuuDong(m.name));
   }, [availableMarkets]);
-  const [maKho, setMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
   const [activeTab, setActiveTab] = useState<'summary' | 'efficiency' | 'thuong_st' | 'bcdtnh'>('summary');
+
+  const is43751 = userProfile?.username === '43751';
+
+  useEffect(() => {
+    if (activeTab === 'bcdtnh' && userProfile?.username !== '43751') {
+      setActiveTab('summary');
+    }
+  }, [userProfile?.username, activeTab]);
 
   const {
     clusterSummaryInput, setClusterSummaryInput,
@@ -881,7 +888,7 @@ const LuyKe: React.FC = () => {
             { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, color: 'text-indigo-600' },
             { id: 'efficiency', label: 'THƯỞNG QL/TC', icon: Activity, color: 'text-emerald-600' },
             { id: 'thuong_st', label: 'THƯỞNG ST', icon: Zap, color: 'text-amber-500' },
-            { id: 'bcdtnh', label: 'BC DT NGÀNH HÀNG', icon: LayoutGrid, color: 'text-emerald-600' }
+            ...(is43751 ? [{ id: 'bcdtnh', label: 'BC DT NGÀNH HÀNG', icon: LayoutGrid, color: 'text-emerald-600' }] : [])
           ].map((item) => {
             const isActive = activeTab === item.id;
             const Icon = item.icon;
@@ -909,7 +916,7 @@ const LuyKe: React.FC = () => {
               { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, color: 'text-indigo-600' },
               { id: 'efficiency', label: 'THƯỞNG QL/TC', icon: Activity, color: 'text-emerald-600' },
               { id: 'thuong_st', label: 'THƯỞNG ST', icon: Zap, color: 'text-amber-500' },
-              { id: 'bcdtnh', label: 'BC DT NGÀNH HÀNG', icon: LayoutGrid, color: 'text-emerald-600' }
+              ...(is43751 ? [{ id: 'bcdtnh', label: 'BC DT NGÀNH HÀNG', icon: LayoutGrid, color: 'text-emerald-600' }] : [])
             ].map((item) => {
               const isActive = activeTab === item.id;
               const Icon = item.icon;
@@ -1378,7 +1385,7 @@ const LuyKe: React.FC = () => {
               </motion.div>
             )}
 
-            {activeTab === 'bcdtnh' && (
+            {activeTab === 'bcdtnh' && is43751 && (
               <motion.div
                 key="bcdtnh"
                 initial={{ opacity: 0, y: 10 }}
