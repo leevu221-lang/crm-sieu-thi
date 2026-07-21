@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { UserProfile } from '../types';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { trackUserPing } from '../services/accessTracker';
 
 interface AuthContextType {
   userProfile: UserProfile | null;
@@ -207,6 +208,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('userProfile', JSON.stringify(profile));
       sessionStorage.setItem('justLoggedIn', 'true');
       
+      // Record access login event
+      trackUserPing(data.username, data.storeCode, 'realtime', 'LOGIN');
+
       // Delay setting user profile to allow success message to be shown
       setTimeout(() => {
         setUserProfile(profile);

@@ -11,6 +11,7 @@ import { testSupabaseConnection } from './supabaseClient';
 import VersionUpdateNotifier from './components/VersionUpdateNotifier';
 import { birthdayService } from './services/birthdayService';
 import SubscriptionLockScreen from './components/SubscriptionLockScreen';
+import { trackUserPing } from './services/accessTracker';
 
 // Lazy load pages for better performance
 const NewRealtimePage = lazy(() => import('./pages/RealtimePage'));
@@ -135,6 +136,21 @@ export default function App() {
       }
     }
   }, [userProfile, currentPage, effectiveAllowedPages]);
+
+  // User Access & Activity Tracking
+  useEffect(() => {
+    if (!userProfile?.username || userProfile.username === 'ADMIN') return;
+
+    // Track initial page view / navigation
+    trackUserPing(userProfile.username, userProfile.ma_kho, currentPage, 'NAVIGATE');
+
+    // Heartbeat ping every 60 seconds
+    const interval = setInterval(() => {
+      trackUserPing(userProfile.username, userProfile.ma_kho, currentPage, 'PING');
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [userProfile?.username, userProfile?.ma_kho, currentPage]);
 
   useEffect(() => {
     testSupabaseConnection().then(res => {

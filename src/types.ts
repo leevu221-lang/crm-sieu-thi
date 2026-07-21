@@ -24,6 +24,10 @@ export interface UserProfile {
   requestedRenewPackage?: number;
   requestedAt?: string;
   isDemo?: boolean;
+  last_active_at?: string;
+  last_login_at?: string;
+  current_page?: string;
+  device_info?: string;
 }
 
 export interface UserData {
