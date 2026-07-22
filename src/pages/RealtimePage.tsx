@@ -1811,6 +1811,7 @@ export default function NewRealtimePage() {
   const { isStoreReady } = useStore();
   const [selectedStaffs, setSelectedStaffs] = useState<string[]>([]);
   const [selectedMaKho, setSelectedMaKho] = useState(userProfile?.ma_kho || '');
+  const [activeTab, setActiveTab] = useState<'summary' | 'khai_thac' | 'khai_thac_moi'>('summary');
   const { ycxData, setYcxData, ycxDataMoi, setYcxDataMoi, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, hasLoadedFromDB, processError, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
 
   const daysRemaining = useMemo(() => {
@@ -2915,7 +2916,6 @@ export default function NewRealtimePage() {
     }
   };
 
-  const [activeTab, setActiveTab] = useState<'summary' | 'khai_thac' | 'khai_thac_moi'>('summary');
   const [showKhaiThacCols, setShowKhaiThacCols] = useState({
     doanhThu: true,
     spChinh: true,
