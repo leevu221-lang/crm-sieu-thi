@@ -2196,7 +2196,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     const totalRows = sortedRows.length;
                     const topLimit = Math.ceil(totalRows * 0.2);
                     const botLimit = Math.ceil(totalRows * 0.2);
-                    const today = new Date().toLocaleDateString('vi-VN');
+                    const yesterdayObj = new Date();
+                    yesterdayObj.setDate(yesterdayObj.getDate() - 1);
+                    const today = yesterdayObj.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
 
                     const startIndex5Sao = visibleIndices.findIndex(idx =>
                       allHeaders[idx].trim().toUpperCase().includes('5 SAO')

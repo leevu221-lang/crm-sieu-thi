@@ -349,6 +349,10 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
 
   const [draggedCat, setDraggedCat] = useState<string | null>(null);
 
+  const yesterdayObj = new Date();
+  yesterdayObj.setDate(yesterdayObj.getDate() - 1);
+  const yesterdayStr = yesterdayObj.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+
   const handleDragStart = (e: React.DragEvent, catName: string) => {
     e.dataTransfer.setData('text/plain', catName);
     setDraggedCat(catName);
@@ -704,7 +708,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
             <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">TỔNG HỢP THI ĐUA</h2>
             <div className="flex items-center gap-2 text-slate-600 mt-1">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M3 7h18"/></svg>
-              <span className="text-sm font-bold">LUỸ KẾ ĐẾN NGÀY : 24-03-2026</span>
+              <span className="text-sm font-bold">LUỸ KẾ ĐẾN NGÀY : {yesterdayStr}</span>
             </div>
           </div>
           <div className="flex flex-col items-center justify-center w-1/2">
