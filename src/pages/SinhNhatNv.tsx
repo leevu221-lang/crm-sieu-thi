@@ -6,7 +6,7 @@ import {
   Cake, Gift, Plus, Edit2, Trash2, Search, Calendar, 
   AlertCircle, Loader2, Sparkles, Check, X, Store, Trash
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const SinhNhatNv: React.FC = () => {
   const { userProfile } = useAuth();

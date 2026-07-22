@@ -17,7 +17,7 @@ import {
   ChevronRight, 
   CalendarDays
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { inventoryService } from '../services/inventoryService';
 import { cn } from '../pages/RTST/utils';
 

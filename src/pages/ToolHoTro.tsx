@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Wrench, Printer, Trash2, Info, Archive, ShieldAlert, FilePlus, X,
   ChevronDown, CheckCircle2, Save, Loader2, Calendar, ArrowUpDown, 

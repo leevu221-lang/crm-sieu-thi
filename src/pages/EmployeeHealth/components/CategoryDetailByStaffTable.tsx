@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { Camera, TrendingDown, TrendingUp, ChevronDown, Check, Search, MessageSquare, X, Download } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
 import JSZip from 'jszip';

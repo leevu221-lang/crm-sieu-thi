@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { Store, ArrowRight, Save, Loader2, Sparkles, LayoutGrid, Info, CheckCircle2, Copy, Check } from 'lucide-react';

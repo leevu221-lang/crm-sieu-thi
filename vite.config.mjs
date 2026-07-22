@@ -31,11 +31,6 @@ export default defineConfig(({mode}) => {
   return {
     base: './',
     plugins: [react(), tailwindcss()],
-    resolve: {
-      alias: {
-        'framer-motion': 'motion/react',
-      },
-    },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       hmr: process.env.DISABLE_HMR !== 'true',

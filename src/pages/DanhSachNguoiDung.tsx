@@ -6,7 +6,7 @@ import {
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { UserProfile } from '../types';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface UserManagementProps {
   onBack: () => void;

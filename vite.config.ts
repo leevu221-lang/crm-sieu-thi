@@ -31,11 +31,6 @@ export default defineConfig(({ mode }) => {
   return {
     base: './',
     plugins: [react(), tailwindcss()],
-    resolve: {
-      alias: {
-        'framer-motion': 'motion/react',
-      },
-    },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
       allowedHosts: ['43751-crm.local'],

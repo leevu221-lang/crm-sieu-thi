@@ -72,7 +72,7 @@ import {
   BarChart3,
   Gift
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, collection } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Edit3, Trash2 } from 'lucide-react';

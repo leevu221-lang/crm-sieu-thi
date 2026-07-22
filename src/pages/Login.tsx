@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Store, Lock, LogIn, AlertCircle } from 'lucide-react';
 

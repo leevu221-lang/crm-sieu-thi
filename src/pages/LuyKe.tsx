@@ -6,7 +6,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import * as htmlToImage from 'html-to-image';
 import { RefreshCw, ShoppingBag, TrendingUp, Camera, LayoutGrid, Activity, Globe, ChevronDown, Zap, Upload, Trash2, HelpCircle, FileSpreadsheet, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { useLuykeData } from './RTST/hooks/useLuykeData';
 import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';

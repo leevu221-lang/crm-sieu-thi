@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { Camera, TrendingDown, Check, TrendingUp } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
 import { parseCategoryData } from '../../RTST/utils';

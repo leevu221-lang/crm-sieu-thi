@@ -1,6 +1,6 @@
 import React from 'react';
 import { Filter, Store, ChevronDown, Square, CheckSquare, Check, Target, Users } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 

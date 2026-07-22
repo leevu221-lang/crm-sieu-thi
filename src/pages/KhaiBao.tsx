@@ -12,7 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../contexts/StoreContext';
 import InputSection from './RTST/components/InputSection';
 import { Loader2, Database, Eye, EyeOff, BarChart3, Clock, Users, Target, TrendingUp, Globe, Info } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn, parseMarketData, getMarketRegistry, cleanNum, extractSection, safeSetItem, normalize, isValidStoreName } from './RTST/utils';
 
 const KhaiBao: React.FC = () => {

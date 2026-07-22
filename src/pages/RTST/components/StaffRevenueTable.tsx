@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { Camera, ChevronDown, ChevronUp, Square, CheckSquare, Check, Calendar, Clock, Trophy, TrendingDown, MessageSquare } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { YcxStaffData } from '../types';
 import { formatRealtimeDate, getWorkingDayProgress, cn, formatStaffName } from '../utils';
 

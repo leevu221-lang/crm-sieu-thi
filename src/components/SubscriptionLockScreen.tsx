@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldAlert, CreditCard, LogOut, Loader2, CheckCircle2, Sparkles, Check, Info, RefreshCw, X } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { UserProfile } from '../types';
