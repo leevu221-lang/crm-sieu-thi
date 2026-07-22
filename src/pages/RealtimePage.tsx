@@ -2036,7 +2036,7 @@ export default function NewRealtimePage() {
 
     setIsProcessingData(true);
     if (isMoiTab) {
-      setYcxFileNameMoi(file.name);
+      setYcxFileNameMoi(prev => (prev && prev.trim() ? `${prev} + ${file.name}` : file.name));
     } else {
       setYcxFileName(file.name);
     }
@@ -2097,13 +2097,21 @@ export default function NewRealtimePage() {
           );
 
           // Chuyển đổi thành chuỗi Tab-Separated thay vì JSON để tránh lưu các dấu phẩy, ngoặc vuông của định dạng JSON vào Database.
-          const rawString = cleanedData.map(row =>
+          const rawStringRows = cleanedData.map(row =>
             (Array.isArray(row) ? row : []).map(cell => cell === null || cell === undefined ? '' : String(cell)).join('\t')
-          ).join('\n');
+          );
 
           if (isMoiTab) {
-            setYcxDataMoi(rawString);
+            setYcxDataMoi(prev => {
+              if (prev && prev.trim()) {
+                // If data already exists, strip the header row of newly uploaded file
+                const newRowsWithoutHeader = rawStringRows.slice(1).join('\n');
+                return prev.trim() + '\n' + newRowsWithoutHeader;
+              }
+              return rawStringRows.join('\n');
+            });
           } else {
+            const rawString = rawStringRows.join('\n');
             setYcxData(rawString);
           }
           // showNotification('Đã xử lý dữ liệu Excel thành công!', 'success'); // Hidden as requested
@@ -5125,9 +5133,9 @@ export default function NewRealtimePage() {
                         <div className="min-w-0 flex-1">
                           <span className={`text-[12px] font-black uppercase tracking-wide block ${currentYcxFileName ? 'text-teal-700' : 'text-slate-500'}`}>YCX NHÂN VIÊN {isMoiTab ? 'MỚI' : ''}</span>
                           {currentYcxFileName ? (
-                            <p className="text-[10px] text-slate-400 truncate max-w-xl">{currentYcxFileName}</p>
+                            <p className="text-[10px] text-teal-600 font-bold truncate max-w-xl">{currentYcxFileName} <span className="text-slate-400 font-normal ml-1">(Nhấp để tải/gộp thêm file Excel)</span></p>
                           ) : (
-                            <p className="text-[10px] text-slate-400">Nhấp để tải lên file Excel YCX nhân viên {isMoiTab ? 'mới' : ''}</p>
+                            <p className="text-[10px] text-slate-400">Nhấp để tải lên file Excel YCX nhân viên {isMoiTab ? 'mới (có thể tải/gộp nhiều file)' : ''}</p>
                           )}
                         </div>
                         <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelUpload} />
