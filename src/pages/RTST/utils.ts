@@ -1835,19 +1835,19 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
   console.log('[parseYcxData] Column indices detected:', { idxStaffName, idxRevenue, idxMarket, idxStatus, idxType, idxMethod, idxOrderId });
 
   // Fallback indices if header not found
-  const colType = idxType !== -1 ? idxType : 3;
-  const colMethod = idxMethod !== -1 ? idxMethod : 3;
-  const colStatus = idxStatus !== -1 ? idxStatus : 13;
-  const colStaffName = idxStaffName !== -1 ? idxStaffName : 23; // Cột X (Index 23)
-  const colRevenue = idxRevenue !== -1 ? idxRevenue : 37;
-  const colProduct = idxProduct !== -1 ? idxProduct : 33;
-  const colQty = idxQty !== -1 ? idxQty : 35;
-  const colMarket = idxMarket !== -1 ? idxMarket : 1;
-  const colColumnAO = idxColumnAO !== -1 ? idxColumnAO : 40;
-  const colReturnStatus = idxReturnStatus !== -1 ? idxReturnStatus : 44; // Cột AS (Index 44)
-  const colOrderId = idxOrderId !== -1 ? idxOrderId : 0;
-  const colCustomerName = idxCustomerName !== -1 ? idxCustomerName : 8; // Estimate
-  const colCustomerPhone = idxCustomerPhone !== -1 ? idxCustomerPhone : 9; // Estimate
+  const colType = idxType;
+  const colMethod = idxMethod;
+  const colStatus = idxStatus;
+  const colStaffName = idxStaffName;
+  const colRevenue = idxRevenue;
+  const colProduct = idxProduct;
+  const colQty = idxQty;
+  const colMarket = idxMarket;
+  const colColumnAO = idxColumnAO;
+  const colReturnStatus = idxReturnStatus;
+  const colOrderId = idxOrderId;
+  const colCustomerName = idxCustomerName;
+  const colCustomerPhone = idxCustomerPhone;
 
   const staffMap = new Map<string, { 
     totalRevenue: number, 
@@ -1903,19 +1903,18 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
     const cols = rows[i];
     if (!cols || cols.length < 3) continue;
 
-    const columnAOValue = String(cols[colColumnAO] || '').trim();
-    const quantityVal = Math.round(parseFloat(String(cols[colQty] || '0').replace(/,/g, '')) || 0);
-    const staffNameFromX = String(cols[colStaffName] || '').trim();
-    const statusValN = String(cols[colStatus] || '').trim().toLowerCase();
-    const returnStatusValAS = String(cols[colReturnStatus] || '').trim().toLowerCase();
+    const columnAOValue = colColumnAO !== -1 ? String(cols[colColumnAO] || '').trim() : '';
+    const quantityStr = colQty !== -1 ? String(cols[colQty] || '0').replace(/,/g, '') : '1';
+    const quantity = Math.round(parseFloat(quantityStr) || 0);
+    const staffNameFromX = colStaffName !== -1 ? String(cols[colStaffName] || '').trim() : 'HỆ THỐNG';
+    const statusValN = colStatus !== -1 ? String(cols[colStatus] || '').trim().toLowerCase() : 'đã xuất';
+    const returnStatusValAS = colReturnStatus !== -1 ? String(cols[colReturnStatus] || '').trim().toLowerCase() : 'chưa trả';
 
     if (!staffNameFromX) continue;
 
-    // Use exactly what's in Column X for display
     const displayName = staffNameFromX.replace(/\s+/g, ' ').trim();
     const staffKey = displayName.toUpperCase();
     
-    // FILTER: Ensure staff name exists and is not a header row or system account
     const nameLower = displayName.toLowerCase();
     if (!displayName || 
         nameLower.includes('người tạo') || 
@@ -1924,13 +1923,12 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
         nameLower === 'admin'
     ) continue;
 
-    // Initial check for staffMap to ensure every staff found is tracked
     if (!staffMap.has(staffKey)) {
       staffMap.set(staffKey, { 
         totalRevenue: 0, 
         convertedRevenue: 0, 
         installmentRevenue: 0,
-        marketName: String(cols[colMarket] || '').trim(),
+        marketName: colMarket !== -1 ? String(cols[colMarket] || '').trim() : '',
         items: [],
         giaDung: { total: 0, mayLocNuoc: 0, noiCom: 0, noiChien: 0, quatGio: 0, bep: 0 },
         baoHiem: { total: 0, count: 0, motDoiMot: 0, moRong: 0, roiVo: 0, khac: 0 },
@@ -1945,37 +1943,33 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
       });
     }
 
-    // SPECIAL: Count May Lanh IMEI Quantity from AJ where AO matches AND Column N = "Đã xuất" AND Column AS = "Chưa trả"
-    // Use more robust comparison for the category name just in case
     const isMayLanhImei = columnAOValue === "1098 - Máy lạnh (IMEI)" || columnAOValue.includes("1098 - Máy lạnh (IMEI)");
     
     if (isMayLanhImei && statusValN === "đã xuất" && !(returnStatusValAS.includes('trả') && !returnStatusValAS.includes('chưa trả'))) {
        const staffData = staffMap.get(staffKey)!;
-       staffData.mayLanhImeiQty += quantityVal;
+       staffData.mayLanhImeiQty += quantity;
        
-       const productNameUpper = String(cols[colProduct] || "").toUpperCase();
-       if (productNameUpper.includes("DAIKIN")) staffData.mayLanhDaikinQty = (staffData.mayLanhDaikinQty || 0) + quantityVal;
-       if (productNameUpper.includes("HAIER")) staffData.mayLanhHaierQty = (staffData.mayLanhHaierQty || 0) + quantityVal;
-       if (productNameUpper.includes("HISENSE") || productNameUpper.includes("HISENSI")) staffData.mayLanhHisenseQty = (staffData.mayLanhHisenseQty || 0) + quantityVal;
-    }
+       const productNameUpper = colProduct !== -1 ? String(cols[colProduct] || "").toUpperCase() : "";
+       if (productNameUpper.includes("DAIKIN")) staffData.mayLanhDaikinQty = (staffData.mayLanhDaikinQty || 0) + quantity;
+       if (productNameUpper.includes("HAIER")) staffData.mayLanhHaierQty = (staffData.mayLanhHaierQty || 0) + quantity;
+       if (productNameUpper.includes("HISENSE") || productNameUpper.includes("HISENSI")) staffData.mayLanhHisenseQty = (staffData.mayLanhHisenseQty || 0) + quantity;
+     }
 
-    const type = String(cols[colType] || '').trim().toLowerCase();
-    const method = String(cols[colMethod] || '').trim().toLowerCase();
+    const type = colType !== -1 ? String(cols[colType] || '').trim().toLowerCase() : 'xuất bán';
+    const method = colMethod !== -1 ? String(cols[colMethod] || '').trim().toLowerCase() : 'xuất bán';
     
-    // FILTER: Only include "XUẤT BÁN" or "XUẤT ĐỔI" (Column D) for revenue calculations
     const isThuHoBH = type.includes('thu hộ bảo hiểm') || type.includes('thu ho bao hiem') ||
                       method.includes('thu hộ bảo hiểm') || method.includes('thu ho bao hiem');
-    if (!method.startsWith('xuất bán') && !method.startsWith('xuất đổi') && !isThuHoBH) continue;
+    if (colMethod !== -1 && !method.startsWith('xuất bán') && !method.startsWith('xuất đổi') && !isThuHoBH) continue;
 
-    const status = String(cols[colStatus] || '').trim().toLowerCase();
-    const returnStatus = String(cols[colReturnStatus] || '').trim().toLowerCase();
+    const status = colStatus !== -1 ? String(cols[colStatus] || '').trim().toLowerCase() : 'đã xuất';
+    const returnStatus = colReturnStatus !== -1 ? String(cols[colReturnStatus] || '').trim().toLowerCase() : 'chưa trả';
     
-    // FILTER: Only include "ĐÃ XUẤT" (Column N) and exclude returned items
-    if (status !== 'đã xuất') continue;
-    if (returnStatus.includes('trả') && !returnStatus.includes('chưa trả')) continue;
+    if (colStatus !== -1 && status !== 'đã xuất') continue;
+    if (colReturnStatus !== -1 && returnStatus.includes('trả') && !returnStatus.includes('chưa trả')) continue;
 
-    const market = String(cols[colMarket] || '').trim();
-    const columnAO = String(cols[colColumnAO] || '').trim();
+    const market = colMarket !== -1 ? String(cols[colMarket] || '').trim() : '';
+    const columnAO = colColumnAO !== -1 ? String(cols[colColumnAO] || '').trim() : '';
     
     if (i <= 5) {
       console.log(`[parseYcxData Row ${i}]`, {
@@ -1984,12 +1978,8 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
       });
     }
 
-    const quantityStr = String(cols[colQty] || '0').replace(/,/g, '');
-    const quantity = Math.round(parseFloat(quantityStr) || 0);
-    
-    const originalProductName = String(cols[colProduct] || "Sản phẩm không tên").trim();
+    const originalProductName = colProduct !== -1 ? String(cols[colProduct] || "Sản phẩm không tên").trim() : "Sản phẩm không tên";
     let productName = originalProductName;
-    // Remove product code (e.g., "123456 - iPhone" -> "iPhone", "iPhone (123456)" -> "iPhone", "iPhone - 123456" -> "iPhone")
     productName = productName
       .replace(/^[A-Za-z0-9]+\s*-\s*/, '')
       .replace(/\s*-\s*[A-Za-z0-9]+$/, '')
@@ -1998,54 +1988,24 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
     
     if (!productName) productName = originalProductName;
     
-    const revenueStr = String(cols[colRevenue] || '0').replace(/,/g, '');
-    
-    // Exclude "Mã nạp tiền" in Column AG (index 32)
-    const isMaNapTien = productName.toLowerCase().includes('mã nạp tiền');
+    const revenueStr = colRevenue !== -1 ? String(cols[colRevenue] || '0').replace(/,/g, '') : '0';
     
     const rowString = cols.join(' ').toLowerCase().replace(/\//g, ' ');
     
-    // SIMPLIFIED FILTER: Only check if staff name exists and revenue is valid
     const revenueValue = parseFloat(revenueStr) || 0;
     const hasStaff = displayName && displayName.length > 1;
     const hasRevenue = !isNaN(revenueValue) && revenueValue > 0;
     
-    if (i < startIdx + 5) {
-      console.log(`[parseYcxData] Row ${i} debug:`, { displayName, revenueValue, hasStaff, hasRevenue, colStaffName, colRevenue });
-    }
-
     if (hasStaff && hasRevenue) {
        const revenue = Math.round(revenueValue);
-       
        let isInstallment = false;
-       
        if (type.includes('trả góp') || method.includes('trả góp') || rowString.includes('trả góp') || rowString.includes('tra gop')) {
          isInstallment = true;
        }
          
          const { rate: maxRate, matchedCat } = getRowConversionRate(columnAO, rowString, isInstallment, ratesToUse);
-         
          const convertedRev = Math.round(revenue * maxRate);
          
-         if (!staffMap.has(staffKey)) {
-           staffMap.set(staffKey, { 
-             totalRevenue: 0, 
-             convertedRevenue: 0, 
-             installmentRevenue: 0,
-             marketName: market,
-             items: [],
-             giaDung: { total: 0, mayLocNuoc: 0, noiCom: 0, noiChien: 0, quatGio: 0, bep: 0 },
-             baoHiem: { total: 0, count: 0, motDoiMot: 0, moRong: 0, roiVo: 0, khac: 0 },
-             ict: { smartphone: 0, sdp: 0, taiNghe: 0, camera: 0, sim: 0, vieon: 0, miengDan: 0 },
-             ce: { total: 0, tivi: 0, tuLanh: 0, mayGiat: 0, mayLanh: 0, mayNuocNong: 0, msMrc: 0 },
-             staffName: displayName,
-             staffId: "",
-             mayLanhImeiQty: 0,
-             mayLanhDaikinQty: 0,
-             mayLanhHaierQty: 0,
-             mayLanhHisenseQty: 0
-           });
-         }
          const current = staffMap.get(staffKey)!;
          current.totalRevenue += revenue;
          if (isInstallment) {
@@ -2136,7 +2096,6 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
          if (isVieon) current.ict.vieon += quantity;
          if (isMiengDan) current.ict.miengDan += quantity;
 
-         // CE Logic
          const isTivi = productNameLower.includes('tivi') || productNameLower.includes('ti vi') || productNameLower.includes('television');
          const isTuLanh = productNameLower.includes('tủ lạnh') || productNameLower.includes('tu lanh') || productNameLower.includes('refrigerator');
          const isMayGiat = productNameLower.includes('máy giặt') || productNameLower.includes('may giat') || productNameLower.includes('washing machine');
@@ -2163,11 +2122,11 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
            category: matchedCat,
            isInstallment,
            quantity,
-           status: String(cols[colStatus] || ''),
-           returnStatus: String(cols[colReturnStatus] || ''),
-           orderId: String(cols[colOrderId] || ''),
-           customerName: String(cols[colCustomerName] || ''),
-           customerPhone: String(cols[colCustomerPhone] || ''),
+           status: colStatus !== -1 ? String(cols[colStatus] || '') : '',
+           returnStatus: colReturnStatus !== -1 ? String(cols[colReturnStatus] || '') : '',
+           orderId: colOrderId !== -1 ? String(cols[colOrderId] || '') : '',
+           customerName: colCustomerName !== -1 ? String(cols[colCustomerName] || '') : '',
+           customerPhone: colCustomerPhone !== -1 ? String(cols[colCustomerPhone] || '') : '',
            staffName: displayName
          });
       }

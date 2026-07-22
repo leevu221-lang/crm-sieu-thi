@@ -2270,7 +2270,7 @@ export default function NewRealtimePage() {
     const headers = rawYcxRows[0].map(h => h.trim());
     const headersLower = headers.map(h => h.toLowerCase());
 
-    // Find column indices by exact name or fallback to index 13 (N) and 44 (AS)
+    // Find column indices by exact name or fallback to -1
     let idxStatus = headers.findIndex(h => h.toLowerCase() === 'trạng thái xuất');
     let idxTra = headers.findIndex(h => {
       const lower = h.toLowerCase();
@@ -2281,14 +2281,11 @@ export default function NewRealtimePage() {
         lower.includes('nhập trả');
     });
 
-    if (idxStatus === -1) idxStatus = 13;
-    if (idxTra === -1) idxTra = 44;
-
     const filtered = rawYcxRows.slice(1).filter(row => {
-      const statusValue = String(row[idxStatus] || '').trim().toLowerCase();
-      const traValue = String(row[idxTra] || '').trim().toLowerCase();
-      if (statusValue !== 'đã xuất') return false;
-      if (traValue.includes('trả') && !traValue.includes('chưa trả')) return false;
+      const statusValue = idxStatus !== -1 ? String(row[idxStatus] || '').trim().toLowerCase() : 'đã xuất';
+      const traValue = idxTra !== -1 ? String(row[idxTra] || '').trim().toLowerCase() : 'chưa trả';
+      if (idxStatus !== -1 && statusValue !== 'đã xuất') return false;
+      if (idxTra !== -1 && traValue.includes('trả') && !traValue.includes('chưa trả')) return false;
       return true;
     });
 
@@ -2351,14 +2348,11 @@ export default function NewRealtimePage() {
         lower.includes('nhập trả');
     });
 
-    if (idxStatus === -1) idxStatus = 13;
-    if (idxTra === -1) idxTra = 44;
-
     return rawYcxRows.slice(1).filter(row => {
-      const statusValue = String(row[idxStatus] || '').trim().toLowerCase();
-      const traValue = String(row[idxTra] || '').trim().toLowerCase();
-      if (statusValue !== 'đã xuất' && statusValue !== 'chưa xuất') return false;
-      if (traValue.includes('trả') && !traValue.includes('chưa trả')) return false;
+      const statusValue = idxStatus !== -1 ? String(row[idxStatus] || '').trim().toLowerCase() : 'đã xuất';
+      const traValue = idxTra !== -1 ? String(row[idxTra] || '').trim().toLowerCase() : 'chưa trả';
+      if (idxStatus !== -1 && statusValue !== 'đã xuất' && statusValue !== 'chưa xuất') return false;
+      if (idxTra !== -1 && traValue.includes('trả') && !traValue.includes('chưa trả')) return false;
       return true;
     });
   }, [rawYcxRows]);
@@ -2389,8 +2383,8 @@ export default function NewRealtimePage() {
       return defaultIdx;
     };
 
-    const idxStaff = findIdx(['người tạo'], 23);
-    const idxQty = findIdx(['số lượng'], 35);
+    const idxStaff = findIdx(['người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
+    const idxQty = findIdx(['số lượng', 'sl'], -1);
     // Ưu tiên tìm cột "Giá bán_1" / "Giá bán 1" bằng logic riêng
     const idxRevenue = (() => {
       // Tìm cột header chứa "giá bán" + "1" (VD: "Giá bán_1", "Giá bán 1", "giá bán_1")
@@ -2400,21 +2394,21 @@ export default function NewRealtimePage() {
       });
       if (giaBan1Idx !== -1) return giaBan1Idx;
       // Fallback: tìm các cột doanh thu khác
-      return findIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá bán'], 37);
+      return findIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá bán', 'giá trị đh', 'giá trị'], -1);
     })();
-    console.log('[DrillDown] idxRevenue:', idxRevenue, '| Header:', headers[idxRevenue], '| All headers:', headers.map((h, i) => `[${i}]${h}`).filter(h => h.toLowerCase().includes('giá') || h.toLowerCase().includes('gia') || h.toLowerCase().includes('ban') || h.toLowerCase().includes('bán')));
-    const idxCategory = findIdx(['ngành hàng', 'nhóm ngành hàng', 'nhóm hàng'], 40);
-    const idxSmallCat = findIdx(['nhóm hàng nhỏ'], -1);
+    console.log('[DrillDown] idxRevenue:', idxRevenue, '| Header:', headers[idxRevenue]);
+    const idxCategory = findIdx(['ngành hàng', 'nhóm ngành hàng', 'nhóm hàng', 'tên nhóm hàng'], -1);
+    const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ'], -1);
     const idxHinhThucXuat = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
-    const idxDate = findIdx(['ngày tạo', 'ngày lập', 'ngày xuất', 'ngày giao', 'ngày hoàn'], -1);
+    const idxDate = findIdx(['ngày tạo', 'ngày lập', 'ngày xuất', 'ngày giao', 'ngày hoàn', 'ngày'], -1);
     const idxProduct = (() => {
       const exact = headers.findIndex(h => h.toLowerCase() === 'tên sản phẩm');
       if (exact !== -1) return exact;
       const partial = headers.findIndex(h => h.toLowerCase().startsWith('tên sản phẩm') || h.toLowerCase() === 'tên hàng');
-      return partial !== -1 ? partial : 33;
+      return partial !== -1 ? partial : -1;
     })();
-    const idxMarket = findIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm', 'kho', 'cửa hàng'], 1);
-    const idxTrangThaiSP = findIdx(['trạng thái hồ sơ'], -1);
+    const idxMarket = findIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm', 'kho', 'cửa hàng'], -1);
+    const idxTrangThaiSP = findIdx(['trạng thái hồ sơ', 'trạng thái xuất', 'trạng thái'], -1);
 
     type ACStats = { staffName: string; mayLanh: number; mayLanhDaikin: number; mayLanhHaier: number; mayLanhHisense: number };
     type CEStats = { staffName: string; ceSL: number; ceDT: number; products: { name: string; sl: number; dt: number }[] };
@@ -2480,19 +2474,19 @@ export default function NewRealtimePage() {
     const prevRows: any[][] = [];
 
     for (const row of filteredRawYcxRows) {
-      const staffName = String(row[idxStaff] || '').trim();
-      if (isSystemName(staffName)) continue;
+      const staffName = idxStaff !== -1 ? String(row[idxStaff] || '').trim() : 'HỆ THỐNG';
+      if (idxStaff !== -1 && isSystemName(staffName)) continue;
 
       names.add(staffName);
 
-      const productName = String(row[idxProduct] || '').trim();
-      const category = String(row[idxCategory] || '').trim();
+      const productName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() : 'Sản phẩm khác';
+      const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
       const nhomLarge = classifyNhomHangLarge(category, productName);
       const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
       const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
 
-      const qty = Math.round(parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0);
-      const revenue = Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0);
+      const qty = idxQty !== -1 ? Math.round(parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0) : 1;
+      const revenue = idxRevenue !== -1 ? Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0) : 0;
 
       // ── Air-con stats ──
       if (nhomSmall === 'ML') {
@@ -2573,11 +2567,11 @@ export default function NewRealtimePage() {
           return { key: brand.toUpperCase(), name: brand };
         }
         case 'nguoitao': {
-          const staffName = String(row[idxs.idxStaff] || '').trim() || 'Không rõ';
+          const staffName = idxs.idxStaff !== -1 ? String(row[idxs.idxStaff] || '').trim() || 'Không rõ' : 'HỆ THỐNG';
           return { key: staffName, name: staffName };
         }
         case 'sanpham': {
-          const productName = String(row[idxs.idxProduct] || '').trim() || 'Không rõ';
+          const productName = idxs.idxProduct !== -1 ? String(row[idxs.idxProduct] || '').trim() || 'Không rõ' : 'Sản phẩm khác';
           return { key: productName, name: productName };
         }
         case 'trangthaisp': {
@@ -2592,11 +2586,11 @@ export default function NewRealtimePage() {
 
     const filterDataset = (datasetRows: any[][]) => {
       return datasetRows.filter(row => {
-        const rawMarket = String(row[idxMarket] || '').trim();
+        const rawMarket = idxMarket !== -1 ? String(row[idxMarket] || '').trim() : '';
         const storeId = rawMarket.match(/^([a-zA-Z0-9]+)/)?.[1] || rawMarket || 'Không rõ';
 
-        const productName = String(row[idxProduct] || '').trim() || 'Không rõ';
-        const category = String(row[idxCategory] || '').trim();
+        const productName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() || 'Không rõ' : 'Sản phẩm khác';
+        const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
         const nhomLarge = classifyNhomHangLarge(category, productName);
 
         if (nhomLarge === 'Khác' || nhomLarge === 'THỂ CÀO') return false;
@@ -2605,7 +2599,7 @@ export default function NewRealtimePage() {
         const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
 
         const brand = resolveBrandForProduct(productName, nhomSmall);
-        const staffName = String(row[idxStaff] || '').trim() || 'Không rõ';
+        const staffName = idxStaff !== -1 ? String(row[idxStaff] || '').trim() || 'Không rõ' : 'HỆ THỐNG';
 
         // Check page-level staff filter
         if (selectedStaffs.length > 0 && !selectedStaffs.includes(staffName)) return false;
@@ -3297,8 +3291,8 @@ export default function NewRealtimePage() {
       return defaultIdx;
     };
 
-    const idxStaff = findIdx(['người tạo'], 23);
-    const idxQty = findIdx(['số lượng'], 35);
+    const idxStaff = findIdx(['người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
+    const idxQty = findIdx(['số lượng', 'sl'], -1);
     // Ưu tiên tìm cột "Giá bán_1" / "Giá bán 1" bằng logic riêng
     const idxRevenue = (() => {
       const giaBan1Idx = headers.findIndex(h => {
@@ -3306,25 +3300,25 @@ export default function NewRealtimePage() {
         return (norm.includes('gia ban') && norm.includes('1')) || norm === 'gia ban_1' || norm === 'gia ban 1';
       });
       if (giaBan1Idx !== -1) return giaBan1Idx;
-      return findIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá bán'], 37);
+      return findIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá bán', 'giá trị đh', 'giá trị'], -1);
     })();
     console.log('[KhaiThac] idxRevenue:', idxRevenue, '| Header:', headers[idxRevenue]);
-    const idxCategory = findIdx(['ngành hàng', 'nhóm ngành hàng', 'nhóm hàng'], 40);
-    const idxSmallCat = findIdx(['nhóm hàng nhỏ'], -1);
+    const idxCategory = findIdx(['ngành hàng', 'nhóm ngành hàng', 'nhóm hàng', 'tên nhóm hàng'], -1);
+    const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ'], -1);
     const idxHinhThucXuat = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
     const idxNhaSanXuat = findIdx(['nhà sản xuất', 'nha san xuat', 'nhà sx', 'nha sx', 'hãng sản xuất', 'hãng sx', 'brand'], -1);
     const idxProduct = (() => {
       const exact = headers.findIndex(h => h.toLowerCase() === 'tên sản phẩm');
       if (exact !== -1) return exact;
       const partial = headers.findIndex(h => h.toLowerCase().startsWith('tên sản phẩm') || h.toLowerCase() === 'tên hàng');
-      return partial !== -1 ? partial : 33;
+      return partial !== -1 ? partial : -1;
     })();
     const idxProductCode = (() => {
       const idx = headers.findIndex(h => {
         const norm = removeAccents(h).toLowerCase();
-        return norm === 'ma san pham' || norm === 'ma sp' || norm === 'ma hang' || norm.includes('ma san pham');
+        return norm === 'ma san pham' || norm === 'ma sp' || norm === 'ma hang' || norm.includes('ma san pham') || norm.includes('mã sản phẩm') || norm.includes('mã sp');
       });
-      return idx !== -1 ? idx : 28;
+      return idx !== -1 ? idx : -1;
     })();
 
     const statsMap = new Map<string, {
@@ -3379,11 +3373,11 @@ export default function NewRealtimePage() {
       !n || n.toLowerCase().includes('người tạo') || n.toLowerCase() === 'admin' || n.toLowerCase() === 'administrator';
 
     for (const row of filteredRawYcxRows) {
-      const staffName = String(row[idxStaff] || '').trim();
-      if (isSystemName(staffName)) continue;
+      const staffName = idxStaff !== -1 ? String(row[idxStaff] || '').trim() : 'HỆ THỐNG';
+      if (idxStaff !== -1 && isSystemName(staffName)) continue;
 
-      const category = String(row[idxCategory] || '').trim();
-      const productName = String(row[idxProduct] || '').trim();
+      const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
+      const productName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() : 'Sản phẩm khác';
       let nhomLarge = classifyNhomHangLarge(category, productName);
       if (productName.toUpperCase().includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || productName.toUpperCase().includes('BẢO VỆ MÀN HÌNH') || productName.toUpperCase().includes('BVMH')) {
         nhomLarge = 'B.HIỂM';
@@ -3398,8 +3392,8 @@ export default function NewRealtimePage() {
       const brandVal = idxNhaSanXuat !== -1 ? String(row[idxNhaSanXuat] || '').trim().toUpperCase() : '';
       const isVieONRow = brandVal === 'VIEON' || category.toUpperCase().includes('VIEON') || productName.toUpperCase().includes('VIEON');
 
-      const qty = Math.round(parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0);
-      const revenue = Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0);
+      const qty = idxQty !== -1 ? Math.round(parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0) : 1;
+      const revenue = idxRevenue !== -1 ? Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0) : 0;
 
       if (!statsMap.has(staffName)) {
         const match = staffName.match(/^(\d+)/);
@@ -3680,14 +3674,14 @@ export default function NewRealtimePage() {
       return defaultIdx;
     };
 
-    const idxStaff = findIdx(['người tạo'], 23);
-    const idxDate = findIdx(['ngày tạo'], -1);
-    const idxHtx = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu'], -1);
-    const idxProduct = findIdx(['tên sản phẩm', 'tên hàng'], 33);
-    const idxNhomHang = findIdx(['nhóm hàng'], 40);
-    const idxNganhHang = findIdx(['ngành hàng'], -1);
+    const idxStaff = findIdx(['người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
+    const idxDate = findIdx(['ngày tạo', 'ngày lập', 'ngày xuất', 'ngày giao', 'ngày hoàn', 'ngày'], -1);
+    const idxHtx = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
+    const idxProduct = findIdx(['tên sản phẩm', 'tên hàng', 'sản phẩm'], -1);
+    const idxNhomHang = findIdx(['nhóm hàng', 'nhóm sản phẩm'], -1);
+    const idxNganhHang = findIdx(['ngành hàng', 'nhóm ngành hàng', 'tên nhóm hàng'], -1);
     const idxCustomerName = findIdx(['khách hàng', 'tên kh', 'tên khách hàng', 'người mua'], -1);
-    const idxTrangThaiHoSo = findIdx(['trạng thái hồ sơ'], -1);
+    const idxTrangThaiHoSo = findIdx(['trạng thái hồ sơ', 'trạng thái xuất', 'trạng thái'], -1);
 
     const bills = new Map<string, { staffName: string, dateVal: string, customerName: string, itemCount: number, items: Array<{ product: string, htx: string }> }>();
 
@@ -3721,7 +3715,7 @@ export default function NewRealtimePage() {
       }
       if (largeCat === 'B.HIỂM') return;
 
-      const staffName = String(row[idxStaff] || '').trim() || 'Unknown';
+      const staffName = idxStaff !== -1 ? String(row[idxStaff] || '').trim() || 'Unknown' : 'HỆ THỐNG';
       if (selectedStaffs.length > 0 && !selectedStaffs.some(s => staffName.toLowerCase().includes(s.toLowerCase()))) return;
       if (drillFilterStaff.length > 0 && !drillFilterStaff.includes(staffName)) return;
 
@@ -3736,8 +3730,8 @@ export default function NewRealtimePage() {
       bill.itemCount += 1;
       
       bill.items.push({
-        product: String(row[idxProduct] || '').trim(),
-        htx: String(row[idxHtx] || '').trim()
+        product: idxProduct !== -1 ? String(row[idxProduct] || '').trim() : 'Sản phẩm khác',
+        htx: idxHtx !== -1 ? String(row[idxHtx] || '').trim() : ''
       });
     });
 
@@ -3827,25 +3821,25 @@ export default function NewRealtimePage() {
         }
         return defaultIdx;
       };
-      const idxStaff = findIdx(['người tạo'], 23);
-      const idxCategory = findIdx(['ngành hàng', 'nhóm ngành hàng', 'nhóm hàng'], 40);
-      const idxSmallCat = findIdx(['nhóm hàng nhỏ'], -1);
+      const idxStaff = findIdx(['người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
+      const idxCategory = findIdx(['ngành hàng', 'nhóm ngành hàng', 'nhóm hàng', 'tên nhóm hàng'], -1);
+      const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ'], -1);
       const idxProduct = (() => {
         const exact = headers.findIndex(h => h.toLowerCase() === 'tên sản phẩm');
         if (exact !== -1) return exact;
         const partial = headers.findIndex(h => h.toLowerCase().startsWith('tên sản phẩm') || h.toLowerCase() === 'tên hàng');
-        return partial !== -1 ? partial : 33;
+        return partial !== -1 ? partial : -1;
       })();
-      const idxMarket = findIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm', 'kho', 'cửa hàng'], 1);
-      const idxTrangThaiSP = findIdx(['trạng thái hồ sơ'], -1);
+      const idxMarket = findIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm', 'kho', 'cửa hàng'], -1);
+      const idxTrangThaiSP = findIdx(['trạng thái hồ sơ', 'trạng thái xuất', 'trạng thái'], -1);
 
       for (let i = 1; i < rawYcxRows.length; i++) {
         const row = rawYcxRows[i];
-        const rawMarket = String(row[idxMarket] || '').trim();
+        const rawMarket = idxMarket !== -1 ? String(row[idxMarket] || '').trim() : '';
         const storeId = rawMarket.match(/^([a-zA-Z0-9]+)/)?.[1] || rawMarket || 'Không rõ';
 
-        const productName = String(row[idxProduct] || '').trim() || 'Không rõ';
-        const category = String(row[idxCategory] || '').trim();
+        const productName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() || 'Không rõ' : 'Sản phẩm khác';
+        const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
         const nhomLarge = classifyNhomHangLarge(category, productName);
 
         if (nhomLarge === 'Khác' || nhomLarge === 'THỂ CÀO') continue;
@@ -3854,7 +3848,7 @@ export default function NewRealtimePage() {
         const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
 
         const brand = resolveBrandForProduct(productName, nhomSmall);
-        const staffName = String(row[idxStaff] || '').trim() || 'Không rõ';
+        const staffName = idxStaff !== -1 ? String(row[idxStaff] || '').trim() || 'Không rõ' : 'HỆ THỐNG';
 
         if (storeId) stores.add(storeId);
         if (nhomLarge) nganhs.add(nhomLarge);
