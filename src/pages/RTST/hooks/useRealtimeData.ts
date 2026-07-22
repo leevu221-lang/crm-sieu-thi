@@ -263,27 +263,13 @@ export const useRealtimeData = (maKho: string) => {
           lk_bi_tong_quan: categoryRevenueInputRef.current,
           lk_nh_sieu_thi: categoryTargetInputRef.current,
           ycx_data: ycxDataRef.current,
+          ycx_data_moi: ycxDataMoiRef.current,
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
 
       if (upsertError) {
         console.error('[RealtimeData] Upsert error:', upsertError);
         throw upsertError;
-      }
-
-      const { error: upsertErrorMoi } = await supabase
-        .from('store')
-        .upsert({
-          id: normalizeStoreId(cleanStore) + '_MOI',
-          warehouse_code: cleanMaKho,
-          ten_sieu_thi: cleanStore + ' (MỚI)',
-          ycx_data: ycxDataMoiRef.current,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
-
-      if (upsertErrorMoi) {
-        console.error('[RealtimeData] Upsert MOI error:', upsertErrorMoi);
-        throw upsertErrorMoi;
       }
 
       // 2. Global update removed as requested - REALTIME DT and REALTIME TĐ are now per-store.
@@ -377,7 +363,7 @@ export const useRealtimeData = (maKho: string) => {
       // Query directly using the selected store name as the unique document ID
       const { data: record, error } = await supabase
         .from('store')
-        .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ten_sieu_thi, updated_at')
+        .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ycx_data_moi, ten_sieu_thi, updated_at')
         .eq('id', targetDocId)
         .maybeSingle();
 
@@ -401,6 +387,7 @@ export const useRealtimeData = (maKho: string) => {
         setCategoryRevenueInput(record.lk_bi_tong_quan || '');
         setCategoryTargetInput(record.lk_nh_sieu_thi || '');
         setYcxData(record.ycx_data || '');
+        setYcxDataMoi(record.ycx_data_moi || '');
         
         if (record.updated_at) {
           const parsedDate = new Date(record.updated_at);
@@ -415,23 +402,6 @@ export const useRealtimeData = (maKho: string) => {
         }
       } else {
         console.log(`[RealtimeData] No record found in DB for ID: "${targetDocId}"`);
-      }
-
-      // Load _MOI record for ycxDataMoi
-      try {
-        const { data: recordMoi } = await supabase
-          .from('store')
-          .select('ycx_data')
-          .eq('id', targetDocId + '_MOI')
-          .maybeSingle();
-        if (recordMoi) {
-          setYcxDataMoi(recordMoi.ycx_data || '');
-        } else {
-          setYcxDataMoi('');
-        }
-      } catch (errMoi) {
-        console.error('[RTST] Error loading ycxDataMoi:', errMoi);
-        setYcxDataMoi('');
       }
 
     } catch (err) {
@@ -573,7 +543,7 @@ export const useRealtimeData = (maKho: string) => {
       // Query directly using the selected store name as the unique document ID
       const { data, error } = await supabase
         .from('store')
-        .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ten_sieu_thi, updated_at')
+        .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ycx_data_moi, ten_sieu_thi, updated_at')
         .eq('id', normalizeStoreId(activeStore.trim()))
         .maybeSingle();
 
@@ -585,25 +555,9 @@ export const useRealtimeData = (maKho: string) => {
         setCategoryRevenueInput(data.lk_bi_tong_quan || '');
         setCategoryTargetInput(data.lk_nh_sieu_thi || '');
         setYcxData(data.ycx_data || '');
+        setYcxDataMoi(data.ycx_data_moi || '');
       } else {
         showNotification('Không tìm thấy dữ liệu Realtime để đồng bộ.', 'error');
-      }
-
-      // Sync _MOI record for ycxDataMoi
-      try {
-        const { data: recordMoi } = await supabase
-          .from('store')
-          .select('ycx_data')
-          .eq('id', normalizeStoreId(activeStore.trim()) + '_MOI')
-          .maybeSingle();
-        if (recordMoi) {
-          setYcxDataMoi(recordMoi.ycx_data || '');
-        } else {
-          setYcxDataMoi('');
-        }
-      } catch (errMoi) {
-        console.error('[RTST] Error syncing ycxDataMoi:', errMoi);
-        setYcxDataMoi('');
       }
 
     } catch (error: any) {
