@@ -5840,7 +5840,7 @@ export default function NewRealtimePage() {
                           </div>
                           <div>
                             <h3 className="text-[18px] font-black text-red-600 tracking-tight uppercase">PHÂN TÍCH KHAI THÁC</h3>
-                            <p className="text-[11px] text-slate-400 mt-0.5">Chi tiết sản phẩm & hiệu quả bán kèm THEO USER TẠO</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Chi tiết sản phẩm & hiệu quả bán kèm THEO USER BÁN HÀNG</p>
                           </div>
                         </div>
                         {/* Nút chụp ảnh */}
