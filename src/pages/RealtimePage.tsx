@@ -3121,7 +3121,7 @@ export default function NewRealtimePage() {
         return true;
       });
     });
-  }, [deferredFilteredRows, columnFilters, rawYcxRows]);
+  }, [deferredFilteredRows, columnFilters, rawYcxRows, rawYcxRowsForTable]);
 
   const getUniqueValuesForColumn = useCallback((colIdx: number) => {
     const values = new Set<string>();
@@ -6610,7 +6610,7 @@ export default function NewRealtimePage() {
                         <ShoppingBag size={18} className="text-slate-700 flex-shrink-0" />
                         <div>
                           <h3 className="text-[15px] font-black text-slate-900 uppercase tracking-widest">3. DỮ LIỆU NGUỒN</h3>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Lọc: Đã xuất, Chưa xuất &amp; Chưa trả</p>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{isMoiTab ? 'Hiển thị tất cả dữ liệu (không lọc)' : 'Lọc: Đã xuất, Chưa xuất & Chưa trả'}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
