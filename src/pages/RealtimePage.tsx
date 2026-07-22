@@ -5286,7 +5286,7 @@ export default function NewRealtimePage() {
                             },
                             nguoitao: {
                               key: 'nguoitao',
-                              label: 'Người tạo',
+                              label: 'NV bán hàng',
                               icon: User,
                               bgActive: 'bg-[#feebc8] border-[#b06000]',
                               bgInactive: 'bg-[#fef7e0] border-[#feebc8]',
