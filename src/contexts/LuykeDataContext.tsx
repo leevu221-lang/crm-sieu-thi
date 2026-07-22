@@ -1197,6 +1197,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     staffCategoryInput, setStaffCategoryInput: setStaffCategoryInputSync,
     staffListInput, setStaffListInput: setStaffListInputSync,
     dataPhanCa, setDataPhanCa,
+    activeStore,
     dtGioCong, setDtGioCong: setDtGioCongSync,
     tragopMatran, setTragopMatran: setTragopMatranSync,
     tragopNv, setTragopNv: setTragopNvSync,
