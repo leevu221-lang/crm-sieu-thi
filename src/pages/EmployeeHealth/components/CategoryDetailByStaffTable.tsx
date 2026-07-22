@@ -8,6 +8,7 @@ import { cn } from '../../RTST/utils';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { StaffMatrixData, CategoryData } from '../../RTST/types';
 import { cleanCategoryName } from './EmployeeDetailTable';
+import { useLuykeData } from '../../RTST/hooks/useLuykeData';
 
 interface CategoryDetailByStaffTableProps {
   luyKeNganhHang: string;
@@ -212,6 +213,8 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     ? allStaffMatrix.filter(s => selectedStaffIds.includes(s.fullId))
     : allStaffMatrix;
 
+  const { activeStore } = useLuykeData();
+
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -223,10 +226,33 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
 
   React.useEffect(() => {
     if (dropdownCategories.length > 0 && !initializedRef.current) {
+      const savedKey = `EH_DETAIL_CATEGORIES_${activeStore || 'GLOBAL'}`;
+      const savedVal = localStorage.getItem(savedKey);
+      if (savedVal !== null) {
+        try {
+          const parsed = JSON.parse(savedVal);
+          if (Array.isArray(parsed)) {
+            const validSaved = parsed.filter((c: string) => dropdownCategories.includes(c));
+            setSelectedCategories(validSaved);
+            initializedRef.current = true;
+            return;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
       setSelectedCategories(dropdownCategories);
       initializedRef.current = true;
     }
-  }, [dropdownCategories]);
+  }, [dropdownCategories, activeStore]);
+
+  // Save selected categories when selection changes
+  React.useEffect(() => {
+    if (dropdownCategories.length > 0 && initializedRef.current) {
+      const savedKey = `EH_DETAIL_CATEGORIES_${activeStore || 'GLOBAL'}`;
+      localStorage.setItem(savedKey, JSON.stringify(selectedCategories));
+    }
+  }, [selectedCategories, dropdownCategories, activeStore]);
 
   // Close dropdown when clicking outside
   React.useEffect(() => {

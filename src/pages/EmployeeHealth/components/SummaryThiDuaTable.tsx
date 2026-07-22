@@ -490,9 +490,32 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   const serializedCats = JSON.stringify(categories);
   React.useEffect(() => {
     if (categories.length > 0) {
+      const savedKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
+      const savedVal = localStorage.getItem(savedKey);
+      if (savedVal !== null) {
+        try {
+          const parsed = JSON.parse(savedVal);
+          if (Array.isArray(parsed)) {
+            // Filter to ensure only categories currently available are visible
+            const validSaved = parsed.filter((c: string) => categories.includes(c));
+            setVisibleCategories(validSaved);
+            return;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
       setVisibleCategories(categories);
     }
-  }, [serializedCats]);
+  }, [serializedCats, activeStore]);
+
+  // Save selected categories when selection changes
+  React.useEffect(() => {
+    if (categories.length > 0) {
+      const savedKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
+      localStorage.setItem(savedKey, JSON.stringify(visibleCategories));
+    }
+  }, [visibleCategories, categories, activeStore]);
 
   // Close dropdown when clicking outside
   React.useEffect(() => {

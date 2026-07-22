@@ -6341,6 +6341,7 @@ export default function NewRealtimePage() {
                               const totalMangoIcallRev = staffKhaiThacStats.reduce((s, x) => s + x.mangoIcallRev, 0);
 
                               const totalSimQty = staffKhaiThacStats.reduce((s, x) => s + x.simQty, 0);
+}
                               const totalSimRev = staffKhaiThacStats.reduce((s, x) => s + x.simRev, 0);
 
                               const totalDhQty = staffKhaiThacStats.reduce((s, x) => s + x.dhQty, 0);
@@ -6351,7 +6352,6 @@ export default function NewRealtimePage() {
                               const totalPkPin = staffKhaiThacStats.reduce((s, x) => s + x.pkPinQty, 0);
                               const totalPkTn = staffKhaiThacStats.reduce((s, x) => s + x.pkTnQty, 0);
                               const totalPkDenMt = staffKhaiThacStats.reduce((s, x) => s + x.pkDenMtQty, 0);
-                              const totalPkTotalQty = staffKhaiThacStats.reduce((s, x) => s + x.pkTotalQty, 0);
                               const totalPkRev = staffKhaiThacStats.reduce((s, x) => s + x.pkRev, 0);
 
                               const totalGdQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQty, 0);
@@ -6439,6 +6439,7 @@ export default function NewRealtimePage() {
                                       </td>
                                     </>
                                   )}
+                                </tr>
                               );
                             })()}
                           </tfoot>
