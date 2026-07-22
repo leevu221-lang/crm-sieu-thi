@@ -6341,7 +6341,6 @@ export default function NewRealtimePage() {
                               const totalMangoIcallRev = staffKhaiThacStats.reduce((s, x) => s + x.mangoIcallRev, 0);
 
                               const totalSimQty = staffKhaiThacStats.reduce((s, x) => s + x.simQty, 0);
-}
                               const totalSimRev = staffKhaiThacStats.reduce((s, x) => s + x.simRev, 0);
 
                               const totalDhQty = staffKhaiThacStats.reduce((s, x) => s + x.dhQty, 0);
