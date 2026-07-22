@@ -34,6 +34,7 @@ export default defineConfig(({mode}) => {
     resolve: {
       alias: {
         '@': path.resolve(process.cwd(), '.'),
+        'framer-motion': 'motion/react',
       },
     },
     server: {

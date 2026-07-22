@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Copy } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface ImagePreviewModalProps {
   previewImage: string | null;

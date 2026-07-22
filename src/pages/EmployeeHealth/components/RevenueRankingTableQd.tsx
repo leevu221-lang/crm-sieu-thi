@@ -1,6 +1,6 @@
 import React from 'react';
 import { Trophy, TrendingDown, Camera } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { StaffData } from '../../RTST/types';
 import { cn } from '../../RTST/utils';
 
