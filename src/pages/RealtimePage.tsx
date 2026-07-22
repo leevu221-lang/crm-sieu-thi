@@ -6906,67 +6906,56 @@ export default function NewRealtimePage() {
                             <tfoot>
                               {rawYcxRows.length > 0 && (() => {
                                 const headers = rawYcxRows[0]?.map(h => String(h || '').trim()) || [];
+                                const colCount = headers.length;
 
-                                // Find index of quantity column
-                                const idxQty = headers.findIndex(h => {
-                                  const lh = h.toLowerCase();
-                                  return lh === 'số lượng' || lh === 'sl' || lh.includes('số lượng');
-                                });
+                                // Pre-compute sums for ALL columns
+                                const colSums: (number | null)[] = new Array(colCount).fill(null);
+                                const colNumericCount: number[] = new Array(colCount).fill(0);
 
-                                // Find index of price/revenue column
-                                const idxGiaBan = (() => {
-                                  const priorityTerms = ['doanh thu', 'thành tiền', 'giá bán', 'giá bán_1', 'phải thu', 'tổng tiền'];
-                                  for (const term of priorityTerms) {
-                                    const idx = headers.findIndex(h => h.toLowerCase().includes(term));
-                                    if (idx !== -1) return idx;
+                                for (let c = 0; c < colCount; c++) {
+                                  let sum = 0;
+                                  let numCount = 0;
+                                  for (const row of filteredRawTableRows) {
+                                    const rawVal = String(row[c] || '').replace(/,/g, '').trim();
+                                    const val = parseFloat(rawVal);
+                                    if (!isNaN(val) && rawVal !== '') {
+                                      sum += val;
+                                      numCount++;
+                                    }
                                   }
-                                  return -1;
-                                })();
-
-                                const sumQty = idxQty !== -1 ? filteredRawTableRows.reduce((acc, row) => {
-                                  const rawVal = String(row[idxQty] || '').replace(/,/g, '').trim();
-                                  const val = parseFloat(rawVal);
-                                  return acc + (isNaN(val) ? 0 : val);
-                                }, 0) : 0;
-
-                                const sumGiaBan = idxGiaBan !== -1 ? filteredRawTableRows.reduce((acc, row) => {
-                                  const rawVal = String(row[idxGiaBan] || '').replace(/,/g, '').trim();
-                                  const val = parseFloat(rawVal);
-                                  return acc + (isNaN(val) ? 0 : val);
-                                }, 0) : 0;
+                                  // Only show sum if at least half of rows have numeric values
+                                  if (numCount > 0 && numCount >= filteredRawTableRows.length * 0.3) {
+                                    colSums[c] = sum;
+                                    colNumericCount[c] = numCount;
+                                  }
+                                }
 
                                 return (
-                                  <tr className="bg-slate-100 font-extrabold border-t border-slate-300 text-[10px] text-slate-800">
-                                    {rawYcxRows[0].map((_, idx) => {
+                                  <tr className="bg-slate-100 font-extrabold border-t-2 border-slate-400 text-[10px] text-slate-800 sticky bottom-0 z-[5]">
+                                    {headers.map((_, idx) => {
                                       if (idx === 0) {
                                         return (
-                                          <td key={idx} className="border border-slate-200 py-2 px-3 text-center uppercase tracking-wider text-slate-700 whitespace-nowrap">
+                                          <td key={idx} className="border border-slate-200 py-2 px-3 text-center uppercase tracking-wider text-slate-700 whitespace-nowrap bg-slate-100">
                                             TỔNG CỘNG
                                           </td>
                                         );
                                       }
-                                      if (idx === idxQty && idxQty !== -1) {
+                                      if (colSums[idx] !== null) {
                                         return (
                                           <td key={idx} className="border border-slate-200 py-2 px-3 text-center text-slate-900 font-black whitespace-nowrap bg-emerald-50/50">
-                                            {sumQty.toLocaleString('vi-VN')}
-                                          </td>
-                                        );
-                                      }
-                                      if (idx === idxGiaBan && idxGiaBan !== -1) {
-                                        return (
-                                          <td key={idx} className="border border-slate-200 py-2 px-3 text-center text-slate-900 font-black whitespace-nowrap bg-blue-50/50">
-                                            {sumGiaBan.toLocaleString('vi-VN')}
+                                            {colSums[idx]!.toLocaleString('vi-VN', { maximumFractionDigits: 2 })}
                                           </td>
                                         );
                                       }
                                       return (
-                                        <td key={idx} className="border border-slate-200 py-2 px-3"></td>
+                                        <td key={idx} className="border border-slate-200 py-2 px-3 bg-slate-100"></td>
                                       );
                                     })}
-                                    <td className="border border-slate-200 py-2 px-3"></td>
-                                    <td className="border border-slate-200 py-2 px-3"></td>
-                                    <td className="border border-slate-200 py-2 px-3"></td>
-                                    <td className="border border-slate-200 py-2 px-3"></td>
+                                    {/* Extra calculated columns */}
+                                    <td className="border border-slate-200 py-2 px-3 bg-slate-100"></td>
+                                    <td className="border border-slate-200 py-2 px-3 bg-slate-100"></td>
+                                    <td className="border border-slate-200 py-2 px-3 bg-slate-100"></td>
+                                    <td className="border border-slate-200 py-2 px-3 bg-slate-100"></td>
                                   </tr>
                                 );
                               })()}
