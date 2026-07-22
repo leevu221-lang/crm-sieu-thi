@@ -6595,6 +6595,7 @@ export default function NewRealtimePage() {
                         </tbody>
                       </table>
                     </div>
+                  </div>
                   )}
 
                   {/* Unexported Orders Table */}
