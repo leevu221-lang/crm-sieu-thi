@@ -221,9 +221,9 @@ export const useRealtimeData = (maKho: string) => {
 
   const updateYcxDataMoi = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(ycxDataMoiRef.current) : val;
-    const minified = minifyYcxData(newVal);
-    ycxDataMoiRef.current = minified;
-    setYcxDataMoi(minified);
+    // DATA YCX MỚI: NO minification — store ALL data without filtering
+    ycxDataMoiRef.current = newVal;
+    setYcxDataMoi(newVal);
     setIsYcxDirty(true);
   }, []);
 
