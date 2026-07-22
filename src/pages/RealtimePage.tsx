@@ -2267,6 +2267,13 @@ export default function NewRealtimePage() {
 
   const filteredRawYcxRows = useMemo(() => {
     if (!rawYcxRows || rawYcxRows.length <= 1) return [];
+
+    // DATA YCX MỚI: hiển thị TẤT CẢ dữ liệu, không lọc bất kỳ điều kiện nào
+    if (isMoiTab) {
+      console.log('[filteredRawYcxRows MOI] No filters applied – returning all', rawYcxRows.length - 1, 'rows');
+      return rawYcxRows.slice(1);
+    }
+
     const headers = rawYcxRows[0].map(h => h.trim());
     const headersLower = headers.map(h => h.toLowerCase());
 
@@ -2332,10 +2339,14 @@ export default function NewRealtimePage() {
       '| Before:', filtered.length, '| After:', result.length, '| Removed:', filtered.length - result.length,
       '| All headers:', headers.map((h, i) => `[${i}]${h}`).join(', '));
     return result;
-  }, [rawYcxRows]);
+  }, [rawYcxRows, isMoiTab]);
 
   const rawYcxRowsForTable = useMemo(() => {
     if (rawYcxRows.length <= 1) return [];
+
+    // DATA YCX MỚI: hiển thị TẤT CẢ dữ liệu, không lọc
+    if (isMoiTab) return rawYcxRows.slice(1);
+
     const headers = rawYcxRows[0].map(h => h.trim());
     
     let idxStatus = headers.findIndex(h => h.toLowerCase() === 'trạng thái xuất');
@@ -2355,7 +2366,7 @@ export default function NewRealtimePage() {
       if (idxTra !== -1 && traValue.includes('trả') && !traValue.includes('chưa trả')) return false;
       return true;
     });
-  }, [rawYcxRows]);
+  }, [rawYcxRows, isMoiTab]);
 
   // Defer heavy row list so useMemo stats don't block render
   const deferredFilteredRows = useDeferredValue(filteredRawYcxRows);
