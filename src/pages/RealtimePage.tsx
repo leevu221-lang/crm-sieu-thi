@@ -5034,16 +5034,28 @@ export default function NewRealtimePage() {
                       <div className="space-y-3">
                         <div className="text-[11px] text-slate-600 space-y-2">
                           <p className="font-bold">Trình tự thao tác:</p>
-                          <ol className="list-decimal pl-4 space-y-1 text-slate-500 font-medium">
-                            <li>Chọn <span className="font-black text-indigo-600">Bán hàng</span></li>
-                            <li>Chọn tiếp danh mục con <span className="font-black text-indigo-600">Bán hàng</span></li>
-                            <li>Click vào mục <span className="font-black text-indigo-600">Chi tiết yêu cầu xuất</span></li>
-                            <li>Chọn <span className="font-black text-indigo-600">từ ngày đến ngày</span></li>
-                            <li>Chọn <span className="font-black text-indigo-600">kho tạo</span></li>
-                            <li>Chọn <span className="font-black text-indigo-600">mã siêu thị</span></li>
-                          </ol>
+                          {isMoiTab ? (
+                            <ol className="list-decimal pl-4 space-y-1 text-slate-500 font-medium">
+                              <li>Chọn app <span className="font-black text-indigo-600">MWG WORK</span></li>
+                              <li>Tìm <span className="font-black text-indigo-600">Report DMX</span></li>
+                              <li>Chọn <span className="font-black text-indigo-600">Doanh Thu Nhân Viên - Kho Tạo</span></li>
+                              <li>Chọn <span className="font-black text-indigo-600">ngày</span>, Chọn <span className="font-black text-indigo-600">Vùng</span>, Chọn <span className="font-black text-indigo-600">Khu Vực</span>, Chọn <span className="font-black text-indigo-600">Siêu Thị</span> → Xem báo cáo</li>
+                              <li><span className="font-black text-indigo-600">Xuất Excel</span> → Tải về Điện Thoại</li>
+                              <li>Mở Web bằng <span className="font-black text-indigo-600">Safari</span> → Chọn tải <span className="font-black text-indigo-600">File Excel</span> lên → Hoàn Tất</li>
+                            </ol>
+                          ) : (
+                            <ol className="list-decimal pl-4 space-y-1 text-slate-500 font-medium">
+                              <li>Chọn <span className="font-black text-indigo-600">Bán hàng</span></li>
+                              <li>Chọn tiếp danh mục con <span className="font-black text-indigo-600">Bán hàng</span></li>
+                              <li>Click vào mục <span className="font-black text-indigo-600">Chi tiết yêu cầu xuất</span></li>
+                              <li>Chọn <span className="font-black text-indigo-600">từ ngày đến ngày</span></li>
+                              <li>Chọn <span className="font-black text-indigo-600">kho tạo</span></li>
+                              <li>Chọn <span className="font-black text-indigo-600">mã siêu thị</span></li>
+                            </ol>
+                          )}
                         </div>
 
+                        {!isMoiTab && (
                         <div className="pt-2">
                           <a
                             href="https://report.mwgroup.vn/home/dashboard/77"
@@ -5055,6 +5067,7 @@ export default function NewRealtimePage() {
                             <span>Truy cập Link tải báo cáo</span>
                           </a>
                         </div>
+                        )}
                       </div>
                     </div>
                   </div>
