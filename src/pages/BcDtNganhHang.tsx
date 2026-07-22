@@ -661,7 +661,7 @@ const getColumnIndices = (headers: string[]) => {
     return defaultIdx;
   };
 
-  const idxStaff = findIdx(['người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'user tạo'], 23);
+  const idxStaff = findIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
   const idxQty = findIdx(['số lượng', 'sl'], 35);
   
   const idxRevenue = (() => {

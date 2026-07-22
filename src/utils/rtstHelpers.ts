@@ -787,7 +787,7 @@ export const parseYcxData = (data: string): YcxStaffData[] => {
 
   const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
   const idxStatus = getIdx(['trạng thái xuất']);
-  const idxStaffName = getIdx(['người tạo']); // Bắt buộc dùng cột "Người tạo"
+  const idxStaffName = getIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo']); // Ưu tiên cột "Nhân viên bán hàng"
   const idxStaffId = getIdx(['user tạo']);
   const idxRevenue = getIdx(['doanh thu', 'thành tiền', 'giá bán', 'phải thu', 'tổng tiền']);
   const idxProduct = getIdx(['tên sản phẩm', 'sản phẩm', 'tên hàng']);
