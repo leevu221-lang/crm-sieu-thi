@@ -18,6 +18,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
 
   const [manualAdjustment, setManualAdjustment] = useState(() => Number(localStorage.getItem('BI_REAL_ADJUST_V1')) || 0);
   const [ycxFileName, setYcxFileName] = useState(() => localStorage.getItem(STORAGE_KEYS.YCX_FILE_NAME) || '');
+  const [ycxFileNameMoi, setYcxFileNameMoi] = useState(() => localStorage.getItem(STORAGE_KEYS.YCX_FILE_NAME + '_MOI') || '');
   const [linkBcTongHop, setLinkBcTongHop] = useState(() => localStorage.getItem(STORAGE_KEYS.LINK_BC_TONG_HOP) || '');
   const [linkNganhHangTongHop, setLinkNganhHangTongHop] = useState(() => localStorage.getItem(STORAGE_KEYS.LINK_NGANH_HANG_TONG_HOP) || '');
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -224,6 +225,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       // Global/shared keys (not per-store)
       safeSetItem('BI_REAL_ADJUST_V1', manualAdjustment.toString());
       safeSetItem(STORAGE_KEYS.YCX_FILE_NAME, ycxFileName);
+      safeSetItem(STORAGE_KEYS.YCX_FILE_NAME + '_MOI', ycxFileNameMoi);
       safeSetItem(STORAGE_KEYS.LINK_BC_TONG_HOP, linkBcTongHop);
       safeSetItem(STORAGE_KEYS.LINK_NGANH_HANG_TONG_HOP, linkNganhHangTongHop);
       safeSetItem('BI_REAL_SEL_MONTH_V1', selectedMonth);
@@ -247,7 +249,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       }
     }, 300); // Batch all localStorage writes with 300ms debounce
     return () => { if (localStorageTimerRef.current) clearTimeout(localStorageTimerRef.current); };
-  }, [manualAdjustment, ycxFileName, linkBcTongHop, linkNganhHangTongHop, selectedMonth, daysPassed, totalDays, excludedStaffIds, storeSettings, staffListFileName, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, drillFilterStaff, currentStoreId]);
+  }, [manualAdjustment, ycxFileName, ycxFileNameMoi, linkBcTongHop, linkNganhHangTongHop, selectedMonth, daysPassed, totalDays, excludedStaffIds, storeSettings, staffListFileName, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, drillFilterStaff, currentStoreId]);
 
 
 
@@ -297,6 +299,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         daysPassed,
         totalDays,
         ycxFileName,
+        ycxFileNameMoi,
         linkBcTongHop,
         linkNganhHangTongHop,
         staffListFileName,
@@ -342,7 +345,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     } finally {
       setIsSavingStoreRevenue(false);
     }
-  }, [stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, ycxFileName, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, drillFilterStaff, showNotification]);
+  }, [stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, ycxFileName, ycxFileNameMoi, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, drillFilterStaff, showNotification]);
 
   const loadStoreRevenue = useCallback(async (maKho: string, storeName?: string) => {
     if (!maKho) return;
@@ -413,6 +416,11 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           if (settings.selectedMonth) setSelectedMonth(settings.selectedMonth);
           // daysPassed & totalDays are auto-calculated from selectedMonth, not loaded from DB
           if (settings.ycxFileName && !isYcxDirty) setYcxFileName(settings.ycxFileName);
+          else if (!isYcxDirty) setYcxFileName('');
+
+          if (settings.ycxFileNameMoi && !isYcxDirty) setYcxFileNameMoi(settings.ycxFileNameMoi);
+          else if (!isYcxDirty) setYcxFileNameMoi('');
+
           if (settings.linkBcTongHop) setLinkBcTongHop(settings.linkBcTongHop);
           if (settings.linkNganhHangTongHop) setLinkNganhHangTongHop(settings.linkNganhHangTongHop);
           if (settings.staffListFileName) setStaffListFileName(settings.staffListFileName);
@@ -436,6 +444,8 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           setStPercentTarget(100);
           setStTargetSauHeSo(0);
           setManualAdjustment(0);
+          setYcxFileName('');
+          setYcxFileNameMoi('');
           setExcelFileName('');
           setThuongStRows([]);
           setTopPercentRankLimit(7);
@@ -605,12 +615,13 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     }, 4000); // 4s debounce
 
     return () => clearTimeout(timeoutId);
-  }, [maKho, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, ycxFileName, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, drillFilterStaff, categoryMappingInput, isStoreReady]);
+  }, [maKho, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, ycxFileName, ycxFileNameMoi, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, drillFilterStaff, categoryMappingInput, isStoreReady]);
 
   return {
     categoryMappingInput, setCategoryMappingInput,
     manualAdjustment, setManualAdjustment,
     ycxFileName, setYcxFileName,
+    ycxFileNameMoi, setYcxFileNameMoi,
     linkBcTongHop, setLinkBcTongHop,
     linkNganhHangTongHop, setLinkNganhHangTongHop,
     selectedMonth, setSelectedMonth,

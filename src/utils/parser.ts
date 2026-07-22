@@ -109,7 +109,7 @@ export const parseMarketData = (input: string, targetConfigMap: Record<string, a
       continue;
     }
     
-    if (lowerLine.includes("lãi gộp") || lowerLine.includes("tỷ trọng trả góp")) {
+    if (lowerLine.includes("lãi gộp") || lowerLine.includes("tỷ trọng trả góp") || lowerLine.includes("tỷ trọng trả chậm")) {
       let headers = line.split('\t');
       if (headers.length > 1) {
         isTabSeparated = true;
@@ -134,7 +134,10 @@ export const parseMarketData = (input: string, targetConfigMap: Record<string, a
           laiIdx = 9;
         }
 
-        const currentTyIdx = headers.findIndex(h => h.toLowerCase().includes("tỷ trọng trả góp"));
+        const currentTyIdx = headers.findIndex(h => {
+          const lower = h.toLowerCase();
+          return lower.includes("tỷ trọng trả góp") || lower.includes("tỷ trọng trả chậm") || lower.includes("tỷ trọng tg") || lower.includes("tt tg") || lower.includes("tỷ trọng tc");
+        });
         if (currentTyIdx !== -1) tyIdx = currentTyIdx;
         
         if (laiIdx !== -1) laiGopOffset = headers.length - laiIdx;

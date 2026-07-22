@@ -405,7 +405,13 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
       });
       tyTrongTraGopIdx = cols.findIndex(c => {
         const lower = c.toLowerCase();
-        return lower.includes("tỷ trọng trả góp") || lower.includes("tỷ trọng tg") || lower.includes("tt tg");
+        return lower.includes("tỷ trọng trả góp") || 
+               lower.includes("tỷ trọng trả chậm") || 
+               lower.includes("tỷ trọng tg") || 
+               lower.includes("tỷ trọng tc") || 
+               lower.includes("tt tg") || 
+               lower.includes("tt tc") ||
+               (lower.includes("trả chậm") && !lower.includes("tlpvtc"));
       });
       targetQDIdx = cols.findIndex(c => {
         const lower = c.toLowerCase();
@@ -542,15 +548,15 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
 
         const luotBillBanHangVal = luotBillBanHangIdx !== -1 && luotBillBanHangIdx < cols.length
           ? cleanNum(cols[luotBillBanHangIdx])
-          : (nameColIdx !== -1 && nameColIdx + 8 < cols.length ? cleanNum(cols[nameColIdx + 8]) : (cols.length > 9 ? cleanNum(cols[9]) : 0));
+          : (nameColIdx !== -1 && nameColIdx + 9 < cols.length ? cleanNum(cols[nameColIdx + 9]) : (cols.length > 9 ? cleanNum(cols[9]) : 0));
 
         const luotBillThuHoVal = luotBillThuHoIdx !== -1 && luotBillThuHoIdx < cols.length
           ? cleanNum(cols[luotBillThuHoIdx])
-          : (nameColIdx !== -1 && nameColIdx + 9 < cols.length ? cleanNum(cols[nameColIdx + 9]) : (cols.length > 10 ? cleanNum(cols[10]) : 0));
+          : (nameColIdx !== -1 && nameColIdx + 10 < cols.length ? cleanNum(cols[nameColIdx + 10]) : (cols.length > 10 ? cleanNum(cols[10]) : 0));
 
         const installmentRateVal = tyTrongTraGopIdx !== -1 && tyTrongTraGopIdx < cols.length
           ? cleanNum(cols[tyTrongTraGopIdx])
-          : (nameColIdx !== -1 && nameColIdx + 11 < cols.length ? cleanNum(cols[nameColIdx + 11]) : (cols.length > 12 ? cleanNum(cols[12]) : 0));
+          : (nameColIdx !== -1 && nameColIdx + 12 < cols.length ? cleanNum(cols[nameColIdx + 12]) : (cols.length > 12 ? cleanNum(cols[12]) : 0));
         
         console.log(`[parseMarketData] RTST Line: "${cleanLine.substring(0, 30)}..." Cols: ${cols.length}, Name: ${marketName}, DTQĐ: ${actualVirtual}, Target: ${targetQDVal}, HT: ${percentHTVal}%, BanHang: ${luotBillBanHangVal}, ThuHo: ${luotBillThuHoVal}`);
         

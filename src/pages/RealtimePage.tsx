@@ -1811,7 +1811,7 @@ export default function NewRealtimePage() {
   const { isStoreReady } = useStore();
   const [selectedStaffs, setSelectedStaffs] = useState<string[]>([]);
   const [selectedMaKho, setSelectedMaKho] = useState(userProfile?.ma_kho || '');
-  const { ycxData, setYcxData, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, hasLoadedFromDB, processError, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
+  const { ycxData, setYcxData, ycxDataMoi, setYcxDataMoi, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, hasLoadedFromDB, processError, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
 
   const daysRemaining = useMemo(() => {
     if (!userProfile?.expiredAt) return null;
@@ -2001,6 +2001,7 @@ export default function NewRealtimePage() {
 
   const {
     ycxFileName, setYcxFileName,
+    ycxFileNameMoi, setYcxFileNameMoi,
     drillFilterStaff, setDrillFilterStaff,
     categoryMappingInput, setCategoryMappingInput
   } = useRTSTSharedData(selectedMaKho);
@@ -2033,7 +2034,11 @@ export default function NewRealtimePage() {
     if (!file) return;
 
     setIsProcessingData(true);
-    setYcxFileName(file.name);
+    if (isMoiTab) {
+      setYcxFileNameMoi(file.name);
+    } else {
+      setYcxFileName(file.name);
+    }
 
     // Clear input value so same file can be uploaded again if needed
     e.target.value = '';
@@ -2095,7 +2100,11 @@ export default function NewRealtimePage() {
             (Array.isArray(row) ? row : []).map(cell => cell === null || cell === undefined ? '' : String(cell)).join('\t')
           ).join('\n');
 
-          setYcxData(rawString);
+          if (isMoiTab) {
+            setYcxDataMoi(rawString);
+          } else {
+            setYcxData(rawString);
+          }
           // showNotification('Đã xử lý dữ liệu Excel thành công!', 'success'); // Hidden as requested
           setTimeout(() => {
             saveRealtimeData(true);
@@ -2246,10 +2255,14 @@ export default function NewRealtimePage() {
   // compareMode MUST be declared before the useMemo that uses it (TDZ fix)
   const [compareMode, setCompareMode] = useState<'none' | 'day' | 'week' | 'month'>('none');
 
+  const isMoiTab = activeTab === 'khai_thac_moi';
+  const currentYcxData = isMoiTab ? ycxDataMoi : ycxData;
+  const currentYcxFileName = isMoiTab ? ycxFileNameMoi : ycxFileName;
+
   const rawYcxRows = useMemo(() => {
-    if (!ycxData) return [];
-    return ycxData.split('\n').filter(line => line.trim()).map(line => line.split('\t'));
-  }, [ycxData]);
+    if (!currentYcxData) return [];
+    return currentYcxData.split('\n').filter(line => line.trim()).map(line => line.split('\t'));
+  }, [currentYcxData]);
 
   const filteredRawYcxRows = useMemo(() => {
     if (!rawYcxRows || rawYcxRows.length <= 1) return [];
@@ -2902,7 +2915,7 @@ export default function NewRealtimePage() {
     }
   };
 
-  const [activeTab, setActiveTab] = useState<'summary' | 'khai_thac'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'khai_thac' | 'khai_thac_moi'>('summary');
   const [showKhaiThacCols, setShowKhaiThacCols] = useState({
     doanhThu: true,
     spChinh: true,
@@ -4308,7 +4321,8 @@ export default function NewRealtimePage() {
           <div className="lg:hidden flex items-center gap-2 overflow-x-auto no-scrollbar bg-white rounded-2xl p-2 border border-slate-100">
             {[
               { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, color: 'text-indigo-600' },
-              { id: 'khai_thac', label: 'DATA YCX', icon: Activity, color: 'text-emerald-600' }
+              { id: 'khai_thac', label: 'DATA YCX', icon: Activity, color: 'text-emerald-600' },
+              { id: 'khai_thac_moi', label: 'DATA YCX MỚI', icon: Activity, color: 'text-teal-600' }
             ].map((item) => {
               const isActive = activeTab === item.id;
               const Icon = item.icon;
@@ -4317,7 +4331,7 @@ export default function NewRealtimePage() {
                   key={item.id}
                   onClick={() => startTransition(() => {
                     setActiveTab(item.id as any);
-                    if (item.id === 'khai_thac') setRawTablePage(0);
+                    if (item.id === 'khai_thac' || item.id === 'khai_thac_moi') setRawTablePage(0);
                   })}
                   className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all shrink-0 ${isActive
                     ? 'bg-indigo-600 text-white shadow-md'
@@ -4337,7 +4351,8 @@ export default function NewRealtimePage() {
 
               {[
                 { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, color: 'text-indigo-600' },
-                { id: 'khai_thac', label: 'DATA YCX', icon: Activity, color: 'text-emerald-600' }
+                { id: 'khai_thac', label: 'DATA YCX', icon: Activity, color: 'text-emerald-600' },
+                { id: 'khai_thac_moi', label: 'DATA YCX MỚI', icon: Activity, color: 'text-teal-600' }
               ].map((item) => {
                 const isActive = activeTab === item.id;
                 const Icon = item.icon;
@@ -4346,7 +4361,7 @@ export default function NewRealtimePage() {
                     key={item.id}
                     onClick={() => startTransition(() => {
                       setActiveTab(item.id as any);
-                      if (item.id === 'khai_thac') setRawTablePage(0);
+                      if (item.id === 'khai_thac' || item.id === 'khai_thac_moi') setRawTablePage(0);
                     })}
                     className={`flex items-center gap-4 px-6 py-5 rounded-[22px] border transition-all duration-300 group ${isActive
                       ? 'bg-white border-indigo-500 shadow-[0_15px_35px_-10px_rgba(79,70,229,0.15)] -translate-y-0.5 translate-x-1'
@@ -4990,9 +5005,9 @@ export default function NewRealtimePage() {
                 </motion.div>
               )}
 
-              {activeTab === 'khai_thac' && (
+              {(activeTab === 'khai_thac' || activeTab === 'khai_thac_moi') && (
                 <motion.div
-                  key="khai_thac"
+                  key={activeTab}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="space-y-6"
@@ -5005,8 +5020,8 @@ export default function NewRealtimePage() {
                         <Globe size={18} />
                       </div>
                       <div>
-                        <h4 className="text-[12px] font-black text-slate-800 uppercase tracking-wider">HƯỚNG DẪN TẢI DỮ LIỆU YCX</h4>
-                        <p className="text-[10px] text-slate-400">Trình tự thao tác tải file báo cáo YCX từ trang nguồn</p>
+                        <h4 className="text-[12px] font-black text-slate-800 uppercase tracking-wider">HƯỚNG DẪN TẢI DỮ LIỆU YCX {isMoiTab ? 'MỚI' : ''}</h4>
+                        <p className="text-[10px] text-slate-400">Trình tự thao tác tải file báo cáo YCX {isMoiTab ? 'mới' : ''} từ trang nguồn</p>
                       </div>
                     </div>
 
@@ -5043,33 +5058,38 @@ export default function NewRealtimePage() {
                   <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
                     <div className="flex items-center justify-between">
                       <label className="flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-dashed border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/30 transition-all cursor-pointer flex-1 min-w-0">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${ycxFileName ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${currentYcxFileName ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
                           <FileSpreadsheet size={16} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <span className={`text-[12px] font-black uppercase tracking-wide block ${ycxFileName ? 'text-teal-700' : 'text-slate-500'}`}>YCX NHÂN VIÊN</span>
-                          {ycxFileName ? (
-                            <p className="text-[10px] text-slate-400 truncate max-w-xl">{ycxFileName}</p>
+                          <span className={`text-[12px] font-black uppercase tracking-wide block ${currentYcxFileName ? 'text-teal-700' : 'text-slate-500'}`}>YCX NHÂN VIÊN {isMoiTab ? 'MỚI' : ''}</span>
+                          {currentYcxFileName ? (
+                            <p className="text-[10px] text-slate-400 truncate max-w-xl">{currentYcxFileName}</p>
                           ) : (
-                            <p className="text-[10px] text-slate-400">Nhấp để tải lên file Excel YCX nhân viên</p>
+                            <p className="text-[10px] text-slate-400">Nhấp để tải lên file Excel YCX nhân viên {isMoiTab ? 'mới' : ''}</p>
                           )}
                         </div>
                         <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelUpload} />
                       </label>
-                      {ycxFileName && (
+                      {currentYcxFileName && (
                         <button
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            setYcxFileName('');
-                            setYcxData('');
+                            if (isMoiTab) {
+                              setYcxFileNameMoi('');
+                              setYcxDataMoi('');
+                            } else {
+                              setYcxFileName('');
+                              setYcxData('');
+                            }
                             setTimeout(() => {
                               saveRealtimeData(true);
-                              showNotification('Đã xoá dữ liệu YCX', 'success');
+                              showNotification(`Đã xoá dữ liệu YCX ${isMoiTab ? 'mới' : ''}`, 'success');
                             }, 100);
                           }}
                           className="ml-3 w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0 cursor-pointer border border-slate-100"
-                          title="Xoá dữ liệu YCX"
+                          title={`Xoá dữ liệu YCX ${isMoiTab ? 'mới' : ''}`}
                         >
                           <X size={16} />
                         </button>

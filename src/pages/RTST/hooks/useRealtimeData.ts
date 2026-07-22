@@ -38,6 +38,7 @@ export const useRealtimeData = (maKho: string) => {
   const [marketInput, setMarketInput] = useState(() => localStorage.getItem(STORAGE_KEYS.MARKET_INPUT) || '');
   const [categoryInput, setCategoryInput] = useState(() => localStorage.getItem(STORAGE_KEYS.CATEGORY_INPUT) || '');
   const [ycxData, setYcxData] = useState(() => localStorage.getItem(STORAGE_KEYS.YCX_DATA) || '');
+  const [ycxDataMoi, setYcxDataMoi] = useState(() => localStorage.getItem(STORAGE_KEYS.YCX_DATA + '_MOI') || '');
   const [categoryRevenueInput, setCategoryRevenueInput] = useState(() => localStorage.getItem(STORAGE_KEYS.CATEGORY_REVENUE_INPUT) || '');
   const [categoryTargetInput, setCategoryTargetInput] = useState(() => localStorage.getItem('RTST_CATEGORY_TARGET_INPUT') || '');
   const [activeStore, setActiveStore] = useState<string>(maKho);
@@ -52,6 +53,7 @@ export const useRealtimeData = (maKho: string) => {
   const categoryRevenueInputRef = useRef(categoryRevenueInput);
   const categoryTargetInputRef = useRef(categoryTargetInput);
   const ycxDataRef = useRef(ycxData);
+  const ycxDataMoiRef = useRef(ycxDataMoi);
   const activeStoreRef = useRef(activeStore);
 
   useEffect(() => { marketInputRef.current = marketInput; }, [marketInput]);
@@ -59,6 +61,7 @@ export const useRealtimeData = (maKho: string) => {
   useEffect(() => { categoryRevenueInputRef.current = categoryRevenueInput; }, [categoryRevenueInput]);
   useEffect(() => { categoryTargetInputRef.current = categoryTargetInput; }, [categoryTargetInput]);
   useEffect(() => { ycxDataRef.current = ycxData; }, [ycxData]);
+  useEffect(() => { ycxDataMoiRef.current = ycxDataMoi; }, [ycxDataMoi]);
   useEffect(() => { activeStoreRef.current = activeStore; }, [activeStore]);
 
   // Sync activeStore and load data when StoreContext's currentStoreId changes
@@ -122,6 +125,7 @@ export const useRealtimeData = (maKho: string) => {
     setMarketInput('');
     setCategoryInput('');
     setYcxData('');
+    setYcxDataMoi('');
     setIsYcxDirty(false);
     setCategoryRevenueInput('');
     setCategoryTargetInput('');
@@ -135,6 +139,7 @@ export const useRealtimeData = (maKho: string) => {
     localStorage.removeItem(STORAGE_KEYS.MARKET_INPUT);
     localStorage.removeItem(STORAGE_KEYS.CATEGORY_INPUT);
     localStorage.removeItem(STORAGE_KEYS.YCX_DATA);
+    localStorage.removeItem(STORAGE_KEYS.YCX_DATA + '_MOI');
   }, []);
 
   const handleProcess = useCallback(() => {
@@ -198,9 +203,12 @@ export const useRealtimeData = (maKho: string) => {
     // YCX is still global
     if (ycxData) safeSetItem(STORAGE_KEYS.YCX_DATA, ycxData);
     else localStorage.removeItem(STORAGE_KEYS.YCX_DATA);
+
+    if (ycxDataMoi) safeSetItem(STORAGE_KEYS.YCX_DATA + '_MOI', ycxDataMoi);
+    else localStorage.removeItem(STORAGE_KEYS.YCX_DATA + '_MOI');
     
     return () => clearTimeout(tid);
-  }, [marketInput, categoryInput, ycxData, handleProcess]);
+  }, [marketInput, categoryInput, ycxData, ycxDataMoi, handleProcess]);
 
   const updateYcxData = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(ycxDataRef.current) : val;
@@ -208,6 +216,14 @@ export const useRealtimeData = (maKho: string) => {
     const minified = minifyYcxData(newVal);
     ycxDataRef.current = minified;
     setYcxData(minified);
+    setIsYcxDirty(true);
+  }, []);
+
+  const updateYcxDataMoi = useCallback((val: string | ((prev: string) => string)) => {
+    const newVal = typeof val === 'function' ? val(ycxDataMoiRef.current) : val;
+    const minified = minifyYcxData(newVal);
+    ycxDataMoiRef.current = minified;
+    setYcxDataMoi(minified);
     setIsYcxDirty(true);
   }, []);
 
@@ -255,6 +271,21 @@ export const useRealtimeData = (maKho: string) => {
         throw upsertError;
       }
 
+      const { error: upsertErrorMoi } = await supabase
+        .from('store')
+        .upsert({
+          id: normalizeStoreId(cleanStore) + '_MOI',
+          warehouse_code: cleanMaKho,
+          ten_sieu_thi: cleanStore + ' (MỚI)',
+          ycx_data: ycxDataMoiRef.current,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+
+      if (upsertErrorMoi) {
+        console.error('[RealtimeData] Upsert MOI error:', upsertErrorMoi);
+        throw upsertErrorMoi;
+      }
+
       // 2. Global update removed as requested - REALTIME DT and REALTIME TĐ are now per-store.
       
       if (!silent) {
@@ -273,7 +304,7 @@ export const useRealtimeData = (maKho: string) => {
     } finally {
       setIsSavingRealtime(false);
     }
-  }, [maKho, activeStore, marketInput, categoryInput, ycxData, categoryRevenueInput, categoryTargetInput, showNotification]);
+  }, [maKho, activeStore, marketInput, categoryInput, ycxData, ycxDataMoi, categoryRevenueInput, categoryTargetInput, showNotification]);
 
   // PERF: Keep ref up-to-date
   useEffect(() => { saveRealtimeDataRef.current = saveRealtimeData; }, [saveRealtimeData]);
@@ -305,7 +336,7 @@ export const useRealtimeData = (maKho: string) => {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [marketInput, categoryInput, categoryRevenueInput, categoryTargetInput, ycxData, normalizedMaKho, activeStore, isStoreReady]);
+  }, [marketInput, categoryInput, categoryRevenueInput, categoryTargetInput, ycxData, ycxDataMoi, normalizedMaKho, activeStore, isStoreReady]);
 
   const loadData = useCallback(async (storeName?: string) => {
     if (!normalizedMaKho) {
@@ -319,6 +350,7 @@ export const useRealtimeData = (maKho: string) => {
     setMarketInput('');
     setCategoryInput('');
     setYcxData('');
+    setYcxDataMoi('');
     setCategoryRevenueInput('');
     setCategoryTargetInput('');
     setLastUpdated(null);
@@ -384,6 +416,24 @@ export const useRealtimeData = (maKho: string) => {
       } else {
         console.log(`[RealtimeData] No record found in DB for ID: "${targetDocId}"`);
       }
+
+      // Load _MOI record for ycxDataMoi
+      try {
+        const { data: recordMoi } = await supabase
+          .from('store')
+          .select('ycx_data')
+          .eq('id', targetDocId + '_MOI')
+          .maybeSingle();
+        if (recordMoi) {
+          setYcxDataMoi(recordMoi.ycx_data || '');
+        } else {
+          setYcxDataMoi('');
+        }
+      } catch (errMoi) {
+        console.error('[RTST] Error loading ycxDataMoi:', errMoi);
+        setYcxDataMoi('');
+      }
+
     } catch (err) {
       console.error('[RTST] Unexpected error in loadData:', err);
     } finally {
@@ -436,53 +486,69 @@ export const useRealtimeData = (maKho: string) => {
             // Verify it matches our active store
             const normRecordStore = recordStore.trim().toUpperCase();
             const normActiveStore = (activeStoreRef.current || '').trim().toUpperCase();
-            if (normRecordStore && normActiveStore && normRecordStore !== normActiveStore) return;
+            const isMoiRecord = normRecordStore.endsWith(' (MỚI)');
+            const baseStoreName = isMoiRecord ? normRecordStore.slice(0, -6).trim() : normRecordStore;
             
-            // Only update if different to avoid loops and preserve cursor position if user is typing
-            setMarketInput(prev => {
-              if (prev !== record.rt_bi_tong_quan) {
-                skipAutoSaveRef.current = true;
-                return record.rt_bi_tong_quan || '';
-              }
-              return prev;
-            });
+            if (baseStoreName !== normActiveStore) return;
             
-            setCategoryInput(prev => {
-              if (prev !== record.rt_nh_cum) {
-                skipAutoSaveRef.current = true;
-                return record.rt_nh_cum || '';
-              }
-              return prev;
-            });
-
-            setCategoryRevenueInput(prev => {
-              if (prev !== record.lk_bi_tong_quan) {
-                skipAutoSaveRef.current = true;
-                return record.lk_bi_tong_quan || '';
-              }
-              return prev;
-            });
-            
-            setCategoryTargetInput(prev => {
-              if (prev !== record.lk_nh_sieu_thi) {
-                skipAutoSaveRef.current = true;
-                return record.lk_nh_sieu_thi || '';
-              }
-              return prev;
-            });
-            
-            setYcxData(prev => {
-              // Safeguard: If Firebase rejected our save (e.g. >1MB limit) 
-              // it rolls back and sends an empty string. We ignore it to prevent data loss on UI.
-              if (prev && prev.length > 1000 && (!record.ycx_data || record.ycx_data.trim() === '')) {
+            if (isMoiRecord) {
+              setYcxDataMoi(prev => {
+                if (prev && prev.length > 1000 && (!record.ycx_data || record.ycx_data.trim() === '')) {
+                  return prev;
+                }
+                if (prev !== record.ycx_data) {
+                  skipAutoSaveRef.current = true;
+                  return record.ycx_data || '';
+                }
                 return prev;
-              }
-              if (prev !== record.ycx_data) {
-                skipAutoSaveRef.current = true;
-                return record.ycx_data || '';
-              }
-              return prev;
-            });
+              });
+            } else {
+              // Only update if different to avoid loops and preserve cursor position if user is typing
+              setMarketInput(prev => {
+                if (prev !== record.rt_bi_tong_quan) {
+                  skipAutoSaveRef.current = true;
+                  return record.rt_bi_tong_quan || '';
+                }
+                return prev;
+              });
+              
+              setCategoryInput(prev => {
+                if (prev !== record.rt_nh_cum) {
+                  skipAutoSaveRef.current = true;
+                  return record.rt_nh_cum || '';
+                }
+                return prev;
+              });
+
+              setCategoryRevenueInput(prev => {
+                if (prev !== record.lk_bi_tong_quan) {
+                  skipAutoSaveRef.current = true;
+                  return record.lk_bi_tong_quan || '';
+                }
+                return prev;
+              });
+              
+              setCategoryTargetInput(prev => {
+                if (prev !== record.lk_nh_sieu_thi) {
+                  skipAutoSaveRef.current = true;
+                  return record.lk_nh_sieu_thi || '';
+                }
+                return prev;
+              });
+              
+              setYcxData(prev => {
+                // Safeguard: If Firebase rejected our save (e.g. >1MB limit) 
+                // it rolls back and sends an empty string. We ignore it to prevent data loss on UI.
+                if (prev && prev.length > 1000 && (!record.ycx_data || record.ycx_data.trim() === '')) {
+                  return prev;
+                }
+                if (prev !== record.ycx_data) {
+                  skipAutoSaveRef.current = true;
+                  return record.ycx_data || '';
+                }
+                return prev;
+              });
+            }
           }
         }
       )
@@ -522,6 +588,24 @@ export const useRealtimeData = (maKho: string) => {
       } else {
         showNotification('Không tìm thấy dữ liệu Realtime để đồng bộ.', 'error');
       }
+
+      // Sync _MOI record for ycxDataMoi
+      try {
+        const { data: recordMoi } = await supabase
+          .from('store')
+          .select('ycx_data')
+          .eq('id', normalizeStoreId(activeStore.trim()) + '_MOI')
+          .maybeSingle();
+        if (recordMoi) {
+          setYcxDataMoi(recordMoi.ycx_data || '');
+        } else {
+          setYcxDataMoi('');
+        }
+      } catch (errMoi) {
+        console.error('[RTST] Error syncing ycxDataMoi:', errMoi);
+        setYcxDataMoi('');
+      }
+
     } catch (error: any) {
       console.error('Lỗi đồng bộ dữ liệu Realtime:', error);
       showNotification(`Lỗi đồng bộ dữ liệu Realtime: ${error.message}`, 'error');
@@ -552,6 +636,7 @@ export const useRealtimeData = (maKho: string) => {
     marketInput, setMarketInput: setMarketInputSync,
     categoryInput, setCategoryInput: setCategoryInputSync,
     ycxData, setYcxData: updateYcxData,
+    ycxDataMoi, setYcxDataMoi: updateYcxDataMoi,
     categoryRevenueInput, setCategoryRevenueInput: setCategoryRevenueInputSync,
     categoryTargetInput, setCategoryTargetInput: setCategoryTargetInputSync,
     activeStore, setActiveStore,
