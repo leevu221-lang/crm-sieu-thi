@@ -5068,7 +5068,7 @@ export default function NewRealtimePage() {
                         <Globe size={18} />
                       </div>
                       <div>
-                        <h4 className="text-[12px] font-black text-slate-800 uppercase tracking-wider">HƯỚNG DẪN TẢI DỮ LIỆU YCX {isMoiTab ? 'MỚI' : ''}</h4>
+                        <h4 className={`text-[12px] font-black uppercase tracking-wider ${isMoiTab ? 'text-red-600' : 'text-slate-800'}`}>HƯỚNG DẪN TẢI DỮ LIỆU YCX {isMoiTab ? 'MỚI' : ''}</h4>
                         <p className="text-[10px] text-slate-400">Trình tự thao tác tải file báo cáo YCX {isMoiTab ? 'mới' : ''} từ trang nguồn</p>
                       </div>
                     </div>
