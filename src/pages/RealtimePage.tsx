@@ -6439,68 +6439,6 @@ export default function NewRealtimePage() {
                                       </td>
                                     </>
                                   )}
-                                  {/* SP CHÍNH Totals */}
-                                  {showKhaiThacCols.spChinh && (
-                                    <>
-                                      {showKhaiThacCols.spcSmf && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcSmf)}</td>}
-                                      {showKhaiThacCols.spcLap && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcLap)}</td>}
-                                      {showKhaiThacCols.spcTab && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcTab)}</td>}
-                                      {showKhaiThacCols.spcTivi && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcTivi)}</td>}
-                                      {showKhaiThacCols.spcMl && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcMl)}</td>}
-                                      {showKhaiThacCols.spcTl && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcTl)}</td>}
-                                      {showKhaiThacCols.spcMg && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcMg)}</td>}
-                                      <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpChinhQty)}</td>
-                                    </>
-                                  )}
-                                  {/* VAS Totals */}
-                                  {showKhaiThacCols.baoHiem && (
-                                    <>
-                                      {showKhaiThacCols.vasBh && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalBhQty)}</td>}
-                                      {showKhaiThacCols.vasVieon && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalVieonQty)}</td>}
-                                      {showKhaiThacCols.vasMangoIcall && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalMangoIcallQty)}</td>}
-
-                                      <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{renderFooterPct(totalVisibleVasTotalQty, totalVisibleSpChinhQty)}</td>
-                                    </>
-                                  )}
-                                  {/* SIM Totals */}
-                                  {showKhaiThacCols.sim && (
-                                    <>
-                                      <td className="py-2 px-2 text-center text-[13px] text-[#b45309] font-black border-r border-slate-200/50">{formatFooterVal(totalSimQty)}</td>
-
-                                      <td className="py-2 px-2 text-center text-[13px] text-[#b45309] font-black border-r border-slate-200/50">{renderFooterPct(totalSimQty, totalSpChinhQty)}</td>
-                                    </>
-                                  )}
-                                  {/* ĐỒNG HỒ Totals */}
-                                  {showKhaiThacCols.dongHo && (
-                                    <>
-                                      <td className="py-2 px-2 text-center text-[13px] text-[#6b21a8] font-black border-r border-slate-200/50">{formatFooterVal(totalDhQty)}</td>
-                                      {showKhaiThacCols.doanhThu && <td className="py-2 px-2 text-center text-[13px] text-[#6b21a8] font-black border-r border-slate-200/50">{formatFooterRev(totalDhRev)}</td>}
-                                      <td className="py-2 px-2 text-center text-[13px] text-[#6b21a8] font-black border-r border-slate-200/50">{renderFooterPct(totalDhQty, totalSpChinhQty)}</td>
-                                    </>
-                                  )}
-                                  {/* PHỤ KIỆN Totals */}
-                                  {showKhaiThacCols.phuKien && (
-                                    <>
-                                      {showKhaiThacCols.pkCam && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalPkCam)}</td>}
-                                      {showKhaiThacCols.pkLoa && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalPkLoa)}</td>}
-                                      {showKhaiThacCols.pkPin && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalPkPin)}</td>}
-                                      {showKhaiThacCols.pkTn && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalPkTn)}</td>}
-                                      {showKhaiThacCols.pkDenMt && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalPkDenMt)}</td>}
-                                      <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{renderFooterPct(totalVisiblePkTotalQty, totalVisibleSpChinhQty)}</td>
-                                    </>
-                                  )}
-                                  {/* GIA DỤNG Totals */}
-                                  {showKhaiThacCols.giaDung && (
-                                    <>
-                                      {showKhaiThacCols.gdMln && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdMlnQty)}</td>}
-                                      {showKhaiThacCols.gdNcom && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdNcomQty)}</td>}
-                                      {showKhaiThacCols.gdNchien && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdNchienQty)}</td>}
-                                      {showKhaiThacCols.gdQuat && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdQuatQty)}</td>}
-                                      {showKhaiThacCols.gdQdh && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdQdhQty)}</td>}
-                                      <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{renderFooterPct(totalVisibleGdTotalQty, totalVisibleSpChinhQty)}</td>
-                                    </>
-                                  )}
-                                </tr>
                               );
                             })()}
                           </tfoot>
@@ -6510,7 +6448,8 @@ export default function NewRealtimePage() {
                   </div>
 
                   {/* HIỆU QUẢ BÁN KÈM THEO NHÂN VIÊN */}
-                  <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6 mb-12" id="hieu-qua-ban-kem-card-container">
+                  {!isMoiTab && (
+                    <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6 mb-12" id="hieu-qua-ban-kem-card-container">
                     <div className="bg-[#93c5fd] px-6 py-4 flex items-center justify-between border-b border-[#60a5fa] relative">
                       <div className="flex items-center gap-3 mx-auto">
                         <h3 className="text-2xl font-black text-[#1e3a8a] uppercase tracking-widest text-center" style={{ textShadow: '1px 1px 0px rgba(255,255,255,0.5)' }}>
@@ -6656,7 +6595,7 @@ export default function NewRealtimePage() {
                         </tbody>
                       </table>
                     </div>
-                  </div>
+                  )}
 
                   {/* Unexported Orders Table */}
                   {rawYcxRows && rawYcxRows.length > 1 && (
