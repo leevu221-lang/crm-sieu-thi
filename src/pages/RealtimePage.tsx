@@ -2394,7 +2394,7 @@ export default function NewRealtimePage() {
       return defaultIdx;
     };
 
-    const idxStaff = findIdx(['người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
+    const idxStaff = findIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
     const idxQty = findIdx(['số lượng', 'sl'], -1);
     // Ưu tiên tìm cột "Giá bán_1" / "Giá bán 1" bằng logic riêng
     const idxRevenue = (() => {
@@ -3302,7 +3302,7 @@ export default function NewRealtimePage() {
       return defaultIdx;
     };
 
-    const idxStaff = findIdx(['người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
+    const idxStaff = findIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
     const idxQty = findIdx(['số lượng', 'sl'], -1);
     // Ưu tiên tìm cột "Giá bán_1" / "Giá bán 1" bằng logic riêng
     const idxRevenue = (() => {
@@ -3685,7 +3685,7 @@ export default function NewRealtimePage() {
       return defaultIdx;
     };
 
-    const idxStaff = findIdx(['người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
+    const idxStaff = findIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
     const idxDate = findIdx(['ngày tạo', 'ngày lập', 'ngày xuất', 'ngày giao', 'ngày hoàn', 'ngày'], -1);
     const idxHtx = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
     const idxProduct = findIdx(['tên sản phẩm', 'tên hàng', 'sản phẩm'], -1);
@@ -3832,7 +3832,7 @@ export default function NewRealtimePage() {
         }
         return defaultIdx;
       };
-      const idxStaff = findIdx(['người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
+      const idxStaff = findIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
       const idxCategory = findIdx(['ngành hàng', 'nhóm ngành hàng', 'nhóm hàng', 'tên nhóm hàng'], -1);
       const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ'], -1);
       const idxProduct = (() => {

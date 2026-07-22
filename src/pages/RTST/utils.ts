@@ -1696,7 +1696,7 @@ export const minifyYcxData = (data: string): string => {
   const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
   const idxMethod = getIdx(['hình thức xuất']);
   const idxStatus = getIdx(['trạng thái xuất']);
-  const idxStaffName = getIdx(['người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo']); 
+  const idxStaffName = getIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo']); 
   const idxStaffId = getIdx(['user tạo', 'mã nv', 'mã nhân viên', 'id nhân viên']);
   const idxRevenue = (() => {
     const giaBan1Idx = header.findIndex(h => {
@@ -1814,7 +1814,7 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
   const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
   const idxMethod = getIdx(['hình thức xuất']);
   const idxStatus = getIdx(['trạng thái xuất']);
-  const idxStaffName = getIdx(['người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo']); 
+  const idxStaffName = getIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo']); 
   const idxRevenue = (() => {
     const giaBan1Idx = header.findIndex(h => {
       const norm = removeAccents(h).toLowerCase().trim().replace(/\s+/g, ' ');
@@ -2202,7 +2202,7 @@ export const parseYcxRankData = (data: string, customRates?: Record<string, { no
   const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
   const idxMethod = getIdx(['hình thức xuất']);
   const idxStatus = getIdx(['trạng thái xuất']);
-  const idxStaffName = getIdx(['người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo']); 
+  const idxStaffName = getIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo']); 
   const idxStaffId = getIdx(['user tạo', 'mã nv', 'mã nhân viên', 'id nhân viên']);
   const idxRevenue = (() => {
     const giaBan1Idx = header.findIndex(h => {
