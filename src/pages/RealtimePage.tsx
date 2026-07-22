@@ -2425,6 +2425,11 @@ export default function NewRealtimePage() {
       const norm = removeAccents(h).toLowerCase().trim();
       return norm === 'doanh thu qd' || norm === 'doanh thu quy doi' || norm === 'dt qd' || norm === 'dtqd' || norm.includes('doanh thu qd') || norm.includes('doanh thu quy doi');
     });
+    // Tìm cột DOANH THU (-R) để lấy trực tiếp cho DT THỰC (DATA YCX MỚI)
+    const idxDtThucCol = headers.findIndex(h => {
+      const norm = removeAccents(h).toLowerCase().trim();
+      return norm === 'doanh thu (-r)' || norm === 'doanh thu(-r)' || norm === 'dt (-r)' || norm === 'dt(-r)' || norm.includes('doanh thu (-r)') || norm.includes('doanh thu(-r)');
+    });
 
     type ACStats = { staffName: string; mayLanh: number; mayLanhDaikin: number; mayLanhHaier: number; mayLanhHisense: number };
     type CEStats = { staffName: string; ceSL: number; ceDT: number; products: { name: string; sl: number; dt: number }[] };
@@ -2677,7 +2682,13 @@ export default function NewRealtimePage() {
             const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
 
             sl += qty;
-            dt += revenue;
+            // DATA YCX MỚI: DT THỰC lấy từ cột "DOANH THU (-R)"
+            if (isMoiTab && idxs.idxDtThucCol !== -1) {
+              const rawDtThuc = parseFloat(String(row[idxs.idxDtThucCol] || '0').replace(/,/g, '')) || 0;
+              dt += Math.round(rawDtThuc);
+            } else {
+              dt += revenue;
+            }
             if (isTc) tc_dt += revenue;
             // DATA YCX MỚI: lấy trực tiếp từ cột "DOANH THU QĐ" nếu có
             if (isMoiTab && idxs.idxDtqdCol !== -1) {
@@ -2709,7 +2720,7 @@ export default function NewRealtimePage() {
       return buildNode(rowsToBuild, 0, '');
     };
 
-    const idxs = { idxMarket, idxCategory, idxSmallCat, idxProduct, idxStaff, idxQty, idxRevenue, idxHinhThucXuat, idxTrangThaiSP, idxDtqdCol };
+    const idxs = { idxMarket, idxCategory, idxSmallCat, idxProduct, idxStaff, idxQty, idxRevenue, idxHinhThucXuat, idxTrangThaiSP, idxDtqdCol, idxDtThucCol };
     const drillDownData = buildDrillTree(filteredCurrentRows, drillLevels, idxs);
     const drillDownDataPrev = buildDrillTree(filteredPrevRows, drillLevels, idxs, true);
 
@@ -3347,6 +3358,11 @@ export default function NewRealtimePage() {
       const norm = removeAccents(h).toLowerCase().trim();
       return norm === 'doanh thu qd' || norm === 'doanh thu quy doi' || norm === 'dt qd' || norm === 'dtqd' || norm.includes('doanh thu qd') || norm.includes('doanh thu quy doi');
     });
+    // Tìm cột DOANH THU (-R) để lấy trực tiếp cho DT THỰC (DATA YCX MỚI)
+    const idxDtThuc = headers.findIndex(h => {
+      const norm = removeAccents(h).toLowerCase().trim();
+      return norm === 'doanh thu (-r)' || norm === 'doanh thu(-r)' || norm === 'dt (-r)' || norm === 'dt(-r)' || norm.includes('doanh thu (-r)') || norm.includes('doanh thu(-r)');
+    });
 
     const statsMap = new Map<string, {
       staffName: string;
@@ -3569,8 +3585,13 @@ export default function NewRealtimePage() {
         }
       }
 
-      // Tích lũy DT THỰC trực tiếp từ revenue (giống bảng CHI TIẾT NGÀNH HÀNG)
-      item.dtThuc += revenue;
+      // DATA YCX MỚI: lấy trực tiếp từ cột "DOANH THU (-R)" nếu có
+      if (isMoiTab && idxDtThuc !== -1) {
+        const rawDtThuc = parseFloat(String(row[idxDtThuc] || '0').replace(/,/g, '')) || 0;
+        item.dtThuc += Math.round(rawDtThuc);
+      } else {
+        item.dtThuc += revenue;
+      }
 
       const htx = idxHinhThucXuat !== -1 ? String(row[idxHinhThucXuat] || '').toLowerCase() : '';
       const isTraGop = htx.includes('trả góp');
