@@ -713,10 +713,6 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
           </div>
           <div className="flex flex-col items-center justify-center w-1/2">
             <h2 className="text-2xl font-black text-rose-600 uppercase tracking-tight">DỰ KIẾN</h2>
-            <div className="flex items-center gap-2 text-slate-600 mt-1">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
-              <span className="text-sm font-bold">TGSD: 24/31</span>
-            </div>
           </div>
         </div>
         <div className="flex items-center gap-2 ml-4">
