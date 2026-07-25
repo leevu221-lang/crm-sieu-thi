@@ -1669,7 +1669,6 @@ const resolveNhomSmallFriendlyName = (
 
   const nhomSmallFromMap = idxNhomHang !== -1 ? getNhomSmallFromMap(row[idxNhomHang]) : '';
   if (nhomSmallFromMap) {
-    const prodName = idxProduct !== undefined && idxProduct !== -1 ? String(row[idxProduct] || '') : '';
     const nhomLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', prodName);
     if (nhomLarge === 'BẢO HIỂM') {
       const pClass = classifyProduct(prodName);
@@ -1689,7 +1688,6 @@ const resolveNhomSmallFriendlyName = (
   if (catVal.includes('4479')) return 'Bảo hiểm';
 
   const rawVal = idxSmallCategoryHeader !== -1 ? (row[idxSmallCategoryHeader] || '') : '';
-  const prodName = idxProduct !== undefined && idxProduct !== -1 ? String(row[idxProduct] || '') : '';
   const nhomLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', prodName);
   if (nhomLarge === 'BẢO HIỂM') {
     const pClass = classifyProduct(prodName);
