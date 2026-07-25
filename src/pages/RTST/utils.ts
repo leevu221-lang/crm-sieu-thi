@@ -2011,9 +2011,9 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
          }
           const productNameLower = productName.toLowerCase();
           const isBaoHiem = productNameLower.includes('bảo hiểm') || 
-                             productNameLower.includes('mở rộng') || 
-                             productNameLower.includes('mo rong') || 
-                             productNameLower.includes('bhmr') ||
+                             productNameLower.includes('bảo hành mở rộng') || 
+                             rowString.includes('bảo hiểm') ||
+                             rowString.includes('bảo hành mở rộng') ||
                              productNameLower.includes('1 đổi 1') || 
                              productNameLower.includes('1 doi 1') ||
                              productNameLower.includes('1doi1') ||
@@ -2033,8 +2033,8 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
                              productNameLower.includes('bảo vệ màn hình') ||
                              productNameLower.includes('bvmh') ||
                              rowString.includes('bảo hiểm') ||
-                             rowString.includes('mở rộng') ||
-                             rowString.includes('mo rong') ||
+                             rowString.includes('bảo hành mở rộng') ||
+                             rowString.includes('bao hanh mo rong') ||
                              rowString.includes('bhmr') ||
                              rowString.includes('1 đổi 1') ||
                              rowString.includes('1 doi 1') ||

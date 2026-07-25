@@ -1012,7 +1012,7 @@ const classifyProduct = (name: string) => {
   if (n.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || n.includes('BẢO VỆ MÀN HÌNH') || n.includes('BVMH') || norm.includes('BVMH') || norm.includes('BAO VE MAN HINH')) return 'BVMH';
   if (n.includes('1 ĐỔI 1') || norm.includes('1 DOI 1') || norm.includes('1DOI1') || n.includes('PVI_') || norm.includes('PVI')) return '1 ĐỔI 1';
   if (n.includes('BẢO HIỂM KHOẢN VAY') || n.includes('BHKV') || norm.includes('BHKV')) return 'BHKV';
-  if (n.includes('BHMR') || n.includes('BẢO HÀNH MỞ RỘNG') || norm.includes('BHMR') || norm.includes('MO RONG') || n.includes('MIC_') || norm.includes('MIC_')) return 'BHMR';
+  if (n.includes('BHMR') || n.includes('BẢO HÀNH MỞ RỘNG') || norm.includes('BHMR') || norm.includes('BAO HANH MO RONG') || n.includes('MIC_') || norm.includes('MIC_')) return 'BHMR';
   if (n.includes('BẢO HIỂM RƠI VỠ') || n.includes('BHRV') || norm.includes('BHRV') || norm.includes('ROI VO')) return 'BHRV';
   if (n.includes('BẢO HIỂM SC+') || n.includes('SC+') || n.includes('CARE+') || norm.includes('SC+') || norm.includes('CARE+')) return 'SC+';
   if (n.includes('BẢO HÀNH APPLECARE+') || n.includes('APPLECARE') || norm.includes('APPLECARE')) return 'BHAP';
@@ -1123,7 +1123,7 @@ const classifyNhomHangLarge = (category: string, productName?: string): string =
     normCat.includes('1088') ||
     normCat.includes('bao hanh, bao duong') ||
     normCat.includes('bao hanh mo rong') ||
-    normProd.includes('mo rong') ||
+    normProd.includes('bao hanh mo rong') ||
     normProd.includes('1 doi 1') ||
     normProd.includes('1doi1') ||
     normProd.includes('1-1') ||
@@ -3484,8 +3484,8 @@ export default function NewRealtimePage() {
       const prodUpper = productName.toUpperCase();
       const isBaoHiemCheck = nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM' ||
         category.includes('1994') || category.includes('4479') || category.includes('4499') || category.includes('7139') ||
-        normCatUpper.includes('BAO HIEM') || normCatUpper.includes('BHMR') || normCatUpper.includes('MO RONG') ||
-        normProdUpper.includes('BAO HIEM') || normProdUpper.includes('MO RONG') || normProdUpper.includes('BHMR') ||
+        normCatUpper.includes('BAO HIEM') || normCatUpper.includes('BHMR') || normCatUpper.includes('BAO HANH MO RONG') ||
+        normProdUpper.includes('BAO HIEM') || normProdUpper.includes('BAO HANH MO RONG') || normProdUpper.includes('BHMR') ||
         normProdUpper.includes('1 DOI 1') || normProdUpper.includes('1DOI1') || normProdUpper.includes('ROI VO') ||
         normProdUpper.includes('BHRV') || normProdUpper.includes('SC+') || normProdUpper.includes('CARE+') ||
         normProdUpper.includes('APPLECARE') || normProdUpper.includes('BHKV') || normProdUpper.includes('BHXM') ||
