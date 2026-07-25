@@ -1655,12 +1655,17 @@ const resolveNhomSmallFriendlyName = (
       return codeClass;
     }
   }
-  const prodNameUpper = idxProduct !== undefined && idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
+  const prodName = idxProduct !== undefined && idxProduct !== -1 ? String(row[idxProduct] || '') : '';
+  const pClassInitial = classifyProduct(prodName);
+  if (['1 ĐỔI 1', 'BHMR', 'BHRV', 'BVMH', 'GIC', 'SC+', 'BHAP', 'BHOT', 'BHVC', 'BHXM', 'BHMT', 'BHXH', 'BHYT'].includes(pClassInitial)) {
+    return pClassInitial;
+  }
+  const prodNameUpper = prodName.toUpperCase();
   if (prodNameUpper.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodNameUpper.includes('BẢO VỆ MÀN HÌNH') || prodNameUpper.includes('BVMH')) {
     return 'BVMH';
   }
   const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim().toUpperCase() : '';
-  if (catVal.includes('4479')) return 'B.HIỂM.';
+  if (catVal.includes('4479')) return 'Bảo hiểm';
 
   const nhomSmallFromMap = idxNhomHang !== -1 ? getNhomSmallFromMap(row[idxNhomHang]) : '';
   if (nhomSmallFromMap) {
@@ -3136,20 +3141,23 @@ export default function NewRealtimePage() {
             if (codeClass) {
               cellValue = codeClass;
             } else {
-              const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
-              const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
-              if (prodName.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodName.includes('BẢO VỆ MÀN HÌNH') || prodName.includes('BVMH')) {
-                cellValue = 'BVMH';
-              } else if (catVal.includes('7139') || catVal.includes('BẢO HÀNH MỞ RỘNG')) {
-                cellValue = 'BHMR';
-              } else if (catVal.includes('BẢO HÀNH RƠI VỠ')) {
-                cellValue = 'BHRV';
-              } else if (catVal.includes('4479')) {
-                cellValue = 'GIC';
-              } else if (catVal.includes('1 ĐỔI 1')) {
-                cellValue = '1 ĐỔI 1';
+              const prodName = idxProduct !== -1 ? String(row[idxProduct] || '') : '';
+              const pClass = classifyProduct(prodName);
+              if (pClass !== '-') {
+                cellValue = pClass;
               } else {
-                cellValue = classifyProduct(prodName);
+                const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
+                if (catVal.includes('7139') || catVal.includes('BẢO HÀNH MỞ RỘNG')) {
+                  cellValue = 'BHMR';
+                } else if (catVal.includes('BẢO HÀNH RƠI VỠ')) {
+                  cellValue = 'BHRV';
+                } else if (catVal.includes('4479')) {
+                  cellValue = 'GIC';
+                } else if (catVal.includes('1 ĐỔI 1')) {
+                  cellValue = '1 ĐỔI 1';
+                } else {
+                  cellValue = '-';
+                }
               }
             }
           } else if (colIdx === row.length + 1) {
@@ -6915,7 +6923,8 @@ export default function NewRealtimePage() {
                                             return 'BHRV';
                                           }
                                           if (catVal.includes('4479')) {
-                                            return 'GIC';
+                                            const pCls = classifyProduct(prodName);
+                                            return pCls !== '-' ? pCls : 'GIC';
                                           }
                                           if (catVal.includes('1 ĐỔI 1')) {
                                             return '1 ĐỔI 1';
