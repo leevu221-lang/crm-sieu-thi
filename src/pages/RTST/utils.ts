@@ -2310,6 +2310,7 @@ export const parseYcxRankData = (data: string, customRates?: Record<string, { no
     
     const isMaNapTien = productName.toLowerCase().includes('mã nạp tiền');
 
+    const rowString = cols.join(' ').toLowerCase().replace(/\//g, ' ');
     const isSales = !type.includes('hủy') && !type.includes('huy');
 
     if (isSales && staff && revenueStr && !isMaNapTien) {
