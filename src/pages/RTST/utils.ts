@@ -1696,7 +1696,7 @@ export const minifyYcxData = (data: string): string => {
   const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
   const idxMethod = getIdx(['hình thức xuất']);
   const idxStatus = getIdx(['trạng thái xuất']);
-  const idxStaffName = getIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'nhân viên bán hàng', 'tên nhân viên bán hàng', 'nv bán hàng', 'user bán hàng', 'tên nhân viên', 'tên nv', 'người bán', 'nhân viên', 'người thực hiện']); 
+  const idxStaffName = getIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện']); 
   const idxStaffId = getIdx(['user tạo', 'mã nv', 'mã nhân viên', 'id nhân viên']);
   const idxRevenue = (() => {
     const giaBan1Idx = header.findIndex(h => {
@@ -1811,7 +1811,7 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
   const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
   const idxMethod = getIdx(['hình thức xuất']);
   const idxStatus = getIdx(['trạng thái xuất']);
-  const idxStaffName = getIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'nhân viên bán hàng', 'tên nhân viên bán hàng', 'nv bán hàng', 'user bán hàng', 'tên nhân viên', 'tên nv', 'người bán', 'nhân viên', 'người thực hiện']); 
+  const idxStaffName = getIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện']); 
   const idxRevenue = (() => {
     const giaBan1Idx = header.findIndex(h => {
       const norm = removeAccents(h).toLowerCase().trim().replace(/\s+/g, ' ');
@@ -2195,7 +2195,7 @@ export const parseYcxRankData = (data: string, customRates?: Record<string, { no
   const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
   const idxMethod = getIdx(['hình thức xuất']);
   const idxStatus = getIdx(['trạng thái xuất']);
-  const idxStaffName = getIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'nhân viên bán hàng', 'tên nhân viên bán hàng', 'nv bán hàng', 'user bán hàng', 'tên nhân viên', 'tên nv', 'người bán', 'nhân viên', 'người thực hiện']); 
+  const idxStaffName = getIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện']); 
   const idxStaffId = getIdx(['user tạo', 'mã nv', 'mã nhân viên', 'id nhân viên']);
   const idxRevenue = (() => {
     const giaBan1Idx = header.findIndex(h => {

@@ -59,7 +59,7 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
     })();
     
     const idxPaymentStatus = getIdx(['trạng thái thu tiền', 'tt thu tiền']);
-    const idxStaffName = getIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo']);
+    const idxStaffName = getIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện']);
     const idxCancelStatus = getIdx(['trạng thái hủy', 'trạng thái huỷ', 'huỷ', 'hủy']);
 
     const orders = [];

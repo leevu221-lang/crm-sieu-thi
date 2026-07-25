@@ -2401,7 +2401,7 @@ export default function NewRealtimePage() {
       return defaultIdx;
     };
 
-    const idxStaff = findIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'nhân viên bán hàng', 'tên nhân viên bán hàng', 'nv bán hàng', 'user bán hàng', 'tên nhân viên', 'tên nv', 'người bán', 'nhân viên', 'người thực hiện'], -1);
+    const idxStaff = findIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện'], -1);
     const idxQty = findIdx(['số lượng xuất', 'số lượng bán', 'số lượng xuất bán', 'số lượng', 'sl xuất', 'sl bán'], -1);
     // Ưu tiên tìm cột "Giá bán_1" / "Giá bán 1" bằng logic riêng
     const idxRevenue = (() => {
@@ -3333,7 +3333,7 @@ export default function NewRealtimePage() {
       return defaultIdx;
     };
 
-    const idxStaff = findIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'nhân viên bán hàng', 'tên nhân viên bán hàng', 'nv bán hàng', 'user bán hàng', 'tên nhân viên', 'tên nv', 'người bán', 'nhân viên', 'người thực hiện'], -1);
+    const idxStaff = findIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện'], -1);
     const idxQty = findIdx(['số lượng', 'sl'], -1);
     // Ưu tiên tìm cột "Giá bán_1" / "Giá bán 1" bằng logic riêng
     const idxRevenue = (() => {
@@ -3747,7 +3747,7 @@ export default function NewRealtimePage() {
       return defaultIdx;
     };
 
-    const idxStaff = findIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'nhân viên bán hàng', 'tên nhân viên bán hàng', 'nv bán hàng', 'user bán hàng', 'tên nhân viên', 'tên nv', 'người bán', 'nhân viên', 'người thực hiện'], -1);
+    const idxStaff = findIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện'], -1);
     const idxDate = findIdx(['ngày tạo', 'ngày lập', 'ngày xuất', 'ngày giao', 'ngày hoàn', 'ngày'], -1);
     const idxHtx = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
     const idxProduct = findIdx(['tên sản phẩm', 'tên hàng', 'sản phẩm'], -1);
@@ -3894,7 +3894,7 @@ export default function NewRealtimePage() {
         }
         return defaultIdx;
       };
-      const idxStaff = findIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'nhân viên bán hàng', 'tên nhân viên bán hàng', 'nv bán hàng', 'user bán hàng', 'tên nhân viên', 'tên nv', 'người bán', 'nhân viên', 'người thực hiện'], -1);
+      const idxStaff = findIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện'], -1);
       const idxCategory = findIdx(['nhóm ngành hàng', 'ngành hàng lớn', 'ngành hàng', 'nhóm hàng', 'tên nhóm hàng'], -1);
       const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ', 'nhóm nhỏ'], -1);
       const idxProduct = (() => {
