@@ -1131,8 +1131,27 @@ const classifyNhomHangLarge = (category: string, productName?: string): string =
     normCat.includes('thu ho phi bao hiem') ||
     normCat.includes('1994') ||
     normCat.includes('7139') ||
+    normCat.includes('4479') ||
+    normCat.includes('4499') ||
+    normCat.includes('1088') ||
     normCat.includes('bao hanh, bao duong') ||
-    normCat.includes('bao hanh mo rong')
+    normCat.includes('bao hanh mo rong') ||
+    normProd.includes('mo rong') ||
+    normProd.includes('1 doi 1') ||
+    normProd.includes('1doi1') ||
+    normProd.includes('1-1') ||
+    normProd.includes('roi vo') ||
+    normProd.includes('bhmr') ||
+    normProd.includes('bhrv') ||
+    normProd.includes('bhkv') ||
+    normProd.includes('bhxm') ||
+    normProd.includes('bvmh') ||
+    normProd.includes('care+') ||
+    normProd.includes('sc+') ||
+    normProd.includes('applecare') ||
+    normProd.includes('mic_') ||
+    normProd.includes('gic_') ||
+    normProd.includes('gic-')
   ) {
     return 'BẢO HIỂM';
   }
@@ -1322,6 +1341,24 @@ const getNhomSmallFromMap = (category: string): string => {
 
 const resolveNhomSmall = (category: string, nhomSmallValue: string, nhomLarge: string, productName?: string): string => {
   const cat = String(category || '').trim().toUpperCase();
+  const prod = String(productName || '').trim().toUpperCase();
+  const normProd = removeAccents(prod);
+
+  // Check Insurance product sub-group first
+  if (nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM' || cat.includes('4479') || cat.includes('1994') || cat.includes('7139') || cat.includes('1841') || normProd.includes('BAO HIEM')) {
+    if (prod.includes('1 ĐỔI 1') || normProd.includes('1 DOI 1') || normProd.includes('1DOI1') || normProd.includes('1-1')) return '1ĐỔI 1';
+    if (prod.includes('MỞ RỘNG') || normProd.includes('MO RONG') || prod.includes('BHMR')) return 'BHMR';
+    if (prod.includes('RƠI VỠ') || normProd.includes('ROI VO') || prod.includes('BHRV')) return 'BHRV';
+    if (prod.includes('BẢO VỆ MÀN HÌNH') || normProd.includes('BVMH')) return 'BVMH';
+    if (nhomSmallValue && nhomSmallValue !== 'KHÁC') {
+      const normSmallVal = removeAccents(nhomSmallValue).toUpperCase();
+      if (normSmallVal.includes('1 DOI 1') || normSmallVal.includes('1DOI1')) return '1ĐỔI 1';
+      if (normSmallVal.includes('MO RONG') || normSmallVal.includes('BHMR')) return 'BHMR';
+      if (normSmallVal.includes('ROI VO') || normSmallVal.includes('BHRV')) return 'BHRV';
+    }
+    return 'BHMR';
+  }
+
   const nhomSmallFromMap = getNhomSmallFromMap(category);
   if (nhomSmallFromMap) {
     return nhomSmallFromMap.toUpperCase();
@@ -1329,10 +1366,6 @@ const resolveNhomSmall = (category: string, nhomSmallValue: string, nhomLarge: s
 
   if (cat.includes('4171') || cat.includes('4172')) return 'MLN';
   if (cat.includes('4150')) return 'CNL';
-  if (cat.includes('1 ĐỔI 1')) return '1 ĐỔI 1';
-  if (cat.includes('BẢO HÀNH MỞ RỘNG') || cat.includes('7139')) return 'BHMR';
-  if (cat.includes('BẢO HÀNH RƠI VỠ')) return 'BHRV';
-  if (cat.includes('4479')) return 'B.HIỂM';
 
   let nhomSmall = nhomSmallValue || 'KHÁC';
 
@@ -1804,6 +1837,9 @@ const fmtRawDate = (raw: string): string => {
 export default function NewRealtimePage() {
   const { userProfile } = useAuth();
   const isAdmin = userProfile?.username === '43751' || userProfile?.username === 'ADMIN' || userProfile?.role === 'admin';
+  const isUser43751 = String(userProfile?.username || '').trim() === '43751' || 
+                      String(userProfile?.ma_nhan_vien || '').trim() === '43751' || 
+                      String(userProfile?.user_id || '').trim() === '43751';
   const [isProcessingData, setIsProcessingData] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const { showNotification } = useNotification();
@@ -1812,6 +1848,12 @@ export default function NewRealtimePage() {
   const [selectedStaffs, setSelectedStaffs] = useState<string[]>([]);
   const [selectedMaKho, setSelectedMaKho] = useState(userProfile?.ma_kho || '');
   const [activeTab, setActiveTab] = useState<'summary' | 'khai_thac' | 'khai_thac_moi'>('summary');
+
+  useEffect(() => {
+    if (activeTab === 'khai_thac_moi' && !isUser43751) {
+      setActiveTab('summary');
+    }
+  }, [activeTab, isUser43751]);
   const { ycxData, setYcxData, ycxDataMoi, setYcxDataMoi, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, hasLoadedFromDB, processError, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
 
   const daysRemaining = useMemo(() => {
@@ -2278,12 +2320,10 @@ export default function NewRealtimePage() {
 
     // DATA YCX MỚI: hiển thị TẤT CẢ dữ liệu, không lọc bất kỳ điều kiện nào
     if (isMoiTab) {
-      console.log('[filteredRawYcxRows MOI] No filters applied – returning all', rawYcxRows.length - 1, 'rows');
       return rawYcxRows.slice(1);
     }
 
     const headers = rawYcxRows[0].map(h => h.trim());
-    const headersLower = headers.map(h => h.toLowerCase());
 
     // Find column indices by exact name or fallback to -1
     let idxStatus = headers.findIndex(h => h.toLowerCase() === 'trạng thái xuất');
@@ -2296,57 +2336,16 @@ export default function NewRealtimePage() {
         lower.includes('nhập trả');
     });
 
-    const filtered = rawYcxRows.slice(1).filter(row => {
-      const statusValue = idxStatus !== -1 ? String(row[idxStatus] || '').trim().toLowerCase() : 'đã xuất';
-      const traValue = idxTra !== -1 ? String(row[idxTra] || '').trim().toLowerCase() : 'chưa trả';
-      if (idxStatus !== -1 && statusValue !== 'đã xuất') return false;
+    return rawYcxRows.slice(1).filter(row => {
+      const statusValue = idxStatus !== -1 ? String(row[idxStatus] || '').trim().toLowerCase() : '';
+      const traValue = idxTra !== -1 ? String(row[idxTra] || '').trim().toLowerCase() : '';
+      
+      // Loại bỏ các đơn bị HỦY hoặc NHẬP TRẢ, giữ lại tất cả các đơn bán/xuất/tạo
+      if (idxStatus !== -1 && (statusValue.includes('hủy') || statusValue.includes('huy') || statusValue === 'đã trả')) return false;
       if (idxTra !== -1 && traValue.includes('trả') && !traValue.includes('chưa trả')) return false;
       return true;
     });
 
-    // Deduplicate: tìm cột mã đơn hàng (Số YCX/Số phiếu) + tên SP + SL làm key dedup
-    const idxOrder = headersLower.findIndex(h =>
-      h.includes('số ycx') || h.includes('số phiếu') || h.includes('mã ycx') ||
-      h.includes('mã đơn') || h.includes('mã phiếu') || h === 'số'
-    );
-    const idxProduct = (() => {
-      const exact = headersLower.findIndex(h => h === 'tên sản phẩm');
-      if (exact !== -1) return exact;
-      const partial = headersLower.findIndex(h => h.startsWith('tên sản phẩm') || h === 'tên hàng');
-      return partial !== -1 ? partial : -1;
-    })();
-    const idxQty = headersLower.findIndex(h => h.includes('số lượng'));
-
-    const seen = new Set<string>();
-    const result = filtered.filter(row => {
-      let key: string;
-      const productVal = idxProduct !== -1 ? String(row[idxProduct] || '').trim() : '';
-      const productValLower = productVal.toLowerCase();
-      
-      // Do not deduplicate VieON rows - they should all be counted separately
-      const isVieon = productValLower.includes('vieon') || 
-                      row.some(cell => String(cell || '').toLowerCase().includes('vieon'));
-      if (isVieon) return true;
-
-      if (idxOrder !== -1) {
-        // Dùng mã đơn + tên SP + SL (nếu có) làm key chính xác
-        const orderVal = String(row[idxOrder] || '').trim();
-        const qtyVal = idxQty !== -1 ? String(row[idxQty] || '').trim() : '';
-        key = `${orderVal}||${productVal}||${qtyVal}`;
-      } else {
-        // Fallback: dùng toàn bộ dòng
-        key = row.join('\t');
-      }
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    console.log('[Dedup] idxOrder:', idxOrder, '| idxProduct:', idxProduct, '| idxQty:', idxQty,
-      '| Header[order]:', idxOrder !== -1 ? headers[idxOrder] : 'N/A',
-      '| Before:', filtered.length, '| After:', result.length, '| Removed:', filtered.length - result.length,
-      '| All headers:', headers.map((h, i) => `[${i}]${h}`).join(', '));
-    return result;
   }, [rawYcxRows, isMoiTab]);
 
   const rawYcxRowsForTable = useMemo(() => {
@@ -2368,9 +2367,9 @@ export default function NewRealtimePage() {
     });
 
     return rawYcxRows.slice(1).filter(row => {
-      const statusValue = idxStatus !== -1 ? String(row[idxStatus] || '').trim().toLowerCase() : 'đã xuất';
-      const traValue = idxTra !== -1 ? String(row[idxTra] || '').trim().toLowerCase() : 'chưa trả';
-      if (idxStatus !== -1 && statusValue !== 'đã xuất' && statusValue !== 'chưa xuất') return false;
+      const statusValue = idxStatus !== -1 ? String(row[idxStatus] || '').trim().toLowerCase() : '';
+      const traValue = idxTra !== -1 ? String(row[idxTra] || '').trim().toLowerCase() : '';
+      if (idxStatus !== -1 && (statusValue.includes('hủy') || statusValue.includes('huy') || statusValue === 'đã trả')) return false;
       if (idxTra !== -1 && traValue.includes('trả') && !traValue.includes('chưa trả')) return false;
       return true;
     });
@@ -2402,8 +2401,8 @@ export default function NewRealtimePage() {
       return defaultIdx;
     };
 
-    const idxStaff = findIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
-    const idxQty = findIdx(['số lượng', 'sl'], -1);
+    const idxStaff = findIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'nhân viên bán hàng', 'tên nhân viên bán hàng', 'nv bán hàng', 'user bán hàng', 'tên nhân viên', 'tên nv', 'người bán', 'nhân viên', 'người thực hiện'], -1);
+    const idxQty = findIdx(['số lượng xuất', 'số lượng bán', 'số lượng xuất bán', 'số lượng', 'sl xuất', 'sl bán'], -1);
     // Ưu tiên tìm cột "Giá bán_1" / "Giá bán 1" bằng logic riêng
     const idxRevenue = (() => {
       // Tìm cột header chứa "giá bán" + "1" (VD: "Giá bán_1", "Giá bán 1", "giá bán_1")
@@ -2514,7 +2513,8 @@ export default function NewRealtimePage() {
       const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
       const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
 
-      const qty = idxQty !== -1 ? Math.round(parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0) : 1;
+      const rawQty = idxQty !== -1 ? Math.round(parseFloat(String(row[idxQty] || '1').replace(/,/g, '')) || 0) : 1;
+      const qty = rawQty > 0 ? rawQty : 1;
       const revenue = idxRevenue !== -1 ? Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0) : 0;
 
       // ── Air-con stats ──
@@ -2622,7 +2622,7 @@ export default function NewRealtimePage() {
         const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
         const nhomLarge = classifyNhomHangLarge(category, productName);
 
-        if (nhomLarge === 'Khác' || nhomLarge === 'THỂ CÀO') return false;
+        if (nhomLarge === 'THỂ CÀO') return false;
 
         const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
         const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
@@ -2679,7 +2679,8 @@ export default function NewRealtimePage() {
           let dtqd = 0;
 
           nodeRows.forEach(row => {
-            const qty = Math.round(parseFloat(String(row[idxs.idxQty] || '0').replace(/,/g, '')) || 0);
+            const rawQty = idxs.idxQty !== -1 ? Math.round(parseFloat(String(row[idxs.idxQty] || '1').replace(/,/g, '')) || 0) : 1;
+            const qty = rawQty > 0 ? rawQty : 1;
             const revenue = Math.round(parseFloat(String(row[idxs.idxRevenue] || '0').replace(/,/g, '')) || 0);
             const htx = idxs.idxHinhThucXuat !== -1 ? String(row[idxs.idxHinhThucXuat] || '').toLowerCase() : '';
             const isTc = htx.includes('trả góp');
@@ -3332,7 +3333,7 @@ export default function NewRealtimePage() {
       return defaultIdx;
     };
 
-    const idxStaff = findIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
+    const idxStaff = findIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'nhân viên bán hàng', 'tên nhân viên bán hàng', 'nv bán hàng', 'user bán hàng', 'tên nhân viên', 'tên nv', 'người bán', 'nhân viên', 'người thực hiện'], -1);
     const idxQty = findIdx(['số lượng', 'sl'], -1);
     // Ưu tiên tìm cột "Giá bán_1" / "Giá bán 1" bằng logic riêng
     const idxRevenue = (() => {
@@ -3430,11 +3431,20 @@ export default function NewRealtimePage() {
       const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
       const productName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() : 'Sản phẩm khác';
       let nhomLarge = classifyNhomHangLarge(category, productName);
-      if (productName.toUpperCase().includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || productName.toUpperCase().includes('BẢO VỆ MÀN HÌNH') || productName.toUpperCase().includes('BVMH')) {
-        nhomLarge = 'B.HIỂM';
-      } else if (category.includes('1994') || category.includes('4479')) {
-        nhomLarge = 'B.HIỂM';
-      } else if (nhomLarge === 'BẢO HIỂM') {
+      const normProdUpper = removeAccents(productName).toUpperCase();
+      const normCatUpper = removeAccents(category).toUpperCase();
+      const prodUpper = productName.toUpperCase();
+      const isBaoHiemCheck = nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM' ||
+        category.includes('1994') || category.includes('4479') || category.includes('4499') || category.includes('7139') ||
+        normCatUpper.includes('BAO HIEM') || normCatUpper.includes('BHMR') || normCatUpper.includes('MO RONG') ||
+        normProdUpper.includes('BAO HIEM') || normProdUpper.includes('MO RONG') || normProdUpper.includes('BHMR') ||
+        normProdUpper.includes('1 DOI 1') || normProdUpper.includes('1DOI1') || normProdUpper.includes('ROI VO') ||
+        normProdUpper.includes('BHRV') || normProdUpper.includes('SC+') || normProdUpper.includes('CARE+') ||
+        normProdUpper.includes('APPLECARE') || normProdUpper.includes('BHKV') || normProdUpper.includes('BHXM') ||
+        normProdUpper.includes('BVMH') || normProdUpper.includes('BAO VE MAN HINH') ||
+        prodUpper.includes('MIC_') || prodUpper.includes('GIC_') || prodUpper.includes('GIC-');
+
+      if (isBaoHiemCheck) {
         nhomLarge = 'B.HIỂM';
       }
       const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
@@ -3443,7 +3453,8 @@ export default function NewRealtimePage() {
       const brandVal = idxNhaSanXuat !== -1 ? String(row[idxNhaSanXuat] || '').trim().toUpperCase() : '';
       const isVieONRow = brandVal === 'VIEON' || category.toUpperCase().includes('VIEON') || productName.toUpperCase().includes('VIEON');
 
-      const qty = idxQty !== -1 ? Math.round(parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0) : 1;
+      const rawQty = idxQty !== -1 ? Math.round(parseFloat(String(row[idxQty] || '1').replace(/,/g, '')) || 0) : 1;
+      const qty = rawQty > 0 ? rawQty : 1;
       const revenue = idxRevenue !== -1 ? Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0) : 0;
 
       if (!statsMap.has(staffName)) {
@@ -3736,7 +3747,7 @@ export default function NewRealtimePage() {
       return defaultIdx;
     };
 
-    const idxStaff = findIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
+    const idxStaff = findIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'nhân viên bán hàng', 'tên nhân viên bán hàng', 'nv bán hàng', 'user bán hàng', 'tên nhân viên', 'tên nv', 'người bán', 'nhân viên', 'người thực hiện'], -1);
     const idxDate = findIdx(['ngày tạo', 'ngày lập', 'ngày xuất', 'ngày giao', 'ngày hoàn', 'ngày'], -1);
     const idxHtx = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
     const idxProduct = findIdx(['tên sản phẩm', 'tên hàng', 'sản phẩm'], -1);
@@ -3883,9 +3894,9 @@ export default function NewRealtimePage() {
         }
         return defaultIdx;
       };
-      const idxStaff = findIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo'], -1);
-      const idxCategory = findIdx(['ngành hàng', 'nhóm ngành hàng', 'nhóm hàng', 'tên nhóm hàng'], -1);
-      const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ'], -1);
+      const idxStaff = findIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'nhân viên bán hàng', 'tên nhân viên bán hàng', 'nv bán hàng', 'user bán hàng', 'tên nhân viên', 'tên nv', 'người bán', 'nhân viên', 'người thực hiện'], -1);
+      const idxCategory = findIdx(['nhóm ngành hàng', 'ngành hàng lớn', 'ngành hàng', 'nhóm hàng', 'tên nhóm hàng'], -1);
+      const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ', 'nhóm nhỏ'], -1);
       const idxProduct = (() => {
         const exact = headers.findIndex(h => h.toLowerCase() === 'tên sản phẩm');
         if (exact !== -1) return exact;
@@ -4378,7 +4389,7 @@ export default function NewRealtimePage() {
             {[
               { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, color: 'text-indigo-600' },
               { id: 'khai_thac', label: 'DATA YCX', icon: Activity, color: 'text-emerald-600' },
-              { id: 'khai_thac_moi', label: 'DATA YCX MỚI', icon: Activity, color: 'text-teal-600' }
+              ...(isUser43751 ? [{ id: 'khai_thac_moi', label: 'DATA YCX MỚI', icon: Activity, color: 'text-teal-600' }] : [])
             ].map((item) => {
               const isActive = activeTab === item.id;
               const Icon = item.icon;
@@ -4408,7 +4419,7 @@ export default function NewRealtimePage() {
               {[
                 { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, color: 'text-indigo-600' },
                 { id: 'khai_thac', label: 'DATA YCX', icon: Activity, color: 'text-emerald-600' },
-                { id: 'khai_thac_moi', label: 'DATA YCX MỚI', icon: Activity, color: 'text-teal-600' }
+                ...(isUser43751 ? [{ id: 'khai_thac_moi', label: 'DATA YCX MỚI', icon: Activity, color: 'text-teal-600' }] : [])
               ].map((item) => {
                 const isActive = activeTab === item.id;
                 const Icon = item.icon;
@@ -5062,13 +5073,32 @@ export default function NewRealtimePage() {
               )}
 
               {(activeTab === 'khai_thac' || activeTab === 'khai_thac_moi') && (
-                <motion.div
-                  key={activeTab}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="space-y-6"
-                  style={{ zoom: 1.3 }}
-                >
+                !isUser43751 ? (
+                  <motion.div
+                    key="maintenance-card"
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-white rounded-3xl p-12 border border-amber-200/80 shadow-lg text-center flex flex-col items-center justify-center my-8 min-h-[420px]"
+                    style={{ zoom: 1.2 }}
+                  >
+                    <div className="w-20 h-20 bg-amber-50 rounded-2xl flex items-center justify-center mb-6 text-amber-500 shadow-inner">
+                      <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-xl font-black text-slate-800 uppercase tracking-wider mb-3">TÍNH NĂNG ĐANG BẢO TRÌ</h3>
+                    <p className="text-sm text-slate-500 max-w-md font-medium leading-relaxed">
+                      Tính năng <strong className="text-indigo-600 font-bold">DATA YCX</strong> đang trong quá trình bảo trì và nâng cấp. Vui lòng quay lại sau!
+                    </p>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key={activeTab}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="space-y-6"
+                    style={{ zoom: 1.3 }}
+                  >
                   {/* HƯỚNG DẪN TẢI BÁO CÁO YCX */}
                   <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
                     <div className="flex items-center gap-3">
@@ -7033,6 +7063,7 @@ export default function NewRealtimePage() {
                   
                   {/* Unexported Orders Table moved to above Raw Data Table */}
                 </motion.div>
+                )
               )}
             </AnimatePresence>
           </div>

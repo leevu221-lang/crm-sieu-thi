@@ -15,38 +15,130 @@ const removeAccentsLocal = (str: string): string => {
     .replace(/Đ/g, 'D');
 };
 
-const getCategoryBadgeStyleClasses = (catName: string): { bgText: string; hover: string } => {
-  const cleanStr = removeAccentsLocal(catName).toLowerCase().replace(/[^a-z0-9]/g, '');
+export const getCategoryGroupType = (catName: string): 'ICT' | 'DICH_VU' | 'DMX' => {
+  if (!catName) return 'DMX';
+  const norm = removeAccentsLocal(catName).toLowerCase().trim();
 
-  // 1. DOANH THU (Revenue) - Bỏ doanhthudongho để nó tự lọt vào nhóm ICT bên dưới
-
-  // 2. NHÓM ICT (Điện thoại, Laptop, Đồng hồ, Phụ kiện, v.v...) - Màu cam đậm, chữ đen
-  const ICT_KEYS = [
-    "dienthoaitabletandroid", "dienthoairealme", "dienthoaivivo", "laptop",
-    "donghophukien", "doanhthudongho", "loa", "camera", "eda", "mayanh", "giado"
-  ];
-  if (ICT_KEYS.some(k => cleanStr === k || cleanStr.includes(k) || k.includes(cleanStr))) {
-    return { bgText: 'bg-[#f59e0b] text-black', hover: 'hover:bg-[#d97706]' };
+  // 1. NHÓM DỊCH VỤ / VAS / TRẢ CHẬM
+  if (
+    norm.includes('credit') ||
+    norm.includes('shinhan') ||
+    norm.includes('finance') ||
+    norm.includes('vi tra sau') ||
+    norm.includes('cake') ||
+    norm.includes('ngan hang') ||
+    norm.includes('vpbank') ||
+    norm.includes('tpbank') ||
+    norm.includes('bao hiem') ||
+    norm.includes('sim') ||
+    norm.includes('vas') ||
+    norm.includes('tra cham') ||
+    norm.includes('vay tien') ||
+    norm.includes('nap rut') ||
+    norm.includes('dich vu') ||
+    norm.includes('mango') ||
+    norm.includes('icallme') ||
+    norm.includes('icall')
+  ) {
+    return 'DICH_VU';
   }
 
-  // 6. GIA DỤNG (Household/ĐMX) - Màu xanh dương (giống widget Thu Hộ), chữ đen
-  const GIA_DUNG_KEYS = [
-    "hisense", "dientu", "dientusamsung", "maygiat", "maysaymayruachen",
-    "cehanghaiermaylanhaqua", "cehanghaiernaylanhaqua", "maylanhcasper", "maylanhnagakawa",
-    "dientudienlanhdiengiadunghanglg", "dacquyenmaygiattulanhmaylanhsamsung",
-    "tulanhdudongtumat", "tulanhtudongtumat", "maylocnuoc", "noicom", "quatgio", "maylockhongkhihutamhutbui",
-    "maylanhdacquyen"
-  ];
-  if (GIA_DUNG_KEYS.some(k => cleanStr === k || cleanStr.includes(k) || k.includes(cleanStr))) {
-    return { bgText: 'bg-[#2563eb] text-white', hover: 'hover:bg-[#1d4ed8]' };
+  // 2. NHÓM ICT (Điện thoại, Smartphone, Tablet, Laptop, Đồng hồ, Phụ kiện, Camera, Loa, Audio, Tai nghe, Pin...)
+  if (
+    norm.includes('dien thoai') ||
+    norm.includes('smartphone') ||
+    norm.includes('tablet') ||
+    norm.includes('vivo') ||
+    norm.includes('realme') ||
+    norm.includes('phu kien') ||
+    norm.includes('dong ho') ||
+    norm.includes('camera') ||
+    norm.includes('pin du phong') ||
+    norm.includes('pin sac') ||
+    norm.includes('tai nghe') ||
+    norm.includes('bluetooth') ||
+    norm.includes('laptop') ||
+    norm.includes('macbook') ||
+    norm === 'loa' ||
+    norm.startsWith('loa ') ||
+    norm.includes(' am thanh') ||
+    norm.includes('audio')
+  ) {
+    return 'ICT';
   }
 
-  // 7. VAS / DỊCH VỤ - Màu xanh lá (giống widget %HT), chữ trắng
-  return { bgText: 'bg-[#10b981] text-white', hover: 'hover:bg-[#059669]' };
+  // 3. NHÓM ĐMX (Gia dụng, Nồi cơm, Quạt, Máy lọc nước, Máy lạnh, Tủ lạnh, Máy giặt, Máy sấy, Điện tử...)
+  return 'DMX';
 };
 
-// Reusing parsing logic to avoid affecting EmployeeDetailTable
-const parseStaffMatrixDataRefined = (
+export const EXACT_CATEGORY_ORDER: string[] = [
+  "dienthoaitabletandroid",
+  "dienthoairealme",
+  "dienthoaivivo",
+  "donghophukien",
+  "doanhthudongho",
+  "loa",
+  "laptop",
+  "camera",
+  "simtong",
+  "simmobifonevinaphonesimdmx",
+  "baohiem",
+  "baohiemthodienmayxanh",
+  "trachamhomecredit",
+  "fecreditshinhansamsungfinance",
+  "trachamdienmayvagiadung",
+  "vitrasau",
+  "chovaytienmat",
+  "dichvuvas",
+  "napruttientaikhoannganhang",
+  "mangoplusicallme",
+  "mothetindungtpbankevovavpbankmwg",
+  "hisense",
+  "dientu",
+  "dientusamsung",
+  "maygiat",
+  "maysaymayruachen",
+  "cehanghaiermaylanhaqua",
+  "maylanhcasper",
+  "maylanhnagakawa",
+  "dientudienlanhdiengiadunghanglg",
+  "dacquyenmaygiattulanhmaylanhsamsung",
+  "tulanhdudongtumat",
+  "maylocnuoc",
+  "noicom",
+  "quatgio",
+  "maylockhongkhihutamhutbui"
+];
+
+export const getCustomCategoryIndex = (catName: string): number => {
+  if (!catName) return 999;
+  const clean = removeAccentsLocal(catName).toLowerCase().replace(/[^a-z0-9]/g, '');
+  
+  const idx = EXACT_CATEGORY_ORDER.findIndex(k => clean === k || clean.includes(k) || k.includes(clean));
+  if (idx !== -1) return idx;
+  
+  return 500 + getCategoryGroupSortOrder(catName) * 10;
+};
+
+export const getCategoryGroupSortOrder = (catName: string): number => {
+  const group = getCategoryGroupType(catName);
+  if (group === 'ICT') return 1;
+  if (group === 'DICH_VU') return 2;
+  return 3; // DMX
+};
+
+const getCategoryBadgeStyleClasses = (catName: string): { bgText: string; hover: string } => {
+  const group = getCategoryGroupType(catName);
+  if (group === 'ICT') {
+    return { bgText: 'bg-[#f59e0b] text-black', hover: 'hover:bg-[#d97706]' };
+  }
+  if (group === 'DICH_VU') {
+    return { bgText: 'bg-[#10b981] text-white', hover: 'hover:bg-[#059669]' };
+  }
+  // DMX
+  return { bgText: 'bg-[#2563eb] text-white', hover: 'hover:bg-[#1d4ed8]' };
+};
+export const parseStaffMatrixDataRefined = (
   input: string, 
   staffCount: number, 
   categoryTargets: any[], 
@@ -57,220 +149,249 @@ const parseStaffMatrixDataRefined = (
 ): { staffMatrix: StaffMatrixData[], categories: string[] } => {
   const raw = input.trim();
   if (!raw) return { staffMatrix: [], categories: [] };
-  const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-  // 1. Quét tên các ngành hàng có trong dữ liệu dán (thiDuaNv) - dùng để mapping cột
-  // CRITICAL: Track ALL column positions including filtered ones, so data column indices stay aligned.
-  let inputCategories: string[] = [];
-  let allColumnHeaders: string[] = [];
-  const categoryToColIdx: Map<string, number> = new Map();
-  let headerStartIdx = -1;
-  let dataStartIdx = -1;
-  let colPosition = 0;
+  const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  if (lines.length === 0) return { staffMatrix: [], categories: [] };
+
+  const excludedKeywords = [
+    'bp all in one', 'bp trưởng ca', 'bp truong ca', 'hỗ trợ bi', 'ho tro bi',
+    'copyright', 'dashboard', 'bc ', 'hd sử dụng', 'hd su dung', 'trang chủ',
+    'trang chu', 'báo cáo', 'bao cao', 'khối kinh doanh', 'khoi kinh doanh',
+    'logo bi', 'avatar', 'phòng ban', 'phong ban'
+  ];
+
+  const isEmpNameStr = (str: string) => {
+    if (!str) return false;
+    const lower = str.toLowerCase();
+    if (excludedKeywords.some(ex => lower.includes(ex))) return false;
+    return /[-–—]\s*\d{4,8}\b/.test(str) || /\b\d{4,8}\s*[-–—]/.test(str) || (str.includes(' - ') && /\d/.test(str));
+  };
+
+  // 1. Detect if input is 2D Tab-delimited Table (Horizontal category headers)
+  let is2DTable = false;
+  let headerLineIdx = -1;
+  let firstEmpLineIdx = -1;
 
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i] === 'Phòng ban') {
-      headerStartIdx = i;
-      continue;
-    }
-    const isEmployeeLine = /[-–—]\s*\d{5,8}\b/.test(lines[i]) || /\b\d{5,8}\s*[-–—]/.test(lines[i]);
-    if (headerStartIdx !== -1 && isEmployeeLine) {
-      dataStartIdx = i;
+    const parts = lines[i].split('\t').map(p => p.trim());
+    if (parts.some(p => isEmpNameStr(p))) {
+      firstEmpLineIdx = i;
       break;
     }
-    if (headerStartIdx !== -1) {
-      let catName = lines[i].trim();
-      
-      // Loại bỏ dòng rác (không phải tên ngành hàng)
-      const isColumnTypesLine = /^(DTLK|SLLK|SL|DT|Realtime|REALTIME|\s)+$/i.test(catName);
-      const isOnlyNumbers = /^[\d\s,.-]+$/.test(catName);
+  }
+
+  if (firstEmpLineIdx > 0) {
+    const prevParts = lines[firstEmpLineIdx - 1].split('\t').map(p => p.trim());
+    if (prevParts.length >= 2) {
+      is2DTable = true;
+      headerLineIdx = firstEmpLineIdx - 1;
+      if (firstEmpLineIdx >= 2) {
+        const lineMinus2Parts = lines[firstEmpLineIdx - 2].split('\t').map(p => p.trim());
+        if (lineMinus2Parts.length >= 2 && lineMinus2Parts.some(p => p.length > 2 && !/^(DTLK|SLLK|SL|DT|Realtime|\s)+$/i.test(p))) {
+          headerLineIdx = firstEmpLineIdx - 2;
+        }
+      }
+    }
+  }
+
+  let inputCategories: string[] = [];
+  const categoryToColIdx: Map<string, number> = new Map();
+  const staffMatrixResults: any[] = [];
+
+  if (is2DTable && headerLineIdx !== -1) {
+    const headerParts = lines[headerLineIdx].split('\t').map(p => p.trim());
+    
+    const empParts = lines[firstEmpLineIdx].split('\t').map(p => p.trim());
+    let empColIdx = empParts.findIndex(p => isEmpNameStr(p));
+    if (empColIdx === -1) empColIdx = 0;
+
+    let colPos = 0;
+    for (let c = empColIdx + 1; c < headerParts.length; c++) {
+      let catName = headerParts[c];
+      if (!catName || /^[\d\s,.-]+$/.test(catName) || /^(DTLK|SLLK|SL|DT|Realtime|\s)+$/i.test(catName)) {
+        colPos++;
+        continue;
+      }
+
       const lowerCatName = catName.toLowerCase();
-      const isExcluded = [
-        'bp all in one',
-        'bp trưởng ca', 'bp truong ca',
-        'hỗ trợ bi', 'ho tro bi',
-        'copyright',
-        'dashboard',
-        'bc ',
-        'hd sử dụng', 'hd su dung',
-        'trang chủ', 'trang chu',
-        'báo cáo', 'bao cao',
-        'khối kinh doanh', 'khoi kinh doanh',
-        'logo bi',
-        'avatar'
-      ].some(ex => lowerCatName.includes(ex)) ||
-      ((lowerCatName.includes('tổng') || lowerCatName.includes('tong')) && cleanCategoryName(catName) !== 'simtong');
+      const normCat = lowerCatName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+      const isExcluded = excludedKeywords.some(ex => lowerCatName.includes(ex)) ||
+        ((lowerCatName.includes('tổng') || lowerCatName.includes('tong')) && cleanCategoryName(catName) !== 'simtong') ||
+        normCat.includes('doanh thu') || normCat.includes('dtqd') || normCat.includes('thu nhap') || normCat.includes('gio cong') || normCat.includes('ty le');
 
-      allColumnHeaders.push(catName);
-
-      if (isColumnTypesLine || isOnlyNumbers || isExcluded) {
-        colPosition++;
+      if (isExcluded) {
+        colPos++;
         continue;
       }
 
       const targetMatch = catName.match(/(.+?)\bTARGET\b/i);
-      if (targetMatch) {
-        catName = targetMatch[1].trim();
-      }
-      
+      if (targetMatch) catName = targetMatch[1].trim();
+
       const cleanName = cleanCategoryName(catName);
-      if (!categoryToColIdx.has(cleanName)) {
-        categoryToColIdx.set(cleanName, colPosition);
+      if (cleanName && !categoryToColIdx.has(cleanName)) {
+        categoryToColIdx.set(cleanName, colPos);
+        inputCategories.push(catName);
       }
-      
-      inputCategories.push(catName);
-      colPosition++;
+      colPos++;
+    }
+
+    for (let i = firstEmpLineIdx; i < lines.length; i++) {
+      const parts = lines[i].split('\t').map(p => p.trim());
+      let nameIdx = parts.findIndex(p => isEmpNameStr(p));
+      if (nameIdx === -1) continue;
+
+      const namePart = parts[nameIdx];
+      const nameIdParts = namePart.split(' - ').map(s => s.trim());
+      const name = nameIdParts[0] || namePart;
+      const id = nameIdParts[1] || '';
+
+      const nameWords = name.trim().split(' ');
+      const shortName = nameWords[nameWords.length - 1].toUpperCase();
+
+      const rawInputValues = parts.slice(nameIdx + 1).map(v => {
+        if (!v || v.trim() === '') return 0;
+        const clean = v.replace(/,/g, '');
+        const num = parseFloat(clean);
+        return isNaN(num) ? 0 : num;
+      });
+
+      staffMatrixResults.push({
+        rawLine: lines[i],
+        id,
+        name,
+        shortName,
+        parts: rawInputValues
+      });
+    }
+  } else {
+    let headerStartIdx = -1;
+    let dataStartIdx = -1;
+    let colPosition = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i] === 'Phòng ban') {
+        headerStartIdx = i;
+        continue;
+      }
+      if (headerStartIdx !== -1 && isEmpNameStr(lines[i])) {
+        dataStartIdx = i;
+        break;
+      }
+      if (headerStartIdx !== -1) {
+        let catName = lines[i].trim();
+        const isColumnTypesLine = /^(DTLK|SLLK|SL|DT|Realtime|REALTIME|\s)+$/i.test(catName);
+        const isOnlyNumbers = /^[\d\s,.-]+$/.test(catName);
+        const lowerCatName = catName.toLowerCase();
+        const isExcluded = excludedKeywords.some(ex => lowerCatName.includes(ex)) ||
+          ((lowerCatName.includes('tổng') || lowerCatName.includes('tong')) && cleanCategoryName(catName) !== 'simtong');
+
+        if (isColumnTypesLine || isOnlyNumbers || isExcluded) {
+          colPosition++;
+          continue;
+        }
+
+        const targetMatch = catName.match(/(.+?)\bTARGET\b/i);
+        if (targetMatch) catName = targetMatch[1].trim();
+        
+        const cleanName = cleanCategoryName(catName);
+        if (!categoryToColIdx.has(cleanName)) {
+          categoryToColIdx.set(cleanName, colPosition);
+        }
+        inputCategories.push(catName);
+        colPosition++;
+      }
+    }
+
+    const dataLines = dataStartIdx !== -1 ? lines.slice(dataStartIdx) : lines.filter(l => isEmpNameStr(l));
+
+    for (const line of dataLines) {
+      let parts = line.split('\t').map(p => p.trim());
+      if (parts.length < 3) {
+        parts = line.split(/ {2,}/).map(p => p.trim()).filter(p => p.length > 0);
+      }
+      let nameIdx = parts.findIndex(p => isEmpNameStr(p));
+      if (nameIdx === -1) continue;
+
+      const namePart = parts[nameIdx];
+      const nameIdParts = namePart.split(' - ').map(s => s.trim());
+      const name = nameIdParts[0] || namePart;
+      const id = nameIdParts[1] || '';
+
+      const nameWords = name.trim().split(' ');
+      const shortName = nameWords[nameWords.length - 1].toUpperCase();
+
+      const rawInputValues = parts.slice(nameIdx + 1).map(v => {
+        if (!v || v.trim() === '') return 0;
+        const clean = v.replace(/,/g, '');
+        const num = parseFloat(clean);
+        return isNaN(num) ? 0 : num;
+      });
+
+      staffMatrixResults.push({
+        rawLine: line,
+        id,
+        name,
+        shortName,
+        parts: rawInputValues
+      });
     }
   }
 
-  // 2. Xác định danh sách ngành hàng hiển thị
   let resolvedCategories: string[] = [];
   if (luykeCategories && luykeCategories.length > 0) {
-    const targetOrder = categoryTargets.map(t => cleanCategoryName(t.name));
-    const sortedLuyke = [...luykeCategories].sort((a, b) => {
-      const idxA = targetOrder.indexOf(cleanCategoryName(a.name));
-      const idxB = targetOrder.indexOf(cleanCategoryName(b.name));
-      const valA = idxA !== -1 ? idxA : 9999;
-      const valB = idxB !== -1 ? idxB : 9999;
-      return valA - valB;
+    const seen = new Set<string>();
+    luykeCategories.forEach(c => {
+      const clean = cleanCategoryName(c.name);
+      if (clean && !seen.has(clean)) {
+        seen.add(clean);
+        resolvedCategories.push(c.name);
+      }
     });
-    resolvedCategories = sortedLuyke.map(c => c.name);
   } else if (categoryTargets && categoryTargets.length > 0) {
-    resolvedCategories = categoryTargets.map(t => t.name);
+    const seen = new Set<string>();
+    categoryTargets.forEach(t => {
+      const clean = cleanCategoryName(t.name);
+      if (clean && !seen.has(clean)) {
+        seen.add(clean);
+        resolvedCategories.push(t.name);
+      }
+    });
   } else {
-    let displayCategories: string[] = [];
     const seen = new Set<string>();
     inputCategories.forEach(catName => {
       const clean = cleanCategoryName(catName);
       if (clean && !seen.has(clean)) {
         seen.add(clean);
-        displayCategories.push(catName);
+        resolvedCategories.push(catName);
       }
-    });
-    resolvedCategories = displayCategories;
-  }
-
-  // Premium custom column order sorting
-  const CUSTOM_COLUMN_ORDER = [
-    "ĐIỆN THOẠI & TABLET ANDROID",
-    "Điện thoại Realme",
-    "Điện thoại Vivo",
-    "Đồng hồ - Phụ kiện",
-    "DOANH THU ĐỒNG HỒ",
-    "Loa",
-    "Laptop",
-    "Camera",
-    "Sim Tổng",
-    "SIM MOBIFONE&VINAPHONE&SIM DMX",
-    "BẢO HIỂM",
-    "BẢO HIỂM THỢ ĐIỆN MÁY XANH",
-    "TRẢ CHẬM HOMECREDIT",
-    "FECREDIT, SHINHAN, SAMSUNG FINANCE+",
-    "TRẢ CHẬM ĐIỆN MÁY VÀ GIA DỤNG",
-    "Ví trả sau",
-    "Cho vay tiền mặt",
-    "Dịch vụ VAS",
-    "NẠP RÚT TIỀN TÀI KHOẢN NGÂN HÀNG THÁNG 07/2026",
-    "MANGO PLUS + ICALLME",
-    "MỞ THẺ TÍN DỤNG TPBANK EVO VÀ VPBANK MWG",
-    "HISENSE",
-    "Điện tử",
-    "Điện tử Samsung",
-    "MÁY GIẶT",
-    "MÁY SẤY & MÁY RỬA CHÉN",
-    "CE HÃNG HAIER + MÁY LẠNH AQUA",
-    "Máy lạnh Casper",
-    "Máy Lạnh NAGAKAWA",
-    "ĐIỆN TỬ & ĐIỆN LẠNH, ĐIỆN GIA DỤNG HÃNG LG",
-    "ĐẶC QUYỀN MÁY GIẶT -TỦ LẠNH -MÁY LẠNH SAMSUNG",
-    "TỦ LẠNH, TỦ ĐÔNG, TỦ MÁT",
-    "Máy Lọc Nước",
-    "Nồi cơm",
-    "Quạt gió",
-    "MÁY LỌC KHÔNG KHÍ - HÚT ẨM - HÚT BỤI"
-  ];
-
-  // removeAccentsLocal is now defined at file scope
-
-  const getCategorySortWeight = (catName: string): number => {
-    const cleanStr = removeAccentsLocal(catName).toLowerCase().replace(/[^a-z0-9]/g, '');
-    const matchedIdx = CUSTOM_COLUMN_ORDER.findIndex(orderedName => {
-      const cleanOrdered = removeAccentsLocal(orderedName).toLowerCase().replace(/[^a-z0-9]/g, '');
-      return cleanStr === cleanOrdered || cleanStr.includes(cleanOrdered) || cleanOrdered.includes(cleanStr);
-    });
-    return matchedIdx !== -1 ? matchedIdx : 9999;
-  };
-
-  if (sortAlpha) {
-    resolvedCategories = [...resolvedCategories].sort((a, b) => a.localeCompare(b, 'vi'));
-  } else {
-    resolvedCategories = [...resolvedCategories].sort((a, b) => {
-      const weightA = getCategorySortWeight(a);
-      const weightB = getCategorySortWeight(b);
-      if (weightA !== weightB) {
-        return weightA - weightB;
-      }
-      return a.localeCompare(b, 'vi');
     });
   }
 
-  // 3. Tính target cho từng ngành hàng trên mỗi nhân viên
+  // Sort categories by exact custom order specified by user
+  resolvedCategories.sort((a, b) => getCustomCategoryIndex(a) - getCustomCategoryIndex(b));
+
   const targetPerStaffPerCat: Record<string, number> = {};
   if (luykeCategories && luykeCategories.length > 0) {
     luykeCategories.forEach((cat: any) => {
       const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCategoryName(cat.name));
       const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
         ? matchingTarget.adjustedTarget
-        : cat.target;
-      targetPerStaffPerCat[cleanCategoryName(cat.name)] = baseTarget / staffCount;
+        : (matchingTarget?.target || cat.target || 0);
+      targetPerStaffPerCat[cleanCategoryName(cat.name)] = staffCount > 0 ? baseTarget / staffCount : baseTarget;
     });
   } else if (categoryTargets && categoryTargets.length > 0) {
     categoryTargets.forEach((cat: any) => {
       const baseTarget = (typeof cat.adjustedTarget === 'number')
         ? cat.adjustedTarget
         : (cat.target || 0);
-      targetPerStaffPerCat[cleanCategoryName(cat.name)] = baseTarget / staffCount;
+      targetPerStaffPerCat[cleanCategoryName(cat.name)] = staffCount > 0 ? baseTarget / staffCount : baseTarget;
     });
   }
 
   const results: StaffMatrixData[] = [];
-  const excludedKeywords = ['Tổng', 'BP All In One', 'BP Trưởng Ca', 'Hỗ trợ BI', 'Copyright', 'Dashboard', 'BC ', 'HD sử dụng', 'Trang chủ', 'Báo cáo', 'Khối kinh doanh', 'Logo BI', 'avatar'];
-  const dataLines = lines.slice(dataStartIdx);
 
-  for (const line of dataLines) {
-    // Split by tab ONLY and preserve empty columns to maintain alignment with category headers.
-    let parts = line.split('\t').map(p => p.trim());
-    
-    // Fallback: if no tabs found (single column), try splitting by multiple spaces
-    if (parts.length < 3) {
-      parts = line.split(/ {2,}/).map(p => p.trim()).filter(p => p.length > 0);
-    }
-    
-    const namePart = parts[0];
-    
-    if (!namePart) continue;
-    if (excludedKeywords.some(ex => namePart.includes(ex))) continue;
-
-    const nameIdParts = namePart.split(' - ').map(s => s.trim());
-    if (nameIdParts.length < 2) continue;
-    
-    const name = nameIdParts[0];
-    const id = nameIdParts[1];
-    
-    // Extract short name (last word)
-    const nameParts = name.trim().split(' ');
-    const shortName = nameParts[nameParts.length - 1].toUpperCase();
-    
-    // Cột 1 là Tên - Mã nhân viên, số liệu ngành hàng bắt đầu ngay từ Cột 2 (index 1).
-    const dataStartIndex = 1;
-    
-    const rawInputValues = parts.slice(dataStartIndex).map(v => {
-      if (!v || v.trim() === '') return 0; // Preserve empty columns as 0
-      const clean = v.replace(/,/g, '');
-      const num = parseFloat(clean);
-      return isNaN(num) ? 0 : num;
-    });
-
+  for (const staffRow of staffMatrixResults) {
+    const rawInputValues = staffRow.parts || [];
     const values: number[] = [];
     const projectedRates: number[] = [];
     const actualPercentHTs: number[] = [];
@@ -284,32 +405,40 @@ const parseStaffMatrixDataRefined = (
 
       const target = targetPerStaffPerCat[cleanName] || 0;
       
-      // Actual
-      let actualRate = target > 0 ? (accumulated / target) * 100 : 0;
+      let actualRate = 0;
+      if (target > 0) {
+        actualRate = (accumulated / target) * 100;
+      } else if (accumulated > 0) {
+        actualRate = 100;
+      }
       actualPercentHTs.push(actualRate);
       
-      // Projected
       let projectedRate = 0;
       if (target > 0 && daysPassed > 0) {
         projectedRate = ((accumulated / daysPassed) * totalDays) / target * 100;
+      } else {
+        projectedRate = actualRate;
       }
       projectedRates.push(projectedRate);
       
-      if (Math.round(projectedRate) >= 100) achievedCount++;
+      const effectiveRate = daysPassed > 0 ? projectedRate : actualRate;
+      if (Math.round(effectiveRate) >= 100) achievedCount++;
     });
 
     results.push({
-      displayName: `${id} - ${name.toUpperCase()}`,
-      fullId: id,
-      shortName: `${id} - ${shortName}`,
+      displayName: `${staffRow.id} - ${staffRow.name.toUpperCase()}`,
+      fullId: staffRow.id,
+      shortName: `${staffRow.id} - ${staffRow.shortName}`,
       achieved: achievedCount,
+      achievedCount: achievedCount,
       totalCats: resolvedCategories.length,
       rate: resolvedCategories.length > 0 ? achievedCount / resolvedCategories.length : 0, 
       rawValues: values,
       projectedRates,
       actualPercentHTs
-    });
+    } as any);
   }
+
   return { staffMatrix: results, categories: resolvedCategories };
 };
 

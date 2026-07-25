@@ -18,6 +18,7 @@ import CategoryTable from './RTST/components/CategoryTable';
 import { BonusCalculatorForm } from './BonusCalculatorForm';
 
 import { ConfirmationModal } from './RTST/components/Modals';
+import { getCustomCategoryIndex } from './EmployeeHealth/components/SummaryThiDuaTable';
 import { normalize, isKhoLuuDong } from './RTST/utils';
 import BcDtNganhHang from './BcDtNganhHang';
 
@@ -35,7 +36,10 @@ const getCategoryGroup = (name: string): 'yellow' | 'green' | 'blue' => {
     normalized.includes('tpbank') ||
     normalized.includes('bảo hiểm') ||
     normalized.includes('sim') ||
-    normalized.includes('vas')
+    normalized.includes('vas') ||
+    normalized.includes('mango') ||
+    normalized.includes('icallme') ||
+    normalized.includes('icall')
   ) {
     return 'green';
   }
@@ -55,6 +59,13 @@ const getCategoryGroup = (name: string): 'yellow' | 'green' | 'blue' => {
   }
   
   return 'blue';
+};
+
+const getCategoryGroupOrder = (name: string): number => {
+  const group = getCategoryGroup(name);
+  if (group === 'yellow') return 1; // ICT
+  if (group === 'green') return 2;  // DỊCH VỤ
+  return 3;                         // ĐMX
 };
 
 const parseNumericValue = (val: any): number => {
@@ -689,6 +700,9 @@ const LuyKe: React.FC = () => {
       return true;
     });
 
+    // Sort categories by exact custom order specified by user
+    deduped.sort((a: any, b: any) => getCustomCategoryIndex(a.name || '') - getCustomCategoryIndex(b.name || ''));
+
     // Map each category to use the target from categoryTargets (TARGET THI ĐUA) if available
     return deduped.map((cat: any) => {
       const matchingTarget = categoryTargets.find(
@@ -758,6 +772,8 @@ const LuyKe: React.FC = () => {
     const element = ref.current;
     const originalWidth = element.style.width;
     const originalMinWidth = element.style.minWidth;
+    const originalHeight = element.style.height;
+    const originalAlignSelf = element.style.alignSelf;
     
     try {
       // Store original overflow styles and set to visible to get true scrollWidth
@@ -781,9 +797,17 @@ const LuyKe: React.FC = () => {
       // Force desktop layout configurations for screenshot
       forceDesktopLayout(element);
 
-      // Lock width to standard desktop width during capture to prevent column wrapping/clipping
-      element.style.width = '1400px';
-      element.style.minWidth = '1400px';
+      const isSubTable = ref === captureRefs.categorySL || ref === captureRefs.categoryDT || ref === captureRefs.thuongSt;
+      
+      if (!isSubTable) {
+        element.style.width = '1400px';
+        element.style.minWidth = '1400px';
+      } else {
+        element.style.width = 'max-content';
+        element.style.minWidth = 'auto';
+        element.style.height = 'max-content';
+        element.style.alignSelf = 'start';
+      }
 
       // Small delay for CSS to apply
       await new Promise(resolve => setTimeout(resolve, 150));
@@ -811,6 +835,8 @@ const LuyKe: React.FC = () => {
     } finally {
       element.style.width = originalWidth;
       element.style.minWidth = originalMinWidth;
+      element.style.height = originalHeight;
+      element.style.alignSelf = originalAlignSelf;
       removeDesktopLayout(element);
       document.body.classList.remove('capturing-screenshot');
       setIsCapturing(false);
@@ -994,7 +1020,7 @@ const LuyKe: React.FC = () => {
                     <p className="text-[17px] text-slate-400 mt-0.5">Thống kê chi tiết theo ngành hàng (Luỹ kế tháng)</p>
                   </div>
                   <button
-                    onClick={() => captureElement(captureRefs.categorySL, 'NganhHang_LuyKe')}
+                    onClick={() => captureElement(captureRefs.category, 'NganhHang_LuyKe')}
                     className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all shadow-lg shadow-emerald-200 active:scale-95 no-capture"
                   >
                     <Camera size={14} />
@@ -1003,15 +1029,24 @@ const LuyKe: React.FC = () => {
                 </div>
               </div>
 
-              <div ref={captureRefs.categorySL} className="bg-white rounded-3xl overflow-hidden border border-slate-300">
+              <div ref={captureRefs.category} className="bg-white rounded-3xl overflow-hidden border border-slate-300">
                 <div className="p-10 grid grid-cols-1 xl:grid-cols-2 gap-6">
                   {/* Left Table: SLLK */}
-                  <div className="border border-slate-300 overflow-hidden min-w-0">
+                  <div ref={captureRefs.categorySL} className="border border-slate-300 overflow-hidden min-w-0">
                    <div className="bg-white p-[15px]">
                     <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
                       <div className="p-4 flex flex-col items-center justify-center">
                         <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">NGÀNH HÀNG (SL)</h2>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">LUỸ KẾ THÁNG</span>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">LUỸ KẾ THÁNG</span>
+                          <button
+                            onClick={() => captureElement(captureRefs.categorySL, 'NganhHang_SL_LuyKe')}
+                            className="no-capture p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"
+                            title="Chụp ảnh riêng bảng Ngành hàng SL"
+                          >
+                            <Camera size={13} />
+                          </button>
+                        </div>
                       </div>
                       <div className="p-4 flex flex-col items-center justify-center">
                         <h2 className="text-xl font-black text-rose-600 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">DỰ KIẾN</h2>
@@ -1066,12 +1101,21 @@ const LuyKe: React.FC = () => {
                   </div>
 
                   {/* Right Table: DTLK */}
-                  <div className="border border-slate-300 overflow-hidden min-w-0">
+                  <div ref={captureRefs.categoryDT} className="border border-slate-300 overflow-hidden min-w-0">
                    <div className="bg-white p-[15px]">
                     <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
                       <div className="p-4 flex flex-col items-center justify-center">
                         <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">NGÀNH HÀNG (DT)</h2>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">LUỸ KẾ THÁNG</span>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">LUỸ KẾ THÁNG</span>
+                          <button
+                            onClick={() => captureElement(captureRefs.categoryDT, 'NganhHang_DT_LuyKe')}
+                            className="no-capture p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"
+                            title="Chụp ảnh riêng bảng Ngành hàng DT"
+                          >
+                            <Camera size={13} />
+                          </button>
+                        </div>
                       </div>
                       <div className="p-4 flex flex-col items-center justify-center">
                         <h2 className="text-xl font-black text-rose-600 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">DỰ KIẾN</h2>

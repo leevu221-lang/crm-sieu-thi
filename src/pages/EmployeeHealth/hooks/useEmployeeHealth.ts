@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { useStore } from '../../../contexts/StoreContext';
 import { parseYcxData, parseStaffRankData, normalizeStoreId } from '../../RTST/utils';
+import { cleanBiReportText } from '../../../utils/rtstHelpers';
 import { StaffData } from '../../RTST/types';
 
 const globalHealthCache: Record<string, any> = {};
@@ -34,6 +35,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
   const [giocong3t1, setGiocong3t1Internal] = useState<string>(() => initialCache?.giocong3t1 || '');
   const [giocong3t2, setGiocong3t2Internal] = useState<string>(() => initialCache?.giocong3t2 || '');
   const [giocong3t3, setGiocong3t3Internal] = useState<string>(() => initialCache?.giocong3t3 || '');
+  const [thidua3t1, setThidua3t1Internal] = useState<string>(() => initialCache?.thidua3t1 || '');
+  const [thidua3t2, setThidua3t2Internal] = useState<string>(() => initialCache?.thidua3t2 || '');
+  const [thidua3t3, setThidua3t3Internal] = useState<string>(() => initialCache?.thidua3t3 || '');
   const [rankMonth1, setRankMonth1Internal] = useState<string>(() => initialCache?.rankMonth1 || 'Tháng 1');
   const [rankMonth2, setRankMonth2Internal] = useState<string>(() => initialCache?.rankMonth2 || 'Tháng 2');
   const [rankMonth3, setRankMonth3Internal] = useState<string>(() => initialCache?.rankMonth3 || 'Tháng 3');
@@ -48,14 +52,35 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
   const rank3tDirtyRef = useRef(false);
   const rank3tAutoSaveRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Exposed setter that marks data as dirty (user-initiated change)
+  // Exposed setter that marks data as dirty & auto-saves immediately
   const setBanKemNv = useCallback((val: string) => {
     banKemDirtyRef.current = true;
     setBanKemNvInternal(val);
     if (globalHealthCache[targetKey]) {
       globalHealthCache[targetKey].banKemNv = val;
     }
-  }, [targetKey]);
+    const cleanStore = (storeName || tenSieuThi || '').trim();
+    if (maKho && cleanStore) {
+      if (banKemAutoSaveRef.current) clearTimeout(banKemAutoSaveRef.current);
+      banKemAutoSaveRef.current = setTimeout(async () => {
+        try {
+          const { error } = await supabase.from('store').upsert({
+            id: normalizeStoreId(cleanStore),
+            warehouse_code: maKho.trim(),
+            ten_sieu_thi: cleanStore,
+            ban_kem_nv: cleanBiReportText(val),
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+          if (!error) {
+            banKemDirtyRef.current = false;
+            console.log('[EmployeeHealth] Saved ban_kem_nv immediately to DB for', cleanStore);
+          }
+        } catch (err) {
+          console.error('[EmployeeHealth] Save ban_kem_nv error:', err);
+        }
+      }, 300);
+    }
+  }, [targetKey, maKho, storeName, tenSieuThi]);
 
   const setTragopNv = useCallback((val: string) => {
     tragopDirtyRef.current = true;
@@ -135,6 +160,24 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     rank3tDirtyRef.current = true;
     setGiocong3t3Internal(val);
     if (globalHealthCache[targetKey]) globalHealthCache[targetKey].giocong3t3 = val;
+  }, [targetKey]);
+
+  const setThidua3t1 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setThidua3t1Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].thidua3t1 = val;
+  }, [targetKey]);
+
+  const setThidua3t2 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setThidua3t2Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].thidua3t2 = val;
+  }, [targetKey]);
+
+  const setThidua3t3 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setThidua3t3Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].thidua3t3 = val;
   }, [targetKey]);
 
   const setRankMonth1 = useCallback((val: string) => {
@@ -299,15 +342,37 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         ? (lkDataArr || []).map(r => r.dtqd_3t_3 || '').filter(Boolean).join('\n')
         : (lkData?.dtqd_3t_3 || '');
 
-      const thunhap3t1Raw = isAllMode
-        ? (lkDataArr || []).map(r => r.thunhap_3t_1 || '').filter(Boolean).join('\n')
-        : (lkData?.thunhap_3t_1 || '');
-      const thunhap3t2Raw = isAllMode
-        ? (lkDataArr || []).map(r => r.thunhap_3t_2 || '').filter(Boolean).join('\n')
-        : (lkData?.thunhap_3t_2 || '');
-      const thunhap3t3Raw = isAllMode
-        ? (lkDataArr || []).map(r => r.thunhap_3t_3 || '').filter(Boolean).join('\n')
-        : (lkData?.thunhap_3t_3 || '');
+      const mergeTnJson = (records: any[], field: string, singleVal?: string): string => {
+        const merged: Record<string, string> = {};
+        let found = false;
+        (records || []).forEach(r => {
+          const val = r?.[field];
+          if (val && typeof val === 'string' && val.trim().startsWith('{')) {
+            try {
+              const p = JSON.parse(val);
+              if (p && typeof p === 'object' && Object.keys(p).length > 0) {
+                Object.assign(merged, p);
+                found = true;
+              }
+            } catch {}
+          }
+        });
+        if (singleVal && typeof singleVal === 'string' && singleVal.trim().startsWith('{')) {
+          try {
+            const p = JSON.parse(singleVal);
+            if (p && typeof p === 'object' && Object.keys(p).length > 0) {
+              Object.assign(merged, p);
+              found = true;
+            }
+          } catch {}
+        }
+        if (found && Object.keys(merged).length > 0) return JSON.stringify(merged);
+        return singleVal || '';
+      };
+
+      const thunhap3t1Raw = mergeTnJson(lkDataArr, 'thunhap_3t_1', lkData?.thunhap_3t_1);
+      const thunhap3t2Raw = mergeTnJson(lkDataArr, 'thunhap_3t_2', lkData?.thunhap_3t_2);
+      const thunhap3t3Raw = mergeTnJson(lkDataArr, 'thunhap_3t_3', lkData?.thunhap_3t_3);
 
       const nganhhang3t1Raw = isAllMode
         ? (lkDataArr || []).map(r => r.nganhhang_3t_1 || '').filter(Boolean).join('\n')
@@ -328,6 +393,16 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       const giocong3t3Raw = isAllMode
         ? (lkDataArr || []).map(r => r.giocong_3t_3 || '').filter(Boolean).join('\n')
         : (lkData?.giocong_3t_3 || '');
+
+      const thidua3t1Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.thidua_3t_1 || '').filter(Boolean).join('\n')
+        : (lkData?.thidua_3t_1 || '');
+      const thidua3t2Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.thidua_3t_2 || '').filter(Boolean).join('\n')
+        : (lkData?.thidua_3t_2 || '');
+      const thidua3t3Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.thidua_3t_3 || '').filter(Boolean).join('\n')
+        : (lkData?.thidua_3t_3 || '');
 
       const rankMonth1Raw = isAllMode
         ? 'Tháng 1'
@@ -368,6 +443,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         setGiocong3t1Internal(giocong3t1Raw);
         setGiocong3t2Internal(giocong3t2Raw);
         setGiocong3t3Internal(giocong3t3Raw);
+        setThidua3t1Internal(thidua3t1Raw);
+        setThidua3t2Internal(thidua3t2Raw);
+        setThidua3t3Internal(thidua3t3Raw);
         setRankMonth1Internal(rankMonth1Raw);
         setRankMonth2Internal(rankMonth2Raw);
         setRankMonth3Internal(rankMonth3Raw);
@@ -417,6 +495,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         giocong3t1: giocong3t1Raw,
         giocong3t2: giocong3t2Raw,
         giocong3t3: giocong3t3Raw,
+        thidua3t1: thidua3t1Raw,
+        thidua3t2: thidua3t2Raw,
+        thidua3t3: thidua3t3Raw,
         rankMonth1: rankMonth1Raw,
         rankMonth2: rankMonth2Raw,
         rankMonth3: rankMonth3Raw,
@@ -473,6 +554,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         setGiocong3t1Internal(cached.giocong3t1 || '');
         setGiocong3t2Internal(cached.giocong3t2 || '');
         setGiocong3t3Internal(cached.giocong3t3 || '');
+        setThidua3t1Internal(cached.thidua3t1 || '');
+        setThidua3t2Internal(cached.thidua3t2 || '');
+        setThidua3t3Internal(cached.thidua3t3 || '');
         setRankMonth1Internal(cached.rankMonth1 || 'Tháng 1');
         setRankMonth2Internal(cached.rankMonth2 || 'Tháng 2');
         setRankMonth3Internal(cached.rankMonth3 || 'Tháng 3');
@@ -572,6 +656,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
             giocong_3t_1: giocong3t1,
             giocong_3t_2: giocong3t2,
             giocong_3t_3: giocong3t3,
+            thidua_3t_1: thidua3t1,
+            thidua_3t_2: thidua3t2,
+            thidua_3t_3: thidua3t3,
             rank_month_1: rankMonth1,
             rank_month_2: rankMonth2,
             rank_month_3: rankMonth3,
@@ -587,7 +674,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       } finally {
         setIsSaving(false);
       }
-    }, 2000);
+    }, 300);
 
     return () => {
       if (rank3tAutoSaveRef.current) clearTimeout(rank3tAutoSaveRef.current);
@@ -612,6 +699,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
               giocong_3t_1: giocong3t1,
               giocong_3t_2: giocong3t2,
               giocong_3t_3: giocong3t3,
+              thidua_3t_1: thidua3t1,
+              thidua_3t_2: thidua3t2,
+              thidua_3t_3: thidua3t3,
               rank_month_1: rankMonth1,
               rank_month_2: rankMonth2,
               rank_month_3: rankMonth3,
@@ -623,7 +713,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         }
       }
     };
-  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, rankMonth1, rankMonth2, rankMonth3, maKho, storeName, tenSieuThi, isStoreReady]);
+  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, thidua3t1, thidua3t2, thidua3t3, rankMonth1, rankMonth2, rankMonth3, maKho, storeName, tenSieuThi, isStoreReady]);
 
   // Auto-save banKemNv to DB with 2s debounce
   useEffect(() => {
@@ -796,7 +886,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
             id: normalizeStoreId(cleanStore),
             warehouse_code: cleanMaKho,
             ten_sieu_thi: cleanStore,
-            ban_kem_nv: data,
+            ban_kem_nv: cleanBiReportText(data),
             updated_at: new Date().toISOString()
           }, { onConflict: 'id' });
 
@@ -863,6 +953,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     giocong3t1, setGiocong3t1,
     giocong3t2, setGiocong3t2,
     giocong3t3, setGiocong3t3,
+    thidua3t1, setThidua3t1,
+    thidua3t2, setThidua3t2,
+    thidua3t3, setThidua3t3,
     rankMonth1, setRankMonth1,
     rankMonth2, setRankMonth2,
     rankMonth3, setRankMonth3,

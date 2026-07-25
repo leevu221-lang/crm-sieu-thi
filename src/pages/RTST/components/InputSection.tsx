@@ -31,10 +31,13 @@ import {
   X,
   Upload,
   UploadCloud,
-  Target
+  Target,
+  History
 } from 'lucide-react';
 import { cn, formatShortCurrency } from '../utils';
+import { cleanBiReportText } from '../../../utils/rtstHelpers';
 import { useNotification } from '../../../contexts/NotificationContext';
+import HistoryDataModal, { saveHistorySnapshot, DataSnapshot } from './HistoryDataModal';
 
 interface InputSectionProps {
   marketInput: string;
@@ -216,6 +219,47 @@ const InputSection: React.FC<InputSectionProps> = ({
 }) => {
   const { showNotification } = useNotification();
   const [innerTab, setInnerTab] = useState<'DU_LIEU_NGUON' | 'TARGET_DOANH_THU' | 'TARGET_THI_DUA'>('DU_LIEU_NGUON');
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+
+  const triggerAutoSaveSnapshot = () => {
+    saveHistorySnapshot(
+      {
+        marketInput,
+        categoryRevenueInput,
+        clusterSummaryInput,
+        categoryInput,
+        categoryTargetInput,
+        clusterCategoryInput,
+        staffInput,
+        staffCategoryInput,
+        banKemNv,
+        phucVu,
+        tragopNv,
+      },
+      activeStore
+    );
+  };
+
+  const handleRestoreSnapshot = (snapshot: DataSnapshot) => {
+    const p = snapshot.payload;
+    if (p.marketInput !== undefined) setMarketInput(p.marketInput);
+    if (p.categoryRevenueInput !== undefined) setCategoryRevenueInput(p.categoryRevenueInput);
+    if (p.clusterSummaryInput !== undefined) setClusterSummaryInput(p.clusterSummaryInput);
+    if (p.categoryInput !== undefined) setCategoryInput(p.categoryInput);
+    if (p.categoryTargetInput !== undefined) setCategoryTargetInput(p.categoryTargetInput);
+    if (p.clusterCategoryInput !== undefined && setClusterCategoryInput) setClusterCategoryInput(p.clusterCategoryInput);
+    if (p.staffInput !== undefined) setStaffInput(p.staffInput);
+    if (p.staffCategoryInput !== undefined) setStaffCategoryInput(p.staffCategoryInput);
+    if (p.banKemNv !== undefined && setBanKemNv) setBanKemNv(p.banKemNv);
+    if (p.phucVu !== undefined && setPhucVu) setPhucVu(p.phucVu);
+    if (p.tragopNv !== undefined && setTragopNv) setTragopNv(p.tragopNv);
+
+    setTimeout(() => {
+      onSaveRealtime(false);
+      if (onSaveLuyke) onSaveLuyke(false, 'auto', undefined, undefined, 'RESTORE');
+      showNotification(`Đã khôi phục thành công dữ liệu ngày ${snapshot.dateFormatted} (${snapshot.timeFormatted})!`, 'success');
+    }, 150);
+  };
 
   const handleResetAllData = () => {
     if (!window.confirm("Bạn có chắc chắn muốn reset toàn bộ dữ liệu khai báo của siêu thị này?")) return;
@@ -481,6 +525,18 @@ const InputSection: React.FC<InputSectionProps> = ({
           </div>
           <div className="flex items-center gap-3">
             <button
+              onClick={() => {
+                triggerAutoSaveSnapshot();
+                setIsHistoryModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 hover:border-indigo-300 rounded-xl text-[13px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer active:scale-95 shadow-sm"
+              title="Lịch sử dán dữ liệu và khôi phục lại dữ liệu ngày trước đó"
+            >
+              <History size={14} />
+              <span>LỊCH SỬ CẬP NHẬT DỮ LIỆU</span>
+            </button>
+
+            <button
               onClick={handleResetAllData}
               className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300 rounded-xl text-[13px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer active:scale-95 shadow-sm"
               title="Reset toàn bộ dữ liệu khai báo"
@@ -705,7 +761,6 @@ const InputSection: React.FC<InputSectionProps> = ({
                 { key: `${storeName}_dt_nv`, label: 'DOANH THU NV', value: cardStaffInput, setter: isActiveCard ? setStaffInput : undefined, biLink: 'https://bi.thegioididong.com/sieu-thi-con?id=16500&tab=bcdtnv&rt=2&dm=1' },
                 { key: `${storeName}_td_nv`, label: 'THI ĐUA NV', value: cardStaffCategoryInput, setter: isActiveCard ? setStaffCategoryInput : undefined },
                 { key: `${storeName}_hq_nv`, label: 'HQ BÁN KÈM NV', value: cardBanKemNv, setter: isActiveCard ? setBanKemNv : undefined },
-                { key: `${storeName}_matran`, label: 'CHI TIẾT DTNV', value: cardTragopMatran, isConfig: true, configKey: 'tragop_matran' },
                 { key: `${storeName}_tragop`, label: 'TRẢ GÓP NV', value: cardTragopNv, isConfig: true, configKey: 'tragop_nv' },
               ];
 
@@ -743,10 +798,11 @@ const InputSection: React.FC<InputSectionProps> = ({
                       const hasData = !!val;
                       const handleChange = (v: string) => {
                         if (!isActiveCard) { handleCardActivate(); return; }
+                        const cleanV = cleanBiReportText(v);
                         if (item.isConfig && item.configKey) {
-                          updateStoreConfig(item.configKey, v);
+                          updateStoreConfig(item.configKey, cleanV);
                         } else if (item.setter) {
-                          item.setter(v);
+                          item.setter(cleanV);
                         }
                       };
                       const handleClear = () => {
@@ -1139,6 +1195,12 @@ const InputSection: React.FC<InputSectionProps> = ({
       )}
 
 
+      <HistoryDataModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        onRestore={handleRestoreSnapshot}
+        showNotification={showNotification}
+      />
     </div>
   );
 };

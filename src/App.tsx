@@ -224,13 +224,13 @@ export default function App() {
     { id: 'health', label: 'Sức khỏe NV', icon: HeartPulse, color: 'rose' },
     { id: 'toolhotro', label: 'Tool Hỗ Trợ', icon: Wrench, color: 'amber' },
     { id: 'birthday', label: 'Sinh nhật NV', icon: Gift, color: 'pink' },
-    { id: 'feedback', label: 'Góp ý', icon: MessageSquare, color: 'indigo' },
+    { id: 'feedback', label: 'HƯỚNG DẪN & GÓP Ý', icon: MessageSquare, color: 'indigo' },
     // { id: 'tnb_data', label: 'TNB DATA', icon: Trophy, color: 'indigo' },
   ];
   
   const NAV_ITEMS = [
     ...BASE_NAV_ITEMS.filter(item => item.id !== 'feedback' && effectiveAllowedPages.includes(item.id)),
-    { id: 'feedback', label: 'Góp ý', icon: MessageSquare, color: 'indigo' },
+    { id: 'feedback', label: 'HƯỚNG DẪN & GÓP Ý', icon: MessageSquare, color: 'indigo' },
   ];
 
 
@@ -417,8 +417,8 @@ export default function App() {
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex bg-white border-b border-slate-200">
-          <div className="max-w-7xl mx-auto w-full flex items-center justify-between px-6">
-            <div className="flex items-center gap-2">
+          <div className="max-w-7xl mx-auto w-full flex items-center justify-between px-4 lg:px-6 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-1 lg:gap-2">
               {NAV_ITEMS.map((item) => {
                 const isActive = currentPage === item.id;
                 const Icon = item.icon;
@@ -426,10 +426,10 @@ export default function App() {
                   <button 
                     key={item.id}
                     onClick={() => setCurrentPage(item.id as any)}
-                    className={`flex items-center gap-2 px-5 py-3.5 text-sm font-black uppercase tracking-wider transition-colors ${isActive ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`flex items-center gap-2 px-3 lg:px-4 py-3.5 text-xs lg:text-sm font-black uppercase tracking-wider transition-colors whitespace-nowrap shrink-0 ${isActive ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
                   >
-                    <Icon size={18} />
-                    {item.label}
+                    <Icon size={18} className="shrink-0" />
+                    <span className="whitespace-nowrap">{item.label}</span>
                   </button>
                 );
               })}
@@ -533,7 +533,7 @@ export default function App() {
                     />
                   )}
                 </motion.div>
-                <span className={`text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${isActive ? 'opacity-100 scale-105' : 'opacity-60'}`}>
+                <span className={`text-[10px] font-black uppercase tracking-wider transition-all duration-300 whitespace-nowrap ${isActive ? 'opacity-100 scale-105' : 'opacity-60'}`}>
                   {item.label}
                 </span>
               </button>

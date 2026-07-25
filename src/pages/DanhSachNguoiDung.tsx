@@ -78,31 +78,59 @@ export default function UserManagement({ onBack }: UserManagementProps) {
       
       const permMap = new Map((permData || []).map((p: any) => [p.user_id, p.allowed_pages]));
 
-      const mappedUsers = (data || []).map((u: any) => ({
-        username: u.username,
-        ma_kho: u.storeCode,
-        password: u.password,
-        role: (u.username === '43751' || u.username === 'ADMIN') ? 'admin' : ('user' as any),
-        userPermissions: {
-          canEditUser: u.username === '43751',
-          allowedPages: permMap.get(u.username) || []
-        },
-        permissions: ['lkst', 'rtst', 'sknv', 'updata'] as any,
-        expiredAt: u.expiredAt,
-        status: u.status,
-        packageDays: u.packageDays,
-        paymentConfirmed: u.paymentConfirmed,
-        requestedRenewPackage: u.requestedRenewPackage,
-        requestedAt: u.requestedAt,
-        phone: u.phone,
-        isDemo: u.isDemo,
-        last_active_at: u.last_active_at,
-        last_login_at: u.last_login_at,
-        current_page: u.current_page,
-        device_info: u.device_info
-      }));
-      
+      const seenUsernames = new Set<string>();
+      const mappedUsers: any[] = [];
+      const duplicateIdsToDelete: string[] = [];
+
+      (data || []).forEach((u: any) => {
+        const cleanUsername = String(u.username || '').trim();
+        if (!cleanUsername) return;
+        const key = cleanUsername.toUpperCase();
+
+        if (seenUsernames.has(key)) {
+          console.warn('[DanhSachNguoiDung] Duplicate username found in DB, filtering out:', cleanUsername, u.id);
+          if (u.id) duplicateIdsToDelete.push(u.id);
+          return;
+        }
+        seenUsernames.add(key);
+
+        mappedUsers.push({
+          username: cleanUsername,
+          ma_kho: u.storeCode,
+          password: u.password,
+          role: (cleanUsername === '43751' || cleanUsername === 'ADMIN') ? 'admin' : ('user' as any),
+          userPermissions: {
+            canEditUser: cleanUsername === '43751',
+            allowedPages: permMap.get(cleanUsername) || []
+          },
+          permissions: ['lkst', 'rtst', 'sknv', 'updata'] as any,
+          expiredAt: u.expiredAt,
+          status: u.status,
+          packageDays: u.packageDays,
+          paymentConfirmed: u.paymentConfirmed,
+          requestedRenewPackage: u.requestedRenewPackage,
+          requestedAt: u.requestedAt,
+          phone: u.phone,
+          isDemo: u.isDemo,
+          last_active_at: u.last_active_at,
+          last_login_at: u.last_login_at,
+          current_page: u.current_page,
+          device_info: u.device_info
+        });
+      });
+
       setUsers(mappedUsers);
+
+      // Asynchronously delete duplicate documents from DB
+      if (duplicateIdsToDelete.length > 0) {
+        for (const id of duplicateIdsToDelete) {
+          try {
+            await supabase.from('ql_nguoi_dung').delete().eq('id', id);
+          } catch (e) {
+            console.error('[DanhSachNguoiDung] Delete duplicate doc error:', e);
+          }
+        }
+      }
     } catch (err: any) {
       console.error("Error fetching users:", err);
       setError(err.message || 'Không thể tải danh sách người dùng.');
@@ -190,9 +218,23 @@ export default function UserManagement({ onBack }: UserManagementProps) {
 
         setUsers(users.map(u => u.username === isEditing.username ? updatedUser : u));
       } else {
-        // Create new user
+        // Create new user with duplicate username check
+        const cleanNewUsername = String(isEditing.username || '').trim();
+        if (!cleanNewUsername) {
+          setError('Vui lòng nhập Mã nhân viên (Username).');
+          setSaving(false);
+          return;
+        }
+
+        const isDuplicate = users.some(u => String(u.username).trim().toUpperCase() === cleanNewUsername.toUpperCase());
+        if (isDuplicate) {
+          setError(`Mã nhân viên "${cleanNewUsername}" đã tồn tại trên hệ thống. Không thể tạo trùng tài khoản!`);
+          setSaving(false);
+          return;
+        }
+
         const newUser = {
-          username: isEditing.username,
+          username: cleanNewUsername,
           storeCode: isEditing.ma_kho,
           password: isEditing.password,
           status: isEditing.status || 'inactive',
@@ -206,16 +248,16 @@ export default function UserManagement({ onBack }: UserManagementProps) {
 
         const { error: userError } = await supabase
           .from('ql_nguoi_dung')
-          .insert([newUser]);
+          .upsert([newUser], { onConflict: 'username' });
 
         if (userError) throw userError;
 
         const { error: permError } = await supabase
           .from('user_permissions')
-          .insert({ 
+          .upsert({ 
             user_id: newUser.username, 
             allowed_pages: isEditing.userPermissions?.allowedPages || [] 
-          });
+          }, { onConflict: 'user_id' });
 
         if (permError) throw permError;
         

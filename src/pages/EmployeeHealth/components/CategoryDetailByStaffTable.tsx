@@ -9,6 +9,7 @@ import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { StaffMatrixData, CategoryData } from '../../RTST/types';
 import { cleanCategoryName } from './EmployeeDetailTable';
 import { useLuykeData } from '../../RTST/hooks/useLuykeData';
+import { getCategoryGroupSortOrder, getCustomCategoryIndex } from './SummaryThiDuaTable';
 
 interface CategoryDetailByStaffTableProps {
   luyKeNganhHang: string;
@@ -101,6 +102,9 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
       displayCategories.push(catName);
     }
   });
+
+  // Sort categories by exact custom order specified by user
+  displayCategories.sort((a, b) => getCustomCategoryIndex(a) - getCustomCategoryIndex(b));
 
   const results: StaffMatrixData[] = [];
   const excludedKeywords = ['Tổng', 'BP All In One', 'BP Trưởng Ca', 'Hỗ trợ BI', 'Copyright', 'Dashboard', 'BC ', 'HD sử dụng', 'Trang chủ', 'Báo cáo', 'Khối kinh doanh', 'Logo BI', 'avatar'];

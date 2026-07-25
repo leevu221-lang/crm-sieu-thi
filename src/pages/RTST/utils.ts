@@ -1696,7 +1696,7 @@ export const minifyYcxData = (data: string): string => {
   const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
   const idxMethod = getIdx(['hình thức xuất']);
   const idxStatus = getIdx(['trạng thái xuất']);
-  const idxStaffName = getIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo']); 
+  const idxStaffName = getIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'nhân viên bán hàng', 'tên nhân viên bán hàng', 'nv bán hàng', 'user bán hàng', 'tên nhân viên', 'tên nv', 'người bán', 'nhân viên', 'người thực hiện']); 
   const idxStaffId = getIdx(['user tạo', 'mã nv', 'mã nhân viên', 'id nhân viên']);
   const idxRevenue = (() => {
     const giaBan1Idx = header.findIndex(h => {
@@ -1742,12 +1742,9 @@ export const minifyYcxData = (data: string): string => {
     const status = String(cols[colStatus] || '').trim().toLowerCase();
     const returnStatus = String(cols[colReturnStatus] || '').trim().toLowerCase();
 
-    // Skip invalid rows early
-    const isThuHoBH = type.includes('thu hộ bảo hiểm') || type.includes('thu ho bao hiem') ||
-                      method.includes('thu hộ bảo hiểm') || method.includes('thu ho bao hiem');
-    if (!method.startsWith('xuất bán') && !method.startsWith('xuất đổi') && !isThuHoBH) continue;
+    // Keep all non-cancelled/non-returned export methods (xuất bán, xuất dịch vụ, yêu cầu xuất...)
     // FILTER: Only include "ĐÃ XUẤT" or "CHƯA XUẤT" (Column N) and exclude returned items
-    if (status !== 'đã xuất' && status !== 'chưa xuất') continue;
+    if (status.includes('hủy') || status.includes('huy') || status === 'đã trả') continue;
     if (returnStatus.includes('trả') && !returnStatus.includes('chưa trả')) continue;
 
     validRows.push(cols);
@@ -1814,7 +1811,7 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
   const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
   const idxMethod = getIdx(['hình thức xuất']);
   const idxStatus = getIdx(['trạng thái xuất']);
-  const idxStaffName = getIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo']); 
+  const idxStaffName = getIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'nhân viên bán hàng', 'tên nhân viên bán hàng', 'nv bán hàng', 'user bán hàng', 'tên nhân viên', 'tên nv', 'người bán', 'nhân viên', 'người thực hiện']); 
   const idxRevenue = (() => {
     const giaBan1Idx = header.findIndex(h => {
       const norm = removeAccents(h).toLowerCase().trim().replace(/\s+/g, ' ');
@@ -1955,17 +1952,13 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
        if (productNameUpper.includes("HISENSE") || productNameUpper.includes("HISENSI")) staffData.mayLanhHisenseQty = (staffData.mayLanhHisenseQty || 0) + quantity;
      }
 
-    const type = colType !== -1 ? String(cols[colType] || '').trim().toLowerCase() : 'xuất bán';
-    const method = colMethod !== -1 ? String(cols[colMethod] || '').trim().toLowerCase() : 'xuất bán';
-    
-    const isThuHoBH = type.includes('thu hộ bảo hiểm') || type.includes('thu ho bao hiem') ||
-                      method.includes('thu hộ bảo hiểm') || method.includes('thu ho bao hiem');
-    if (colMethod !== -1 && !method.startsWith('xuất bán') && !method.startsWith('xuất đổi') && !isThuHoBH) continue;
+    const type = colType !== -1 ? String(cols[colType] || '').trim().toLowerCase() : '';
+    const method = colMethod !== -1 ? String(cols[colMethod] || '').trim().toLowerCase() : '';
 
     const status = colStatus !== -1 ? String(cols[colStatus] || '').trim().toLowerCase() : 'đã xuất';
     const returnStatus = colReturnStatus !== -1 ? String(cols[colReturnStatus] || '').trim().toLowerCase() : 'chưa trả';
     
-    if (colStatus !== -1 && status !== 'đã xuất') continue;
+    if (colStatus !== -1 && (status.includes('hủy') || status.includes('huy') || status === 'đã trả')) continue;
     if (colReturnStatus !== -1 && returnStatus.includes('trả') && !returnStatus.includes('chưa trả')) continue;
 
     const market = colMarket !== -1 ? String(cols[colMarket] || '').trim() : '';
@@ -2202,7 +2195,7 @@ export const parseYcxRankData = (data: string, customRates?: Record<string, { no
   const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
   const idxMethod = getIdx(['hình thức xuất']);
   const idxStatus = getIdx(['trạng thái xuất']);
-  const idxStaffName = getIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo']); 
+  const idxStaffName = getIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'nhân viên bán hàng', 'tên nhân viên bán hàng', 'nv bán hàng', 'user bán hàng', 'tên nhân viên', 'tên nv', 'người bán', 'nhân viên', 'người thực hiện']); 
   const idxStaffId = getIdx(['user tạo', 'mã nv', 'mã nhân viên', 'id nhân viên']);
   const idxRevenue = (() => {
     const giaBan1Idx = header.findIndex(h => {
@@ -2236,16 +2229,13 @@ export const parseYcxRankData = (data: string, customRates?: Record<string, { no
     const type = String(cols[colType] || '').trim().toLowerCase();
     const method = String(cols[colMethod] || '').trim().toLowerCase();
     
-    // FILTER: Only include "XUẤT BÁN" or "XUẤT ĐỔI" (Column D)
-    const isThuHoBH = type.includes('thu hộ bảo hiểm') || type.includes('thu ho bao hiem') ||
-                      method.includes('thu hộ bảo hiểm') || method.includes('thu ho bao hiem');
-    if (!method.startsWith('xuất bán') && !method.startsWith('xuất đổi') && !isThuHoBH) continue;
+    // Keep all non-cancelled/non-returned export methods
 
     const status = String(cols[colStatus] || '').trim().toLowerCase();
     const returnStatus = String(cols[colReturnStatus] || '').trim().toLowerCase();
     
     // FILTER: Only include "ĐÃ XUẤT" (Column N) and exclude returned items
-    if (status !== 'đã xuất') continue;
+    if (status.includes('hủy') || status.includes('huy') || status === 'đã trả') continue;
     if (returnStatus.includes('trả') && !returnStatus.includes('chưa trả')) continue;
 
     const staffNameRaw = String(cols[colStaffName] || '').trim();
@@ -2320,8 +2310,7 @@ export const parseYcxRankData = (data: string, customRates?: Record<string, { no
     
     const isMaNapTien = productName.toLowerCase().includes('mã nạp tiền');
 
-    const rowString = cols.join(' ').toLowerCase().replace(/\//g, ' ');
-    const isSales = type.includes('xuất bán hàng') || type.includes('xuất đổi bảo hành') || type.includes('thu hộ bảo hiểm') || type.includes('thu ho bao hiem');
+    const isSales = !type.includes('hủy') && !type.includes('huy');
 
     if (isSales && staff && revenueStr && !isMaNapTien) {
       const revenue = Math.round(parseFloat(revenueStr) || 0);

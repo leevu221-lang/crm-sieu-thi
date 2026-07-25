@@ -882,8 +882,8 @@ export const parseYcxData = (data: string): YcxStaffData[] => {
     }
     staff = matchedStaffKey;
       
-    const isSales = type.includes('xuất bán hàng') || type.includes('xuất đổi bảo hành') || type.includes('thu hộ bảo hiểm') || type.includes('thu ho bao hiem');
-    const isExported = status === 'đã xuất';
+    const isSales = !type.includes('hủy') && !type.includes('huy');
+    const isExported = !status.includes('hủy') && !status.includes('huy') && status !== 'đã trả';
     const isNotReturned = returnStatus === 'chưa trả' || returnStatus === '' || !returnStatus.includes('đã trả');
 
     if (isSales && isExported && isNotReturned && staff && revenueStr) {
@@ -1021,3 +1021,45 @@ export const parseYcxData = (data: string): YcxStaffData[] => {
     ict: data.ict
   })).sort((a, b) => b.convertedRevenue - a.convertedRevenue);
 };
+
+/**
+ * Cleans raw copy-pasted BI reports by stripping away non-data navigation menus,
+ * headers, and junk lines ("Logo BI", "Trang chủ", etc.), keeping document size well below 1MB.
+ */
+export function cleanBiReportText(text: string): string {
+  if (!text || typeof text !== 'string') return '';
+  const lines = text.split('\n');
+
+  const junkPatterns = [
+    /^logo bi/i,
+    /^trang chủ/i,
+    /^báo cáo/i,
+    /^khối kinh doanh/i,
+    /^siêu thị - con/i,
+    /^lịch sử cập nhật/i,
+    /^tải lại trang/i,
+    /^chạy lại để cập nhật/i,
+    /^công cụ phân tích/i,
+    /^account home/i,
+    /^cloudflare/i,
+    /^https?:\/\//i,
+    /^erp/i,
+    /^crm/i
+  ];
+
+  const filtered = lines.filter(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return false;
+    return !junkPatterns.some(p => p.test(trimmed));
+  });
+
+  let result = filtered.length > 0 ? filtered.join('\n') : text.trim();
+
+  // Safety cap: Never allow individual field string to exceed 350KB to ensure store document stays under 1MB limit
+  if (result.length > 350000) {
+    console.warn('[cleanBiReportText] Truncating oversized BI text:', result.length, 'bytes');
+    result = result.substring(0, 350000);
+  }
+
+  return result;
+}

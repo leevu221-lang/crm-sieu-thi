@@ -26,6 +26,7 @@ import {
   normalizeStoreId,
   cleanCategoryName
 } from '../pages/RTST/utils';
+import { cleanBiReportText } from '../utils/rtstHelpers';
 
 const globalAllStoresCache: Record<string, {
   clusterSummaryInput: string;
@@ -61,6 +62,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [dtGioCong, setDtGioCong] = useState<string>('');
   const [tragopMatran, setTragopMatran] = useState<string>('');
   const [tragopNv, setTragopNv] = useState<string>('');
+  const [banKemNv, setBanKemNvState] = useState<string>('');
   const [categoryTargets, setCategoryTargets] = useState<any[]>([]);
   const [activeStore, setActiveStore] = useState<string>(maKho);
   const [allStoresCache, setAllStoresCache] = useState(() => globalAllStoresCache);
@@ -110,6 +112,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const dataPhanCaRef = useRef(dataPhanCa);
   const tragopMatranRef = useRef(tragopMatran);
   const tragopNvRef = useRef(tragopNv);
+  const banKemNvRef = useRef(banKemNv);
   const categoryTargetsRef = useRef(categoryTargets);
   const activeStoreRef = useRef(activeStore);
   
@@ -124,7 +127,13 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => { dataPhanCaRef.current = dataPhanCa; }, [dataPhanCa]);
   useEffect(() => { tragopMatranRef.current = tragopMatran; }, [tragopMatran]);
   useEffect(() => { tragopNvRef.current = tragopNv; }, [tragopNv]);
+  useEffect(() => { banKemNvRef.current = banKemNv; }, [banKemNv]);
   useEffect(() => { categoryTargetsRef.current = categoryTargets; }, [categoryTargets]);
+
+  const setBanKemNvSync = useCallback((val: string) => {
+    setBanKemNvState(val);
+    banKemNvRef.current = val;
+  }, []);
 
   // Warehouse code variants for DB queries (handles zero-padding differences)
   const rawMaKho = maKho ? maKho.trim() : '';
@@ -189,18 +198,19 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
 
       // Only write/update properties that are actually defined in state
-      if (clusterSummaryInputRef.current !== undefined) payload.lk_bi_tong_quan = clusterSummaryInputRef.current;
-      if (clusterCategoryInputRef.current !== undefined) payload.lk_nh_sieu_thi = clusterCategoryInputRef.current;
+      if (clusterSummaryInputRef.current !== undefined) payload.lk_bi_tong_quan = cleanBiReportText(clusterSummaryInputRef.current);
+      if (clusterCategoryInputRef.current !== undefined) payload.lk_nh_sieu_thi = cleanBiReportText(clusterCategoryInputRef.current);
       if (targetsToSave !== undefined) payload.category_targets = targetsToSave;
-      if (staffInputRef.current !== undefined) payload.lk_dt_nv = staffInputRef.current;
-      if (staffCategoryInputRef.current !== undefined) payload.lk_td_nv = staffCategoryInputRef.current;
-      if (staffListInputRef.current !== undefined) payload.ds_nhan_vien = staffListInputRef.current;
+      if (staffInputRef.current !== undefined) payload.lk_dt_nv = cleanBiReportText(staffInputRef.current);
+      if (staffCategoryInputRef.current !== undefined) payload.lk_td_nv = cleanBiReportText(staffCategoryInputRef.current);
+      if (staffListInputRef.current !== undefined) payload.ds_nhan_vien = cleanBiReportText(staffListInputRef.current);
       
       // Only include these other fields if they were loaded and set in active state
-      if (dtGioCongRef.current !== undefined && dtGioCongRef.current !== '') payload.dt_gio_cong = dtGioCongRef.current;
+      if (dtGioCongRef.current !== undefined && dtGioCongRef.current !== '') payload.dt_gio_cong = cleanBiReportText(dtGioCongRef.current);
       if (dataPhanCaRef.current !== undefined && dataPhanCaRef.current !== null) payload.data_phan_ca = dataPhanCaRef.current;
-      if (tragopMatranRef.current !== undefined && tragopMatranRef.current !== '') payload.tragop_matran = tragopMatranRef.current;
-      if (tragopNvRef.current !== undefined && tragopNvRef.current !== '') payload.tragop_nv = tragopNvRef.current;
+      if (tragopMatranRef.current !== undefined && tragopMatranRef.current !== '') payload.tragop_matran = cleanBiReportText(tragopMatranRef.current);
+      if (tragopNvRef.current !== undefined && tragopNvRef.current !== '') payload.tragop_nv = cleanBiReportText(tragopNvRef.current);
+      if (banKemNvRef.current !== undefined && banKemNvRef.current !== '') payload.ban_kem_nv = cleanBiReportText(banKemNvRef.current);
 
       const { error } = await supabase
         .from('store')
@@ -233,7 +243,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           clusterCategoryInput: clusterCategoryInputRef.current || '',
           staffInput: staffInputRef.current || '',
           staffCategoryInput: staffCategoryInputRef.current || '',
-          banKemNv: prev[cleanStore]?.banKemNv || '',
+          banKemNv: banKemNvRef.current || prev[cleanStore]?.banKemNv || '',
           phucVu: prev[cleanStore]?.phucVu || '',
           tragopMatran: tragopMatranRef.current || '',
           tragopNv: tragopNvRef.current || '',
@@ -823,6 +833,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setDataPhanCa(data.data_phan_ca || null);
         setTragopMatran(data.tragop_matran || '');
         setTragopNv(data.tragop_nv || '');
+        setBanKemNvState(data.ban_kem_nv || '');
         if (Array.isArray(data.category_targets)) {
           setCategoryTargets(data.category_targets);
           loadedTargets = data.category_targets;
@@ -846,6 +857,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setDataPhanCa(null);
         setTragopMatran('');
         setTragopNv('');
+        setBanKemNvState('');
         setCategoryTargets([]);
         if (targetStore) setActiveStore(targetStore);
       }
@@ -1201,6 +1213,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     dtGioCong, setDtGioCong: setDtGioCongSync,
     tragopMatran, setTragopMatran: setTragopMatranSync,
     tragopNv, setTragopNv: setTragopNvSync,
+    banKemNv, setBanKemNv: setBanKemNvSync,
     categoryTargets, setCategoryTargets,
     allStoresCache,
     processedData,

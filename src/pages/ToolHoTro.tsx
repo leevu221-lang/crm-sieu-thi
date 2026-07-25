@@ -323,6 +323,7 @@ export default function ToolHoTro() {
   const [lkPrintLayout, setLkPrintLayout] = useState<string>('1');
   const [cePrintLayout, setCePrintLayout] = useState<string>('1');
   const [mlnPrintLayout, setMlnPrintLayout] = useState<string>('1');
+  const [gvgsPrintLayout, setGvgsPrintLayout] = useState<string>('1');
   const [dcnbPages, setDcnbPages] = useState<number>(1);
   const [eventPrintLayout, setEventPrintLayout] = useState<string>('4');
   const [inventoryFile, setInventoryFile] = useState<File | null>(null);
@@ -353,6 +354,11 @@ export default function ToolHoTro() {
           inventory: 'rtst_sticker_mln_inventory_data',
           price: 'rtst_sticker_mln_price_data'
         };
+      case 'sticker-gvgs':
+        return {
+          inventory: 'rtst_sticker_gvgs_inventory_data',
+          price: 'rtst_sticker_gvgs_price_data'
+        };
       case 'sticker-dcnb':
         return {
           inventory: 'rtst_sticker_dcnb_inventory_data',
@@ -376,6 +382,17 @@ export default function ToolHoTro() {
   });
   const [mlnFooterTemplate, setMlnFooterTemplate] = useState<string>(() => {
     return localStorage.getItem('mln_footer_template') || 'Khuyến mãi áp dụng đến hết ngày {date}';
+  });
+
+  const [gvgsHeaderTemplate, setGvgsHeaderTemplate] = useState<string>(() => {
+    return localStorage.getItem('gvgs_header_template') || 'GIỜ VÀNG GIÁ SỐC';
+  });
+  const [gvgsFooterTemplate, setGvgsFooterTemplate] = useState<string>(() => {
+    const saved = localStorage.getItem('gvgs_footer_template');
+    if (!saved || saved.includes('Khuyến mãi áp dụng') || saved.includes('KHUYẾN MÃI ÁP DỤNG')) {
+      return 'Khuyến mãi chỉ áp dụng 3 ngày Thứ 6, 7, Chủ Nhật';
+    }
+    return saved;
   });
 
   const [manualData, setManualData] = useState({
@@ -453,6 +470,7 @@ export default function ToolHoTro() {
       activeTab === 'sticker-lk' || 
       activeTab === 'sticker-ce' || 
       activeTab === 'sticker-mln' || 
+      activeTab === 'sticker-gvgs' || 
       activeTab === 'sticker-dcnb' || 
       activeTab === 'sticker-event-dmx' ||
       activeTab === 'sticker-event' || 
@@ -503,18 +521,19 @@ export default function ToolHoTro() {
         }
       };
 
-      if (activeTab === 'sticker-event-dmx') {
+      if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-gvgs') {
+        const docId = activeTab === 'sticker-gvgs' ? 'GVGS_GLOBAL' : 'EVENT_DMX_GLOBAL';
         // Fetch globally from Firebase (Firestore) first
         (async () => {
           try {
             const { data, error } = await supabase
               .from('store')
               .select('sticker_ce_price_data, updated_at, updated_by')
-              .eq('id', 'EVENT_DMX_GLOBAL')
+              .eq('id', docId)
               .maybeSingle();
 
             if (error) {
-              console.error('Lỗi khi tải dữ liệu EVENT ĐMX từ Firebase:', error);
+              console.error(`Lỗi khi tải dữ liệu ${activeTab} từ Firebase:`, error);
               loadLocalStickerData();
               return;
             }
@@ -543,7 +562,7 @@ export default function ToolHoTro() {
                   updated_by: data.updated_by || '43751'
                 }));
 
-                // No inventory for Event ĐMX by default, clean it
+                // No inventory needed by default for global tabs, clean it
                 setInventoryData([]);
                 setLastUpdateInventory(null);
               } catch (e) {
@@ -554,7 +573,7 @@ export default function ToolHoTro() {
               loadLocalStickerData();
             }
           } catch (e) {
-            console.error('Lỗi hệ thống khi tải dữ liệu EVENT ĐMX:', e);
+            console.error(`Lỗi hệ thống khi tải dữ liệu ${activeTab}:`, e);
             loadLocalStickerData();
           }
         })();
@@ -1082,9 +1101,18 @@ export default function ToolHoTro() {
   };
 
   const handleSyncGoogleSheet = async () => {
+    const currentUsername = userProfile?.username;
+    if (currentUsername && currentUsername !== '43751') {
+      showNotification('Chỉ duy nhất Quản trị viên 43751 mới có quyền thực hiện đồng bộ Google Sheet!', 'error');
+      return;
+    }
+
     setIsSyncing(true);
     try {
-      const csvUrl = 'https://docs.google.com/spreadsheets/d/13MDK0KEgRnTzBP6zpIv02FtaJo-nGzq9TvY4rQPzb3o/export?format=csv';
+      const csvUrl = activeTab === 'sticker-gvgs'
+        ? 'https://docs.google.com/spreadsheets/d/16hKL7GnR6XdRJsb-lRfbSF5EOVzm_A82gVNDxhbF_8Q/export?format=csv'
+        : 'https://docs.google.com/spreadsheets/d/13MDK0KEgRnTzBP6zpIv02FtaJo-nGzq9TvY4rQPzb3o/export?format=csv';
+
       const response = await fetch(csvUrl);
       if (!response.ok) {
         throw new Error('Không thể tải file từ Google Sheet. Hãy kiểm tra lại kết nối mạng hoặc quyền chia sẻ của link.');
@@ -1101,16 +1129,16 @@ export default function ToolHoTro() {
       // Find indexes
       const nganhHangIdx = headerRow.findIndex(h => h.includes('ngành hàng'));
       const nhomHangIdx = headerRow.findIndex(h => h.includes('nhóm hàng'));
-      const codeIdx = headerRow.findIndex(h => h.includes('code sản phẩm') || h.includes('mã sản phẩm') || h.includes('mã hàng'));
-      const tenIdx = headerRow.findIndex(h => h.includes('tên sản phẩm') || h.includes('tên hàng'));
-      const giaNiemYetIdx = headerRow.findIndex(h => h.includes('giá niêm yết'));
-      let giaKmIdx = headerRow.findIndex(h => h.includes('giá km st event') || h.includes('st event'));
+      const codeIdx = headerRow.findIndex(h => h.includes('code sản phẩm') || h.includes('mã sản phẩm') || h.includes('mã sp') || h.includes('mã hàng'));
+      const tenIdx = headerRow.findIndex(h => h.includes('tên sản phẩm') || h.includes('tên sp') || h.includes('tên hàng'));
+      const giaNiemYetIdx = headerRow.findIndex(h => h.includes('giá niêm yết') || h.includes('giá bán ny') || h.includes('giá gốc') || h.includes('giá ny'));
+      let giaKmIdx = headerRow.findIndex(h => h.includes('giá km gvgs') || h.includes('gvgs') || h.includes('giá km st event') || h.includes('st event'));
       if (giaKmIdx === -1) {
-        giaKmIdx = headerRow.findIndex(h => h.includes('giá km'));
+        giaKmIdx = headerRow.findIndex(h => h.includes('giá km') || h.includes('giá giảm') || h.includes('giá sau giảm'));
       }
       
       if (codeIdx === -1 || tenIdx === -1 || giaNiemYetIdx === -1 || giaKmIdx === -1) {
-        throw new Error('Cấu trúc cột trong Google Sheet không khớp với mẫu 81 (Cần có cột: Code sản phẩm, Tên sản phẩm, Giá niêm yết, Giá KM ST Event).');
+        throw new Error('Cấu trúc cột trong Google Sheet không khớp (Cần có cột: Mã sản phẩm, Tên sản phẩm, Giá niêm yết/Giá gốc, Giá KM).');
       }
       
       const parsedData: any[] = [];
@@ -1127,7 +1155,7 @@ export default function ToolHoTro() {
         
         const cleanPrice = (valStr: string) => {
           if (!valStr) return 0;
-          return parseInt(valStr.replace(/\./g, '').replace(/,/g, '').replace(/đ/g, '').trim()) || 0;
+          return parseInt(String(valStr).replace(/\./g, '').replace(/,/g, '').replace(/đ/g, '').trim(), 10) || 0;
         };
         
         const originalPrice = cleanPrice(row[giaNiemYetIdx]);
@@ -1135,10 +1163,11 @@ export default function ToolHoTro() {
         
         parsedData.push({
           maSanPham: maSp,
+          productCode: maSp,
           name: tenSp,
           originalPrice,
           discountPrice,
-          nganhHang: nganhHangIdx !== -1 ? row[nganhHangIdx]?.trim() : '',
+          nganhHang: nganhHangIdx !== -1 && row[nganhHangIdx]?.trim() ? row[nganhHangIdx]?.trim() : (activeTab === 'sticker-gvgs' ? 'GIỜ VÀNG GIÁ SỐC' : ''),
           nhomHang: nhomHangIdx !== -1 ? row[nhomHangIdx]?.trim() : ''
         });
       }
@@ -1162,25 +1191,32 @@ export default function ToolHoTro() {
       }));
       setUpdatedBy(currentUsername);
       
-      // Also save to Firebase collection 'store' -> document 'EVENT_DMX_GLOBAL'
-      const record = {
-        id: 'EVENT_DMX_GLOBAL',
-        ten_sieu_thi: 'Cấu hình EVENT ĐMX toàn hệ thống',
-        warehouse_code: 'GLOBAL',
-        sticker_ce_price_data: JSON.stringify(parsedData),
-        updated_by: currentUsername,
-        updated_at: new Date().toISOString()
-      };
-      
-      const { error: dbError } = await supabase
-        .from('store')
-        .upsert(record, { onConflict: 'id' });
+      if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-gvgs') {
+        const docId = activeTab === 'sticker-gvgs' ? 'GVGS_GLOBAL' : 'EVENT_DMX_GLOBAL';
+        const docTitle = activeTab === 'sticker-gvgs' ? 'Cấu hình GVGS toàn hệ thống' : 'Cấu hình EVENT ĐMX toàn hệ thống';
+
+        // Save to Firebase (store table in database) -> document docId
+        const record = {
+          id: docId,
+          ten_sieu_thi: docTitle,
+          warehouse_code: 'GLOBAL',
+          sticker_ce_price_data: JSON.stringify(parsedData),
+          updated_by: currentUsername,
+          updated_at: new Date().toISOString()
+        };
         
-      if (dbError) {
-        console.error('Lỗi khi lưu dữ liệu lên Firebase:', dbError);
-        showNotification('Đồng bộ thành công cục bộ nhưng không thể lưu lên Firebase!', 'error');
+        const { error: dbError } = await supabase
+          .from('store')
+          .upsert(record, { onConflict: 'id' });
+          
+        if (dbError) {
+          console.error('Lỗi khi lưu dữ liệu lên Firebase:', dbError);
+          showNotification('Đồng bộ thành công cục bộ nhưng không thể lưu lên Firebase!', 'error');
+        } else {
+          showNotification(`Đồng bộ thành công ${parsedData.length} sản phẩm ${activeTab === 'sticker-gvgs' ? 'GVGS ' : ''}từ Google Sheet và đã lưu lên Firebase cho tất cả người dùng!`, 'success');
+        }
       } else {
-        showNotification(`Đồng bộ thành công ${parsedData.length} sản phẩm từ Google Sheet và đã lưu lên Firebase cho tất cả người dùng!`, 'success');
+        showNotification(`Đồng bộ thành công ${parsedData.length} sản phẩm từ Google Sheet!`, 'success');
       }
       
     } catch (err: any) {
@@ -1273,7 +1309,7 @@ export default function ToolHoTro() {
         // Process price data
         const parsedPriceData: any[] = [];
 
-        if (activeTab === 'sticker-mln') {
+        if (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') {
           const isSystemReport = data.some(row => row && row.length > 55);
           if (isSystemReport) {
             const cleanPrice = (val: any) => {
@@ -1309,13 +1345,13 @@ export default function ToolHoTro() {
                 name: colAS,
                 originalPrice: cleanPrice(colAH),
                 discountPrice: cleanPrice(colU),
-                nganhHang: 'MÁY LỌC NƯỚC',
+                nganhHang: activeTab === 'sticker-gvgs' ? 'GIỜ VÀNG GIÁ SỐC' : 'MÁY LỌC NƯỚC',
                 nhomHang: '',
                 endDate: ''
               });
             }
           } else {
-            // File template mẫu cho MLN
+            // File template mẫu cho MLN & GVGS
             const cleanPrice = (val: any) => {
               if (val === undefined || val === null || val === '') return 0;
               if (typeof val === 'number') return val;
@@ -1344,7 +1380,7 @@ export default function ToolHoTro() {
                 name: colB,
                 originalPrice: cleanPrice(colC),
                 discountPrice: cleanPrice(colD),
-                nganhHang: colA || 'MÁY LỌC NƯỚC',
+                nganhHang: colA || (activeTab === 'sticker-gvgs' ? 'GIỜ VÀNG GIÁ SỐC' : 'MÁY LỌC NƯỚC'),
                 nhomHang: '',
                 endDate: colE
               });
@@ -1953,7 +1989,7 @@ export default function ToolHoTro() {
       name: manualData.name,
       originalPrice: parseInt(manualData.originalPrice.replace(/[^\d]/g, '')) || 0,
       discountPrice: parseInt(manualData.discountPrice.replace(/[^\d]/g, '')) || 0,
-      nganhHang: activeTab === 'sticker-mln' ? (manualData.nganhHang || 'MÁY LỌC NƯỚC') : (manualData.nganhHang || 'THỦ CÔNG'),
+      nganhHang: activeTab === 'sticker-mln' ? (manualData.nganhHang || 'MÁY LỌC NƯỚC') : activeTab === 'sticker-gvgs' ? (manualData.nganhHang || 'GIỜ VÀNG GIÁ SỐC') : (manualData.nganhHang || 'THỦ CÔNG'),
       nhomHang: 'THỦ CÔNG',
       endDate: manualData.endDate || '',
       isManual: true
@@ -2076,6 +2112,17 @@ export default function ToolHoTro() {
           </button>
 
           <button
+            onClick={() => setActiveTab('sticker-gvgs')}
+            className={`flex items-center gap-2.5 py-3 px-6 rounded-full text-sm font-extrabold uppercase tracking-wide transition-all border-2 shadow-sm ${
+              activeTab === 'sticker-gvgs'
+                ? 'border-amber-400 bg-amber-50 text-amber-700'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700'
+            }`}
+          >
+            <span className="text-lg">⚡</span> GVGS
+          </button>
+
+          <button
             onClick={() => setActiveTab('sticker-dcnb')}
             className={`flex items-center gap-2.5 py-3 px-6 rounded-full text-sm font-extrabold uppercase tracking-wide transition-all border-2 shadow-sm ${
               activeTab === 'sticker-dcnb'
@@ -2149,6 +2196,7 @@ export default function ToolHoTro() {
                   activeTab === 'sticker-lk' ||
                   activeTab === 'sticker-ce' ||
                   activeTab === 'sticker-mln' ||
+                  activeTab === 'sticker-gvgs' ||
                   activeTab === 'sticker-dcnb'
                 ));
               const Icon = item.icon;
@@ -2738,7 +2786,7 @@ export default function ToolHoTro() {
               </motion.div>
             )}
 
-            {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-dcnb') && (
+            {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dcnb') && (
               <motion.div
                 key={activeTab}
                 initial={{ opacity: 0, x: 20 }}
@@ -2746,12 +2794,12 @@ export default function ToolHoTro() {
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
-                {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-dcnb') && renderSubTabs()}
+                {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dcnb') && renderSubTabs()}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Column */}
               {activeTab !== 'sticker-dcnb' && activeTab !== 'sticker-event-dmx' && (
                 <div className="col-span-1 space-y-6">
-                  {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-mln') && (
+                  {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') && (
                   /* Card 1: Thông tin & Nhập dữ liệu */
                   <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
                     <div className="flex items-center justify-between mb-4">
@@ -2799,7 +2847,7 @@ export default function ToolHoTro() {
                         </div>
                       </button>
 
-                      {activeTab === 'sticker-event-dmx' ? (
+                      {activeTab === 'sticker-event-dmx' || activeTab === 'sticker-gvgs' ? (
                         <button 
                           onClick={handleSyncGoogleSheet}
                           disabled={isSyncing}
@@ -2845,8 +2893,8 @@ export default function ToolHoTro() {
                             <div className="text-center">
                               <div className="text-[10px] font-black uppercase tracking-wider">
                                 {priceFile || lastUpdatePrice 
-                                  ? (activeTab === 'sticker-mln' ? 'Đã tải Bảng Giá Mẫu 99' : activeTab === 'sticker-ce' ? 'Đã tải Bảng Giá Mẫu 97' : activeTab === 'sticker-lk' ? 'Đã tải Bảng Giá Mẫu 78' : 'Đã tải Bảng Giá Mẫu 81')
-                                  : (activeTab === 'sticker-mln' ? 'Tải Bảng Giá Mẫu 99' : activeTab === 'sticker-ce' ? 'Tải Bảng Giá Mẫu 97' : activeTab === 'sticker-lk' ? 'Tải Bảng Giá Mẫu 78' : 'Tải Bảng Giá Mẫu 81')}
+                                  ? (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' ? 'Đã tải Bảng Giá Mẫu 99' : activeTab === 'sticker-ce' ? 'Đã tải Bảng Giá Mẫu 97' : activeTab === 'sticker-lk' ? 'Đã tải Bảng Giá Mẫu 78' : 'Đã tải Bảng Giá Mẫu 81')
+                                  : (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' ? 'Tải Bảng Giá Mẫu 99' : activeTab === 'sticker-ce' ? 'Tải Bảng Giá Mẫu 97' : activeTab === 'sticker-lk' ? 'Tải Bảng Giá Mẫu 78' : 'Tải Bảng Giá Mẫu 81')}
                               </div>
                               {lastUpdatePrice && !priceFile && <div className="text-[8px] font-bold text-emerald-500 mt-1">Cập nhật: {lastUpdatePrice}</div>}
                               {priceFile && <div className="text-[8px] font-bold text-emerald-500 mt-1 truncate max-w-[80px]">{priceFile.name}</div>}
@@ -2856,7 +2904,7 @@ export default function ToolHoTro() {
                       )}
                     </div>
 
-                    {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-event' || activeTab === 'sticker-mln') && (
+                    {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-event' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') && (
                       <div className="mt-3">
                         <button
                           onClick={handleStartScanner}
@@ -2869,8 +2917,32 @@ export default function ToolHoTro() {
                   </div>
                 )}
 
+                {/* Hướng dẫn sử dụng GVGS */}
+                {activeTab === 'sticker-gvgs' && (
+                  <div className="bg-[#fefcf3] border-2 border-amber-200/80 rounded-3xl p-6 shadow-sm space-y-4 animate-fade-in">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-black text-xl shadow-xs shrink-0">
+                        💡
+                      </div>
+                      <div>
+                        <h4 className="text-base md:text-lg font-black uppercase tracking-tight text-amber-950">
+                          HƯỚNG DẪN SỬ DỤNG TOOL GVGS
+                        </h4>
+                      </div>
+                    </div>
+                    <div className="p-5 bg-white rounded-3xl border border-amber-100 shadow-xs space-y-4 leading-relaxed">
+                      <p className="text-sm md:text-base font-bold text-slate-800">
+                        👉 <span className="font-black text-amber-900">Thao tác:</span> Anh chị chỉ cần chọn khổ giấy cần in <span className="font-black text-indigo-700 bg-indigo-50 px-3 py-1 rounded-xl border border-indigo-200 text-sm md:text-base shadow-xs inline-block my-0.5">A5</span> hoặc <span className="font-black text-indigo-700 bg-indigo-50 px-3 py-1 rounded-xl border border-indigo-200 text-sm md:text-base shadow-xs inline-block my-0.5">A4</span> sau đó bấm in là được.
+                      </p>
+                      <p className="text-xs md:text-sm font-bold text-amber-900/90 pt-3.5 border-t border-amber-100">
+                        ✨ Giá được <strong className="font-black text-amber-950 text-sm md:text-base">43751</strong> cập nhật vào <strong className="font-black text-amber-950 text-sm md:text-base">Thứ 5 hàng tuần</strong> và có dòng thông báo màu xanh trên màn hình.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Card 2: Nhập thủ công */}
-                {activeTab !== 'sticker-dcnb' && activeTab !== 'sticker-event-dmx' && (
+                {activeTab !== 'sticker-dcnb' && activeTab !== 'sticker-event-dmx' && activeTab !== 'sticker-gvgs' && (
                   <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
@@ -2889,14 +2961,14 @@ export default function ToolHoTro() {
                     </div>
                     
                     <div className="space-y-3">
-                      {activeTab === 'sticker-mln' ? (
+                      {activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' ? (
                         <>
                           <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                               <label className="text-[10px] font-bold text-slate-500 uppercase">Ngành hàng</label>
                               <input 
                                 type="text"
-                                placeholder="VD: MÁY LỌC NƯỚC"
+                                placeholder={activeTab === 'sticker-gvgs' ? "VD: GIỜ VÀNG GIÁ SỐC" : "VD: MÁY LỌC NƯỚC"}
                                 value={manualData.nganhHang}
                                 onChange={(e) => setManualData(prev => ({ ...prev, nganhHang: e.target.value }))}
                                 className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -3022,10 +3094,10 @@ export default function ToolHoTro() {
 
                       <button
                         onClick={() => {
-                          const templateData = activeTab === 'sticker-mln'
+                          const templateData = (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs')
                             ? [
                                 {
-                                  'NGÀNH HÀNG': 'MÁY LỌC NƯỚC',
+                                  'NGÀNH HÀNG': activeTab === 'sticker-gvgs' ? 'GIỜ VÀNG GIÁ SỐC' : 'MÁY LỌC NƯỚC',
                                   'TÊN SẢN PHẨM': 'Karofi KAQ-X18 11 lõi',
                                   'GIÁ GỐC': 6990000,
                                   'GIÁ SAU GIẢM': 4990000,
@@ -3042,9 +3114,9 @@ export default function ToolHoTro() {
                               ];
                           const worksheet = XLSX.utils.json_to_sheet(templateData);
                           const workbook = XLSX.utils.book_new();
-                          XLSX.utils.book_append_sheet(workbook, worksheet, activeTab === 'sticker-mln' ? 'MLN_Template' : 'StickerTemplate');
-                          XLSX.writeFile(workbook, activeTab === 'sticker-mln' ? 'Mau_In_Sticker_MLN.xlsx' : 'Mau_In_Sticker_Event.xlsx');
-                          showNotification(activeTab === 'sticker-mln' ? 'Đã tải file Excel mẫu MLN!' : 'Đã tải file Excel mẫu!', 'success');
+                          XLSX.utils.book_append_sheet(workbook, worksheet, activeTab === 'sticker-gvgs' ? 'GVGS_Template' : activeTab === 'sticker-mln' ? 'MLN_Template' : 'StickerTemplate');
+                          XLSX.writeFile(workbook, activeTab === 'sticker-gvgs' ? 'Mau_In_Sticker_GVGS.xlsx' : activeTab === 'sticker-mln' ? 'Mau_In_Sticker_MLN.xlsx' : 'Mau_In_Sticker_Event.xlsx');
+                          showNotification(activeTab === 'sticker-gvgs' ? 'Đã tải file Excel mẫu GVGS!' : activeTab === 'sticker-mln' ? 'Đã tải file Excel mẫu MLN!' : 'Đã tải file Excel mẫu!', 'success');
                         }}
                         className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-2"
                       >
@@ -3060,13 +3132,15 @@ export default function ToolHoTro() {
 
               {/* Right Column */}
               <div className={`col-span-1 ${(activeTab === 'sticker-dcnb' || activeTab === 'sticker-event-dmx') ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-6`}>
-                {activeTab === 'sticker-event-dmx' && lastUpdatePrice && (
+                {(activeTab === 'sticker-event-dmx' || activeTab === 'sticker-gvgs') && lastUpdatePrice && (
                   <div className="bg-emerald-50 border border-emerald-200/80 rounded-3xl p-5 flex items-start gap-4 text-emerald-800 shadow-sm shadow-emerald-50/50 animate-fade-in">
                     <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 shadow-sm border border-emerald-200/50">
                       <span className="text-xl">⚡</span>
                     </div>
                     <div>
-                      <h4 className="text-xs font-black uppercase tracking-wider text-emerald-900">Bảng giá sự kiện ĐMX đã được cập nhật</h4>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-emerald-900">
+                        {activeTab === 'sticker-gvgs' ? 'Bảng giá Giờ Vàng Giá Sốc (GVGS) đã được cập nhật' : 'Bảng giá sự kiện ĐMX đã được cập nhật'}
+                      </h4>
                       <p className="text-[11px] font-bold text-emerald-600/90 mt-1 leading-relaxed">
                         Thời gian đồng bộ: <span className="font-black text-emerald-800 text-[12px] bg-emerald-100/50 px-2 py-0.5 rounded-lg border border-emerald-200/60 ml-0.5 mr-1">{lastUpdatePrice}</span> bởi Quản trị viên <span className="font-black text-emerald-800 bg-emerald-100/50 px-2 py-0.5 rounded-lg border border-emerald-200/60">{updatedBy || '43751'}</span>.
                       </p>
@@ -3160,8 +3234,66 @@ export default function ToolHoTro() {
                   </div>
                 )}
 
-                {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-mln' || activeTab === 'sticker-lk' || activeTab === 'sticker-dcnb' || activeTab === 'sticker-ce') && (
-                  <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
+                {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'sticker-dcnb' || activeTab === 'sticker-ce') && (
+                  <div className={activeTab === 'sticker-event-dmx' ? 'grid grid-cols-1 lg:grid-cols-3 gap-6 items-start' : ''}>
+                    {activeTab === 'sticker-event-dmx' && (
+                      <div className="lg:col-span-1 bg-[#f5f6ff] border-2 border-indigo-100/90 rounded-3xl p-6 shadow-sm space-y-4 animate-fade-in">
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-12 h-12 rounded-full bg-[#e8eafe] flex items-center justify-center text-indigo-600 font-black text-xl shadow-xs shrink-0">
+                            💡
+                          </div>
+                          <div>
+                            <h4 className="text-base md:text-lg font-black uppercase tracking-tight text-[#1e1b4b]">
+                              HƯỚNG DẪN SỬ DỤNG TOOL EVENT ĐMX
+                            </h4>
+                          </div>
+                        </div>
+
+                        <div className="p-5 bg-white rounded-3xl border border-indigo-100 shadow-xs space-y-3.5 leading-relaxed max-h-[600px] overflow-y-auto">
+                          <p className="text-sm md:text-base font-bold text-slate-800 flex items-start gap-2.5">
+                            <span className="shrink-0 font-black text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-xl border border-indigo-200 text-xs md:text-sm">BƯỚC 1</span>
+                            <span>Giá được cập nhật theo BCNB của <strong className="text-[#1e1b4b] font-black">43346 - TRẦN TRỌNG THIỆN</strong>.</span>
+                          </p>
+
+                          <p className="text-sm md:text-base font-bold text-slate-800 flex items-start gap-2.5 pt-3 border-t border-indigo-50">
+                            <span className="shrink-0 font-black text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-xl border border-indigo-200 text-xs md:text-sm">BƯỚC 2</span>
+                            <span>Anh / Chị đổ tồn kho <strong className="text-purple-800 font-black">Nhóm hàng 484 - Điện gia dụng, Thiết bị làm đẹp</strong>.</span>
+                          </p>
+
+                          <p className="text-sm md:text-base font-bold text-slate-800 flex items-start gap-2.5 pt-3 border-t border-indigo-50">
+                            <span className="shrink-0 font-black text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-xl border border-indigo-200 text-xs md:text-sm">BƯỚC 3</span>
+                            <span>Tải file tồn kho lên.</span>
+                          </p>
+
+                          <p className="text-sm md:text-base font-bold text-slate-800 flex items-start gap-2.5 pt-3 border-t border-indigo-50">
+                            <span className="shrink-0 font-black text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-xl border border-indigo-200 text-xs md:text-sm">BƯỚC 4</span>
+                            <span>Chọn Ngành hàng, Nhóm hàng cần in, tick chọn ô <strong className="text-emerald-800 font-black">"Có trong tồn kho"</strong> để lọc những sản phẩm có tồn kho.</span>
+                          </p>
+
+                          <p className="text-sm md:text-base font-bold text-slate-800 flex items-start gap-2.5 pt-3 border-t border-indigo-50">
+                            <span className="shrink-0 font-black text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-xl border border-indigo-200 text-xs md:text-sm">BƯỚC 5</span>
+                            <span>Sắp xếp giá tăng dần.</span>
+                          </p>
+
+                          <p className="text-sm md:text-base font-bold text-slate-800 flex items-start gap-2.5 pt-3 border-t border-indigo-50">
+                            <span className="shrink-0 font-black text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-xl border border-indigo-200 text-xs md:text-sm">BƯỚC 6</span>
+                            <span>Nhập số lượng sản phẩm muốn in.</span>
+                          </p>
+
+                          <p className="text-sm md:text-base font-bold text-slate-800 flex items-start gap-2.5 pt-3 border-t border-indigo-50">
+                            <span className="shrink-0 font-black text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-xl border border-indigo-200 text-xs md:text-sm">BƯỚC 7</span>
+                            <span>Chọn bố cục in (Thông thường sẽ là <strong className="text-indigo-800 font-black">8 Sticker / trang A4</strong>).</span>
+                          </p>
+
+                          <p className="text-sm md:text-base font-bold text-emerald-900 flex items-start gap-2.5 pt-3 border-t border-indigo-50">
+                            <span className="shrink-0 font-black text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-xl border border-emerald-200 text-xs md:text-sm">BƯỚC 8</span>
+                            <span>In và hoàn tất.</span>
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className={`bg-white rounded-3xl shadow-sm border border-slate-200 p-5 ${activeTab === 'sticker-event-dmx' ? 'lg:col-span-2' : ''}`}>
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-400 flex items-center justify-center text-white shadow-lg shadow-violet-100">
                         <Printer size={20} />
@@ -3170,35 +3302,39 @@ export default function ToolHoTro() {
                         <h2 className="text-base font-black text-slate-800 uppercase tracking-tight">
                           {activeTab === 'sticker-mln' 
                             ? 'CHỌN BỐ CỤC IN MLN' 
-                            : activeTab === 'sticker-lk'
-                              ? 'CHỌN BỐ CỤC IN LOA KÉO'
-                              : activeTab === 'sticker-ce'
-                                ? 'CHỌN BỐ CỤC IN TIVI, TỦ LẠNH, MÁY GIẶT'
-                                : activeTab === 'sticker-dcnb'
-                                  ? 'XEM TRƯỚC TRANG IN DCNB'
-                                  : 'CHỌN BỐ CỤC IN'}
+                            : activeTab === 'sticker-gvgs'
+                              ? 'CHỌN BỐ CỤC IN GVGS'
+                              : activeTab === 'sticker-lk'
+                                ? 'CHỌN BỐ CỤC IN LOA KÉO'
+                                : activeTab === 'sticker-ce'
+                                  ? 'CHỌN BỐ CỤC IN TIVI, TỦ LẠNH, MÁY GIẶT'
+                                  : activeTab === 'sticker-dcnb'
+                                    ? 'XEM TRƯỚC TRANG IN DCNB'
+                                    : 'CHỌN BỐ CỤC IN'}
                         </h2>
                         <p className="text-[11px] text-slate-400 font-medium">
                           {activeTab === 'sticker-mln'
                             ? 'Nhấp vào nút bên dưới để in trực tiếp kiểu Máy Lọc Nước'
-                            : activeTab === 'sticker-lk'
-                              ? 'Chọn bố cục bên dưới để in trực tiếp kiểu Loa Kéo'
-                              : activeTab === 'sticker-ce'
-                                ? 'Chọn bố cục bên dưới để in trực tiếp kiểu Tivi, Tủ lạnh, Máy giặt'
-                                : activeTab === 'sticker-dcnb'
-                                  ? 'Hiển thị 3 cột ghép nằm ngang tương đương với 1 trang A4'
-                                  : 'Chọn bố cục bên dưới để in trực tiếp'}
+                            : activeTab === 'sticker-gvgs'
+                              ? 'Nhấp vào nút bên dưới để in trực tiếp kiểu Giờ Vàng Giá Sốc'
+                              : activeTab === 'sticker-lk'
+                                ? 'Chọn bố cục bên dưới để in trực tiếp kiểu Loa Kéo'
+                                : activeTab === 'sticker-ce'
+                                  ? 'Chọn bố cục bên dưới để in trực tiếp kiểu Tivi, Tủ lạnh, Máy giặt'
+                                  : activeTab === 'sticker-dcnb'
+                                    ? 'Hiển thị 3 cột ghép nằm ngang tương đương với 1 trang A4'
+                                    : 'Chọn bố cục bên dưới để in trực tiếp'}
                         </p>
                       </div>
                     </div>
 
                     <div className="rounded-3xl border border-indigo-100/70 overflow-hidden flex flex-col mb-4 bg-white shadow-xl shadow-indigo-100/10">
-                      <div className={`${activeTab === 'sticker-dcnb' || (activeTab === 'sticker-lk' && lkPrintLayout === '2') || (activeTab === 'sticker-ce' && cePrintLayout === '2') || (activeTab === 'sticker-mln' && mlnPrintLayout === '2') ? 'h-[760px]' : 'h-[440px]'} bg-gradient-to-tr from-slate-50 via-indigo-50/20 to-purple-50/30 flex items-center justify-center overflow-hidden relative p-8`}>
+                      <div className={`${activeTab === 'sticker-dcnb' || (activeTab === 'sticker-lk' && lkPrintLayout === '2') || (activeTab === 'sticker-ce' && cePrintLayout === '2') || (activeTab === 'sticker-mln' && mlnPrintLayout === '2') || (activeTab === 'sticker-gvgs' && gvgsPrintLayout === '2') ? 'h-[760px]' : 'h-[440px]'} bg-gradient-to-tr from-slate-50 via-indigo-50/20 to-purple-50/30 flex items-center justify-center overflow-hidden relative p-8`}>
                         <div
                           className="pointer-events-none select-none shadow-[0_20px_50px_rgba(99,102,241,0.15)] border border-slate-900/10 rounded-xl overflow-hidden transition-all duration-300 flex flex-col bg-white"
                           style={{
-                            transform: activeTab === 'sticker-mln' 
-                              ? (mlnPrintLayout === '1' ? 'scale(0.5)' : 'scale(0.58)')
+                            transform: (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') 
+                              ? ((activeTab === 'sticker-gvgs' ? gvgsPrintLayout : mlnPrintLayout) === '1' ? 'scale(0.5)' : 'scale(0.58)')
                               : activeTab === 'sticker-lk'
                                 ? (lkPrintLayout === '1' ? 'scale(0.48)' : 'scale(0.58)')
                                 : activeTab === 'sticker-ce'
@@ -3209,8 +3345,8 @@ export default function ToolHoTro() {
                                       ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? 'scale(0.4)' : 'scale(0.42)')
                                       : 'scale(0.95)',
                             transformOrigin: 'center',
-                            width: activeTab === 'sticker-mln'
-                              ? (mlnPrintLayout === '1' ? '148.5mm' : '210mm')
+                            width: (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs')
+                              ? ((activeTab === 'sticker-gvgs' ? gvgsPrintLayout : mlnPrintLayout) === '1' ? '148.5mm' : '210mm')
                               : activeTab === 'sticker-lk'
                                 ? '210mm'
                                 : activeTab === 'sticker-ce'
@@ -3220,8 +3356,8 @@ export default function ToolHoTro() {
                                     : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event')
                                       ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? '210mm' : '297mm')
                                       : '148.5mm',
-                            height: activeTab === 'sticker-mln' 
-                              ? (mlnPrintLayout === '1' ? '210mm' : '297mm')
+                            height: (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') 
+                              ? ((activeTab === 'sticker-gvgs' ? gvgsPrintLayout : mlnPrintLayout) === '1' ? '210mm' : '297mm')
                               : activeTab === 'sticker-lk'
                                 ? (lkPrintLayout === '1' ? '148.5mm' : '297mm')
                                 : activeTab === 'sticker-ce'
@@ -3322,7 +3458,7 @@ export default function ToolHoTro() {
                                           item={{ name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }}
                                           style="classic"
                                           layout="1"
-                                          showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' ? false : showEventPromoLabel}
+                                          showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' ? false : showEventPromoLabel}
                                           promoLabelText={promoLabelTextVal}
                                         />
                                       </div>
@@ -3336,18 +3472,20 @@ export default function ToolHoTro() {
                               item={
                                 activeTab === 'sticker-mln'
                                   ? { name: 'Karofi KAQ-X18 11 lõi', originalPrice: 6990000, discountPrice: 4990000, maSanPham: 'SP001', nganhHang: 'MÁY LỌC NƯỚC', endDate: '31/05/2026' }
-                                  : activeTab === 'sticker-lk'
-                                    ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
-                                    : activeTab === 'sticker-ce'
-                                      ? { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
-                                      : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
+                                  : activeTab === 'sticker-gvgs'
+                                    ? { name: 'Karofi KAQ-X18 11 lõi', originalPrice: 6990000, discountPrice: 4990000, maSanPham: 'SP001', nganhHang: 'GIỜ VÀNG GIÁ SỐC', endDate: '31/05/2026' }
+                                    : activeTab === 'sticker-lk'
+                                      ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
+                                      : activeTab === 'sticker-ce'
+                                        ? { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
+                                        : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
                               }
-                              style={activeTab === 'sticker-mln' ? 'display' : activeTab === 'sticker-lk' ? 'sticker_lk' : activeTab === 'sticker-ce' ? 'sticker_ce' : 'classic'}
-                              layout={activeTab === 'sticker-lk' ? lkPrintLayout : activeTab === 'sticker-ce' ? cePrintLayout : activeTab === 'sticker-mln' ? mlnPrintLayout : '1'}
-                              showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' ? false : showEventPromoLabel}
+                              style={(activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') ? 'display' : activeTab === 'sticker-lk' ? 'sticker_lk' : activeTab === 'sticker-ce' ? 'sticker_ce' : 'classic'}
+                              layout={activeTab === 'sticker-lk' ? lkPrintLayout : activeTab === 'sticker-ce' ? cePrintLayout : activeTab === 'sticker-mln' ? mlnPrintLayout : activeTab === 'sticker-gvgs' ? gvgsPrintLayout : '1'}
+                              showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' ? false : showEventPromoLabel}
                               promoLabelText={promoLabelTextVal}
-                              mlnHeaderTemplate={mlnHeaderTemplate}
-                              mlnFooterTemplate={mlnFooterTemplate}
+                              mlnHeaderTemplate={activeTab === 'sticker-gvgs' ? gvgsHeaderTemplate : mlnHeaderTemplate}
+                              mlnFooterTemplate={activeTab === 'sticker-gvgs' ? gvgsFooterTemplate : mlnFooterTemplate}
                             />
                           )}
                         </div>
@@ -3383,11 +3521,13 @@ export default function ToolHoTro() {
                           )}
                         </div>
                       )}
-                      {activeTab === 'sticker-mln' && (
+                      {(activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') && (
                         <div className="p-5 bg-gradient-to-br from-amber-50/40 to-indigo-50/30 backdrop-blur-sm border-t border-b border-slate-200/80 space-y-4 rounded-2xl shadow-inner my-2">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-base">✨</span>
-                            <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Cấu hình chữ in trên nhãn</span>
+                            <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
+                              Cấu hình chữ in trên nhãn ({activeTab === 'sticker-gvgs' ? 'GVGS' : 'MLN'})
+                            </span>
                           </div>
                           
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3397,13 +3537,18 @@ export default function ToolHoTro() {
                               </label>
                               <input
                                 type="text"
-                                value={mlnHeaderTemplate}
+                                value={activeTab === 'sticker-gvgs' ? gvgsHeaderTemplate : mlnHeaderTemplate}
                                 onChange={(e) => {
-                                  setMlnHeaderTemplate(e.target.value);
-                                  localStorage.setItem('mln_header_template', e.target.value);
+                                  if (activeTab === 'sticker-gvgs') {
+                                    setGvgsHeaderTemplate(e.target.value);
+                                    localStorage.setItem('gvgs_header_template', e.target.value);
+                                  } else {
+                                    setMlnHeaderTemplate(e.target.value);
+                                    localStorage.setItem('mln_header_template', e.target.value);
+                                  }
                                 }}
                                 className="w-full bg-white border-2 border-amber-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 text-amber-950 py-2 px-3.5 rounded-2xl text-xs font-black focus:outline-none transition-all shadow-sm"
-                                placeholder="VD: {nganhHang} hoặc MÁY LỌC NƯỚC"
+                                placeholder={activeTab === 'sticker-gvgs' ? "VD: GIỜ VÀNG GIÁ SỐC hoặc {nganhHang}" : "VD: {nganhHang} hoặc MÁY LỌC NƯỚC"}
                               />
                             </div>
                             <div className="space-y-1.5">
@@ -3412,13 +3557,18 @@ export default function ToolHoTro() {
                               </label>
                               <input
                                 type="text"
-                                value={mlnFooterTemplate}
+                                value={activeTab === 'sticker-gvgs' ? gvgsFooterTemplate : mlnFooterTemplate}
                                 onChange={(e) => {
-                                  setMlnFooterTemplate(e.target.value);
-                                  localStorage.setItem('mln_footer_template', e.target.value);
+                                  if (activeTab === 'sticker-gvgs') {
+                                    setGvgsFooterTemplate(e.target.value);
+                                    localStorage.setItem('gvgs_footer_template', e.target.value);
+                                  } else {
+                                    setMlnFooterTemplate(e.target.value);
+                                    localStorage.setItem('mln_footer_template', e.target.value);
+                                  }
                                 }}
                                 className="w-full bg-white border-2 border-indigo-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-indigo-950 py-2 px-3.5 rounded-2xl text-xs font-black focus:outline-none transition-all shadow-sm"
-                                placeholder="VD: Khuyến mãi áp dụng đến hết ngày {date}"
+                                placeholder={activeTab === 'sticker-gvgs' ? "VD: Khuyến mãi chỉ áp dụng 3 ngày Thứ 6, 7, Chủ Nhật" : "VD: Khuyến mãi áp dụng đến hết ngày {date}"}
                               />
                             </div>
                           </div>
@@ -3430,7 +3580,7 @@ export default function ToolHoTro() {
                       )}
                     </div>
 
-                    {activeTab === 'sticker-mln' ? (
+                    {activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' ? (
                       <div className="grid grid-cols-2 gap-2">
                         {[
                           { layout: '1', label: '1 Sticker / Trang A5 đứng' },
@@ -3438,14 +3588,20 @@ export default function ToolHoTro() {
                         ].map((s) => (
                           <button
                             key={s.layout}
-                            onMouseEnter={() => setMlnPrintLayout(s.layout)}
+                            onMouseEnter={() => {
+                              if (activeTab === 'sticker-gvgs') {
+                                setGvgsPrintLayout(s.layout);
+                              } else {
+                                setMlnPrintLayout(s.layout);
+                              }
+                            }}
                             onClick={() => {
                               setPrintConfig({ style: 'display', layout: s.layout, showPromoLabel: false });
                               setIsPrintModalOpen(true);
                             }}
                             disabled={combinedPriceData.length === 0 || selectedIndices.length === 0}
                             className={`w-full py-3.5 px-3 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed ${
-                              mlnPrintLayout === s.layout
+                              (activeTab === 'sticker-gvgs' ? gvgsPrintLayout : mlnPrintLayout) === s.layout
                                 ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 ring-2 ring-amber-400 ring-offset-2'
                                 : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                             }`}
@@ -3532,7 +3688,8 @@ export default function ToolHoTro() {
                       </div>
                     )}
                   </div>
-                )}
+                </div>
+              )}
 
 
 
@@ -3735,8 +3892,17 @@ export default function ToolHoTro() {
                           <FilePlus size={20} />
                         </div>
                         <div>
-                          <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">DỮ LIỆU BẢNG GIÁ</h3>
-                          <p className="text-xs font-medium text-slate-500 mt-0.5">Đã lọc {filteredPriceData.length} / {combinedPriceData.length} sản phẩm</p>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">DỮ LIỆU BẢNG GIÁ</h3>
+                            {lastUpdatePrice && (
+                              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-full border border-emerald-200 shadow-xs">
+                                Cập nhật bởi <strong className="font-black">{updatedBy || '43751'}</strong>
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs font-medium text-slate-500 mt-0.5">
+                            Đã lọc {filteredPriceData.length} / {combinedPriceData.length} sản phẩm
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -3764,7 +3930,7 @@ export default function ToolHoTro() {
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Mã SP</th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Tên sản phẩm</th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Ngành hàng</th>
-                            {activeTab !== 'sticker-mln' && <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Nhóm hàng</th>}
+                            {activeTab !== 'sticker-mln' && activeTab !== 'sticker-gvgs' && <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Nhóm hàng</th>}
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">QR điện thoại</th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-right w-36">Giá gốc</th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-right w-36">Giá giảm</th>
@@ -3795,7 +3961,7 @@ export default function ToolHoTro() {
                               <td className="py-3 px-4 text-sm font-bold text-indigo-600">{item.maSanPham || item.productCode || '-'}</td>
                               <td className="py-3 px-4 text-sm font-bold text-slate-800">{item.name}</td>
                               <td className="py-3 px-4 text-sm font-medium text-slate-600">{item.nganhHang || '-'}</td>
-                              {activeTab !== 'sticker-mln' && <td className="py-3 px-4 text-sm font-medium text-slate-600">{item.nhomHang || '-'}</td>}
+                              {activeTab !== 'sticker-mln' && activeTab !== 'sticker-gvgs' && <td className="py-3 px-4 text-sm font-medium text-slate-600">{item.nhomHang || '-'}</td>}
                               <td className="py-3 px-4 text-sm font-medium text-slate-500 font-mono tracking-wider">{item.qrData || '-'}</td>
                               <td className="py-3 px-4 text-sm font-medium text-slate-600 text-right">
                                 <input 
@@ -4471,8 +4637,8 @@ export default function ToolHoTro() {
               ? { style: 'phieu_bh', layout: phieuBhPrintLayout, showPromoLabel: false }
               : printConfig
         }
-        mlnHeaderTemplate={mlnHeaderTemplate}
-        mlnFooterTemplate={mlnFooterTemplate}
+        mlnHeaderTemplate={activeTab === 'sticker-gvgs' ? gvgsHeaderTemplate : mlnHeaderTemplate}
+        mlnFooterTemplate={activeTab === 'sticker-gvgs' ? gvgsFooterTemplate : mlnFooterTemplate}
         promoLabelText={promoLabelTextVal}
       />
 

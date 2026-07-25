@@ -18,7 +18,11 @@ import {
   Bug,
   HelpCircle,
   CornerDownRight,
-  ShieldCheck
+  ShieldCheck,
+  Video,
+  Play,
+  ExternalLink,
+  Copy
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
@@ -252,14 +256,91 @@ export default function FeedbackPage() {
       <div className="text-center space-y-3 max-w-2xl mx-auto">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-black uppercase tracking-wider shadow-sm animate-pulse">
           <Sparkles size={12} />
-          <span>Website Premium Feedback</span>
+          <span>Website Premium Feedback & Guide</span>
         </div>
         <h1 className="text-[34px] font-black text-slate-800 tracking-tight leading-none uppercase">
-          Góp ý & Nhận xét
+          HƯỚNG DẪN & GÓP Ý
         </h1>
         <p className="text-sm text-slate-500 font-medium leading-relaxed">
-          Ý kiến của bạn là động lực để chúng tôi nâng cấp hệ thống ngày một tốt hơn. Hãy để lại đánh giá của bạn nhé!
+          Xem video hướng dẫn chi tiết và để lại nhận xét đóng góp ý kiến giúp hệ thống ngày một hoàn thiện hơn!
         </p>
+      </div>
+
+      {/* Video Hướng Dẫn Section */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-[32px] p-6 md:p-8 shadow-2xl text-white relative overflow-hidden border border-indigo-500/20">
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6 mb-6 pb-6 border-b border-white/10">
+          <div className="space-y-2 text-center md:text-left">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-xs font-black uppercase tracking-wider">
+              <Video size={14} className="animate-pulse" />
+              <span>Video Hướng Dẫn Sử Dụng</span>
+            </div>
+            <h2 className="text-2xl md:text-3xl font-black tracking-tight text-white uppercase">
+              Hướng dẫn thao tác hệ thống CRM Siêu thị
+            </h2>
+            <p className="text-xs md:text-sm text-slate-300 max-w-2xl font-medium">
+              Xem video hướng dẫn chi tiết trên Cloud TGDĐ để nắm rõ toàn bộ tính năng và thao tác hiệu quả trên hệ thống. Mật khẩu mở file: <b className="text-amber-400 font-black">123</b>
+            </p>
+          </div>
+          
+          <a
+            href="https://cloud.tgdd.vn/index.php/s/esdNr0gSJP7Y6mH"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 inline-flex items-center gap-2.5 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-wider transition-all duration-200 shadow-lg shadow-indigo-600/30 hover:scale-105 active:scale-95 border border-indigo-400/30"
+          >
+            <Play size={16} className="fill-current" />
+            <span>Mở Video (Cloud TGDĐ)</span>
+            <ExternalLink size={14} />
+          </a>
+        </div>
+
+        {/* Cloud TGDD Video Link & Password Card */}
+        <div className="relative z-10 w-full rounded-3xl overflow-hidden shadow-2xl border border-indigo-400/30 bg-gradient-to-br from-indigo-950/90 via-slate-900 to-slate-950 p-6 md:p-10 max-w-4xl mx-auto text-center space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center mx-auto shadow-lg shadow-indigo-500/30 border border-white/20">
+            <Play size={32} className="fill-white translate-x-0.5" />
+          </div>
+
+          <div className="space-y-2">
+            <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">
+              Xem Video Hướng Dẫn Sử Dụng Trên Cloud TGDĐ
+            </h3>
+            <p className="text-xs md:text-sm text-slate-300 max-w-xl mx-auto font-medium">
+              Bấm nút bên dưới để mở liên kết video hướng dẫn. Vui lòng nhập mật khẩu <b className="text-amber-400 font-black">123</b> khi hệ thống yêu cầu.
+            </p>
+          </div>
+
+          {/* Password Badge + Copy Button */}
+          <div className="inline-flex flex-wrap items-center justify-center gap-3 px-5 py-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 shadow-inner">
+            <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Mật khẩu xem Video:</span>
+            <span className="text-base font-black text-amber-300 tracking-widest font-mono bg-amber-500/20 px-3 py-1 rounded-xl border border-amber-400/30">123</span>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText('123');
+                alert('Đã sao chép mật khẩu: 123');
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer"
+            >
+              <Copy size={13} /> Copy Mật Khẩu
+            </button>
+          </div>
+
+          {/* Direct Open Link Button */}
+          <div>
+            <a
+              href="https://cloud.tgdd.vn/index.php/s/esdNr0gSJP7Y6mH"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-black text-sm uppercase tracking-wider transition-all duration-300 shadow-xl shadow-indigo-600/40 hover:scale-105 active:scale-95 border border-white/20"
+            >
+              <ExternalLink size={18} />
+              <span>XEM VIDEO HƯỚNG DẪN TẠI CLOUD TGDĐ</span>
+            </a>
+          </div>
+        </div>
       </div>
 
       {/* Summary Metrics Cards */}

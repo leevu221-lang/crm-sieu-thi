@@ -27,7 +27,7 @@ export const PAGE_NAMES_VI: Record<string, string> = {
   users: 'Quản Lý Người Dùng',
   tnb_data: 'Báo Cáo TNB',
   birthday: 'Sinh Nhật NV',
-  feedback: 'Góp Ý Hệ Thống'
+  feedback: 'Hướng Dẫn & Góp Ý'
 };
 
 // Debounce tracker to prevent spamming DB

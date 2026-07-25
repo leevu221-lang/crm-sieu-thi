@@ -151,11 +151,26 @@ class FirebaseQueryBuilder {
       const results = [];
       
       for (const item of items) {
-        const docRef = await addDoc(collection(db, this.tableName), {
-          ...item,
-          created_at: serverTimestamp(),
-          updated_at: serverTimestamp()
-        });
+        let docId = item.id;
+        if (this.tableName === 'ql_nguoi_dung' && item.username) {
+          docId = String(item.username).trim();
+        }
+        
+        let docRef;
+        if (docId) {
+          docRef = doc(db, this.tableName, String(docId));
+          await setDoc(docRef, {
+            ...item,
+            created_at: serverTimestamp(),
+            updated_at: serverTimestamp()
+          }, { merge: true });
+        } else {
+          docRef = await addDoc(collection(db, this.tableName), {
+            ...item,
+            created_at: serverTimestamp(),
+            updated_at: serverTimestamp()
+          });
+        }
         results.push({ id: docRef.id, ...item });
       }
       
@@ -173,6 +188,9 @@ class FirebaseQueryBuilder {
       for (const item of items) {
         // Find ID from onConflict or item.id
         let id = item.id;
+        if (!id && onConflict === 'username' && item.username) {
+          id = String(item.username).trim();
+        }
         if (!id && onConflict) {
           const conflictFields = onConflict.split(',').map((f: string) => f.trim());
           // If multi-column conflict, we need to find the doc first
@@ -317,6 +335,17 @@ class FirebaseQueryBuilder {
       const result = { data: null, error };
       return onrejected ? onrejected(result) : result;
     }
+  }
+
+  catch(onrejected?: (reason: any) => any) {
+    return this.then(undefined, onrejected);
+  }
+
+  finally(onfinally?: () => void) {
+    return this.then(
+      res => { if (onfinally) onfinally(); return res; },
+      err => { if (onfinally) onfinally(); throw err; }
+    );
   }
 
   private buildQuery() {
