@@ -888,7 +888,7 @@ export const parseYcxData = (data: string): YcxStaffData[] => {
 
     if (isSales && isExported && isNotReturned && staff && revenueStr) {
        const revenue = Math.round(parseFloat(revenueStr) || 0);
-       if (revenue <= 0) continue;
+       if (revenue < 0) continue;
        
        let isInstallment = false;
        const rowString = lines[i].toLowerCase();
@@ -970,7 +970,7 @@ export const parseYcxData = (data: string): YcxStaffData[] => {
 
           if (isBaoHiem) {
             current.baoHiem.total += revenue;
-            current.baoHiem.count += 1;
+            current.baoHiem.count += (quantity > 0 ? quantity : 1);
             if (productNameLower.includes('1 đổi 1') || productNameLower.includes('1 doi 1') || productNameLower.includes('1doi1') || productNameLower.includes('1-1') || rowString.includes('1 đổi 1') || rowString.includes('1 doi 1')) {
               current.baoHiem.motDoiMot += revenue;
             } else if (productNameLower.includes('mở rộng') || productNameLower.includes('mo rong') || productNameLower.includes('bhmr') || rowString.includes('mở rộng') || rowString.includes('mo rong') || rowString.includes('bhmr')) {

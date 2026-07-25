@@ -1987,7 +1987,7 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
     
     const revenueValue = parseFloat(revenueStr) || 0;
     const hasStaff = displayName && displayName.length > 1;
-    const hasRevenue = !isNaN(revenueValue) && revenueValue > 0;
+    const hasRevenue = !isNaN(revenueValue) && revenueValue >= 0;
     
     if (hasStaff && hasRevenue) {
        const revenue = Math.round(revenueValue);
@@ -2062,7 +2062,7 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
 
           if (isBaoHiem) {
             current.baoHiem.total += revenue;
-            current.baoHiem.count += 1;
+            current.baoHiem.count += (quantity > 0 ? quantity : 1);
             if (productNameLower.includes('1 đổi 1') || productNameLower.includes('1 doi 1') || productNameLower.includes('1doi1') || productNameLower.includes('1-1') || rowString.includes('1 đổi 1') || rowString.includes('1 doi 1')) {
               current.baoHiem.motDoiMot += revenue;
             } else if (productNameLower.includes('mở rộng') || productNameLower.includes('mo rong') || productNameLower.includes('bhmr') || rowString.includes('mở rộng') || rowString.includes('mo rong') || rowString.includes('bhmr')) {
