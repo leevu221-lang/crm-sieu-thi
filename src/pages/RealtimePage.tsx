@@ -1006,22 +1006,23 @@ const classifyProductByCode = (code: string): string | null => {
 
 const classifyProduct = (name: string) => {
   const n = String(name || '').toUpperCase();
+  const norm = removeAccents(name).toUpperCase();
   if (n.includes('ICALLME') || n.includes('ICALL')) return 'Icall';
   if (n.includes('MANGO')) return 'Mango';
-  if (n.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || n.includes('BẢO VỆ MÀN HÌNH') || n.includes('BVMH')) return 'BVMH';
-  if (n.includes('1 ĐỔI 1')) return '1 ĐỔI 1';
-  if (n.includes('BẢO HIỂM KHOẢN VAY')) return 'BHKV';
-  if (n.includes('BHMR')) return 'BHMR';
-  if (n.includes('BẢO HÀNH MỞ RỘNG')) return 'BHMR';
-  if (n.includes('BẢO HIỂM RƠI VỠ')) return 'BHRV';
-  if (n.includes('BẢO HIỂM SC+')) return 'SC+';
-  if (n.includes('BẢO HÀNH APPLECARE+')) return 'BHAP';
-  if (n.includes('BẢO HIỂM Ô TÔ')) return 'BHOT';
-  if (n.includes('BẢO HIỂM VẬT CHẤT')) return 'BHVC';
-  if (n.includes('BẢO HIỂM XE MÁY')) return 'BHXM';
-  if (n.includes('BẢO HIỂM XE MOTO')) return 'BHMT';
-  if (n.includes('BẢO HIỂM XÃ HỘI')) return 'BHXH';
-  if (n.includes('BẢO HIỂM Y TẾ')) return 'BHYT';
+  if (n.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || n.includes('BẢO VỆ MÀN HÌNH') || n.includes('BVMH') || norm.includes('BVMH') || norm.includes('BAO VE MAN HINH')) return 'BVMH';
+  if (n.includes('1 ĐỔI 1') || norm.includes('1 DOI 1') || norm.includes('1DOI1') || n.includes('PVI_') || norm.includes('PVI')) return '1 ĐỔI 1';
+  if (n.includes('BẢO HIỂM KHOẢN VAY') || n.includes('BHKV') || norm.includes('BHKV')) return 'BHKV';
+  if (n.includes('BHMR') || n.includes('BẢO HÀNH MỞ RỘNG') || norm.includes('BHMR') || norm.includes('MO RONG') || n.includes('MIC_') || norm.includes('MIC_')) return 'BHMR';
+  if (n.includes('BẢO HIỂM RƠI VỠ') || n.includes('BHRV') || norm.includes('BHRV') || norm.includes('ROI VO')) return 'BHRV';
+  if (n.includes('BẢO HIỂM SC+') || n.includes('SC+') || n.includes('CARE+') || norm.includes('SC+') || norm.includes('CARE+')) return 'SC+';
+  if (n.includes('BẢO HÀNH APPLECARE+') || n.includes('APPLECARE') || norm.includes('APPLECARE')) return 'BHAP';
+  if (n.includes('BẢO HIỂM Ô TÔ') || n.includes('BHOT')) return 'BHOT';
+  if (n.includes('BẢO HIỂM VẬT CHẤT') || n.includes('BHVC')) return 'BHVC';
+  if (n.includes('BẢO HIỂM XE MÁY') || n.includes('BHXM')) return 'BHXM';
+  if (n.includes('BẢO HIỂM XE MOTO') || n.includes('BHMT')) return 'BHMT';
+  if (n.includes('BẢO HIỂM XÃ HỘI') || n.includes('BHXH')) return 'BHXH';
+  if (n.includes('BẢO HIỂM Y TẾ') || n.includes('BHYT')) return 'BHYT';
+  if (n.includes('GIC_') || n.includes('GIC-') || norm.includes('GIC_') || norm.includes('GIC-')) return 'GIC';
   if (n.includes('01 THÁNG')) return 'V1';
   if (n.includes('03 THÁNG')) return 'V2';
   if (n.includes('06 THÁNG')) return 'V4';
@@ -1091,14 +1092,6 @@ const classifyNhomHangLarge = (category: string, productName?: string): string =
   const normCat = removeAccents(cat);
   const normProd = removeAccents(prod);
 
-  // Check condition with classification first
-  const pClass = classifyProduct(prod);
-  if (['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1'].includes(pClass)) {
-    if (pClass !== '1 ĐỔI 1' || normCat.includes('1841') || normCat.includes('1994') || normCat.includes('7139') || normCat.includes('khac') || normCat.includes('bao hiem') || !cat) {
-      return 'BẢO HIỂM';
-    }
-  }
-
   // Helmet check: "Nón bảo hiểm" or "Mũ bảo hiểm" belongs to DCNB
   if (
     normProd.includes('non bao hiem') ||
@@ -1107,6 +1100,49 @@ const classifyNhomHangLarge = (category: string, productName?: string): string =
     normCat.includes('mu bao hiem')
   ) {
     return 'DCNB';
+  }
+
+  // Check condition with classification first
+  const pClass = classifyProduct(prod);
+  if (['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1', 'BHAP', 'BHOT', 'BHVC', 'BHMT', 'BHXH', 'BHYT', 'BVMH', 'GIC'].includes(pClass)) {
+    if (pClass !== '1 ĐỔI 1' || normCat.includes('1841') || normCat.includes('1994') || normCat.includes('7139') || normCat.includes('khac') || normCat.includes('bao hiem') || !cat || normProd.includes('pvi') || normProd.includes('1 doi 1')) {
+      return 'BẢO HIỂM';
+    }
+  }
+
+  // 1. First priority: Check for Insurance (Bảo hiểm)
+  if (
+    normCat.includes('bao hiem') ||
+    normProd.includes('bao hiem') ||
+    normCat.includes('dich vu bao hiem') ||
+    normCat.includes('thu ho phi bao hiem') ||
+    normCat.includes('1994') ||
+    normCat.includes('7139') ||
+    normCat.includes('4479') ||
+    normCat.includes('4499') ||
+    normCat.includes('1088') ||
+    normCat.includes('bao hanh, bao duong') ||
+    normCat.includes('bao hanh mo rong') ||
+    normProd.includes('mo rong') ||
+    normProd.includes('1 doi 1') ||
+    normProd.includes('1doi1') ||
+    normProd.includes('1-1') ||
+    normProd.includes('roi vo') ||
+    normProd.includes('bhmr') ||
+    normProd.includes('bhrv') ||
+    normProd.includes('bhkv') ||
+    normProd.includes('bhxm') ||
+    normProd.includes('bvmh') ||
+    normProd.includes('care+') ||
+    normProd.includes('sc+') ||
+    normProd.includes('applecare') ||
+    normProd.includes('mic_') ||
+    normProd.includes('gic_') ||
+    normProd.includes('gic-') ||
+    normProd.includes('pvi_') ||
+    normProd.includes('pvi')
+  ) {
+    return 'BẢO HIỂM';
   }
 
   if (!cat) return 'Khác';
