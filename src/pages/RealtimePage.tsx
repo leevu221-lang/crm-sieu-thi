@@ -2362,7 +2362,10 @@ export default function NewRealtimePage() {
     const headers = rawYcxRows[0].map(h => h.trim());
 
     // Find column indices by exact name or fallback to -1
-    let idxStatus = headers.findIndex(h => h.toLowerCase() === 'trạng thái xuất');
+    let idxStatus = headers.findIndex(h => {
+      const lower = removeAccents(h).toLowerCase().trim();
+      return lower.includes('trang thai xuat') || lower.includes('trang thai ycx') || lower.includes('tinh trang xuat') || lower === 'trang thai' || lower.includes('trang thai don');
+    });
     let idxTra = headers.findIndex(h => {
       const lower = h.toLowerCase();
       return lower === 'tình trạng nhập trả của sản phẩm đổi với sản phẩm chính' ||
@@ -2392,7 +2395,10 @@ export default function NewRealtimePage() {
 
     const headers = rawYcxRows[0].map(h => h.trim());
     
-    let idxStatus = headers.findIndex(h => h.toLowerCase() === 'trạng thái xuất');
+    let idxStatus = headers.findIndex(h => {
+      const lower = removeAccents(h).toLowerCase().trim();
+      return lower.includes('trang thai xuat') || lower.includes('trang thai ycx') || lower.includes('tinh trang xuat') || lower === 'trang thai' || lower.includes('trang thai don');
+    });
     let idxTra = headers.findIndex(h => {
       const lower = h.toLowerCase();
       return lower === 'tình trạng nhập trả của sản phẩm đổi với sản phẩm chính' ||
@@ -3804,7 +3810,7 @@ export default function NewRealtimePage() {
       
       if (idxTrangThaiHoSo !== -1 && trangThai !== '' && !trangThai.includes('moi')) return;
       if (htx.includes('tra gop')) return;
-      if (nhomHang.includes('thu ho') || nhomHang.includes('the cao') || sp.includes('thu ho') || sp.includes('the cao') || nhomHang.includes('phi thu tien')) return;
+      if ((nhomHang.includes('thu ho') || nhomHang.includes('the cao') || sp.includes('thu ho') || sp.includes('the cao') || nhomHang.includes('phi thu tien')) && !sp.includes('bao hiem') && !sp.includes('pvi') && !sp.includes('mic') && !sp.includes('gic') && !sp.includes('1 doi 1') && !sp.includes('mo rong') && !htx.includes('bao hiem')) return;
 
       const excludedPrefixes = ['17 -', '164 -', '344 -', '424 -', '224 -', '905 -', '1231 -', '4199 -', '58 -', '18 -', '664 -'];
       const isExcluded = (val: string) => excludedPrefixes.some(p => val.startsWith(p));

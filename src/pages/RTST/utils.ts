@@ -1695,7 +1695,7 @@ export const minifyYcxData = (data: string): string => {
 
   const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
   const idxMethod = getIdx(['hình thức xuất']);
-  const idxStatus = getIdx(['trạng thái xuất']);
+  const idxStatus = getIdx(['trạng thái xuất', 'trạng thái ycx', 'trạng thái', 'tình trạng xuất', 'tình trạng đơn', 'trạng thái đơn', 'tình trạng']);
   const idxStaffName = getIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện']); 
   const idxStaffId = getIdx(['user tạo', 'mã nv', 'mã nhân viên', 'id nhân viên']);
   const idxRevenue = (() => {
@@ -1714,7 +1714,7 @@ export const minifyYcxData = (data: string): string => {
 
   const colType = idxType !== -1 ? idxType : 3;
   const colMethod = idxMethod !== -1 ? idxMethod : 3;
-  const colStatus = idxStatus !== -1 ? idxStatus : 13;
+  const colStatus = idxStatus;
   const colStaffName = idxStaffName !== -1 ? idxStaffName : 23;
   const colStaffId = idxStaffId !== -1 ? idxStaffId : 22;
   const colRevenue = idxRevenue !== -1 ? idxRevenue : 37;
@@ -1722,9 +1722,7 @@ export const minifyYcxData = (data: string): string => {
   const colQty = idxQty !== -1 ? idxQty : 35;
   const colMarket = idxMarket !== -1 ? idxMarket : 1;
   const colColumnAO = idxColumnAO !== -1 ? idxColumnAO : 40;
-  const colReturnStatus = idxReturnStatus !== -1 ? idxReturnStatus : 44;
-
-  const usedCols = new Set([colType, colMethod, colStatus, colStaffName, colStaffId, colRevenue, colProduct, colQty, colMarket, colColumnAO, colReturnStatus]);
+  const colReturnStatus = idxReturnStatus;
 
   const validRows = [];
   // Keep headers
@@ -1737,15 +1735,11 @@ export const minifyYcxData = (data: string): string => {
     const cols = rows[i];
     if (!cols || cols.length < 3) continue;
 
-    const type = String(cols[colType] || '').trim().toLowerCase();
-    const method = String(cols[colMethod] || '').trim().toLowerCase();
-    const status = String(cols[colStatus] || '').trim().toLowerCase();
-    const returnStatus = String(cols[colReturnStatus] || '').trim().toLowerCase();
+    const status = colStatus !== -1 ? String(cols[colStatus] || '').trim().toLowerCase() : '';
+    const returnStatus = colReturnStatus !== -1 ? String(cols[colReturnStatus] || '').trim().toLowerCase() : '';
 
-    // Keep all non-cancelled/non-returned export methods (xuất bán, xuất dịch vụ, yêu cầu xuất...)
-    // FILTER: Only include "ĐÃ XUẤT" or "CHƯA XUẤT" (Column N) and exclude returned items
-    if (status.includes('hủy') || status.includes('huy') || status === 'đã trả') continue;
-    if (returnStatus.includes('trả') && !returnStatus.includes('chưa trả')) continue;
+    if (colStatus !== -1 && (status.includes('hủy') || status.includes('huy') || status === 'đã trả')) continue;
+    if (colReturnStatus !== -1 && returnStatus.includes('trả') && !returnStatus.includes('chưa trả')) continue;
 
     validRows.push(cols);
   }
@@ -1810,7 +1804,7 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
 
   const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
   const idxMethod = getIdx(['hình thức xuất']);
-  const idxStatus = getIdx(['trạng thái xuất']);
+  const idxStatus = getIdx(['trạng thái xuất', 'trạng thái ycx', 'trạng thái', 'tình trạng xuất', 'tình trạng đơn', 'trạng thái đơn', 'tình trạng']);
   const idxStaffName = getIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện']); 
   const idxRevenue = (() => {
     const giaBan1Idx = header.findIndex(h => {
@@ -1913,12 +1907,15 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
     const staffKey = displayName.toUpperCase();
     
     const nameLower = displayName.toLowerCase();
-    if (!displayName || 
+    let finalStaffName = displayName;
+    if (!finalStaffName || 
         nameLower.includes('người tạo') || 
-        nameLower.includes('nhân viên') ||
         nameLower === 'administrator' ||
         nameLower === 'admin'
-    ) continue;
+    ) {
+      finalStaffName = 'HỆ THỐNG';
+    }
+    const staffKey = finalStaffName.toUpperCase();
 
     if (!staffMap.has(staffKey)) {
       staffMap.set(staffKey, { 
@@ -1931,7 +1928,7 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
         baoHiem: { total: 0, count: 0, motDoiMot: 0, moRong: 0, roiVo: 0, khac: 0 },
         ict: { smartphone: 0, sdp: 0, taiNghe: 0, camera: 0, sim: 0, vieon: 0, miengDan: 0 },
         ce: { total: 0, tivi: 0, tuLanh: 0, mayGiat: 0, mayLanh: 0, mayNuocNong: 0, msMrc: 0 },
-        staffName: displayName,
+        staffName: finalStaffName,
         staffId: "",
         mayLanhImeiQty: 0,
         mayLanhDaikinQty: 0,
@@ -1986,7 +1983,7 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
     const rowString = cols.join(' ').toLowerCase().replace(/\//g, ' ');
     
     const revenueValue = parseFloat(revenueStr) || 0;
-    const hasStaff = displayName && displayName.length > 1;
+    const hasStaff = Boolean(finalStaffName);
     const hasRevenue = !isNaN(revenueValue) && revenueValue >= 0;
     
     if (hasStaff && hasRevenue) {
