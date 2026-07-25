@@ -1010,7 +1010,7 @@ const classifyProduct = (name: string) => {
   if (n.includes('ICALLME') || n.includes('ICALL')) return 'Icall';
   if (n.includes('MANGO')) return 'Mango';
   if (n.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || n.includes('BẢO VỆ MÀN HÌNH') || n.includes('BVMH') || norm.includes('BVMH') || norm.includes('BAO VE MAN HINH')) return 'BVMH';
-  if (n.includes('1 ĐỔI 1') || norm.includes('1 DOI 1') || norm.includes('1DOI1') || n.includes('PVI_') || norm.includes('PVI')) return '1 ĐỔI 1';
+  if (n.includes('1 ĐỔI 1') || norm.includes('1 DOI 1') || norm.includes('1DOI1') || n.includes('PVI_') || norm.includes('PVI_')) return '1 ĐỔI 1';
   if (n.includes('BẢO HIỂM KHOẢN VAY') || n.includes('BHKV') || norm.includes('BHKV')) return 'BHKV';
   if (n.includes('BHMR') || n.includes('BẢO HÀNH MỞ RỘNG') || norm.includes('BHMR') || norm.includes('BAO HANH MO RONG') || n.includes('MIC_') || norm.includes('MIC_')) return 'BHMR';
   if (n.includes('BẢO HIỂM RƠI VỠ') || n.includes('BHRV') || norm.includes('BHRV') || norm.includes('ROI VO')) return 'BHRV';
@@ -1105,7 +1105,7 @@ const classifyNhomHangLarge = (category: string, productName?: string): string =
   // Check condition with classification first
   const pClass = classifyProduct(prod);
   if (['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1', 'BHAP', 'BHOT', 'BHVC', 'BHMT', 'BHXH', 'BHYT', 'BVMH', 'GIC'].includes(pClass)) {
-    if (pClass !== '1 ĐỔI 1' || normCat.includes('1841') || normCat.includes('1994') || normCat.includes('7139') || normCat.includes('khac') || normCat.includes('bao hiem') || !cat || normProd.includes('pvi') || normProd.includes('1 doi 1')) {
+    if (pClass !== '1 ĐỔI 1' || normProd.includes('pvi_') || normProd.includes('1 doi 1') || normProd.includes('1doi1') || normCat.includes('bao hiem') || normCat.includes('7139')) {
       return 'BẢO HIỂM';
     }
   }
