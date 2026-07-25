@@ -3470,11 +3470,16 @@ export default function NewRealtimePage() {
       const normProdUpper = removeAccents(productName).toUpperCase();
       const normCatUpper = removeAccents(category).toUpperCase();
       const prodUpper = productName.toUpperCase();
-      const isBaoHiemCheck = nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM';
 
-      if (isBaoHiemCheck) {
+      // STRICT insurance: ONLY use "Hình thức xuất" / "Loại YCX" column to determine insurance
+      // This eliminates all false positives from keyword matching
+      const htxForBH = idxHinhThucXuat !== -1 ? removeAccents(String(row[idxHinhThucXuat] || '')).toLowerCase() : '';
+      const isInsuranceByColumn = htxForBH.includes('bao hiem');
+      if (isInsuranceByColumn) {
         nhomLarge = 'B.HIỂM';
-        console.log('[BH_DEBUG] Insurance row:', { staffName, category, productName, nhomLarge, pClass: classifyProductByCode(idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '') || classifyProduct(productName) });
+      } else if (nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM') {
+        // classifyNhomHangLarge falsely matched as insurance — override
+        nhomLarge = 'Khác';
       }
       const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
       const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
