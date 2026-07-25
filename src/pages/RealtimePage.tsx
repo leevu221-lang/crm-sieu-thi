@@ -5072,33 +5072,34 @@ export default function NewRealtimePage() {
                 </motion.div>
               )}
 
-              {(activeTab === 'khai_thac' || activeTab === 'khai_thac_moi') && (
-                !isUser43751 ? (
-                  <motion.div
-                    key="maintenance-card"
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="bg-white rounded-3xl p-12 border border-amber-200/80 shadow-lg text-center flex flex-col items-center justify-center my-8 min-h-[420px]"
-                    style={{ zoom: 1.2 }}
-                  >
-                    <div className="w-20 h-20 bg-amber-50 rounded-2xl flex items-center justify-center mb-6 text-amber-500 shadow-inner">
-                      <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                    </div>
-                    <h3 className="text-xl font-black text-slate-800 uppercase tracking-wider mb-3">TÍNH NĂNG ĐANG BẢO TRÌ</h3>
-                    <p className="text-sm text-slate-500 max-w-md font-medium leading-relaxed">
-                      Tính năng <strong className="text-indigo-600 font-bold">DATA YCX</strong> đang trong quá trình bảo trì và nâng cấp. Vui lòng quay lại sau!
-                    </p>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key={activeTab}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="space-y-6"
-                    style={{ zoom: 1.3 }}
-                  >
+              {(activeTab === 'khai_thac' || activeTab === 'khai_thac_moi') && !isUser43751 && (
+                <motion.div
+                  key="maintenance-card"
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="bg-white rounded-3xl p-12 border border-amber-200/80 shadow-lg text-center flex flex-col items-center justify-center my-8 min-h-[420px]"
+                  style={{ zoom: 1.2 }}
+                >
+                  <div className="w-20 h-20 bg-amber-50 rounded-2xl flex items-center justify-center mb-6 text-amber-500 shadow-inner">
+                    <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-black text-slate-800 uppercase tracking-wider mb-3">TÍNH NĂNG ĐANG BẢO TRÌ</h3>
+                  <p className="text-sm text-slate-500 max-w-md font-medium leading-relaxed">
+                    Tính năng <strong className="text-indigo-600 font-bold">DATA YCX</strong> đang trong quá trình bảo trì và nâng cấp. Vui lòng quay lại sau!
+                  </p>
+                </motion.div>
+              )}
+
+              {(activeTab === 'khai_thac' || activeTab === 'khai_thac_moi') && isUser43751 && (
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="space-y-6"
+                  style={{ zoom: 1.3 }}
+                >
                   {/* HƯỚNG DẪN TẢI BÁO CÁO YCX */}
                   <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
                     <div className="flex items-center gap-3">
@@ -7063,7 +7064,6 @@ export default function NewRealtimePage() {
                   
                   {/* Unexported Orders Table moved to above Raw Data Table */}
                 </motion.div>
-                )
               )}
             </AnimatePresence>
           </div>
