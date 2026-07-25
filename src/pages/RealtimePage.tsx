@@ -1116,31 +1116,22 @@ const classifyNhomHangLarge = (category: string, productName?: string): string =
     normProd.includes('bao hiem') ||
     normCat.includes('dich vu bao hiem') ||
     normCat.includes('thu ho phi bao hiem') ||
-    normCat.includes('1994') ||
     normCat.includes('7139') ||
-    normCat.includes('4479') ||
-    normCat.includes('4499') ||
-    normCat.includes('1088') ||
-    normCat.includes('bao hanh, bao duong') ||
     normCat.includes('bao hanh mo rong') ||
     normProd.includes('bao hanh mo rong') ||
     normProd.includes('1 doi 1') ||
     normProd.includes('1doi1') ||
-    normProd.includes('1-1') ||
     normProd.includes('roi vo') ||
     normProd.includes('bhmr') ||
     normProd.includes('bhrv') ||
     normProd.includes('bhkv') ||
     normProd.includes('bhxm') ||
     normProd.includes('bvmh') ||
-    normProd.includes('care+') ||
-    normProd.includes('sc+') ||
     normProd.includes('applecare') ||
     normProd.includes('mic_') ||
     normProd.includes('gic_') ||
     normProd.includes('gic-') ||
-    normProd.includes('pvi_') ||
-    normProd.includes('pvi')
+    normProd.includes('pvi_')
   ) {
     return 'BẢO HIỂM';
   }
@@ -1165,29 +1156,22 @@ const classifyNhomHangLarge = (category: string, productName?: string): string =
     normProd.includes('bao hiem') ||
     normCat.includes('dich vu bao hiem') ||
     normCat.includes('thu ho phi bao hiem') ||
-    normCat.includes('1994') ||
     normCat.includes('7139') ||
-    normCat.includes('4479') ||
-    normCat.includes('4499') ||
-    normCat.includes('1088') ||
-    normCat.includes('bao hanh, bao duong') ||
     normCat.includes('bao hanh mo rong') ||
-    normProd.includes('mo rong') ||
+    normProd.includes('bao hanh mo rong') ||
     normProd.includes('1 doi 1') ||
     normProd.includes('1doi1') ||
-    normProd.includes('1-1') ||
     normProd.includes('roi vo') ||
     normProd.includes('bhmr') ||
     normProd.includes('bhrv') ||
     normProd.includes('bhkv') ||
     normProd.includes('bhxm') ||
     normProd.includes('bvmh') ||
-    normProd.includes('care+') ||
-    normProd.includes('sc+') ||
     normProd.includes('applecare') ||
     normProd.includes('mic_') ||
     normProd.includes('gic_') ||
-    normProd.includes('gic-')
+    normProd.includes('gic-') ||
+    normProd.includes('pvi_')
   ) {
     return 'BẢO HIỂM';
   }
@@ -3486,15 +3470,7 @@ export default function NewRealtimePage() {
       const normProdUpper = removeAccents(productName).toUpperCase();
       const normCatUpper = removeAccents(category).toUpperCase();
       const prodUpper = productName.toUpperCase();
-      const isBaoHiemCheck = nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM' ||
-        category.includes('1994') || category.includes('4479') || category.includes('4499') || category.includes('7139') ||
-        normCatUpper.includes('BAO HIEM') || normCatUpper.includes('BHMR') || normCatUpper.includes('BAO HANH MO RONG') ||
-        normProdUpper.includes('BAO HIEM') || normProdUpper.includes('BAO HANH MO RONG') || normProdUpper.includes('BHMR') ||
-        normProdUpper.includes('1 DOI 1') || normProdUpper.includes('1DOI1') || normProdUpper.includes('ROI VO') ||
-        normProdUpper.includes('BHRV') || normProdUpper.includes('SC+') || normProdUpper.includes('CARE+') ||
-        normProdUpper.includes('APPLECARE') || normProdUpper.includes('BHKV') || normProdUpper.includes('BHXM') ||
-        normProdUpper.includes('BVMH') || normProdUpper.includes('BAO VE MAN HINH') ||
-        prodUpper.includes('MIC_') || prodUpper.includes('GIC_') || prodUpper.includes('GIC-');
+      const isBaoHiemCheck = nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM';
 
       if (isBaoHiemCheck) {
         nhomLarge = 'B.HIỂM';
