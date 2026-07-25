@@ -3474,6 +3474,7 @@ export default function NewRealtimePage() {
 
       if (isBaoHiemCheck) {
         nhomLarge = 'B.HIỂM';
+        console.log('[BH_DEBUG] Insurance row:', { staffName, category, productName, nhomLarge, pClass: classifyProductByCode(idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '') || classifyProduct(productName) });
       }
       const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
       const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
