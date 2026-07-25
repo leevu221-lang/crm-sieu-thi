@@ -1904,8 +1904,6 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
     if (!staffNameFromX) continue;
 
     const displayName = staffNameFromX.replace(/\s+/g, ' ').trim();
-    const staffKey = displayName.toUpperCase();
-    
     const nameLower = displayName.toLowerCase();
     let finalStaffName = displayName;
     if (!finalStaffName || 
