@@ -39,4 +39,4 @@ export interface UserData {
   permissions: PageName[];
 }
 
-export * from './rtst';
+export type * from './rtst';
