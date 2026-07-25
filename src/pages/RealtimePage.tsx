@@ -1004,6 +1004,13 @@ const classifyProductByCode = (code: string): string | null => {
   return PRODUCT_CODE_MAP[cleanCode] || null;
 };
 
+// Strip employee code prefix from staff names: "38847 - Nguyễn Hùng Mạnh" → "Nguyễn Hùng Mạnh"
+const extractName = (raw: string): string => {
+  if (!raw) return raw;
+  const match = raw.match(/^\s*\d+\s*[-–]\s*(.+)$/);
+  return match ? match[1].trim() : raw.trim();
+};
+
 const classifyProduct = (name: string) => {
   const n = String(name || '').toUpperCase();
   const norm = removeAccents(name).toUpperCase();
@@ -2550,7 +2557,7 @@ export default function NewRealtimePage() {
     const prevRows: any[][] = [];
 
     for (const row of filteredRawYcxRows) {
-      const staffName = idxStaff !== -1 ? String(row[idxStaff] || '').trim() : 'HỆ THỐNG';
+      const staffName = idxStaff !== -1 ? extractName(String(row[idxStaff] || '')) : 'HỆ THỐNG';
       if (idxStaff !== -1 && isSystemName(staffName)) continue;
 
       names.add(staffName);
@@ -2644,7 +2651,7 @@ export default function NewRealtimePage() {
           return { key: brand.toUpperCase(), name: brand };
         }
         case 'nguoitao': {
-          const staffName = idxs.idxStaff !== -1 ? String(row[idxs.idxStaff] || '').trim() || 'Không rõ' : 'HỆ THỐNG';
+          const staffName = idxs.idxStaff !== -1 ? extractName(String(row[idxs.idxStaff] || '')) || 'Không rõ' : 'HỆ THỐNG';
           return { key: staffName, name: staffName };
         }
         case 'sanpham': {
@@ -2676,7 +2683,7 @@ export default function NewRealtimePage() {
         const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
 
         const brand = resolveBrandForProduct(productName, nhomSmall);
-        const staffName = idxStaff !== -1 ? String(row[idxStaff] || '').trim() || 'Không rõ' : 'HỆ THỐNG';
+        const staffName = idxStaff !== -1 ? extractName(String(row[idxStaff] || '')) || 'Không rõ' : 'HỆ THỐNG';
 
         // Check page-level staff filter
         if (selectedStaffs.length > 0 && !selectedStaffs.includes(staffName)) return false;
@@ -3476,7 +3483,7 @@ export default function NewRealtimePage() {
       !n || n.toLowerCase().includes('người tạo') || n.toLowerCase() === 'admin' || n.toLowerCase() === 'administrator';
 
     for (const row of filteredRawYcxRows) {
-      const staffName = idxStaff !== -1 ? String(row[idxStaff] || '').trim() : 'HỆ THỐNG';
+      const staffName = idxStaff !== -1 ? extractName(String(row[idxStaff] || '')) : 'HỆ THỐNG';
       if (idxStaff !== -1 && isSystemName(staffName)) continue;
 
       const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
@@ -3837,7 +3844,7 @@ export default function NewRealtimePage() {
       }
       if (largeCat === 'B.HIỂM') return;
 
-      const staffName = idxStaff !== -1 ? String(row[idxStaff] || '').trim() || 'Unknown' : 'HỆ THỐNG';
+      const staffName = idxStaff !== -1 ? extractName(String(row[idxStaff] || '')) || 'Unknown' : 'HỆ THỐNG';
       if (selectedStaffs.length > 0 && !selectedStaffs.some(s => staffName.toLowerCase().includes(s.toLowerCase()))) return;
       if (drillFilterStaff.length > 0 && !drillFilterStaff.includes(staffName)) return;
 
@@ -3979,7 +3986,7 @@ export default function NewRealtimePage() {
         const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
 
         const brand = resolveBrandForProduct(productName, nhomSmall);
-        const staffName = idxStaff !== -1 ? String(row[idxStaff] || '').trim() || 'Không rõ' : 'HỆ THỐNG';
+        const staffName = idxStaff !== -1 ? extractName(String(row[idxStaff] || '')) || 'Không rõ' : 'HỆ THỐNG';
 
         if (storeId) stores.add(storeId);
         if (nhomLarge) nganhs.add(nhomLarge);
