@@ -2180,9 +2180,10 @@ export default function NewRealtimePage() {
             setYcxData(rawString);
           }
           // showNotification('Đã xử lý dữ liệu Excel thành công!', 'success'); // Hidden as requested
+          // Wait longer for React re-render + useEffect ref update before saving to Firebase
           setTimeout(() => {
-            saveRealtimeData(true);
-          }, 100);
+            saveRealtimeData(false);
+          }, 1500);
         } catch (error) {
           console.error(error);
           showNotification('Lỗi khi xử lý file Excel!', 'error');
@@ -3953,6 +3954,7 @@ export default function NewRealtimePage() {
       })();
       const idxMarket = findIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm', 'kho', 'cửa hàng'], -1);
       const idxTrangThaiSP = findIdx(['trạng thái hồ sơ', 'trạng thái xuất', 'trạng thái'], -1);
+      const idxHinhThucXuat = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
 
       for (let i = 1; i < rawYcxRows.length; i++) {
         const row = rawYcxRows[i];
@@ -3961,9 +3963,17 @@ export default function NewRealtimePage() {
 
         const productName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() || 'Không rõ' : 'Sản phẩm khác';
         const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
-        const nhomLarge = classifyNhomHangLarge(category, productName);
+        // STRICT insurance check using column
+        let nhomLarge = classifyNhomHangLarge(category, productName);
+        const htxVal = idxHinhThucXuat !== -1 ? removeAccents(String(row[idxHinhThucXuat] || '')).toLowerCase() : '';
+        const isInsuranceByColumn = htxVal.includes('bao hiem');
+        if (isInsuranceByColumn) {
+          nhomLarge = 'BẢO HIỂM';
+        } else if (nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM') {
+          nhomLarge = 'Khác';
+        }
 
-        if (nhomLarge === 'Khác' || nhomLarge === 'THỂ CÀO') continue;
+        if (nhomLarge === 'THỂ CÀO') continue;
 
         const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
         const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
