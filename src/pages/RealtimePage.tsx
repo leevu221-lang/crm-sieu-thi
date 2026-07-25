@@ -2531,6 +2531,20 @@ export default function NewRealtimePage() {
     const isSystemName = (n: string) =>
       !n || n.toLowerCase().includes('người tạo') || n.toLowerCase() === 'admin' || n.toLowerCase() === 'administrator';
 
+    // STRICT insurance check: wrap classifyNhomHangLarge with column-based verification
+    // Insurance is ONLY determined by "Hình thức xuất" column containing "bảo hiểm"
+    const classifyWithColumnCheck = (category: string, productName: string, row: any[]): string => {
+      let nhomLarge = classifyNhomHangLarge(category, productName);
+      const htxVal = idxHinhThucXuat !== -1 ? removeAccents(String(row[idxHinhThucXuat] || '')).toLowerCase() : '';
+      const isInsuranceByColumn = htxVal.includes('bao hiem');
+      if (isInsuranceByColumn) {
+        nhomLarge = 'BẢO HIỂM';
+      } else if (nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM') {
+        nhomLarge = 'Khác';
+      }
+      return nhomLarge;
+    };
+
     const currentRows: any[][] = [];
     const prevRows: any[][] = [];
 
@@ -2542,7 +2556,7 @@ export default function NewRealtimePage() {
 
       const productName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() : 'Sản phẩm khác';
       const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
-      const nhomLarge = classifyNhomHangLarge(category, productName);
+      const nhomLarge = classifyWithColumnCheck(category, productName, row);
       const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
       const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
 
@@ -2608,13 +2622,13 @@ export default function NewRealtimePage() {
         case 'nganh': {
           const productName = String(row[idxs.idxProduct] || '').trim();
           const category = String(row[idxs.idxCategory] || '').trim();
-          const nhomLarge = classifyNhomHangLarge(category, productName);
+          const nhomLarge = classifyWithColumnCheck(category, productName, row);
           return { key: nhomLarge, name: getNganhName(nhomLarge) };
         }
         case 'nhom': {
           const productName = String(row[idxs.idxProduct] || '').trim();
           const category = String(row[idxs.idxCategory] || '').trim();
-          const nhomLarge = classifyNhomHangLarge(category, productName);
+          const nhomLarge = classifyWithColumnCheck(category, productName, row);
           const nhomSmallValue = idxs.idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
           const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
           return { key: nhomSmall, name: NHOM_SMALL_DISPLAY[nhomSmall] || nhomSmall };
@@ -2622,7 +2636,7 @@ export default function NewRealtimePage() {
         case 'hang': {
           const productName = String(row[idxs.idxProduct] || '').trim() || 'Không rõ';
           const category = String(row[idxs.idxCategory] || '').trim();
-          const nhomLarge = classifyNhomHangLarge(category, productName);
+          const nhomLarge = classifyWithColumnCheck(category, productName, row);
           const nhomSmallValue = idxs.idxSmallCat !== -1 ? String(row[idxs.idxSmallCat] || '').trim().toUpperCase() : '';
           const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
           const brand = resolveBrandForProduct(productName, nhomSmall);
@@ -2653,7 +2667,7 @@ export default function NewRealtimePage() {
 
         const productName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() || 'Không rõ' : 'Sản phẩm khác';
         const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
-        const nhomLarge = classifyNhomHangLarge(category, productName);
+        const nhomLarge = classifyWithColumnCheck(category, productName, row);
 
         if (nhomLarge === 'THỂ CÀO') return false;
 
@@ -2719,7 +2733,7 @@ export default function NewRealtimePage() {
             const isTc = htx.includes('trả góp');
             const category = String(row[idxs.idxCategory] || '').trim();
             const productName = String(row[idxs.idxProduct] || '').trim();
-            const nhomLarge = classifyNhomHangLarge(category, productName);
+            const nhomLarge = classifyWithColumnCheck(category, productName, row);
             const nhomSmallValue = idxs.idxSmallCat !== -1 ? String(row[idxs.idxSmallCat] || '').trim().toUpperCase() : '';
             const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
 
