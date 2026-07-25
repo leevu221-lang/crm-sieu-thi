@@ -27,7 +27,7 @@ if (typeof window !== 'undefined' && typeof Node === 'function' && Node.prototyp
 
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
-import App from './App.tsx';
+import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import ErrorBoundary from './components/ErrorBoundary';
