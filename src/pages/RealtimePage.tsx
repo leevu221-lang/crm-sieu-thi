@@ -2367,58 +2367,48 @@ export default function NewRealtimePage() {
     // Find column indices by exact name or fallback to -1
     let idxStatus = headers.findIndex(h => {
       const lower = removeAccents(h).toLowerCase().trim();
-      return lower.includes('trang thai xuat') || lower.includes('trang thai ycx') || lower.includes('tinh trang xuat') || lower === 'trang thai' || lower.includes('trang thai don');
+      return lower.includes('trang thai xuat') || lower.includes('trang thai ycx') || lower.includes('tinh trang xuat') || lower === 'trang thai xuat' || lower.includes('trang thai don');
     });
+
+    let idxThuTien = headers.findIndex(h => {
+      const lower = removeAccents(h).toLowerCase().trim();
+      return lower.includes('trang thai thu tien') || lower.includes('thu tien') || lower.includes('thoi gian thu tien');
+    });
+
     let idxTra = headers.findIndex(h => {
-      const lower = h.toLowerCase();
-      return lower === 'tình trạng nhập trả của sản phẩm đổi với sản phẩm chính' ||
-        lower === 'tình trạng nhập trả' ||
-        lower === 'trạng thái trả' ||
-        lower === 'trả hàng' ||
-        lower.includes('nhập trả');
+      const lower = removeAccents(h).toLowerCase().trim();
+      return lower.includes('tinh trang nhap tra') || lower.includes('nhap tra') || lower.includes('trang thai tra') || lower === 'tra hang';
     });
 
     return rawYcxRows.slice(1).filter(row => {
-      const statusValue = idxStatus !== -1 ? String(row[idxStatus] || '').trim().toLowerCase() : '';
-      const traValue = idxTra !== -1 ? String(row[idxTra] || '').trim().toLowerCase() : '';
-      
-      // Loại bỏ các đơn bị HỦY hoặc NHẬP TRẢ, giữ lại tất cả các đơn bán/xuất/tạo
-      if (idxStatus !== -1 && (statusValue.includes('hủy') || statusValue.includes('huy') || statusValue === 'đã trả')) return false;
-      if (idxTra !== -1 && traValue.includes('trả') && !traValue.includes('chưa trả')) return false;
+      const statusValue = idxStatus !== -1 ? removeAccents(String(row[idxStatus] || '')).trim().toLowerCase() : '';
+      const thuTienValue = idxThuTien !== -1 ? removeAccents(String(row[idxThuTien] || '')).trim().toLowerCase() : '';
+      const traValue = idxTra !== -1 ? removeAccents(String(row[idxTra] || '')).trim().toLowerCase() : '';
+
+      // 1. Trạng thái xuất: CHỈ LẤY "ĐÃ XUẤT" (loại bỏ Hủy / Chưa xuất)
+      if (idxStatus !== -1) {
+        if (statusValue.includes('huy') || statusValue.includes('chua xuat')) return false;
+        if (statusValue !== '' && !statusValue.includes('da xuat') && !statusValue.includes('xuat')) return false;
+      }
+
+      // 2. Trạng thái thu tiền: CHỈ LẤY "ĐÃ THU" (loại bỏ Chưa thu)
+      if (idxThuTien !== -1) {
+        if (thuTienValue.includes('chua thu')) return false;
+        if (thuTienValue !== '' && !thuTienValue.includes('da thu') && !thuTienValue.includes('thu')) return false;
+      }
+
+      // 3. Tình trạng nhập trả: CHỈ LẤY "CHƯA TRẢ" (loại bỏ Đã trả)
+      if (idxTra !== -1) {
+        if (traValue.includes('da tra') || (traValue.includes('tra') && !traValue.includes('chua tra'))) return false;
+      }
+
       return true;
     });
-
   }, [rawYcxRows, isMoiTab]);
 
   const rawYcxRowsForTable = useMemo(() => {
-    if (rawYcxRows.length <= 1) return [];
-
-    // DATA YCX MỚI: hiển thị TẤT CẢ dữ liệu, không lọc
-    if (isMoiTab) return rawYcxRows.slice(1);
-
-    const headers = rawYcxRows[0].map(h => h.trim());
-    
-    let idxStatus = headers.findIndex(h => {
-      const lower = removeAccents(h).toLowerCase().trim();
-      return lower.includes('trang thai xuat') || lower.includes('trang thai ycx') || lower.includes('tinh trang xuat') || lower === 'trang thai' || lower.includes('trang thai don');
-    });
-    let idxTra = headers.findIndex(h => {
-      const lower = h.toLowerCase();
-      return lower === 'tình trạng nhập trả của sản phẩm đổi với sản phẩm chính' ||
-        lower === 'tình trạng nhập trả' ||
-        lower === 'trạng thái trả' ||
-        lower === 'trả hàng' ||
-        lower.includes('nhập trả');
-    });
-
-    return rawYcxRows.slice(1).filter(row => {
-      const statusValue = idxStatus !== -1 ? String(row[idxStatus] || '').trim().toLowerCase() : '';
-      const traValue = idxTra !== -1 ? String(row[idxTra] || '').trim().toLowerCase() : '';
-      if (idxStatus !== -1 && (statusValue.includes('hủy') || statusValue.includes('huy') || statusValue === 'đã trả')) return false;
-      if (idxTra !== -1 && traValue.includes('trả') && !traValue.includes('chưa trả')) return false;
-      return true;
-    });
-  }, [rawYcxRows, isMoiTab]);
+    return filteredRawYcxRows;
+  }, [filteredRawYcxRows]);
 
   // Defer heavy row list so useMemo stats don't block render
   const deferredFilteredRows = useDeferredValue(filteredRawYcxRows);
