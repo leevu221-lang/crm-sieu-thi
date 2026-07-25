@@ -200,12 +200,9 @@ export const useRealtimeData = (maKho: string) => {
     if (categoryTargetInput) safeSetItem('RTST_CATEGORY_TARGET_INPUT', categoryTargetInput);
     else localStorage.removeItem('RTST_CATEGORY_TARGET_INPUT');
     
-    // YCX is still global
+    // YCX localStorage: only SAVE, never DELETE — preserve as fallback for F5 refresh
     if (ycxData) safeSetItem(STORAGE_KEYS.YCX_DATA, ycxData);
-    else localStorage.removeItem(STORAGE_KEYS.YCX_DATA);
-
     if (ycxDataMoi) safeSetItem(STORAGE_KEYS.YCX_DATA + '_MOI', ycxDataMoi);
-    else localStorage.removeItem(STORAGE_KEYS.YCX_DATA + '_MOI');
     
     return () => clearTimeout(tid);
   }, [marketInput, categoryInput, ycxData, ycxDataMoi, handleProcess]);
@@ -247,10 +244,12 @@ export const useRealtimeData = (maKho: string) => {
     try {
       const cleanMaKho = normalizedMaKho;
 
-      // console.log('[RealtimeData] Saving data for:', cleanMaKho, {
-      //   ycxLength: ycxData?.length || 0,
-      //   marketLength: marketInput?.length || 0
-      // });
+      console.log('[RealtimeData] Saving data for:', cleanMaKho, {
+        ycxLength: ycxDataRef.current?.length || 0,
+        ycxMoiLength: ycxDataMoiRef.current?.length || 0,
+        marketLength: marketInputRef.current?.length || 0,
+        storeId: normalizeStoreId(cleanStore)
+      });
 
       const { error: upsertError } = await supabase
         .from('store')
@@ -278,7 +277,7 @@ export const useRealtimeData = (maKho: string) => {
         setIsYcxDirty(false);
       }
       
-      // console.log('[RealtimeData] Data saved successfully to DB for:', cleanMaKho);
+      console.log('[RealtimeData] Data saved successfully to DB for:', cleanMaKho);
       if (!silent) showNotification('Đã lưu dữ liệu Realtime thành công!', 'success');
     } catch (error: any) {
       console.error('Lỗi lưu dữ liệu Realtime:', error);
@@ -332,15 +331,6 @@ export const useRealtimeData = (maKho: string) => {
     
     const targetStore = storeName || activeStore;
 
-    // Clear state before loading to ensure clean isolation
-    setMarketInput('');
-    setCategoryInput('');
-    setYcxData('');
-    setYcxDataMoi('');
-    setCategoryRevenueInput('');
-    setCategoryTargetInput('');
-    setLastUpdated(null);
-
     // Cancel pending auto-saves and block current triggers
     setIsLoadingRealtime(true);
     setHasLoadedFromDB(false);
@@ -349,6 +339,15 @@ export const useRealtimeData = (maKho: string) => {
       autoSaveTimeoutRef.current = null;
     }
     skipAutoSaveRef.current = true;
+
+    // Clear BI data (non-critical, re-imported easily)
+    setMarketInput('');
+    setCategoryInput('');
+    setCategoryRevenueInput('');
+    setCategoryTargetInput('');
+    setLastUpdated(null);
+    // NOTE: Do NOT clear ycxData/ycxDataMoi here — preserve as fallback
+    // They will be overwritten below if DB has data
 
     if (!isValidStoreName(targetStore)) {
       setIsLoadingRealtime(false);
@@ -374,10 +373,12 @@ export const useRealtimeData = (maKho: string) => {
 
       console.log(`[RealtimeData] loadData record result:`, {
         exists: !!record,
-        id: record?.id,
+        id: (record as any)?.id,
         ten_sieu_thi: record?.ten_sieu_thi,
         rt_bi_length: record?.rt_bi_tong_quan?.length || 0,
-        rt_nh_cum_length: record?.rt_nh_cum?.length || 0
+        rt_nh_cum_length: record?.rt_nh_cum?.length || 0,
+        ycx_data_length: record?.ycx_data?.length || 0,
+        ycx_data_moi_length: record?.ycx_data_moi?.length || 0
       });
 
       if (record) {
@@ -386,8 +387,13 @@ export const useRealtimeData = (maKho: string) => {
         setCategoryInput(record.rt_nh_cum || '');
         setCategoryRevenueInput(record.lk_bi_tong_quan || '');
         setCategoryTargetInput(record.lk_nh_sieu_thi || '');
-        setYcxData(record.ycx_data || '');
-        setYcxDataMoi(record.ycx_data_moi || '');
+        // Only overwrite ycxData if DB actually has data; otherwise keep existing localStorage data
+        if (record.ycx_data) {
+          setYcxData(record.ycx_data);
+        }
+        if (record.ycx_data_moi) {
+          setYcxDataMoi(record.ycx_data_moi);
+        }
         
         if (record.updated_at) {
           const parsedDate = new Date(record.updated_at);
@@ -401,7 +407,7 @@ export const useRealtimeData = (maKho: string) => {
           setLastUpdated(null);
         }
       } else {
-        console.log(`[RealtimeData] No record found in DB for ID: "${targetDocId}"`);
+        console.log(`[RealtimeData] No record found in DB for ID: "${targetDocId}" — keeping existing local data`);
       }
 
     } catch (err) {
