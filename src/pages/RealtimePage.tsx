@@ -2365,19 +2365,33 @@ export default function NewRealtimePage() {
     const headers = rawYcxRows[0].map(h => h.trim());
 
     // Find column indices by exact name or fallback to -1
-    let idxStatus = headers.findIndex(h => {
-      const lower = removeAccents(h).toLowerCase().trim();
-      return lower.includes('trang thai xuat') || lower.includes('trang thai ycx') || lower.includes('tinh trang xuat') || lower === 'trang thai xuat' || lower.includes('trang thai don');
-    });
+    let idxStatus = (() => {
+      const exact = headers.findIndex(h => {
+        const lower = removeAccents(h).toLowerCase().trim();
+        return lower === 'trang thai xuat' || lower === 'trang thai ycx' || lower === 'tinh trang xuat';
+      });
+      if (exact !== -1) return exact;
+      return headers.findIndex(h => {
+        const lower = removeAccents(h).toLowerCase().trim();
+        return (lower.includes('trang thai xuat') || lower.includes('trang thai ycx') || lower.includes('tinh trang xuat')) && !lower.includes('thoi gian') && !lower.includes('ngay');
+      });
+    })();
 
-    let idxThuTien = headers.findIndex(h => {
-      const lower = removeAccents(h).toLowerCase().trim();
-      return lower.includes('trang thai thu tien') || lower.includes('thu tien') || lower.includes('thoi gian thu tien');
-    });
+    let idxThuTien = (() => {
+      const exact = headers.findIndex(h => {
+        const lower = removeAccents(h).toLowerCase().trim();
+        return lower === 'trang thai thu tien';
+      });
+      if (exact !== -1) return exact;
+      return headers.findIndex(h => {
+        const lower = removeAccents(h).toLowerCase().trim();
+        return lower.includes('trang thai thu tien') && !lower.includes('thoi gian');
+      });
+    })();
 
     let idxTra = headers.findIndex(h => {
       const lower = removeAccents(h).toLowerCase().trim();
-      return lower.includes('tinh trang nhap tra') || lower.includes('nhap tra') || lower.includes('trang thai tra') || lower === 'tra hang';
+      return lower.includes('tinh trang nhap tra') || lower.includes('nhap tra') || lower === 'tra hang';
     });
 
     return rawYcxRows.slice(1).filter(row => {

@@ -1,77 +1,49 @@
-const { initializeApp } = require('firebase/app');
-const { getFirestore, doc, getDoc } = require('firebase/firestore');
-const fs = require('fs');
-require('dotenv').config();
-
-const firebaseConfig = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY,
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.VITE_FIREBASE_APP_ID
+const removeAccents = (str) => {
+  return String(str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const headerStr = "Thương hiệu\tLoại YCX\tMã đơn hàng\tHình thức xuất\tNgày tạo\tTên khách hàng\tSố điện thoại\tPhải thu\tĐã thu\tCòn nợ\tPhụ phí\tTrạng thái duyệt\tTrạng thái thu tiền\tTrạng thái xuất\tTrạng thái giao hàng\tTrạng thái hủy\tHình thức thanh toán\tHình thức giao hàng\tMã nhân viên giao hàng\tTên nhân viên giao hàng\tKhoảng cách giao hàng\tTạo từ\tChứng từ liên quan\tNgười tạo\tThời gian hẹn giao\tMã phiếu xuất\tNgày xuất hàng\tMã siêu thị xuất hàng\tSiêu thị xuất\tSố hóa đơn\tKý hiệu hóa đơn\tMã sản phẩm\tTên sản phẩm\tMã SP web\tIMEI_1\tSố lượng\tGiá bán\tGiá bán_1\tCTKM_1\tNgành hàng\tNhóm hàng\tNhà sản xuất\tTrạng thái hồ sơ\tThời gian thu tiền\tTình trạng nhập trả của sản phẩm đổi với sản phẩm chính\tMã kho tạo\tĐịa chỉ khách hàng\tEmail KH\tGiá trị giảm\tMã khách hàng\tChứng từ liên quan_1\tSTT_1";
 
-// Extract cleanNum, formatMarketName, normalize, parseYcxData, parseYcxRankData
-const utilsCode = fs.readFileSync('src/pages/RTST/utils.ts', 'utf8');
+const row1Str = "ĐMX\tYêu cầu xuất DV thu hộ bảo hiểm\t01841SO26070858581  \tXuất dịch vụ thu hộ bảo hiểm\t25/07/2026 10:39\tTRÂN\txxx\t560000\t560000\t0\t0\tĐã duyệt\tĐã thu\tĐã xuất\tĐã giao\tChưa hủy\tTiền mặt siêu thị\tGiao tại siêu thị\t38847\tNguyễn Hùng Mạnh\t0\t17\t\t38847 - Nguyễn Hùng Mạnh\t25/07/2026 10:40\t01841OV26070629812  \t25/07/2026 10:40\t1841\tĐML_CMA_CMA - 155A Nguyễn Tất Thành\t\t\t1644479000070       \tPVI_Bảo hành 1 đổi 1 lỗi NSX\t336216\t\t1\t560000\t560000\t\t164 - VAS\t4479 - Dịch Vụ Bảo Hiểm\tBảo hiểm PVI\t1 - Mới\t25/07/2026 10:39\tChưa trả\t1841\t\t\t\t1,141,621,199\t01841SV2607090669   \t4";
 
-const parseYcxDataMatch = utilsCode.match(/export const parseYcxData = ([\s\S]+?)(?=\nexport const parseYcxRankData)/);
-if (!parseYcxDataMatch) {
-  console.error("Could not find parseYcxData in utils.ts");
-  process.exit(1);
-}
+const headers = headerStr.split('\t').map(h => h.trim());
+const row1 = row1Str.split('\t');
 
-// Convert typescript annotations in parseYcxData Match to javascript
-let parseYcxDataCode = "const parseYcxData = " + parseYcxDataMatch[1].trim()
-  .replace(/:\s*string/g, '')
-  .replace(/:\s*number/g, '')
-  .replace(/:\s*boolean/g, '')
-  .replace(/:\s*any/g, '')
-  .replace(/:\s*Record<[^>]+>/g, '')
-  .replace(/as\s+any/g, '');
+console.log('Headers count:', headers.length);
 
-const CONVERSION_RATES = {
-  normal: 1,
-  installment: 1
-};
+let idxStatus = (() => {
+  const exact = headers.findIndex(h => {
+    const lower = removeAccents(h).toLowerCase().trim();
+    return lower === 'trang thai xuat' || lower === 'trang thai ycx';
+  });
+  if (exact !== -1) return exact;
+  return headers.findIndex(h => {
+    const lower = removeAccents(h).toLowerCase().trim();
+    return (lower.includes('trang thai xuat') || lower.includes('trang thai ycx') || lower.includes('tinh trang xuat')) && !lower.includes('thoi gian') && !lower.includes('ngay');
+  });
+})();
 
-// Add dependencies mock
-const fullJSCode = `
-const CONVERSION_RATES = ${JSON.stringify(CONVERSION_RATES)};
-const normalize = (s) => s ? s.trim().normalize('NFC').replace(/[\\s\\-_]+/g, ' ').toLowerCase() : '';
-const cleanNum = (s) => s ? parseFloat(s.replace(/,/g, '')) : 0;
-const getRowConversionRate = (colAO, rowStr, isInstallment, rates) => ({ rate: 1, matchedCat: 'Other' });
-${parseYcxDataCode}
+let idxThuTien = (() => {
+  const exact = headers.findIndex(h => {
+    const lower = removeAccents(h).toLowerCase().trim();
+    return lower === 'trang thai thu tien' || lower === 'thu tien';
+  });
+  if (exact !== -1) return exact;
+  return headers.findIndex(h => {
+    const lower = removeAccents(h).toLowerCase().trim();
+    return lower.includes('trang thai thu tien') && !lower.includes('thoi gian');
+  });
+})();
 
-module.exports = { parseYcxData };
-`;
-
-fs.writeFileSync('scratch_temp_ycx.cjs', fullJSCode);
-const { parseYcxData } = require('./scratch_temp_ycx.cjs');
-
-async function test() {
-  const docRef = doc(db, 'store', 'ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH');
-  const snap = await getDoc(docRef);
-  if (!snap.exists()) {
-    console.log("No store doc");
-    return;
-  }
-  const data = snap.data();
-  console.log("Testing parseYcxData:");
-  const rates = {
-    'ICT': { normal: 1, installment: 1 }
-  };
-  const staffData = parseYcxData(data.ycx_data, rates);
-  console.log("Parsed staff count:", staffData.length);
-  console.log("Success! Parsed without errors.");
-}
-
-test().then(() => {
-  fs.unlinkSync('scratch_temp_ycx.cjs');
-}).catch(err => {
-  console.error(err);
-  fs.unlinkSync('scratch_temp_ycx.cjs');
+let idxTra = headers.findIndex(h => {
+  const lower = removeAccents(h).toLowerCase().trim();
+  return lower.includes('tinh trang nhap tra') || lower.includes('nhap tra');
 });
+
+console.log('idxStatus:', idxStatus, 'Header:', headers[idxStatus], 'Value:', row1[idxStatus]);
+console.log('idxThuTien:', idxThuTien, 'Header:', headers[idxThuTien], 'Value:', row1[idxThuTien]);
+console.log('idxTra:', idxTra, 'Header:', headers[idxTra], 'Value:', row1[idxTra]);
