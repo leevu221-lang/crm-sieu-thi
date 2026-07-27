@@ -28,6 +28,52 @@ import {
   normalizeStoreId
 } from '../utils';
 
+// Compress string to base64 using native browser GZIP CompressionStream (99% size reduction for TSV)
+export async function compressString(str: string): Promise<string> {
+  if (!str) return str;
+  if (typeof str === 'string' && str.startsWith('GZ:')) return str; // NEVER re-compress string that is already GZ:
+  try {
+    const stream = new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'));
+    const response = new Response(stream);
+    const buffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return 'GZ:' + btoa(binary);
+  } catch (err) {
+    console.error('[Compression] Gzip error:', err);
+    return str;
+  }
+}
+
+// Decompress base64 gzip string back to original string (recursively unwraps all GZ layers)
+export async function decompressString(str: string): Promise<string> {
+  if (!str || typeof str !== 'string') return str;
+  let result = str;
+  let iterations = 0;
+  while (result && typeof result === 'string' && result.startsWith('GZ:') && iterations < 5) {
+    iterations++;
+    try {
+      const binary = atob(result.slice(3));
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+      const response = new Response(stream);
+      result = await response.text();
+    } catch (err) {
+      console.error('[Decompression] Gzip error:', err);
+      break;
+    }
+  }
+  return result;
+}
+
+let globalLastSaveTimestampMs = 0;
+
 export const useRealtimeData = (maKho: string) => {
   const { showNotification } = useNotification();
   const { isStoreReady, currentStoreId } = useStore();
@@ -35,12 +81,14 @@ export const useRealtimeData = (maKho: string) => {
   // Normalize maKho: trim and remove leading zeros for consistency
   const normalizedMaKho = maKho ? maKho.trim().replace(/^0+/, '') : '';
 
-  const [marketInput, setMarketInput] = useState(() => localStorage.getItem(STORAGE_KEYS.MARKET_INPUT) || '');
-  const [categoryInput, setCategoryInput] = useState(() => localStorage.getItem(STORAGE_KEYS.CATEGORY_INPUT) || '');
-  const [ycxData, setYcxData] = useState(() => localStorage.getItem(STORAGE_KEYS.YCX_DATA) || '');
-  const [ycxDataMoi, setYcxDataMoi] = useState(() => localStorage.getItem(STORAGE_KEYS.YCX_DATA + '_MOI') || '');
-  const [categoryRevenueInput, setCategoryRevenueInput] = useState(() => localStorage.getItem(STORAGE_KEYS.CATEGORY_REVENUE_INPUT) || '');
-  const [categoryTargetInput, setCategoryTargetInput] = useState(() => localStorage.getItem('RTST_CATEGORY_TARGET_INPUT') || '');
+  const isDirtyRef = useRef(false);
+
+  const [marketInput, setMarketInput] = useState('');
+  const [categoryInput, setCategoryInput] = useState('');
+  const [ycxData, setYcxData] = useState('');
+  const [ycxDataMoi, setYcxDataMoi] = useState('');
+  const [categoryRevenueInput, setCategoryRevenueInput] = useState('');
+  const [categoryTargetInput, setCategoryTargetInput] = useState('');
   const [activeStore, setActiveStore] = useState<string>(maKho);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [hasLoadedFromDB, setHasLoadedFromDB] = useState(false);
@@ -136,10 +184,13 @@ export const useRealtimeData = (maKho: string) => {
       staff: [],
       ycxRankData: []
     });
-    localStorage.removeItem(STORAGE_KEYS.MARKET_INPUT);
-    localStorage.removeItem(STORAGE_KEYS.CATEGORY_INPUT);
-    localStorage.removeItem(STORAGE_KEYS.YCX_DATA);
-    localStorage.removeItem(STORAGE_KEYS.YCX_DATA + '_MOI');
+    // Also update refs so save uses empty values
+    marketInputRef.current = '';
+    categoryInputRef.current = '';
+    categoryRevenueInputRef.current = '';
+    categoryTargetInputRef.current = '';
+    ycxDataRef.current = '';
+    ycxDataMoiRef.current = '';
   }, []);
 
   const handleProcess = useCallback(() => {
@@ -149,9 +200,13 @@ export const useRealtimeData = (maKho: string) => {
         categoryInputLength: categoryInput?.length || 0,
         ycxDataLength: ycxData?.length || 0
       });
-      const markets = parseMarketData(marketInput, 0, 'RTST');
-      const luykeMarkets = categoryRevenueInput ? parseMarketData(categoryRevenueInput, 0, 'LUYKE') : [];
-      const categories = parseCategoryData(categoryInput, 0, 30, markets);
+      const marketTextToUse = (marketInput && marketInput.trim()) || (categoryRevenueInput && categoryRevenueInput.trim()) || '';
+      const luykeMarketTextToUse = (categoryRevenueInput && categoryRevenueInput.trim()) || (marketInput && marketInput.trim()) || '';
+      const categoryTextToUse = (categoryInput && categoryInput.trim()) || (categoryTargetInput && categoryTargetInput.trim()) || '';
+
+      const markets = parseMarketData(marketTextToUse, 0, 'RTST');
+      const luykeMarkets = luykeMarketTextToUse ? parseMarketData(luykeMarketTextToUse, 0, 'LUYKE') : [];
+      const categories = parseCategoryData(categoryTextToUse, 0, 30, markets.length > 0 ? markets : luykeMarkets);
       const staff = parseYcxData(ycxData, conversionRates);
       const ycxRankData = parseYcxRankData(ycxData, conversionRates);
 
@@ -171,10 +226,10 @@ export const useRealtimeData = (maKho: string) => {
       });
       setProcessError(null);
     } catch (error: any) {
-      console.error('Error processing realtime data:', error);
-      setProcessError(error.stack || error.message || String(error));
+      console.error('[RealtimeData] handleProcess error:', error);
+      setProcessError(error.message || 'Lỗi xử lý dữ liệu');
     }
-  }, [marketInput, categoryInput, ycxData, categoryRevenueInput, categoryTargetInput, conversionRates]);
+  }, [marketInput, categoryInput, categoryRevenueInput, categoryTargetInput, ycxData, conversionRates]);
 
   // Fetch conversion rates on mount
   useEffect(() => {
@@ -191,46 +246,55 @@ export const useRealtimeData = (maKho: string) => {
       setIsProcessingRealtime(false);
     }, 200);
 
-    if (marketInput) safeSetItem(STORAGE_KEYS.MARKET_INPUT, marketInput);
-    else localStorage.removeItem(STORAGE_KEYS.MARKET_INPUT);
-    
-    if (categoryInput) safeSetItem(STORAGE_KEYS.CATEGORY_INPUT, categoryInput);
-    else localStorage.removeItem(STORAGE_KEYS.CATEGORY_INPUT);
-    
-    if (categoryTargetInput) safeSetItem('RTST_CATEGORY_TARGET_INPUT', categoryTargetInput);
-    else localStorage.removeItem('RTST_CATEGORY_TARGET_INPUT');
-    
-    // YCX localStorage: only SAVE, never DELETE — preserve as fallback for F5 refresh
-    if (ycxData) safeSetItem(STORAGE_KEYS.YCX_DATA, ycxData);
-    if (ycxDataMoi) safeSetItem(STORAGE_KEYS.YCX_DATA + '_MOI', ycxDataMoi);
-    
     return () => clearTimeout(tid);
-  }, [marketInput, categoryInput, ycxData, ycxDataMoi, handleProcess]);
+  }, [marketInput, categoryInput, categoryRevenueInput, categoryTargetInput, ycxData, ycxDataMoi, handleProcess]);
 
   const updateYcxData = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(ycxDataRef.current) : val;
     // Minify data before setting to prevent Firebase 1MB size limit errors
     const minified = minifyYcxData(newVal);
     ycxDataRef.current = minified;
+    isDirtyRef.current = true;
     setYcxData(minified);
     setIsYcxDirty(true);
   }, []);
 
   const updateYcxDataMoi = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(ycxDataMoiRef.current) : val;
-    // DATA YCX MỚI: NO minification — store ALL data without filtering
-    ycxDataMoiRef.current = newVal;
-    setYcxDataMoi(newVal);
+    // Minify data before setting to prevent Firebase 1MB size limit errors
+    const minified = minifyYcxData(newVal);
+    ycxDataMoiRef.current = minified;
+    isDirtyRef.current = true;
+    setYcxDataMoi(minified);
     setIsYcxDirty(true);
   }, []);
 
   const clearField = useCallback((setter: (val: string) => void) => {
+    // Block ALL restore paths (subscription + loadData) for 10 seconds
+    globalLastSaveTimestampMs = Date.now();
     skipSubscriptionRef.current = true;
+    // Call setter first (sync setter sets isDirtyRef=true internally)
     setter('');
+    // Override isDirtyRef AFTER setter to prevent auto-save from re-saving stale data
+    isDirtyRef.current = false;
+    // Immediately persist empty field state to Firebase DB
+    setTimeout(() => {
+      isDirtyRef.current = false; // Ensure still false before save
+      if (saveRealtimeDataRef.current) {
+        saveRealtimeDataRef.current(true);
+      }
+      // Release subscription block after save completes
+      setTimeout(() => {
+        skipSubscriptionRef.current = false;
+      }, 5000);
+    }, 100);
   }, []);
 
-  const saveRealtimeData = useCallback(async (silent = false) => {
-    const cleanStore = (activeStore || '').trim();
+  const saveRealtimeData = useCallback(async (silent = false, fieldName?: string) => {
+    globalLastSaveTimestampMs = Date.now();
+    isDirtyRef.current = false;
+
+    const cleanStore = (activeStoreRef.current || '').trim();
     if (!normalizedMaKho || !cleanStore || !isValidStoreName(cleanStore)) {
       if (!silent && !cleanStore) {
         showNotification('Vui lòng chọn hoặc tải dữ liệu siêu thị trước khi lưu!', 'error');
@@ -244,46 +308,58 @@ export const useRealtimeData = (maKho: string) => {
     try {
       const cleanMaKho = normalizedMaKho;
 
-      console.log('[RealtimeData] Saving data for:', cleanMaKho, {
-        ycxLength: ycxDataRef.current?.length || 0,
-        ycxMoiLength: ycxDataMoiRef.current?.length || 0,
-        marketLength: marketInputRef.current?.length || 0,
-        storeId: normalizeStoreId(cleanStore)
-      });
+      const minifiedYcx = ycxDataRef.current ? minifyYcxData(ycxDataRef.current) : '';
+      const minifiedYcxMoi = ycxDataMoiRef.current ? minifyYcxData(ycxDataMoiRef.current) : '';
+
+      const sanitizeField = (val: string) => {
+        const s = String(val || '').trim();
+        return s.startsWith('GZ:') ? '' : s;
+      };
+
+      const marketVal = sanitizeField(marketInputRef.current);
+      const categoryVal = sanitizeField(categoryInputRef.current);
+      const categoryRevenueVal = sanitizeField(categoryRevenueInputRef.current);
+      const categoryTargetVal = sanitizeField(categoryTargetInputRef.current);
+
+      const payload: any = {
+        id: normalizeStoreId(cleanStore), // Normalized UPPERCASE ID to prevent duplicates
+        warehouse_code: cleanMaKho,
+        ten_sieu_thi: cleanStore,
+        updated_at: new Date().toISOString(),
+        rt_bi_tong_quan: marketVal || '',
+        rt_nh_cum: categoryVal || '',
+        lk_bi_tong_quan: categoryRevenueVal || '',
+        lk_nh_sieu_thi: categoryTargetVal || '',
+        ycx_data: minifiedYcx || '',
+        ycx_data_moi: minifiedYcxMoi || ''
+      };
 
       const { error: upsertError } = await supabase
         .from('store')
-        .upsert({
-          id: normalizeStoreId(cleanStore), // Normalized UPPERCASE ID to prevent duplicates
-          warehouse_code: cleanMaKho,
-          ten_sieu_thi: cleanStore,
-          rt_bi_tong_quan: marketInputRef.current,
-          rt_nh_cum: categoryInputRef.current,
-          lk_bi_tong_quan: categoryRevenueInputRef.current,
-          lk_nh_sieu_thi: categoryTargetInputRef.current,
-          ycx_data: ycxDataRef.current,
-          ycx_data_moi: ycxDataMoiRef.current,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
+        .upsert(payload, { onConflict: 'id' });
 
       if (upsertError) {
         console.error('[RealtimeData] Upsert error:', upsertError);
         throw upsertError;
       }
-
-      // 2. Global update removed as requested - REALTIME DT and REALTIME TĐ are now per-store.
       
       if (!silent) {
         setIsYcxDirty(false);
       }
       
       console.log('[RealtimeData] Data saved successfully to DB for:', cleanMaKho);
-      if (!silent) showNotification('Đã lưu dữ liệu Realtime thành công!', 'success');
+      if (!silent) {
+        const msg = fieldName ? `Dữ liệu ${fieldName} đã được lưu thành công lên Firebase!` : 'Đã lưu dữ liệu Realtime thành công lên Firebase!';
+        showNotification(msg, 'success');
+      }
     } catch (error: any) {
       console.error('Lỗi lưu dữ liệu Realtime:', error);
-      let message = `Lỗi lưu dữ liệu Realtime: ${error.message}`;
+      let message = fieldName ? `Lỗi lưu dữ liệu ${fieldName}: ${error.message}` : `Lỗi lưu dữ liệu Realtime: ${error.message}`;
       if (error.message?.includes('violates row-level security policy')) {
         message = 'Lỗi bảo mật (RLS): Bạn không có quyền lưu dữ liệu cho siêu thị này hoặc cấu hình Supabase chưa cho phép ghi dữ liệu.';
+      } else if (error.message?.includes('exceeds the maximum allowed size') || error.message?.includes('1,048,576 bytes')) {
+        console.warn('[RealtimeData] Dữ liệu quá lớn vượt 1MB Firestore — giữ dữ liệu thô trong bộ nhớ.');
+        return;
       }
       if (!silent) showNotification(message, 'error');
     } finally {
@@ -294,18 +370,16 @@ export const useRealtimeData = (maKho: string) => {
   // PERF: Keep ref up-to-date
   useEffect(() => { saveRealtimeDataRef.current = saveRealtimeData; }, [saveRealtimeData]);
 
-  // Debounced Auto-save
-  // PERF: Uses saveRealtimeDataRef instead of saveRealtimeData to avoid dependency cascade
+  // Debounced Auto-save — ONLY fire if user explicitly edited data in this instance!
   useEffect(() => {
     if (!normalizedMaKho || !activeStore) return;
-    
-    // Skip if we just loaded from DB
+    if (!isDirtyRef.current) return;
+
     if (skipAutoSaveRef.current) {
       skipAutoSaveRef.current = false;
       return;
     }
 
-    // MULTI-STORE GUARD: Block auto-save during store switch
     if (!isStoreReady) return;
 
     if (autoSaveTimeoutRef.current) {
@@ -313,7 +387,9 @@ export const useRealtimeData = (maKho: string) => {
     }
 
     autoSaveTimeoutRef.current = setTimeout(() => {
-      saveRealtimeDataRef.current?.(true);
+      if (isDirtyRef.current) {
+        saveRealtimeDataRef.current?.(true);
+      }
     }, 4000); // 4 seconds debounce
 
     return () => {
@@ -321,33 +397,35 @@ export const useRealtimeData = (maKho: string) => {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [marketInput, categoryInput, categoryRevenueInput, categoryTargetInput, ycxData, ycxDataMoi, normalizedMaKho, activeStore, isStoreReady]);
+  }, [marketInput, categoryInput, ycxData, ycxDataMoi, categoryRevenueInput, categoryTargetInput, activeStore, normalizedMaKho, isStoreReady]);
 
-  const loadData = useCallback(async (storeName?: string) => {
-    if (!normalizedMaKho) {
-      setIsLoadingRealtime(false);
-      return;
-    }
+  // Force-save dirty data before page refresh (F5) or close
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (isDirtyRef.current && saveRealtimeDataRef.current) {
+        // Use sendBeacon pattern: save synchronously before unload
+        saveRealtimeDataRef.current(true);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // Function to load data for a specific store name
+  const loadDataForStore = useCallback(async (targetStore: string) => {
+    if (!normalizedMaKho || !targetStore) return;
     
-    const targetStore = storeName || activeStore;
-
-    // Cancel pending auto-saves and block current triggers
     setIsLoadingRealtime(true);
     setHasLoadedFromDB(false);
+    isDirtyRef.current = false;
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
       autoSaveTimeoutRef.current = null;
     }
     skipAutoSaveRef.current = true;
 
-    // Clear BI data (non-critical, re-imported easily)
-    setMarketInput('');
-    setCategoryInput('');
-    setCategoryRevenueInput('');
-    setCategoryTargetInput('');
+    // Do not pre-clear input fields — keep existing local data intact until query resolves
     setLastUpdated(null);
-    // NOTE: Do NOT clear ycxData/ycxDataMoi here — preserve as fallback
-    // They will be overwritten below if DB has data
 
     if (!isValidStoreName(targetStore)) {
       setIsLoadingRealtime(false);
@@ -359,7 +437,6 @@ export const useRealtimeData = (maKho: string) => {
     try {
       const targetDocId = normalizeStoreId(targetStore.trim());
       console.log(`[RealtimeData] Querying document ID: "${targetDocId}"`);
-      // Query directly using the selected store name as the unique document ID
       const { data: record, error } = await supabase
         .from('store')
         .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ycx_data_moi, ten_sieu_thi, updated_at')
@@ -371,40 +448,42 @@ export const useRealtimeData = (maKho: string) => {
         return;
       }
 
-      console.log(`[RealtimeData] loadData record result:`, {
-        exists: !!record,
-        id: (record as any)?.id,
-        ten_sieu_thi: record?.ten_sieu_thi,
-        rt_bi_length: record?.rt_bi_tong_quan?.length || 0,
-        rt_nh_cum_length: record?.rt_nh_cum?.length || 0,
-        ycx_data_length: record?.ycx_data?.length || 0,
-        ycx_data_moi_length: record?.ycx_data_moi?.length || 0
-      });
+      const sanitizeField = async (val: any) => {
+        if (!val) return '';
+        let str = String(val).trim();
+        if (str.startsWith('GZ:')) {
+          try {
+            str = await decompressString(str);
+            if (str.startsWith('GZ:')) return '';
+          } catch (e) {
+            return '';
+          }
+        }
+        return str;
+      };
 
       if (record) {
         skipAutoSaveRef.current = true;
-        setMarketInput(record.rt_bi_tong_quan || '');
-        setCategoryInput(record.rt_nh_cum || '');
-        setCategoryRevenueInput(record.lk_bi_tong_quan || '');
-        setCategoryTargetInput(record.lk_nh_sieu_thi || '');
-        // Only overwrite ycxData if DB actually has data; otherwise keep existing localStorage data
-        if (record.ycx_data) {
-          setYcxData(record.ycx_data);
-        }
-        if (record.ycx_data_moi) {
-          setYcxDataMoi(record.ycx_data_moi);
+        // Block loading if user recently cleared/edited data (within 10s protection window)
+        const isProtected = isDirtyRef.current || (Date.now() - globalLastSaveTimestampMs < 10000);
+        if (!isProtected) {
+          setMarketInput(await sanitizeField(record.rt_bi_tong_quan));
+          setCategoryInput(await sanitizeField(record.rt_nh_cum));
+          setCategoryRevenueInput(await sanitizeField(record.lk_bi_tong_quan));
+          setCategoryTargetInput(await sanitizeField(record.lk_nh_sieu_thi));
+          setYcxData(await sanitizeField(record.ycx_data));
+          setYcxDataMoi(await sanitizeField(record.ycx_data_moi));
+        } else {
+          console.log('[RealtimeData] BLOCKED loadData restore — user recently cleared/edited data');
         }
         
         if (record.updated_at) {
           const parsedDate = new Date(record.updated_at);
-          // Only set lastUpdated if it's a valid date object
           if (!isNaN(parsedDate.getTime())) {
             setLastUpdated(parsedDate);
           } else {
             setLastUpdated(null);
           }
-        } else {
-          setLastUpdated(null);
         }
       } else {
         console.log(`[RealtimeData] No record found in DB for ID: "${targetDocId}" — keeping existing local data`);
@@ -418,6 +497,13 @@ export const useRealtimeData = (maKho: string) => {
     }
   }, [normalizedMaKho, activeStore]);
 
+  const loadData = useCallback(async (storeName?: string) => {
+    const targetStore = storeName || activeStore;
+    if (targetStore) {
+      await loadDataForStore(targetStore);
+    }
+  }, [activeStore, loadDataForStore]);
+
   // Handle maKho change
   useEffect(() => {
     if (normalizedMaKho) {
@@ -427,7 +513,7 @@ export const useRealtimeData = (maKho: string) => {
       setActiveStore('');
       setLastUpdated(null);
     }
-  }, [normalizedMaKho]);
+  }, [normalizedMaKho, loadData]);
 
   // Set up Supabase Realtime subscription
   useEffect(() => {
@@ -447,8 +533,7 @@ export const useRealtimeData = (maKho: string) => {
         },
         (payload: any) => {
           // console.log('[RTST] Realtime update received from DB:', payload);
-          if (skipSubscriptionRef.current) {
-            skipSubscriptionRef.current = false;
+          if (skipSubscriptionRef.current || (Date.now() - globalLastSaveTimestampMs < 10000) || isDirtyRef.current) {
             return;
           }
           if (payload.new) {
@@ -467,63 +552,52 @@ export const useRealtimeData = (maKho: string) => {
             
             if (baseStoreName !== normActiveStore) return;
             
-            if (isMoiRecord) {
-              setYcxDataMoi(prev => {
-                if (prev && prev.length > 1000 && (!record.ycx_data || record.ycx_data.trim() === '')) {
-                  return prev;
+            const sanitizeField = async (val: any) => {
+              if (!val) return '';
+              let str = String(val).trim();
+              if (str.startsWith('GZ:')) {
+                try {
+                  str = await decompressString(str);
+                  if (str.startsWith('GZ:')) return '';
+                } catch (e) {
+                  return '';
                 }
-                if (prev !== record.ycx_data) {
-                  skipAutoSaveRef.current = true;
-                  return record.ycx_data || '';
-                }
-                return prev;
-              });
-            } else {
-              // Only update if different to avoid loops and preserve cursor position if user is typing
-              setMarketInput(prev => {
-                if (prev !== record.rt_bi_tong_quan) {
-                  skipAutoSaveRef.current = true;
-                  return record.rt_bi_tong_quan || '';
-                }
-                return prev;
-              });
-              
-              setCategoryInput(prev => {
-                if (prev !== record.rt_nh_cum) {
-                  skipAutoSaveRef.current = true;
-                  return record.rt_nh_cum || '';
-                }
-                return prev;
-              });
+              }
+              return str;
+            };
 
-              setCategoryRevenueInput(prev => {
-                if (prev !== record.lk_bi_tong_quan) {
-                  skipAutoSaveRef.current = true;
-                  return record.lk_bi_tong_quan || '';
-                }
-                return prev;
-              });
-              
-              setCategoryTargetInput(prev => {
-                if (prev !== record.lk_nh_sieu_thi) {
-                  skipAutoSaveRef.current = true;
-                  return record.lk_nh_sieu_thi || '';
-                }
-                return prev;
-              });
-              
-              setYcxData(prev => {
-                // Safeguard: If Firebase rejected our save (e.g. >1MB limit) 
-                // it rolls back and sends an empty string. We ignore it to prevent data loss on UI.
-                if (prev && prev.length > 1000 && (!record.ycx_data || record.ycx_data.trim() === '')) {
-                  return prev;
-                }
-                if (prev !== record.ycx_data) {
-                  skipAutoSaveRef.current = true;
-                  return record.ycx_data || '';
-                }
-                return prev;
-              });
+            if (isMoiRecord) {
+              if (record.ycx_data_moi !== undefined) {
+                sanitizeField(record.ycx_data_moi).then(val => {
+                  setYcxDataMoi(prev => (prev !== val ? val : prev));
+                });
+              }
+            } else {
+              if (record.rt_bi_tong_quan !== undefined) {
+                sanitizeField(record.rt_bi_tong_quan).then(val => {
+                  setMarketInput(prev => (prev !== val ? val : prev));
+                });
+              }
+              if (record.rt_nh_cum !== undefined) {
+                sanitizeField(record.rt_nh_cum).then(val => {
+                  setCategoryInput(prev => (prev !== val ? val : prev));
+                });
+              }
+              if (record.lk_bi_tong_quan !== undefined) {
+                sanitizeField(record.lk_bi_tong_quan).then(val => {
+                  setCategoryRevenueInput(prev => (prev !== val ? val : prev));
+                });
+              }
+              if (record.lk_nh_sieu_thi !== undefined) {
+                sanitizeField(record.lk_nh_sieu_thi).then(val => {
+                  setCategoryTargetInput(prev => (prev !== val ? val : prev));
+                });
+              }
+              if (record.ycx_data !== undefined) {
+                sanitizeField(record.ycx_data).then(val => {
+                  setYcxData(prev => (prev !== val ? val : prev));
+                });
+              }
             }
           }
         }
@@ -577,19 +651,27 @@ export const useRealtimeData = (maKho: string) => {
   // Synchronous setters to prevent stale closures during rapid paste/blur events
   const setMarketInputSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(marketInputRef.current) : val;
-    marketInputRef.current = newVal; setMarketInput(newVal);
+    marketInputRef.current = newVal;
+    isDirtyRef.current = true;
+    setMarketInput(newVal);
   }, []);
   const setCategoryInputSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(categoryInputRef.current) : val;
-    categoryInputRef.current = newVal; setCategoryInput(newVal);
+    categoryInputRef.current = newVal;
+    isDirtyRef.current = true;
+    setCategoryInput(newVal);
   }, []);
   const setCategoryRevenueInputSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(categoryRevenueInputRef.current) : val;
-    categoryRevenueInputRef.current = newVal; setCategoryRevenueInput(newVal);
+    categoryRevenueInputRef.current = newVal;
+    isDirtyRef.current = true;
+    setCategoryRevenueInput(newVal);
   }, []);
   const setCategoryTargetInputSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(categoryTargetInputRef.current) : val;
-    categoryTargetInputRef.current = newVal; setCategoryTargetInput(newVal);
+    categoryTargetInputRef.current = newVal;
+    isDirtyRef.current = true;
+    setCategoryTargetInput(newVal);
   }, []);
 
   return {

@@ -825,6 +825,21 @@ export const parseYcxData = (data: string): YcxStaffData[] => {
     const status = String(cols[colStatus] || '').trim().toLowerCase();
     const returnStatus = String(cols[colReturnStatus] || '').trim().toLowerCase();
     const market = String(cols[colMarket] || '').trim();
+    const columnAO = colColumnAO !== -1 ? String(cols[colColumnAO] || '').trim() : '';
+
+    const columnAOVal = removeAccents(columnAO).toLowerCase();
+    if (
+      columnAOVal.includes('2513') ||
+      columnAOVal.includes('2571') ||
+      columnAOVal.includes('4519') ||
+      columnAOVal.includes('4599') ||
+      columnAOVal.includes('thu ho payoo') ||
+      columnAOVal.includes('thu ho cuoc viettel') ||
+      columnAOVal.includes('thu ho tien tra gop') ||
+      columnAOVal.includes('thu ho tien mat')
+    ) {
+      continue;
+    }
     const staffNameRaw = String(cols[colStaffName] || '').trim();
     const staffIdRaw = String(cols[colStaffId] || '').trim();
     const productName = String(cols[colProduct] || "Sản phẩm không tên").trim();
@@ -1055,10 +1070,10 @@ export function cleanBiReportText(text: string): string {
 
   let result = filtered.length > 0 ? filtered.join('\n') : text.trim();
 
-  // Safety cap: Never allow individual field string to exceed 350KB to ensure store document stays under 1MB limit
-  if (result.length > 350000) {
+  // Safety cap: Never allow individual field string to exceed 180KB to ensure full store document stays well under 1MB limit
+  if (result.length > 180000) {
     console.warn('[cleanBiReportText] Truncating oversized BI text:', result.length, 'bytes');
-    result = result.substring(0, 350000);
+    result = result.substring(0, 180000);
   }
 
   return result;

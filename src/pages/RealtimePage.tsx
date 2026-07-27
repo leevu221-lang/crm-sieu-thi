@@ -259,6 +259,15 @@ const ColumnFilterDropdown: React.FC<ColumnFilterDropdownProps> = ({
     return displayedUniqueVals.every(val => tempSelected.has(val));
   }, [displayedUniqueVals, tempSelected]);
 
+  const updateFilter = (newTemp: Set<string>, searchVal: string = localSearch) => {
+    setTempSelected(newTemp);
+    if (newTemp.size === uniqueVals.length) {
+      onApply(searchVal, null);
+    } else {
+      onApply(searchVal, Array.from(newTemp));
+    }
+  };
+
   const handleSelectAllToggle = () => {
     const newTemp = new Set(tempSelected);
     if (allDisplayedChecked) {
@@ -266,7 +275,7 @@ const ColumnFilterDropdown: React.FC<ColumnFilterDropdownProps> = ({
     } else {
       displayedUniqueVals.forEach(val => newTemp.add(val));
     }
-    setTempSelected(newTemp);
+    updateFilter(newTemp);
   };
 
   const handleCheckboxChange = (val: string) => {
@@ -276,15 +285,7 @@ const ColumnFilterDropdown: React.FC<ColumnFilterDropdownProps> = ({
     } else {
       newTemp.add(val);
     }
-    setTempSelected(newTemp);
-  };
-
-  const handleApply = () => {
-    if (tempSelected.size === uniqueVals.length) {
-      onApply(localSearch, null);
-    } else {
-      onApply(localSearch, Array.from(tempSelected));
-    }
+    updateFilter(newTemp);
   };
 
   return (
@@ -302,7 +303,11 @@ const ColumnFilterDropdown: React.FC<ColumnFilterDropdownProps> = ({
         type="text"
         placeholder="Tìm kiếm giá trị..."
         value={localSearch}
-        onChange={e => setLocalSearch(e.target.value)}
+        onChange={e => {
+          const val = e.target.value;
+          setLocalSearch(val);
+          updateFilter(tempSelected, val);
+        }}
         className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 mb-2"
       />
 
@@ -364,7 +369,7 @@ const ColumnFilterDropdown: React.FC<ColumnFilterDropdownProps> = ({
             Đóng
           </button>
           <button
-            onClick={handleApply}
+            onClick={onClose}
             className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-black transition-colors uppercase tracking-wider shadow-sm"
           >
             Đồng ý
@@ -1011,6 +1016,46 @@ const extractName = (raw: string): string => {
   return match ? match[1].trim() : raw.trim();
 };
 
+// Robust helper to find Staff/Creator column index, strictly excluding delivery staff ("giao hàng")
+const getStaffIdx = (headers: string[]): number => {
+  if (!headers || headers.length === 0) return -1;
+  const normalizedHeaders = headers.map(h => removeAccents(String(h || '')).toLowerCase().trim());
+  
+  // Prioritize Creator (Người tạo) first as required for YCX, then Sales Staff
+  const priorityList = [
+    'nguoi tao',
+    'user tao',
+    'ten nguoi tao',
+    'ma/ten nguoi tao',
+    'ten nhan vien ban hang',
+    'nhan vien ban hang',
+    'user ban hang',
+    'nv ban hang',
+    'ten nhan vien',
+    'ten nv',
+    'nhan vien',
+    'nguoi ban',
+    'nguoi lap',
+    'user lap',
+    'nv tao',
+    'nguoi thuc hien'
+  ];
+
+  // Pass 1: Exact match, strictly excluding any header with 'giao' (e.g. Tên nhân viên giao hàng)
+  for (const name of priorityList) {
+    const idx = normalizedHeaders.findIndex(h => h === name && !h.includes('giao'));
+    if (idx !== -1) return idx;
+  }
+
+  // Pass 2: Partial match, strictly excluding any header with 'giao'
+  for (const name of priorityList) {
+    const idx = normalizedHeaders.findIndex(h => h.includes(name) && !h.includes('giao'));
+    if (idx !== -1) return idx;
+  }
+
+  return -1;
+};
+
 const classifyProduct = (name: string) => {
   const n = String(name || '').toUpperCase();
   const norm = removeAccents(name).toUpperCase();
@@ -1030,9 +1075,10 @@ const classifyProduct = (name: string) => {
   if (n.includes('BẢO HIỂM XÃ HỘI') || n.includes('BHXH')) return 'BHXH';
   if (n.includes('BẢO HIỂM Y TẾ') || n.includes('BHYT')) return 'BHYT';
   if (n.includes('GIC_') || n.includes('GIC-') || norm.includes('GIC_') || norm.includes('GIC-')) return 'GIC';
-  if (n.includes('01 THÁNG')) return 'V1';
-  if (n.includes('03 THÁNG')) return 'V2';
-  if (n.includes('06 THÁNG')) return 'V4';
+  if (n.includes('01 THÁNG') || n.includes('1 THÁNG') || norm.includes('01 THANG') || norm.includes('1 THANG') || n.includes('V1')) return 'V1';
+  if (n.includes('03 THÁNG') || n.includes('3 THÁNG') || norm.includes('03 THANG') || norm.includes('3 THANG') || n.includes('V2')) return 'V2';
+  if (n.includes('06 THÁNG') || n.includes('6 THÁNG') || norm.includes('06 THANG') || norm.includes('6 THANG') || n.includes('V3') || n.includes('V4')) return 'V3';
+  if (n.includes('VIEON') || norm.includes('VIEON')) return 'V1';
   return '-';
 };
 
@@ -2386,26 +2432,87 @@ export default function NewRealtimePage() {
       return lower.includes('tinh trang nhap tra') || lower.includes('nhap tra') || lower === 'tra hang';
     });
 
+    let idxNhomHang = headers.findIndex(h => {
+      const lower = removeAccents(h).toLowerCase().trim();
+      return (lower.includes('nhom hang') && !lower.includes('nho')) || lower === 'nhom hang';
+    });
+
+    let idxCategory = headers.findIndex(h => {
+      const lower = removeAccents(h).toLowerCase().trim();
+      return lower.includes('nganh hang') || lower.includes('nhom nganh hang') || lower === 'nganh hang';
+    });
+
+    let idxProduct = headers.findIndex(h => {
+      const lower = removeAccents(h).toLowerCase().trim();
+      return lower.includes('ten san pham') || lower.includes('san pham') || lower === 'ten hang';
+    });
+
+    let idxProductCode = headers.findIndex(h => {
+      const lower = removeAccents(h).toLowerCase().trim();
+      return lower.includes('ma san pham') || lower.includes('ma hang') || lower === 'ma sp';
+    });
+
     return rawYcxRows.slice(1).filter(row => {
       const statusValue = idxStatus !== -1 ? removeAccents(String(row[idxStatus] || '')).trim().toLowerCase() : '';
       const thuTienValue = idxThuTien !== -1 ? removeAccents(String(row[idxThuTien] || '')).trim().toLowerCase() : '';
       const traValue = idxTra !== -1 ? removeAccents(String(row[idxTra] || '')).trim().toLowerCase() : '';
 
-      // 1. Trạng thái xuất: CHỈ LẤY "ĐÃ XUẤT" (loại bỏ Hủy / Chưa xuất)
+      // 1. Trạng thái xuất: BẮT BUỘC chứa "ĐÃ XUẤT" (loại bỏ Chưa xuất, Hủy, Rỗng)
       if (idxStatus !== -1) {
-        if (statusValue.includes('huy') || statusValue.includes('chua xuat')) return false;
-        if (statusValue !== '' && !statusValue.includes('da xuat') && !statusValue.includes('xuat')) return false;
+        if (!statusValue || !statusValue.includes('da xuat')) return false;
       }
 
-      // 2. Trạng thái thu tiền: CHỈ LẤY "ĐÃ THU" (loại bỏ Chưa thu)
+      // 2. Trạng thái thu tiền: BẮT BUỘC chứa "ĐÃ THU" (loại bỏ Chưa thu, Rỗng)
       if (idxThuTien !== -1) {
-        if (thuTienValue.includes('chua thu')) return false;
-        if (thuTienValue !== '' && !thuTienValue.includes('da thu') && !thuTienValue.includes('thu')) return false;
+        if (!thuTienValue || !thuTienValue.includes('da thu')) return false;
       }
 
-      // 3. Tình trạng nhập trả: CHỈ LẤY "CHƯA TRẢ" (loại bỏ Đã trả)
-      if (idxTra !== -1) {
+      // 3. Tình trạng nhập trả: CHỈ LẤY "CHƯA TRẢ" hoặc rỗng (loại bỏ Đã trả)
+      if (idxTra !== -1 && traValue) {
         if (traValue.includes('da tra') || (traValue.includes('tra') && !traValue.includes('chua tra'))) return false;
+      }
+
+      // 4. Loại trừ các Nhóm hàng Thu hộ: 2513 - Thu hộ Payoo, 2571 - Thu hộ cước Viettel, 4519 - Thu Hộ Tiền Trả Góp, 4599 - Thu Hộ Tiền Mặt
+      const nhomHangVal = idxNhomHang !== -1 
+        ? removeAccents(String(row[idxNhomHang] || '')).toLowerCase()
+        : removeAccents(row.join(' ')).toLowerCase();
+
+      if (
+        nhomHangVal.includes('2513') ||
+        nhomHangVal.includes('2571') ||
+        nhomHangVal.includes('4519') ||
+        nhomHangVal.includes('4599') ||
+        nhomHangVal.includes('thu ho payoo') ||
+        nhomHangVal.includes('thu ho cuoc viettel') ||
+        nhomHangVal.includes('thu ho tien tra gop') ||
+        nhomHangVal.includes('thu ho tien mat')
+      ) {
+        return false;
+      }
+
+      // 5. Ẩn / Loại trừ Ngành hàng "Khác" / "Không rõ" / "Thẻ cào" (GIỮ LẠI B.HIỂM, V1, V2, V3, VieON, MANGO, ICALLME)
+      const productName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() : '';
+      const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
+      const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+      const pClass = classifyProductByCode(prodCode) || classifyProduct(productName);
+
+      const normProdUpper = removeAccents(productName).toUpperCase();
+      const normCatUpper = removeAccents(category).toUpperCase();
+
+      const isVasRow = 
+        pClass === 'Mango' || pClass === 'Icall' || ['V1', 'V2', 'V3', 'V4'].includes(pClass) ||
+        pClass === 'B.HIỂM' || ['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1', 'BHAP', 'BHOT', 'BHVC', 'BHMT', 'BHXH', 'BHYT', 'BVMH', 'GIC'].includes(pClass) ||
+        normProdUpper.includes('MANGO') || normProdUpper.includes('ICALL') || normProdUpper.includes('VIEON') ||
+        normProdUpper.includes('BAO HIEM') || normCatUpper.includes('BAO HIEM') ||
+        normProdUpper.includes('1 DOI 1') || normProdUpper.includes('PVI_') ||
+        normProdUpper.includes('BVMH') || normProdUpper.includes('BAO VE MAN HINH') ||
+        category.includes('1994') || category.includes('4479') || category.includes('7139');
+
+      if (!isVasRow) {
+        const nhomLarge = classifyNhomHangLarge(category, productName);
+        if (nhomLarge === 'Khác' || nhomLarge === 'KHÁC' || nhomLarge === 'Không rõ' || nhomLarge === 'THỂ CÀO') {
+          return false;
+        }
       }
 
       return true;
@@ -2442,17 +2549,20 @@ export default function NewRealtimePage() {
       return defaultIdx;
     };
 
-    const idxStaff = findIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện'], -1);
+    const idxStaff = getStaffIdx(headers);
     const idxQty = findIdx(['số lượng xuất', 'số lượng bán', 'số lượng xuất bán', 'số lượng', 'sl xuất', 'sl bán'], -1);
-    // Ưu tiên tìm cột "Giá bán_1" / "Giá bán 1" bằng logic riêng
+    // Ưu tiên tuyệt đối cột "Giá bán_1" / "Giá bán 1" từ dữ liệu nguồn
     const idxRevenue = (() => {
-      // Tìm cột header chứa "giá bán" + "1" (VD: "Giá bán_1", "Giá bán 1", "giá bán_1")
       const giaBan1Idx = headers.findIndex(h => {
-        const norm = removeAccents(h).toLowerCase().trim().replace(/\s+/g, ' ');
-        return (norm.includes('gia ban') && norm.includes('1')) || norm === 'gia ban_1' || norm === 'gia ban 1';
+        const norm = removeAccents(String(h || '')).toLowerCase().trim().replace(/\s+/g, ' ');
+        return norm === 'gia ban_1' || norm === 'gia ban 1' || norm === 'giaban_1' || (norm.includes('gia ban') && norm.includes('1'));
       });
       if (giaBan1Idx !== -1) return giaBan1Idx;
-      // Fallback: tìm các cột doanh thu khác
+      const giaBanIdx = headers.findIndex(h => {
+        const norm = removeAccents(String(h || '')).toLowerCase().trim();
+        return norm === 'gia ban' || norm === 'giaban';
+      });
+      if (giaBanIdx !== -1) return giaBanIdx;
       return findIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá bán', 'giá trị đh', 'giá trị'], -1);
     })();
     console.log('[DrillDown] idxRevenue:', idxRevenue, '| Header:', headers[idxRevenue]);
@@ -2465,6 +2575,17 @@ export default function NewRealtimePage() {
       if (exact !== -1) return exact;
       const partial = headers.findIndex(h => h.toLowerCase().startsWith('tên sản phẩm') || h.toLowerCase() === 'tên hàng');
       return partial !== -1 ? partial : -1;
+    })();
+    const idxProductCode = (() => {
+      const exact = headers.findIndex(h => {
+        const norm = removeAccents(h).toLowerCase().trim();
+        return norm === 'ma san pham' || norm === 'ma hang' || norm === 'ma sp';
+      });
+      if (exact !== -1) return exact;
+      return headers.findIndex(h => {
+        const norm = removeAccents(h).toLowerCase().trim();
+        return norm.includes('ma san pham') || norm.includes('ma hang');
+      });
     })();
     const idxMarket = findIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm', 'kho', 'cửa hàng'], -1);
     const idxTrangThaiSP = findIdx(['trạng thái hồ sơ', 'trạng thái xuất', 'trạng thái'], -1);
@@ -2539,23 +2660,33 @@ export default function NewRealtimePage() {
     const isSystemName = (n: string) =>
       !n || n.toLowerCase().includes('người tạo') || n.toLowerCase() === 'admin' || n.toLowerCase() === 'administrator';
 
-    // STRICT insurance check: wrap classifyNhomHangLarge with column-based verification
-    // Insurance is ONLY determined by "Hình thức xuất" column containing "bảo hiểm"
-    const classifyWithColumnCheck = (category: string, productName: string, row: any[]): string => {
+    const isInsuranceRowHelper = (category: string, productName: string, row: any[]): boolean => {
       let nhomLarge = classifyNhomHangLarge(category, productName);
-      const htxVal = idxHinhThucXuat !== -1 ? removeAccents(String(row[idxHinhThucXuat] || '')).toLowerCase() : '';
-      const isInsuranceByColumn = htxVal.includes('bao hiem');
-      if (isInsuranceByColumn) {
-        nhomLarge = 'BẢO HIỂM';
-      } else if (nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM') {
-        nhomLarge = 'Khác';
+      const normProdUpper = removeAccents(productName).toUpperCase();
+      const normCatUpper = removeAccents(category).toUpperCase();
+
+      const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+      const pClass = classifyProductByCode(prodCode) || classifyProduct(productName);
+      
+      return (
+        pClass === 'B.HIỂM' || ['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1', 'BHAP', 'BHOT', 'BHVC', 'BHMT', 'BHXH', 'BHYT', 'BVMH', 'GIC'].includes(pClass) ||
+        normProdUpper.includes('BAO HIEM') || normCatUpper.includes('BAO HIEM') ||
+        normProdUpper.includes('1 DOI 1') || normProdUpper.includes('PVI_') ||
+        normProdUpper.includes('BVMH') || normProdUpper.includes('BAO VE MAN HINH') ||
+        category.includes('1994') || category.includes('4479') || category.includes('7139') ||
+        nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM'
+      );
+    };
+
+    const classifyWithColumnCheck = (category: string, productName: string, row: any[]): string => {
+      if (isInsuranceRowHelper(category, productName, row)) {
+        return 'BẢO HIỂM';
       }
-      return nhomLarge;
+      return classifyNhomHangLarge(category, productName);
     };
 
     const currentRows: any[][] = [];
     const prevRows: any[][] = [];
-
     for (const row of filteredRawYcxRows) {
       const staffName = idxStaff !== -1 ? extractName(String(row[idxStaff] || '')) : 'HỆ THỐNG';
       if (idxStaff !== -1 && isSystemName(staffName)) continue;
@@ -2677,7 +2808,7 @@ export default function NewRealtimePage() {
         const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
         const nhomLarge = classifyWithColumnCheck(category, productName, row);
 
-        if (nhomLarge === 'THỂ CÀO') return false;
+        if (nhomLarge === 'THỂ CÀO' || nhomLarge === 'Khác' || nhomLarge === 'KHÁC' || nhomLarge === 'Không rõ') return false;
 
         const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
         const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
@@ -3391,15 +3522,20 @@ export default function NewRealtimePage() {
       return defaultIdx;
     };
 
-    const idxStaff = findIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện'], -1);
+    const idxStaff = getStaffIdx(headers);
     const idxQty = findIdx(['số lượng', 'sl'], -1);
-    // Ưu tiên tìm cột "Giá bán_1" / "Giá bán 1" bằng logic riêng
+    // Ưu tiên tuyệt đối cột "Giá bán_1" / "Giá bán 1" từ dữ liệu nguồn cho DT THỰC
     const idxRevenue = (() => {
       const giaBan1Idx = headers.findIndex(h => {
-        const norm = removeAccents(h).toLowerCase().trim().replace(/\s+/g, ' ');
-        return (norm.includes('gia ban') && norm.includes('1')) || norm === 'gia ban_1' || norm === 'gia ban 1';
+        const norm = removeAccents(String(h || '')).toLowerCase().trim().replace(/\s+/g, ' ');
+        return norm === 'gia ban_1' || norm === 'gia ban 1' || norm === 'giaban_1' || (norm.includes('gia ban') && norm.includes('1'));
       });
       if (giaBan1Idx !== -1) return giaBan1Idx;
+      const giaBanIdx = headers.findIndex(h => {
+        const norm = removeAccents(String(h || '')).toLowerCase().trim();
+        return norm === 'gia ban' || norm === 'giaban';
+      });
+      if (giaBanIdx !== -1) return giaBanIdx;
       return findIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá bán', 'giá trị đh', 'giá trị'], -1);
     })();
     console.log('[KhaiThac] idxRevenue:', idxRevenue, '| Header:', headers[idxRevenue]);
@@ -3493,21 +3629,25 @@ export default function NewRealtimePage() {
       const normCatUpper = removeAccents(category).toUpperCase();
       const prodUpper = productName.toUpperCase();
 
-      // STRICT insurance: ONLY use "Hình thức xuất" / "Loại YCX" column to determine insurance
-      // This eliminates all false positives from keyword matching
-      const htxForBH = idxHinhThucXuat !== -1 ? removeAccents(String(row[idxHinhThucXuat] || '')).toLowerCase() : '';
-      const isInsuranceByColumn = htxForBH.includes('bao hiem');
-      if (isInsuranceByColumn) {
+      const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+      const pClass = classifyProductByCode(prodCode) || classifyProduct(productName);
+      const isInsuranceRow = 
+        pClass === 'B.HIỂM' || ['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1', 'BHAP', 'BHOT', 'BHVC', 'BHMT', 'BHXH', 'BHYT', 'BVMH', 'GIC'].includes(pClass) ||
+        normProdUpper.includes('BAO HIEM') || normCatUpper.includes('BAO HIEM') ||
+        normProdUpper.includes('1 DOI 1') || normProdUpper.includes('PVI_') ||
+        normProdUpper.includes('BVMH') || normProdUpper.includes('BAO VE MAN HINH') ||
+        category.includes('1994') || category.includes('4479') || category.includes('7139') ||
+        nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM';
+
+      if (isInsuranceRow) {
         nhomLarge = 'B.HIỂM';
-      } else if (nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM') {
-        // classifyNhomHangLarge falsely matched as insurance — override
-        nhomLarge = 'Khác';
       }
+
       const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
       const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
 
       const brandVal = idxNhaSanXuat !== -1 ? String(row[idxNhaSanXuat] || '').trim().toUpperCase() : '';
-      const isVieONRow = brandVal === 'VIEON' || category.toUpperCase().includes('VIEON') || productName.toUpperCase().includes('VIEON');
+      const isVieONRow = brandVal === 'VIEON' || category.toUpperCase().includes('VIEON') || productName.toUpperCase().includes('VIEON') || ['V1', 'V2', 'V3', 'V4'].includes(pClass) || normProdUpper.includes('VIEON') || normCatUpper.includes('VIEON');
 
       const rawQty = idxQty !== -1 ? Math.round(parseFloat(String(row[idxQty] || '1').replace(/,/g, '')) || 0) : 1;
       const qty = rawQty > 0 ? rawQty : 1;
@@ -3567,9 +3707,7 @@ export default function NewRealtimePage() {
 
       const item = statsMap.get(staffName)!;
 
-      const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
-      const pClass = classifyProductByCode(prodCode) || classifyProduct(productName);
-      if (pClass === 'Mango' || pClass === 'Icall') {
+      if (pClass === 'Mango' || pClass === 'Icall' || normProdUpper.includes('MANGO') || normProdUpper.includes('ICALL')) {
         item.mangoIcallQty += qty;
         item.mangoIcallRev += revenue;
       }
@@ -3589,7 +3727,7 @@ export default function NewRealtimePage() {
         item.dgdRev += revenue;
         item.spChinhTotalQty += qty;
         item.spChinhTotalRev += revenue;
-      } else if (nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM') {
+      } else if (nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM' || isInsuranceRow) {
         item.bhQty += qty;
         item.bhRev += revenue;
       } else if (isVieONRow || nhomLarge === 'VIEON') {
@@ -3641,7 +3779,8 @@ export default function NewRealtimePage() {
         item.spcMgQty += qty;
       }
 
-      const isMln = nSmall === 'MLN';
+      const rawSmallCatVal = idxSmallCat !== -1 ? removeAccents(String(row[idxSmallCat] || '')).trim().toUpperCase() : '';
+      const isMln = rawSmallCatVal === 'MLN';
       const isNcom = nSmall === 'NC NẮP RỜI' || nSmall === 'NC Đ.TỬ';
       const isNchien = nSmall === 'N.CHIÊN';
       const isQuat = nSmall === 'QUẠT';
@@ -3803,7 +3942,7 @@ export default function NewRealtimePage() {
       return defaultIdx;
     };
 
-    const idxStaff = findIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện'], -1);
+    const idxStaff = getStaffIdx(headers);
     const idxDate = findIdx(['ngày tạo', 'ngày lập', 'ngày xuất', 'ngày giao', 'ngày hoàn', 'ngày'], -1);
     const idxHtx = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
     const idxProduct = findIdx(['tên sản phẩm', 'tên hàng', 'sản phẩm'], -1);
@@ -3950,7 +4089,7 @@ export default function NewRealtimePage() {
         }
         return defaultIdx;
       };
-      const idxStaff = findIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện'], -1);
+      const idxStaff = getStaffIdx(headers);
       const idxCategory = findIdx(['nhóm ngành hàng', 'ngành hàng lớn', 'ngành hàng', 'nhóm hàng', 'tên nhóm hàng'], -1);
       const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ', 'nhóm nhỏ'], -1);
       const idxProduct = (() => {
@@ -3958,6 +4097,17 @@ export default function NewRealtimePage() {
         if (exact !== -1) return exact;
         const partial = headers.findIndex(h => h.toLowerCase().startsWith('tên sản phẩm') || h.toLowerCase() === 'tên hàng');
         return partial !== -1 ? partial : -1;
+      })();
+      const idxProductCode = (() => {
+        const exact = headers.findIndex(h => {
+          const norm = removeAccents(h).toLowerCase().trim();
+          return norm === 'ma san pham' || norm === 'ma hang' || norm === 'ma sp';
+        });
+        if (exact !== -1) return exact;
+        return headers.findIndex(h => {
+          const norm = removeAccents(h).toLowerCase().trim();
+          return norm.includes('ma san pham') || norm.includes('ma hang');
+        });
       })();
       const idxMarket = findIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm', 'kho', 'cửa hàng'], -1);
       const idxTrangThaiSP = findIdx(['trạng thái hồ sơ', 'trạng thái xuất', 'trạng thái'], -1);
@@ -3970,14 +4120,21 @@ export default function NewRealtimePage() {
 
         const productName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() || 'Không rõ' : 'Sản phẩm khác';
         const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
-        // STRICT insurance check using column
+        const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+        const pClass = classifyProductByCode(prodCode) || classifyProduct(productName);
+        const normProdUpper = removeAccents(productName).toUpperCase();
+        const normCatUpper = removeAccents(category).toUpperCase();
         let nhomLarge = classifyNhomHangLarge(category, productName);
-        const htxVal = idxHinhThucXuat !== -1 ? removeAccents(String(row[idxHinhThucXuat] || '')).toLowerCase() : '';
-        const isInsuranceByColumn = htxVal.includes('bao hiem');
-        if (isInsuranceByColumn) {
+        const isInsuranceRow = 
+          pClass === 'B.HIỂM' || ['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1', 'BHAP', 'BHOT', 'BHVC', 'BHMT', 'BHXH', 'BHYT', 'BVMH', 'GIC'].includes(pClass) ||
+          normProdUpper.includes('BAO HIEM') || normCatUpper.includes('BAO HIEM') ||
+          normProdUpper.includes('1 DOI 1') || normProdUpper.includes('PVI_') ||
+          normProdUpper.includes('BVMH') || normProdUpper.includes('BAO VE MAN HINH') ||
+          category.includes('1994') || category.includes('4479') || category.includes('7139') ||
+          nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM';
+
+        if (isInsuranceRow) {
           nhomLarge = 'BẢO HIỂM';
-        } else if (nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM') {
-          nhomLarge = 'Khác';
         }
 
         if (nhomLarge === 'THỂ CÀO') continue;
@@ -6772,7 +6929,6 @@ export default function NewRealtimePage() {
                                             filterState={columnFilters[idx]}
                                             onApply={(search, selectedValues) => {
                                               setColumnFilters(prev => ({ ...prev, [idx]: { search, selectedValues } }));
-                                              setActiveFilterDropdown(null);
                                             }}
                                             onClear={() => {
                                               setColumnFilters(prev => {
@@ -6820,7 +6976,6 @@ export default function NewRealtimePage() {
                                           filterState={columnFilters[filterIdx]}
                                           onApply={(search, selectedValues) => {
                                             setColumnFilters(prev => ({ ...prev, [filterIdx]: { search, selectedValues } }));
-                                            setActiveFilterDropdown(null);
                                           }}
                                           onClear={() => {
                                             setColumnFilters(prev => {

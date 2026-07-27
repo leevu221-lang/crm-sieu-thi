@@ -227,31 +227,11 @@ export const formatMarketName = (raw: string) => {
 };
 
 export const isValidStoreName = (name: string): boolean => {
-  if (!name) return false;
-  
-  // Normalize and clean string
-  // Use both NFC and NFD to handle different ways of encoding Vietnamese characters
-  const nfc = name.trim().normalize('NFC').toUpperCase();
-  const nfd = name.trim().normalize('NFD').toUpperCase();
-  
-  // Core keywords to look for
-  // We include both the full prefixes and the core parts for maximum compatibility
-  // Also include the ETH character (Ð) which is sometimes used instead of Đ
-  const keywords = [
-    'ĐML', 'ĐMM', 'ĐMS', 'ĐMS3', 'TGD', 'AAR', 
-    'DML', 'DMM', 'DMS', 'DMS3',
-    'ÐML', 'ÐMM', 'ÐMS', 'ÐMS3',
-    'ML', 'MM', 'MS', 'MS3'
-  ];
-  
-  // Check if any keyword exists in the name (using both normalization forms)
-  const isValid = keywords.some(k => nfc.includes(k) || nfd.includes(k));
-  
-  // if (!isValid) {
-  //   console.warn(`[isValidStoreName] Invalid store name: "${name}" (NFC: "${nfc}", NFD: "${nfd}")`);
-  // }
-  
-  return isValid;
+  if (!name || typeof name !== 'string') return false;
+  const trimmed = name.trim();
+  if (trimmed.length === 0) return false;
+  if (trimmed.toUpperCase() === 'ALL' || trimmed === 'TẤT CẢ') return false;
+  return true;
 };
 
 /**
@@ -1686,6 +1666,7 @@ export const minifyYcxData = (data: string): string => {
         const normName = removeAccents(name).toLowerCase();
         if (normName === 'nhom hang' && norm.includes('nho')) return false;
         if (normName === 'nganh hang' && norm.includes('lon')) return false;
+        if (norm.includes('giao')) return false;
         return norm.includes(normName);
       });
       if (partialIdx !== -1) return partialIdx;
@@ -1696,7 +1677,7 @@ export const minifyYcxData = (data: string): string => {
   const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
   const idxMethod = getIdx(['hình thức xuất']);
   const idxStatus = getIdx(['trạng thái xuất', 'trạng thái ycx', 'trạng thái', 'tình trạng xuất', 'tình trạng đơn', 'trạng thái đơn', 'tình trạng']);
-  const idxStaffName = getIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện']); 
+  const idxStaffName = getIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người lập', 'user lập', 'nv tạo', 'người thực hiện']); 
   const idxStaffId = getIdx(['user tạo', 'mã nv', 'mã nhân viên', 'id nhân viên']);
   const idxRevenue = (() => {
     const giaBan1Idx = header.findIndex(h => {
@@ -1805,7 +1786,7 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
   const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
   const idxMethod = getIdx(['hình thức xuất']);
   const idxStatus = getIdx(['trạng thái xuất', 'trạng thái ycx', 'trạng thái', 'tình trạng xuất', 'tình trạng đơn', 'trạng thái đơn', 'tình trạng']);
-  const idxStaffName = getIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện']); 
+  const idxStaffName = getIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người lập', 'user lập', 'nv tạo', 'người thực hiện']); 
   const idxRevenue = (() => {
     const giaBan1Idx = header.findIndex(h => {
       const norm = removeAccents(h).toLowerCase().trim().replace(/\s+/g, ' ');
@@ -1958,6 +1939,20 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
 
     const market = colMarket !== -1 ? String(cols[colMarket] || '').trim() : '';
     const columnAO = colColumnAO !== -1 ? String(cols[colColumnAO] || '').trim() : '';
+
+    const columnAOVal = removeAccents(columnAO).toLowerCase();
+    if (
+      columnAOVal.includes('2513') ||
+      columnAOVal.includes('2571') ||
+      columnAOVal.includes('4519') ||
+      columnAOVal.includes('4599') ||
+      columnAOVal.includes('thu ho payoo') ||
+      columnAOVal.includes('thu ho cuoc viettel') ||
+      columnAOVal.includes('thu ho tien tra gop') ||
+      columnAOVal.includes('thu ho tien mat')
+    ) {
+      continue;
+    }
     
     if (i <= 5) {
       console.log(`[parseYcxData Row ${i}]`, {
@@ -2190,7 +2185,7 @@ export const parseYcxRankData = (data: string, customRates?: Record<string, { no
   const idxType = getIdx(['loại ycx', 'loại yêu cầu']);
   const idxMethod = getIdx(['hình thức xuất']);
   const idxStatus = getIdx(['trạng thái xuất']);
-  const idxStaffName = getIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện']); 
+  const idxStaffName = getIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người lập', 'user lập', 'nv tạo', 'người thực hiện']); 
   const idxStaffId = getIdx(['user tạo', 'mã nv', 'mã nhân viên', 'id nhân viên']);
   const idxRevenue = (() => {
     const giaBan1Idx = header.findIndex(h => {

@@ -511,6 +511,9 @@ const EmployeeHealth: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'DOANH_THU' | 'TONG_HOP_NV' | 'CHI_TIET' | 'THI_DUA' | 'NGANH_HANG' | 'PHUC_VU' | 'BAN_KEM_NV' | 'THUONG_NV' | 'TRA_CHAM_NV' | 'KHAI_THAC_NV' | 'RANK_3T_NV'>('DOANH_THU');
   const [khaiThacCategoryFilter, setKhaiThacCategoryFilter] = useState<string>('ALL');
   const [showMonthlyDtqd, setShowMonthlyDtqd] = useState(true);
+  const [showDtqdGroup, setShowDtqdGroup] = useState(true);
+  const [showNganhHangGroup, setShowNganhHangGroup] = useState(true);
+  const [showEffGroup, setShowEffGroup] = useState(true);
   const [showThuNhapGroup, setShowThuNhapGroup] = useState(false);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const [autoExpand, setAutoExpand] = useState(false);
@@ -4232,33 +4235,79 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                         <span className="text-sm font-black text-slate-800 uppercase tracking-wider">Cấu hình bảng xếp hạng</span>
                       </div>
                       <div className="flex items-center gap-6">
-                        {/* Premium custom toggle switch for "Chi tiết các tháng" */}
-                        <label className="flex items-center gap-3 cursor-pointer select-none group">
+                        {/* Toggle switch for "Doanh Thu QĐ" */}
+                        <label className="flex items-center gap-2 cursor-pointer select-none group">
                           <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider group-hover:text-slate-800 transition-colors">
-                            Chi tiết các tháng
+                            Doanh Thu QĐ
                           </span>
                           <div className="relative">
                             <input
                               type="checkbox"
                               className="sr-only"
-                              checked={showMonthlyDtqd}
-                              onChange={(e) => setShowMonthlyDtqd(e.target.checked)}
+                              checked={showDtqdGroup}
+                              onChange={(e) => setShowDtqdGroup(e.target.checked)}
                             />
                             <div className={cn(
-                              "w-11 h-6 rounded-full transition-colors duration-300 ease-in-out shadow-inner",
-                              showMonthlyDtqd ? "bg-amber-500" : "bg-slate-200"
+                              "w-9 h-5 rounded-full transition-colors duration-300 ease-in-out shadow-inner",
+                              showDtqdGroup ? "bg-amber-500" : "bg-slate-200"
                             )} />
                             <div className={cn(
-                              "absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-300 ease-in-out",
-                              showMonthlyDtqd ? "transform translate-x-5" : ""
+                              "absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 ease-in-out",
+                              showDtqdGroup ? "transform translate-x-4" : ""
+                            )} />
+                          </div>
+                        </label>
+
+                        {/* Toggle switch for "Ngành Hàng" */}
+                        <label className="flex items-center gap-2 cursor-pointer select-none group">
+                          <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider group-hover:text-slate-800 transition-colors">
+                            Ngành Hàng
+                          </span>
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              className="sr-only"
+                              checked={showNganhHangGroup}
+                              onChange={(e) => setShowNganhHangGroup(e.target.checked)}
+                            />
+                            <div className={cn(
+                              "w-9 h-5 rounded-full transition-colors duration-300 ease-in-out shadow-inner",
+                              showNganhHangGroup ? "bg-indigo-500" : "bg-slate-200"
+                            )} />
+                            <div className={cn(
+                              "absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 ease-in-out",
+                              showNganhHangGroup ? "transform translate-x-4" : ""
+                            )} />
+                          </div>
+                        </label>
+
+                        {/* Toggle switch for "Hiệu Quả QĐ" */}
+                        <label className="flex items-center gap-2 cursor-pointer select-none group">
+                          <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider group-hover:text-slate-800 transition-colors">
+                            Hiệu Quả QĐ
+                          </span>
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              className="sr-only"
+                              checked={showEffGroup}
+                              onChange={(e) => setShowEffGroup(e.target.checked)}
+                            />
+                            <div className={cn(
+                              "w-9 h-5 rounded-full transition-colors duration-300 ease-in-out shadow-inner",
+                              showEffGroup ? "bg-sky-500" : "bg-slate-200"
+                            )} />
+                            <div className={cn(
+                              "absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 ease-in-out",
+                              showEffGroup ? "transform translate-x-4" : ""
                             )} />
                           </div>
                         </label>
 
                         {/* Premium custom toggle switch for "Hiển thị Thu Nhập" */}
-                        <label className="flex items-center gap-3 cursor-pointer select-none group">
+                        <label className="flex items-center gap-2 cursor-pointer select-none group">
                           <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider group-hover:text-slate-800 transition-colors">
-                            Hiển thị Thu Nhập
+                            Thu Nhập
                           </span>
                           <div className="relative">
                             <input
@@ -4268,12 +4317,35 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               onChange={(e) => setShowThuNhapGroup(e.target.checked)}
                             />
                             <div className={cn(
-                              "w-11 h-6 rounded-full transition-colors duration-300 ease-in-out shadow-inner",
+                              "w-9 h-5 rounded-full transition-colors duration-300 ease-in-out shadow-inner",
                               showThuNhapGroup ? "bg-orange-500" : "bg-slate-200"
                             )} />
                             <div className={cn(
-                              "absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-300 ease-in-out",
-                              showThuNhapGroup ? "transform translate-x-5" : ""
+                              "absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 ease-in-out",
+                              showThuNhapGroup ? "transform translate-x-4" : ""
+                            )} />
+                          </div>
+                        </label>
+
+                        {/* Premium custom toggle switch for "Chi tiết các tháng" */}
+                        <label className="flex items-center gap-2 cursor-pointer select-none group border-l pl-4 border-slate-200">
+                          <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider group-hover:text-slate-800 transition-colors">
+                            Chi tiết tháng
+                          </span>
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              className="sr-only"
+                              checked={showMonthlyDtqd}
+                              onChange={(e) => setShowMonthlyDtqd(e.target.checked)}
+                            />
+                            <div className={cn(
+                              "w-9 h-5 rounded-full transition-colors duration-300 ease-in-out shadow-inner",
+                              showMonthlyDtqd ? "bg-emerald-500" : "bg-slate-200"
+                            )} />
+                            <div className={cn(
+                              "absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 ease-in-out",
+                              showMonthlyDtqd ? "transform translate-x-4" : ""
                             )} />
                           </div>
                         </label>
@@ -4323,15 +4395,21 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                   <tr>
                                     <th rowSpan={2} style={{ width: '60px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black align-middle whitespace-nowrap">STT</th>
                                     <th rowSpan={2} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black align-middle whitespace-nowrap min-w-[170px]">NHÂN VIÊN</th>
-                                    <th colSpan={showMonthlyDtqd ? 5 : 2} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-2.5 border-r border-b border-white/20 text-[#0f172a] bg-[#ffcb05] font-sans font-black text-center text-sm md:text-base tracking-wide uppercase whitespace-nowrap">
-                                      DOANH THU QUY ĐỔI THÁNG {rankMonth1.replace(/tháng\s*/i, '')}, {rankMonth2.replace(/tháng\s*/i, '')}, {rankMonth3.replace(/tháng\s*/i, '')}
-                                    </th>
-                                    <th colSpan={showMonthlyDtqd ? 5 : 2} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-2.5 border-r border-b border-white/20 text-white bg-[#6366f1] font-sans font-black text-center text-sm md:text-base tracking-wide uppercase whitespace-nowrap">
-                                      NGÀNH HÀNG THI ĐUA THÁNG {rankMonth1.replace(/tháng\s*/i, '')}, {rankMonth2.replace(/tháng\s*/i, '')}, {rankMonth3.replace(/tháng\s*/i, '')}
-                                    </th>
-                                    <th colSpan={showMonthlyDtqd ? 5 : 2} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-2.5 border-r border-b border-white/20 text-[#0f172a] bg-[#38bdf8] font-sans font-black text-center text-sm md:text-base tracking-wide uppercase whitespace-nowrap">
-                                      HIỆU QUẢ QĐ THÁNG {rankMonth1.replace(/tháng\s*/i, '')}, {rankMonth2.replace(/tháng\s*/i, '')}, {rankMonth3.replace(/tháng\s*/i, '')}
-                                    </th>
+                                    {showDtqdGroup && (
+                                      <th colSpan={showMonthlyDtqd ? 5 : 2} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-2.5 border-r border-b border-white/20 text-[#0f172a] bg-[#ffcb05] font-sans font-black text-center text-sm md:text-base tracking-wide uppercase whitespace-nowrap">
+                                        DOANH THU QUY ĐỔI THÁNG {rankMonth1.replace(/tháng\s*/i, '')}, {rankMonth2.replace(/tháng\s*/i, '')}, {rankMonth3.replace(/tháng\s*/i, '')}
+                                      </th>
+                                    )}
+                                    {showNganhHangGroup && (
+                                      <th colSpan={showMonthlyDtqd ? 5 : 2} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-2.5 border-r border-b border-white/20 text-white bg-[#6366f1] font-sans font-black text-center text-sm md:text-base tracking-wide uppercase whitespace-nowrap">
+                                        NGÀNH HÀNG THI ĐUA THÁNG {rankMonth1.replace(/tháng\s*/i, '')}, {rankMonth2.replace(/tháng\s*/i, '')}, {rankMonth3.replace(/tháng\s*/i, '')}
+                                      </th>
+                                    )}
+                                    {showEffGroup && (
+                                      <th colSpan={showMonthlyDtqd ? 5 : 2} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-2.5 border-r border-b border-white/20 text-[#0f172a] bg-[#38bdf8] font-sans font-black text-center text-sm md:text-base tracking-wide uppercase whitespace-nowrap">
+                                        HIỆU QUẢ QĐ THÁNG {rankMonth1.replace(/tháng\s*/i, '')}, {rankMonth2.replace(/tháng\s*/i, '')}, {rankMonth3.replace(/tháng\s*/i, '')}
+                                      </th>
+                                    )}
                                     {showThuNhapGroup && (
                                       <th colSpan={showMonthlyDtqd ? 5 : 2} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-2.5 border-r border-b border-white/20 text-white bg-[#f58220] font-sans font-black text-center text-sm md:text-base tracking-wide uppercase whitespace-nowrap">
                                         THU NHẬP THÁNG {rankMonth1.replace(/tháng\s*/i, '')}, {rankMonth2.replace(/tháng\s*/i, '')}, {rankMonth3.replace(/tháng\s*/i, '')}
@@ -4342,36 +4420,48 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                     </th>
                                   </tr>
                                   <tr>
-                                    {showMonthlyDtqd && (
+                                    {showDtqdGroup && (
                                       <>
-                                        <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth1.replace('Tháng ', 'T')}</th>
-                                        <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth2.replace('Tháng ', 'T')}</th>
-                                        <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth3.replace('Tháng ', 'T')}</th>
+                                        {showMonthlyDtqd && (
+                                          <>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth1.replace('Tháng ', 'T')}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth2.replace('Tháng ', 'T')}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth3.replace('Tháng ', 'T')}</th>
+                                          </>
+                                        )}
+                                        <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#eab308' }} className="px-6 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ TB</th>
+                                        <th style={{ width: '160px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f59e0b' }} className="px-3 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">TOP / BOT (20%)</th>
                                       </>
                                     )}
-                                    <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#eab308' }} className="px-6 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ TB</th>
-                                    <th style={{ width: '160px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f59e0b' }} className="px-3 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">TOP / BOT (20%)</th>
 
-                                    {showMonthlyDtqd && (
+                                    {showNganhHangGroup && (
                                       <>
-                                        <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth1.replace('Tháng ', 'T')}</th>
-                                        <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth2.replace('Tháng ', 'T')}</th>
-                                        <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth3.replace('Tháng ', 'T')}</th>
+                                        {showMonthlyDtqd && (
+                                          <>
+                                            <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth1.replace('Tháng ', 'T')}</th>
+                                            <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth2.replace('Tháng ', 'T')}</th>
+                                            <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth3.replace('Tháng ', 'T')}</th>
+                                          </>
+                                        )}
+                                        <th style={{ width: '140px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#4f46e5' }} className="px-6 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG TB</th>
+                                        <th style={{ width: '160px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#4338ca' }} className="px-3 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TOP / BOT (20%)</th>
                                       </>
                                     )}
-                                    <th style={{ width: '140px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#4f46e5' }} className="px-6 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG TB</th>
-                                    <th style={{ width: '160px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#4338ca' }} className="px-3 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TOP / BOT (20%)</th>
 
-                                    {showMonthlyDtqd && (
+                                    {showEffGroup && (
                                       <>
-                                        <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#0284c7' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">HQ {rankMonth1.replace('Tháng ', 'T')}</th>
-                                        <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#0284c7' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">HQ {rankMonth2.replace('Tháng ', 'T')}</th>
-                                        <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#0284c7' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">HQ {rankMonth3.replace('Tháng ', 'T')}</th>
+                                        {showMonthlyDtqd && (
+                                          <>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#0284c7' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">HQ {rankMonth1.replace('Tháng ', 'T')}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#0284c7' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">HQ {rankMonth2.replace('Tháng ', 'T')}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#0284c7' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">HQ {rankMonth3.replace('Tháng ', 'T')}</th>
+                                          </>
+                                        )}
+                                        <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#0369a1' }} className="px-6 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">HQ TB</th>
+                                        <th style={{ width: '160px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#075985' }} className="px-3 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TOP / BOT (20%)</th>
                                       </>
                                     )}
-                                    <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#0369a1' }} className="px-6 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">HQ TB</th>
-                                    <th style={{ width: '160px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#075985' }} className="px-3 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TOP / BOT (20%)</th>
-                                    
+
                                     {showThuNhapGroup && (
                                       <>
                                         {showMonthlyDtqd && (
@@ -4390,9 +4480,6 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                 <tbody className="divide-y divide-slate-100" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, fontSize: '14px' }}>
                                   {filteredRank3TData.map((row: any, i: number) => {
                                     const isStriped = i % 2 === 1;
-                                    const effPercent = row.effQd.toFixed(1);
-                                    const isGreen = row.effQd >= 50;
-
                                     const key = row.id || row.name;
                                     const tbDtqd = rank3TTopBotStats.stats[key] || { top: 0, bot: 0 };
                                     const tbNh = rank3TNganhHangTopBotStats.stats[key] || { top: 0, bot: 0 };
@@ -4403,169 +4490,184 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                       <tr key={i} className={`${isStriped ? 'bg-[#f8faff]' : 'bg-white'} hover:bg-slate-50 h-[48px]`}>
                                         <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-3 text-center border-r border-slate-200 bg-[#fef08a] text-[#0f172a] font-black whitespace-nowrap">{i + 1}</td>
                                         <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 border-r border-slate-200 text-[#0f172a] uppercase font-black whitespace-nowrap">{row.name}</td>
-                                        {showMonthlyDtqd && (
+                                        {showDtqdGroup && (
                                           <>
-                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
-                                              "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
-                                              rank3TTopBotStats.sets?.botM1Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
-                                              rank3TTopBotStats.sets?.topM1Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
-                                              "bg-amber-50/10 text-slate-700"
-                                            )}>
-                                              {row.dtqd1 >= 1000000 
-                                                ? `${Math.round(row.dtqd1 / 1000000).toLocaleString('vi-VN')} Tr`
-                                                : Math.round(row.dtqd1).toLocaleString('vi-VN')}
+                                            {showMonthlyDtqd && (
+                                              <>
+                                                <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                                                  "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
+                                                  rank3TTopBotStats.sets?.botM1Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
+                                                  rank3TTopBotStats.sets?.topM1Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
+                                                  "bg-amber-50/10 text-slate-700"
+                                                )}>
+                                                  {row.dtqd1 >= 1000000 
+                                                    ? `${Math.round(row.dtqd1 / 1000000).toLocaleString('vi-VN')} Tr`
+                                                    : Math.round(row.dtqd1).toLocaleString('vi-VN')}
+                                                </td>
+                                                <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                                                  "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
+                                                  rank3TTopBotStats.sets?.botM2Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
+                                                  rank3TTopBotStats.sets?.topM2Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
+                                                  "bg-amber-50/10 text-slate-700"
+                                                )}>
+                                                  {row.dtqd2 >= 1000000 
+                                                    ? `${Math.round(row.dtqd2 / 1000000).toLocaleString('vi-VN')} Tr`
+                                                    : Math.round(row.dtqd2).toLocaleString('vi-VN')}
+                                                </td>
+                                                <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                                                  "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
+                                                  rank3TTopBotStats.sets?.botM3Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
+                                                  rank3TTopBotStats.sets?.topM3Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
+                                                  "bg-amber-50/10 text-slate-700"
+                                                )}>
+                                                  {row.dtqd3 >= 1000000 
+                                                    ? `${Math.round(row.dtqd3 / 1000000).toLocaleString('vi-VN')} Tr`
+                                                    : Math.round(row.dtqd3).toLocaleString('vi-VN')}
+                                                </td>
+                                              </>
+                                            )}
+                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-slate-700 font-black bg-amber-100/10 whitespace-nowrap">
+                                              {(() => {
+                                                const avgDtqd = row.dtqd / 3;
+                                                return avgDtqd >= 1000000 
+                                                  ? `${Math.round(avgDtqd / 1000000).toLocaleString('vi-VN')} Tr`
+                                                  : Math.round(avgDtqd).toLocaleString('vi-VN');
+                                              })()}
                                             </td>
-                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
-                                              "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
-                                              rank3TTopBotStats.sets?.botM2Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
-                                              rank3TTopBotStats.sets?.topM2Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
-                                              "bg-amber-50/10 text-slate-700"
-                                            )}>
-                                              {row.dtqd2 >= 1000000 
-                                                ? `${Math.round(row.dtqd2 / 1000000).toLocaleString('vi-VN')} Tr`
-                                                : Math.round(row.dtqd2).toLocaleString('vi-VN')}
-                                            </td>
-                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
-                                              "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
-                                              rank3TTopBotStats.sets?.botM3Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
-                                              rank3TTopBotStats.sets?.topM3Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
-                                              "bg-amber-50/10 text-slate-700"
-                                            )}>
-                                              {row.dtqd3 >= 1000000 
-                                                ? `${Math.round(row.dtqd3 / 1000000).toLocaleString('vi-VN')} Tr`
-                                                : Math.round(row.dtqd3).toLocaleString('vi-VN')}
+                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-3 py-3 text-center border-r border-slate-200 text-[12px] whitespace-nowrap bg-amber-50/20">
+                                              {tbDtqd.top > 0 ? (
+                                                 <span className="px-2.5 py-1 rounded bg-emerald-100 text-emerald-800 font-black text-xs">TOP</span>
+                                               ) : tbDtqd.bot > 0 ? (
+                                                 <span className="px-2.5 py-1 rounded bg-rose-100 text-rose-700 font-black text-xs">BOT</span>
+                                               ) : (
+                                                 <span className="text-slate-300 font-normal text-xs">-</span>
+                                               )}
                                             </td>
                                           </>
                                         )}
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-slate-700 font-black bg-amber-100/10 whitespace-nowrap">
-                                          {(() => {
-                                            const avgDtqd = row.dtqd / 3;
-                                            return avgDtqd >= 1000000 
-                                              ? `${Math.round(avgDtqd / 1000000).toLocaleString('vi-VN')} Tr`
-                                              : Math.round(avgDtqd).toLocaleString('vi-VN');
-                                          })()}
-                                        </td>
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-3 py-3 text-center border-r border-slate-200 text-[12px] whitespace-nowrap bg-amber-50/20">
-                                          {tbDtqd.top > 0 ? (
-                                             <span className="px-2.5 py-1 rounded bg-emerald-100 text-emerald-800 font-black text-xs">TOP</span>
-                                           ) : tbDtqd.bot > 0 ? (
-                                             <span className="px-2.5 py-1 rounded bg-rose-100 text-rose-700 font-black text-xs">BOT</span>
-                                           ) : (
-                                             <span className="text-slate-300 font-normal text-xs">-</span>
-                                           )}
-                                        </td>
-                                        {showMonthlyDtqd && (
+
+                                        {showNganhHangGroup && (
                                           <>
-                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
-                                              "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
-                                              rank3TNganhHangTopBotStats.sets?.botM1Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
-                                              rank3TNganhHangTopBotStats.sets?.topM1Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
-                                              "bg-indigo-50/10 text-indigo-700"
-                                            )}>
+                                            {showMonthlyDtqd && (
+                                              <>
+                                                <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                                                  "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
+                                                  rank3TNganhHangTopBotStats.sets?.botM1Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
+                                                  rank3TNganhHangTopBotStats.sets?.topM1Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
+                                                  "bg-indigo-50/10 text-indigo-700"
+                                                )}>
+                                                  {(() => {
+                                                    const sc = rank3TNganhHangScores[key];
+                                                    return sc ? sc.m1Text : '-';
+                                                  })()}
+                                                </td>
+                                                <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                                                  "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
+                                                  rank3TNganhHangTopBotStats.sets?.botM2Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
+                                                  rank3TNganhHangTopBotStats.sets?.topM2Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
+                                                  "bg-indigo-50/10 text-indigo-700"
+                                                )}>
+                                                  {(() => {
+                                                    const sc = rank3TNganhHangScores[key];
+                                                    return sc ? sc.m2Text : '-';
+                                                  })()}
+                                                </td>
+                                                <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                                                  "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
+                                                  rank3TNganhHangTopBotStats.sets?.botM3Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
+                                                  rank3TNganhHangTopBotStats.sets?.topM3Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
+                                                  "bg-indigo-50/10 text-indigo-700"
+                                                )}>
+                                                  {(() => {
+                                                    const sc = rank3TNganhHangScores[key];
+                                                    return sc ? sc.m3Text : '-';
+                                                  })()}
+                                                </td>
+                                              </>
+                                            )}
+                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-indigo-600 font-black bg-indigo-50/10 whitespace-nowrap">
                                               {(() => {
                                                 const sc = rank3TNganhHangScores[key];
-                                                return sc ? sc.m1Text : '-';
+                                                if (sc && sc.hasData) return sc.totalText;
+                                                return row.nganhhang.toLocaleString('vi-VN');
                                               })()}
                                             </td>
-                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
-                                              "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
-                                              rank3TNganhHangTopBotStats.sets?.botM2Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
-                                              rank3TNganhHangTopBotStats.sets?.topM2Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
-                                              "bg-indigo-50/10 text-indigo-700"
-                                            )}>
-                                              {(() => {
-                                                const sc = rank3TNganhHangScores[key];
-                                                return sc ? sc.m2Text : '-';
-                                              })()}
-                                            </td>
-                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
-                                              "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
-                                              rank3TNganhHangTopBotStats.sets?.botM3Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
-                                              rank3TNganhHangTopBotStats.sets?.topM3Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
-                                              "bg-indigo-50/10 text-indigo-700"
-                                            )}>
-                                              {(() => {
-                                                const sc = rank3TNganhHangScores[key];
-                                                return sc ? sc.m3Text : '-';
-                                              })()}
+                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-3 py-3 text-center border-r border-slate-200 text-[12px] whitespace-nowrap bg-indigo-50/20">
+                                              {tbNh.top > 0 ? (
+                                                 <span className="px-2.5 py-1 rounded bg-indigo-100 text-indigo-800 font-black text-xs">TOP</span>
+                                               ) : tbNh.bot > 0 ? (
+                                                 <span className="px-2.5 py-1 rounded bg-rose-100 text-rose-700 font-black text-xs">BOT</span>
+                                               ) : (
+                                                 <span className="text-slate-300 font-normal text-xs">-</span>
+                                               )}
                                             </td>
                                           </>
                                         )}
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-indigo-600 font-black bg-indigo-50/10 whitespace-nowrap">
-                                          {(() => {
-                                            const sc = rank3TNganhHangScores[key];
-                                            if (sc && sc.hasData) return sc.totalText;
-                                            return row.nganhhang.toLocaleString('vi-VN');
-                                          })()}
-                                        </td>
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-3 py-3 text-center border-r border-slate-200 text-[12px] whitespace-nowrap bg-indigo-50/20">
-                                          {tbNh.top > 0 ? (
-                                             <span className="px-2.5 py-1 rounded bg-indigo-100 text-indigo-800 font-black text-xs">TOP</span>
-                                           ) : tbNh.bot > 0 ? (
-                                             <span className="px-2.5 py-1 rounded bg-rose-100 text-rose-700 font-black text-xs">BOT</span>
-                                           ) : (
-                                             <span className="text-slate-300 font-normal text-xs">-</span>
-                                           )}
-                                        </td>
-                                        {showMonthlyDtqd && (
+
+                                        {showEffGroup && (
                                           <>
+                                            {showMonthlyDtqd && (
+                                              <>
+                                                <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                                                  "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
+                                                  rank3TEffQdTopBotStats.sets?.botM1Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
+                                                  rank3TEffQdTopBotStats.sets?.topM1Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
+                                                  "bg-sky-50/10 text-sky-700"
+                                                )}>
+                                                  {(() => {
+                                                    const val = row.effQd1 || 0;
+                                                    if (!val) return '0%';
+                                                    return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}%`;
+                                                  })()}
+                                                </td>
+                                                <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                                                  "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
+                                                  rank3TEffQdTopBotStats.sets?.botM2Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
+                                                  rank3TEffQdTopBotStats.sets?.topM2Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
+                                                  "bg-sky-50/10 text-sky-700"
+                                                )}>
+                                                  {(() => {
+                                                    const val = row.effQd2 || 0;
+                                                    if (!val) return '0%';
+                                                    return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}%`;
+                                                  })()}
+                                                </td>
+                                                <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                                                  "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
+                                                  rank3TEffQdTopBotStats.sets?.botM3Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
+                                                  rank3TEffQdTopBotStats.sets?.topM3Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
+                                                  "bg-sky-50/10 text-sky-700"
+                                                )}>
+                                                  {(() => {
+                                                    const val = row.effQd3 || 0;
+                                                    if (!val) return '0%';
+                                                    return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}%`;
+                                                  })()}
+                                                </td>
+                                              </>
+                                            )}
                                             <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
-                                              "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
-                                              rank3TEffQdTopBotStats.sets?.botM1Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
-                                              rank3TEffQdTopBotStats.sets?.topM1Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
-                                              "bg-sky-50/10 text-sky-700"
-                                            )}>
-                                              {(() => {
-                                                const val = row.effQd1 || 0;
-                                                if (!val) return '0%';
-                                                return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}%`;
-                                              })()}
+                                               "px-6 py-3 text-center border-r border-slate-200 font-mono font-black whitespace-nowrap",
+                                               tbEff.top > 0 ? "bg-emerald-100 text-emerald-800" : tbEff.bot > 0 ? "bg-rose-100 text-rose-700" : "bg-white text-slate-900"
+                                             )}>
+                                               {(() => {
+                                                 const val = row.effQd || 0;
+                                                 if (!val) return '0%';
+                                                 return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}%`;
+                                               })()}
                                             </td>
-                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
-                                              "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
-                                              rank3TEffQdTopBotStats.sets?.botM2Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
-                                              rank3TEffQdTopBotStats.sets?.topM2Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
-                                              "bg-sky-50/10 text-sky-700"
-                                            )}>
-                                              {(() => {
-                                                const val = row.effQd2 || 0;
-                                                if (!val) return '0%';
-                                                return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}%`;
-                                              })()}
-                                            </td>
-                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
-                                              "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
-                                              rank3TEffQdTopBotStats.sets?.botM3Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
-                                              rank3TEffQdTopBotStats.sets?.topM3Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
-                                              "bg-sky-50/10 text-sky-700"
-                                            )}>
-                                              {(() => {
-                                                const val = row.effQd3 || 0;
-                                                if (!val) return '0%';
-                                                return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}%`;
-                                              })()}
+                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-3 py-3 text-center border-r border-slate-200 text-[12px] whitespace-nowrap bg-sky-50/20">
+                                              {tbEff.top > 0 ? (
+                                                 <span className="px-2.5 py-1 rounded bg-sky-100 text-sky-800 font-black text-xs">TOP</span>
+                                               ) : tbEff.bot > 0 ? (
+                                                 <span className="px-2.5 py-1 rounded bg-rose-100 text-rose-700 font-black text-xs">BOT</span>
+                                               ) : (
+                                                 <span className="text-slate-300 font-normal text-xs">-</span>
+                                               )}
                                             </td>
                                           </>
                                         )}
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
-                                           "px-6 py-3 text-center border-r border-slate-200 font-mono font-black whitespace-nowrap",
-                                           tbEff.top > 0 ? "bg-emerald-100 text-emerald-800" : tbEff.bot > 0 ? "bg-rose-100 text-rose-700" : "bg-white text-slate-900"
-                                         )}>
-                                           {(() => {
-                                             const val = row.effQd || 0;
-                                             if (!val) return '0%';
-                                             return `${val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)}%`;
-                                           })()}
-                                        </td>
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-3 py-3 text-center border-r border-slate-200 text-[12px] whitespace-nowrap bg-sky-50/20">
-                                          {tbEff.top > 0 ? (
-                                             <span className="px-2.5 py-1 rounded bg-sky-100 text-sky-800 font-black text-xs">TOP</span>
-                                           ) : tbEff.bot > 0 ? (
-                                             <span className="px-2.5 py-1 rounded bg-rose-100 text-rose-700 font-black text-xs">BOT</span>
-                                           ) : (
-                                             <span className="text-slate-300 font-normal text-xs">-</span>
-                                           )}
-                                        </td>
+
                                         {showThuNhapGroup && (
                                           <>
                                             {showMonthlyDtqd && (
@@ -4623,21 +4725,21 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                                })()}
                                              </td>
                                              <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-3 py-3 text-center border-r border-slate-200 text-[12px] whitespace-nowrap bg-orange-50/20">
-                                               {tbTn.top > 0 ? (
-                                              <span className="px-2.5 py-1 rounded bg-orange-100 text-orange-800 font-black text-xs">TOP</span>
-                                            ) : tbTn.bot > 0 ? (
-                                              <span className="px-2.5 py-1 rounded bg-rose-100 text-rose-700 font-black text-xs">BOT</span>
-                                            ) : (
-                                              <span className="text-slate-300 font-normal text-xs">-</span>
-                                            )}
                                           </td>
                                           </>
                                         )}
                                         <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-3 py-3 text-center text-[12px] whitespace-nowrap bg-slate-900/5">
                                           {(() => {
                                             const tbTn = rank3TThuNhapTopBotStats.stats[key] || { top: 0, bot: 0 };
-                                            const totalTop = tbDtqd.top + tbNh.top + tbEff.top + tbTn.top;
-                                            const totalBot = tbDtqd.bot + tbNh.bot + tbEff.bot + tbTn.bot;
+                                            const totalTop = (showDtqdGroup ? tbDtqd.top : 0) + 
+                                                             (showNganhHangGroup ? tbNh.top : 0) + 
+                                                             (showEffGroup ? tbEff.top : 0) + 
+                                                             (showThuNhapGroup ? tbTn.top : 0);
+
+                                            const totalBot = (showDtqdGroup ? tbDtqd.bot : 0) + 
+                                                             (showNganhHangGroup ? tbNh.bot : 0) + 
+                                                             (showEffGroup ? tbEff.bot : 0) + 
+                                                             (showThuNhapGroup ? tbTn.bot : 0);
                                             return (
                                               <div className="inline-flex items-center gap-1.5 font-black justify-center">
                                                 <span className={totalTop > 0 ? "text-emerald-700 font-black text-sm" : "text-slate-400 text-sm"}>

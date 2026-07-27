@@ -559,12 +559,12 @@ const InputSection: React.FC<InputSectionProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {[
               { title: 'BÁO CÁO TỔNG HỢP', color: 'bg-slate-700', items: [
-                { id: 'rt_market', label: 'REALTIME DT', value: marketInput, onChange: setMarketInput, onBlur: () => onSaveRealtime(false), hasData: !!marketInput },
-                { id: 'rt_catrev', label: 'LUỸ KẾ DT', value: clusterSummaryInput || categoryRevenueInput, onChange: (val: string) => { setCategoryRevenueInput(val); setClusterSummaryInput(val); }, onBlur: () => { onSaveRealtime(false); onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ DT'); }, hasData: !!(clusterSummaryInput || categoryRevenueInput), isLuyke: true },
+                { id: 'rt_market', label: 'REALTIME DT', value: marketInput, onChange: setMarketInput, onBlur: () => onSaveRealtime(false, 'REALTIME DT'), hasData: !!marketInput },
+                { id: 'rt_catrev', label: 'LUỸ KẾ DT', value: clusterSummaryInput || categoryRevenueInput, onChange: (val: string) => { setCategoryRevenueInput(val); setClusterSummaryInput(val); }, onBlur: () => { onSaveRealtime(false, 'LUỸ KẾ DT'); onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ DT'); }, hasData: !!(clusterSummaryInput || categoryRevenueInput), isLuyke: true },
               ]},
               { title: 'THI ĐUA CỤM', color: 'bg-orange-500', hasYcx: false, items: [
-                { id: 'rt_cat', label: 'REALTIME TĐ', value: categoryInput, onChange: setCategoryInput, onBlur: () => onSaveRealtime(false), hasData: !!categoryInput },
-                { id: 'rt_catlk', label: 'LUỸ KẾ TĐ', value: categoryTargetInput || clusterCategoryInput, onChange: (val: string) => { setCategoryTargetInput(val); setClusterCategoryInput && setClusterCategoryInput(val); }, onBlur: () => { onSaveRealtime(false); onSaveLuyke && onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ TĐ'); }, hasData: !!(categoryTargetInput || clusterCategoryInput) },
+                { id: 'rt_cat', label: 'REALTIME TĐ', value: categoryInput, onChange: setCategoryInput, onBlur: () => onSaveRealtime(false, 'REALTIME TĐ'), hasData: !!categoryInput },
+                { id: 'rt_catlk', label: 'LUỸ KẾ TĐ', value: categoryTargetInput || clusterCategoryInput, onChange: (val: string) => { setCategoryTargetInput(val); setClusterCategoryInput && setClusterCategoryInput(val); }, onBlur: () => { onSaveRealtime(false, 'LUỸ KẾ TĐ'); onSaveLuyke && onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ TĐ'); }, hasData: !!(categoryTargetInput || clusterCategoryInput) },
               ]},
             ].map(group => (
               <div key={group.title}>
@@ -591,7 +591,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                           )}
                         </div>
                         {item.hasData && (
-                          <button onClick={(e) => { e.stopPropagation(); clearField ? clearField(item.onChange) : item.onChange(''); }} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0 cursor-pointer" title="Xoá dữ liệu">
+                          <button onClick={(e) => { e.stopPropagation(); if (clearField) { clearField(item.onChange); } else { item.onChange(''); } }} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0 cursor-pointer" title="Xoá dữ liệu">
                             <X size={14} />
                           </button>
                         )}
@@ -604,6 +604,11 @@ const InputSection: React.FC<InputSectionProps> = ({
                           const pastedText = e.clipboardData.getData('text');
                           if (pastedText) {
                             item.onChange(pastedText);
+                            // Save to Firebase immediately after paste (don't wait for 4s auto-save)
+                            setTimeout(() => {
+                              if (item.onBlur) item.onBlur();
+                              if (onSaveRealtime) onSaveRealtime(true);
+                            }, 300);
                           }
                         }}
                         onBlur={item.onBlur}
@@ -996,7 +1001,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                                         <td className="p-1.5 text-[12px]">{item.target.toLocaleString()}</td>
                                         <td className="p-1.5 text-[12px] font-black text-indigo-600">{item.adjustedTarget.toLocaleString()}</td>
                                         <td className="p-1.5 text-center">
-                                          <input type="number" value={item.percent} onChange={(e) => { if (!isActiveCard) return; const nv = Number(e.target.value); const nt = categoryTargets.map(t => t.name === item.name ? { ...t, percent: nv, adjustedTarget: t.target * (nv / 100) } : t); setCategoryTargets(nt); }} disabled={!isActiveCard} className={cn("w-14 border rounded p-1 text-[12px] text-center font-sans font-normal outline-none", isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400")} />
+                                          <input type="number" value={item.percent} onChange={(e) => { if (!isActiveCard) return; const nv = Number(e.target.value); const nt = categoryTargets.map(t => t.name === item.name ? { ...t, percent: nv, adjustedTarget: t.target * (nv / 100) } : t); setCategoryTargets(nt); if (onSaveLuyke) { onSaveLuyke(true, 'targets', undefined, nt, 'TARGET THI ĐUA'); } }} disabled={!isActiveCard} className={cn("w-14 border rounded p-1 text-[12px] text-center font-sans font-normal outline-none", isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400")} />
                                         </td>
                                       </tr>
                                     ))}

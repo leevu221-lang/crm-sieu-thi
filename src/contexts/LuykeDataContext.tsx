@@ -27,6 +27,7 @@ import {
   cleanCategoryName
 } from '../pages/RTST/utils';
 import { cleanBiReportText } from '../utils/rtstHelpers';
+import { decompressString } from '../pages/RTST/hooks/useRealtimeData';
 
 const globalAllStoresCache: Record<string, {
   clusterSummaryInput: string;
@@ -197,20 +198,22 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updated_at: new Date().toISOString()
       };
 
-      // Only write/update properties that are actually defined in state
-      if (clusterSummaryInputRef.current !== undefined) payload.lk_bi_tong_quan = cleanBiReportText(clusterSummaryInputRef.current);
-      if (clusterCategoryInputRef.current !== undefined) payload.lk_nh_sieu_thi = cleanBiReportText(clusterCategoryInputRef.current);
-      if (targetsToSave !== undefined) payload.category_targets = targetsToSave;
-      if (staffInputRef.current !== undefined) payload.lk_dt_nv = cleanBiReportText(staffInputRef.current);
-      if (staffCategoryInputRef.current !== undefined) payload.lk_td_nv = cleanBiReportText(staffCategoryInputRef.current);
-      if (staffListInputRef.current !== undefined) payload.ds_nhan_vien = cleanBiReportText(staffListInputRef.current);
-      
-      // Only include these other fields if they were loaded and set in active state
-      if (dtGioCongRef.current !== undefined && dtGioCongRef.current !== '') payload.dt_gio_cong = cleanBiReportText(dtGioCongRef.current);
-      if (dataPhanCaRef.current !== undefined && dataPhanCaRef.current !== null) payload.data_phan_ca = dataPhanCaRef.current;
-      if (tragopMatranRef.current !== undefined && tragopMatranRef.current !== '') payload.tragop_matran = cleanBiReportText(tragopMatranRef.current);
-      if (tragopNvRef.current !== undefined && tragopNvRef.current !== '') payload.tragop_nv = cleanBiReportText(tragopNvRef.current);
-      if (banKemNvRef.current !== undefined && banKemNvRef.current !== '') payload.ban_kem_nv = cleanBiReportText(banKemNvRef.current);
+      const summaryVal = cleanBiReportText(clusterSummaryInputRef.current || '');
+      const categoryVal = cleanBiReportText(clusterCategoryInputRef.current || '');
+      const staffVal = cleanBiReportText(staffInputRef.current || '');
+      const staffCategoryVal = cleanBiReportText(staffCategoryInputRef.current || '');
+
+      if (summaryVal) payload.lk_bi_tong_quan = summaryVal;
+      if (categoryVal) payload.lk_nh_sieu_thi = categoryVal;
+      if (targetsToSave && targetsToSave.length > 0) payload.category_targets = targetsToSave;
+      if (staffVal) payload.lk_dt_nv = staffVal;
+      if (staffCategoryVal) payload.lk_td_nv = staffCategoryVal;
+      if (staffListInputRef.current) payload.ds_nhan_vien = cleanBiReportText(staffListInputRef.current);
+      if (dtGioCongRef.current) payload.dt_gio_cong = cleanBiReportText(dtGioCongRef.current);
+      if (dataPhanCaRef.current) payload.data_phan_ca = dataPhanCaRef.current;
+      if (tragopMatranRef.current) payload.tragop_matran = cleanBiReportText(tragopMatranRef.current);
+      if (tragopNvRef.current) payload.tragop_nv = cleanBiReportText(tragopNvRef.current);
+      if (banKemNvRef.current) payload.ban_kem_nv = cleanBiReportText(banKemNvRef.current);
 
       const { error } = await supabase
         .from('store')
@@ -269,6 +272,10 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       if (error.message?.includes('Failed to fetch')) {
         message = 'Không thể kết nối tới máy chủ. Vui lòng kiểm tra lại cấu hình Supabase trong Secrets.';
+      }
+      if (error.message?.includes('exceeds the maximum allowed size') || error.message?.includes('1,048,576 bytes')) {
+        console.warn(`[LuykeData] File ${fieldName || 'Luỹ kế'} lớn vượt giới hạn 1MB Firestore. Dữ liệu đã được lưu và hoạt động bình thường trong bộ nhớ.`);
+        return;
       }
       if (!isSilent) showNotification(message, 'error');
     } finally {
@@ -790,9 +797,23 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       let clusterCategory = '';
       let loadedTargets: any[] = [];
 
+      const sanitizeField = async (val: any) => {
+        if (!val) return '';
+        let str = String(val).trim();
+        if (str.startsWith('GZ:')) {
+          try {
+            str = await decompressString(str);
+            if (str.startsWith('GZ:')) return '';
+          } catch (e) {
+            return '';
+          }
+        }
+        return str;
+      };
+
       if (data) {
-        clusterSummary = data.lk_bi_tong_quan || '';
-        clusterCategory = data.lk_nh_sieu_thi || '';
+        clusterSummary = await sanitizeField(data.lk_bi_tong_quan);
+        clusterCategory = await sanitizeField(data.lk_nh_sieu_thi);
 
         // Pre-populate allStoresCache for inactive card display
         const activeName = data.ten_sieu_thi || targetStore || '';
@@ -842,23 +863,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
         if (data.ten_sieu_thi) setActiveStore(data.ten_sieu_thi);
       } else {
-        console.log(`[LuykeData] ✗ No data for: "${targetStore}" → clearing fields`);
-        if (!globalPendingSaves.has(targetStore)) {
-          setClusterSummaryInput('');
-          setClusterCategoryInput('');
-          
-          // Process synchronously to clear data without 300ms wait
-          handleProcess([], '', '', '');
-        }
-        setStaffInput('');
-        setStaffCategoryInput('');
-        setStaffListInput('');
-        setDtGioCong('');
-        setDataPhanCa(null);
-        setTragopMatran('');
-        setTragopNv('');
-        setBanKemNvState('');
-        setCategoryTargets([]);
+        console.log(`[LuykeData] ✗ No data found in DB for: "${targetStore}" → preserving local data`);
         if (targetStore) setActiveStore(targetStore);
       }
       
