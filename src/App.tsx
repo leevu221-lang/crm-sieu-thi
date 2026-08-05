@@ -1,5 +1,5 @@
 import React, { useState, Suspense, lazy, useEffect, useMemo, useRef } from 'react';
-import { Database, BarChart3, Activity, HeartPulse, LogOut, User, Store, Loader2, Users, Shield, Settings, Type, Minus, Plus as PlusIcon, Monitor, Smartphone, LayoutGrid, AlertCircle, Wrench, ShieldAlert, RefreshCw, Zap, ShoppingBag, Globe, Trophy, Gift, X, MessageSquare, CreditCard } from 'lucide-react';
+import { Database, BarChart3, Activity, HeartPulse, LogOut, User, Store, Loader2, Users, Shield, Settings, Type, Minus, Plus as PlusIcon, Monitor, Smartphone, LayoutGrid, AlertCircle, Wrench, ShieldAlert, RefreshCw, Zap, ShoppingBag, Globe, Trophy, Gift, X, MessageSquare, CreditCard, FileSpreadsheet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from './contexts/AuthContext';
 import { useSettings } from './contexts/SettingsContext';
@@ -12,19 +12,42 @@ import VersionUpdateNotifier from './components/VersionUpdateNotifier';
 import { birthdayService } from './services/birthdayService';
 import SubscriptionLockScreen from './components/SubscriptionLockScreen';
 import { trackUserPing } from './services/accessTracker';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { db } from './firebaseConfig';
+
+// Wrapper to auto-reload if dynamic import fails (chunk load error)
+const lazyWithRetry = (componentImport: () => Promise<any>) =>
+  lazy(async () => {
+    const pageHasAlreadyBeenForceRefreshed = JSON.parse(
+      window.sessionStorage.getItem('page-has-been-force-refreshed') || 'false'
+    );
+    try {
+      const component = await componentImport();
+      window.sessionStorage.setItem('page-has-been-force-refreshed', 'false');
+      return component;
+    } catch (error: any) {
+      if (!pageHasAlreadyBeenForceRefreshed) {
+        window.sessionStorage.setItem('page-has-been-force-refreshed', 'true');
+        window.location.reload();
+      }
+      throw error;
+    }
+  });
 
 // Lazy load pages for better performance
 const NewRealtimePage = lazy(() => import('./pages/RealtimePage'));
 const UserManagement = lazy(() => import('./pages/DanhSachNguoiDung'));
 const EmployeeHealth = lazy(() => import('./pages/SucKhoeNhanVien'));
 const KhaiBao = lazy(() => import('./pages/KhaiBao'));
-const LuyKe = lazy(() => import('./pages/LuyKe'));
+const LuyKe = lazyWithRetry(() => import('./pages/LuyKe'));
 const ToolHoTro = lazy(() => import('./pages/ToolHoTro'));
 const StickerCeScanner = lazy(() => import('./components/StickerCeScanner'));
 const TnbData = lazy(() => import('./pages/TnbData'));
+const TnbLeader = lazy(() => import('./pages/TnbLeader'));
 const SinhNhatNv = lazy(() => import('./pages/SinhNhatNv'));
 const FeedbackPage = lazy(() => import('./pages/FeedbackPage'));
-
+const ExcelViewer = lazy(() => import('./pages/ExcelViewer').then(module => ({ default: module.ExcelViewer })));
+const BanGiaSocPage = lazy(() => import('./pages/BanGiaSocPage').then(module => ({ default: module.BanGiaSocPage })));
 const LoadingSpinner = () => (
   <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
     <div className="relative">
@@ -46,7 +69,7 @@ export default function App() {
     );
   }
 
-  const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro' | 'tnb_data' | 'birthday' | 'feedback'>('realtime');
+  const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro' | 'tnb_data' | 'birthday' | 'feedback' | 'excelviewer'>('realtime');
   const { userProfile, logout, refreshProfile } = useAuth();
   const [declarationCompleted, setDeclarationCompleted] = useState(() => {
     const justLoggedIn = sessionStorage.getItem('justLoggedIn');
@@ -55,28 +78,53 @@ export default function App() {
     return justLoggedIn !== 'true';
   });
   const { fontSize, setFontSize, fontFamily, setFontFamily } = useSettings();
-  const { marketFilter, setMarketFilter, availableMarkets } = useStore();
+  const { marketFilter, setMarketFilter, availableMarkets, activeRealtimeTab, activeToolHoTroTab, activeLuyKeTab, activeHealthTab } = useStore();
   const [showSettings, setShowSettings] = useState(false);
   const [isDesktopView, setIsDesktopView] = useState(true);
   const [showSubscriptionForce, setShowSubscriptionForce] = useState(false);
+  
+  // Page Maintenance Mode State
+  const [pageMaintenanceState, setPageMaintenanceState] = useState<Record<string, boolean>>({});
+  const [showMaintenanceConfirm, setShowMaintenanceConfirm] = useState(false);
+  const effectivePageKey = currentPage === 'realtime' ? `realtime_${activeRealtimeTab}` : 
+                           currentPage === 'toolhotro' ? `toolhotro_${activeToolHoTroTab}` : 
+                           currentPage === 'luyke' ? `luyke_${activeLuyKeTab}` :
+                           currentPage === 'health' ? `health_${activeHealthTab}` :
+                           currentPage;
 
-
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'system_settings', 'maintenance_status'), (docSnap) => {
+      if (docSnap.exists()) {
+        setPageMaintenanceState(docSnap.data() || {});
+      }
+    });
+    return () => unsub();
+  }, []);
 
   // Hard Rule implementation for fallback if userProfile has missing userPermissions (legacy session)
   const isSuperAdminHardcoded = userProfile?.username === '43751' || userProfile?.username === 'ADMIN';
-  const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'birthday', 'feedback'];
+  const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'tnbleader', 'birthday', 'feedback', 'excelviewer', 'bangiasoc'];
   
   // Compute allowed pages
   const canEditUser = userProfile?.userPermissions?.canEditUser ?? isSuperAdminHardcoded;
   let allowedPages = isSuperAdminHardcoded ? ALL_PAGES : userProfile?.userPermissions?.allowedPages;
   
   if (!allowedPages) {
-    allowedPages = isSuperAdminHardcoded ? ALL_PAGES : ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tnb_data', 'birthday', 'feedback']; // fallback for legacy normal users to not break the app completely without relogin
+    allowedPages = isSuperAdminHardcoded ? ALL_PAGES : ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'birthday']; // fallback for legacy normal users to not break the app completely without relogin
+  }
+  
+  const is7611 = userProfile?.username === '7611' || userProfile?.ma_nhan_vien === '7611';
+  if (is7611) {
+    allowedPages = ['tnbleader'];
   }
   
   const effectiveAllowedPages = useMemo(() => {
-    return canEditUser && !allowedPages.includes('users') ? [...allowedPages, 'users'] : allowedPages;
-  }, [canEditUser, allowedPages]);
+    let pages = canEditUser && !allowedPages.includes('users') ? [...allowedPages, 'users'] : allowedPages;
+    if (userProfile?.username === '43751' && !pages.includes('bangiasoc')) {
+      pages = [...pages, 'bangiasoc'];
+    }
+    return pages;
+  }, [canEditUser, allowedPages, userProfile?.username]);
   // Thêm dòng này sau dòng 46
   // console.log('--- PERMISSION DEBUG ---');
   // console.log('Effective Allowed Pages:', effectiveAllowedPages);
@@ -87,6 +135,14 @@ export default function App() {
   const isLocked = useMemo(() => {
     if (isSuperAdminHardcoded) return false;
     if (!userProfile) return false;
+    
+    // Forcibly lock these specific accounts immediately
+    const forcedLockList = ['65582', '64734', '33139', '89724'];
+    const currentUsername = String(userProfile.username || '').trim();
+    if (forcedLockList.includes(currentUsername)) {
+      return true;
+    }
+    
     if (userProfile.isDemo) return false;
     
     const lockEffectiveDate = new Date('2026-08-01T00:00:00+07:00');
@@ -126,7 +182,7 @@ export default function App() {
   useEffect(() => {
     // Redirect if we are on a page that is not allowed
     if (userProfile) {
-      if (currentPage !== 'users' && currentPage !== 'feedback' && !effectiveAllowedPages.includes(currentPage)) {
+      if (currentPage !== 'users' && !effectiveAllowedPages.includes(currentPage)) {
         if (effectiveAllowedPages.length > 0) {
           const firstAllowedNavPage = effectiveAllowedPages.find(p => p !== 'users');
           if (firstAllowedNavPage) {
@@ -167,6 +223,12 @@ export default function App() {
   useEffect(() => {
     if (!userProfile) {
       setDeclarationCompleted(false);
+    } else {
+      const isUser7611 = userProfile.username === '7611' || userProfile.ma_nhan_vien === '7611';
+      if (isUser7611) {
+        localStorage.setItem('rtst_ma_kho', 'TNB_LEADER_DATA');
+        setDeclarationCompleted(true);
+      }
     }
   }, [userProfile]);
 
@@ -204,6 +266,8 @@ export default function App() {
     );
   }
 
+  const isUser43751Local = String(userProfile?.username || '').trim() === '43751';
+
   const isSuperAdmin = canEditUser;
 
   const getMarketTheme = (name: string) => {
@@ -223,15 +287,14 @@ export default function App() {
     { id: 'khaibao', label: 'Cập nhật', icon: Database, color: 'indigo' },
     { id: 'health', label: 'Sức khỏe NV', icon: HeartPulse, color: 'rose' },
     { id: 'toolhotro', label: 'Tool Hỗ Trợ', icon: Wrench, color: 'amber' },
+    { id: 'tnbleader', label: 'TNB LEADER', icon: Trophy, color: 'amber' },
     { id: 'birthday', label: 'Sinh nhật NV', icon: Gift, color: 'pink' },
     { id: 'feedback', label: 'HƯỚNG DẪN & GÓP Ý', icon: MessageSquare, color: 'indigo' },
-    // { id: 'tnb_data', label: 'TNB DATA', icon: Trophy, color: 'indigo' },
+    { id: 'excelviewer', label: 'XEM FILE EXCEL', icon: FileSpreadsheet, color: 'emerald' },
+    { id: 'bangiasoc', label: 'GIÁ SỐC', icon: ShoppingBag, color: 'rose' }
   ];
   
-  const NAV_ITEMS = [
-    ...BASE_NAV_ITEMS.filter(item => item.id !== 'feedback' && effectiveAllowedPages.includes(item.id)),
-    { id: 'feedback', label: 'HƯỚNG DẪN & GÓP Ý', icon: MessageSquare, color: 'indigo' },
-  ];
+  const NAV_ITEMS = BASE_NAV_ITEMS.filter(item => effectiveAllowedPages.includes(item.id));
 
 
 
@@ -396,13 +459,15 @@ export default function App() {
                 <Store size={20} />
               </button>
 
-              <button 
-                onClick={() => setShowSettings(true)}
-                className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
-                title="Cài đặt hiển thị"
-              >
-                <Settings size={20} />
-              </button>
+              {isUser43751Local && (
+                <button 
+                  onClick={() => setShowSettings(true)}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                  title="Cài đặt hiển thị"
+                >
+                  <Settings size={20} />
+                </button>
+              )}
 
               <button 
                 onClick={() => logout()}
@@ -411,6 +476,18 @@ export default function App() {
               >
                 <LogOut size={20} />
               </button>
+
+              {isUser43751Local && (
+                <>
+                  <button
+                    onClick={() => setShowMaintenanceConfirm(true)}
+                    className={`h-10 px-3 rounded-xl flex items-center justify-center font-bold text-xs transition-all ${pageMaintenanceState[effectivePageKey] ? 'bg-red-50 text-red-600 animate-pulse' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                    title={pageMaintenanceState[effectivePageKey] ? 'ĐANG BẢO TRÌ TRANG NÀY (BẤM ĐỂ TẮT)' : 'BẬT BẢO TRÌ TRANG NÀY'}
+                  >
+                    <AlertCircle size={20} />
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </header>
@@ -455,11 +532,38 @@ export default function App() {
           >
             <Suspense fallback={<LoadingSpinner />}>
               {(() => {
-                if (currentPage === 'realtime' && effectiveAllowedPages.includes('realtime')) return <NewRealtimePage />;
+                const isUser43751Local = String(userProfile?.username || '').trim() === '43751';
+                const isMaintenanceBlockedByApp = !['realtime', 'toolhotro', 'luyke', 'health'].includes(currentPage) && pageMaintenanceState[currentPage] && !isUser43751Local;
+                
+                if (isMaintenanceBlockedByApp) {
+                  return (
+                    <div className="flex items-center justify-center h-full p-6 mt-12">
+                      <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-amber-200 shadow-xl w-full">
+                        <div className="w-24 h-24 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-amber-500 shadow-inner">
+                          <AlertCircle size={48} />
+                        </div>
+                        <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">HỆ THỐNG ĐANG BẢO TRÌ</h1>
+                        <p className="text-slate-500 font-medium leading-relaxed mb-8">
+                          Trang này đang trong quá trình bảo trì và nâng cấp. Vui lòng quay lại sau ít phút. Xin lỗi vì sự bất tiện này!
+                        </p>
+                        <button 
+                          onClick={() => setCurrentPage('realtime')}
+                          className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-lg shadow-amber-200 transition-all flex items-center justify-center mx-auto gap-2"
+                        >
+                          <RefreshCw size={18} />
+                          QUAY LẠI BC NGÀY
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (currentPage === 'realtime' && effectiveAllowedPages.includes('realtime')) return <NewRealtimePage pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
                 if (currentPage === 'khaibao' && effectiveAllowedPages.includes('khaibao')) return <KhaiBao />;
-                if (currentPage === 'luyke' && effectiveAllowedPages.includes('luyke')) return <LuyKe />;
+                if (currentPage === 'luyke' && effectiveAllowedPages.includes('luyke')) return <LuyKe pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
                 if (currentPage === 'tnb_data' && effectiveAllowedPages.includes('tnb_data')) return <TnbData />;
-                if (currentPage === 'toolhotro' && effectiveAllowedPages.includes('toolhotro')) return <ToolHoTro />;
+                if (currentPage === 'tnbleader' && effectiveAllowedPages.includes('tnbleader')) return <TnbLeader pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
+                if (currentPage === 'toolhotro' && effectiveAllowedPages.includes('toolhotro')) return <ToolHoTro pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
                 if (currentPage === 'users' && effectiveAllowedPages.includes('users')) {
                   return (
                     <UserManagement onBack={() => {
@@ -468,9 +572,11 @@ export default function App() {
                     }} />
                   );
                 }
-                if (currentPage === 'health' && effectiveAllowedPages.includes('health')) return <EmployeeHealth />;
+                if (currentPage === 'health' && effectiveAllowedPages.includes('health')) return <EmployeeHealth pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
                 if (currentPage === 'birthday' && effectiveAllowedPages.includes('birthday')) return <SinhNhatNv />;
                 if (currentPage === 'feedback') return <FeedbackPage />;
+                if (currentPage === 'excelviewer' && effectiveAllowedPages.includes('excelviewer')) return <ExcelViewer />;
+                if (currentPage === 'bangiasoc' && effectiveAllowedPages.includes('bangiasoc')) return <BanGiaSocPage />;
                 return null;
               })()}
             </Suspense>
@@ -650,6 +756,45 @@ export default function App() {
               onRefresh={refreshProfile} 
               onClose={() => setShowSubscriptionForce(false)} 
             />
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showMaintenanceConfirm && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-slate-100 text-center"
+            >
+              <div className={`w-20 h-20 rounded-full mx-auto flex items-center justify-center mb-6 shadow-inner ${pageMaintenanceState[effectivePageKey] ? 'bg-emerald-50 text-emerald-500' : 'bg-red-50 text-red-500'}`}>
+                <AlertCircle size={40} />
+              </div>
+              <h3 className="text-xl font-black text-slate-800 uppercase tracking-wider mb-2">XÁC NHẬN</h3>
+              <p className="text-slate-500 font-medium leading-relaxed mb-8">
+                Bạn có chắc chắn muốn <strong className={pageMaintenanceState[effectivePageKey] ? "text-emerald-600 font-bold" : "text-red-600 font-bold"}>{pageMaintenanceState[effectivePageKey] ? 'TẮT' : 'BẬT'}</strong> chế độ BẢO TRÌ cho trang này?
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowMaintenanceConfirm(false)}
+                  className="flex-1 py-3 px-4 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  onClick={async () => {
+                    setShowMaintenanceConfirm(false);
+                    const newVal = !pageMaintenanceState[effectivePageKey];
+                    await setDoc(doc(db, 'system_settings', 'maintenance_status'), { [effectivePageKey]: newVal }, { merge: true });
+                  }}
+                  className={`flex-1 py-3 px-4 rounded-xl font-bold text-white transition-colors shadow-lg ${pageMaintenanceState[effectivePageKey] ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200' : 'bg-red-600 hover:bg-red-700 shadow-red-200'}`}
+                >
+                  Đồng ý
+                </button>
+              </div>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>

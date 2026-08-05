@@ -73,23 +73,30 @@ import {
   Gift
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, collection } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { Edit3, Trash2 } from 'lucide-react';
+import { NGANH_DISPLAY } from './BcDtNganhHang';
+import { NHOM_HANG_MAP } from '../utils/categoriesMap';
+import { Edit3, Trash2, Settings, FileSpreadsheet } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useMarket } from '../contexts/MarketContext';
 import { useStore } from '../contexts/StoreContext';
 import { useRealtimeData } from './RTST/hooks/useRealtimeData';
 import { ImagePreviewModal } from '../components/ImagePreviewModal';
+import { ConfigNhomHangModal } from '../components/ConfigNhomHangModal';
+import { ConfigBaoHiemModal, BaoHiemRule } from '../components/ConfigBaoHiemModal';
+import { ConfigExclusionModal, ExclusionRule } from '../components/ConfigExclusionModal';
+import { ConfigGoogleSheetModal } from '../components/ConfigGoogleSheetModal';
 import { useLuykeData } from './RTST/hooks/useLuykeData';
 import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';
 import { YcxStaffData } from './RTST/types';
 import { UnexportedOrdersTable } from './RTST/components/UnexportedOrdersTable';
+import { BanGiaSocTab } from './RTST/components/BanGiaSocTab';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
-import { isValidStoreName, normalize } from './RTST/utils';
+import { isValidStoreName, normalize, normalizeStoreId } from './RTST/utils';
 
 const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: boolean, onClick: () => void, icon: any, label: string, count?: number }) => (
   <button
@@ -294,8 +301,15 @@ const ColumnFilterDropdown: React.FC<ColumnFilterDropdownProps> = ({
       className="absolute top-full mt-1 right-0 z-50 w-64 bg-white border border-slate-200 rounded-lg shadow-xl p-3 text-left normal-case"
       onClick={e => e.stopPropagation()}
     >
-      <div className="text-[10px] font-black text-slate-700 mb-2 truncate">
-        Lọc cột: {columnName}
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[10px] font-black text-slate-700 truncate">
+          Lọc cột: {columnName}
+        </div>
+        {columnName === "Nhóm hàng" && (
+          <button onClick={() => setShowConfigModal(true)} className="text-slate-400 hover:text-indigo-600">
+            <Settings size={12} />
+          </button>
+        )}
       </div>
 
       {/* Search Input */}
@@ -493,155 +507,7 @@ const StaffMultiSelectFilter = ({
   );
 };
 
-const NHOM_HANG_MAP: Record<string, { large: string, small: string }> = {
-  // --- USER'S NEW MAPPING ---
-  "4479 - Dịch Vụ Bảo Hiểm": { large: "BẢO HIỂM", small: "B.HIỂM" },
-  "4499 - Thu Hộ Phí Bảo Hiểm": { large: "BẢO HIỂM", small: "B.HIỂM" },
-  "1098 - Máy lạnh (IMEI)": { large: "CE", small: "ML" },
-  "911 - Máy nước nóng": { large: "CE", small: "MNN" },
-  "1097 - Tủ lạnh (IMEI)": { large: "CE", small: "TL" },
-  "893 - Tủ đông": { large: "CE", small: "TL" },
-  "894 - Tủ mát": { large: "CE", small: "TL" },
-  "1099 - Máy giặt (IMEI)": { large: "CE", small: "MG" },
-  "3659 - Máy sấy lồng ngang": { large: "CE", small: "MG" },
-  "3859 - Máy rửa chén": { large: "CE", small: "MG" },
-  "880 - Loa Karaoke": { large: "CE", small: "AUDIO" },
-  "1094 - Tivi LED (IMEI)": { large: "CE", small: "TIVI" },
-  "3241 - Dao/Kéo/Thớt": { large: "DCNB", small: "" },
-  "3263 - Chảo": { large: "DCNB", small: "" },
-  "3187 - Bình/Ly/Ca giữ nhiệt": { large: "DCNB", small: "" },
-  "3185 - Vệ sinh nhà cửa": { large: "DCNB", small: "" },
-  "3265 - Nồi": { large: "DCNB", small: "" },
-  "2999 - Dụng cụ nhà bếp khác": { large: "DCNB", small: "" },
-  "3240 - Hộp/Hũ": { large: "DCNB", small: "" },
-  "4302 - Nón bảo hiểm các loại": { large: "DCNB", small: "" },
-  "4171 - Lọc nước dạng tủ đứng": { large: "ĐIỆN GD", small: "MLN" },
-  "4150 - Máy nước nóng lạnh": { large: "ĐIỆN GD", small: "CNL" },
-  "4172 - Lọc nước âm tủ/trên bàn": { large: "ĐIỆN GD", small: "MLN" },
-  "4144 - Bếp gas âm": { large: "ĐIỆN GD", small: "BẾP GAS/ĐIỆN/HÚT MÙI" },
-  "3779 - Bếp điện âm": { large: "ĐIỆN GD", small: "BẾP GAS/ĐIỆN/HÚT MÙI" },
-  "4148 - Bếp điện đôi": { large: "ĐIỆN GD", small: "BẾP GAS/ĐIỆN/HÚT MÙI" },
-  "4339 - Ổn Áp": { large: "ĐIỆN GD", small: "" },
-  "4459 - Quạt Trần": { large: "ĐIỆN GD", small: "QUẠT" },
-  "955 - Hút mùi/ hút khói": { large: "ĐIỆN GD", small: "BẾP GAS/ĐIỆN/HÚT MÙI" },
-  "4146 - Bếp gas đôi": { large: "ĐIỆN GD", small: "BẾP GAS/ĐIỆN/HÚT MÙI" },
-  "956 - Hút bụi": { large: "ĐIỆN GD", small: "HÚT BỤI" },
-  "4155 - Hút bụi cây": { large: "ĐIỆN GD", small: "HÚT BỤI" },
-  "4439 - Hút Bụi Robot": { large: "ĐIỆN GD", small: "HÚT BỤI" },
-  "3639 - Máy lọc không khí": { large: "ĐIỆN GD", small: "HÚT BỤI" },
-  "6000 - Máy ép trái cây": { large: "ĐIỆN GD", small: "XAY ÉP" },
-  "4099 - Nồi chiên": { large: "ĐIỆN GD", small: "N.CHIÊN" },
-  "4156 - Nồi cơm nắp gài/nắp rời": { large: "ĐIỆN GD", small: "NC NẮP RỜI" },
-  "4158 - Nồi cơm điện tử": { large: "ĐIỆN GD", small: "NC Đ.TỬ" },
-  "4157 - Nồi cơm cao tần": { large: "ĐIỆN GD", small: "NC Đ.TỬ" },
-  "4660 - Quạt lửng": { large: "ĐIỆN GD", small: "QUẠT" },
-  "4160 - Quạt bàn/hộp/sạc": { large: "ĐIỆN GD", small: "QUẠT" },
-  "4159 - Quạt đứng": { large: "ĐIỆN GD", small: "QUẠT" },
-  "4161 - Quạt treo": { large: "ĐIỆN GD", small: "QUẠT" },
-  "3799 - Quạt điều hòa": { large: "ĐIỆN GD", small: "QĐH" },
-  "4154 - Xay ép/Khác": { large: "ĐIỆN GD", small: "XAY ÉP" },
-  "4153 - Xay Sinh tố": { large: "ĐIỆN GD", small: "XAY ÉP" },
-  "4149 - Bình thủy điện": { large: "ĐIỆN GD", small: "ĐGD KHÁC" },
-  "958 - Lò vi sóng": { large: "ĐIỆN GD", small: "ĐGD KHÁC" },
-  "967 - Sấy tóc": { large: "ĐIỆN GD", small: "ĐGD KHÁC" },
-  "4142 - Bình đun siêu tốc": { large: "ĐIỆN GD", small: "ĐGD KHÁC" },
-  "4145 - Bếp gas đơn": { large: "ĐIỆN GD", small: "BẾP GAS/ĐIỆN/HÚT MÙI" },
-  "4141 - Bàn ủi khô": { large: "ĐIỆN GD", small: "ĐGD KHÁC" },
-  "4151 - Áp suất/lẩu/chiên/nướng": { large: "ĐIỆN GD", small: "ĐGD KHÁC" },
-  "4140 - Bàn ủi hơi nước": { large: "ĐIỆN GD", small: "ĐGD KHÁC" },
-  "957 - Lò nướng": { large: "ĐIỆN GD", small: "ĐGD KHÁC" },
-  "4143 - Bàn ủi hơi nước đứng": { large: "ĐIỆN GD", small: "ĐGD KHÁC" },
-  "4152 - Ổ cắm điện/vợt muỗi": { large: "ĐIỆN GD", small: "ĐGD KHÁC" },
-  "4147 - Bếp điện đơn": { large: "ĐIỆN GD", small: "BẾP GAS/ĐIỆN/HÚT MÙI" },
-  "4139 - Đèn bàn/Đèn Sạc/Đèn bắt muỗi": { large: "ĐIỆN GD", small: "ĐGD KHÁC" },
-  "4062 - Đồng hồ Nữ Dây kim loại": { large: "ĐỒNG HỒ", small: "Đ.HỒ" },
-  "4061 - Đồng hồ Nam Dây khác": { large: "ĐỒNG HỒ", small: "Đ.HỒ" },
-  "4059 - Đồng hồ Nam Dây kim loại": { large: "ĐỒNG HỒ", small: "Đ.HỒ" },
-  "4070 - Đồng hồ Trẻ em": { large: "ĐỒNG HỒ", small: "Đ.HỒ" },
-  "4063 - Đồng hồ Nữ Dây da": { large: "ĐỒNG HỒ", small: "Đ.HỒ" },
-  "4064 - Đồng hồ Nữ Dây khác": { large: "ĐỒNG HỒ", small: "Đ.HỒ" },
-  "4060 - Đồng hồ Nam Dây da": { large: "ĐỒNG HỒ", small: "Đ.HỒ" },
-  "3359 - Phụ kiện đồng hồ": { large: "ĐỒNG HỒ", small: "" },
-  "4125 - Smartband": { large: "ĐỒNG HỒ", small: "" },
-  "2391 - Smartwatch": { large: "ĐỒNG HỒ", small: "" },
-  "1491 - Smartphone": { large: "ICT", small: "SMP" },
-  "42 - Laptop": { large: "ICT", small: "LAP" },
-  "931 - Máy tính bảng": { large: "ICT", small: "TAB" },
-  "6479 - Camera IP Trong nhà": { large: "PHỤ KIỆN", small: "CAM" },
-  "4219 - Camera IP Ngoài trời": { large: "PHỤ KIỆN", small: "CAM" },
-  "4779 - Loa di động - imei": { large: "PHỤ KIỆN", small: "LOA" },
-  "1031 - Loa di động": { large: "PHỤ KIỆN", small: "LOA" },
-  "12 - Pin sạc dự phòng": { large: "PHỤ KIỆN", small: "SDP" },
-  "2651 - Pin sạc dự phòng đa dạng": { large: "PHỤ KIỆN", small: "SDP" },
-  "3346 - Tai Nghe Bluetooth": { large: "PHỤ KIỆN", small: "TN BLT" },
-  "4540 - Tai Nghe Bluetooth - imei": { large: "PHỤ KIỆN", small: "TN BLT" },
-  "15 - Tai nghe dây": { large: "PHỤ KIỆN", small: "TN DÂY" },
-  "3345 - Cáp": { large: "PHỤ KIỆN", small: "CÁP" },
-  "14 - Sạc/ Adapter": { large: "PHỤ KIỆN", small: "ADAPTER" },
-  "531 - Pin": { large: "PHỤ KIỆN", small: "" },
-  "4095 - Cáp (Giá Rẻ)": { large: "PHỤ KIỆN", small: "CÁP" },
-  "16 - Thẻ Nhớ": { large: "PHỤ KIỆN", small: "T.NHỚ" },
-  "4659 - Phụ kiện tiện ích Apple": { large: "PHỤ KIỆN", small: "PK APPLE" },
-  "4900 - Bàn phím": { large: "PHỤ KIỆN", small: "" },
-  "10 - Chuột": { large: "PHỤ KIỆN", small: "CHUỘT" },
-  "6400 - Phụ kiện tiện ích Apple - imei": { large: "PHỤ KIỆN", small: "PK APPLE" },
-  "2351 - Router - Imei": { large: "PHỤ KIỆN", small: "" },
-  "2831 - Phụ kiện trang trí Apple": { large: "PHỤ KIỆN", small: "PK APPLE" },
-  "2691 - Bộ Sạc/Cáp/Adaptor (Giá Rẻ)": { large: "PHỤ KIỆN", small: "CÁP" },
-  "73 - Phụ kiện điện máy": { large: "PHỤ KIỆN", small: "" },
-  "3479 - Thiết bị mạng khác": { large: "PHỤ KIỆN", small: "" },
-  "871 - USB": { large: "PHỤ KIỆN", small: "" },
-  "4199 - Miếng Dán Kính": { large: "PHỤ KIỆN", small: "M.DÁN" },
-  "1231 - Miếng dán mặt trước": { large: "PHỤ KIỆN", small: "M.DÁN" },
-  "58 - Miếng dán mặt sau": { large: "PHỤ KIỆN", small: "M.DÁN" },
-  "431 - Ốp Lưng - Flip Cover": { large: "PHỤ KIỆN", small: "ỐP LƯNG" },
-  "5975 - Balo Túi Chống Sốc": { large: "PHỤ KIỆN", small: "BALO" },
-  "410 - Phụ kiện TT khác": { large: "PHỤ KIỆN", small: "" },
-  "1351 - Loa vi tính (imei)": { large: "PHỤ KIỆN", small: "LOA" },
-  "1891 - Sim Online": { large: "SIM", small: "SIM" },
-  "4179 - Sim Online Số Đẹp": { large: "SIM", small: "SIM" },
-  "571 - UDDĐ": { large: "VIEON", small: "VIEON" },
-  "4741 - Xe Đạp Trẻ Em": { large: "XE ĐẠP", small: "XE ĐẠP" },
-  "4742 - Xe Đạp Người Lớn": { large: "XE ĐẠP", small: "XE ĐẠP" },
-  "4324 - Khung treo, giá đỡ": { large: "KHUNG TREO", small: "KHUNG TREO" },
-  "4169 - Lõi lọc": { large: "LÕI LỌC", small: "LÕI LỌC" },
-  "7161 - Dịch vụ bảo hành 1 đổi 1 Thợ Điện Máy Xanh": { large: "B.Hiểm", small: "B.Hiểm" },
 
-  // --- BACKWARD COMPATIBILITY / EXTRA HELPER ENTRIES ---
-  "1994 - Dịch vụ bảo hành, bảo dưỡng Điện máy xanh": { large: "BẢO HIỂM", small: "B.HIỂM" },
-  "1754 - Máy lạnh, nước nóng": { large: "CE", small: "ML" },
-  "1755 - Tủ lạnh, đông, mát": { large: "CE", small: "TL" },
-  "1756 - Máy giặt, sấy": { large: "CE", small: "MG" },
-  "1094 - Tivi LED": { large: "CE", small: "TIVI" },
-  "1094 - Tivi": { large: "CE", small: "TIVI" },
-  "880 - Loa": { large: "CE", small: "AUDIO" }
-};
-
-const NHOM_SMALL_DISPLAY: Record<string, string> = {
-  'ML': 'Máy lạnh', 'MNN': 'Máy nước nóng', 'TL': 'Tủ lạnh', 'MG': 'Máy giặt',
-  'AUDIO': 'Loa Karaoke', 'TIVI': 'Tivi', 'MLN': 'Lọc nước', 'QĐH': 'Quạt ĐH', 'CNL': 'Cây Nóng/Lạnh',
-  'NC NẮP RỜI': 'NC nắp rời', 'NC Đ.TỬ': 'NC điện tử', 'NC': 'Nồi cơm',
-  'HÚT BỤI': 'Hút bụi', 'BẾP GAS/ĐIỆN/HÚT MÙI': 'Bếp', 'XAY ÉP/S.TỐ': 'Xay ép',
-  'XAY ÉP': 'Xay ép',
-  'N.CHIÊN': 'Nồi chiên', 'ĐGD KHÁC': 'ĐGD khác', 'QUẠT': 'Quạt',
-  'SMP': 'Smartphone', 'LAP': 'Laptop', 'TAB': 'Máy tính bảng',
-  'TN BLT': 'Tai nghe BT', 'TN DÂY': 'Tai nghe dây', 'CÁP': 'Cáp',
-  'ADAPTER': 'Sạc', 'T.NHỚ': 'Thẻ nhớ', 'M.DÁN': 'Miếng dán',
-  'ỐP LƯNG': 'Ốp lưng', 'PK APPLE': 'PK Apple', 'BALO': 'Balo/Túi',
-  'CAM': 'Camera', 'LOA': 'Loa', 'PIN SDP': 'Pin sạc', 'SIM': 'Sim',
-  'SDP': 'Pin sạc',
-  'CHUỘT': 'Chuột', 'Đ.HỒ': 'Đồng hồ', 'B.HIỂM': 'Bảo hiểm',
-  'B.Hiểm': 'Bảo hiểm',
-  'XE ĐẠP': 'Xe đạp', 'VIEON': 'VieON', 'KHUNG TREO': 'Khung treo', 'LÕI LỌC': 'Lõi lọc',
-  'CHĂM SÓC SẮC ĐẸP': 'Chăm sóc sắc đẹp',
-  'ĐIỆN THOẠI DI ĐỘNG': 'Điện thoại di động',
-  'ĐỒNG HỒ THỜI TRANG': 'Đồng hồ thời trang',
-  'WEARABLE': 'Wearable',
-  'BHXM': 'BHXM', 'BHRV': 'BHRV', 'BHMR': 'BHMR', 'BHKV': 'BHKV', 'SC+': 'SC+', '1 ĐỔI 1': '1 ĐỔI 1',
-  'APPLE+': 'APPLE+', 'ANM': 'ANM', 'BH.HOME': 'BH.HOME', 'BHYT': 'BHYT', 'BHXH': 'BHXH', 'BVMH': 'BVMH',
-  'PK LẮP ĐẶT': 'PK lắp đặt', 'PHỤ KIỆN LẮP ĐẶT': 'PK lắp đặt',
-  'PK KHÁC': 'PK khác', 'MÁY IN': 'Máy in', 'ĐÈN NĂNG LƯỢNG MẶT TRỜI': 'Đèn năng lượng mặt trời',
-};
 
 const formatCurrencyUnit = (num: number) => {
   const abs = Math.abs(Math.round(num));
@@ -836,7 +702,7 @@ const BRAND_DEFINITIONS: Array<[string, string]> = [
   ['TEFAL', 'Tefal'],
   ['TOGO', 'Togo'],
   ['UNIQ', 'UNIQ'],
-  ['VIEON', 'VIEON'],
+  ['VIEON', 'VieON'],
   ['VPLINK', 'VPLink'],
   ['ZINC', 'Zinc'],
   ['AQUA', 'Aqua'],
@@ -920,93 +786,38 @@ const NGANH_DISPLAY: Record<string, string> = {
   "XE ĐẠP": "Xe đạp",
 };
 
-const PRODUCT_CODE_MAP: Record<string, string> = {
-  // Icall
-  '1640571000491': 'Icall',
-  '1640571000492': 'Icall',
-  // Mango
-  '1640571000500': 'Mango',
-  '1640571000501': 'Mango',
-  '1640571000502': 'Mango',
-  '1640571000503': 'Mango',
-  '1640571000504': 'Mango',
-  // 1 ĐỔI 1
-  '1644479000058': '1 ĐỔI 1',
-  '1644479000071': '1 ĐỔI 1',
-  '1644479000070': '1 ĐỔI 1',
-  // BHMR
-  '1644479000001': 'BHMR',
-  '1644479000002': 'BHMR',
-  '4644499000109': 'BHMR',
-  '4644499000110': 'BHMR',
-  '4644499000106': 'BHMR',
-  '4644499000108': 'BHMR',
-  '1644479000089': 'BHMR',
-  '1644479000090': 'BHMR',
-  '4644499000111': 'BHMR',
-  '4644499000112': 'BHMR',
-  '4644499000113': 'BHMR',
-  '4644499000114': 'BHMR',
-  '4644499000115': 'BHMR',
-  '4644499000116': 'BHMR',
-  '4644499000117': 'BHMR',
-  '4644499000118': 'BHMR',
-  '4644499000119': 'BHMR',
-  '4644499000120': 'BHMR',
-  '4644499000121': 'BHMR',
-  '4644499000122': 'BHMR',
-  '4644499000123': 'BHMR',
-  '4644499000124': 'BHMR',
-  '4644499000125': 'BHMR',
-  '4644499000126': 'BHMR',
-  '1644479000114': 'BHMR',
-  '1644479000115': 'BHMR',
-  // BHRV
-  '1644479000045': 'BHRV',
-  '1644479000044': 'BHRV',
-  '1644479000069': 'BHRV',
-  '1644479000068': 'BHRV',
-  '1644479000047': 'BHRV',
-  '1644479000046': 'BHRV',
-  '1644303000010': 'BHRV',
-  '1644303000009': 'BHRV',
-  '1644479000118': 'BHRV',
-  '1644479000119': 'BHRV',
-  // BVMH
-  '1644479000094': 'BVMH',
-  '1644479000095': 'BVMH',
-  // SC+
-  '1644479000086': 'SC+',
-  '1644479000087': 'SC+',
-  '1644479000088': 'SC+',
-  '1644479000116': 'SC+',
-  '1644479000117': 'SC+',
-  // ANM
-  '1644479000102': 'ANM',
-  '1644479000103': 'ANM',
-  '1644479000104': 'ANM',
-  // BHKV
-  '4644499000102': 'BHKV',
-  // BHYT
-  '1644479000057': 'BHYT',
-  // BHXH
-  '1644479000056': 'BHXH',
-  // BH.HOME
-  '1644479000098': 'BH.HOME'
+
+export let activeCustomBaoHiemRules: BaoHiemRule[] = [];
+
+const getMatchedBaoHiemRule = (code: string, name: string, customRules?: BaoHiemRule[]): BaoHiemRule | null => {
+  const cleanCode = String(code || '').trim();
+  const cleanName = String(name || '').toUpperCase();
+  const rules = customRules || activeCustomBaoHiemRules;
+  
+  if (rules && rules.length > 0) {
+    if (cleanCode) {
+      const match = rules.find(r => r.maSanPham && cleanCode === r.maSanPham);
+      if (match) return match;
+    }
+    if (cleanName) {
+      const match = rules.find(r => !r.maSanPham && r.tenSanPham && cleanName.includes(r.tenSanPham));
+      if (match) return match;
+    }
+  }
+  return null;
 };
 
-const classifyProductByCode = (code: string): string | null => {
+const classifyProductByCode = (code: string, customRules?: BaoHiemRule[]): string | null => {
   const cleanCode = String(code || '').trim();
   if (!cleanCode) return null;
   
-  if (cleanCode.startsWith('177655900')) {
-    return 'APPLE+';
+  const rules = customRules || activeCustomBaoHiemRules;
+  if (rules && rules.length > 0) {
+    const match = rules.find(r => r.maSanPham && cleanCode === r.maSanPham);
+    if (match) return match.phanLoai;
   }
-  if (cleanCode.startsWith('46444990000')) {
-    return 'BHXM';
-  }
-  
-  return PRODUCT_CODE_MAP[cleanCode] || null;
+
+  return null;
 };
 
 // Strip employee code prefix from staff names: "38847 - Nguyễn Hùng Mạnh" → "Nguyễn Hùng Mạnh"
@@ -1056,29 +867,15 @@ const getStaffIdx = (headers: string[]): number => {
   return -1;
 };
 
-const classifyProduct = (name: string) => {
+const classifyProduct = (name: string, customRules?: BaoHiemRule[]) => {
   const n = String(name || '').toUpperCase();
-  const norm = removeAccents(name).toUpperCase();
-  if (n.includes('ICALLME') || n.includes('ICALL')) return 'Icall';
-  if (n.includes('MANGO')) return 'Mango';
-  if (n.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || n.includes('BẢO VỆ MÀN HÌNH') || n.includes('BVMH') || norm.includes('BVMH') || norm.includes('BAO VE MAN HINH')) return 'BVMH';
-  if (n.includes('1 ĐỔI 1') || norm.includes('1 DOI 1') || norm.includes('1DOI1') || n.includes('PVI_') || norm.includes('PVI_')) return '1 ĐỔI 1';
-  if (n.includes('BẢO HIỂM KHOẢN VAY') || n.includes('BHKV') || norm.includes('BHKV')) return 'BHKV';
-  if (n.includes('BHMR') || n.includes('BẢO HÀNH MỞ RỘNG') || norm.includes('BHMR') || norm.includes('BAO HANH MO RONG') || n.includes('MIC_') || norm.includes('MIC_')) return 'BHMR';
-  if (n.includes('BẢO HIỂM RƠI VỠ') || n.includes('BHRV') || norm.includes('BHRV') || norm.includes('ROI VO')) return 'BHRV';
-  if (n.includes('BẢO HIỂM SC+') || n.includes('SC+') || n.includes('CARE+') || norm.includes('SC+') || norm.includes('CARE+')) return 'SC+';
-  if (n.includes('BẢO HÀNH APPLECARE+') || n.includes('APPLECARE') || norm.includes('APPLECARE')) return 'BHAP';
-  if (n.includes('BẢO HIỂM Ô TÔ') || n.includes('BHOT')) return 'BHOT';
-  if (n.includes('BẢO HIỂM VẬT CHẤT') || n.includes('BHVC')) return 'BHVC';
-  if (n.includes('BẢO HIỂM XE MÁY') || n.includes('BHXM')) return 'BHXM';
-  if (n.includes('BẢO HIỂM XE MOTO') || n.includes('BHMT')) return 'BHMT';
-  if (n.includes('BẢO HIỂM XÃ HỘI') || n.includes('BHXH')) return 'BHXH';
-  if (n.includes('BẢO HIỂM Y TẾ') || n.includes('BHYT')) return 'BHYT';
-  if (n.includes('GIC_') || n.includes('GIC-') || norm.includes('GIC_') || norm.includes('GIC-')) return 'GIC';
-  if (n.includes('01 THÁNG') || n.includes('1 THÁNG') || norm.includes('01 THANG') || norm.includes('1 THANG') || n.includes('V1')) return 'V1';
-  if (n.includes('03 THÁNG') || n.includes('3 THÁNG') || norm.includes('03 THANG') || norm.includes('3 THANG') || n.includes('V2')) return 'V2';
-  if (n.includes('06 THÁNG') || n.includes('6 THÁNG') || norm.includes('06 THANG') || norm.includes('6 THANG') || n.includes('V3') || n.includes('V4')) return 'V3';
-  if (n.includes('VIEON') || norm.includes('VIEON')) return 'V1';
+  
+  const rules = customRules || activeCustomBaoHiemRules;
+  if (rules && rules.length > 0) {
+    const match = rules.find(r => r.tenSanPham && n.includes(r.tenSanPham));
+    if (match) return match.phanLoai;
+  }
+
   return '-';
 };
 
@@ -1137,138 +934,97 @@ const removeAccents = (str: string): string => {
     .trim();
 };
 
-const classifyNhomHangLarge = (category: string, productName?: string): string => {
+
+
+const classifyNhomHangLarge = (
+  category: string,
+  productName?: string,
+  nhomSmallValue?: string,
+  activeCustomCategoryMap?: Record<string, { large: string, small: string }>,
+  customNhomSmallMap?: Record<string, { nganhHang?: string, large: string, small: string }>,
+  customBaoHiemRules?: BaoHiemRule[],
+  productCode?: string
+): string => {
   const cat = String(category || '').trim();
-  const prod = String(productName || '').trim();
+  const catUpper = cat.toUpperCase();
+  const prodCode = String(productCode || '').trim();
+  const prodName = String(productName || '').trim().toUpperCase();
+
+  const matchedRule = getMatchedBaoHiemRule(prodCode, prodName, customBaoHiemRules);
+  if (matchedRule && matchedRule.nganhHangLon) {
+    return matchedRule.nganhHangLon;
+  }
+
+  if (catUpper && customNhomSmallMap && customNhomSmallMap[catUpper]) {
+    const largeVal = customNhomSmallMap[catUpper].large;
+    return largeVal === 'BẢO HIỂM' ? 'B.HIỂM' : largeVal;
+  }
+
   const catLower = cat.toLowerCase();
-  const prodLower = prod.toLowerCase();
-  const normCat = removeAccents(cat);
-  const normProd = removeAccents(prod);
-
-  // Helmet check: "Nón bảo hiểm" or "Mũ bảo hiểm" belongs to DCNB
-  if (
-    normProd.includes('non bao hiem') ||
-    normProd.includes('mu bao hiem') ||
-    normCat.includes('non bao hiem') ||
-    normCat.includes('mu bao hiem')
-  ) {
-    return 'DCNB';
+  
+  // Try exact match in NHOM_HANG_MAP
+  if (NHOM_HANG_MAP[cat] && NHOM_HANG_MAP[cat].large) {
+    return NHOM_HANG_MAP[cat].large;
   }
-
-  // Check condition with classification first
-  const pClass = classifyProduct(prod);
-  if (['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1', 'BHAP', 'BHOT', 'BHVC', 'BHMT', 'BHXH', 'BHYT', 'BVMH', 'GIC'].includes(pClass)) {
-    if (pClass !== '1 ĐỔI 1' || normProd.includes('pvi_') || normProd.includes('1 doi 1') || normProd.includes('1doi1') || normCat.includes('bao hiem') || normCat.includes('7139')) {
-      return 'BẢO HIỂM';
+  
+  // Try case-insensitive match
+  for (const [key, val] of Object.entries(NHOM_HANG_MAP)) {
+    if (key.toLowerCase() === catLower) {
+      return val.large;
     }
   }
 
-  // 1. First priority: Check for Insurance (Bảo hiểm)
-  if (
-    normCat.includes('bao hiem') ||
-    normProd.includes('bao hiem') ||
-    normCat.includes('dich vu bao hiem') ||
-    normCat.includes('thu ho phi bao hiem') ||
-    normCat.includes('7139') ||
-    normCat.includes('bao hanh mo rong') ||
-    normProd.includes('bao hanh mo rong') ||
-    normProd.includes('1 doi 1') ||
-    normProd.includes('1doi1') ||
-    normProd.includes('roi vo') ||
-    normProd.includes('bhmr') ||
-    normProd.includes('bhrv') ||
-    normProd.includes('bhkv') ||
-    normProd.includes('bhxm') ||
-    normProd.includes('bvmh') ||
-    normProd.includes('applecare') ||
-    normProd.includes('mic_') ||
-    normProd.includes('gic_') ||
-    normProd.includes('gic-') ||
-    normProd.includes('pvi_')
-  ) {
-    return 'BẢO HIỂM';
-  }
-
-  if (!cat) return 'Khác';
-
-  // Check custom mapping first
-  if (activeCustomCategoryMap) {
-    if (activeCustomCategoryMap[catLower]) {
-      return activeCustomCategoryMap[catLower].large;
-    }
-    for (const [key, val] of Object.entries(activeCustomCategoryMap)) {
-      if (key && (catLower === key || catLower.includes(key) || key.includes(catLower))) {
+  // Try partial match by splitting ' - '
+  for (const [key, val] of Object.entries(NHOM_HANG_MAP)) {
+    const parts = key.split(' - ');
+    if (parts.length === 2) {
+      const name = parts[1].trim().toLowerCase();
+      if (catLower === name || catLower.includes(name) || name.includes(catLower)) {
         return val.large;
       }
     }
   }
 
-  // 1. First priority: Check for Insurance (Bảo hiểm)
-  if (
-    normCat.includes('bao hiem') ||
-    normProd.includes('bao hiem') ||
-    normCat.includes('dich vu bao hiem') ||
-    normCat.includes('thu ho phi bao hiem') ||
-    normCat.includes('7139') ||
-    normCat.includes('bao hanh mo rong') ||
-    normProd.includes('bao hanh mo rong') ||
-    normProd.includes('1 doi 1') ||
-    normProd.includes('1doi1') ||
-    normProd.includes('roi vo') ||
-    normProd.includes('bhmr') ||
-    normProd.includes('bhrv') ||
-    normProd.includes('bhkv') ||
-    normProd.includes('bhxm') ||
-    normProd.includes('bvmh') ||
-    normProd.includes('applecare') ||
-    normProd.includes('mic_') ||
-    normProd.includes('gic_') ||
-    normProd.includes('gic-') ||
-    normProd.includes('pvi_')
-  ) {
-    return 'BẢO HIỂM';
+  return 'Khác';
+};
+
+
+
+const resolveNhomSmall = (
+  category: string,
+  nhomSmallValue: string,
+  nhomLarge: string,
+  productName?: string,
+  customNhomSmallMap?: Record<string, { large: string, small: string }>,
+  productCode?: string,
+  customBaoHiemRules?: BaoHiemRule[]
+): string => {
+  const cat = String(category || '').trim().toUpperCase();
+  const prodName = String(productName || '').trim().toUpperCase();
+  const prodCode = String(productCode || '').trim();
+  
+  const matchedRule = getMatchedBaoHiemRule(prodCode, prodName, customBaoHiemRules);
+  if (matchedRule && matchedRule.nhomHangNho) {
+    return matchedRule.nhomHangNho;
+  }
+  
+  if (nhomSmallValue && customNhomSmallMap && customNhomSmallMap[nhomSmallValue]) {
+    return customNhomSmallMap[nhomSmallValue].small;
+  }
+  if (cat && customNhomSmallMap && customNhomSmallMap[cat]) {
+    return customNhomSmallMap[cat].small;
   }
 
-  // 2. Check for Wearable keywords in category and product name
-  if (
-    catLower.includes('wearable') ||
-    catLower.includes('smartband') ||
-    catLower.includes('smartwatch') ||
-    prodLower.includes('smartwatch') ||
-    prodLower.includes('smartband') ||
-    prodLower.includes('wearable')
-  ) {
-    return 'WEARABLE';
-  }
+  const origCat = String(category || '').trim();
+  const catLower = origCat.toLowerCase();
 
-  // 3. Try matching with NHOM_HANG_MAP
-  if (NHOM_HANG_MAP[cat]?.large) {
-    const mapped = NHOM_HANG_MAP[cat].large;
-    if (mapped === 'ĐỒNG HỒ') {
-      if (catLower.includes('smartwatch') || catLower.includes('smartband') || catLower.includes('smart') || prodLower.includes('smart')) {
-        return 'WEARABLE';
-      }
-      return 'ĐỒNG HỒ THỜI TRANG';
-    }
-    if (mapped === 'B.Hiểm' || mapped === 'B.HIỂM' || mapped === 'BẢO HIỂM') {
-      return 'BẢO HIỂM';
-    }
-    return mapped;
+  if (NHOM_HANG_MAP[origCat] && NHOM_HANG_MAP[origCat].small) {
+    return NHOM_HANG_MAP[origCat].small;
   }
 
   for (const [key, val] of Object.entries(NHOM_HANG_MAP)) {
     if (key.toLowerCase() === catLower) {
-      const mapped = val.large;
-      if (mapped === 'ĐỒNG HỒ') {
-        if (key.toLowerCase().includes('smartwatch') || key.toLowerCase().includes('smartband') || catLower.includes('smart') || prodLower.includes('smart')) {
-          return 'WEARABLE';
-        }
-        return 'ĐỒNG HỒ THỜI TRANG';
-      }
-      if (mapped === 'B.Hiểm' || mapped === 'B.HIỂM' || mapped === 'BẢO HIỂM') {
-        return 'BẢO HIỂM';
-      }
-      return mapped;
+      return val.small;
     }
   }
 
@@ -1277,405 +1033,13 @@ const classifyNhomHangLarge = (category: string, productName?: string): string =
     if (parts.length === 2) {
       const name = parts[1].trim().toLowerCase();
       if (catLower === name || catLower.includes(name) || name.includes(catLower)) {
-        const mapped = val.large;
-        if (mapped === 'ĐỒNG HỒ') {
-          if (name.includes('smartwatch') || name.includes('smartband') || catLower.includes('smart') || prodLower.includes('smart')) {
-            return 'WEARABLE';
-          }
-          return 'ĐỒNG HỒ THỜI TRANG';
-        }
-        if (mapped === 'B.Hiểm' || mapped === 'B.HIỂM' || mapped === 'BẢO HIỂM') {
-          return 'BẢO HIỂM';
-        }
-        return mapped;
-      }
-    }
-  }
-
-  // 4. Keywords lookup
-  if (catLower.includes('phụ kiện lắp đặt')) return 'PHỤ KIỆN LẮP ĐẶT';
-  if (catLower.includes('thẻ cào') || catLower.includes('thên cào') || catLower.includes('thẻ điện thoại') ||
-      prodLower.includes('mệnh giá') || normProd.includes('menh gia') ||
-      prodLower.includes('airtime') || normProd.includes('airtime')
-  ) return 'THỂ CÀO';
-  if (catLower.includes('wearable') || catLower.includes('smartband')) return 'WEARABLE';
-  if (catLower.includes('sim') || catLower.includes('simcard')) return 'SIM';
-  if (catLower.includes('đồng hồ') || catLower.includes('smartwatch')) return 'ĐỒNG HỒ';
-  // Chăm sóc sắc đẹp
-  if (
-    catLower.includes('chăm sóc sắc đẹp') || normCat.includes('cham soc sac dep') ||
-    catLower.includes('làm đẹp') || normCat.includes('lam dep') ||
-    catLower.includes('mỹ phẩm') || normCat.includes('my pham') ||
-    catLower.includes('beauty') || catLower.includes('skincare') ||
-    catLower.includes('máy massage') || normCat.includes('may massage') ||
-    prodLower.includes('massage') || prodLower.includes('triệt lông') || normProd.includes('triet long') ||
-    prodLower.includes('máy rửa mặt') || normProd.includes('may rua mat') ||
-    prodLower.includes('máy chăm sóc da') || normProd.includes('may cham soc da')
-  ) return 'CHĂM SÓC SẮC ĐẸP';
-  // VieON (check cả tên sản phẩm)
-  if (
-    catLower.includes('vieon') || prodLower.includes('vieon') ||
-    catLower.includes('uddđ') || prodLower.includes('uddđ')
-  ) return 'VIEON';
-  if (catLower.includes('phụ kiện') || prodLower.includes('máy in') || normProd.includes('may in')) return 'PHỤ KIỆN';
-  // DCNB (Dụng cụ nhà bếp): dao, kéo, thớt, chảo, nồi (không điện), hộp, đũa, khay đá, bình giữ nhiệt, ly, ca
-  if (
-    catLower.includes('dụng cụ nhà bếp') || prodLower.includes('dụng cụ nhà bếp') ||
-    normCat.includes('dung cu nha bep') || normProd.includes('dung cu nha bep') ||
-    /\b(dao|kéo|thớt|đũa|muỗng|nĩa)\b/.test(prodLower) ||
-    /\b(dao|keo|thot|dua|muong|nia)\b/.test(normProd) ||
-    prodLower.includes('khay đá') || normProd.includes('khay da') ||
-    prodLower.includes('hộp thực phẩm') || normProd.includes('hop thuc pham') ||
-    (prodLower.includes('hộp') && (prodLower.includes('nhựa') || prodLower.includes('thủy tinh') || prodLower.includes('inox'))) ||
-    prodLower.includes('chảo') || normProd.includes('chao') ||
-    prodLower.includes('bình giữ nhiệt') || normProd.includes('binh giu nhiet') ||
-    prodLower.includes('ly giữ nhiệt') || normProd.includes('ly giu nhiet') ||
-    prodLower.includes('ca giữ nhiệt') || normProd.includes('ca giu nhiet') ||
-    catLower.includes('nón bảo hiểm') || prodLower.includes('nón bảo hiểm') ||
-    catLower.includes('mũ bảo hiểm') || prodLower.includes('mũ bảo hiểm')
-  ) return 'DCNB';
-  // Gia dụng: check cả tên sản phẩm cho máy lọc nước, lọc nước, etc.
-  if (
-    catLower.includes('gia dụng') || catLower.includes('nhà bếp') ||
-    catLower.includes('lọc nước') || prodLower.includes('lọc nước') ||
-    catLower.includes('máy lọc nước') || prodLower.includes('máy lọc nước') ||
-    normCat.includes('loc nuoc') || normProd.includes('loc nuoc') ||
-    normCat.includes('may loc nuoc') || normProd.includes('may loc nuoc')
-  ) return 'ĐIỆN GD';
-  if (
-    catLower.includes('máy lạnh') || prodLower.includes('máy lạnh') || normCat.includes('may lanh') || normProd.includes('may lanh') ||
-    catLower.includes('tủ lạnh') || prodLower.includes('tủ lạnh') || normCat.includes('tu lanh') || normProd.includes('tu lanh') ||
-    catLower.includes('máy giặt') || prodLower.includes('máy giặt') || normCat.includes('may giat') || normProd.includes('may giat') ||
-    catLower.includes('tivi') || prodLower.includes('tivi') || normCat.includes('tivi') || normProd.includes('tivi') ||
-    catLower.includes('ti vi') || prodLower.includes('ti vi') || normCat.includes('ti vi') || normProd.includes('ti vi') ||
-    // Detect "TV" in product name (e.g. "Google TV", "4K TV") - use word boundary to avoid false positives
-    /\btv\b/i.test(prod) ||
-    catLower.includes('máy nước nóng') || prodLower.includes('máy nước nóng') || normCat.includes('may nuoc nong') || normProd.includes('may nuoc nong') ||
-    catLower.includes('tủ mát') || prodLower.includes('tủ mát') || normCat.includes('tu mat') || normProd.includes('tu mat') ||
-    catLower.includes('tủ đông') || prodLower.includes('tủ đông') || normCat.includes('tu dong') || normProd.includes('tu dong') ||
-    catLower.includes('máy sấy') || prodLower.includes('máy sấy') || normCat.includes('may say') || normProd.includes('may say') ||
-    catLower.includes('rửa chén') || prodLower.includes('rửa chén') || normCat.includes('rua chen') || normProd.includes('rua chen') ||
-    catLower.includes('loa karaoke') || prodLower.includes('loa karaoke') || catLower.includes('karaoke') || prodLower.includes('karaoke') ||
-    catLower.includes('loa điện') || prodLower.includes('loa điện') || normCat.includes('loa dien') || normProd.includes('loa dien')
-  ) return 'CE';
-  if (catLower.includes('smartphone') || catLower.includes('điện thoại') || catLower.includes('laptop') || catLower.includes('máy tính bảng') || catLower.includes('tablet')) return 'ICT';
-  if (catLower.includes('xe đạp')) return 'XE ĐẠP';
-  if (catLower === 'it' || catLower.includes(' thiết bị số ') || catLower.includes('máy tính') || catLower.includes('phần mềm')) return 'IT';
-
-  return 'Khác';
-};
-
-const getNhomSmallFromMap = (category: string): string => {
-  const cat = String(category || '').trim();
-  if (!cat) return '';
-
-  const catLower = cat.toLowerCase();
-
-  // Prioritize these specific categories to prevent mapping database overrides
-  if (catLower.includes('4171') || catLower.includes('4172')) return 'MLN';
-  if (catLower.includes('4150')) return 'CNL';
-
-  // Check custom mapping first
-  if (activeCustomCategoryMap) {
-    if (activeCustomCategoryMap[catLower]?.small) {
-      return activeCustomCategoryMap[catLower].small;
-    }
-    for (const [key, val] of Object.entries(activeCustomCategoryMap)) {
-      if (key && (catLower === key || catLower.includes(key) || key.includes(catLower))) {
         return val.small;
       }
     }
   }
 
-  if (NHOM_HANG_MAP[cat]?.small) {
-    return NHOM_HANG_MAP[cat].small;
-  }
-
-  for (const [key, val] of Object.entries(NHOM_HANG_MAP)) {
-    if (key.toLowerCase() === catLower) return val.small;
-  }
-
-  for (const [key, val] of Object.entries(NHOM_HANG_MAP)) {
-    const parts = key.split(' - ');
-    if (parts.length === 2) {
-      const name = parts[1].trim().toLowerCase();
-      // Remove (IMEI) if present in name to make substring matching even more robust
-      const cleanName = name.replace(/\(imei\)/g, '').trim();
-      const cleanCatLower = catLower.replace(/\(imei\)/g, '').trim();
-
-      if (cleanCatLower === cleanName || cleanCatLower.includes(cleanName) || cleanName.includes(cleanCatLower)) {
-        return val.small;
-      }
-    }
-  }
-
-  return '';
-};
-
-const resolveNhomSmall = (category: string, nhomSmallValue: string, nhomLarge: string, productName?: string): string => {
-  const cat = String(category || '').trim().toUpperCase();
-  const prod = String(productName || '').trim().toUpperCase();
-  const normProd = removeAccents(prod);
-
-  // Check Insurance product sub-group first
-  if (nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM' || cat.includes('4479') || cat.includes('1994') || cat.includes('7139') || cat.includes('1841') || normProd.includes('BAO HIEM')) {
-    if (prod.includes('1 ĐỔI 1') || normProd.includes('1 DOI 1') || normProd.includes('1DOI1') || normProd.includes('1-1')) return '1ĐỔI 1';
-    if (prod.includes('MỞ RỘNG') || normProd.includes('MO RONG') || prod.includes('BHMR')) return 'BHMR';
-    if (prod.includes('RƠI VỠ') || normProd.includes('ROI VO') || prod.includes('BHRV')) return 'BHRV';
-    if (prod.includes('BẢO VỆ MÀN HÌNH') || normProd.includes('BVMH')) return 'BVMH';
-    if (nhomSmallValue && nhomSmallValue !== 'KHÁC') {
-      const normSmallVal = removeAccents(nhomSmallValue).toUpperCase();
-      if (normSmallVal.includes('1 DOI 1') || normSmallVal.includes('1DOI1')) return '1ĐỔI 1';
-      if (normSmallVal.includes('MO RONG') || normSmallVal.includes('BHMR')) return 'BHMR';
-      if (normSmallVal.includes('ROI VO') || normSmallVal.includes('BHRV')) return 'BHRV';
-    }
-    return 'BHMR';
-  }
-
-  const nhomSmallFromMap = getNhomSmallFromMap(category);
-  if (nhomSmallFromMap) {
-    return nhomSmallFromMap.toUpperCase();
-  }
-
-  if (cat.includes('4171') || cat.includes('4172')) return 'MLN';
-  if (cat.includes('4150')) return 'CNL';
-
-  let nhomSmall = nhomSmallValue || 'KHÁC';
-
-  if (nhomLarge === 'CE') {
-    const catLower = cat.toLowerCase();
-    const normCat = removeAccents(catLower);
-    const prodLower = String(productName || '').toLowerCase();
-    const normProd = removeAccents(prodLower);
-
-    if (catLower.includes('tivi') || prodLower.includes('tivi') || catLower.includes('ti vi') || prodLower.includes('ti vi') || /\btv\b/i.test(String(productName || ''))) {
-      return 'TIVI';
-    }
-    if (
-      catLower.includes('loa karaoke') || prodLower.includes('loa karaoke') ||
-      catLower.includes('karaoke') || prodLower.includes('karaoke') ||
-      catLower.includes('loa điện') || prodLower.includes('loa điện') ||
-      catLower.includes('audio') || prodLower.includes('audio')
-    ) {
-      return 'AUDIO';
-    }
-    if (
-      catLower.includes('tủ lạnh') || prodLower.includes('tủ lạnh') ||
-      normCat.includes('tu lanh') || normProd.includes('tu lanh') ||
-      catLower.includes('tủ mát') || prodLower.includes('tủ mát') ||
-      normCat.includes('tu mat') || normProd.includes('tu mat') ||
-      catLower.includes('tủ đông') || prodLower.includes('tủ đông') ||
-      normCat.includes('tu dong') || normProd.includes('tu dong')
-    ) {
-      return 'TL';
-    }
-    if (
-      catLower.includes('máy lạnh') || prodLower.includes('máy lạnh') ||
-      normCat.includes('may lanh') || normProd.includes('may lanh') ||
-      catLower.includes('điều hòa') || prodLower.includes('điều hòa') ||
-      normCat.includes('dieu hoa') || normProd.includes('dieu hoa')
-    ) {
-      return 'ML';
-    }
-    if (
-      catLower.includes('máy giặt') || prodLower.includes('máy giặt') ||
-      normCat.includes('may giat') || normProd.includes('may giat') ||
-      catLower.includes('máy sấy') || prodLower.includes('máy sấy') ||
-      normCat.includes('may say') || normProd.includes('may say') ||
-      catLower.includes('rửa chén') || prodLower.includes('rửa chén') ||
-      normCat.includes('rua chen') || normProd.includes('rua chen')
-    ) {
-      return 'MG';
-    }
-    if (
-      catLower.includes('máy nước nóng') || prodLower.includes('máy nước nóng') ||
-      normCat.includes('may nuoc nong') || normProd.includes('may nuoc nong')
-    ) {
-      return 'MNN';
-    }
-  }
-
-  if (nhomLarge === 'ĐIỆN GD') {
-    const catLower = cat.toLowerCase();
-    const normCat = removeAccents(catLower);
-    const prodLower = String(productName || '').toLowerCase();
-    const normProd = removeAccents(prodLower);
-
-    if (catLower.includes('lọc nước') || prodLower.includes('lọc nước') || normProd.includes('loc nuoc')) {
-      return 'MLN';
-    }
-    if (catLower.includes('nước nóng lạnh') || prodLower.includes('nước nóng lạnh') || normProd.includes('nuoc nong lanh')) {
-      return 'CNL';
-    }
-    if (catLower.includes('quạt điều hòa') || prodLower.includes('quạt điều hòa') || normProd.includes('quat dieu hoa')) {
-      return 'QĐH';
-    }
-    if (catLower.includes('quạt') || prodLower.includes('quạt') || normProd.includes('quat')) {
-      return 'QUẠT';
-    }
-    if (catLower.includes('nồi chiên') || prodLower.includes('nồi chiên') || normProd.includes('noi chien')) {
-      return 'N.CHIÊN';
-    }
-    if (catLower.includes('nồi cơm') || prodLower.includes('nồi cơm') || normProd.includes('noi com')) {
-      if (catLower.includes('cao tần') || prodLower.includes('cao tần') || catLower.includes('điện tử') || prodLower.includes('điện tử')) {
-        return 'NC Đ.TỬ';
-      }
-      return 'NC NẮP RỜI';
-    }
-    if (catLower.includes('bếp gas') || prodLower.includes('bếp gas') || normProd.includes('bep gas') ||
-        catLower.includes('bếp điện') || prodLower.includes('bếp điện') || normProd.includes('bep dien') ||
-        catLower.includes('bếp hồng ngoại') || prodLower.includes('bếp hồng ngoại') || normProd.includes('bep hong ngoai') ||
-        catLower.includes('bếp từ') || prodLower.includes('bếp từ') || normProd.includes('bep tu') ||
-        catLower.includes('hút mùi') || prodLower.includes('hút mùi') || normProd.includes('hut mui') ||
-        catLower.includes('hút khói') || prodLower.includes('hút khói') || normProd.includes('hut khoi')) {
-      return 'BẾP GAS/ĐIỆN/HÚT MÙI';
-    }
-    if (catLower.includes('hút bụi') || prodLower.includes('hút bụi') || normProd.includes('hut bui') ||
-        catLower.includes('robot hút') || prodLower.includes('robot hút') || normProd.includes('robot hut') ||
-        catLower.includes('lọc không khí') || prodLower.includes('lọc không khí') || normProd.includes('loc khong khi')) {
-      return 'HÚT BỤI';
-    }
-    if (catLower.includes('xay') || prodLower.includes('xay') || catLower.includes('ép') || prodLower.includes('ép trái cây') ||
-        normProd.includes('xay') || normProd.includes('ep trai cay') || catLower.includes('sinh tố') || prodLower.includes('sinh tố')) {
-      return 'XAY ÉP/S.TỐ';
-    }
-    return 'ĐGD KHÁC';
-  }
-
-  if (nhomLarge === 'PHỤ KIỆN LẮP ĐẶT') {
-    const prodLower = String(productName || '').toLowerCase();
-    const normProd = removeAccents(prodLower);
-
-    if (prodLower.includes('khung treo') || normProd.includes('khung treo') ||
-        prodLower.includes('giá đỡ') || normProd.includes('gia do') ||
-        prodLower.includes('giá treo') || normProd.includes('gia treo')) {
-      return 'KHUNG TREO';
-    }
-    if (prodLower.includes('lõi lọc') || normProd.includes('loi loc')) {
-      return 'LÕI LỌC';
-    }
-    return 'PK LẮP ĐẶT';
-  }
-
-  // Các nhóm chỉ có 1 nhóm nhỏ duy nhất → trả về tên nhóm lớn để tránh hiển thị "KHÁC"
-  if (nhomLarge === 'WEARABLE' && nhomSmall === 'KHÁC') return 'WEARABLE';
-  if (nhomLarge === 'ĐỒNG HỒ THỜI TRANG' && nhomSmall === 'KHÁC') return 'ĐỒNG HỒ THỜI TRANG';
-  if (nhomLarge === 'VIEON' && nhomSmall === 'KHÁC') return 'VIEON';
-  if (nhomLarge === 'CHĂM SÓC SẮC ĐẸP' && nhomSmall === 'KHÁC') return 'CHĂM SÓC SẮC ĐẸP';
-  if (nhomLarge === 'XE ĐẠP' && nhomSmall === 'KHÁC') return 'XE ĐẠP';
-  if (nhomLarge === 'SIM' && nhomSmall === 'KHÁC') return 'SIM';
-  if (nhomLarge === 'DCNB' && nhomSmall === 'KHÁC') return 'DCNB';
-
-  if (nhomLarge === 'PHỤ KIỆN') {
-    const prodLower = String(productName || '').toLowerCase();
-    const normProd = removeAccents(prodLower);
-
-    // Pin sạc dự phòng phải check TRƯỚC cáp (vì tên SP có thể chứa "Type C", "Lightning")
-    if (prodLower.includes('pin sạc') || prodLower.includes('sạc dự phòng') ||
-        normProd.includes('pin sac') || normProd.includes('sac du phong') ||
-        prodLower.includes('powerbank')) {
-      return 'PIN SDP';
-    }
-    if (prodLower.includes('cáp') || normProd.includes('cap') ||
-        prodLower.includes('lightning') || prodLower.includes('type c') || prodLower.includes('type-c') ||
-        prodLower.includes('micro usb') || prodLower.includes('usb-c')) {
-      return 'CÁP';
-    }
-    if (prodLower.includes('adapter') || prodLower.includes('củ sạc') ||
-        normProd.includes('cu sac') ||
-        (prodLower.includes('sạc') && !prodLower.includes('dự phòng') && !prodLower.includes('pin'))) {
-      return 'ADAPTER';
-    }
-    if (prodLower.includes('tai nghe') || normProd.includes('tai nghe') ||
-        prodLower.includes('airpod') || prodLower.includes('earphone') || prodLower.includes('earbud')) {
-      if (prodLower.includes('bluetooth') || prodLower.includes('không dây') || prodLower.includes('wireless') ||
-          prodLower.includes('airpod') || prodLower.includes('earbud')) {
-        return 'TN BLT';
-      }
-      return 'TN DÂY';
-    }
-    if (prodLower.includes('ốp lưng') || normProd.includes('op lung') ||
-        prodLower.includes('bao da') || normProd.includes('bao da')) {
-      return 'ỐP LƯNG';
-    }
-    if (prodLower.includes('miếng dán') || normProd.includes('mieng dan') ||
-        prodLower.includes('kính cường lực') || normProd.includes('kinh cuong luc') ||
-        prodLower.includes('dán màn') || normProd.includes('dan man')) {
-      return 'M.DÁN';
-    }
-    if (prodLower.includes('thẻ nhớ') || normProd.includes('the nho') ||
-        prodLower.includes('microsd') || prodLower.includes('memory card') || prodLower.includes('usb')) {
-      return 'T.NHỚ';
-    }
-    if (prodLower.includes('camera') || normProd.includes('camera')) {
-      return 'CAM';
-    }
-    if (prodLower.includes('loa') || normProd.includes('loa')) {
-      return 'LOA';
-    }
-    if (prodLower.includes('chuột') || normProd.includes('chuot') ||
-        prodLower.includes('bàn phím') || normProd.includes('ban phim')) {
-      return 'CHUỘT';
-    }
-    if (prodLower.includes('balo') || prodLower.includes('túi') || normProd.includes('balo') || normProd.includes('tui')) {
-      return 'BALO';
-    }
-    if (prodLower.includes('máy in') || normProd.includes('may in')) {
-      return 'MÁY IN';
-    }
-    if ((prodLower.includes('đèn') || normProd.includes('den')) &&
-        (prodLower.includes('năng lượng') || normProd.includes('nang luong') ||
-         prodLower.includes('mặt trời') || normProd.includes('mat troi') ||
-         prodLower.includes('solar') || normProd.includes('solar'))) {
-      return 'ĐÈN NĂNG LƯỢNG MẶT TRỜI';
-    }
-    return 'PK KHÁC';
-  }
-
-  if (nhomLarge === 'ICT') {
-    const catLower = cat.toLowerCase();
-    const normCat = removeAccents(catLower);
-    const prodLower = String(productName || '').toLowerCase();
-    const normProd = removeAccents(prodLower);
-
-    if (catLower.includes('laptop') || prodLower.includes('laptop') ||
-        normCat.includes('laptop') || normProd.includes('laptop')) {
-      return 'LAP';
-    }
-    if (catLower.includes('tablet') || prodLower.includes('tablet') ||
-        catLower.includes('máy tính bảng') || prodLower.includes('máy tính bảng') ||
-        normCat.includes('may tinh bang') || normProd.includes('may tinh bang') ||
-        prodLower.includes('ipad') || normProd.includes('ipad')) {
-      return 'TAB';
-    }
-    // Điện thoại di động: Nokia, Mobell, Masstel, Itel
-    if (prodLower.includes('nokia') || prodLower.includes('mobell') ||
-        prodLower.includes('masstel') || prodLower.includes('itel')) {
-      return 'ĐIỆN THOẠI DI ĐỘNG';
-    }
-    // Smartphone: iPhone, Samsung, Oppo, Vivo, Realme, Xiaomi, Motorola, Huawei, Honor, etc.
-    if (catLower.includes('smartphone') || prodLower.includes('smartphone') ||
-        prodLower.includes('iphone') || prodLower.includes('galaxy') ||
-        prodLower.includes('samsung') || prodLower.includes('oppo') ||
-        prodLower.includes('vivo') || prodLower.includes('realme') ||
-        prodLower.includes('xiaomi') || prodLower.includes('redmi') ||
-        prodLower.includes('poco') || prodLower.includes('motorola') ||
-        prodLower.includes('huawei') || prodLower.includes('honor') ||
-        prodLower.includes('infinix') || prodLower.includes('tecno')) {
-      return 'SMP';
-    }
-    return 'SMP';
-  }
-  if (nhomLarge === 'BẢO HIỂM') {
-    if (productName) {
-      const pClass = classifyProduct(productName);
-      if (['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1'].includes(pClass)) {
-        return pClass;
-      }
-    }
-    return 'B.HIỂM';
-  }
-  return nhomSmall;
+  if (nhomSmallValue) return nhomSmallValue;
+  return 'KHÁC';
 };
 
 const resolveNhomSmallFriendlyName = (
@@ -1683,146 +1047,48 @@ const resolveNhomSmallFriendlyName = (
   idxSmallCategoryHeader: number,
   idxNhomHang: number,
   idxProduct?: number,
-  idxProductCode?: number
+  idxProductCode?: number,
+  customNhomSmallMap?: Record<string, { large: string, small: string }>,
+  customBaoHiemRules?: BaoHiemRule[]
 ): string => {
-  if (idxProductCode !== undefined && idxProductCode !== -1) {
-    const prodCode = String(row[idxProductCode] || '').trim();
-    const codeClass = classifyProductByCode(prodCode);
-    if (codeClass) {
-      return codeClass;
-    }
-  }
-  const prodName = idxProduct !== undefined && idxProduct !== -1 ? String(row[idxProduct] || '') : '';
-  const pClassInitial = classifyProduct(prodName);
-  if (['1 ĐỔI 1', 'BHMR', 'BHRV', 'BVMH', 'GIC', 'SC+', 'BHAP', 'BHOT', 'BHVC', 'BHXM', 'BHMT', 'BHXH', 'BHYT'].includes(pClassInitial)) {
-    return pClassInitial;
-  }
-  const prodNameUpper = prodName.toUpperCase();
-  if (prodNameUpper.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodNameUpper.includes('BẢO VỆ MÀN HÌNH') || prodNameUpper.includes('BVMH')) {
-    return 'BVMH';
-  }
   const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim().toUpperCase() : '';
-  if (catVal.includes('4479')) return 'Bảo hiểm';
+  const origCat = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
+  const nhomSmallValue = idxSmallCategoryHeader !== -1 ? String(row[idxSmallCategoryHeader] || '').trim().toUpperCase() : '';
+  const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+  const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
+  
+  const matchedRule = getMatchedBaoHiemRule(prodCode, prodName, customBaoHiemRules);
+  if (matchedRule && matchedRule.nhomHangNho) {
+    return matchedRule.nhomHangNho;
+  }
+  
+  if (catVal && customNhomSmallMap && customNhomSmallMap[catVal]) {
+    return customNhomSmallMap[catVal].small;
+  }
 
-  const nhomSmallFromMap = idxNhomHang !== -1 ? getNhomSmallFromMap(row[idxNhomHang]) : '';
-  if (nhomSmallFromMap) {
-    const nhomLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', prodName);
-    if (nhomLarge === 'BẢO HIỂM') {
-      const pClass = classifyProduct(prodName);
-      if (['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1'].includes(pClass)) {
-        return NHOM_SMALL_DISPLAY[pClass] || pClass;
+  const catLower = origCat.toLowerCase();
+  if (NHOM_HANG_MAP[origCat] && NHOM_HANG_MAP[origCat].small) {
+    return NHOM_HANG_MAP[origCat].small;
+  }
+
+  for (const [key, val] of Object.entries(NHOM_HANG_MAP)) {
+    if (key.toLowerCase() === catLower) {
+      return val.small;
+    }
+  }
+
+  for (const [key, val] of Object.entries(NHOM_HANG_MAP)) {
+    const parts = key.split(' - ');
+    if (parts.length === 2) {
+      const name = parts[1].trim().toLowerCase();
+      if (catLower === name || catLower.includes(name) || name.includes(catLower)) {
+        return val.small;
       }
-      return NHOM_SMALL_DISPLAY[nhomSmallFromMap] || nhomSmallFromMap;
-    }
-    return NHOM_SMALL_DISPLAY[nhomSmallFromMap] || nhomSmallFromMap;
-  }
-
-  if (catVal.includes('4171') || catVal.includes('4172')) return 'Lọc nước';
-  if (catVal.includes('4150')) return 'Cây Nóng/Lạnh';
-  if (catVal.includes('1 ĐỔI 1')) return '1 ĐỔI 1';
-  if (catVal.includes('BẢO HÀNH MỞ RỘNG') || catVal.includes('7139')) return 'BHMR';
-  if (catVal.includes('BẢO HÀNH RƠI VỠ')) return 'BHRV';
-  if (catVal.includes('4479')) return 'Bảo hiểm';
-
-  const rawVal = idxSmallCategoryHeader !== -1 ? (row[idxSmallCategoryHeader] || '') : '';
-  const nhomLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', prodName);
-  if (nhomLarge === 'BẢO HIỂM') {
-    const pClass = classifyProduct(prodName);
-    if (['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1'].includes(pClass)) {
-      return NHOM_SMALL_DISPLAY[pClass] || pClass;
-    }
-    return 'Bảo hiểm';
-  }
-  const nhomSmallRaw = String(rawVal).trim().toUpperCase() || 'KHÁC';
-  let nhomSmall = (nhomLarge === 'ICT' && nhomSmallRaw === 'KHÁC') ? 'ĐIỆN THOẠI DI ĐỘNG' : nhomSmallRaw;
-
-  if (nhomLarge === 'CE') {
-    const catLower = catVal.toLowerCase();
-    const normCat = removeAccents(catLower);
-    const prodLower = prodName.toLowerCase();
-    const normProd = removeAccents(prodLower);
-
-    if (catLower.includes('tivi') || prodLower.includes('tivi') || catLower.includes('ti vi') || prodLower.includes('ti vi') || /\btv\b/i.test(prodName)) {
-      nhomSmall = 'TIVI';
-    } else if (
-      catLower.includes('loa karaoke') || prodLower.includes('loa karaoke') ||
-      catLower.includes('karaoke') || prodLower.includes('karaoke') ||
-      catLower.includes('audio') || prodLower.includes('audio')
-    ) {
-      nhomSmall = 'AUDIO';
-    } else if (
-      catLower.includes('tủ lạnh') || prodLower.includes('tủ lạnh') ||
-      normCat.includes('tu lanh') || normProd.includes('tu lanh') ||
-      catLower.includes('tủ mát') || prodLower.includes('tủ mát') ||
-      normCat.includes('tu mat') || normProd.includes('tu mat') ||
-      catLower.includes('tủ đông') || prodLower.includes('tủ đông') ||
-      normCat.includes('tu dong') || normProd.includes('tu dong')
-    ) {
-      nhomSmall = 'TL';
-    } else if (
-      catLower.includes('máy lạnh') || prodLower.includes('máy lạnh') ||
-      normCat.includes('may lanh') || normProd.includes('may lanh') ||
-      catLower.includes('điều hòa') || prodLower.includes('điều hòa') ||
-      normCat.includes('dieu hoa') || normProd.includes('dieu hoa')
-    ) {
-      nhomSmall = 'ML';
-    } else if (
-      catLower.includes('máy giặt') || prodLower.includes('máy giặt') ||
-      normCat.includes('may giat') || normProd.includes('may giat') ||
-      catLower.includes('máy sấy') || prodLower.includes('máy sấy') ||
-      normCat.includes('may say') || normProd.includes('may say') ||
-      catLower.includes('rửa chén') || prodLower.includes('rửa chén') ||
-      normCat.includes('rua chen') || normProd.includes('rua chen')
-    ) {
-      nhomSmall = 'MG';
-    } else if (
-      catLower.includes('máy nước nóng') || prodLower.includes('máy nước nóng') ||
-      normCat.includes('may nuoc nong') || normProd.includes('may nuoc nong')
-    ) {
-      nhomSmall = 'MNN';
     }
   }
 
-  if (nhomLarge === 'ĐIỆN GD') {
-    const catLower = catVal.toLowerCase();
-    const normCat = removeAccents(catLower);
-    const prodLower = prodName.toLowerCase();
-    const normProd = removeAccents(prodLower);
-
-    if (catLower.includes('lọc nước') || prodLower.includes('lọc nước') || normProd.includes('loc nuoc')) {
-      nhomSmall = 'MLN';
-    } else if (catLower.includes('nước nóng lạnh') || prodLower.includes('nước nóng lạnh') || normProd.includes('nuoc nong lanh')) {
-      nhomSmall = 'CNL';
-    } else if (catLower.includes('quạt điều hòa') || prodLower.includes('quạt điều hòa') || normProd.includes('quat dieu hoa')) {
-      nhomSmall = 'QĐH';
-    } else if (catLower.includes('quạt') || prodLower.includes('quạt') || normProd.includes('quat')) {
-      nhomSmall = 'QUẠT';
-    } else if (catLower.includes('nồi chiên') || prodLower.includes('nồi chiên') || normProd.includes('noi chien')) {
-      nhomSmall = 'N.CHIÊN';
-    } else if (catLower.includes('nồi cơm') || prodLower.includes('nồi cơm') || normProd.includes('noi com')) {
-      if (catLower.includes('cao tần') || prodLower.includes('cao tần') || catLower.includes('điện tử') || prodLower.includes('điện tử')) {
-        nhomSmall = 'NC Đ.TỬ';
-      } else {
-        nhomSmall = 'NC NẮP RỜI';
-      }
-    } else if (catLower.includes('bếp gas') || prodLower.includes('bếp gas') || normProd.includes('bep gas') ||
-        catLower.includes('bếp điện') || prodLower.includes('bếp điện') || normProd.includes('bep dien') ||
-        catLower.includes('hút mùi') || prodLower.includes('hút mùi') || normProd.includes('hut mui') ||
-        catLower.includes('hút khói') || prodLower.includes('hút khói') || normProd.includes('hut khoi')) {
-      nhomSmall = 'BẾP GAS/ĐIỆN/HÚT MÙI';
-    } else if (catLower.includes('hút bụi') || prodLower.includes('hút bụi') || normProd.includes('hut bui') ||
-        catLower.includes('robot hút') || prodLower.includes('robot hút') || normProd.includes('robot hut') ||
-        catLower.includes('lọc không khí') || prodLower.includes('lọc không khí') || normProd.includes('loc khong khi')) {
-      nhomSmall = 'HÚT BỤI';
-    } else if (catLower.includes('xay') || prodLower.includes('xay') || catLower.includes('ép') || prodLower.includes('ép trái cây') ||
-        normProd.includes('xay') || normProd.includes('ep trai cay') || catLower.includes('sinh tố') || prodLower.includes('sinh tố')) {
-      nhomSmall = 'XAY ÉP';
-    } else {
-      nhomSmall = 'ĐGD KHÁC';
-    }
-  }
-
-  return NHOM_SMALL_DISPLAY[nhomSmall] || String(rawVal) || '-';
+  if (nhomSmallValue) return nhomSmallValue;
+  return 'KHÁC';
 };
 
 const getNganhName = (key: string) => NGANH_DISPLAY[key] || key;
@@ -1837,7 +1103,7 @@ const getRowDtqd = (nhomLarge: string, qty: number, revenue: number, nhomSmall?:
     if (nhomSmall === 'AUDIO') {
       rate = 1.29;
     }
-  } else if (nhomLarge === 'ĐIỆN GD' || nhomLarge === 'PHỤ KIỆN LẮP ĐẶT' || nhomLarge === 'Gia dụng lắp đặt') {
+  } else if (nhomLarge === 'ĐIỆN GD' || nhomLarge === 'PHỤ KIỆN LẶP ĐẶT' || nhomLarge === 'Gia dụng lắp đặt') {
     rate = 1.85;
   } else if (nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM') {
     rate = 4.18;
@@ -1910,7 +1176,7 @@ const fmtRawDate = (raw: string): string => {
   return raw;
 };
 
-export default function NewRealtimePage() {
+export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false }: { pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean }) {
   const { userProfile } = useAuth();
   const isAdmin = userProfile?.username === '43751' || userProfile?.username === 'ADMIN' || userProfile?.role === 'admin';
   const isUser43751 = String(userProfile?.username || '').trim() === '43751' || 
@@ -1920,10 +1186,53 @@ export default function NewRealtimePage() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const { showNotification } = useNotification();
   const { marketFilter, setMarketFilter, availableMarkets: filteredMarkets } = useMarket();
-  const { isStoreReady } = useStore();
+  const { isStoreReady, activeRealtimeTab: activeTab, setActiveRealtimeTab: setActiveTab } = useStore();
   const [selectedStaffs, setSelectedStaffs] = useState<string[]>([]);
   const [selectedMaKho, setSelectedMaKho] = useState(userProfile?.ma_kho || '');
-  const [activeTab, setActiveTab] = useState<'summary' | 'khai_thac' | 'khai_thac_moi'>('summary');
+  
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [customNhomSmallMap, setCustomNhomSmallMap] = useState<Record<string, { nganhHang?: string, large: string, small: string }>>({});
+  const [showConfigBaoHiemModal, setShowConfigBaoHiemModal] = useState(false);
+  const [customBaoHiemRules, setCustomBaoHiemRules] = useState<BaoHiemRule[]>([]);
+  const [showConfigLoaiBoModal, setShowConfigLoaiBoModal] = useState(false);
+  const [customExclusionRules, setCustomExclusionRules] = useState<ExclusionRule[]>([]);
+  const [showConfigGoogleSheetModal, setShowConfigGoogleSheetModal] = useState(false);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'system_configs', 'nhom_hang_map'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && data.map) {
+          setCustomNhomSmallMap(data.map);
+        }
+      }
+    });
+    
+    const unsubBH = onSnapshot(doc(db, 'system_configs', 'bao_hiem_map'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && data.rules) {
+          setCustomBaoHiemRules(data.rules);
+          activeCustomBaoHiemRules = data.rules;
+        }
+      }
+    });
+
+    const unsubEx = onSnapshot(doc(db, 'system_configs', 'loai_bo_map'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && data.rules) {
+          setCustomExclusionRules(data.rules);
+        }
+      }
+    });
+
+    return () => {
+      unsub();
+      unsubBH();
+      unsubEx();
+    };
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'khai_thac_moi' && !isUser43751) {
@@ -2137,7 +1446,7 @@ export default function NewRealtimePage() {
   const [drillFilterStore, setDrillFilterStore] = useState<string[]>([]);
   const [drillFilterProduct, setDrillFilterProduct] = useState<string[]>([]);
   const [drillFilterTrangThaiSP, setDrillFilterTrangThaiSP] = useState<string[]>([]);
-  const [drillLevels, setDrillLevels] = useState<string[]>(['kho', 'nganh', 'nhom', 'hang', 'nguoitao', 'sanpham', 'trangthaisp']);
+  const [drillLevels, setDrillLevels] = useState<string[]>(['kho', 'nganh', 'nhom', 'hang', 'sanpham', 'nguoitao', 'trangthaisp']);
   const [expandedDrillRows, setExpandedDrillRows] = useState<Record<string, boolean>>({});
   const [isDrillFullscreen, setIsDrillFullscreen] = useState(false);
   const [drillExpandDepth, setDrillExpandDepth] = useState<number>(1);
@@ -2437,14 +1746,26 @@ export default function NewRealtimePage() {
       return (lower.includes('nhom hang') && !lower.includes('nho')) || lower === 'nhom hang';
     });
 
-    let idxCategory = headers.findIndex(h => {
-      const lower = removeAccents(h).toLowerCase().trim();
-      return lower.includes('nganh hang') || lower.includes('nhom nganh hang') || lower === 'nganh hang';
-    });
+    let idxCategory = (() => {
+      const exactNhom = headers.findIndex(h => {
+        const norm = removeAccents(h).toLowerCase().trim();
+        return norm === 'nhom hang' || norm === 'ten nhom hang';
+      });
+      if (exactNhom !== -1) return exactNhom;
+      const partialNhom = headers.findIndex(h => {
+        const norm = removeAccents(h).toLowerCase().trim();
+        return norm.includes('nhom hang') && !norm.includes('nhom hang nho');
+      });
+      if (partialNhom !== -1) return partialNhom;
+      return headers.findIndex(h => {
+        const norm = removeAccents(h).toLowerCase().trim();
+        return norm.includes('nganh hang') || norm.includes('nhom nganh hang');
+      });
+    })();
 
     let idxProduct = headers.findIndex(h => {
       const lower = removeAccents(h).toLowerCase().trim();
-      return lower.includes('ten san pham') || lower.includes('san pham') || lower === 'ten hang';
+      return lower.includes('ten san pham') || (lower.includes('san pham') && !lower.includes('ma')) || lower === 'ten hang';
     });
 
     let idxProductCode = headers.findIndex(h => {
@@ -2452,49 +1773,20 @@ export default function NewRealtimePage() {
       return lower.includes('ma san pham') || lower.includes('ma hang') || lower === 'ma sp';
     });
 
-    return rawYcxRows.slice(1).filter(row => {
-      const statusValue = idxStatus !== -1 ? removeAccents(String(row[idxStatus] || '')).trim().toLowerCase() : '';
-      const thuTienValue = idxThuTien !== -1 ? removeAccents(String(row[idxThuTien] || '')).trim().toLowerCase() : '';
-      const traValue = idxTra !== -1 ? removeAccents(String(row[idxTra] || '')).trim().toLowerCase() : '';
+    const idxHinhThucXuat = (() => {
+      const idxExact = headers.findIndex(h => removeAccents(h).toLowerCase().trim() === 'hinh thuc xuat');
+      if (idxExact !== -1) return idxExact;
+      return headers.findIndex(h => {
+        const lh = removeAccents(h).toLowerCase().trim();
+        return lh === 'loai ycx' || lh === 'loai yeu cau' || lh === 'phan loai ycx';
+      });
+    })();
 
-      // 1. Trạng thái xuất: BẮT BUỘC chứa "ĐÃ XUẤT" (loại bỏ Chưa xuất, Hủy, Rỗng)
-      if (idxStatus !== -1) {
-        if (!statusValue || !statusValue.includes('da xuat')) return false;
-      }
-
-      // 2. Trạng thái thu tiền: BẮT BUỘC chứa "ĐÃ THU" (loại bỏ Chưa thu, Rỗng)
-      if (idxThuTien !== -1) {
-        if (!thuTienValue || !thuTienValue.includes('da thu')) return false;
-      }
-
-      // 3. Tình trạng nhập trả: CHỈ LẤY "CHƯA TRẢ" hoặc rỗng (loại bỏ Đã trả)
-      if (idxTra !== -1 && traValue) {
-        if (traValue.includes('da tra') || (traValue.includes('tra') && !traValue.includes('chua tra'))) return false;
-      }
-
-      // 4. Loại trừ các Nhóm hàng Thu hộ: 2513 - Thu hộ Payoo, 2571 - Thu hộ cước Viettel, 4519 - Thu Hộ Tiền Trả Góp, 4599 - Thu Hộ Tiền Mặt
-      const nhomHangVal = idxNhomHang !== -1 
-        ? removeAccents(String(row[idxNhomHang] || '')).toLowerCase()
-        : removeAccents(row.join(' ')).toLowerCase();
-
-      if (
-        nhomHangVal.includes('2513') ||
-        nhomHangVal.includes('2571') ||
-        nhomHangVal.includes('4519') ||
-        nhomHangVal.includes('4599') ||
-        nhomHangVal.includes('thu ho payoo') ||
-        nhomHangVal.includes('thu ho cuoc viettel') ||
-        nhomHangVal.includes('thu ho tien tra gop') ||
-        nhomHangVal.includes('thu ho tien mat')
-      ) {
-        return false;
-      }
-
-      // 5. Ẩn / Loại trừ Ngành hàng "Khác" / "Không rõ" / "Thẻ cào" (GIỮ LẠI B.HIỂM, V1, V2, V3, VieON, MANGO, ICALLME)
+    return rawYcxRows.slice(1).filter((row, rIdx) => {
       const productName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() : '';
       const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
       const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
-      const pClass = classifyProductByCode(prodCode) || classifyProduct(productName);
+      const pClass = classifyProductByCode(prodCode, customBaoHiemRules) || classifyProduct(productName, customBaoHiemRules);
 
       const normProdUpper = removeAccents(productName).toUpperCase();
       const normCatUpper = removeAccents(category).toUpperCase();
@@ -2503,28 +1795,126 @@ export default function NewRealtimePage() {
         pClass === 'Mango' || pClass === 'Icall' || ['V1', 'V2', 'V3', 'V4'].includes(pClass) ||
         pClass === 'B.HIỂM' || ['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1', 'BHAP', 'BHOT', 'BHVC', 'BHMT', 'BHXH', 'BHYT', 'BVMH', 'GIC'].includes(pClass) ||
         normProdUpper.includes('MANGO') || normProdUpper.includes('ICALL') || normProdUpper.includes('VIEON') ||
-        normProdUpper.includes('BAO HIEM') || normCatUpper.includes('BAO HIEM') ||
+        ((normProdUpper.includes('BAO HIEM') || normCatUpper.includes('BAO HIEM')) && !normProdUpper.includes('NON BAO HIEM') && !normProdUpper.includes('MU BAO HIEM') && !normCatUpper.includes('NON BAO HIEM') && !normCatUpper.includes('MU BAO HIEM')) ||
         normProdUpper.includes('1 DOI 1') || normProdUpper.includes('PVI_') ||
         normProdUpper.includes('BVMH') || normProdUpper.includes('BAO VE MAN HINH') ||
         category.includes('1994') || category.includes('4479') || category.includes('7139');
 
+      const statusValue = idxStatus !== -1 ? removeAccents(String(row[idxStatus] || '')).trim().toLowerCase() : '';
+      const thuTienValue = idxThuTien !== -1 ? removeAccents(String(row[idxThuTien] || '')).trim().toLowerCase() : '';
+      const traValue = idxTra !== -1 ? removeAccents(String(row[idxTra] || '')).trim().toLowerCase() : '';
+
+      let failStatus = false;
+      if (idxStatus !== -1) {
+        if (!statusValue || !statusValue.includes('da xuat')) failStatus = true;
+      }
+
+      let failThuTien = false;
+      if (idxThuTien !== -1 && isVasRow) {
+        if (!thuTienValue || !thuTienValue.includes('da thu')) failThuTien = true;
+      }
+
+      let failTra = false;
+      if (idxTra !== -1 && traValue) {
+        if (traValue.includes('da tra') || (traValue.includes('tra') && !traValue.includes('chua tra'))) failTra = true;
+      }
+
+      if (failStatus || failThuTien || failTra) {
+        if (rIdx < 50) {
+          console.log(`[Filter YCX Row ${rIdx} FAIL status/thutien/tra]`, {
+            product: row[idxProduct],
+            category: row[idxCategory],
+            statusValue,
+            thuTienValue,
+            traValue,
+            failStatus,
+            failThuTien,
+            failTra
+          });
+        }
+        return false;
+      }
+
+      // 4. Loại trừ theo danh sách Cấu hình loại bỏ động (hoặc danh sách mặc định)
+      const rowHtx = idxHinhThucXuat !== -1 ? removeAccents(String(row[idxHinhThucXuat] || '')).toUpperCase() : '';
+      const rowNganh = idxCategory !== -1 ? removeAccents(String(row[idxCategory] || '')).toUpperCase() : '';
+      const rowNhom = idxNhomHang !== -1 ? removeAccents(String(row[idxNhomHang] || '')).toUpperCase() : '';
+      const rowTenSP = idxProduct !== -1 ? removeAccents(String(row[idxProduct] || '')).toUpperCase() : '';
+
+      let shouldExclude = false;
+      if (customExclusionRules && customExclusionRules.length > 0) {
+        shouldExclude = customExclusionRules.some(rule => {
+          const normHtx = removeAccents(rule.hinhThucXuat || '').toUpperCase().trim();
+          const normNganh = removeAccents(rule.nganhHang || '').toUpperCase().trim();
+          const normNhom = removeAccents(rule.nhomHang || '').toUpperCase().trim();
+          const normTenSP = removeAccents(rule.tenSanPham || '').toUpperCase().trim();
+
+          if (!normHtx && !normNganh && !normNhom && !normTenSP) return false;
+
+          const matchHtx = normHtx && rowHtx.includes(normHtx);
+          const matchNganh = normNganh && rowNganh.includes(normNganh);
+          const matchNhom = normNhom && rowNhom.includes(normNhom);
+          const matchTenSP = normTenSP && rowTenSP.includes(normTenSP);
+
+          return matchHtx || matchNganh || matchNhom || matchTenSP;
+        });
+      } else {
+        // Fallback mặc định
+        const nhomHangVal = idxNhomHang !== -1 
+          ? removeAccents(String(row[idxNhomHang] || '')).toLowerCase()
+          : removeAccents(row.join(' ')).toLowerCase();
+
+        shouldExclude = 
+          nhomHangVal.includes('2513') ||
+          nhomHangVal.includes('2571') ||
+          nhomHangVal.includes('4519') ||
+          nhomHangVal.includes('4599') ||
+          nhomHangVal.includes('thu ho payoo') ||
+          nhomHangVal.includes('thu ho cuoc viettel') ||
+          nhomHangVal.includes('thu ho tien tra gop') ||
+          nhomHangVal.includes('thu ho tien mat');
+      }
+
+      if (shouldExclude) {
+        if (rIdx < 50) {
+          console.log(`[Filter YCX Row ${rIdx} FAIL shouldExclude]`, { product: row[idxProduct], rowHtx, rowNganh, rowNhom, rowTenSP });
+        }
+        return false;
+      }
+
+      // 5. Ẩn / Loại trừ Ngành hàng "Khác" / "Không rõ" / "Thẻ cào" (GIỮ LẠI B.HIỂM, V1, V2, V3, VieON, MANGO, ICALLME)
+
+      let failNhomLarge = false;
       if (!isVasRow) {
-        const nhomLarge = classifyNhomHangLarge(category, productName);
+        const nhomSmallValue = '';
+        const nhomLarge = classifyNhomHangLarge(category, productName, nhomSmallValue, undefined, customNhomSmallMap, customBaoHiemRules, prodCode);
         if (nhomLarge === 'Khác' || nhomLarge === 'KHÁC' || nhomLarge === 'Không rõ' || nhomLarge === 'THỂ CÀO') {
-          return false;
+          failNhomLarge = true;
         }
       }
 
+      if (failNhomLarge) {
+        if (rIdx < 50) {
+          console.log(`[Filter YCX Row ${rIdx} FAIL failNhomLarge]`, { product: row[idxProduct], category, isVasRow });
+        }
+        return false;
+      }
+
+      if (rIdx < 50) {
+        console.log(`[Filter YCX Row ${rIdx} KEEP]`, { product: row[idxProduct], category, isVasRow });
+      }
       return true;
     });
-  }, [rawYcxRows, isMoiTab]);
+  }, [rawYcxRows, isMoiTab, customNhomSmallMap, customBaoHiemRules, customExclusionRules]);
 
   const rawYcxRowsForTable = useMemo(() => {
-    return filteredRawYcxRows;
-  }, [filteredRawYcxRows]);
+    if (rawYcxRows.length <= 1) return [];
+    return rawYcxRows.slice(1);
+  }, [rawYcxRows]);
 
   // Defer heavy row list so useMemo stats don't block render
   const deferredFilteredRows = useDeferredValue(filteredRawYcxRows);
+  const deferredRawTableRowsForUnique = useDeferredValue(rawYcxRowsForTable);
 
   // ─── Single-pass computation: iterate filteredRawYcxRows only ONCE ──────────
   // ─── Single-pass computation: iterate filteredRawYcxRows only ONCE ──────────
@@ -2566,7 +1956,7 @@ export default function NewRealtimePage() {
       return findIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá bán', 'giá trị đh', 'giá trị'], -1);
     })();
     console.log('[DrillDown] idxRevenue:', idxRevenue, '| Header:', headers[idxRevenue]);
-    const idxCategory = findIdx(['ngành hàng', 'nhóm ngành hàng', 'nhóm hàng', 'tên nhóm hàng'], -1);
+    const idxCategory = findIdx(['nhóm hàng', 'tên nhóm hàng', 'ngành hàng', 'nhóm ngành hàng'], -1);
     const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ'], -1);
     const idxHinhThucXuat = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
     const idxDate = findIdx(['ngày tạo', 'ngày lập', 'ngày xuất', 'ngày giao', 'ngày hoàn', 'ngày'], -1);
@@ -2579,7 +1969,7 @@ export default function NewRealtimePage() {
     const idxProductCode = (() => {
       const exact = headers.findIndex(h => {
         const norm = removeAccents(h).toLowerCase().trim();
-        return norm === 'ma san pham' || norm === 'ma hang' || norm === 'ma sp';
+        return norm === 'ma san pham' || norm === 'ma sp' || norm === 'ma hang' || norm.includes('ma san pham');
       });
       if (exact !== -1) return exact;
       return headers.findIndex(h => {
@@ -2589,6 +1979,7 @@ export default function NewRealtimePage() {
     })();
     const idxMarket = findIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm', 'kho', 'cửa hàng'], -1);
     const idxTrangThaiSP = findIdx(['trạng thái hồ sơ', 'trạng thái xuất', 'trạng thái'], -1);
+    const idxNhaSanXuat = findIdx(['nhà sản xuất', 'nha san xuat', 'nhà sx', 'nha sx', 'hãng sản xuất', 'hãng sx', 'brand'], -1);
     // Tìm cột DOANH THU QĐ để lấy trực tiếp (DATA YCX MỚI)
     const idxDtqdCol = headers.findIndex(h => {
       const norm = removeAccents(h).toLowerCase().trim();
@@ -2599,6 +1990,8 @@ export default function NewRealtimePage() {
       const norm = removeAccents(h).toLowerCase().trim();
       return norm === 'doanh thu (-r)' || norm === 'doanh thu(-r)' || norm === 'dt (-r)' || norm === 'dt(-r)' || norm.includes('doanh thu (-r)') || norm.includes('doanh thu(-r)');
     });
+
+
 
     type ACStats = { staffName: string; mayLanh: number; mayLanhDaikin: number; mayLanhHaier: number; mayLanhHisense: number };
     type CEStats = { staffName: string; ceSL: number; ceDT: number; products: { name: string; sl: number; dt: number }[] };
@@ -2661,16 +2054,16 @@ export default function NewRealtimePage() {
       !n || n.toLowerCase().includes('người tạo') || n.toLowerCase() === 'admin' || n.toLowerCase() === 'administrator';
 
     const isInsuranceRowHelper = (category: string, productName: string, row: any[]): boolean => {
-      let nhomLarge = classifyNhomHangLarge(category, productName);
+      const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+      let nhomLarge = classifyNhomHangLarge(category, productName, undefined, undefined, undefined, customBaoHiemRules, prodCode);
       const normProdUpper = removeAccents(productName).toUpperCase();
       const normCatUpper = removeAccents(category).toUpperCase();
 
-      const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
-      const pClass = classifyProductByCode(prodCode) || classifyProduct(productName);
+      const pClass = classifyProductByCode(prodCode, customBaoHiemRules) || classifyProduct(productName, customBaoHiemRules);
       
       return (
         pClass === 'B.HIỂM' || ['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1', 'BHAP', 'BHOT', 'BHVC', 'BHMT', 'BHXH', 'BHYT', 'BVMH', 'GIC'].includes(pClass) ||
-        normProdUpper.includes('BAO HIEM') || normCatUpper.includes('BAO HIEM') ||
+        ((normProdUpper.includes('BAO HIEM') || normCatUpper.includes('BAO HIEM')) && !normProdUpper.includes('NON BAO HIEM') && !normProdUpper.includes('MU BAO HIEM') && !normCatUpper.includes('NON BAO HIEM') && !normCatUpper.includes('MU BAO HIEM')) ||
         normProdUpper.includes('1 DOI 1') || normProdUpper.includes('PVI_') ||
         normProdUpper.includes('BVMH') || normProdUpper.includes('BAO VE MAN HINH') ||
         category.includes('1994') || category.includes('4479') || category.includes('7139') ||
@@ -2679,60 +2072,67 @@ export default function NewRealtimePage() {
     };
 
     const classifyWithColumnCheck = (category: string, productName: string, row: any[]): string => {
+      const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
       if (isInsuranceRowHelper(category, productName, row)) {
         return 'BẢO HIỂM';
       }
-      return classifyNhomHangLarge(category, productName);
+      const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+      return classifyNhomHangLarge(category, productName, nhomSmallValue, activeCustomCategoryMap, customNhomSmallMap, customBaoHiemRules, prodCode);
     };
 
     const currentRows: any[][] = [];
     const prevRows: any[][] = [];
     for (const row of filteredRawYcxRows) {
       const staffName = idxStaff !== -1 ? extractName(String(row[idxStaff] || '')) : 'HỆ THỐNG';
-      if (idxStaff !== -1 && isSystemName(staffName)) continue;
+      const isSystemRow = idxStaff !== -1 && isSystemName(staffName);
 
-      names.add(staffName);
+      if (!isSystemRow) {
+        names.add(staffName);
+      }
 
       const productName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() : 'Sản phẩm khác';
       const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
       const nhomLarge = classifyWithColumnCheck(category, productName, row);
       const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
-      const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
+      const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+      const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName, customNhomSmallMap, prodCode, customBaoHiemRules);
 
       const rawQty = idxQty !== -1 ? Math.round(parseFloat(String(row[idxQty] || '1').replace(/,/g, '')) || 0) : 1;
       const qty = rawQty > 0 ? rawQty : 1;
       const revenue = idxRevenue !== -1 ? Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0) : 0;
 
-      // ── Air-con stats ──
-      if (nhomSmall === 'ML') {
-        const productName = String(row[idxProduct] || '').toUpperCase();
-        if (!acMap.has(staffName)) acMap.set(staffName, { staffName, mayLanh: 0, mayLanhDaikin: 0, mayLanhHaier: 0, mayLanhHisense: 0 });
-        const d = acMap.get(staffName)!;
-        d.mayLanh += qty;
-        if (productName.includes('DAIKIN')) d.mayLanhDaikin += qty;
-        if (productName.includes('HAIER')) d.mayLanhHaier += qty;
-        if (productName.includes('HISENSE') || productName.includes('HISENSI')) d.mayLanhHisense += qty;
-      }
+      if (!isSystemRow) {
+        // ── Air-con stats ──
+        if (nhomSmall === 'ML') {
+          const productName = String(row[idxProduct] || '').toUpperCase();
+          if (!acMap.has(staffName)) acMap.set(staffName, { staffName, mayLanh: 0, mayLanhDaikin: 0, mayLanhHaier: 0, mayLanhHisense: 0 });
+          const d = acMap.get(staffName)!;
+          d.mayLanh += qty;
+          if (productName.includes('DAIKIN')) d.mayLanhDaikin += qty;
+          if (productName.includes('HAIER')) d.mayLanhHaier += qty;
+          if (productName.includes('HISENSE') || productName.includes('HISENSI')) d.mayLanhHisense += qty;
+        }
 
-      // ── CE stats ──
-      if (nhomLarge === 'CE') {
-        const productName = String(row[idxProduct] || '').trim() || 'Không rõ';
-        if (!ceMap.has(staffName)) ceMap.set(staffName, { staffName, ceSL: 0, ceDT: 0, products: [] });
-        const d = ceMap.get(staffName)!;
-        d.ceSL += qty;
-        d.ceDT += revenue;
-        const existing = d.products.find(p => p.name === productName);
-        if (existing) { existing.sl += qty; existing.dt += revenue; }
-        else d.products.push({ name: productName, sl: qty, dt: revenue });
-      }
+        // ── CE stats ──
+        if (nhomLarge === 'CE') {
+          const productName = String(row[idxProduct] || '').trim() || 'Không rõ';
+          if (!ceMap.has(staffName)) ceMap.set(staffName, { staffName, ceSL: 0, ceDT: 0, products: [] });
+          const d = ceMap.get(staffName)!;
+          d.ceSL += qty;
+          d.ceDT += revenue;
+          const existing = d.products.find(p => p.name === productName);
+          if (existing) { existing.sl += qty; existing.dt += revenue; }
+          else d.products.push({ name: productName, sl: qty, dt: revenue });
+        }
 
-      // ── ĐGD stats (MLN, QĐH, NC) ──
-      if (nhomLarge === 'ĐIỆN GD') {
-        if (!dgdMap.has(staffName)) dgdMap.set(staffName, { staffName, mln: 0, qdh: 0, nc: 0 });
-        const d = dgdMap.get(staffName)!;
-        if (nhomSmall === 'MLN') d.mln += qty;
-        else if (nhomSmall === 'QĐH') d.qdh += qty;
-        else if (nhomSmall.startsWith('NC')) d.nc += qty;
+        // ── ĐGD stats (MLN, QĐH, NC) ──
+        if (nhomLarge === 'ĐIỆN GD') {
+          if (!dgdMap.has(staffName)) dgdMap.set(staffName, { staffName, mln: 0, qdh: 0, nc: 0 });
+          const d = dgdMap.get(staffName)!;
+          if (nhomSmall === 'MLN') d.mln += qty;
+          else if (nhomSmall === 'QĐH') d.qdh += qty;
+          else if (nhomSmall.startsWith('NC')) d.nc += qty;
+        }
       }
 
       const period = classifyDate(parseRowDate(row));
@@ -2768,17 +2168,21 @@ export default function NewRealtimePage() {
           const productName = String(row[idxs.idxProduct] || '').trim();
           const category = String(row[idxs.idxCategory] || '').trim();
           const nhomLarge = classifyWithColumnCheck(category, productName, row);
-          const nhomSmallValue = idxs.idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
-          const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
-          return { key: nhomSmall, name: NHOM_SMALL_DISPLAY[nhomSmall] || nhomSmall };
+          const nhomSmallValue = idxs.idxSmallCat !== -1 ? String(row[idxs.idxSmallCat] || '').trim().toUpperCase() : '';
+          const prodCode = idxs.idxProductCode !== -1 ? String(row[idxs.idxProductCode] || '').trim() : '';
+          const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName, customNhomSmallMap, prodCode, customBaoHiemRules);
+          return { key: nhomSmall, name: nhomSmall };
         }
         case 'hang': {
           const productName = String(row[idxs.idxProduct] || '').trim() || 'Không rõ';
           const category = String(row[idxs.idxCategory] || '').trim();
           const nhomLarge = classifyWithColumnCheck(category, productName, row);
           const nhomSmallValue = idxs.idxSmallCat !== -1 ? String(row[idxs.idxSmallCat] || '').trim().toUpperCase() : '';
-          const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
-          const brand = resolveBrandForProduct(productName, nhomSmall);
+          const prodCode = idxs.idxProductCode !== -1 ? String(row[idxs.idxProductCode] || '').trim() : '';
+          const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName, customNhomSmallMap, prodCode, customBaoHiemRules);
+          const brand = idxs.idxNhaSanXuat !== -1 && String(row[idxs.idxNhaSanXuat] || '').trim()
+            ? String(row[idxs.idxNhaSanXuat] || '').trim().toUpperCase()
+            : resolveBrandForProduct(productName, nhomSmall);
           return { key: brand.toUpperCase(), name: brand };
         }
         case 'nguoitao': {
@@ -2805,15 +2209,16 @@ export default function NewRealtimePage() {
         const storeId = rawMarket.match(/^([a-zA-Z0-9]+)/)?.[1] || rawMarket || 'Không rõ';
 
         const productName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() || 'Không rõ' : 'Sản phẩm khác';
+        
         const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
         const nhomLarge = classifyWithColumnCheck(category, productName, row);
-
-        if (nhomLarge === 'THỂ CÀO' || nhomLarge === 'Khác' || nhomLarge === 'KHÁC' || nhomLarge === 'Không rõ') return false;
-
         const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
-        const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
+        const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+        const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName, customNhomSmallMap, prodCode, customBaoHiemRules);
 
-        const brand = resolveBrandForProduct(productName, nhomSmall);
+        const brand = idxNhaSanXuat !== -1 && String(row[idxNhaSanXuat] || '').trim()
+          ? String(row[idxNhaSanXuat] || '').trim().toUpperCase()
+          : resolveBrandForProduct(productName, nhomSmall);
         const staffName = idxStaff !== -1 ? extractName(String(row[idxStaff] || '')) || 'Không rõ' : 'HỆ THỐNG';
 
         // Check page-level staff filter
@@ -2874,7 +2279,8 @@ export default function NewRealtimePage() {
             const productName = String(row[idxs.idxProduct] || '').trim();
             const nhomLarge = classifyWithColumnCheck(category, productName, row);
             const nhomSmallValue = idxs.idxSmallCat !== -1 ? String(row[idxs.idxSmallCat] || '').trim().toUpperCase() : '';
-            const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
+            const prodCode = idxs.idxProductCode !== -1 ? String(row[idxs.idxProductCode] || '').trim() : '';
+            const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName, customNhomSmallMap, prodCode, customBaoHiemRules);
 
             sl += qty;
             // DATA YCX MỚI: DT THỰC lấy từ cột "DOANH THU (-R)"
@@ -2915,9 +2321,24 @@ export default function NewRealtimePage() {
       return buildNode(rowsToBuild, 0, '');
     };
 
-    const idxs = { idxMarket, idxCategory, idxSmallCat, idxProduct, idxStaff, idxQty, idxRevenue, idxHinhThucXuat, idxTrangThaiSP, idxDtqdCol, idxDtThucCol };
-    const drillDownData = buildDrillTree(filteredCurrentRows, drillLevels, idxs);
-    const drillDownDataPrev = buildDrillTree(filteredPrevRows, drillLevels, idxs, true);
+    const idxs = { idxMarket, idxCategory, idxSmallCat, idxProduct, idxStaff, idxQty, idxRevenue, idxHinhThucXuat, idxTrangThaiSP, idxDtqdCol, idxDtThucCol, idxNhaSanXuat };
+
+    const filterDrillRows = (rows: any[]) => {
+      return rows.filter(row => {
+        const prodName = idxs.idxProduct !== -1 ? String(row[idxs.idxProduct] || '').trim() : '';
+        const normProdUpper = removeAccents(prodName).toUpperCase();
+        
+        // 1. Loại bỏ các sản phẩm bắt đầu bằng "PMH"
+        if (normProdUpper.startsWith('PMH') || normProdUpper.startsWith('PHIEU MUA HANG')) return false;
+
+        // (Đã loại bỏ bộ lọc CE & ICT theo yêu cầu)
+
+        return true;
+      });
+    };
+
+    const drillDownData = buildDrillTree(filterDrillRows(filteredCurrentRows), drillLevels, idxs);
+    const drillDownDataPrev = buildDrillTree(filterDrillRows(filteredPrevRows), drillLevels, idxs, true);
 
     const fmtDate = (ms: number) => {
       const d = new Date(ms);
@@ -2981,7 +2402,7 @@ export default function NewRealtimePage() {
       minDateStr,
       maxDateStr,
     };
-  }, [rawYcxRows, filteredRawYcxRows, selectedStaffs, compareMode, drillLevels, drillFilterStore, selectedDrillGroups, drillFilterNhomSmall, drillFilterBrand, drillFilterStaff, drillFilterProduct, drillFilterTrangThaiSP]);
+  }, [rawYcxRows, filteredRawYcxRows, selectedStaffs, compareMode, drillLevels, drillFilterStore, selectedDrillGroups, drillFilterNhomSmall, drillFilterBrand, drillFilterStaff, drillFilterProduct, drillFilterTrangThaiSP, customNhomSmallMap, customBaoHiemRules]);
 
   const captureOffscreenHelper = async (
     element: HTMLElement,
@@ -3104,7 +2525,7 @@ export default function NewRealtimePage() {
       // 9. Capture the image using domToPng from the off-screen clone element
       const dataUrl = await domToPng(clone, {
         backgroundColor: options.backgroundColor || '#ffffff',
-        scale: 2,
+        scale: 3,
         width: clone.scrollWidth,
         height: clone.scrollHeight,
       });
@@ -3126,8 +2547,8 @@ export default function NewRealtimePage() {
       setIsCapturing(true);
       await new Promise(resolve => setTimeout(resolve, 100));
       const dataUrl = await captureOffscreenHelper(element, {
-        width: 'max-content',
-        minWidth: 'min-content',
+        width: '100%',
+        minWidth: '1200px',
         backgroundColor: '#ffffff'
       });
       setPreviewImage(dataUrl);
@@ -3149,6 +2570,15 @@ export default function NewRealtimePage() {
     dongHo: true,
     phuKien: true,
     giaDung: true,
+    smartphone: true,
+    smfIphone: true,
+    smfSamsung: true,
+    smfOppo: true,
+    smfVivo: true,
+    smfRealme: true,
+    smfXiaomi: true,
+    smfHonor: true,
+    smfMotorola: true,
     spcSmf: true,
     spcLap: true,
     spcTab: true,
@@ -3167,6 +2597,54 @@ export default function NewRealtimePage() {
     gdQuat: true,
     gdQdh: true
   });
+
+  // Load preferences from Firebase when activeStore changes
+  useEffect(() => {
+    if (!activeStore) return;
+    const storeId = normalizeStoreId(activeStore);
+    if (!storeId) return;
+    
+    const loadSettings = async () => {
+      try {
+        const docRef = doc(db, 'store', storeId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.khaiThacSettings) {
+            setShowKhaiThacCols(prev => ({ ...prev, ...data.khaiThacSettings }));
+          }
+        }
+      } catch (err) {
+        console.error('Error loading khai thac settings:', err);
+      }
+    };
+    loadSettings();
+  }, [activeStore]);
+
+  const handleToggleKhaiThacCol = async (key: string, newValue: boolean) => {
+    const newState = { ...showKhaiThacCols, [key]: newValue };
+    setShowKhaiThacCols(newState);
+    
+    if (!activeStore) return;
+    
+    try {
+      const storeId = normalizeStoreId(activeStore);
+      if (!storeId) return;
+      const docRef = doc(db, 'store', storeId);
+      const docSnap = await getDoc(docRef);
+      
+      if (!docSnap.exists()) {
+        showNotification('SAI TÊN SIÊU THỊ HÃY COPY ĐÚNG TRÊN BI', 'error');
+        return;
+      }
+      
+      await updateDoc(docRef, {
+        khaiThacSettings: newState
+      });
+    } catch (err) {
+      console.error('Error saving toggle:', err);
+    }
+  };
   const [showRawTable, setShowRawTable] = useState(false);
   const [khaiThacSortField, setKhaiThacSortField] = useState<string>('dtqd');
   const [khaiThacSortAsc, setKhaiThacSortAsc] = useState<boolean>(false);
@@ -3222,7 +2700,19 @@ export default function NewRealtimePage() {
       return idx !== -1 ? idx : 28;
     })();
     const idxSmallCategoryHeader = headers.findIndex(h => h.toLowerCase().includes('nhóm hàng nhỏ'));
+    const idxNganhHang = (() => {
+      const idx = headers.findIndex(h => {
+        const norm = removeAccents(h).toLowerCase();
+        return (norm.includes('nganh hang') && !norm.includes('lon')) || norm.includes('nhom nganh hang');
+      });
+      return idx !== -1 ? idx : -1;
+    })();
     const idxNhomHang = (() => {
+      const exactNhom = headers.findIndex(h => {
+        const norm = removeAccents(h).toLowerCase();
+        return norm === 'nhom hang' || (norm.includes('nhom hang') && !norm.includes('nhom hang nho'));
+      });
+      if (exactNhom !== -1) return exactNhom;
       const idx = headers.findIndex(h => {
         const norm = removeAccents(h).toLowerCase();
         return (norm.includes('nganh hang') && !norm.includes('lon')) ||
@@ -3231,10 +2721,17 @@ export default function NewRealtimePage() {
       });
       return idx !== -1 ? idx : 40;
     })();
-    const idxHinhThucXuat = headers.findIndex(h => {
-      const lh = h.toLowerCase();
-      return lh.includes('hình thức xuất') || lh.includes('loại ycx') || lh.includes('loại yêu cầu') || lh.includes('phân loại ycx');
-    });
+    const idxHinhThucXuat = (() => {
+      const idxExact = headers.findIndex(h => removeAccents(h).toLowerCase().trim() === 'hinh thuc xuat');
+      if (idxExact !== -1) return idxExact;
+      return headers.findIndex(h => {
+        const lh = removeAccents(h).toLowerCase().trim();
+        return lh === 'loai ycx' || lh === 'loai yeu cau' || lh === 'phan loai ycx';
+      });
+    })();
+    
+    // Find exact "Hình thức xuất" column for strict filtering
+    const idxExactHinhThucXuat = idxHinhThucXuat;
 
     const classifyHinhThucXuat = (htx: string): string | null => {
       const clean = htx.trim().toLowerCase();
@@ -3262,6 +2759,36 @@ export default function NewRealtimePage() {
     };
 
     return rawYcxRowsForTable.filter(row => {
+      // 1. Loại bỏ theo danh sách Cấu hình loại bỏ động
+      const rowHtx = idxHinhThucXuat !== -1 ? removeAccents(String(row[idxHinhThucXuat] || '')).toUpperCase() : '';
+      const rowNganh = idxNganhHang !== -1 ? removeAccents(String(row[idxNganhHang] || '')).toUpperCase() : '';
+      const rowNhom = idxNhomHang !== -1 ? removeAccents(String(row[idxNhomHang] || '')).toUpperCase() : '';
+      const rowTenSP = idxProduct !== -1 ? removeAccents(String(row[idxProduct] || '')).toUpperCase() : '';
+
+      let shouldExclude = false;
+      if (customExclusionRules && customExclusionRules.length > 0) {
+        shouldExclude = customExclusionRules.some(rule => {
+          const normHtx = removeAccents(rule.hinhThucXuat || '').toUpperCase().trim();
+          const normNganh = removeAccents(rule.nganhHang || '').toUpperCase().trim();
+          const normNhom = removeAccents(rule.nhomHang || '').toUpperCase().trim();
+          const normTenSP = removeAccents(rule.tenSanPham || '').toUpperCase().trim();
+
+          if (!normHtx && !normNganh && !normNhom && !normTenSP) return false;
+
+          const matchHtx = normHtx && rowHtx.includes(normHtx);
+          const matchNganh = normNganh && rowNganh.includes(normNganh);
+          const matchNhom = normNhom && rowNhom.includes(normNhom);
+          const matchTenSP = normTenSP && rowTenSP.includes(normTenSP);
+
+          return matchHtx || matchNganh || matchNhom || matchTenSP;
+        });
+      }
+
+      if (shouldExclude) {
+        return false;
+      }
+
+      // 2. Lọc theo column filters
       return Object.entries(columnFilters).every(([colIdxStr, filter]) => {
         if (!filter) return true;
         const colIdx = parseInt(colIdxStr, 10);
@@ -3274,48 +2801,21 @@ export default function NewRealtimePage() {
           }
         } else {
           const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
-          const codeClass = classifyProductByCode(prodCode);
+          const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
 
           if (colIdx === row.length) {
+            const codeClass = classifyProductByCode(prodCode, customBaoHiemRules);
             if (codeClass) {
               cellValue = codeClass;
             } else {
-              const prodName = idxProduct !== -1 ? String(row[idxProduct] || '') : '';
-              const pClass = classifyProduct(prodName);
-              if (pClass !== '-') {
-                cellValue = pClass;
-              } else {
-                const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
-                if (catVal.includes('7139') || catVal.includes('BẢO HÀNH MỞ RỘNG')) {
-                  cellValue = 'BHMR';
-                } else if (catVal.includes('BẢO HÀNH RƠI VỠ')) {
-                  cellValue = 'BHRV';
-                } else if (catVal.includes('4479')) {
-                  cellValue = 'GIC';
-                } else if (catVal.includes('1 ĐỔI 1')) {
-                  cellValue = '1 ĐỔI 1';
-                } else {
-                  cellValue = '-';
-                }
-              }
+              cellValue = classifyProduct(prodName, customBaoHiemRules) || '-';
             }
           } else if (colIdx === row.length + 1) {
-            if (codeClass) {
-              cellValue = 'B.HIỂM';
-            } else {
-              const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
-              const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
-              if (prodName.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodName.includes('BẢO VỆ MÀN HÌNH') || prodName.includes('BVMH')) {
-                cellValue = 'B.HIỂM';
-              } else if (catVal.includes('1994') || catVal.includes('4479')) {
-                cellValue = 'B.HIỂM';
-              } else {
-                const valLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', String(row[idxProduct] || '')) || '-';
-                cellValue = valLarge === 'BẢO HIỂM' ? 'B.HIỂM' : valLarge;
-              }
-            }
+            const nhomSmallValue = idxSmallCategoryHeader !== -1 ? String(row[idxSmallCategoryHeader] || '').trim().toUpperCase() : '';
+            const valLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', String(row[idxProduct] || ''), nhomSmallValue, undefined, customNhomSmallMap, customBaoHiemRules, prodCode) || '-';
+            cellValue = valLarge === 'BẢO HIỂM' ? 'B.HIỂM' : valLarge;
           } else if (colIdx === row.length + 2) {
-            cellValue = resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode);
+            cellValue = resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode, customNhomSmallMap, customBaoHiemRules);
           } else if (colIdx === row.length + 3) {
             cellValue = idxHinhThucXuat !== -1 ? (classifyHinhThucXuat(String(row[idxHinhThucXuat] || '')) || '-') : '-';
           }
@@ -3341,7 +2841,7 @@ export default function NewRealtimePage() {
         return true;
       });
     });
-  }, [deferredFilteredRows, columnFilters, rawYcxRows, rawYcxRowsForTable]);
+  }, [deferredFilteredRows, columnFilters, rawYcxRows, rawYcxRowsForTable, customExclusionRules, customNhomSmallMap, customBaoHiemRules]);
 
   const getUniqueValuesForColumn = useCallback((colIdx: number) => {
     const values = new Set<string>();
@@ -3359,6 +2859,11 @@ export default function NewRealtimePage() {
     })();
     const idxSmallCategoryHeader = headers.findIndex(h => h.toLowerCase().includes('nhóm hàng nhỏ'));
     const idxNhomHang = (() => {
+      const exactNhom = headers.findIndex(h => {
+        const norm = removeAccents(h).toLowerCase();
+        return norm === 'nhom hang' || (norm.includes('nhom hang') && !norm.includes('nhom hang nho'));
+      });
+      if (exactNhom !== -1) return exactNhom;
       const idx = headers.findIndex(h => {
         const norm = removeAccents(h).toLowerCase();
         return (norm.includes('nganh hang') && !norm.includes('lon')) ||
@@ -3367,10 +2872,14 @@ export default function NewRealtimePage() {
       });
       return idx !== -1 ? idx : 40;
     })();
-    const idxHinhThucXuat = headers.findIndex(h => {
-      const lh = h.toLowerCase();
-      return lh.includes('hình thức xuất') || lh.includes('loại ycx') || lh.includes('loại yêu cầu');
-    });
+    const idxHinhThucXuat = (() => {
+      const idxExact = headers.findIndex(h => removeAccents(h).toLowerCase().trim() === 'hinh thuc xuat');
+      if (idxExact !== -1) return idxExact;
+      return headers.findIndex(h => {
+        const lh = removeAccents(h).toLowerCase().trim();
+        return lh === 'loai ycx' || lh === 'loai yeu cau';
+      });
+    })();
 
     const classifyHinhThucXuat = (htx: string): string | null => {
       const clean = htx.trim().toLowerCase();
@@ -3397,7 +2906,7 @@ export default function NewRealtimePage() {
       return null;
     };
 
-    deferredFilteredRows.forEach(row => {
+    deferredRawTableRowsForUnique.forEach(row => {
       let val = '';
       if (colIdx < row.length) {
         val = String(row[colIdx] || '').trim();
@@ -3406,45 +2915,21 @@ export default function NewRealtimePage() {
         }
       } else {
         const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
-        const codeClass = classifyProductByCode(prodCode);
+        const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
 
         if (colIdx === row.length) {
+          const codeClass = classifyProductByCode(prodCode, customBaoHiemRules);
           if (codeClass) {
             val = codeClass;
           } else {
-            const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
-            const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
-            if (prodName.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodName.includes('BẢO VỆ MÀN HÌNH') || prodName.includes('BVMH')) {
-              val = 'BVMH';
-            } else if (catVal.includes('7139') || catVal.includes('BẢO HÀNH MỞ RỘNG')) {
-              val = 'BHMR';
-            } else if (catVal.includes('BẢO HÀNH RƠI VỠ')) {
-              val = 'BHRV';
-            } else if (catVal.includes('4479')) {
-              val = 'GIC';
-            } else if (catVal.includes('1 ĐỔI 1')) {
-              val = '1 ĐỔI 1';
-            } else {
-              val = classifyProduct(prodName);
-            }
+            val = classifyProduct(prodName, customBaoHiemRules) || '-';
           }
         } else if (colIdx === row.length + 1) {
-          if (codeClass) {
-            val = 'B.HIỂM';
-          } else {
-            const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
-            const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
-            if (prodName.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodName.includes('BẢO VỆ MÀN HÌNH') || prodName.includes('BVMH')) {
-              val = 'B.HIỂM';
-            } else if (catVal.includes('1994') || catVal.includes('4479')) {
-              val = 'B.HIỂM';
-            } else {
-              const valLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', String(row[idxProduct] || '')) || '-';
-              val = valLarge === 'BẢO HIỂM' ? 'B.HIỂM' : valLarge;
-            }
-          }
+          const nhomSmallValue = idxSmallCategoryHeader !== -1 ? String(row[idxSmallCategoryHeader] || '').trim().toUpperCase() : '';
+          const valLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', String(row[idxProduct] || ''), nhomSmallValue, undefined, customNhomSmallMap, customBaoHiemRules, prodCode) || '-';
+          val = valLarge === 'BẢO HIỂM' ? 'B.HIỂM' : valLarge;
         } else if (colIdx === row.length + 2) {
-          val = resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode);
+          val = resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode, customNhomSmallMap, customBaoHiemRules);
         } else if (colIdx === row.length + 3) {
           val = idxHinhThucXuat !== -1 ? (classifyHinhThucXuat(String(row[idxHinhThucXuat] || '')) || '-') : '-';
         }
@@ -3453,7 +2938,7 @@ export default function NewRealtimePage() {
     });
 
     return Array.from(values).sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }));
-  }, [deferredFilteredRows, rawYcxRows]);
+  }, [deferredRawTableRowsForUnique, rawYcxRows, customNhomSmallMap, customBaoHiemRules]);
 
   const openColumnUniqueValues = useMemo(() => {
     if (activeFilterDropdown === null) return [];
@@ -3539,7 +3024,7 @@ export default function NewRealtimePage() {
       return findIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá bán', 'giá trị đh', 'giá trị'], -1);
     })();
     console.log('[KhaiThac] idxRevenue:', idxRevenue, '| Header:', headers[idxRevenue]);
-    const idxCategory = findIdx(['ngành hàng', 'nhóm ngành hàng', 'nhóm hàng', 'tên nhóm hàng'], -1);
+    const idxCategory = findIdx(['nhóm hàng', 'tên nhóm hàng', 'ngành hàng', 'nhóm ngành hàng'], -1);
     const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ'], -1);
     const idxHinhThucXuat = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
     const idxNhaSanXuat = findIdx(['nhà sản xuất', 'nha san xuat', 'nhà sx', 'nha sx', 'hãng sản xuất', 'hãng sx', 'brand'], -1);
@@ -3579,6 +3064,14 @@ export default function NewRealtimePage() {
       spChinhTotalQty: number;
       spChinhTotalRev: number;
       spcSmfQty: number;
+      smfIphoneQty: number;
+      smfSamsungQty: number;
+      smfOppoQty: number;
+      smfVivoQty: number;
+      smfRealmeQty: number;
+      smfXiaomiQty: number;
+      smfHonorQty: number;
+      smfMotorolaQty: number;
       spcLapQty: number;
       spcTabQty: number;
       spcTiviQty: number;
@@ -3594,6 +3087,8 @@ export default function NewRealtimePage() {
       simQty: number;
       simRev: number;
       dhQty: number;
+      dhDhttQty: number;
+      dhWearQty: number;
       dhRev: number;
       pkCamQty: number;
       pkLoaQty: number;
@@ -3624,16 +3119,15 @@ export default function NewRealtimePage() {
 
       const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
       const productName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() : 'Sản phẩm khác';
-      let nhomLarge = classifyNhomHangLarge(category, productName);
+      const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+      let nhomLarge = classifyNhomHangLarge(category, productName, undefined, undefined, customNhomSmallMap, customBaoHiemRules, prodCode);
       const normProdUpper = removeAccents(productName).toUpperCase();
       const normCatUpper = removeAccents(category).toUpperCase();
       const prodUpper = productName.toUpperCase();
-
-      const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
-      const pClass = classifyProductByCode(prodCode) || classifyProduct(productName);
+      const pClass = classifyProductByCode(prodCode, customBaoHiemRules) || classifyProduct(productName, customBaoHiemRules);
       const isInsuranceRow = 
         pClass === 'B.HIỂM' || ['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1', 'BHAP', 'BHOT', 'BHVC', 'BHMT', 'BHXH', 'BHYT', 'BVMH', 'GIC'].includes(pClass) ||
-        normProdUpper.includes('BAO HIEM') || normCatUpper.includes('BAO HIEM') ||
+        ((normProdUpper.includes('BAO HIEM') || normCatUpper.includes('BAO HIEM')) && !normProdUpper.includes('NON BAO HIEM') && !normProdUpper.includes('MU BAO HIEM') && !normCatUpper.includes('NON BAO HIEM') && !normCatUpper.includes('MU BAO HIEM')) ||
         normProdUpper.includes('1 DOI 1') || normProdUpper.includes('PVI_') ||
         normProdUpper.includes('BVMH') || normProdUpper.includes('BAO VE MAN HINH') ||
         category.includes('1994') || category.includes('4479') || category.includes('7139') ||
@@ -3644,10 +3138,10 @@ export default function NewRealtimePage() {
       }
 
       const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
-      const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
+      const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName, customNhomSmallMap, prodCode, customBaoHiemRules);
 
       const brandVal = idxNhaSanXuat !== -1 ? String(row[idxNhaSanXuat] || '').trim().toUpperCase() : '';
-      const isVieONRow = brandVal === 'VIEON' || category.toUpperCase().includes('VIEON') || productName.toUpperCase().includes('VIEON') || ['V1', 'V2', 'V3', 'V4'].includes(pClass) || normProdUpper.includes('VIEON') || normCatUpper.includes('VIEON');
+      const isVieONRow = (brandVal === 'VIEON' || category.toUpperCase().includes('VIEON') || productName.toUpperCase().includes('VIEON') || ['V1', 'V2', 'V3', 'V4'].includes(pClass) || normProdUpper.includes('VIEON') || normCatUpper.includes('VIEON')) && pClass !== 'Mango' && pClass !== 'Icall' && !normProdUpper.includes('MANGO') && !normProdUpper.includes('ICALL');
 
       const rawQty = idxQty !== -1 ? Math.round(parseFloat(String(row[idxQty] || '1').replace(/,/g, '')) || 0) : 1;
       const qty = rawQty > 0 ? rawQty : 1;
@@ -3668,6 +3162,14 @@ export default function NewRealtimePage() {
           spChinhTotalQty: 0,
           spChinhTotalRev: 0,
           spcSmfQty: 0,
+          smfIphoneQty: 0,
+          smfSamsungQty: 0,
+          smfOppoQty: 0,
+          smfVivoQty: 0,
+          smfRealmeQty: 0,
+          smfXiaomiQty: 0,
+          smfHonorQty: 0,
+          smfMotorolaQty: 0,
           spcLapQty: 0,
           spcTabQty: 0,
           spcTiviQty: 0,
@@ -3683,6 +3185,8 @@ export default function NewRealtimePage() {
           simQty: 0,
           simRev: 0,
           dhQty: 0,
+          dhDhttQty: 0,
+          dhWearQty: 0,
           dhRev: 0,
           pkCamQty: 0,
           pkLoaQty: 0,
@@ -3739,6 +3243,12 @@ export default function NewRealtimePage() {
       } else if (nhomLarge === 'ĐỒNG HỒ' || nhomLarge === 'ĐỒNG HỒ THỜI TRANG' || nhomLarge === 'WEARABLE') {
         item.dhQty += qty;
         item.dhRev += revenue;
+        const nsUpper = nhomSmall.toUpperCase();
+        if (nsUpper === 'Đ.HỒ' || nsUpper === 'ĐỒNG HỒ' || nsUpper === 'ĐỒNG HỒ THỜI TRANG') {
+          item.dhDhttQty += qty;
+        } else if (nsUpper === 'WEARABLE' || nsUpper === 'WERABLE') {
+          item.dhWearQty += qty;
+        }
       } else if (nhomLarge === 'PHỤ KIỆN') {
         item.pkTotalQty += qty;
         item.pkRev += revenue;
@@ -3747,11 +3257,11 @@ export default function NewRealtimePage() {
           item.pkCamQty += qty;
         } else if (nhomSmall === 'LOA') {
           item.pkLoaQty += qty;
-        } else if (nhomSmall === 'PIN SDP') {
+        } else if (nhomSmall === 'PIN SDP' || nhomSmall === 'SDP') {
           item.pkPinQty += qty;
-        } else if (nhomSmall === 'TN BLT' || nhomSmall === 'TN DÂY') {
+        } else if (nhomSmall === 'TN BLT' || nhomSmall === 'TN DÂY' || nhomSmall === 'TN') {
           item.pkTnQty += qty;
-        } else if (nhomSmall === 'ĐÈN NĂNG LƯỢNG MẶT TRỜI') {
+        } else if (nhomSmall === 'ĐÈN NĂNG LƯỢNG MẶT TRỜI' || nhomSmall === 'ĐÈN MẶT TRỜI') {
           item.pkDenMtQty += qty;
         }
       } else if (nhomLarge === 'DCNB') {
@@ -3763,25 +3273,45 @@ export default function NewRealtimePage() {
       const nSmall = nhomSmall.toUpperCase();
 
       // Phân tích SP CHÍNH chi tiết
-      if (nSmall === 'SMP') {
+      if (nhomLarge === 'ICT' && nSmall === 'SMP') {
         item.spcSmfQty += qty;
-      } else if (nSmall === 'LAP') {
+        
+        const brand = brandVal || 'KHÁC';
+        const pNameUpper = productName.toUpperCase();
+        if (brand.includes('APPLE') || pNameUpper.includes('IPHONE')) {
+          item.smfIphoneQty += qty;
+        } else if (brand.includes('SAMSUNG') || pNameUpper.includes('SAMSUNG')) {
+          item.smfSamsungQty += qty;
+        } else if (brand.includes('OPPO') || pNameUpper.includes('OPPO')) {
+          item.smfOppoQty += qty;
+        } else if (brand.includes('VIVO') || pNameUpper.includes('VIVO')) {
+          item.smfVivoQty += qty;
+        } else if (brand.includes('REALME') || pNameUpper.includes('REALME')) {
+          item.smfRealmeQty += qty;
+        } else if (brand.includes('XIAOMI') || pNameUpper.includes('XIAOMI')) {
+          item.smfXiaomiQty += qty;
+        } else if (brand.includes('HONOR') || pNameUpper.includes('HONOR')) {
+          item.smfHonorQty += qty;
+        } else if (brand.includes('MOTOROLA') || pNameUpper.includes('MOTOROLA')) {
+          item.smfMotorolaQty += qty;
+        }
+      } else if (nhomLarge === 'ICT' && nSmall === 'LAP') {
         item.spcLapQty += qty;
-      } else if (nSmall === 'TAB') {
+      } else if (nhomLarge === 'ICT' && (nSmall === 'TAB' || nSmall === 'TABLET')) {
         item.spcTabQty += qty;
-      } else if (nSmall === 'TIVI') {
+      } else if (nhomLarge === 'CE' && nSmall === 'TIVI') {
         item.spcTiviQty += qty;
-      } else if (nSmall === 'ML') {
+      } else if (nhomLarge === 'CE' && nSmall === 'ML') {
         item.spcMlQty += qty;
-      } else if (nSmall === 'TL') {
+      } else if (nhomLarge === 'CE' && nSmall === 'TL') {
         item.spcTlQty += qty;
-      } else if (nSmall === 'MG') {
+      } else if (nhomLarge === 'CE' && nSmall === 'MG') {
         item.spcMgQty += qty;
       }
 
       const rawSmallCatVal = idxSmallCat !== -1 ? removeAccents(String(row[idxSmallCat] || '')).trim().toUpperCase() : '';
-      const isMln = rawSmallCatVal === 'MLN';
-      const isNcom = nSmall === 'NC NẮP RỜI' || nSmall === 'NC Đ.TỬ';
+      const isMln = nSmall === 'MLN' || rawSmallCatVal === 'MLN';
+      const isNcom = nSmall === 'N.CƠM' || nSmall === 'NC NẮP RỜI' || nSmall === 'NC Đ.TỬ';
       const isNchien = nSmall === 'N.CHIÊN';
       const isQuat = nSmall === 'QUẠT';
       const isQdh = nSmall === 'QĐH';
@@ -3946,6 +3476,7 @@ export default function NewRealtimePage() {
     const idxDate = findIdx(['ngày tạo', 'ngày lập', 'ngày xuất', 'ngày giao', 'ngày hoàn', 'ngày'], -1);
     const idxHtx = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
     const idxProduct = findIdx(['tên sản phẩm', 'tên hàng', 'sản phẩm'], -1);
+    const idxProductCode = findIdx(['mã sản phẩm', 'mã sp', 'mã hàng'], -1);
     const idxNhomHang = findIdx(['nhóm hàng', 'nhóm sản phẩm'], -1);
     const idxNganhHang = findIdx(['ngành hàng', 'nhóm ngành hàng', 'tên nhóm hàng'], -1);
     const idxCustomerName = findIdx(['khách hàng', 'tên kh', 'tên khách hàng', 'người mua'], -1);
@@ -3961,18 +3492,12 @@ export default function NewRealtimePage() {
       const sp = idxProduct !== -1 ? removeAccents(String(row[idxProduct] || '')).toLowerCase() : '';
       const trangThai = idxTrangThaiHoSo !== -1 ? removeAccents(String(row[idxTrangThaiHoSo] || '')).toLowerCase().trim() : '';
       
-      if (idxTrangThaiHoSo !== -1 && trangThai !== '' && !trangThai.includes('moi')) return;
-      if (htx.includes('tra gop')) return;
-      if ((nhomHang.includes('thu ho') || nhomHang.includes('the cao') || sp.includes('thu ho') || sp.includes('the cao') || nhomHang.includes('phi thu tien')) && !sp.includes('bao hiem') && !sp.includes('pvi') && !sp.includes('mic') && !sp.includes('gic') && !sp.includes('1 doi 1') && !sp.includes('mo rong') && !htx.includes('bao hiem')) return;
 
-      const excludedPrefixes = ['17 -', '164 -', '344 -', '424 -', '224 -', '905 -', '1231 -', '4199 -', '58 -', '18 -', '664 -'];
-      const isExcluded = (val: string) => excludedPrefixes.some(p => val.startsWith(p));
-      if (isExcluded(nhomHangStr) || isExcluded(nganhHangStr)) return;
-      if (sp.startsWith('pin aa')) return;
 
       // Filter out insurance (B.HIỂM) rows from employee cross-selling table calculations
       const rawProdName = idxProduct !== -1 ? String(row[idxProduct] || '') : '';
-      let largeCat = classifyNhomHangLarge(nhomHangStr, rawProdName);
+      const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+      let largeCat = classifyNhomHangLarge(nhomHangStr, rawProdName, undefined, undefined, customNhomSmallMap, customBaoHiemRules, prodCode);
       const prodNameUpper = rawProdName.toUpperCase();
       if (prodNameUpper.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodNameUpper.includes('BẢO VỆ MÀN HÌNH') || prodNameUpper.includes('BVMH')) {
         largeCat = 'B.HIỂM';
@@ -4057,7 +3582,7 @@ export default function NewRealtimePage() {
     result.sort((a, b) => b.pctKem - a.pctKem || b.totalBills - a.totalBills);
 
     return result;
-  }, [rawYcxRows, filteredRawYcxRows, selectedStaffs, drillFilterStaff]);
+  }, [rawYcxRows, filteredRawYcxRows, selectedStaffs, drillFilterStaff, customNhomSmallMap, customBaoHiemRules]);
 
   // Available options per filter level (dynamic from data)
   // Available options per filter level (dynamic from data)
@@ -4090,7 +3615,7 @@ export default function NewRealtimePage() {
         return defaultIdx;
       };
       const idxStaff = getStaffIdx(headers);
-      const idxCategory = findIdx(['nhóm ngành hàng', 'ngành hàng lớn', 'ngành hàng', 'nhóm hàng', 'tên nhóm hàng'], -1);
+      const idxCategory = findIdx(['nhóm hàng', 'tên nhóm hàng', 'nhóm ngành hàng', 'ngành hàng lớn', 'ngành hàng'], -1);
       const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ', 'nhóm nhỏ'], -1);
       const idxProduct = (() => {
         const exact = headers.findIndex(h => h.toLowerCase() === 'tên sản phẩm');
@@ -4112,6 +3637,7 @@ export default function NewRealtimePage() {
       const idxMarket = findIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm', 'kho', 'cửa hàng'], -1);
       const idxTrangThaiSP = findIdx(['trạng thái hồ sơ', 'trạng thái xuất', 'trạng thái'], -1);
       const idxHinhThucXuat = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
+      const idxNhaSanXuat = findIdx(['nhà sản xuất', 'nha san xuat', 'nhà sx', 'nha sx', 'hãng sản xuất', 'hãng sx', 'brand'], -1);
 
       for (let i = 1; i < rawYcxRows.length; i++) {
         const row = rawYcxRows[i];
@@ -4121,13 +3647,13 @@ export default function NewRealtimePage() {
         const productName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() || 'Không rõ' : 'Sản phẩm khác';
         const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
         const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
-        const pClass = classifyProductByCode(prodCode) || classifyProduct(productName);
+        const pClass = classifyProductByCode(prodCode, customBaoHiemRules) || classifyProduct(productName, customBaoHiemRules);
         const normProdUpper = removeAccents(productName).toUpperCase();
         const normCatUpper = removeAccents(category).toUpperCase();
-        let nhomLarge = classifyNhomHangLarge(category, productName);
+        let nhomLarge = classifyNhomHangLarge(category, productName, undefined, undefined, customNhomSmallMap, customBaoHiemRules, prodCode);
         const isInsuranceRow = 
           pClass === 'B.HIỂM' || ['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1', 'BHAP', 'BHOT', 'BHVC', 'BHMT', 'BHXH', 'BHYT', 'BVMH', 'GIC'].includes(pClass) ||
-          normProdUpper.includes('BAO HIEM') || normCatUpper.includes('BAO HIEM') ||
+          ((normProdUpper.includes('BAO HIEM') || normCatUpper.includes('BAO HIEM')) && !normProdUpper.includes('NON BAO HIEM') && !normProdUpper.includes('MU BAO HIEM') && !normCatUpper.includes('NON BAO HIEM') && !normCatUpper.includes('MU BAO HIEM')) ||
           normProdUpper.includes('1 DOI 1') || normProdUpper.includes('PVI_') ||
           normProdUpper.includes('BVMH') || normProdUpper.includes('BAO VE MAN HINH') ||
           category.includes('1994') || category.includes('4479') || category.includes('7139') ||
@@ -4140,9 +3666,11 @@ export default function NewRealtimePage() {
         if (nhomLarge === 'THỂ CÀO') continue;
 
         const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
-        const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName);
+        const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName, customNhomSmallMap, prodCode, customBaoHiemRules);
 
-        const brand = resolveBrandForProduct(productName, nhomSmall);
+        const brand = idxNhaSanXuat !== -1 && String(row[idxNhaSanXuat] || '').trim()
+          ? String(row[idxNhaSanXuat] || '').trim().toUpperCase()
+          : resolveBrandForProduct(productName, nhomSmall);
         const staffName = idxStaff !== -1 ? extractName(String(row[idxStaff] || '')) || 'Không rõ' : 'HỆ THỐNG';
 
         if (storeId) stores.add(storeId);
@@ -4159,13 +3687,13 @@ export default function NewRealtimePage() {
     return {
       stores: Array.from(stores).sort().map(s => ({ key: s, name: s })),
       nganhs: Array.from(nganhs).sort().map(n => ({ key: n, name: getNganhName(n) })),
-      nhoms: Array.from(nhoms).sort().map(n => ({ key: n, name: NHOM_SMALL_DISPLAY[n] || n })),
+      nhoms: Array.from(nhoms).sort().map(n => ({ key: n, name: n })),
       brands: Array.from(brands).sort().map(b => ({ key: b, name: b })),
       staffs: Array.from(staffs).sort().map(s => ({ key: s, name: s })),
       products: Array.from(products).sort().map(p => ({ key: p, name: p })),
       trangThaiSPs: Array.from(trangThaiSPs).sort().map(s => ({ key: s, name: s })),
     };
-  }, [rawYcxRows]);
+  }, [rawYcxRows, customNhomSmallMap, customBaoHiemRules]);
 
   const availableNhomSmall = availableOptions.nhoms;
   const availableStaff = availableOptions.staffs.map(s => s.name);
@@ -4258,7 +3786,9 @@ export default function NewRealtimePage() {
   useEffect(() => {
     if (!activeDrillFilter) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (drillFilterBarRef.current && !drillFilterBarRef.current.contains(e.target as Node)) {
+      const target = e.target as Element;
+      // Nếu click ra ngoài các khu vực filter thì mới đóng
+      if (!target.closest('.drill-filter-node')) {
         setActiveDrillFilter(null);
         setDrillFilterSearch('');
       }
@@ -4554,7 +4084,7 @@ export default function NewRealtimePage() {
           overflow: visible !important;
         }
       `}} />
-      <div className="min-h-screen bg-[#f8fafc]" style={{ fontFamily: '"Inter", sans-serif' }}>
+      <div className="min-h-screen bg-[#f8fafc]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
         {/* Non-blocking loading indicator */}
         {isLoadingRealtime && (
           <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-slate-100 overflow-hidden">
@@ -4675,6 +4205,19 @@ export default function NewRealtimePage() {
 
           {/* Main Content Area */}
           <div className="flex-1 min-w-0">
+            {pageMaintenanceState[`realtime_${activeTab}`] && !isUser43751Local ? (
+              <div className="flex items-center justify-center h-full p-6 mt-12">
+                <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-amber-200 shadow-xl w-full">
+                  <div className="w-24 h-24 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-amber-500 shadow-inner">
+                    <AlertCircle size={48} />
+                  </div>
+                  <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">HỆ THỐNG ĐANG BẢO TRÌ</h1>
+                  <p className="text-slate-500 font-medium leading-relaxed">
+                    Tab này đang trong quá trình bảo trì và nâng cấp. Xin lỗi vì sự bất tiện này!
+                  </p>
+                </div>
+              </div>
+            ) : (
             <AnimatePresence mode="wait">
               {activeTab === 'summary' && (
                 <motion.div
@@ -4875,15 +4418,20 @@ export default function NewRealtimePage() {
 
                     {/* Global System Announcement list */}
                     {!isEditingAnnounce && announcements.map((announce) => (
-                      <div key={announce.id} className="flex items-start gap-4 bg-rose-50/50 border border-rose-100 p-5 rounded-2xl relative overflow-hidden shadow-sm shadow-rose-50/30">
-                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-rose-100 animate-pulse">
+                      <div key={announce.id} className="flex items-start gap-4 bg-amber-50/50 border border-amber-250/60 p-4 rounded-2xl relative overflow-hidden shadow-sm shadow-amber-50/30">
+                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-amber-200/50 animate-bounce">
                           📢
                         </div>
                         <div className="flex-1 space-y-1">
-                          <p className="text-[13px] font-black text-rose-600 uppercase tracking-wider">
-                            {announce.title}
+                          <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                            <span className="text-amber-600 font-black">THÔNG BÁO HỆ THỐNG:</span>
+                            {announce.title && (
+                              <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-lg font-black text-xs uppercase tracking-wide">
+                                {announce.title}
+                              </span>
+                            )}
                           </p>
-                          <p className="text-[12px] text-slate-650 font-bold tracking-tight leading-relaxed whitespace-pre-wrap">
+                          <p className="text-[11px] text-rose-600 animate-pulse font-black uppercase tracking-tight leading-relaxed whitespace-pre-wrap">
                             {announce.content}
                           </p>
                         </div>
@@ -5294,27 +4842,7 @@ export default function NewRealtimePage() {
                 </motion.div>
               )}
 
-              {(activeTab === 'khai_thac' || activeTab === 'khai_thac_moi') && !isUser43751 && (
-                <motion.div
-                  key="maintenance-card"
-                  initial={{ opacity: 0, scale: 0.96 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-white rounded-3xl p-12 border border-amber-200/80 shadow-lg text-center flex flex-col items-center justify-center my-8 min-h-[420px]"
-                  style={{ zoom: 1.2 }}
-                >
-                  <div className="w-20 h-20 bg-amber-50 rounded-2xl flex items-center justify-center mb-6 text-amber-500 shadow-inner">
-                    <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-xl font-black text-slate-800 uppercase tracking-wider mb-3">TÍNH NĂNG ĐANG BẢO TRÌ</h3>
-                  <p className="text-sm text-slate-500 max-w-md font-medium leading-relaxed">
-                    Tính năng <strong className="text-indigo-600 font-bold">DATA YCX</strong> đang trong quá trình bảo trì và nâng cấp. Vui lòng quay lại sau!
-                  </p>
-                </motion.div>
-              )}
-
-              {(activeTab === 'khai_thac' || activeTab === 'khai_thac_moi') && isUser43751 && (
+              {(activeTab === 'khai_thac' || activeTab === 'khai_thac_moi') && (
                 <motion.div
                   key={activeTab}
                   initial={{ opacity: 0 }}
@@ -5324,14 +4852,52 @@ export default function NewRealtimePage() {
                 >
                   {/* HƯỚNG DẪN TẢI BÁO CÁO YCX */}
                   <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
-                        <Globe size={18} />
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
+                          <Globe size={18} />
+                        </div>
+                        <div>
+                          <h4 className={`text-[12px] font-black uppercase tracking-wider ${isMoiTab ? 'text-red-600' : 'text-slate-800'}`}>HƯỚNG DẪN TẢI DỮ LIỆU YCX {isMoiTab ? 'MỚI' : ''}</h4>
+                          <p className="text-[10px] text-slate-400">Trình tự thao tác tải file báo cáo YCX {isMoiTab ? 'mới' : ''} từ trang nguồn</p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className={`text-[12px] font-black uppercase tracking-wider ${isMoiTab ? 'text-red-600' : 'text-slate-800'}`}>HƯỚNG DẪN TẢI DỮ LIỆU YCX {isMoiTab ? 'MỚI' : ''}</h4>
-                        <p className="text-[10px] text-slate-400">Trình tự thao tác tải file báo cáo YCX {isMoiTab ? 'mới' : ''} từ trang nguồn</p>
-                      </div>
+                      {isUser43751 && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setShowConfigModal(true)}
+                            className="p-2 bg-slate-100 hover:bg-indigo-100 text-slate-500 hover:text-indigo-600 rounded-lg transition-colors flex items-center gap-2"
+                            title="Cấu hình phân loại nhóm hàng"
+                          >
+                            <Settings size={18} />
+                            <span className="hidden md:inline text-[11px] font-bold">CẤU HÌNH NHÓM HÀNG</span>
+                          </button>
+                          <button
+                            onClick={() => setShowConfigBaoHiemModal(true)}
+                            className="p-2 bg-slate-100 hover:bg-teal-100 text-slate-500 hover:text-teal-600 rounded-lg transition-colors flex items-center gap-2"
+                            title="Cấu hình phân loại Bảo hiểm & VAS"
+                          >
+                            <Settings size={18} />
+                            <span className="hidden md:inline text-[11px] font-bold">CẤU HÌNH BH & VAS</span>
+                          </button>
+                          <button
+                            onClick={() => setShowConfigLoaiBoModal(true)}
+                            className="p-2 bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-lg transition-colors flex items-center gap-2"
+                            title="Cấu hình loại bỏ dữ liệu"
+                          >
+                            <Settings size={18} />
+                            <span className="hidden md:inline text-[11px] font-bold">CẤU HÌNH LOẠI BỎ</span>
+                          </button>
+                          <button
+                            onClick={() => setShowConfigGoogleSheetModal(true)}
+                            className="p-2 bg-slate-100 hover:bg-green-100 text-slate-500 hover:text-green-600 rounded-lg transition-colors flex items-center gap-2"
+                            title="Đồng bộ Google Sheets"
+                          >
+                            <FileSpreadsheet size={18} />
+                            <span className="hidden md:inline text-[11px] font-bold">ĐỒNG BỘ GOOGLE SHEET</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div className="border-t border-slate-100 pt-4">
@@ -5625,6 +5191,9 @@ export default function NewRealtimePage() {
                             trangthaisp: {
                               key: 'trangthaisp',
                               label: 'Trạng thái SP',
+                              buttonLabel: drillFilterTrangThaiSP.length === 1 
+                                ? (availableOptions.trangThaiSPs || []).find(o => o.key === drillFilterTrangThaiSP[0])?.name || 'Trạng thái SP'
+                                : 'Trạng thái SP',
                               icon: Tag,
                               bgActive: 'bg-[#e2e8f0] border-[#475569]',
                               bgInactive: 'bg-[#f1f5f9] border-[#e2e8f0]',
@@ -5656,7 +5225,7 @@ export default function NewRealtimePage() {
                             return (
                               <div
                                 key={level.key}
-                                className="relative"
+                                className="relative drill-filter-node"
                                 draggable
                                 onDragStart={() => handleDragStart(idx)}
                                 onDragOver={(e) => handleDragOver(e, idx)}
@@ -5672,7 +5241,7 @@ export default function NewRealtimePage() {
                               ${isActive ? `${level.bgActive} ${level.textActive}` : `${level.bgInactive} ${level.textInactive} hover:border-slate-300`}`}
                                 >
                                   <IconComp size={13} />
-                                  <span>{level.label}</span>
+                                  <span>{level.buttonLabel || level.label}</span>
                                   {level.activeCount > 0 && (
                                     <span className="ml-0.5 bg-orange-500 text-white rounded-full text-[11px] w-5 h-5 flex items-center justify-center font-black">{level.activeCount}</span>
                                   )}
@@ -5903,6 +5472,8 @@ export default function NewRealtimePage() {
                                 textClass = 'text-[#e11d48] font-black';
                               } else if (row.levelKey === 'nhom') {
                                 textClass = 'text-indigo-600 font-bold';
+                              } else if (row.levelKey === 'hang') {
+                                textClass = 'text-[#d0157a] font-bold';
                               } else if (row.levelKey === 'nguoitao') {
                                 textClass = 'text-amber-600 font-bold';
                               } else {
@@ -6117,7 +5688,7 @@ export default function NewRealtimePage() {
 
                       {/* Filter bar - menu hiển thị */}
                       <div className="flex flex-col gap-3 bg-slate-50 rounded-xl px-5 py-4 no-capture">
-                        <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="flex flex-nowrap overflow-x-auto no-scrollbar items-center gap-2.5 pb-1">
                           <span className="text-[12px] font-black text-slate-500 uppercase tracking-wider whitespace-nowrap mr-1 flex items-center gap-1.5">
                             <Filter size={13} />
                             HIỂN THỊ:
@@ -6125,6 +5696,7 @@ export default function NewRealtimePage() {
                            {[
                             { key: 'doanhThu', label: 'DOANH THU', icon: '💰', activeBg: 'bg-blue-50', activeText: 'text-[#1d4ed8]', activeBorder: 'border-blue-300' },
                             { key: 'spChinh', label: 'SP CHÍNH', icon: '📱', activeBg: 'bg-emerald-50', activeText: 'text-[#047857]', activeBorder: 'border-emerald-300' },
+                            { key: 'smartphone', label: 'SMARTPHONE', icon: '📲', activeBg: 'bg-yellow-50', activeText: 'text-yellow-700', activeBorder: 'border-yellow-300' },
                             { key: 'baoHiem', label: 'VAS', icon: '🛡️', activeBg: 'bg-rose-50', activeText: 'text-[#be123c]', activeBorder: 'border-rose-300' },
                             { key: 'sim', label: 'SIM', icon: '📡', activeBg: 'bg-amber-50', activeText: 'text-[#b45309]', activeBorder: 'border-amber-300' },
                             { key: 'dongHo', label: 'ĐỒNG HỒ', icon: '⌚', activeBg: 'bg-purple-50', activeText: 'text-[#6b21a8]', activeBorder: 'border-purple-300' },
@@ -6135,7 +5707,7 @@ export default function NewRealtimePage() {
                             return (
                               <button
                                 key={btn.key}
-                                onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                                onClick={() => handleToggleKhaiThacCol(btn.key, !isActive)}
                                 className={`px-4 py-2 rounded-xl text-[12px] font-black transition-all border whitespace-nowrap flex items-center gap-1.5 ${isActive
                                   ? `${btn.activeBg} ${btn.activeText} ${btn.activeBorder} shadow-sm`
                                   : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
@@ -6154,7 +5726,7 @@ export default function NewRealtimePage() {
                               {[
                                 { key: 'spcSmf', label: 'SMF' },
                                 { key: 'spcLap', label: 'LAP' },
-                                { key: 'spcTab', label: 'TAB' },
+                                { key: 'spcTab', label: 'TABLET' },
                                 { key: 'spcTivi', label: 'TIVI' },
                                 { key: 'spcMl', label: 'ML' },
                                 { key: 'spcTl', label: 'TL,TĐ,TM' },
@@ -6164,9 +5736,38 @@ export default function NewRealtimePage() {
                                 return (
                                   <button
                                     key={btn.key}
-                                    onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                                    onClick={() => handleToggleKhaiThacCol(btn.key, !isActive)}
                                     className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
                                       ? 'bg-emerald-50 text-[#047857] border-emerald-200 shadow-sm'
+                                      : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                                      }`}
+                                  >
+                                    {btn.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {showKhaiThacCols.smartphone && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-[10px] font-black text-yellow-700 w-20 flex items-center gap-1">📲 SMARTPHONE:</span>
+                              {[
+                                { key: 'smfIphone', label: 'IPHONE' },
+                                { key: 'smfSamsung', label: 'SAMSUNG' },
+                                { key: 'smfOppo', label: 'OPPO' },
+                                { key: 'smfVivo', label: 'VIVO' },
+                                { key: 'smfRealme', label: 'REALME' },
+                                { key: 'smfXiaomi', label: 'XIAOMI' },
+                                { key: 'smfHonor', label: 'HONOR' },
+                                { key: 'smfMotorola', label: 'MOTOROLA' }
+                              ].map(btn => {
+                                const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
+                                return (
+                                  <button
+                                    key={btn.key}
+                                    onClick={() => handleToggleKhaiThacCol(btn.key, !isActive)}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
+                                      ? 'bg-yellow-50 text-yellow-700 border-yellow-200 shadow-sm'
                                       : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
                                       }`}
                                   >
@@ -6188,7 +5789,7 @@ export default function NewRealtimePage() {
                                 return (
                                   <button
                                     key={btn.key}
-                                    onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                                    onClick={() => handleToggleKhaiThacCol(btn.key, !isActive)}
                                     className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
                                       ? 'bg-rose-50 text-[#be123c] border-rose-200 shadow-sm'
                                       : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
@@ -6214,7 +5815,7 @@ export default function NewRealtimePage() {
                                 return (
                                   <button
                                     key={btn.key}
-                                    onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                                    onClick={() => handleToggleKhaiThacCol(btn.key, !isActive)}
                                     className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
                                       ? 'bg-rose-50 text-[#be123c] border-rose-200 shadow-sm'
                                       : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
@@ -6233,14 +5834,14 @@ export default function NewRealtimePage() {
                                 { key: 'gdMln', label: 'SL MLN' },
                                 { key: 'gdNcom', label: 'SL NCƠM' },
                                 { key: 'gdNchien', label: 'SL NCHIÊN' },
-                                { key: 'gdQuat', label: 'SL QUẠT' },
+                                { key: 'gdQuat', label: 'SL Q.GIÓ' },
                                 { key: 'gdQdh', label: 'SL QĐH' }
                               ].map(btn => {
                                 const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
                                 return (
                                   <button
                                     key={btn.key}
-                                    onClick={() => setShowKhaiThacCols(prev => ({ ...prev, [btn.key]: !isActive }))}
+                                    onClick={() => handleToggleKhaiThacCol(btn.key, !isActive)}
                                     className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
                                       ? 'bg-cyan-50 text-[#0e7490] border-cyan-200 shadow-sm'
                                       : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
@@ -6279,20 +5880,32 @@ export default function NewRealtimePage() {
                             {showKhaiThacCols.spChinh && (
                               <th colSpan={1 + (showKhaiThacCols.spcSmf ? 1 : 0) + (showKhaiThacCols.spcLap ? 1 : 0) + (showKhaiThacCols.spcTab ? 1 : 0) + (showKhaiThacCols.spcTivi ? 1 : 0) + (showKhaiThacCols.spcMl ? 1 : 0) + (showKhaiThacCols.spcTl ? 1 : 0) + (showKhaiThacCols.spcMg ? 1 : 0)} className="py-1 px-3 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black text-[13px] border-b border-emerald-100">SP CHÍNH</th>
                             )}
-                            {showKhaiThacCols.baoHiem && (
-                              <th colSpan={1 + (showKhaiThacCols.vasBh ? 1 : 0) + (showKhaiThacCols.vasVieon ? 1 : 0) + (showKhaiThacCols.vasMangoIcall ? 1 : 0)} className="py-1 px-3 text-center text-[#be123c] bg-[#ffe4e6] border-r border-slate-200/50 font-black text-[13px] border-b border-rose-100">VAS</th>
+                            {showKhaiThacCols.smartphone && (
+                              <th colSpan={(showKhaiThacCols.smfIphone ? 1 : 0) + (showKhaiThacCols.smfSamsung ? 1 : 0) + (showKhaiThacCols.smfOppo ? 1 : 0) + (showKhaiThacCols.smfVivo ? 1 : 0) + (showKhaiThacCols.smfRealme ? 1 : 0) + (showKhaiThacCols.smfXiaomi ? 1 : 0) + (showKhaiThacCols.smfHonor ? 1 : 0) + (showKhaiThacCols.smfMotorola ? 1 : 0)} className="py-1 px-3 text-center text-yellow-700 bg-yellow-50 border-r border-slate-200/50 font-black text-[13px] border-b border-yellow-100">SMARTPHONE</th>
                             )}
-                            {showKhaiThacCols.sim && (
-                              <th colSpan={2} className="py-1 px-3 text-center text-[#b45309] bg-[#fef3c7] border-r border-slate-200/50 font-black text-[13px] border-b border-amber-100">SIM</th>
+                            {(showKhaiThacCols.baoHiem || showKhaiThacCols.sim) && (
+                              <th
+                                colSpan={
+                                  (showKhaiThacCols.sim ? 1 : 0) +
+                                  (showKhaiThacCols.baoHiem ? (
+                                    (showKhaiThacCols.vasBh ? 1 : 0) +
+                                    (showKhaiThacCols.vasVieon ? 1 : 0) +
+                                    (showKhaiThacCols.vasMangoIcall ? 1 : 0)
+                                  ) : 0)
+                                }
+                                className="py-1 px-3 text-center text-[#be123c] bg-[#ffe4e6] border-r border-slate-200/50 font-black text-[13px] border-b border-rose-100"
+                              >
+                                DỊCH VỤ
+                              </th>
                             )}
                             {showKhaiThacCols.dongHo && (
-                              <th colSpan={showKhaiThacCols.doanhThu ? 3 : 2} className="py-1 px-3 text-center text-[#6b21a8] bg-[#f3e8ff] border-r border-slate-200/50 font-black text-[13px] border-b border-purple-100">ĐỒNG HỒ</th>
+                              <th colSpan={2} className="py-1 px-3 text-center text-[#6b21a8] bg-[#f3e8ff] border-r border-slate-200/50 font-black text-[13px] border-b border-purple-100">ĐỒNG HỒ</th>
                             )}
                             {showKhaiThacCols.phuKien && (
-                              <th colSpan={1 + (showKhaiThacCols.pkCam ? 1 : 0) + (showKhaiThacCols.pkLoa ? 1 : 0) + (showKhaiThacCols.pkPin ? 1 : 0) + (showKhaiThacCols.pkTn ? 1 : 0) + (showKhaiThacCols.pkDenMt ? 1 : 0)} className="py-1 px-3 text-center text-[#be123c] bg-[#ffe4e6] border-r border-slate-200/50 font-black text-[13px] border-b border-rose-100">PHỤ KIỆN</th>
+                              <th colSpan={(showKhaiThacCols.pkCam ? 1 : 0) + (showKhaiThacCols.pkLoa ? 1 : 0) + (showKhaiThacCols.pkPin ? 1 : 0) + (showKhaiThacCols.pkTn ? 1 : 0) + (showKhaiThacCols.pkDenMt ? 1 : 0)} className="py-1 px-3 text-center text-[#be123c] bg-[#ffe4e6] border-r border-slate-200/50 font-black text-[13px] border-b border-rose-100">PHỤ KIỆN</th>
                             )}
                             {showKhaiThacCols.giaDung && (
-                              <th colSpan={1 + (showKhaiThacCols.gdMln ? 1 : 0) + (showKhaiThacCols.gdNcom ? 1 : 0) + (showKhaiThacCols.gdNchien ? 1 : 0) + (showKhaiThacCols.gdQuat ? 1 : 0) + (showKhaiThacCols.gdQdh ? 1 : 0)} className="py-1 px-3 text-center text-[#0e7490] bg-[#ecfeff] border-r border-slate-200/50 font-black text-[13px] border-b border-cyan-100">GIA DỤNG</th>
+                              <th colSpan={(showKhaiThacCols.gdMln ? 1 : 0) + (showKhaiThacCols.gdNcom ? 1 : 0) + (showKhaiThacCols.gdNchien ? 1 : 0) + (showKhaiThacCols.gdQuat ? 1 : 0) + (showKhaiThacCols.gdQdh ? 1 : 0)} className="py-1 px-3 text-center text-[#0e7490] bg-[#ecfeff] border-r border-slate-200/50 font-black text-[13px] border-b border-cyan-100">GIA DỤNG</th>
                             )}
                           </tr>
                           <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[11px] font-black uppercase">
@@ -6310,7 +5923,7 @@ export default function NewRealtimePage() {
                               <>
                                 {showKhaiThacCols.spcSmf && renderKhaiThacHeader('spcSmfQty', 'SMF', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-14')}
                                 {showKhaiThacCols.spcLap && renderKhaiThacHeader('spcLapQty', 'LAP', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-14')}
-                                {showKhaiThacCols.spcTab && renderKhaiThacHeader('spcTabQty', 'TAB', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-14')}
+                                {showKhaiThacCols.spcTab && renderKhaiThacHeader('spcTabQty', 'TABLET', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-16')}
                                 {showKhaiThacCols.spcTivi && renderKhaiThacHeader('spcTiviQty', 'TIVI', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-14')}
                                 {showKhaiThacCols.spcMl && renderKhaiThacHeader('spcMlQty', 'ML', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-14')}
                                 {showKhaiThacCols.spcTl && renderKhaiThacHeader('spcTlQty', 'TL,TĐ,TM', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-16')}
@@ -6318,30 +5931,37 @@ export default function NewRealtimePage() {
                                 {renderKhaiThacHeader('spChinhTotalQty', 'TỔNG', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-16')}
                               </>
                             )}
-                            {/* VAS Sub Headers */}
-                            {showKhaiThacCols.baoHiem && (
+                            {/* SMARTPHONE Sub Headers */}
+                            {showKhaiThacCols.smartphone && (
                               <>
-                                {showKhaiThacCols.vasBh && renderKhaiThacHeader('bhQty', 'SL B.HIỂM', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
-                                {showKhaiThacCols.vasVieon && renderKhaiThacHeader('vieonQty', 'SL VIEON', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
-                                {showKhaiThacCols.vasMangoIcall && renderKhaiThacHeader('mangoIcallQty', 'SL Mango/Icall', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-24')}
-
-                                {renderKhaiThacHeader('vasPct', '%', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
+                                {showKhaiThacCols.smfIphone && renderKhaiThacHeader('smfIphoneQty', 'IPHONE', 'text-yellow-700', 'bg-yellow-50', 'w-16')}
+                                {showKhaiThacCols.smfSamsung && renderKhaiThacHeader('smfSamsungQty', 'SAMSUNG', 'text-yellow-700', 'bg-yellow-50', 'w-16')}
+                                {showKhaiThacCols.smfOppo && renderKhaiThacHeader('smfOppoQty', 'OPPO', 'text-yellow-700', 'bg-yellow-50', 'w-14')}
+                                {showKhaiThacCols.smfVivo && renderKhaiThacHeader('smfVivoQty', 'VIVO', 'text-yellow-700', 'bg-yellow-50', 'w-14')}
+                                {showKhaiThacCols.smfRealme && renderKhaiThacHeader('smfRealmeQty', 'REALME', 'text-yellow-700', 'bg-yellow-50', 'w-16')}
+                                {showKhaiThacCols.smfXiaomi && renderKhaiThacHeader('smfXiaomiQty', 'XIAOMI', 'text-yellow-700', 'bg-yellow-50', 'w-16')}
+                                {showKhaiThacCols.smfHonor && renderKhaiThacHeader('smfHonorQty', 'HONOR', 'text-yellow-700', 'bg-yellow-50', 'w-16')}
+                                {showKhaiThacCols.smfMotorola && renderKhaiThacHeader('smfMotorolaQty', 'MOTOROLA', 'text-yellow-700', 'bg-yellow-50', 'w-16')}
                               </>
                             )}
-                            {/* SIM Sub Headers */}
-                            {showKhaiThacCols.sim && (
+                            {/* DỊCH VỤ Sub Headers */}
+                            {(showKhaiThacCols.sim || showKhaiThacCols.baoHiem) && (
                               <>
-                                {renderKhaiThacHeader('simQty', 'SL', 'text-[#b45309]', 'bg-[#fef3c7]', 'w-14')}
-
-                                {renderKhaiThacHeader('simPct', '%', 'text-[#b45309]', 'bg-[#fef3c7]', 'w-14')}
+                                {showKhaiThacCols.sim && renderKhaiThacHeader('simQty', 'SL SIM', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
+                                {showKhaiThacCols.baoHiem && (
+                                  <>
+                                    {showKhaiThacCols.vasBh && renderKhaiThacHeader('bhQty', 'SL B.HIỂM', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
+                                    {showKhaiThacCols.vasVieon && renderKhaiThacHeader('vieonQty', 'SL VIEON', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
+                                    {showKhaiThacCols.vasMangoIcall && renderKhaiThacHeader('mangoIcallQty', 'SL Mango/Icall', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-24')}
+                                  </>
+                                )}
                               </>
                             )}
                             {/* ĐỒNG HỒ Sub Headers */}
                             {showKhaiThacCols.dongHo && (
                               <>
-                                {renderKhaiThacHeader('dhQty', 'SL', 'text-[#6b21a8]', 'bg-[#f3e8ff]', 'w-14')}
-                                {showKhaiThacCols.doanhThu && renderKhaiThacHeader('dhRev', 'D.THU', 'text-[#6b21a8]', 'bg-[#f3e8ff]', 'w-20')}
-                                {renderKhaiThacHeader('dhPct', '%', 'text-[#6b21a8]', 'bg-[#f3e8ff]', 'w-14')}
+                                {renderKhaiThacHeader('dhDhttQty', 'SL ĐHTT', 'text-[#6b21a8]', 'bg-[#f3e8ff]', 'w-16')}
+                                {renderKhaiThacHeader('dhWearQty', 'SL WEAR', 'text-[#6b21a8]', 'bg-[#f3e8ff]', 'w-16')}
                               </>
                             )}
                             {/* PHỤ KIỆN Sub Headers */}
@@ -6352,7 +5972,6 @@ export default function NewRealtimePage() {
                                 {showKhaiThacCols.pkPin && renderKhaiThacHeader('pkPinQty', 'SL PIN', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
                                 {showKhaiThacCols.pkTn && renderKhaiThacHeader('pkTnQty', 'SL TNGHE', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
                                 {showKhaiThacCols.pkDenMt && renderKhaiThacHeader('pkDenMtQty', 'SL ĐÈN MT', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-16')}
-                                {renderKhaiThacHeader('pkPct', '%', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
                               </>
                             )}
                             {/* GIA DỤNG Sub Headers */}
@@ -6361,9 +5980,8 @@ export default function NewRealtimePage() {
                                 {showKhaiThacCols.gdMln && renderKhaiThacHeader('gdMlnQty', 'SL MLN', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-16')}
                                 {showKhaiThacCols.gdNcom && renderKhaiThacHeader('gdNcomQty', 'SL NCƠM', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-18')}
                                 {showKhaiThacCols.gdNchien && renderKhaiThacHeader('gdNchienQty', 'SL NCHIÊN', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-20')}
-                                {showKhaiThacCols.gdQuat && renderKhaiThacHeader('gdQuatQty', 'SL QUẠT', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-16')}
+                                {showKhaiThacCols.gdQuat && renderKhaiThacHeader('gdQuatQty', 'SL Q.GIÓ', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-16')}
                                 {showKhaiThacCols.gdQdh && renderKhaiThacHeader('gdQdhQty', 'SL QĐH', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-16')}
-                                {renderKhaiThacHeader('gdPct', '%', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-14')}
                               </>
                             )}
                           </tr>
@@ -6501,30 +6119,39 @@ export default function NewRealtimePage() {
                                       <td className="py-2 px-2 text-center text-[13px] font-black text-[#047857] bg-[#e6fbf4]/20 border-r border-slate-200/50">{formatVal(visibleSpChinhTotalQty)}</td>
                                     </>
                                   )}
-                                  {/* VAS Cells */}
-                                  {showKhaiThacCols.baoHiem && (
+                                  {/* SMARTPHONE Cells */}
+                                  {showKhaiThacCols.smartphone && (
                                     <>
-                                      {showKhaiThacCols.vasBh && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.bhQty)}</td>}
-                                      {showKhaiThacCols.vasVieon && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.vieonQty)}</td>}
-                                      {showKhaiThacCols.vasMangoIcall && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.mangoIcallQty)}</td>}
-
-                                      <td className="py-2 px-2 text-center border-r border-slate-200/50">{renderPct(visibleVasTotalQty, visibleSpChinhTotalQty, 'text-[#be123c]')}</td>
+                                      {showKhaiThacCols.smfIphone && <td className="py-2 px-2 text-center text-[13px] font-black text-yellow-700 border-r border-slate-200/50">{formatVal(item.smfIphoneQty)}</td>}
+                                      {showKhaiThacCols.smfSamsung && <td className="py-2 px-2 text-center text-[13px] font-black text-yellow-700 border-r border-slate-200/50">{formatVal(item.smfSamsungQty)}</td>}
+                                      {showKhaiThacCols.smfOppo && <td className="py-2 px-2 text-center text-[13px] font-black text-yellow-700 border-r border-slate-200/50">{formatVal(item.smfOppoQty)}</td>}
+                                      {showKhaiThacCols.smfVivo && <td className="py-2 px-2 text-center text-[13px] font-black text-yellow-700 border-r border-slate-200/50">{formatVal(item.smfVivoQty)}</td>}
+                                      {showKhaiThacCols.smfRealme && <td className="py-2 px-2 text-center text-[13px] font-black text-yellow-700 border-r border-slate-200/50">{formatVal(item.smfRealmeQty)}</td>}
+                                      {showKhaiThacCols.smfXiaomi && <td className="py-2 px-2 text-center text-[13px] font-black text-yellow-700 border-r border-slate-200/50">{formatVal(item.smfXiaomiQty)}</td>}
+                                      {showKhaiThacCols.smfHonor && <td className="py-2 px-2 text-center text-[13px] font-black text-yellow-700 border-r border-slate-200/50">{formatVal(item.smfHonorQty)}</td>}
+                                      {showKhaiThacCols.smfMotorola && <td className="py-2 px-2 text-center text-[13px] font-black text-yellow-700 border-r border-slate-200/50">{formatVal(item.smfMotorolaQty)}</td>}
                                     </>
                                   )}
-                                  {/* SIM Cells */}
-                                  {showKhaiThacCols.sim && (
+                                  {/* DỊCH VỤ Cells */}
+                                  {(showKhaiThacCols.sim || showKhaiThacCols.baoHiem) && (
                                     <>
-                                      <td className="py-2 px-2 text-center text-[13px] font-black text-[#b45309] border-r border-slate-200/50">{formatVal(item.simQty)}</td>
-
-                                      <td className="py-2 px-2 text-center border-r border-slate-200/50">{renderPct(item.simQty, visibleSpChinhTotalQty, 'text-[#b45309]')}</td>
+                                      {showKhaiThacCols.sim && (
+                                        <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.simQty)}</td>
+                                      )}
+                                      {showKhaiThacCols.baoHiem && (
+                                        <>
+                                          {showKhaiThacCols.vasBh && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.bhQty)}</td>}
+                                          {showKhaiThacCols.vasVieon && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.vieonQty)}</td>}
+                                          {showKhaiThacCols.vasMangoIcall && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.mangoIcallQty)}</td>}
+                                        </>
+                                      )}
                                     </>
                                   )}
                                   {/* ĐỒNG HỒ Cells */}
                                   {showKhaiThacCols.dongHo && (
                                     <>
-                                      <td className="py-2 px-2 text-center text-[13px] font-black text-[#6b21a8] border-r border-slate-200/50">{formatVal(item.dhQty)}</td>
-                                      {showKhaiThacCols.doanhThu && <td className="py-2 px-2 text-center text-[13px] font-black text-[#6b21a8] border-r border-slate-200/50">{formatRev(item.dhRev)}</td>}
-                                      <td className="py-2 px-2 text-center border-r border-slate-200/50">{renderPct(item.dhQty, visibleSpChinhTotalQty, 'text-[#6b21a8]')}</td>
+                                      <td className="py-2 px-2 text-center text-[13px] font-black text-[#6b21a8] border-r border-slate-200/50">{formatVal(item.dhDhttQty)}</td>
+                                      <td className="py-2 px-2 text-center text-[13px] font-black text-[#6b21a8] border-r border-slate-200/50">{formatVal(item.dhWearQty)}</td>
                                     </>
                                   )}
                                   {/* PHỤ KIỆN Cells */}
@@ -6535,7 +6162,6 @@ export default function NewRealtimePage() {
                                       {showKhaiThacCols.pkPin && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.pkPinQty)}</td>}
                                       {showKhaiThacCols.pkTn && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.pkTnQty)}</td>}
                                       {showKhaiThacCols.pkDenMt && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.pkDenMtQty)}</td>}
-                                      <td className="py-2 px-2 text-center border-r border-slate-200/50">{renderPct(visiblePkTotalQty, visibleSpChinhTotalQty, 'text-[#be123c]')}</td>
                                     </>
                                   )}
                                   {/* GIA DỤNG Cells */}
@@ -6546,7 +6172,6 @@ export default function NewRealtimePage() {
                                       {showKhaiThacCols.gdNchien && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdNchienQty)}</td>}
                                       {showKhaiThacCols.gdQuat && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdQuatQty)}</td>}
                                       {showKhaiThacCols.gdQdh && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdQdhQty)}</td>}
-                                      <td className="py-2 px-2 text-center border-r border-slate-200/50">{renderPct(visibleGdTotalQty, visibleSpChinhTotalQty, 'text-[#0e7490]')}</td>
                                     </>
                                   )}
                                 </tr>
@@ -6586,6 +6211,15 @@ export default function NewRealtimePage() {
                                 (showKhaiThacCols.spcTl ? totalSpcTl : 0) +
                                 (showKhaiThacCols.spcMg ? totalSpcMg : 0);
 
+                              const totalSmfIphone = staffKhaiThacStats.reduce((s, x) => s + x.smfIphoneQty, 0);
+                              const totalSmfSamsung = staffKhaiThacStats.reduce((s, x) => s + x.smfSamsungQty, 0);
+                              const totalSmfOppo = staffKhaiThacStats.reduce((s, x) => s + x.smfOppoQty, 0);
+                              const totalSmfVivo = staffKhaiThacStats.reduce((s, x) => s + x.smfVivoQty, 0);
+                              const totalSmfRealme = staffKhaiThacStats.reduce((s, x) => s + x.smfRealmeQty, 0);
+                              const totalSmfXiaomi = staffKhaiThacStats.reduce((s, x) => s + x.smfXiaomiQty, 0);
+                              const totalSmfHonor = staffKhaiThacStats.reduce((s, x) => s + x.smfHonorQty, 0);
+                              const totalSmfMotorola = staffKhaiThacStats.reduce((s, x) => s + x.smfMotorolaQty, 0);
+
                               const totalBhQty = staffKhaiThacStats.reduce((s, x) => s + x.bhQty, 0);
                               const totalBhRev = staffKhaiThacStats.reduce((s, x) => s + x.bhRev, 0);
                               const totalVieonQty = staffKhaiThacStats.reduce((s, x) => s + x.vieonQty, 0);
@@ -6597,6 +6231,8 @@ export default function NewRealtimePage() {
                               const totalSimRev = staffKhaiThacStats.reduce((s, x) => s + x.simRev, 0);
 
                               const totalDhQty = staffKhaiThacStats.reduce((s, x) => s + x.dhQty, 0);
+                              const totalDhDhtt = staffKhaiThacStats.reduce((s, x) => s + x.dhDhttQty, 0);
+                              const totalDhWear = staffKhaiThacStats.reduce((s, x) => s + x.dhWearQty, 0);
                               const totalDhRev = staffKhaiThacStats.reduce((s, x) => s + x.dhRev, 0);
 
                               const totalPkCam = staffKhaiThacStats.reduce((s, x) => s + x.pkCamQty, 0);
@@ -6612,7 +6248,6 @@ export default function NewRealtimePage() {
                               const totalGdNchienQty = staffKhaiThacStats.reduce((s, x) => s + x.gdNchienQty, 0);
                               const totalGdQuatQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQuatQty, 0);
                               const totalGdQdhQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQdhQty, 0);
-                              const totalGdRev = staffKhaiThacStats.reduce((s, x) => s + x.gdRev, 0);
 
                               const formatFooterVal = (val: number) => val === 0 ? '-' : val;
                               const formatFooterRev = (val: number) => {
@@ -6628,10 +6263,6 @@ export default function NewRealtimePage() {
                                   return `${Math.round(val / 1_000)} K`;
                                 }
                                 return val.toLocaleString('vi-VN');
-                              };
-                              const renderFooterPct = (num: number, den: number) => {
-                                if (den === 0 || num === 0) return '-';
-                                return `${Math.round((num / den) * 100)}%`;
                               };
                               const renderFooterHqqd = (val: number) => {
                                 if (val === 0) return <span className="text-slate-300">-</span>;
@@ -6689,6 +6320,74 @@ export default function NewRealtimePage() {
                                       <td className="py-2 px-2 text-center border-r border-slate-200/50">
                                         {renderFooterTcPct(totalDtTraGop, totalDtThuc)}
                                       </td>
+                                    </>
+                                  )}
+                                  {/* SP CHÍNH Totals */}
+                                  {showKhaiThacCols.spChinh && (
+                                    <>
+                                      {showKhaiThacCols.spcSmf && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcSmf)}</td>}
+                                      {showKhaiThacCols.spcLap && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcLap)}</td>}
+                                      {showKhaiThacCols.spcTab && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcTab)}</td>}
+                                      {showKhaiThacCols.spcTivi && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcTivi)}</td>}
+                                      {showKhaiThacCols.spcMl && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcMl)}</td>}
+                                      {showKhaiThacCols.spcTl && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcTl)}</td>}
+                                      {showKhaiThacCols.spcMg && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcMg)}</td>}
+                                      <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpChinhQty)}</td>
+                                    </>
+                                  )}
+                                  {/* SMARTPHONE Totals */}
+                                  {showKhaiThacCols.smartphone && (
+                                    <>
+                                      {showKhaiThacCols.smfIphone && <td className="py-2 px-2 text-center text-[13px] text-yellow-700 font-black border-r border-slate-200/50">{formatFooterVal(totalSmfIphone)}</td>}
+                                      {showKhaiThacCols.smfSamsung && <td className="py-2 px-2 text-center text-[13px] text-yellow-700 font-black border-r border-slate-200/50">{formatFooterVal(totalSmfSamsung)}</td>}
+                                      {showKhaiThacCols.smfOppo && <td className="py-2 px-2 text-center text-[13px] text-yellow-700 font-black border-r border-slate-200/50">{formatFooterVal(totalSmfOppo)}</td>}
+                                      {showKhaiThacCols.smfVivo && <td className="py-2 px-2 text-center text-[13px] text-yellow-700 font-black border-r border-slate-200/50">{formatFooterVal(totalSmfVivo)}</td>}
+                                      {showKhaiThacCols.smfRealme && <td className="py-2 px-2 text-center text-[13px] text-yellow-700 font-black border-r border-slate-200/50">{formatFooterVal(totalSmfRealme)}</td>}
+                                      {showKhaiThacCols.smfXiaomi && <td className="py-2 px-2 text-center text-[13px] text-yellow-700 font-black border-r border-slate-200/50">{formatFooterVal(totalSmfXiaomi)}</td>}
+                                      {showKhaiThacCols.smfHonor && <td className="py-2 px-2 text-center text-[13px] text-yellow-700 font-black border-r border-slate-200/50">{formatFooterVal(totalSmfHonor)}</td>}
+                                      {showKhaiThacCols.smfMotorola && <td className="py-2 px-2 text-center text-[13px] text-yellow-700 font-black border-r border-slate-200/50">{formatFooterVal(totalSmfMotorola)}</td>}
+                                    </>
+                                  )}
+                                  {/* DỊCH VỤ Totals */}
+                                  {(showKhaiThacCols.sim || showKhaiThacCols.baoHiem) && (
+                                    <>
+                                      {showKhaiThacCols.sim && (
+                                        <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalSimQty)}</td>
+                                      )}
+                                      {showKhaiThacCols.baoHiem && (
+                                        <>
+                                          {showKhaiThacCols.vasBh && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalBhQty)}</td>}
+                                          {showKhaiThacCols.vasVieon && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalVieonQty)}</td>}
+                                          {showKhaiThacCols.vasMangoIcall && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalMangoIcallQty)}</td>}
+                                        </>
+                                      )}
+                                    </>
+                                  )}
+                                  {/* ĐỒNG HỒ Totals */}
+                                  {showKhaiThacCols.dongHo && (
+                                    <>
+                                      <td className="py-2 px-2 text-center text-[13px] text-[#6b21a8] font-black border-r border-slate-200/50">{formatFooterVal(totalDhDhtt)}</td>
+                                      <td className="py-2 px-2 text-center text-[13px] text-[#6b21a8] font-black border-r border-slate-200/50">{formatFooterVal(totalDhWear)}</td>
+                                    </>
+                                  )}
+                                  {/* PHỤ KIỆN Totals */}
+                                  {showKhaiThacCols.phuKien && (
+                                    <>
+                                      {showKhaiThacCols.pkCam && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalPkCam)}</td>}
+                                      {showKhaiThacCols.pkLoa && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalPkLoa)}</td>}
+                                      {showKhaiThacCols.pkPin && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalPkPin)}</td>}
+                                      {showKhaiThacCols.pkTn && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalPkTn)}</td>}
+                                      {showKhaiThacCols.pkDenMt && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalPkDenMt)}</td>}
+                                    </>
+                                  )}
+                                  {/* GIA DỤNG Totals */}
+                                  {showKhaiThacCols.giaDung && (
+                                    <>
+                                      {showKhaiThacCols.gdMln && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdMlnQty)}</td>}
+                                      {showKhaiThacCols.gdNcom && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdNcomQty)}</td>}
+                                      {showKhaiThacCols.gdNchien && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdNchienQty)}</td>}
+                                      {showKhaiThacCols.gdQuat && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdQuatQty)}</td>}
+                                      {showKhaiThacCols.gdQdh && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdQdhQty)}</td>}
                                     </>
                                   )}
                                 </tr>
@@ -6857,6 +6556,7 @@ export default function NewRealtimePage() {
                       rawYcxRows={rawYcxRows}
                       marketFilter={marketFilter} 
                       onCapture={() => handleCaptureTable('unexported-orders-table-container', 'don_hang_chua_xuat')}
+                      drillFilterTrangThaiSP={drillFilterTrangThaiSP}
                     />
                   )}
 
@@ -6897,7 +6597,24 @@ export default function NewRealtimePage() {
                     </div>
                   </div>
 
-                    {showRawTable && (
+                    {showRawTable && (() => {
+                      const COLUMNS_TO_HIDE = new Set([
+                        'THƯƠNG HIỆU', 'SỐ ĐIỆN THOẠI', 'PHẢI THU', 'ĐÃ THU', 'CÒN NỢ', 'PHỤ PHÍ',
+                        'KHOẢNG CÁCH GIAO HÀNG', 'TẠO TỪ', 'CHỨNG TỪ LIÊN QUAN', 'SỐ HOÁ ĐƠN', 'KÝ HIỆU HOÁ ĐƠN',
+                        'MÃ SP WEB', 'IMEI_1', 'CTKM_1', 'ĐỊA CHỈ KHÁCH HÀNG', 'EMAIL KH', 'GIÁ TRỊ GIẢM',
+                        'MÃ KHÁCH HÀNG', 'CHỨNG TỪ LIÊN QUAN_1'
+                      ]);
+                      const hiddenColIdxs = new Set<number>();
+                      if (rawYcxRows.length > 0) {
+                        rawYcxRows[0].forEach((h, idx) => {
+                          const headerName = String(h || '').trim().toUpperCase();
+                          if (COLUMNS_TO_HIDE.has(headerName)) {
+                            hiddenColIdxs.add(idx);
+                          }
+                        });
+                      }
+                      
+                      return (
                       <div id="ycx-raw-data-container">
                         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                           <table className="w-full border-collapse text-center min-w-[3000px]" style={{ borderSpacing: 0 }}>
@@ -6905,6 +6622,7 @@ export default function NewRealtimePage() {
                               <tr>
                                 {rawYcxRows.length > 0 &&
                                   rawYcxRows[0].map((cell, idx) => {
+                                    if (hiddenColIdxs.has(idx)) return null;
                                     const hasFilter = columnFilters[idx]?.selectedValues !== null && columnFilters[idx]?.selectedValues !== undefined;
                                     return (
                                       <th key={idx} className="relative border border-slate-300 bg-slate-700 py-2 px-3 text-[9px] font-black text-white uppercase tracking-wider whitespace-nowrap">
@@ -7011,7 +6729,19 @@ export default function NewRealtimePage() {
                                     return idx !== -1 ? idx : 28;
                                   })();
                                   const idxSmallCategoryHeader = headers.findIndex(h => h.toLowerCase().includes('nhóm hàng nhỏ'));
+                                  const idxNganhHang = (() => {
+                                    const idx = headers.findIndex(h => {
+                                      const norm = removeAccents(h).toLowerCase();
+                                      return (norm.includes('nganh hang') && !norm.includes('lon')) || norm.includes('nhom nganh hang');
+                                    });
+                                    return idx !== -1 ? idx : -1;
+                                  })();
                                   const idxNhomHang = (() => {
+                                    const exactNhom = headers.findIndex(h => {
+                                      const norm = removeAccents(h).toLowerCase();
+                                      return norm === 'nhom hang' || (norm.includes('nhom hang') && !norm.includes('nhom hang nho'));
+                                    });
+                                    if (exactNhom !== -1) return exactNhom;
                                     const idx = headers.findIndex(h => {
                                       const norm = removeAccents(h).toLowerCase();
                                       return (norm.includes('nganh hang') && !norm.includes('lon')) ||
@@ -7020,10 +6750,14 @@ export default function NewRealtimePage() {
                                     });
                                     return idx !== -1 ? idx : 40;
                                   })();
-                                  const idxHinhThucXuat = headers.findIndex(h => {
-                                    const lh = h.toLowerCase();
-                                    return lh.includes('hình thức xuất') || lh.includes('loại ycx') || lh.includes('loại yêu cầu') || lh.includes('phân loại ycx');
-                                  });
+                                  const idxHinhThucXuat = (() => {
+                                    const idxExact = headers.findIndex(h => removeAccents(h).toLowerCase().trim() === 'hinh thuc xuat');
+                                    if (idxExact !== -1) return idxExact;
+                                    return headers.findIndex(h => {
+                                      const lh = removeAccents(h).toLowerCase().trim();
+                                      return lh === 'loai ycx' || lh === 'loai yeu cau' || lh === 'phan loai ycx';
+                                    });
+                                  })();
                                   // Date columns to format
                                   const dateColIndices = new Set<number>(
                                     headers.reduce((acc: number[], h, i) => {
@@ -7058,70 +6792,42 @@ export default function NewRealtimePage() {
                                     return null;
                                   };
 
-                                  // Paginate: only render current page rows if not capturing
-                                  const pageRows = isCapturing
-                                    ? filteredRawTableRows
-                                    : filteredRawTableRows.slice(
-                                      rawTablePage * RAW_PAGE_SIZE,
-                                      (rawTablePage + 1) * RAW_PAGE_SIZE
-                                    );
+                                  // Render rows up to the current visible limit
+                                  const visibleLimit = isCapturing ? filteredRawTableRows.length : (rawTablePage + 1) * RAW_PAGE_SIZE;
+                                  const pageRows = filteredRawTableRows.slice(0, visibleLimit);
 
                                   return pageRows.map((row, rowIdx) => (
                                     <tr key={rowIdx} className={`transition-colors ${rowIdx % 2 === 1 ? 'bg-slate-50' : 'bg-white'} hover:bg-slate-100`}>
-                                      {row.map((cell, cellIdx) => (
+                                      {headers.map((_, cellIdx) => {
+                                        if (hiddenColIdxs.has(cellIdx)) return null;
+                                        const cell = row[cellIdx];
+                                        return (
                                         <td key={cellIdx} className={`border border-slate-200 py-2 px-3 text-[9px] font-medium whitespace-nowrap ${dateColIndices.has(cellIdx) ? 'text-indigo-700 font-bold' : 'text-slate-900'}`}>
                                           {dateColIndices.has(cellIdx)
                                             ? fmtRawDate(String(cell || ''))
-                                            : cell}
+                                            : (cell === undefined || cell === null ? '' : String(cell))}
                                         </td>
-                                      ))}
+                                      )})}
                                       <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
                                         {(() => {
                                           const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
-                                          const codeClass = classifyProductByCode(prodCode);
-                                          if (codeClass) return codeClass;
-
-                                          const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
                                           const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
-                                          if (prodName.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodName.includes('BẢO VỆ MÀN HÌNH') || prodName.includes('BVMH')) {
-                                            return 'BVMH';
-                                          }
-                                          if (catVal.includes('7139') || catVal.includes('BẢO HÀNH MỞ RỘNG')) {
-                                            return 'BHMR';
-                                          }
-                                          if (catVal.includes('BẢO HÀNH RƠI VỠ')) {
-                                            return 'BHRV';
-                                          }
-                                          if (catVal.includes('4479')) {
-                                            const pCls = classifyProduct(prodName);
-                                            return pCls !== '-' ? pCls : 'GIC';
-                                          }
-                                          if (catVal.includes('1 ĐỔI 1')) {
-                                            return '1 ĐỔI 1';
-                                          }
-                                          return classifyProduct(prodName);
+                                          const codeClass = classifyProductByCode(prodCode, customBaoHiemRules);
+                                          if (codeClass) return codeClass;
+                                          return classifyProduct(prodName, customBaoHiemRules) || '-';
                                         })()}
                                       </td>
                                       <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
                                         {(() => {
-                                          const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
-                                          const codeClass = classifyProductByCode(prodCode);
-                                          if (codeClass) return 'B.HIỂM';
-
-                                          const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
-                                          const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
-                                          if (prodName.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || prodName.includes('BẢO VỆ MÀN HÌNH') || prodName.includes('BVMH')) {
-                                            return 'B.HIỂM';
-                                          }
-                                          if (catVal.includes('1994') || catVal.includes('4479')) {
-                                            return 'B.HIỂM';
-                                          }
-                                          const valLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', String(row[idxProduct] || '')) || '-';
+                                          const nhomSmallValue = idxSmallCategoryHeader !== -1 ? String(row[idxSmallCategoryHeader] || '').trim().toUpperCase() : '';
+                                          const valLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', String(row[idxProduct] || ''), nhomSmallValue, undefined, customNhomSmallMap, customBaoHiemRules, idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '') || '-';
                                           return valLarge === 'BẢO HIỂM' ? 'B.HIỂM' : valLarge;
                                         })()}
                                       </td>
                                       <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
-                                        {resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode)}
+                                        {(() => {
+                                          return resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode, customNhomSmallMap, customBaoHiemRules);
+                                        })()}
                                       </td>
                                       <td className="border border-slate-200 py-2 px-3 text-[9px] whitespace-nowrap font-black text-center">
                                         {(() => {
@@ -7176,6 +6882,7 @@ export default function NewRealtimePage() {
                                 return (
                                   <tr className="bg-slate-100 font-extrabold border-t-2 border-slate-400 text-[10px] text-slate-800 sticky bottom-0 z-[5]">
                                     {headers.map((_, idx) => {
+                                      if (hiddenColIdxs.has(idx)) return null;
                                       if (idx === 0) {
                                         return (
                                           <td key={idx} className="border border-slate-200 py-2 px-3 text-center uppercase tracking-wider text-slate-700 whitespace-nowrap bg-slate-100">
@@ -7206,31 +6913,20 @@ export default function NewRealtimePage() {
                           </table>
                         </div>
 
-                        {/* Pagination controls */}
-                        {filteredRawTableRows.length > RAW_PAGE_SIZE && (
-                          <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-slate-50/50">
-                            <span className="text-[11px] font-bold text-slate-500">
-                              Hiển thị {rawTablePage * RAW_PAGE_SIZE + 1}–{Math.min((rawTablePage + 1) * RAW_PAGE_SIZE, filteredRawTableRows.length)} / {filteredRawTableRows.length} dòng
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <button
-                                disabled={rawTablePage === 0}
-                                onClick={() => setRawTablePage(p => Math.max(0, p - 1))}
-                                className="px-3 py-1 text-[11px] font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                              >← Trước</button>
-                              <span className="text-[11px] font-bold text-slate-600">
-                                Trang {rawTablePage + 1} / {Math.ceil(filteredRawTableRows.length / RAW_PAGE_SIZE)}
-                              </span>
-                              <button
-                                disabled={(rawTablePage + 1) * RAW_PAGE_SIZE >= filteredRawTableRows.length}
-                                onClick={() => setRawTablePage(p => p + 1)}
-                                className="px-3 py-1 text-[11px] font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                              >Tiếp →</button>
-                            </div>
+                        {/* Load More button */}
+                        {!isCapturing && (rawTablePage + 1) * RAW_PAGE_SIZE < filteredRawTableRows.length && (
+                          <div className="flex items-center justify-center px-6 py-4 border-t border-slate-100 bg-slate-50/50">
+                            <button
+                              onClick={() => setRawTablePage(p => p + 5)}
+                              className="px-4 py-2 text-[12px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors flex items-center gap-2 shadow-sm"
+                            >
+                              Hiển thị thêm 500 dòng (Đang xem {(rawTablePage + 1) * RAW_PAGE_SIZE} / {filteredRawTableRows.length})
+                            </button>
                           </div>
                         )}
                       </div>
-                    )}
+                      );
+                    })()}
                   </div>
 
                   {/* Custom Category Mapping Card - Hidden by User Request */}
@@ -7286,7 +6982,9 @@ export default function NewRealtimePage() {
                   {/* Unexported Orders Table moved to above Raw Data Table */}
                 </motion.div>
               )}
+
             </AnimatePresence>
+            )}
           </div>
         </div>
       </div>
@@ -7383,6 +7081,67 @@ export default function NewRealtimePage() {
           <pre className="whitespace-pre-wrap leading-relaxed max-h-40 overflow-auto">{processError}</pre>
         </div>
       )}
+
+      {/* Config Nhom Hang Modal */}
+      <ConfigNhomHangModal
+        isOpen={showConfigModal}
+        onClose={() => setShowConfigModal(false)}
+        initialMap={customNhomSmallMap}
+        onSave={async (newMap) => {
+          setCustomNhomSmallMap(newMap);
+          try {
+            await setDoc(doc(db, 'system_configs', 'nhom_hang_map'), { map: newMap, updatedAt: serverTimestamp() }, { merge: true });
+            showNotification('Đã lưu cấu hình lên hệ thống', 'success');
+          } catch (error) {
+            console.error('Error saving map to Firebase:', error);
+            showNotification('Có lỗi khi lưu cấu hình lên Firebase', 'error');
+          }
+        }}
+      />
+      
+      {/* Config Bao Hiem Modal */}
+      <ConfigBaoHiemModal
+        isOpen={showConfigBaoHiemModal}
+        onClose={() => setShowConfigBaoHiemModal(false)}
+        initialRules={customBaoHiemRules}
+        onSave={async (newRules) => {
+          setCustomBaoHiemRules(newRules);
+          try {
+            await setDoc(doc(db, 'system_configs', 'bao_hiem_map'), { rules: newRules, updatedAt: serverTimestamp() }, { merge: true });
+            showNotification('Đã lưu cấu hình BH & VAS lên hệ thống', 'success');
+          } catch (error) {
+            console.error('Error saving bao hiem config to Firebase:', error);
+            showNotification('Có lỗi khi lưu cấu hình BH & VAS lên Firebase', 'error');
+          }
+        }}
+      />
+      
+      {/* Config Loai Bo Modal */}
+      <ConfigExclusionModal
+        isOpen={showConfigLoaiBoModal}
+        onClose={() => setShowConfigLoaiBoModal(false)}
+        initialRules={customExclusionRules}
+        onSave={async (newRules) => {
+          setCustomExclusionRules(newRules);
+          try {
+            await setDoc(doc(db, 'system_configs', 'loai_bo_map'), { rules: newRules, updatedAt: serverTimestamp() }, { merge: true });
+            showNotification('Đã lưu cấu hình loại bỏ lên hệ thống', 'success');
+          } catch (error) {
+            console.error('Error saving loai bo config to Firebase:', error);
+            showNotification('Có lỗi khi lưu cấu hình loại bỏ lên Firebase', 'error');
+          }
+        }}
+      />
+      <ConfigGoogleSheetModal
+        isOpen={showConfigGoogleSheetModal}
+        onClose={() => setShowConfigGoogleSheetModal(false)}
+        onRefreshAllData={() => {
+          showNotification('Đã đồng bộ thành công cấu hình từ Google Sheets!', 'success');
+        }}
+        currentNhomHangMap={customNhomSmallMap}
+        currentBaoHiemRules={customBaoHiemRules}
+        currentExclusionRules={customExclusionRules}
+      />
     </>
   );
 }

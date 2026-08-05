@@ -41,6 +41,17 @@ class FirebaseQueryBuilder {
     if (column === 'id') {
       this.idValue = value;
     } else {
+      if ((this.tableName === 'ql_nguoi_dung' && column === 'username') || 
+          (this.tableName === 'user_permissions' && column === 'user_id')) {
+        const numVal = Number(value);
+        if (typeof value === 'string' && !isNaN(numVal) && value.trim() !== '') {
+           this.constraints.push(where(column, 'in', [value, numVal]));
+           return this;
+        } else if (typeof value === 'number') {
+           this.constraints.push(where(column, 'in', [value, String(value)]));
+           return this;
+        }
+      }
       this.constraints.push(where(column, '==', value));
     }
     return this;
@@ -186,11 +197,7 @@ class FirebaseQueryBuilder {
       const results = [];
 
       for (const item of items) {
-        // Find ID from onConflict or item.id
         let id = item.id;
-        if (!id && onConflict === 'username' && item.username) {
-          id = String(item.username).trim();
-        }
         if (!id && onConflict) {
           const conflictFields = onConflict.split(',').map((f: string) => f.trim());
           // If multi-column conflict, we need to find the doc first

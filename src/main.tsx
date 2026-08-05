@@ -1,4 +1,5 @@
 // Polyfill to prevent browser translation tools (like Google Translate) from crashing React due to unmounting mismatch
+
 if (typeof window !== 'undefined' && typeof Node === 'function' && Node.prototype) {
   const originalRemoveChild = Node.prototype.removeChild;
   Node.prototype.removeChild = function <T extends Node>(child: T): T {

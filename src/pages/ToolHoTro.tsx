@@ -5,7 +5,7 @@ import {
   ChevronDown, CheckCircle2, Save, Loader2, Calendar, ArrowUpDown, 
   SortAsc, SortDesc, PieChart, Users, UploadCloud, Settings, 
   ChevronRight, LayoutGrid, FileText, Tag, Scan, MapPin, ClipboardList,
-  RefreshCw
+  RefreshCw, AlertCircle
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
@@ -310,12 +310,11 @@ const formatPriceInput = (val: string) => {
   return parseInt(digits, 10).toLocaleString('vi-VN');
 };
 
-export default function ToolHoTro() {
+export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local = false }: { pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean }) {
   const { userProfile } = useAuth();
   const maKho = userProfile?.ma_kho || '';
-  const { currentStoreId } = useStore();
+  const { currentStoreId, activeToolHoTroTab: activeTab, setActiveToolHoTroTab: setActiveTab } = useStore();
   const { showNotification } = useNotification();
-  const [activeTab, setActiveTab] = useState('all-sticker');
   
   const [addressFlyerData, setAddressFlyerData] = useState<AddressFlyerData>(DEFAULT_ADDRESS_DATA);
   const [phieuBhData, setPhieuBhData] = useState<PhieuBHData>(DEFAULT_PHIEU_BH);
@@ -2229,6 +2228,19 @@ export default function ToolHoTro() {
 
         {/* Main Content Area - Right Side */}
         <div className="flex-1 min-w-0">
+          {pageMaintenanceState[`toolhotro_${activeTab}`] && !isUser43751Local ? (
+            <div className="flex items-center justify-center h-full p-6 mt-12">
+              <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-amber-200 shadow-xl w-full">
+                <div className="w-24 h-24 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-amber-500 shadow-inner">
+                  <AlertCircle size={48} />
+                </div>
+                <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">HỆ THỐNG ĐANG BẢO TRÌ</h1>
+                <p className="text-slate-500 font-medium leading-relaxed">
+                  Tab này đang trong quá trình bảo trì và nâng cấp. Xin lỗi vì sự bất tiện này!
+                </p>
+              </div>
+            </div>
+          ) : (
           <AnimatePresence mode="wait">
 {activeTab === 'phan-ca-thang' && (
               <motion.div
@@ -4588,6 +4600,7 @@ export default function ToolHoTro() {
             </motion.div>
           )}
           </AnimatePresence>
+          )}
         </div>
       </div>
 

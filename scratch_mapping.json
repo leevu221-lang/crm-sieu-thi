@@ -1,0 +1,505 @@
+{
+  "mapped": {
+    "2151 - Phiếu mua hàng/Pre Order": {
+      "large": "KHÁC",
+      "small": "KHÁC"
+    },
+    "958 - Lò vi sóng": {
+      "large": "ĐIỆN GD",
+      "small": "LÒ VI SÓNG"
+    },
+    "2011 - Khuyến mãi - SP Ảo": {
+      "large": "KHUYẾN MÃI",
+      "small": "KHUYẾN MÃI"
+    },
+    "7339 - Quạt cầm tay": {
+      "large": "PHỤ KIỆN",
+      "small": "QUẠT"
+    },
+    "3345 - Cáp": {
+      "large": "PHỤ KIỆN",
+      "small": "CÁP"
+    },
+    "1094 - Tivi LED (IMEI)": {
+      "large": "CE",
+      "small": "TIVI"
+    },
+    "1098 - Máy lạnh (IMEI)": {
+      "large": "CE",
+      "small": "ML"
+    },
+    "4519 - Thu Hộ Tiền Trả Góp": {
+      "large": "THU HỘ",
+      "small": "THU HỘ"
+    },
+    "4146 - Bếp gas đôi": {
+      "large": "ĐIỆN GD",
+      "small": "BẾP GAS/ĐIỆN/HÚT MÙI"
+    },
+    "4161 - Quạt treo": {
+      "large": "ĐIỆN GD",
+      "small": "QUẠT"
+    },
+    "893 - Tủ đông": {
+      "large": "CE",
+      "small": "TL"
+    },
+    "3779 - Bếp điện âm": {
+      "large": "ĐIỆN GD",
+      "small": "BẾP GAS/ĐIỆN/HÚT MÙI"
+    },
+    "4599 - Thu Hộ Tiền Mặt": {
+      "large": "THU HỘ",
+      "small": "THU HỘ"
+    },
+    "1097 - Tủ lạnh (IMEI)": {
+      "large": "CE",
+      "small": "TL"
+    },
+    "3187 - Bình/Ly/Ca giữ nhiệt": {
+      "large": "DCNB",
+      "small": "DCNB"
+    },
+    "6479 - Camera IP Trong nhà": {
+      "large": "PHỤ KIỆN",
+      "small": "CAM"
+    },
+    "1491 - Smartphone": {
+      "large": "ICT",
+      "small": "SMP"
+    },
+    "12 - Pin sạc dự phòng": {
+      "large": "PHỤ KIỆN",
+      "small": "PIN SDP"
+    },
+    "58 - Miếng dán mặt sau": {
+      "large": "PHỤ KIỆN",
+      "small": "M.DÁN"
+    },
+    "7161 - Dịch vụ bảo hành 1 đổi 1 bởi Điện Máy Xanh": {
+      "large": "BẢO HIỂM",
+      "small": "1 ĐỔI 1"
+    },
+    "1051 - Khuyến mãi Điện gia dụng": {
+      "large": "KHUYẾN MÃI",
+      "small": "KHUYẾN MÃI"
+    },
+    "4142 - Bình đun siêu tốc": {
+      "large": "ĐIỆN GD",
+      "small": "ĐGD KHÁC"
+    },
+    "4153 - Xay Sinh tố": {
+      "large": "ĐIỆN GD",
+      "small": "XAY ÉP"
+    },
+    "4324 - Khung treo, giá đỡ": {
+      "large": "KHUNG TREO",
+      "small": "KHUNG TREO"
+    },
+    "3265 - Nồi": {
+      "large": "DCNB",
+      "small": "DCNB"
+    },
+    "571 - UDDĐ": {
+      "large": "VIEON",
+      "small": "VIEON"
+    },
+    "4159 - Quạt đứng": {
+      "large": "ĐIỆN GD",
+      "small": "QUẠT"
+    },
+    "431 - Ốp Lưng - Flip Cover": {
+      "large": "PHỤ KIỆN",
+      "small": "ỐP LƯNG"
+    },
+    "4070 - Đồng hồ Trẻ em": {
+      "large": "ĐỒNG HỒ THỜI TRANG",
+      "small": "ĐỒNG HỒ THỜI TRANG"
+    },
+    "2531 - Thu hộ Mservice": {
+      "large": "THU HỘ",
+      "small": "THU HỘ"
+    },
+    "2571 - Thu hộ cước Viettel": {
+      "large": "THU HỘ",
+      "small": "THU HỘ"
+    },
+    "2413 - Khuyến mãi Điện Tử - Mua": {
+      "large": "KHUYẾN MÃI",
+      "small": "KHUYẾN MÃI"
+    },
+    "3659 - Máy sấy lồng ngang": {
+      "large": "CE",
+      "small": "MG"
+    },
+    "967 - Sấy tóc": {
+      "large": "CHĂM SÓC SẮC ĐẸP",
+      "small": "CHĂM SÓC SẮC ĐẸP"
+    },
+    "4659 - Phụ kiện tiện ích Apple": {
+      "large": "PHỤ KIỆN",
+      "small": "PK APPLE"
+    },
+    "7139 - Dịch vụ Bảo hành mở rộng Thợ Điện Máy Xanh": {
+      "large": "BẢO HIỂM",
+      "small": "BHMR"
+    },
+    "6519 - Dịch vụ bảo trì/ bảo dưỡng thiết bị": {
+      "large": "DỊCH VỤ",
+      "small": "DỊCH VỤ"
+    },
+    "14 - Sạc/ Adapter": {
+      "large": "PHỤ KIỆN",
+      "small": "ADAPTER"
+    },
+    "15 - Tai nghe dây": {
+      "large": "PHỤ KIỆN",
+      "small": "TN DÂY"
+    },
+    "894 - Tủ mát": {
+      "large": "CE",
+      "small": "TL"
+    },
+    "4156 - Nồi cơm nắp gài/nắp rời": {
+      "large": "ĐIỆN GD",
+      "small": "NC"
+    },
+    "18 - Điện Thoại Di Động": {
+      "large": "ICT",
+      "small": "SMP"
+    },
+    "4171 - Lọc nước dạng tủ đứng": {
+      "large": "ĐIỆN GD",
+      "small": "MLN"
+    },
+    "4199 - Miếng Dán Kính": {
+      "large": "PHỤ KIỆN",
+      "small": "M.DÁN"
+    },
+    "4141 - Bàn ủi khô": {
+      "large": "ĐIỆN GD",
+      "small": "ĐGD KHÁC"
+    },
+    "4302 - Nón bảo hiểm các loại": {
+      "large": "DCNB",
+      "small": "DCNB"
+    },
+    "7060 - Đèn năng lượng mặt trời": {
+      "large": "PHỤ KIỆN",
+      "small": "ĐÈN NĂNG LƯỢNG MẶT TRỜI"
+    },
+    "971 - Thẻ cào điện tử": {
+      "large": "THỂ CÀO",
+      "small": "THỂ CÀO"
+    },
+    "4479 - Dịch Vụ Bảo Hiểm": {
+      "large": "BẢO HIỂM",
+      "small": "B.HIỂM"
+    },
+    "4499 - Thu Hộ Phí Bảo Hiểm": {
+      "large": "THU HỘ",
+      "small": "THU HỘ"
+    },
+    "1891 - Sim Online": {
+      "large": "SIM",
+      "small": "SIM"
+    },
+    "4147 - Bếp điện đơn": {
+      "large": "ĐIỆN GD",
+      "small": "BẾP GAS/ĐIỆN/HÚT MÙI"
+    },
+    "2291 - Sim trắng (Seri)": {
+      "large": "SIM",
+      "small": "SIM"
+    },
+    "880 - Loa Karaoke": {
+      "large": "CE",
+      "small": "AUDIO"
+    },
+    "19 - Khuyến mãi ĐTDĐ": {
+      "large": "KHUYẾN MÃI",
+      "small": "KHUYẾN MÃI"
+    },
+    "3346 - Tai Nghe Bluetooth": {
+      "large": "PHỤ KIỆN",
+      "small": "TN BLT"
+    },
+    "911 - Máy nước nóng": {
+      "large": "CE",
+      "small": "MNN"
+    },
+    "3185 - Vệ sinh nhà cửa": {
+      "large": "DCNB",
+      "small": "DCNB"
+    },
+    "16 - Thẻ Nhớ": {
+      "large": "PHỤ KIỆN",
+      "small": "T.NHỚ"
+    },
+    "4063 - Đồng hồ Nữ Dây da": {
+      "large": "ĐỒNG HỒ THỜI TRANG",
+      "small": "ĐỒNG HỒ THỜI TRANG"
+    },
+    "4154 - Xay ép/Khác": {
+      "large": "ĐIỆN GD",
+      "small": "XAY ÉP"
+    },
+    "7159 - Dịch vụ vệ sinh máy lạnh Thợ Điện Máy Xanh": {
+      "large": "DỊCH VỤ",
+      "small": "DỊCH VỤ"
+    },
+    "1231 - Miếng dán mặt trước": {
+      "large": "PHỤ KIỆN",
+      "small": "M.DÁN"
+    },
+    "73 - Phụ kiện điện máy": {
+      "large": "PHỤ KIỆN",
+      "small": "PK KHÁC"
+    },
+    "4169 - Lõi lọc": {
+      "large": "LÕI LỌC",
+      "small": "LÕI LỌC"
+    },
+    "1031 - Loa di động": {
+      "large": "PHỤ KIỆN",
+      "small": "LOA"
+    },
+    "410 - Phụ kiện TT khác": {
+      "large": "PHỤ KIỆN",
+      "small": "PK KHÁC"
+    },
+    "4172 - Lọc nước âm tủ/trên bàn": {
+      "large": "ĐIỆN GD",
+      "small": "MLN"
+    },
+    "531 - Pin": {
+      "large": "PHỤ KIỆN",
+      "small": "PIN SDP"
+    },
+    "3799 - Quạt điều hòa": {
+      "large": "ĐIỆN GD",
+      "small": "QĐH"
+    },
+    "4099 - Nồi chiên": {
+      "large": "ĐIỆN GD",
+      "small": "N.CHIÊN"
+    },
+    "4158 - Nồi cơm điện tử": {
+      "large": "ĐIỆN GD",
+      "small": "NC"
+    },
+    "2592 - Dịch vụ khác": {
+      "large": "KHÁC",
+      "small": "KHÁC"
+    },
+    "4152 - Ổ cắm điện/vợt muỗi": {
+      "large": "ĐIỆN GD",
+      "small": "ĐGD KHÁC"
+    },
+    "4660 - Quạt sạc điện/Năng lượng mặt trời": {
+      "large": "ĐIỆN GD",
+      "small": "QUẠT"
+    },
+    "4145 - Bếp gas đơn": {
+      "large": "ĐIỆN GD",
+      "small": "BẾP GAS/ĐIỆN/HÚT MÙI"
+    },
+    "42 - Laptop": {
+      "large": "ICT",
+      "small": "LAP"
+    },
+    "4219 - Camera IP Ngoài trời": {
+      "large": "PHỤ KIỆN",
+      "small": "CAM"
+    },
+    "957 - Lò nướng": {
+      "large": "ĐIỆN GD",
+      "small": "ĐGD KHÁC"
+    },
+    "2999 - Dụng cụ nhà bếp khác": {
+      "large": "DCNB",
+      "small": "DCNB"
+    },
+    "10 - Chuột": {
+      "large": "PHỤ KIỆN",
+      "small": "CHUỘT"
+    },
+    "6000 - Máy ép trái cây": {
+      "large": "ĐIỆN GD",
+      "small": "XAY ÉP/S.TỐ"
+    },
+    "4061 - Đồng hồ Nam Dây khác": {
+      "large": "ĐỒNG HỒ THỜI TRANG",
+      "small": "ĐỒNG HỒ THỜI TRANG"
+    },
+    "4151 - Áp suất/lẩu/chiên/nướng": {
+      "large": "ĐIỆN GD",
+      "small": "ĐGD KHÁC"
+    },
+    "931 - Máy tính bảng": {
+      "large": "ICT",
+      "small": "TAB"
+    },
+    "4019 - Sim trắng điện tử": {
+      "large": "SIM",
+      "small": "SIM"
+    },
+    "4157 - Nồi cơm cao tần": {
+      "large": "ĐIỆN GD",
+      "small": "NC"
+    },
+    "2511 - Nạp tiền AirTime M_Service": {
+      "large": "THU HỘ",
+      "small": "THU HỘ"
+    },
+    "591 - Thay sim": {
+      "large": "SIM",
+      "small": "SIM"
+    },
+    "432 - Balo": {
+      "large": "PHỤ KIỆN",
+      "small": "BALO"
+    },
+    "4540 - Tai Nghe Bluetooth - imei": {
+      "large": "PHỤ KIỆN",
+      "small": "TN BLT"
+    },
+    "1273 - Màn hình, Máy tính để bàn": {
+      "large": "IT",
+      "small": "IT"
+    },
+    "4095 - Cáp (Giá Rẻ)": {
+      "large": "PHỤ KIỆN",
+      "small": "CÁP"
+    },
+    "1052 - Khuyến mãi Điện Lạnh": {
+      "large": "KHUYẾN MÃI",
+      "small": "KHUYẾN MÃI"
+    },
+    "4160 - Quạt bàn/hộp/sàn": {
+      "large": "ĐIỆN GD",
+      "small": "QUẠT"
+    },
+    "3240 - Hộp/Hũ": {
+      "large": "DCNB",
+      "small": "DCNB"
+    },
+    "1412 - Dịch vụ bảo trì": {
+      "large": "DỊCH VỤ",
+      "small": "DỊCH VỤ"
+    },
+    "5000 - Chăm sóc sức khỏe/làm đẹp": {
+      "large": "CHĂM SÓC SẮC ĐẸP",
+      "small": "CHĂM SÓC SẮC ĐẸP"
+    },
+    "3639 - Máy lọc không khí": {
+      "large": "ĐIỆN GD",
+      "small": "ĐGD KHÁC"
+    },
+    "3859 - Máy rửa chén": {
+      "large": "CE",
+      "small": "MG"
+    },
+    "1351 - Loa vi tính (imei)": {
+      "large": "PHỤ KIỆN",
+      "small": "LOA"
+    },
+    "871 - USB": {
+      "large": "PHỤ KIỆN",
+      "small": "T.NHỚ"
+    },
+    "4320 - Đồng hồ - Khuyến mãi mua": {
+      "large": "KHUYẾN MÃI",
+      "small": "KHUYẾN MÃI"
+    },
+    "7547 - Thu hộ dịch vụ Bảo hành Mở rộng gói Thợ ĐMX": {
+      "large": "THU HỘ",
+      "small": "THU HỘ"
+    },
+    "80 - Khuyến mãi Khác": {
+      "large": "KHUYẾN MÃI",
+      "small": "KHUYẾN MÃI"
+    },
+    "2471 - Thu hộ cước VinaPhone": {
+      "large": "THU HỘ",
+      "small": "THU HỘ"
+    },
+    "4062 - Đồng hồ Nữ Dây kim loại": {
+      "large": "ĐỒNG HỒ THỜI TRANG",
+      "small": "ĐỒNG HỒ THỜI TRANG"
+    },
+    "4149 - Bình thủy điện": {
+      "large": "ĐIỆN GD",
+      "small": "ĐGD KHÁC"
+    },
+    "7160 - Dịch vụ bảo hành rơi vỡ Thợ Điện Máy Xanh": {
+      "large": "BẢO HIỂM",
+      "small": "BHRV"
+    },
+    "2391 - Smartwatch": {
+      "large": "WEARABLE",
+      "small": "WEARABLE"
+    },
+    "4128 - Phụ Kiện công nghệ": {
+      "large": "PHỤ KIỆN",
+      "small": "PK KHÁC"
+    },
+    "4155 - Hút bụi cây": {
+      "large": "ĐIỆN GD",
+      "small": "HÚT BỤI"
+    },
+    "4139 - Đèn bàn/Đèn Sạc/Đèn bắt muỗi": {
+      "large": "PHỤ KIỆN",
+      "small": "ADAPTER"
+    },
+    "955 - Hút mùi/ hút khói": {
+      "large": "ĐIỆN GD",
+      "small": "BẾP GAS/ĐIỆN/HÚT MÙI"
+    },
+    "4140 - Bàn ủi hơi nước": {
+      "large": "ĐIỆN GD",
+      "small": "ĐGD KHÁC"
+    },
+    "4144 - Bếp gas âm": {
+      "large": "ĐIỆN GD",
+      "small": "BẾP GAS/ĐIỆN/HÚT MÙI"
+    },
+    "7162 - Dịch vụ thay lõi lọc Thợ Điện Máy Xanh": {
+      "large": "DỊCH VỤ",
+      "small": "DỊCH VỤ"
+    },
+    "1131 - Máy in, Fax": {
+      "large": "IT",
+      "small": "MÁY IN"
+    },
+    "7400 - Ổ khóa": {
+      "large": "DCNB",
+      "small": "DCNB"
+    },
+    "7259 - Đồng hồ định vị trẻ em": {
+      "large": "WEARABLE",
+      "small": "WEARABLE"
+    },
+    "4439 - Hút Bụi Robot": {
+      "large": "ĐIỆN GD",
+      "small": "HÚT BỤI"
+    },
+    "4125 - Smartband": {
+      "large": "WEARABLE",
+      "small": "WEARABLE"
+    },
+    "4059 - Đồng hồ Nam Dây kim loại": {
+      "large": "ĐỒNG HỒ THỜI TRANG",
+      "small": "ĐỒNG HỒ THỜI TRANG"
+    },
+    "751 - Khuyến mãi ba lô, túi xách": {
+      "large": "KHUYẾN MÃI",
+      "small": "KHUYẾN MÃI"
+    },
+    "5975 - Túi Chống Sốc": {
+      "large": "PHỤ KIỆN",
+      "small": "BALO"
+    }
+  },
+  "unmapped": []
+}

@@ -68,6 +68,17 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
 
       if (dbError) throw dbError;
 
+      // Save subscription history to Firebase
+      await supabase.from('lich_su_dang_ky').insert({
+        username: userProfile.username,
+        storeCode: userProfile.ma_kho,
+        action: 'REQUEST',
+        packageDays: selectedPackage,
+        status: 'pending',
+        phone: phone.trim(),
+        created_at: new Date().toISOString()
+      });
+
       setIsSuccess(true);
       setTimeout(() => {
         onRefresh();

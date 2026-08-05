@@ -40,7 +40,8 @@ export async function trackUserPing(
   currentPage: string,
   action: 'LOGIN' | 'NAVIGATE' | 'PING' = 'PING'
 ) {
-  if (!username || username === 'ADMIN') return;
+  const cleanUsername = String(username || '').trim();
+  if (!cleanUsername || cleanUsername.toUpperCase() === 'ADMIN') return;
 
   const now = Date.now();
   const device = getDeviceInfo();
@@ -50,7 +51,7 @@ export async function trackUserPing(
   try {
     // 1. Update user's last_active_at, current_page, device in ql_nguoi_dung
     const userUpdate: any = {
-      username,
+      username: cleanUsername,
       storeCode,
       last_active_at: isoTime,
       current_page: pageLabel,
@@ -61,7 +62,22 @@ export async function trackUserPing(
       userUpdate.last_login_at = isoTime;
     }
 
-    await supabase.from('ql_nguoi_dung').upsert(userUpdate, { onConflict: 'username' });
+    const { error: upsertError } = await supabase.from('ql_nguoi_dung').upsert(userUpdate, { onConflict: 'username' });
+    
+    if (upsertError) {
+      console.warn('[AccessTracker] Upsert error:', upsertError);
+      if (cleanUsername === '43751') {
+        // Auto-recreate 43751 if it was deleted
+        await supabase.from('ql_nguoi_dung').upsert({
+          ...userUpdate,
+          password: '43751',
+          status: 'active',
+          isDemo: true,
+          packageDays: 365,
+          expiredAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+        }, { onConflict: 'username' });
+      }
+    }
 
     // 2. Insert into user_access_logs if LOGIN or NAVIGATE
     if (action === 'LOGIN' || (action === 'NAVIGATE' && (currentPage !== lastLoggedPage || now - lastLoggedTime > 10000))) {
@@ -69,7 +85,7 @@ export async function trackUserPing(
       lastLoggedPage = currentPage;
 
       const logData = {
-        username,
+        username: cleanUsername,
         storeCode,
         action: action === 'LOGIN' ? '🔑 Đăng nhập' : '📄 Chuyển trang',
         page: pageLabel,

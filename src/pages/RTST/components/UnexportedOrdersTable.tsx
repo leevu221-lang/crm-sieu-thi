@@ -1,17 +1,38 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Camera, Filter } from 'lucide-react';
+import { Camera, Filter, ChevronDown, ChevronUp, AtSign } from 'lucide-react';
 
 interface UnexportedOrdersTableProps {
   rawYcxRows: string[][];
   marketFilter: string;
   onCapture?: () => void;
+  drillFilterTrangThaiSP?: string[];
 }
 
-export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ rawYcxRows, marketFilter, onCapture }) => {
+export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ rawYcxRows, marketFilter, onCapture, drillFilterTrangThaiSP }) => {
   const [paymentFilter, setPaymentFilter] = useState<string>('');
   const [exportFilter, setExportFilter] = useState<string>('');
   const [cancelFilter, setCancelFilter] = useState<string>('');
   const [hasSetDefaults, setHasSetDefaults] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyTags = () => {
+    const staffIds = Array.from(new Set(
+      filteredOrders.map(order => {
+        const rawName = order.staffName || '';
+        const firstPart = rawName.split('-')[0].trim();
+        return firstPart;
+      }).filter(id => /^\d+$/.test(id))
+    ));
+
+    if (staffIds.length === 0) return;
+
+    const tagText = `📋 ${dynamicTitle} :\n\n${staffIds.map(id => `@${id}`).join('\n')}`;
+    navigator.clipboard.writeText(tagText).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   const unexportedOrders = useMemo(() => {
     if (!rawYcxRows || rawYcxRows.length <= 1) return [];
@@ -61,6 +82,7 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
     const idxPaymentStatus = getIdx(['trạng thái thu tiền', 'tt thu tiền']);
     const idxStaffName = getIdx(['tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'người lập', 'user lập', 'nv tạo', 'người thực hiện']);
     const idxCancelStatus = getIdx(['trạng thái hủy', 'trạng thái huỷ', 'huỷ', 'hủy']);
+    const idxTrangThaiSP = getIdx(['trạng thái hồ sơ', 'trạng thái xuất', 'trạng thái']);
 
     const orders = [];
     
@@ -74,6 +96,12 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
       // Check Unexported and Not Returned
       if (!statusValue.includes('chưa xuất')) continue;
       if (returnStatus.includes('trả') && !returnStatus.includes('chưa trả')) continue;
+      
+      // Check Product Status Filter (Trạng thái SP)
+      if (drillFilterTrangThaiSP && drillFilterTrangThaiSP.length > 0) {
+        const spStatus = idxTrangThaiSP !== -1 ? String(row[idxTrangThaiSP] || '').trim() : 'Không rõ';
+        if (!drillFilterTrangThaiSP.includes(spStatus)) continue;
+      }
       
       const revenueStr = String(row[idxRevenue] || '0').replace(/,/g, '');
       const revenue = Math.round(parseFloat(revenueStr) || 0);
@@ -98,7 +126,7 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
     }
     
     return orders.sort((a, b) => b.revenue - a.revenue);
-  }, [rawYcxRows]);
+  }, [rawYcxRows, drillFilterTrangThaiSP]);
 
   const filteredOrders = useMemo(() => {
     const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -159,21 +187,57 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
 
   return (
     <div id="unexported-orders-table-container" className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6 mb-12 relative bg-white">
+      <style>{`
+        .ycx-collapsed-hidden {
+          display: none !important;
+        }
+        body.capturing-screenshot tbody.ycx-collapsed-hidden {
+          display: table-row-group !important;
+        }
+        body.capturing-screenshot tfoot.ycx-collapsed-hidden {
+          display: table-footer-group !important;
+        }
+      `}</style>
       <div className="bg-rose-100 px-6 py-4 flex items-center justify-between border-b border-rose-200 relative">
-        <div className="flex items-center gap-3 mx-auto">
-          <h3 className="text-2xl font-black text-rose-700 uppercase tracking-widest text-center" style={{ textShadow: '1px 1px 0px rgba(255,255,255,0.5)' }}>
+        <div className="flex items-center gap-3 pr-[360px]">
+          <h3 className="text-2xl font-black text-rose-700 uppercase tracking-widest text-left" style={{ textShadow: '1px 1px 0px rgba(255,255,255,0.5)' }}>
             {dynamicTitle}
           </h3>
         </div>
-        {onCapture && (
+        <div className="flex items-center gap-2 absolute right-6">
           <button
-            onClick={onCapture}
-            className="px-3 py-1.5 rounded-lg border border-rose-400 text-[10px] font-bold text-rose-700 hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-colors flex items-center gap-1.5 absolute right-6 bg-white no-capture shadow-sm"
+            onClick={handleCopyTags}
+            className="px-3 py-1.5 rounded-lg border border-indigo-400 text-[10px] font-bold text-indigo-700 hover:bg-indigo-500 hover:text-white hover:border-indigo-500 transition-colors flex items-center gap-1.5 bg-white no-capture shadow-sm cursor-pointer"
           >
-            <Camera size={14} />
-            <span>Chụp ảnh</span>
+            <AtSign size={14} />
+            <span>{copied ? 'Đã sao chép!' : 'Tag tên NV'}</span>
           </button>
-        )}
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="px-3 py-1.5 rounded-lg border border-slate-300 text-[10px] font-bold text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1.5 bg-white no-capture shadow-sm cursor-pointer"
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp size={14} />
+                <span>Thu gọn</span>
+              </>
+            ) : (
+              <>
+                <ChevronDown size={14} />
+                <span>Xem chi tiết</span>
+              </>
+            )}
+          </button>
+          {onCapture && (
+            <button
+              onClick={onCapture}
+              className="px-3 py-1.5 rounded-lg border border-rose-400 text-[10px] font-bold text-rose-700 hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-colors flex items-center gap-1.5 bg-white no-capture shadow-sm cursor-pointer"
+            >
+              <Camera size={14} />
+              <span>Chụp ảnh</span>
+            </button>
+          )}
+        </div>
       </div>
       
       <div className="overflow-x-auto p-6 bg-white">
@@ -244,7 +308,7 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
               <th className="py-2.5 px-4 text-left border-r border-b border-slate-300 w-48">Nhân viên</th>
             </tr>
           </thead>
-          <tbody className="text-[13px] font-medium text-slate-700">
+          <tbody className={`text-[13px] font-medium text-slate-700 ${isExpanded ? "" : "ycx-collapsed-hidden"}`}>
             {filteredOrders.length > 0 ? (
               filteredOrders.map((order, index) => (
                 <tr key={index} className="hover:bg-rose-50/50 transition-colors">
@@ -269,7 +333,7 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
               </tr>
             )}
           </tbody>
-          <tfoot className="bg-slate-50 font-black text-slate-800 text-[13px]">
+          <tfoot className={`bg-slate-50 font-black text-slate-800 text-[13px] ${isExpanded ? "" : "ycx-collapsed-hidden"}`}>
             <tr>
               <td colSpan={5} className="py-3 px-4 text-right border-r border-b border-slate-300">TỔNG CỘNG</td>
               <td className="py-3 px-4 text-center border-r border-b border-slate-300 text-rose-600">

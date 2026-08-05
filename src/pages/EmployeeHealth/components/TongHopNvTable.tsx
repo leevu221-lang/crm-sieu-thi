@@ -5,6 +5,7 @@ import { cn } from '../../RTST/utils';
 import { domToPng } from 'modern-screenshot';
 import { saveAs } from 'file-saver';
 import { cleanCategoryName } from './EmployeeDetailTable';
+import { parseStaffMatrixDataRefined } from './SummaryThiDuaTable';
 
 const removeAccents = (str: string): string => {
   return str
@@ -13,244 +14,6 @@ const removeAccents = (str: string): string => {
     .replace(/đ/g, 'd')
     .replace(/Đ/g, 'D')
     .toLowerCase();
-};
-
-// Reusing parsing logic from SummaryThiDuaTable
-const parseStaffMatrixForSummary = (
-  input: string,
-  staffCount: number,
-  categoryTargets: any[],
-  luykeCategories: CategoryData[],
-  daysPassed: number,
-  totalDays: number
-): { staffMatrix: StaffMatrixData[], categories: string[] } => {
-  const raw = input.trim();
-  if (!raw) return { staffMatrix: [], categories: [] };
-  const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
-  let inputCategories: string[] = [];
-  let allColumnHeaders: string[] = [];
-  const categoryToColIdx: Map<string, number> = new Map();
-  let headerStartIdx = -1;
-  let dataStartIdx = -1;
-  let colPosition = 0;
-
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i] === 'Phòng ban') {
-      headerStartIdx = i;
-      continue;
-    }
-    const isEmployeeLine = /[-–—]\s*\d{5,8}\b/.test(lines[i]) || /\b\d{5,8}\s*[-–—]/.test(lines[i]);
-    if (headerStartIdx !== -1 && isEmployeeLine) {
-      dataStartIdx = i;
-      break;
-    }
-    if (headerStartIdx !== -1) {
-      let catName = lines[i].trim();
-
-      const isColumnTypesLine = /^(DTLK|SLLK|SL|DT|Realtime|REALTIME|\s)+$/i.test(catName);
-      const isOnlyNumbers = /^[\d\s,.-]+$/.test(catName);
-      const lowerCatName = catName.toLowerCase();
-      const isExcluded = [
-        'bp all in one', 'bp trưởng ca', 'bp truong ca',
-        'hỗ trợ bi', 'ho tro bi', 'copyright', 'dashboard',
-        'bc ', 'hd sử dụng', 'hd su dung', 'trang chủ', 'trang chu',
-        'báo cáo', 'bao cao', 'khối kinh doanh', 'khoi kinh doanh',
-        'logo bi', 'avatar'
-      ].some(ex => lowerCatName.includes(ex)) ||
-      ((lowerCatName.includes('tổng') || lowerCatName.includes('tong')) && cleanCategoryName(catName) !== 'simtong');
-
-      allColumnHeaders.push(catName);
-
-      if (isColumnTypesLine || isOnlyNumbers || isExcluded) {
-        colPosition++;
-        continue;
-      }
-
-      const targetMatch = catName.match(/(.+?)\bTARGET\b/i);
-      if (targetMatch) {
-        catName = targetMatch[1].trim();
-      }
-
-      const cleanName = cleanCategoryName(catName);
-      if (!categoryToColIdx.has(cleanName)) {
-        categoryToColIdx.set(cleanName, colPosition);
-      }
-
-      inputCategories.push(catName);
-      colPosition++;
-    }
-  }
-
-  let resolvedCategories: string[] = [];
-  if (luykeCategories && luykeCategories.length > 0) {
-    resolvedCategories = luykeCategories.map(c => c.name);
-  } else if (categoryTargets && categoryTargets.length > 0) {
-    resolvedCategories = categoryTargets.map(t => t.name);
-  } else {
-    let displayCategories: string[] = [];
-    const seen = new Set<string>();
-    inputCategories.forEach(catName => {
-      const clean = cleanCategoryName(catName);
-      if (clean && !seen.has(clean)) {
-        seen.add(clean);
-        displayCategories.push(catName);
-      }
-    });
-    resolvedCategories = displayCategories;
-  }
-
-  // Premium custom column order sorting
-  const CUSTOM_COLUMN_ORDER = [
-    "ĐIỆN THOẠI & TABLET ANDROID",
-    "Điện thoại Realme",
-    "Điện thoại Vivo",
-    "Đồng hồ - Phụ kiện",
-    "DOANH THU ĐỒNG HỒ",
-    "Loa",
-    "Laptop",
-    "Camera",
-    "Sim Tổng",
-    "SIM MOBIFONE&VINAPHONE&SIM DMX",
-    "BẢO HIỂM",
-    "BẢO HIỂM THỢ ĐIỆN MÁY XANH",
-    "TRẢ CHẬM HOMECREDIT",
-    "FECREDIT, SHINHAN, SAMSUNG FINANCE+",
-    "TRẢ CHẬM ĐIỆN MÁY VÀ GIA DỤNG",
-    "Ví trả sau",
-    "Cho vay tiền mặt",
-    "Dịch vụ VAS",
-    "NẠP RÚT TIỀN TÀI KHOẢN NGÂN HÀNG THÁNG 07/2026",
-    "MANGO PLUS + ICALLME",
-    "MỞ THẺ TÍN DỤNG TPBANK EVO VÀ VPBANK MWG",
-    "HISENSE",
-    "Điện tử",
-    "Điện tử Samsung",
-    "MÁY GIẶT",
-    "MÁY SẤY & MÁY RỬA CHÉN",
-    "CE HÃNG HAIER + MÁY LẠNH AQUA",
-    "Máy lạnh Casper",
-    "Máy Lạnh NAGAKAWA",
-    "ĐIỆN TỬ & ĐIỆN LẠNH, ĐIỆN GIA DỤNG HÃNG LG",
-    "ĐẶC QUYỀN MÁY GIẶT -TỦ LẠNH -MÁY LẠNH SAMSUNG",
-    "TỦ LẠNH, TỦ ĐÔNG, TỦ MÁT",
-    "Máy Lọc Nước",
-    "Nồi cơm",
-    "Quạt gió",
-    "MÁY LỌC KHÔNG KHÍ - HÚT ẨM - HÚT BỤI"
-  ];
-
-  const removeAccentsLocal = (str: string): string => {
-    return str
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/đ/g, 'd')
-      .replace(/Đ/g, 'D');
-  };
-
-  const getCategorySortWeight = (catName: string): number => {
-    const cleanStr = removeAccentsLocal(catName).toLowerCase().replace(/[^a-z0-9]/g, '');
-    const matchedIdx = CUSTOM_COLUMN_ORDER.findIndex(orderedName => {
-      const cleanOrdered = removeAccentsLocal(orderedName).toLowerCase().replace(/[^a-z0-9]/g, '');
-      return cleanStr === cleanOrdered || cleanStr.includes(cleanOrdered) || cleanOrdered.includes(cleanStr);
-    });
-    return matchedIdx !== -1 ? matchedIdx : 9999;
-  };
-
-  resolvedCategories = [...resolvedCategories].sort((a, b) => {
-    const weightA = getCategorySortWeight(a);
-    const weightB = getCategorySortWeight(b);
-    if (weightA !== weightB) {
-      return weightA - weightB;
-    }
-    return a.localeCompare(b, 'vi');
-  });
-
-  const targetPerStaffPerCat: Record<string, number> = {};
-  if (luykeCategories && luykeCategories.length > 0) {
-    luykeCategories.forEach((cat: any) => {
-      const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCategoryName(cat.name));
-      const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
-        ? matchingTarget.adjustedTarget
-        : cat.target;
-      targetPerStaffPerCat[cleanCategoryName(cat.name)] = baseTarget / staffCount;
-    });
-  } else if (categoryTargets && categoryTargets.length > 0) {
-    categoryTargets.forEach((cat: any) => {
-      const baseTarget = (typeof cat.adjustedTarget === 'number')
-        ? cat.adjustedTarget
-        : (cat.target || 0);
-      targetPerStaffPerCat[cleanCategoryName(cat.name)] = baseTarget / staffCount;
-    });
-  }
-
-  const results: StaffMatrixData[] = [];
-  const excludedKeywords = ['Tổng', 'BP All In One', 'BP Trưởng Ca', 'Hỗ trợ BI', 'Copyright', 'Dashboard', 'BC ', 'HD sử dụng', 'Trang chủ', 'Báo cáo', 'Khối kinh doanh', 'Logo BI', 'avatar'];
-  const dataLines = lines.slice(dataStartIdx);
-
-  for (const line of dataLines) {
-    let parts = line.split('\t').map(p => p.trim());
-    if (parts.length < 3) {
-      parts = line.split(/ {2,}/).map(p => p.trim()).filter(p => p.length > 0);
-    }
-
-    const namePart = parts[0];
-    if (!namePart) continue;
-    if (excludedKeywords.some(ex => namePart.includes(ex))) continue;
-
-    const nameIdParts = namePart.split(' - ').map(s => s.trim());
-    if (nameIdParts.length < 2) continue;
-
-    const name = nameIdParts[0];
-    const id = nameIdParts[1];
-
-    const nameParts2 = name.trim().split(' ');
-    const shortName = nameParts2[nameParts2.length - 1].toUpperCase();
-
-    const dataStartIndex = 1;
-    const rawInputValues = parts.slice(dataStartIndex).map(v => {
-      if (!v || v.trim() === '') return 0;
-      const clean = v.replace(/,/g, '');
-      const num = parseFloat(clean);
-      return isNaN(num) ? 0 : num;
-    });
-
-    const values: number[] = [];
-    const projectedRates: number[] = [];
-    const actualPercentHTs: number[] = [];
-    let achievedCount = 0;
-
-    resolvedCategories.forEach((catName) => {
-      const cleanName = cleanCategoryName(catName);
-      const colIdx = categoryToColIdx.get(cleanName);
-      const accumulated = (colIdx !== undefined && colIdx < rawInputValues.length) ? (rawInputValues[colIdx] || 0) : 0;
-      values.push(accumulated);
-
-      const target = targetPerStaffPerCat[cleanName] || 0;
-      let actualRate = target > 0 ? (accumulated / target) * 100 : 0;
-      actualPercentHTs.push(actualRate);
-
-      let projectedRate = 0;
-      if (target > 0 && daysPassed > 0) {
-        projectedRate = ((accumulated / daysPassed) * totalDays) / target * 100;
-      }
-      projectedRates.push(projectedRate);
-      if (Math.round(projectedRate) >= 100) achievedCount++;
-    });
-
-    results.push({
-      displayName: `${id} - ${name.toUpperCase()}`,
-      fullId: id,
-      shortName: `${id} - ${shortName}`,
-      achieved: achievedCount,
-      totalCats: resolvedCategories.length,
-      rate: resolvedCategories.length > 0 ? achievedCount / resolvedCategories.length : 0,
-      rawValues: values,
-      projectedRates,
-      actualPercentHTs
-    });
-  }
-  return { staffMatrix: results, categories: resolvedCategories };
 };
 
 interface TongHopNvTableProps {
@@ -291,7 +54,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
 
   // Parse thi đua data
   const { staffMatrix, categories } = useMemo(() =>
-    parseStaffMatrixForSummary(
+    parseStaffMatrixDataRefined(
       thiDuaNv,
       staffCount,
       categoryTargets,
@@ -575,15 +338,21 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
     setIsCapturing(true);
 
     const originalElement = captureRef.current;
+    const tableContainer = originalElement.querySelector('.overflow-x-auto');
+    // originalElement has p-4 (16px padding on all sides, total 32px)
+    const contentWidth = Math.max(originalElement.scrollWidth - 32, tableContainer ? tableContainer.scrollWidth : 0);
+    const contentHeight = Math.max(originalElement.scrollHeight - 32, tableContainer ? tableContainer.scrollHeight : 0);
+    
+    // We want 32px padding on all sides in the final image
+    const actualWidth = contentWidth + 64;
     
     // Create a temporary container to hold the clone
     const container = document.createElement('div');
     container.style.position = 'absolute';
-    container.style.top = '0';
-    container.style.left = '0';
-    container.style.width = '3000px'; // Extremely wide to prevent wrapping
-    container.style.height = '0';
-    container.style.overflow = 'hidden';
+    container.style.top = '-9999px';
+    container.style.left = '-9999px';
+    container.style.width = `${actualWidth}px`;
+    container.style.height = 'auto';
     container.style.zIndex = '-9999';
     container.style.pointerEvents = 'none';
     
@@ -596,15 +365,15 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
     });
     
     // Set clone styling to take full layout unconstrained
-    clone.style.width = 'max-content';
-    clone.style.height = 'auto';
+    clone.style.width = `${actualWidth}px`;
+    clone.style.height = 'max-content';
     clone.style.margin = '0';
     clone.style.padding = '32px'; // 32px white border all around
     clone.style.backgroundColor = '#ffffff';
     clone.style.display = 'inline-block';
     
     // Make sure overflow wrappers in the clone are visible
-    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden');
+    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
     scrollContainers.forEach((el) => {
       const htmlEl = el as HTMLElement;
       htmlEl.style.overflow = 'visible';
@@ -612,30 +381,21 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
       htmlEl.style.height = 'auto';
       htmlEl.style.maxWidth = 'none';
       htmlEl.style.maxHeight = 'none';
+      el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
     });
 
-    const table = clone.querySelector('table') as HTMLTableElement;
-    if (table) {
-      table.style.width = 'auto';
-      table.style.minWidth = 'auto';
-      table.style.tableLayout = 'auto';
-      
-      // Remove fixed widths on all cells so columns auto-shrink to fit content
-      const allCells = table.querySelectorAll('th, td');
-      allCells.forEach((cell) => {
-        const htmlCell = cell as HTMLElement;
-        htmlCell.style.width = 'auto';
-        htmlCell.style.minWidth = 'auto';
-        htmlCell.style.maxWidth = 'none';
-        htmlCell.style.whiteSpace = 'nowrap';
-        htmlCell.style.paddingLeft = '8px';
-        htmlCell.style.paddingRight = '8px';
-      });
-
-      // Remove colgroup if exists
-      const colgroup = table.querySelector('colgroup');
-      if (colgroup) colgroup.remove();
-    }
+    // Force hide all scrollbars in the captured image
+    const hideScrollbarStyle = document.createElement('style');
+    hideScrollbarStyle.innerHTML = `
+      *::-webkit-scrollbar {
+        display: none !important;
+      }
+      * {
+        -ms-overflow-style: none !important;
+        scrollbar-width: none !important;
+      }
+    `;
+    clone.appendChild(hideScrollbarStyle);
 
     container.appendChild(clone);
     document.body.appendChild(container);
@@ -646,6 +406,14 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
       const dataUrl = await domToPng(clone, {
         backgroundColor: '#ffffff',
         scale: 2,
+        width: actualWidth,
+        height: clone.scrollHeight,
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left',
+          width: `${actualWidth}px`,
+          height: `${clone.scrollHeight}px`
+        }
       });
 
       setPreviewImage(dataUrl);
@@ -719,16 +487,16 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
           <table className="w-full border-collapse table-fixed" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", minWidth: '1230px' }}>
             <thead>
               <tr className="h-[50px] text-[14px] font-black uppercase tracking-tight">
-                <th style={{ fontWeight: 900, backgroundColor: '#00965e', width: '70px' }} className="px-1 py-2 text-center border-r border-white/20 text-white">HẠNG</th>
-                <th style={{ fontWeight: 900, backgroundColor: '#00965e', width: '260px' }} className="px-2 py-2 text-center border-r border-white/20 text-white">NHÂN VIÊN</th>
-                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'achieved' ? '#005f3a' : '#00965e', width: '80px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#007b4e] transition-colors" onClick={() => handleSort('achieved')}>ĐÃ VỀ{renderSortArrows('achieved')}</th>
+                <th style={{ fontWeight: 900, backgroundColor: '#10b981', width: '70px' }} className="px-1 py-2 text-center border-r border-white/20 text-white">HẠNG</th>
+                <th style={{ fontWeight: 900, backgroundColor: '#10b981', width: '260px' }} className="px-2 py-2 text-center border-r border-white/20 text-white">NHÂN VIÊN</th>
+                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'achieved' ? '#059669' : '#10b981', width: '80px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#059669] transition-colors" onClick={() => handleSort('achieved')}>ĐÃ VỀ{renderSortArrows('achieved')}</th>
                 <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'dtThuc' ? '#d97706' : '#f59e0b', width: '130px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#d97706] transition-colors" onClick={() => handleSort('dtThuc')}>DOANH THU THỰC{renderSortArrows('dtThuc')}</th>
                 <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'lkQuyDoi' ? '#d97706' : '#f59e0b', width: '140px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#d97706] transition-colors" onClick={() => handleSort('lkQuyDoi')}>LUỸ KẾ QUY ĐỔI{renderSortArrows('lkQuyDoi')}</th>
                 <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'effQd' ? '#d97706' : '#f59e0b', width: '110px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#d97706] transition-colors" onClick={() => handleSort('effQd')}>HIỆU QUẢ QĐ{renderSortArrows('effQd')}</th>
-                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'traCham' ? '#005f3a' : '#00965e', width: '110px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#007b4e] transition-colors" onClick={() => handleSort('traCham')}>TRẢ CHẬM{renderSortArrows('traCham')}</th>
-                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'target' ? '#005f3a' : '#00965e', width: '130px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#007b4e] transition-colors" onClick={() => handleSort('target')}>MỤC TIÊU THÁNG{renderSortArrows('target')}</th>
-                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'remaining' ? '#005f3a' : '#00965e', width: '110px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#007b4e] transition-colors" onClick={() => handleSort('remaining')}>CÒN LẠI{renderSortArrows('remaining')}</th>
-                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'projected' ? '#005f3a' : '#00965e', width: '90px' }} className="px-1 py-2 text-center text-white cursor-pointer select-none hover:bg-[#007b4e] transition-colors" onClick={() => handleSort('projected')}>DỰ KIẾN{renderSortArrows('projected')}</th>
+                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'traCham' ? '#059669' : '#10b981', width: '110px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#059669] transition-colors" onClick={() => handleSort('traCham')}>TRẢ CHẬM{renderSortArrows('traCham')}</th>
+                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'target' ? '#059669' : '#10b981', width: '130px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#059669] transition-colors" onClick={() => handleSort('target')}>MỤC TIÊU THÁNG{renderSortArrows('target')}</th>
+                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'remaining' ? '#059669' : '#10b981', width: '110px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#059669] transition-colors" onClick={() => handleSort('remaining')}>CÒN LẠI{renderSortArrows('remaining')}</th>
+                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'projected' ? '#059669' : '#10b981', width: '90px' }} className="px-1 py-2 text-center text-white cursor-pointer select-none hover:bg-[#059669] transition-colors" onClick={() => handleSort('projected')}>DỰ KIẾN{renderSortArrows('projected')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -936,8 +704,8 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
                 <span className="text-lg">💡</span> Mẹo: Nhấp chuột phải (hoặc nhấn giữ trên điện thoại) vào ảnh và chọn "Sao chép hình ảnh"
               </p>
             </div>
-            <div className="overflow-auto p-4 bg-slate-50">
-              <img src={previewImage} alt="Preview" className="max-w-full h-auto shadow-sm" />
+            <div className="p-4 bg-slate-50 flex items-center justify-center min-h-[50vh] overflow-hidden">
+              <img src={previewImage} alt="Preview" className="max-w-full max-h-[calc(90vh-120px)] object-contain shadow-sm rounded-xl border border-slate-200" />
             </div>
           </div>
         </div>

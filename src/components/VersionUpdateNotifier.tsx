@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { RefreshCw, Sparkles, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function VersionUpdateNotifier() {
+  const { userProfile } = useAuth();
   const [hasNewVersion, setHasNewVersion] = useState(false);
   const initialVersionRef = useRef<string | null>(null);
   const [isDismissed, setIsDismissed] = useState(false);
@@ -20,7 +22,12 @@ export default function VersionUpdateNotifier() {
           console.log('[VersionUpdateNotifier] Initial app version:', data.version, 'Commit:', data.commit);
         } else if (initialVersionRef.current !== data.version) {
           console.log('[VersionUpdateNotifier] New version detected! Latest:', data.version, 'Local:', initialVersionRef.current);
-          setHasNewVersion(true);
+          if (userProfile?.username === '43751') {
+            setHasNewVersion(true);
+          } else {
+            // Silently reload in the background for normal users to apply updates immediately
+            window.location.reload();
+          }
         }
       } catch (err) {
         console.warn('[VersionUpdateNotifier] Error checking version:', err);
@@ -45,7 +52,7 @@ export default function VersionUpdateNotifier() {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [userProfile?.username]);
 
   const handleReload = () => {
     // Force reload bypassing the cache
@@ -54,7 +61,7 @@ export default function VersionUpdateNotifier() {
 
   return (
     <AnimatePresence>
-      {hasNewVersion && (
+      {hasNewVersion && userProfile?.username === '43751' && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           {/* Lớp phủ mờ chặn tương tác toàn bộ trang */}
           <motion.div

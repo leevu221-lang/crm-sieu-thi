@@ -31,13 +31,12 @@ import {
   X,
   Upload,
   UploadCloud,
-  Target,
-  History
+  Target
 } from 'lucide-react';
 import { cn, formatShortCurrency } from '../utils';
 import { cleanBiReportText } from '../../../utils/rtstHelpers';
 import { useNotification } from '../../../contexts/NotificationContext';
-import HistoryDataModal, { saveHistorySnapshot, DataSnapshot } from './HistoryDataModal';
+
 
 interface InputSectionProps {
   marketInput: string;
@@ -71,6 +70,7 @@ interface InputSectionProps {
   onAnalyze: () => void;
   onSaveRealtime: (silent?: boolean) => void;
   clearField?: (setter: (val: string) => void) => void;
+  forceDeleteAllData?: () => Promise<void>;
   onSaveLuyke: (isSilent?: boolean, source?: 'staff' | 'targets' | 'auto' | string, storeName?: string, overrideTargets?: any[], fieldName?: string) => void;
   onSyncRealtime: () => void;
   activeStore: string;
@@ -162,6 +162,7 @@ const InputSection: React.FC<InputSectionProps> = ({
   onAnalyze,
   onSaveRealtime,
   clearField,
+  forceDeleteAllData,
   onSaveLuyke,
   onSyncRealtime,
   activeStore,
@@ -219,52 +220,14 @@ const InputSection: React.FC<InputSectionProps> = ({
 }) => {
   const { showNotification } = useNotification();
   const [innerTab, setInnerTab] = useState<'DU_LIEU_NGUON' | 'TARGET_DOANH_THU' | 'TARGET_THI_DUA'>('DU_LIEU_NGUON');
-  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
-  const triggerAutoSaveSnapshot = () => {
-    saveHistorySnapshot(
-      {
-        marketInput,
-        categoryRevenueInput,
-        clusterSummaryInput,
-        categoryInput,
-        categoryTargetInput,
-        clusterCategoryInput,
-        staffInput,
-        staffCategoryInput,
-        banKemNv,
-        phucVu,
-        tragopNv,
-      },
-      activeStore
-    );
-  };
 
-  const handleRestoreSnapshot = (snapshot: DataSnapshot) => {
-    const p = snapshot.payload;
-    if (p.marketInput !== undefined) setMarketInput(p.marketInput);
-    if (p.categoryRevenueInput !== undefined) setCategoryRevenueInput(p.categoryRevenueInput);
-    if (p.clusterSummaryInput !== undefined) setClusterSummaryInput(p.clusterSummaryInput);
-    if (p.categoryInput !== undefined) setCategoryInput(p.categoryInput);
-    if (p.categoryTargetInput !== undefined) setCategoryTargetInput(p.categoryTargetInput);
-    if (p.clusterCategoryInput !== undefined && setClusterCategoryInput) setClusterCategoryInput(p.clusterCategoryInput);
-    if (p.staffInput !== undefined) setStaffInput(p.staffInput);
-    if (p.staffCategoryInput !== undefined) setStaffCategoryInput(p.staffCategoryInput);
-    if (p.banKemNv !== undefined && setBanKemNv) setBanKemNv(p.banKemNv);
-    if (p.phucVu !== undefined && setPhucVu) setPhucVu(p.phucVu);
-    if (p.tragopNv !== undefined && setTragopNv) setTragopNv(p.tragopNv);
+  const handleResetAllData = async () => {
+    setIsResetting(true);
 
-    setTimeout(() => {
-      onSaveRealtime(false);
-      if (onSaveLuyke) onSaveLuyke(false, 'auto', undefined, undefined, 'RESTORE');
-      showNotification(`Đã khôi phục thành công dữ liệu ngày ${snapshot.dateFormatted} (${snapshot.timeFormatted})!`, 'success');
-    }, 150);
-  };
-
-  const handleResetAllData = () => {
-    if (!window.confirm("Bạn có chắc chắn muốn reset toàn bộ dữ liệu khai báo của siêu thị này?")) return;
-
-    // Clear all inputs
+    // Clear all local inputs immediately
     setMarketInput('');
     setCategoryInput('');
     setCategoryTargetInput('');
@@ -284,22 +247,14 @@ const InputSection: React.FC<InputSectionProps> = ({
     if (setTragopMatran) setTragopMatran('');
     if (setTragopNv) setTragopNv('');
 
-    // Clear localStorage
-    localStorage.removeItem('rtst_market_input');
-    localStorage.removeItem('rtst_category_input');
-    localStorage.removeItem('rtst_ycx_data');
-    localStorage.removeItem('rtst_ycx_file_name');
-    localStorage.removeItem('rtst_cluster_summary_input');
-    localStorage.removeItem('rtst_cluster_category_input');
-    localStorage.removeItem('rtst_category_revenue_input');
-    localStorage.removeItem('RTST_CATEGORY_TARGET_INPUT');
+    // FORCE DELETE from Firebase immediately — block all restore for 30s
+    if (forceDeleteAllData) {
+      await forceDeleteAllData();
+    }
 
-    // Trigger save to Supabase
-    setTimeout(() => {
-      onSaveRealtime(true);
-      if (onSaveLuyke) onSaveLuyke(true, 'auto');
-      showNotification('Đã reset toàn bộ dữ liệu khai báo thành công!', 'success');
-    }, 200);
+    showNotification('Đã XOÁ TOÀN BỘ dữ liệu trên Firebase thành công!', 'success');
+    setIsResetting(false);
+    setShowResetConfirm(false);
   };
 
   const handlePhucVuUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -524,20 +479,10 @@ const InputSection: React.FC<InputSectionProps> = ({
             <p className="text-[12px] text-slate-400 mt-1">Bấm vào các ô và dán dữ liệu (Ctrl+V) từ báo cáo BI.</p>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                triggerAutoSaveSnapshot();
-                setIsHistoryModalOpen(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 hover:border-indigo-300 rounded-xl text-[13px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer active:scale-95 shadow-sm"
-              title="Lịch sử dán dữ liệu và khôi phục lại dữ liệu ngày trước đó"
-            >
-              <History size={14} />
-              <span>LỊCH SỬ CẬP NHẬT DỮ LIỆU</span>
-            </button>
+
 
             <button
-              onClick={handleResetAllData}
+              onClick={() => setShowResetConfirm(true)}
               className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300 rounded-xl text-[13px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer active:scale-95 shadow-sm"
               title="Reset toàn bộ dữ liệu khai báo"
             >
@@ -604,11 +549,11 @@ const InputSection: React.FC<InputSectionProps> = ({
                           const pastedText = e.clipboardData.getData('text');
                           if (pastedText) {
                             item.onChange(pastedText);
-                            // Save to Firebase immediately after paste (don't wait for 4s auto-save)
+                            // Save to Firebase immediately after paste
                             setTimeout(() => {
                               if (item.onBlur) item.onBlur();
                               if (onSaveRealtime) onSaveRealtime(true);
-                            }, 300);
+                            }, 50);
                           }
                         }}
                         onBlur={item.onBlur}
@@ -891,9 +836,21 @@ const InputSection: React.FC<InputSectionProps> = ({
                         <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0", cardPhucVu ? "bg-teal-100 text-teal-600" : "bg-indigo-100 text-indigo-600")}>
                           <UploadCloud size={13} />
                         </div>
-                        <span className={cn("text-[13px] font-black uppercase tracking-wide", cardPhucVu ? "text-teal-700" : "text-slate-700")}>
-                          {cardPhucVu ? 'ĐÃ TẢI DỮ LIỆU' : 'CHỌN FILE DỮ LIỆU'}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={cn("text-[13px] font-black uppercase tracking-wide", cardPhucVu ? "text-teal-700" : "text-slate-700")}>
+                            {cardPhucVu ? 'ĐÃ TẢI DỮ LIỆU' : 'CHỌN FILE DỮ LIỆU'}
+                          </span>
+                          <a 
+                            href="https://crm.thegioididong.com/Reviewuser/ReportCustomerRatings" 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-indigo-500 hover:text-indigo-700 z-20 relative bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-md transition-colors"
+                            title="Lấy file Báo cáo Phục vụ từ CRM"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ExternalLink size={14} />
+                          </a>
+                        </div>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <div className={cn("text-[9px] font-black px-1.5 py-0.5 rounded-md border", cardPhucVu ? "text-teal-500 bg-white border-teal-200" : "text-slate-400 bg-white border-slate-200")}>
@@ -1200,12 +1157,88 @@ const InputSection: React.FC<InputSectionProps> = ({
       )}
 
 
-      <HistoryDataModal
-        isOpen={isHistoryModalOpen}
-        onClose={() => setIsHistoryModalOpen(false)}
-        onRestore={handleRestoreSnapshot}
-        showNotification={showNotification}
-      />
+
+
+      {/* Custom Reset Confirmation Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center" onClick={() => !isResetting && setShowResetConfirm(false)}>
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" style={{ animation: 'fadeIn 0.2s ease-out' }} />
+          
+          {/* Modal */}
+          <div 
+            className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden"
+            style={{ animation: 'slideUp 0.3s ease-out' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Red gradient header */}
+            <div className="bg-gradient-to-r from-red-500 to-rose-600 px-6 py-5">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+                  <AlertCircle size={24} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="text-white font-bold text-lg">Xoá toàn bộ dữ liệu</h3>
+                  <p className="text-white/80 text-sm">Hành động không thể hoàn tác</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Body */}
+            <div className="px-6 py-5">
+              <p className="text-slate-700 text-[15px] leading-relaxed">
+                Bạn có chắc chắn muốn <strong className="text-red-600">XOÁ TOÀN BỘ</strong> dữ liệu khai báo của siêu thị <strong className="text-slate-900">{activeStore || 'này'}</strong>?
+              </p>
+              <div className="mt-3 bg-red-50 border border-red-100 rounded-xl p-3">
+                <p className="text-red-600 text-[13px] font-medium flex items-start gap-2">
+                  <ShieldAlert size={16} className="mt-0.5 flex-shrink-0" />
+                  <span>Tất cả dữ liệu Realtime, Luỹ kế, Nhân viên, Trả góp sẽ bị xoá vĩnh viễn trên Firebase.</span>
+                </p>
+              </div>
+            </div>
+            
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-50 flex items-center justify-end gap-3 border-t border-slate-100">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                disabled={isResetting}
+                className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-[14px] font-semibold transition-all cursor-pointer disabled:opacity-50"
+              >
+                Huỷ bỏ
+              </button>
+              <button
+                onClick={handleResetAllData}
+                disabled={isResetting}
+                className="px-5 py-2.5 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-xl text-[14px] font-bold transition-all cursor-pointer active:scale-95 shadow-lg shadow-red-200 disabled:opacity-70 flex items-center gap-2"
+              >
+                {isResetting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Đang xoá...</span>
+                  </>
+                ) : (
+                  <>
+                    <X size={16} />
+                    <span>Xoá vĩnh viễn</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <style>{`
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+            @keyframes slideUp {
+              from { opacity: 0; transform: translateY(20px) scale(0.95); }
+              to { opacity: 1; transform: translateY(0) scale(1); }
+            }
+          `}</style>
+        </div>
+      )}
+
     </div>
   );
 };

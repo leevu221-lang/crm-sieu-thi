@@ -50,6 +50,23 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export const formatCurrencyValue = (val: number | null | undefined): string => {
+  if (val === null || val === undefined) return '';
+  const absVal = Math.abs(val);
+  if (absVal >= 1000000000) {
+    // 1 billion (1 Tỷ) and above
+    const ty = val / 1000000000;
+    const formatted = parseFloat(ty.toFixed(3)).toLocaleString('vi-VN');
+    return `${formatted} Tỷ`;
+  }
+  if (absVal >= 1000000) {
+    // 1 million (1 Tr) up to 999 million
+    const tr = val / 1000000;
+    return `${Math.round(tr).toLocaleString('vi-VN')} Tr`;
+  }
+  return Math.round(val).toLocaleString('vi-VN');
+};
+
 export function formatShortCurrency(val: number): string {
   if (val === 0) return '';
   if (val >= 1000000) {
@@ -230,7 +247,8 @@ export const isValidStoreName = (name: string): boolean => {
   if (!name || typeof name !== 'string') return false;
   const trimmed = name.trim();
   if (trimmed.length === 0) return false;
-  if (trimmed.toUpperCase() === 'ALL' || trimmed === 'TẤT CẢ') return false;
+  const upper = trimmed.toUpperCase();
+  if (upper === 'ALL' || upper === 'TẤT CẢ' || upper === 'TỔNG' || upper === 'TONG' || upper.includes('TỔNG HỢP') || upper.includes('TỔNG CỘNG') || upper.includes('TONG HOP') || upper.includes('GRAND TOTAL')) return false;
   return true;
 };
 
@@ -1711,17 +1729,10 @@ export const minifyYcxData = (data: string): string => {
     validRows.push(rows[i]);
   }
 
-  // Filter rows and clear unused columns
+  // Keep all data rows instead of filtering them out to prevent data loss in the source table display
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const cols = rows[i];
     if (!cols || cols.length < 3) continue;
-
-    const status = colStatus !== -1 ? String(cols[colStatus] || '').trim().toLowerCase() : '';
-    const returnStatus = colReturnStatus !== -1 ? String(cols[colReturnStatus] || '').trim().toLowerCase() : '';
-
-    if (colStatus !== -1 && (status.includes('hủy') || status.includes('huy') || status === 'đã trả')) continue;
-    if (colReturnStatus !== -1 && returnStatus.includes('trả') && !returnStatus.includes('chưa trả')) continue;
-
     validRows.push(cols);
   }
 
@@ -2350,7 +2361,7 @@ export const safeSetItem = (key: string, value: string) => {
   }
 };
 
-export const parseStaffValueList = (text: string): { id: string; name: string; value: number }[] => {
+export const parseStaffValueList = (text: string, targetHeaderKeyword?: string): { id: string; name: string; value: number }[] => {
   if (!text) return [];
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   const results: { id: string; name: string; value: number }[] = [];
@@ -2359,6 +2370,24 @@ export const parseStaffValueList = (text: string): { id: string; name: string; v
     'tong', 'tong cong', 'total', 'nhan vien', 'ho ten', 'msnv', 'ma nv', 'dtqd', 'thu nhap',
     'stt', 'luong', 'thuong', 'doanh thu', 'he so'
   ];
+
+  let targetColIdx = -1;
+  if (targetHeaderKeyword && targetHeaderKeyword !== 'LAST_COLUMN') {
+    const keywordNorm = normalize(targetHeaderKeyword);
+    for (let i = 0; i < Math.min(lines.length, 5); i++) {
+      let cols = lines[i].split('\t').map(c => c.trim());
+      if (cols.length < 2) {
+        cols = lines[i].split(/ {2,}/).map(c => c.trim()).filter(Boolean);
+      }
+      if (cols.length >= 2) {
+        const idx = cols.findIndex(c => normalize(c).includes(keywordNorm));
+        if (idx !== -1) {
+          targetColIdx = idx;
+          break;
+        }
+      }
+    }
+  }
 
   lines.forEach(line => {
     let cols = line.split('\t').map(c => c.trim());
@@ -2409,7 +2438,46 @@ export const parseStaffValueList = (text: string): { id: string; name: string; v
     });
 
     // Assign ID and Value based on pure numbers count
-    if (pureNumbers.length > 0) {
+    if (targetHeaderKeyword === 'LAST_COLUMN' && pureNumbers.length > 0) {
+      // Find the last pure number
+      const nonIdNumbers = pureNumbers.filter(pn => !/^\d{4,8}$/.test(pn.raw));
+      if (nonIdNumbers.length > 0) {
+        value = nonIdNumbers[nonIdNumbers.length - 1].val;
+      } else {
+        value = pureNumbers[pureNumbers.length - 1].val;
+      }
+      
+      if (!id) {
+        const idIndex = pureNumbers.findIndex(pn => /^\d{4,8}$/.test(pn.raw));
+        if (idIndex !== -1) id = pureNumbers[idIndex].raw;
+        else {
+          textColumns.forEach(tc => {
+            const m = tc.val.match(/\b(\d{4,8})\b/);
+            if (m) id = m[1];
+          });
+        }
+      }
+    } else if (targetColIdx !== -1 && cols.length > targetColIdx) {
+      const colVal = cols[targetColIdx];
+      const colCleaned = colVal.trim().toLowerCase().replace(/(h|tr|đ|vnd|hours|tr\.|đ\.|%)/g, '').trim();
+      value = cleanNum(colCleaned);
+      
+      if (!id && pureNumbers.length > 0) {
+        const idIndex = pureNumbers.findIndex(pn => /^\d{4,8}$/.test(pn.raw) && pn.colIdx !== targetColIdx);
+        if (idIndex !== -1) {
+          id = pureNumbers[idIndex].raw;
+        } else {
+          const firstOther = pureNumbers.find(pn => pn.colIdx !== targetColIdx);
+          if (firstOther) id = firstOther.raw;
+        }
+      }
+      if (!id) {
+        textColumns.forEach(tc => {
+          const m = tc.val.match(/\b(\d{4,8})\b/);
+          if (m) id = m[1];
+        });
+      }
+    } else if (pureNumbers.length > 0) {
       if (pureNumbers.length >= 2) {
         // We have at least 2 numbers. Let's see which one is the Employee ID.
         // Usually, a number matching a 4-8 digit pattern is the ID.
@@ -2436,7 +2504,7 @@ export const parseStaffValueList = (text: string): { id: string; name: string; v
     // Determine Name
     if (!name) {
       const nameCandidates = textColumns
-        .filter(tc => !tc.val.includes(id) && tc.val !== id && /[a-zA-Z]/.test(normalize(tc.val)))
+        .filter(tc => (!id || !tc.val.includes(id)) && tc.val !== id && /[a-zA-Z]/.test(normalize(tc.val)))
         .map(tc => tc.val);
       if (nameCandidates.length > 0) {
         name = nameCandidates[0];

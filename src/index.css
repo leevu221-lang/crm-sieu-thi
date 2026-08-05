@@ -179,11 +179,13 @@ body.capturing-screenshot .capture-only-title {
   display: block !important;
 }
 
-body.capturing-screenshot .sticky {
+body.capturing-screenshot .sticky,
+.export-short-mode .sticky {
   position: static !important;
 }
 
-body.capturing-screenshot .bg-slate-50 {
+body.capturing-screenshot .bg-slate-50,
+.export-short-mode .bg-slate-50 {
   background-color: #ffffff !important;
 }
 

@@ -435,6 +435,8 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
     clone.style.backgroundColor = '#ffffff';
     clone.style.display = 'inline-block';
 
+
+
     const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
     scrollContainers.forEach((el) => {
       const htmlEl = el as HTMLElement;

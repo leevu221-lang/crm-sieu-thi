@@ -641,7 +641,7 @@ export const getRowConversionRate = (
   const catLower = columnAO.toLowerCase().trim();
   
     // Special check for category 1841, 1994 or general/insurance categories
-  if (catLower.includes('1841') || catLower.includes('1994') || catLower.includes('khác') || catLower.includes('khac') || catLower.includes('bảo hiểm') || catLower.includes('bao hiem') || !catLower) {
+  if (catLower.includes('1841') || catLower.includes('1994') || catLower.includes('khác') || catLower.includes('khac') || ((catLower.includes('bảo hiểm') || catLower.includes('bao hiem')) && !catLower.includes('nón bảo hiểm') && !catLower.includes('non bao hiem') && !catLower.includes('mũ bảo hiểm') && !catLower.includes('mu bao hiem')) || !catLower) {
     const rowStrLower = rowString.toLowerCase();
     const hasInsuranceKeyword = 
       rowStrLower.includes('1 đổi 1') || rowStrLower.includes('1 doi 1') ||
@@ -650,7 +650,7 @@ export const getRowConversionRate = (
       rowStrLower.includes('rơi vỡ') || rowStrLower.includes('roi vo') || rowStrLower.includes('bhrv') ||
       rowStrLower.includes('sc+') ||
       rowStrLower.includes('xe máy') || rowStrLower.includes('xe may') || rowStrLower.includes('bhxm') ||
-      rowStrLower.includes('bảo hiểm') || rowStrLower.includes('bao hiem') ||
+      ((rowStrLower.includes('bảo hiểm') || rowStrLower.includes('bao hiem')) && !rowStrLower.includes('nón bảo hiểm') && !rowStrLower.includes('non bao hiem') && !rowStrLower.includes('mũ bảo hiểm') && !rowStrLower.includes('mu bao hiem')) ||
       catLower.includes('1994') || rowStrLower.includes('1994') ||
       rowStrLower.includes('bảo hành') || rowStrLower.includes('bảo dưỡng') ||
       rowStrLower.includes('bao hanh') || rowStrLower.includes('bao duong');

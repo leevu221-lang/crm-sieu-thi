@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { HeartPulse, Camera, TrendingUp, Search, ChevronDown, ChevronUp, Check, MessageSquare, FileText, ChevronRight, LayoutGrid, Info, Users, Printer, UploadCloud, Trophy, TrendingDown, Gift, Target, Trash2, Clock, X, ArrowLeft, ArrowRight, ArrowLeftRight, RotateCcw, RefreshCw } from 'lucide-react';
+import { HeartPulse, Camera, TrendingUp, Search, ChevronDown, ChevronUp, Check, MessageSquare, FileText, ChevronRight, LayoutGrid, Info, Users, Printer, UploadCloud, Trophy, TrendingDown, Gift, Target, Trash2, Clock, X, ArrowLeft, ArrowRight, ArrowLeftRight, RotateCcw, RefreshCw, AlertCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as htmlToImage from 'html-to-image';
@@ -18,12 +18,14 @@ import { useLuykeData } from './RTST/hooks/useLuykeData';
 import { useAuth } from '../contexts/AuthContext';
 import { useMarket } from '../contexts/MarketContext';
 import { useNotification } from '../contexts/NotificationContext';
+import { useStore } from '../contexts/StoreContext';
 import RevenueRankingTableQd from './EmployeeHealth/components/RevenueRankingTableQd';
 import EmployeeDetailTable from './EmployeeHealth/components/EmployeeDetailTable';
 import SummaryThiDuaTable, { parseStaffMatrixDataRefined } from './EmployeeHealth/components/SummaryThiDuaTable';
 import CategoryDetailByStaffTable from './EmployeeHealth/components/CategoryDetailByStaffTable';
 import TongHopNvTable from './EmployeeHealth/components/TongHopNvTable';
-import { cn, parseStaffRankData, parseYcxData, normalizeStoreId, parseStaffValueList, normalize, parseCategoryData, cleanCategoryName, isKhoLuuDong } from './RTST/utils';
+import { cn, parseStaffRankData, parseYcxData, normalizeStoreId, parseStaffValueList, normalize, parseCategoryData, cleanCategoryName, isKhoLuuDong, formatCurrencyValue } from './RTST/utils';
+import { useCategoryConfig } from '../hooks/useCategoryConfig';
 
 const removeAccents = (str: string): string => {
   return str
@@ -255,27 +257,39 @@ const parseBonusData = (text: string, staffObj: any, marketFilter: string) => {
   return { tong: foundRow ? tong : null, details: foundRow ? details : Array(8).fill(null) };
 };
 
-const EmployeeHealth: React.FC = () => {
-  const { userProfile } = useAuth();
+const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean }> = ({ pageMaintenanceState = {}, isUser43751Local = false }) => {
+  const { userProfile, authEmployeeName } = useAuth();
+  const { categoryConfig } = useCategoryConfig();
   const { showNotification } = useNotification();
   const { marketFilter, setMarketFilter, setAvailableMarkets } = useMarket();
+  const { activeHealthTab: activeTab, setActiveHealthTab: setActiveTab } = useStore();
   const [maKho, setMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
   const [isCapturing, setIsCapturing] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const [isTagCopied, setIsTagCopied] = useState(false);
   const pendingCopyStaffIdRef = useRef<{ staffId: string; nextStaffId: string } | null>(null);
   const captureRef = useRef<HTMLDivElement>(null);
   const capturePhucVuRef = useRef<HTMLDivElement>(null);
   const captureBanKemRef = useRef<HTMLDivElement>(null);
   const captureThuongNvRef = useRef<HTMLDivElement>(null);
   const captureElementHelper = async (element: HTMLElement) => {
+    const allContainers = Array.from(element.querySelectorAll('.overflow-x-auto, table, [class*="overflow"]'));
+    let maxScrollWidth = element.scrollWidth - 32;
+    allContainers.forEach(el => {
+      if (el.scrollWidth > maxScrollWidth) {
+        maxScrollWidth = el.scrollWidth;
+      }
+    });
+    const actualWidth = maxScrollWidth + 64;
+    
     // Create a temporary container to hold the clone
     const tempContainer = document.createElement('div');
     tempContainer.style.position = 'absolute';
-    tempContainer.style.top = '0';
-    tempContainer.style.left = '0';
-    tempContainer.style.width = '4000px'; // Extremely wide to prevent any wrapping or truncation
-    tempContainer.style.height = '0';
+    tempContainer.style.top = '-9999px';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.width = `${actualWidth}px`;
+    tempContainer.style.height = 'auto';
     tempContainer.style.overflow = 'hidden';
     tempContainer.style.zIndex = '-9999';
     tempContainer.style.pointerEvents = 'none';
@@ -289,8 +303,8 @@ const EmployeeHealth: React.FC = () => {
     });
 
     // Set clone styling to take full layout unconstrained
-    clone.style.width = 'max-content';
-    clone.style.height = 'auto';
+    clone.style.width = `${actualWidth}px`;
+    clone.style.height = 'max-content';
     clone.style.margin = '0';
     clone.style.padding = '32px'; // Nice margin around the captured image
     clone.style.backgroundColor = '#ffffff';
@@ -306,41 +320,40 @@ const EmployeeHealth: React.FC = () => {
       htmlEl.style.height = 'auto';
       htmlEl.style.maxWidth = 'none';
       htmlEl.style.maxHeight = 'none';
+      el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
     });
 
-    const tables = clone.querySelectorAll('table');
-    tables.forEach((table) => {
-      const htmlTable = table as HTMLTableElement;
-      htmlTable.style.width = 'auto';
-      htmlTable.style.minWidth = 'auto';
-      htmlTable.style.tableLayout = 'auto';
-
-      // Remove fixed widths on all cells so columns auto-shrink to fit content
-      const allCells = htmlTable.querySelectorAll('th, td');
-      allCells.forEach((cell) => {
-        const htmlCell = cell as HTMLElement;
-        htmlCell.style.width = 'auto';
-        htmlCell.style.minWidth = 'auto';
-        htmlCell.style.maxWidth = 'none';
-        htmlCell.style.whiteSpace = 'nowrap';
-        htmlCell.style.paddingLeft = '12px';
-        htmlCell.style.paddingRight = '12px';
-      });
-
-      // Remove colgroup if exists
-      const colgroup = htmlTable.querySelector('colgroup');
-      if (colgroup) colgroup.remove();
-    });
+    // Force hide all scrollbars in the captured image
+    const hideScrollbarStyle = document.createElement('style');
+    hideScrollbarStyle.innerHTML = `
+      *::-webkit-scrollbar {
+        display: none !important;
+      }
+      * {
+        -ms-overflow-style: none !important;
+        scrollbar-width: none !important;
+      }
+    `;
+    clone.appendChild(hideScrollbarStyle);
 
     tempContainer.appendChild(clone);
     document.body.appendChild(tempContainer);
 
     try {
-      await new Promise(r => setTimeout(r, 200)); // wait for layout/render
+      await new Promise(r => setTimeout(r, 200));
+
       const dataUrl = await htmlToImage.toPng(clone, {
         backgroundColor: '#ffffff',
         pixelRatio: 2,
+        width: actualWidth,
+        height: clone.scrollHeight,
         cacheBust: true,
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left',
+          width: `${actualWidth}px`,
+          height: `${clone.scrollHeight}px`
+        }
       });
       return dataUrl;
     } finally {
@@ -404,6 +417,9 @@ const EmployeeHealth: React.FC = () => {
     thidua3t1, setThidua3t1,
     thidua3t2, setThidua3t2,
     thidua3t3, setThidua3t3,
+    tracham3t1, setTracham3t1,
+    tracham3t2, setTracham3t2,
+    tracham3t3, setTracham3t3,
     rankMonth1, setRankMonth1,
     rankMonth2, setRankMonth2,
     rankMonth3, setRankMonth3,
@@ -508,15 +524,18 @@ const EmployeeHealth: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<'DOANH_THU' | 'TONG_HOP_NV' | 'CHI_TIET' | 'THI_DUA' | 'NGANH_HANG' | 'PHUC_VU' | 'BAN_KEM_NV' | 'THUONG_NV' | 'TRA_CHAM_NV' | 'KHAI_THAC_NV' | 'RANK_3T_NV'>('DOANH_THU');
   const [khaiThacCategoryFilter, setKhaiThacCategoryFilter] = useState<string>('ALL');
   const [showMonthlyDtqd, setShowMonthlyDtqd] = useState(true);
   const [showDtqdGroup, setShowDtqdGroup] = useState(true);
   const [showNganhHangGroup, setShowNganhHangGroup] = useState(true);
   const [showEffGroup, setShowEffGroup] = useState(true);
   const [showThuNhapGroup, setShowThuNhapGroup] = useState(false);
+  const [showTraChamGroup, setShowTraChamGroup] = useState(true);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const [autoExpand, setAutoExpand] = useState(false);
+  const [isProjectedMonth1, setIsProjectedMonth1] = useState(false);
+  const [isProjectedMonth2, setIsProjectedMonth2] = useState(false);
+  const [isProjectedMonth3, setIsProjectedMonth3] = useState(false);
 
   const captureTraChamRef = useRef<HTMLDivElement>(null);
   const captureKhaiThacRef = useRef<HTMLDivElement>(null);
@@ -599,6 +618,9 @@ const EmployeeHealth: React.FC = () => {
       thidua3t1,
       thidua3t2,
       thidua3t3,
+      tracham3t1,
+      tracham3t2,
+      tracham3t3,
       giocong3t1,
       giocong3t2,
       giocong3t3
@@ -627,6 +649,10 @@ const EmployeeHealth: React.FC = () => {
     setThidua3t2(prevRank3TState.thidua3t2);
     setThidua3t3(prevRank3TState.thidua3t3);
 
+    if (prevRank3TState.tracham3t1 !== undefined) setTracham3t1(prevRank3TState.tracham3t1);
+    if (prevRank3TState.tracham3t2 !== undefined) setTracham3t2(prevRank3TState.tracham3t2);
+    if (prevRank3TState.tracham3t3 !== undefined) setTracham3t3(prevRank3TState.tracham3t3);
+
     setGiocong3t1(prevRank3TState.giocong3t1);
     setGiocong3t2(prevRank3TState.giocong3t2);
     setGiocong3t3(prevRank3TState.giocong3t3);
@@ -642,12 +668,14 @@ const EmployeeHealth: React.FC = () => {
     setThunhap3t1(thunhap3t2);
     setNganhhang3t1(nganhhang3t2);
     setThidua3t1(thidua3t2);
+    setTracham3t1(tracham3t2);
     setGiocong3t1(giocong3t2);
 
     setDtqd3t2('');
     setThunhap3t2('');
     setNganhhang3t2('');
     setThidua3t2('');
+    setTracham3t2('');
     setGiocong3t2('');
 
     showNotification('Đã dịch toàn bộ dữ liệu Cột 2 sang Cột 1! Bấm KHÔI PHỤC DỮ LIỆU nếu muốn hoàn tác.', 'info');
@@ -660,12 +688,14 @@ const EmployeeHealth: React.FC = () => {
     setThunhap3t2(thunhap3t3);
     setNganhhang3t2(nganhhang3t3);
     setThidua3t2(thidua3t3);
+    setTracham3t2(tracham3t3);
     setGiocong3t2(giocong3t3);
 
     setDtqd3t3('');
     setThunhap3t3('');
     setNganhhang3t3('');
     setThidua3t3('');
+    setTracham3t3('');
     setGiocong3t3('');
 
     showNotification('Đã dịch toàn bộ dữ liệu Cột 3 sang Cột 2! Bấm KHÔI PHỤC DỮ LIỆU nếu muốn hoàn tác.', 'info');
@@ -678,6 +708,7 @@ const EmployeeHealth: React.FC = () => {
     setThunhap3t1(thunhap3t2);
     setNganhhang3t1(nganhhang3t2);
     setThidua3t1(thidua3t2);
+    setTracham3t1(tracham3t2);
     setGiocong3t1(giocong3t2);
 
     setRankMonth2(rankMonth3);
@@ -685,6 +716,7 @@ const EmployeeHealth: React.FC = () => {
     setThunhap3t2(thunhap3t3);
     setNganhhang3t2(nganhhang3t3);
     setThidua3t2(thidua3t3);
+    setTracham3t2(tracham3t3);
     setGiocong3t2(giocong3t3);
 
     const m3Num = parseInt(rankMonth3.replace(/\D/g, '')) || 6;
@@ -695,6 +727,7 @@ const EmployeeHealth: React.FC = () => {
     setThunhap3t3('');
     setNganhhang3t3('');
     setThidua3t3('');
+    setTracham3t3('');
     setGiocong3t3('');
 
     showNotification('Đã dịch chuyển Cột 2 ➔ 1 và Cột 3 ➔ 2! Bấm KHÔI PHỤC DỮ LIỆU nếu muốn hoàn tác.', 'info');
@@ -1379,7 +1412,10 @@ const EmployeeHealth: React.FC = () => {
     giocong3Sum,
     thidua1Sum,
     thidua2Sum,
-    thidua3Sum
+    thidua3Sum,
+    tracham1Sum,
+    tracham2Sum,
+    tracham3Sum
   } = useMemo(() => {
     const parsedDtqd1 = parseStaffValueList(dtqd3t1);
     const parsedDtqd2 = parseStaffValueList(dtqd3t2);
@@ -1400,6 +1436,10 @@ const EmployeeHealth: React.FC = () => {
     const parsedTd1 = parseStaffValueList(thidua3t1);
     const parsedTd2 = parseStaffValueList(thidua3t2);
     const parsedTd3 = parseStaffValueList(thidua3t3);
+
+    const parsedTracham1 = parseStaffValueList(tracham3t1, 'LAST_COLUMN');
+    const parsedTracham2 = parseStaffValueList(tracham3t2, 'LAST_COLUMN');
+    const parsedTracham3 = parseStaffValueList(tracham3t3, 'LAST_COLUMN');
 
     const calcSum = (parsed: any[]) => parsed.reduce((acc, item) => {
       let val = item.value;
@@ -1425,21 +1465,20 @@ const EmployeeHealth: React.FC = () => {
       thidua1Sum: calcRawSum(parsedTd1),
       thidua2Sum: calcRawSum(parsedTd2),
       thidua3Sum: calcRawSum(parsedTd3),
+      tracham1Sum: calcRawSum(parsedTracham1),
+      tracham2Sum: calcRawSum(parsedTracham2),
+      tracham3Sum: calcRawSum(parsedTracham3),
     };
-  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, thidua3t1, thidua3t2, thidua3t3, parseTn]);
+  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, thidua3t1, thidua3t2, thidua3t3, tracham3t1, tracham3t2, tracham3t3, parseTn]);
 
   const formatValueForDisplay = (val: number, isCurrency: boolean = false) => {
     if (val === 0) return isCurrency ? '0 đ' : '0';
-    if (val >= 1000000) {
-      if (isCurrency) {
-        return `${(val / 1000000).toFixed(2).toLocaleString()} Tr`;
-      } else {
-        return `${Math.round(val / 1000000).toLocaleString('vi-VN')} Tr`;
-      }
+    if (isCurrency || Math.abs(val) >= 1000000) {
+      const formatted = formatCurrencyValue(val);
+      if (Math.abs(val) < 1000000 && isCurrency) return `${formatted} đ`;
+      return formatted;
     }
-    return isCurrency 
-      ? `${Math.round(val).toLocaleString('vi-VN')} đ`
-      : Math.round(val).toLocaleString('vi-VN');
+    return Math.round(val).toLocaleString('vi-VN');
   };
 
   const parsedRank3TData = useMemo(() => {
@@ -1476,6 +1515,10 @@ const EmployeeHealth: React.FC = () => {
     const parsedGc1 = parseStaffValueList(giocong3t1);
     const parsedGc2 = parseStaffValueList(giocong3t2);
     const parsedGc3 = parseStaffValueList(giocong3t3);
+
+    const parsedTracham1 = parseStaffValueList(tracham3t1, 'LAST_COLUMN');
+    const parsedTracham2 = parseStaffValueList(tracham3t2, 'LAST_COLUMN');
+    const parsedTracham3 = parseStaffValueList(tracham3t3, 'LAST_COLUMN');
 
     const employeeMap = new Map<string, {
       id: string;
@@ -1538,7 +1581,11 @@ const EmployeeHealth: React.FC = () => {
           thunhap3: 0,
           thunhap: 0,
           nganhhang: 0,
-          giocong: 0
+          giocong: 0,
+          tracham1: 0,
+          tracham2: 0,
+          tracham3: 0,
+          tracham: 0
         });
       } else {
         const existing = employeeMap.get(key)!;
@@ -1619,6 +1666,22 @@ const EmployeeHealth: React.FC = () => {
       entry.giocong += item.value;
     });
 
+    parsedTracham1.forEach(item => {
+      const entry = getOrCreate(item);
+      entry.tracham1 += item.value;
+      entry.tracham += item.value;
+    });
+    parsedTracham2.forEach(item => {
+      const entry = getOrCreate(item);
+      entry.tracham2 += item.value;
+      entry.tracham += item.value;
+    });
+    parsedTracham3.forEach(item => {
+      const entry = getOrCreate(item);
+      entry.tracham3 += item.value;
+      entry.tracham += item.value;
+    });
+
     return Array.from(employeeMap.values()).map(emp => {
       let dtqd = emp.dtqd;
       if (dtqd > 0 && dtqd < 1000000) dtqd = dtqd * 1000000;
@@ -1643,6 +1706,30 @@ const EmployeeHealth: React.FC = () => {
 
       let thunhap = emp.thunhap;
       if (thunhap > 0 && thunhap < 1000000) thunhap = thunhap * 1000000;
+
+      const currentSystemMonth = new Date().getMonth() + 1;
+      const m1Num = parseInt(rankMonth1.replace(/\D/g, '')) || 4;
+      const m2Num = parseInt(rankMonth2.replace(/\D/g, '')) || 5;
+      const m3Num = parseInt(rankMonth3.replace(/\D/g, '')) || 6;
+      const isM1CurrentMonth = m1Num === currentSystemMonth;
+      const isM2CurrentMonth = m2Num === currentSystemMonth;
+      const isM3CurrentMonth = m3Num === currentSystemMonth;
+
+      if (isProjectedMonth1 && isM1CurrentMonth && daysPassed > 0) {
+        dtqd1 = (dtqd1 / daysPassed) * totalDays;
+        thunhap1 = (thunhap1 / daysPassed) * totalDays;
+      }
+      if (isProjectedMonth2 && isM2CurrentMonth && daysPassed > 0) {
+        dtqd2 = (dtqd2 / daysPassed) * totalDays;
+        thunhap2 = (thunhap2 / daysPassed) * totalDays;
+      }
+      if (isProjectedMonth3 && isM3CurrentMonth && daysPassed > 0) {
+        dtqd3 = (dtqd3 / daysPassed) * totalDays;
+        thunhap3 = (thunhap3 / daysPassed) * totalDays;
+      }
+
+      dtqd = dtqd1 + dtqd2 + dtqd3;
+      thunhap = thunhap1 + thunhap2 + thunhap3;
 
       let effQd1 = emp.hasEff1 ? emp.eff1 : (dtqd1 > 0 ? (thunhap1 / dtqd1) * 100 : 0);
       let effQd2 = emp.hasEff2 ? emp.eff2 : (dtqd2 > 0 ? (thunhap2 / dtqd2) * 100 : 0);
@@ -1669,15 +1756,19 @@ const EmployeeHealth: React.FC = () => {
         thunhap,
         nganhhang: emp.nganhhang,
         giocong: emp.giocong,
+        tracham1: emp.tracham1,
+        tracham2: emp.tracham2,
+        tracham3: emp.tracham3,
+        tracham: emp.tracham,
         effQd1,
         effQd2,
         effQd3,
         effQd
       };
     })
-    .filter(emp => emp.dtqd > 0 || emp.thunhap > 0 || emp.nganhhang > 0 || emp.giocong > 0)
+    .filter(emp => emp.dtqd > 0 || emp.thunhap > 0 || emp.nganhhang > 0 || emp.giocong > 0 || emp.tracham > 0)
     .sort((a, b) => b.dtqd - a.dtqd);
-  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, parseTn]);
+  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, tracham3t1, tracham3t2, tracham3t3, parseTn, isProjectedMonth1, isProjectedMonth2, isProjectedMonth3, daysPassed, totalDays, rankMonth1, rankMonth2, rankMonth3]);
 
   const filteredRank3TData = useMemo(() => {
     if (!biRevenueData || biRevenueData.length === 0) return parsedRank3TData;
@@ -1789,7 +1880,7 @@ const EmployeeHealth: React.FC = () => {
 
     const staffCount = filteredRank3TData.length;
 
-    const calcMonth = (nganhhangInput: string, thiduaInput: string) => {
+    const calcMonth = (nganhhangInput: string, thiduaInput: string, mDaysPassed: number = 0, mTotalDays: number = 30) => {
       if (!nganhhangInput.trim()) return { staffMatrix: [], totalCat: 0 };
 
       const hasThiduaText = Boolean(thiduaInput && thiduaInput.trim().length > 0);
@@ -1818,17 +1909,42 @@ const EmployeeHealth: React.FC = () => {
         staffCount,
         targetCatsToUse,
         targetCatsToUse,
-        0,
-        30,
-        false
+        mDaysPassed,
+        mTotalDays,
+        mDaysPassed > 0
       );
 
       return { staffMatrix, totalCat: categories.length };
     };
 
-    const m1 = calcMonth(nganhhang3t1, thidua3t1);
-    const m2 = calcMonth(nganhhang3t2, thidua3t2);
-    const m3 = calcMonth(nganhhang3t3, thidua3t3);
+    const currentSystemMonth = new Date().getMonth() + 1;
+    const m1Num = parseInt(rankMonth1.replace(/\D/g, '')) || 4;
+    const m2Num = parseInt(rankMonth2.replace(/\D/g, '')) || 5;
+    const m3Num = parseInt(rankMonth3.replace(/\D/g, '')) || 6;
+    const isM1CurrentMonth = m1Num === currentSystemMonth;
+    const isM2CurrentMonth = m2Num === currentSystemMonth;
+    const isM3CurrentMonth = m3Num === currentSystemMonth;
+
+    let m1;
+    if (isProjectedMonth1 && isM1CurrentMonth && daysPassed > 0) {
+      m1 = calcMonth(nganhhang3t1, thidua3t1, daysPassed, totalDays);
+    } else {
+      m1 = calcMonth(nganhhang3t1, thidua3t1);
+    }
+
+    let m2;
+    if (isProjectedMonth2 && isM2CurrentMonth && daysPassed > 0) {
+      m2 = calcMonth(nganhhang3t2, thidua3t2, daysPassed, totalDays);
+    } else {
+      m2 = calcMonth(nganhhang3t2, thidua3t2);
+    }
+    
+    let m3;
+    if (isProjectedMonth3 && isM3CurrentMonth && daysPassed > 0) {
+      m3 = calcMonth(nganhhang3t3, thidua3t3, daysPassed, totalDays);
+    } else {
+      m3 = calcMonth(nganhhang3t3, thidua3t3);
+    }
 
     const scores: Record<string, {
       m1Text: string;
@@ -1876,7 +1992,7 @@ const EmployeeHealth: React.FC = () => {
     });
 
     return scores;
-  }, [filteredRank3TData, nganhhang3t1, thidua3t1, nganhhang3t2, thidua3t2, nganhhang3t3, thidua3t3, marketFilter, allowedMarkets, mainStoreCategories]);
+  }, [filteredRank3TData, nganhhang3t1, thidua3t1, nganhhang3t2, thidua3t2, nganhhang3t3, thidua3t3, marketFilter, allowedMarkets, mainStoreCategories, isProjectedMonth1, isProjectedMonth2, isProjectedMonth3, daysPassed, totalDays, rankMonth1, rankMonth2, rankMonth3]);
 
   const rank3TNganhHangTopBotStats = useMemo(() => {
     if (!filteredRank3TData || filteredRank3TData.length === 0) return { stats: {}, sets: null };
@@ -1985,6 +2101,41 @@ const EmployeeHealth: React.FC = () => {
     const botM2Keys = new Set(sortedM2.slice(-count20).map(item => item.id || item.name));
 
     const sortedM3 = [...filteredRank3TData].sort((a, b) => (b.thunhap3 || 0) - (a.thunhap3 || 0));
+    const topM3Keys = new Set(sortedM3.slice(0, count20).map(item => item.id || item.name));
+    const botM3Keys = new Set(sortedM3.slice(-count20).map(item => item.id || item.name));
+
+    const stats: Record<string, { top: number; bot: number }> = {};
+
+    filteredRank3TData.forEach(row => {
+      const key = row.id || row.name;
+      const top = topTbKeys.has(key) ? 1 : 0;
+      const bot = botTbKeys.has(key) ? 1 : 0;
+      stats[key] = { top, bot };
+    });
+
+    return { stats, sets: { topM1Keys, botM1Keys, topM2Keys, botM2Keys, topM3Keys, botM3Keys, topTbKeys, botTbKeys } };
+  }, [filteredRank3TData]);
+
+  const rank3TTraChamTopBotStats = useMemo(() => {
+    if (!filteredRank3TData || filteredRank3TData.length === 0) return { stats: {}, sets: null };
+
+    const N = filteredRank3TData.length;
+    const count20 = Math.max(1, Math.round(N * 0.2));
+
+    // Sort by Trả Chậm TB (row.tracham)
+    const sortedTb = [...filteredRank3TData].sort((a, b) => (b.tracham || 0) - (a.tracham || 0));
+    const topTbKeys = new Set(sortedTb.slice(0, count20).map(item => item.id || item.name));
+    const botTbKeys = new Set(sortedTb.slice(-count20).map(item => item.id || item.name));
+
+    const sortedM1 = [...filteredRank3TData].sort((a, b) => (b.tracham1 || 0) - (a.tracham1 || 0));
+    const topM1Keys = new Set(sortedM1.slice(0, count20).map(item => item.id || item.name));
+    const botM1Keys = new Set(sortedM1.slice(-count20).map(item => item.id || item.name));
+
+    const sortedM2 = [...filteredRank3TData].sort((a, b) => (b.tracham2 || 0) - (a.tracham2 || 0));
+    const topM2Keys = new Set(sortedM2.slice(0, count20).map(item => item.id || item.name));
+    const botM2Keys = new Set(sortedM2.slice(-count20).map(item => item.id || item.name));
+
+    const sortedM3 = [...filteredRank3TData].sort((a, b) => (b.tracham3 || 0) - (a.tracham3 || 0));
     const topM3Keys = new Set(sortedM3.slice(0, count20).map(item => item.id || item.name));
     const botM3Keys = new Set(sortedM3.slice(-count20).map(item => item.id || item.name));
 
@@ -2169,6 +2320,62 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
       setTimeout(() => setIsCopied(false), 2000);
     }).catch(err => {
       console.error('Failed to copy text: ', err);
+      showNotification('Không thể copy. Vui lòng thử lại.', 'error');
+    });
+  };
+
+  const handleCopyTags = () => {
+    if (filteredBiData.length === 0) return;
+
+    const targetQdPerStaff = filteredBiData.length > 0 ? stTargetSauHeSo / filteredBiData.length : 0;
+
+    const staffStats = filteredBiData.map(staff => {
+      const actualTargetQdPerStaff = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
+      const actualActualVal = Math.abs(staff.actualVal || 0) > 1000000 ? (staff.actualVal || 0) : (staff.actualVal || 0) * 1000000;
+      const percentHT = (actualTargetQdPerStaff > 0 && daysPassed > 0)
+        ? (((actualActualVal / daysPassed) * totalDays) / actualTargetQdPerStaff) * 100
+        : 0;
+
+      return {
+        fullName: staff.displayName,
+        percentHT
+      };
+    });
+
+    const botStaffs = staffStats.filter(s => s.percentHT < 100);
+
+    const tags = botStaffs.map(s => {
+      // Find the ID, which is typically the numeric part separated by a dash or just the first number sequence.
+      // Usually format is "PHẠM NGỌC ANH - 58638" or "58638 - PHẠM NGỌC ANH"
+      const parts = s.fullName.split('-');
+      if (parts.length > 1) {
+        // Find the part that is purely numeric (or has the 5+ digit ID)
+        const potentialId = parts.find(p => /\d{4,}/.test(p));
+        if (potentialId) {
+          const match = potentialId.match(/\d{4,}/);
+          if (match) return `@${match[0]}`;
+        }
+      }
+      
+      const fallbackMatch = s.fullName.match(/\d{4,}/);
+      if (fallbackMatch) return `@${fallbackMatch[0]}`;
+      
+      return '';
+    }).filter(t => t !== '').join('\n');
+
+    if (!tags) {
+      showNotification('Không có nhân viên nào dưới 100% hoặc không tìm thấy mã NV', 'warning');
+      return;
+    }
+
+    const clipboardText = `🚨 NHÂN VIÊN CÓ TỶ LỆ HOÀN THÀNH DƯỚI 100% :\n${tags}`;
+
+    navigator.clipboard.writeText(clipboardText).then(() => {
+      setIsTagCopied(true);
+      showNotification('Đã copy tag nhân viên vào clipboard!', 'success');
+      setTimeout(() => setIsTagCopied(false), 2000);
+    }).catch(err => {
+      console.error('Failed to copy tags: ', err);
       showNotification('Không thể copy. Vui lòng thử lại.', 'error');
     });
   };
@@ -2415,6 +2622,19 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
           {/* Main Content Area */}
           <div className="space-y-10">
+            {pageMaintenanceState[`health_${activeTab}`] && !isUser43751Local ? (
+              <div className="flex items-center justify-center h-full p-6 mt-12">
+                <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-amber-200 shadow-xl w-full">
+                  <div className="w-24 h-24 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-amber-500 shadow-inner">
+                    <AlertCircle size={48} />
+                  </div>
+                  <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">HỆ THỐNG ĐANG BẢO TRÌ</h1>
+                  <p className="text-slate-500 font-medium leading-relaxed">
+                    Tab này đang trong quá trình bảo trì và nâng cấp. Xin lỗi vì sự bất tiện này!
+                  </p>
+                </div>
+              </div>
+            ) : (
             <AnimatePresence mode="wait">
               {activeTab === 'DOANH_THU' && (
                 <motion.div
@@ -2470,6 +2690,26 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                           <MessageSquare size={16} />
                         )}
                         {isCopied ? 'ĐÃ COPY!' : 'NHẬN XÉT TOP / BOT'}
+                      </button>
+
+                      <button
+                        onClick={handleCopyTags}
+                        disabled={filteredBiData.length === 0}
+                        className={cn(
+                          "flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95",
+                          filteredBiData.length === 0
+                            ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                            : isTagCopied
+                              ? "bg-emerald-600 text-white shadow-emerald-200/50"
+                              : "bg-gradient-to-r from-purple-500 to-pink-600 text-white hover:from-purple-600 hover:to-pink-700 shadow-purple-200/50 border-t border-white/20"
+                        )}
+                      >
+                        {isTagCopied ? (
+                          <Check size={16} />
+                        ) : (
+                          <span className="text-[14px]">@</span>
+                        )}
+                        {isTagCopied ? 'ĐÃ COPY!' : 'TAG TÊN NV'}
                       </button>
                   </div>
 
@@ -2645,6 +2885,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     selectedStaffIds={selectedStaffIds}
                     categoryTargets={categoryTargets}
                     luykeCategories={processedData.categories.filter((c: any) => isCategoryForMarket(c, marketFilter))}
+                    categoryConfig={categoryConfig}
                   />
                 </motion.div>
               )}
@@ -2668,6 +2909,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     categoryTargets={categoryTargets}
                     selectedStaffIds={selectedStaffIds}
                     luykeCategories={processedData.categories.filter((c: any) => isCategoryForMarket(c, marketFilter))}
+                    categoryConfig={categoryConfig}
                   />
                 </motion.div>
               )}
@@ -3912,6 +4154,18 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">Trả Chậm ({rankMonth1})</label>
+                              <span className="text-[10px] font-black text-rose-600">{Math.round(tracham1Sum)}%</span>
+                            </div>
+                            <textarea
+                              value={tracham3t1}
+                              onChange={(e) => setTracham3t1(e.target.value)}
+                              placeholder={`Dán cột Nhân viên & Trả chậm ${rankMonth1}...`}
+                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all font-mono bg-white"
+                            />
+                          </div>
 
                         </div>
                       </div>
@@ -4035,6 +4289,18 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               onChange={(e) => setThidua3t2(e.target.value)}
                               placeholder={`Dán cột Nhân viên & Thi đua siêu thị ${rankMonth2}...`}
                               className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
+                            />
+                          </div>
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">Trả Chậm ({rankMonth2})</label>
+                              <span className="text-[10px] font-black text-rose-600">{Math.round(tracham2Sum)}%</span>
+                            </div>
+                            <textarea
+                              value={tracham3t2}
+                              onChange={(e) => setTracham3t2(e.target.value)}
+                              placeholder={`Dán cột Nhân viên & Trả chậm ${rankMonth2}...`}
+                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all font-mono bg-white"
                             />
                           </div>
 
@@ -4221,6 +4487,27 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono bg-white"
                             />
                           </div>
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">Trả Chậm ({rankMonth3})</label>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => setConfirmModal({ title: 'Đồng bộ Trả Chậm', message: 'Đồng bộ dữ liệu từ CẬP NHẬT > CẤU HÌNH SIÊU THỊ > TRẢ GÓP NV vào cột ' + rankMonth3 + '?\nDữ liệu cũ sẽ bị ghi đè.', variant: 'info', onConfirm: () => { if (tragopNv) setTracham3t3(tragopNv); else alert('Chưa có dữ liệu Trả Góp NV từ CẤU HÌNH SIÊU THỊ'); } })}
+                                  className="flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95"
+                                  title="Đồng bộ từ CẤU HÌNH SIÊU THỊ > TRẢ GÓP NV"
+                                >
+                                  <RefreshCw size={9} />Đồng bộ
+                                </button>
+                                <span className="text-[10px] font-black text-rose-600">{Math.round(tracham3Sum)}%</span>
+                              </div>
+                            </div>
+                            <textarea
+                              value={tracham3t3}
+                              onChange={(e) => setTracham3t3(e.target.value)}
+                              placeholder={`Dán cột Nhân viên & Trả chậm ${rankMonth3}...`}
+                              className="w-full h-24 px-3 py-2 text-xs border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all font-mono bg-white"
+                            />
+                          </div>
 
                         </div>
                       </div>
@@ -4327,6 +4614,29 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                           </div>
                         </label>
 
+                        {/* Toggle switch for "Trả Chậm" */}
+                        <label className="flex items-center gap-2 cursor-pointer select-none group">
+                          <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider group-hover:text-slate-800 transition-colors">
+                            Trả Chậm
+                          </span>
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              className="sr-only"
+                              checked={showTraChamGroup}
+                              onChange={(e) => setShowTraChamGroup(e.target.checked)}
+                            />
+                            <div className={cn(
+                              "w-9 h-5 rounded-full transition-colors duration-300 ease-in-out shadow-inner",
+                              showTraChamGroup ? "bg-rose-500" : "bg-slate-200"
+                            )} />
+                            <div className={cn(
+                              "absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 ease-in-out",
+                              showTraChamGroup ? "transform translate-x-4" : ""
+                            )} />
+                          </div>
+                        </label>
+
                         {/* Premium custom toggle switch for "Chi tiết các tháng" */}
                         <label className="flex items-center gap-2 cursor-pointer select-none group border-l pl-4 border-slate-200">
                           <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider group-hover:text-slate-800 transition-colors">
@@ -4349,6 +4659,77 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             )} />
                           </div>
                         </label>
+
+                        {/* New Toggles for Projected Months */}
+                        {(parseInt(rankMonth1.replace(/\D/g, '')) || 4) === new Date().getMonth() + 1 && (
+                          <label className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors shadow-sm group">
+                            <span className="flex items-center gap-2 text-[12px] font-bold text-slate-700 uppercase tracking-wider group-hover:text-amber-600 transition-colors">
+                              <TrendingUp size={16} /> DỰ KIẾN THÁNG {(parseInt(rankMonth1.replace(/\D/g, '')) || 4)}
+                            </span>
+                            <div className="relative">
+                              <input
+                                type="checkbox"
+                                className="sr-only"
+                                checked={isProjectedMonth1}
+                                onChange={(e) => setIsProjectedMonth1(e.target.checked)}
+                              />
+                              <div className={cn(
+                                "w-9 h-5 rounded-full transition-colors duration-300 ease-in-out shadow-inner",
+                                isProjectedMonth1 ? "bg-amber-500" : "bg-slate-200"
+                              )} />
+                              <div className={cn(
+                                "absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 ease-in-out",
+                                isProjectedMonth1 ? "transform translate-x-4" : ""
+                              )} />
+                            </div>
+                          </label>
+                        )}
+                        {(parseInt(rankMonth2.replace(/\D/g, '')) || 5) === new Date().getMonth() + 1 && (
+                          <label className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors shadow-sm group">
+                            <span className="flex items-center gap-2 text-[12px] font-bold text-slate-700 uppercase tracking-wider group-hover:text-amber-600 transition-colors">
+                              <TrendingUp size={16} /> DỰ KIẾN THÁNG {(parseInt(rankMonth2.replace(/\D/g, '')) || 5)}
+                            </span>
+                            <div className="relative">
+                              <input
+                                type="checkbox"
+                                className="sr-only"
+                                checked={isProjectedMonth2}
+                                onChange={(e) => setIsProjectedMonth2(e.target.checked)}
+                              />
+                              <div className={cn(
+                                "w-9 h-5 rounded-full transition-colors duration-300 ease-in-out shadow-inner",
+                                isProjectedMonth2 ? "bg-amber-500" : "bg-slate-200"
+                              )} />
+                              <div className={cn(
+                                "absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 ease-in-out",
+                                isProjectedMonth2 ? "transform translate-x-4" : ""
+                              )} />
+                            </div>
+                          </label>
+                        )}
+                        {(parseInt(rankMonth3.replace(/\D/g, '')) || 6) === new Date().getMonth() + 1 && (
+                          <label className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors shadow-sm group">
+                            <span className="flex items-center gap-2 text-[12px] font-bold text-slate-700 uppercase tracking-wider group-hover:text-amber-600 transition-colors">
+                              <TrendingUp size={16} /> DỰ KIẾN THÁNG {(parseInt(rankMonth3.replace(/\D/g, '')) || 6)}
+                            </span>
+                            <div className="relative">
+                              <input
+                                type="checkbox"
+                                className="sr-only"
+                                checked={isProjectedMonth3}
+                                onChange={(e) => setIsProjectedMonth3(e.target.checked)}
+                              />
+                              <div className={cn(
+                                "w-9 h-5 rounded-full transition-colors duration-300 ease-in-out shadow-inner",
+                                isProjectedMonth3 ? "bg-amber-500" : "bg-slate-200"
+                              )} />
+                              <div className={cn(
+                                "absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 ease-in-out",
+                                isProjectedMonth3 ? "transform translate-x-4" : ""
+                              )} />
+                            </div>
+                          </label>
+                        )}
 
                         {/* Capture button */}
                         <button
@@ -4415,6 +4796,11 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                         THU NHẬP THÁNG {rankMonth1.replace(/tháng\s*/i, '')}, {rankMonth2.replace(/tháng\s*/i, '')}, {rankMonth3.replace(/tháng\s*/i, '')}
                                       </th>
                                     )}
+                                    {showTraChamGroup && (
+                                      <th colSpan={showMonthlyDtqd ? 5 : 2} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-2.5 border-r border-b border-white/20 text-white bg-[#e11d48] font-sans font-black text-center text-sm md:text-base tracking-wide uppercase whitespace-nowrap">
+                                        TRẢ CHẬM THÁNG {rankMonth1.replace(/tháng\s*/i, '')}, {rankMonth2.replace(/tháng\s*/i, '')}, {rankMonth3.replace(/tháng\s*/i, '')}
+                                      </th>
+                                    )}
                                     <th rowSpan={2} style={{ width: '180px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#0f172a' }} className="px-4 py-3 text-center border-r border-white/20 text-white font-sans font-black align-middle whitespace-nowrap">
                                       <div className="text-sm uppercase tracking-wider text-amber-400 font-black">ĐÁNH GIÁ NHÂN VIÊN</div>
                                     </th>
@@ -4424,13 +4810,13 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                       <>
                                         {showMonthlyDtqd && (
                                           <>
-                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth1.replace('Tháng ', 'T')}</th>
-                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth2.replace('Tháng ', 'T')}</th>
-                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth3.replace('Tháng ', 'T')}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth1.replace('Tháng ', 'T')}{isProjectedMonth1 ? ' (DK)' : ''}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth2.replace('Tháng ', 'T')}{isProjectedMonth2 ? ' (DK)' : ''}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth3.replace('Tháng ', 'T')}{isProjectedMonth3 ? ' (DK)' : ''}</th>
                                           </>
                                         )}
-                                        <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#eab308' }} className="px-6 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ TB</th>
-                                        <th style={{ width: '160px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f59e0b' }} className="px-3 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">TOP / BOT (20%)</th>
+                                        <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ TB</th>
+                                        <th style={{ width: '160px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-3 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">TOP / BOT (20%)</th>
                                       </>
                                     )}
 
@@ -4438,9 +4824,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                       <>
                                         {showMonthlyDtqd && (
                                           <>
-                                            <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth1.replace('Tháng ', 'T')}</th>
-                                            <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth2.replace('Tháng ', 'T')}</th>
-                                            <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth3.replace('Tháng ', 'T')}</th>
+                                            <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth1.replace('Tháng ', 'T')}{isProjectedMonth1 ? ' (DK)' : ''}</th>
+                                            <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth2.replace('Tháng ', 'T')}{isProjectedMonth2 ? ' (DK)' : ''}</th>
+                                            <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth3.replace('Tháng ', 'T')}{isProjectedMonth3 ? ' (DK)' : ''}</th>
                                           </>
                                         )}
                                         <th style={{ width: '140px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#4f46e5' }} className="px-6 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG TB</th>
@@ -4466,13 +4852,27 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                       <>
                                         {showMonthlyDtqd && (
                                           <>
-                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TN {rankMonth1.replace('Tháng ', 'T')}</th>
-                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TN {rankMonth2.replace('Tháng ', 'T')}</th>
-                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TN {rankMonth3.replace('Tháng ', 'T')}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TN {rankMonth1.replace('Tháng ', 'T')}{isProjectedMonth1 ? ' (DK)' : ''}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TN {rankMonth2.replace('Tháng ', 'T')}{isProjectedMonth2 ? ' (DK)' : ''}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TN {rankMonth3.replace('Tháng ', 'T')}{isProjectedMonth3 ? ' (DK)' : ''}</th>
                                           </>
                                         )}
                                         <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ea580c' }} className="px-6 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TN TB</th>
                                         <th style={{ width: '160px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#c2410c' }} className="px-3 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TOP / BOT (20%)</th>
+                                      </>
+                                    )}
+
+                                    {showTraChamGroup && (
+                                      <>
+                                        {showMonthlyDtqd && (
+                                          <>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#e11d48' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TC {rankMonth1.replace('Tháng ', 'T')}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#e11d48' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TC {rankMonth2.replace('Tháng ', 'T')}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#e11d48' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TC {rankMonth3.replace('Tháng ', 'T')}</th>
+                                          </>
+                                        )}
+                                        <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#be123c' }} className="px-6 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TC TB</th>
+                                        <th style={{ width: '160px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#881337' }} className="px-3 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TOP / BOT (20%)</th>
                                       </>
                                     )}
                                   </tr>
@@ -4485,56 +4885,54 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                     const tbNh = rank3TNganhHangTopBotStats.stats[key] || { top: 0, bot: 0 };
                                     const tbEff = rank3TEffQdTopBotStats.stats[key] || { top: 0, bot: 0 };
                                     const tbTn = rank3TThuNhapTopBotStats.stats[key] || { top: 0, bot: 0 };
+                                    const tbTc = rank3TTraChamTopBotStats.stats[key] || { top: 0, bot: 0 };
 
                                     return (
-                                      <tr key={i} className={`${isStriped ? 'bg-[#f8faff]' : 'bg-white'} hover:bg-slate-50 h-[48px]`}>
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-3 text-center border-r border-slate-200 bg-[#fef08a] text-[#0f172a] font-black whitespace-nowrap">{i + 1}</td>
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 border-r border-slate-200 text-[#0f172a] uppercase font-black whitespace-nowrap">{row.name}</td>
+                                      <tr key={i} className="bg-white hover:bg-slate-50 h-[48px]">
+                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-3 text-center border-r border-slate-100 bg-[#fef08a] text-[#0f172a] font-black whitespace-nowrap">{i + 1}</td>
+                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 border-r border-slate-100 bg-white text-[#0f172a] uppercase font-black whitespace-nowrap">{row.name}</td>
                                         {showDtqdGroup && (
                                           <>
                                             {showMonthlyDtqd && (
                                               <>
                                                 <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
-                                                  "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
-                                                  rank3TTopBotStats.sets?.botM1Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
-                                                  rank3TTopBotStats.sets?.topM1Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
-                                                  "bg-amber-50/10 text-slate-700"
+                                                  "px-4 py-3 text-center border-r border-slate-100 font-mono font-black transition-colors whitespace-nowrap",
+                                                  rank3TTopBotStats.sets?.botM1Keys.has(key) ? "bg-[#ffe4e6] text-[#be123c]" :
+                                                  rank3TTopBotStats.sets?.topM1Keys.has(key) ? "bg-[#d1fae5] text-[#065f46]" :
+                                                  "bg-white text-slate-700"
                                                 )}>
-                                                  {row.dtqd1 >= 1000000 
-                                                    ? `${Math.round(row.dtqd1 / 1000000).toLocaleString('vi-VN')} Tr`
-                                                    : Math.round(row.dtqd1).toLocaleString('vi-VN')}
+                                                  {formatCurrencyValue(row.dtqd1)}
                                                 </td>
                                                 <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
-                                                  "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
-                                                  rank3TTopBotStats.sets?.botM2Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
-                                                  rank3TTopBotStats.sets?.topM2Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
-                                                  "bg-amber-50/10 text-slate-700"
+                                                  "px-4 py-3 text-center border-r border-slate-100 font-mono font-black transition-colors whitespace-nowrap",
+                                                  rank3TTopBotStats.sets?.botM2Keys.has(key) ? "bg-[#ffe4e6] text-[#be123c]" :
+                                                  rank3TTopBotStats.sets?.topM2Keys.has(key) ? "bg-[#d1fae5] text-[#065f46]" :
+                                                  "bg-white text-slate-700"
                                                 )}>
-                                                  {row.dtqd2 >= 1000000 
-                                                    ? `${Math.round(row.dtqd2 / 1000000).toLocaleString('vi-VN')} Tr`
-                                                    : Math.round(row.dtqd2).toLocaleString('vi-VN')}
+                                                  {formatCurrencyValue(row.dtqd2)}
                                                 </td>
                                                 <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
-                                                  "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
-                                                  rank3TTopBotStats.sets?.botM3Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
-                                                  rank3TTopBotStats.sets?.topM3Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
-                                                  "bg-amber-50/10 text-slate-700"
+                                                  "px-4 py-3 text-center border-r border-slate-100 font-mono font-black transition-colors whitespace-nowrap",
+                                                  rank3TTopBotStats.sets?.botM3Keys.has(key) ? "bg-[#ffe4e6] text-[#be123c]" :
+                                                  rank3TTopBotStats.sets?.topM3Keys.has(key) ? "bg-[#d1fae5] text-[#065f46]" :
+                                                  "bg-white text-slate-700"
                                                 )}>
-                                                  {row.dtqd3 >= 1000000 
-                                                    ? `${Math.round(row.dtqd3 / 1000000).toLocaleString('vi-VN')} Tr`
-                                                    : Math.round(row.dtqd3).toLocaleString('vi-VN')}
+                                                  {formatCurrencyValue(row.dtqd3)}
                                                 </td>
                                               </>
                                             )}
-                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-slate-700 font-black bg-amber-100/10 whitespace-nowrap">
+                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                                              "px-6 py-3 text-center border-r border-slate-100 font-mono font-black whitespace-nowrap transition-colors",
+                                              tbDtqd.top > 0 ? "bg-[#d1fae5] text-[#065f46]" :
+                                              tbDtqd.bot > 0 ? "bg-[#ffe4e6] text-[#be123c]" :
+                                              "bg-white text-slate-700"
+                                            )}>
                                               {(() => {
                                                 const avgDtqd = row.dtqd / 3;
-                                                return avgDtqd >= 1000000 
-                                                  ? `${Math.round(avgDtqd / 1000000).toLocaleString('vi-VN')} Tr`
-                                                  : Math.round(avgDtqd).toLocaleString('vi-VN');
+                                                return formatCurrencyValue(avgDtqd);
                                               })()}
                                             </td>
-                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-3 py-3 text-center border-r border-slate-200 text-[12px] whitespace-nowrap bg-amber-50/20">
+                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-3 py-3 text-center border-r border-slate-100 text-[12px] whitespace-nowrap bg-white">
                                               {tbDtqd.top > 0 ? (
                                                  <span className="px-2.5 py-1 rounded bg-emerald-100 text-emerald-800 font-black text-xs">TOP</span>
                                                ) : tbDtqd.bot > 0 ? (
@@ -4585,7 +4983,12 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                                 </td>
                                               </>
                                             )}
-                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-indigo-600 font-black bg-indigo-50/10 whitespace-nowrap">
+                                            <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                                              "px-6 py-3 text-center border-r border-slate-200 font-mono font-black whitespace-nowrap transition-colors",
+                                              tbNh.top > 0 ? "bg-[#d1fae5] text-[#065f46]" :
+                                              tbNh.bot > 0 ? "bg-[#ffe4e6] text-[#be123c]" :
+                                              "bg-indigo-50/10 text-indigo-600"
+                                            )}>
                                               {(() => {
                                                 const sc = rank3TNganhHangScores[key];
                                                 if (sc && sc.hasData) return sc.totalText;
@@ -4681,9 +5084,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                                    {(() => {
                                                      const val = row.thunhap1 || 0;
                                                      if (!val) return '0';
-                                                     return val >= 1000000 
-                                                       ? `${(val / 1000000).toFixed(1).replace('.', ',')} tr`
-                                                       : Math.round(val).toLocaleString('vi-VN');
+                                                     return formatCurrencyValue(val);
                                                    })()}
                                                  </td>
                                                  <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
@@ -4695,9 +5096,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                                    {(() => {
                                                      const val = row.thunhap2 || 0;
                                                      if (!val) return '0';
-                                                     return val >= 1000000 
-                                                       ? `${(val / 1000000).toFixed(1).replace('.', ',')} tr`
-                                                       : Math.round(val).toLocaleString('vi-VN');
+                                                     return formatCurrencyValue(val);
                                                    })()}
                                                  </td>
                                                  <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
@@ -4709,9 +5108,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                                    {(() => {
                                                      const val = row.thunhap3 || 0;
                                                      if (!val) return '0';
-                                                     return val >= 1000000 
-                                                       ? `${(val / 1000000).toFixed(1).replace('.', ',')} tr`
-                                                       : Math.round(val).toLocaleString('vi-VN');
+                                                     return formatCurrencyValue(val);
                                                    })()}
                                                  </td>
                                                </>
@@ -4719,27 +5116,105 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                                              <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-[#00965e] font-black bg-orange-50/10 whitespace-nowrap">
                                                {(() => {
                                                  const avgTn = row.thunhap / 3;
-                                                 return avgTn >= 1000000 
-                                                   ? `${(avgTn / 1000000).toFixed(1).replace('.', ',')} tr`
-                                                   : Math.round(avgTn).toLocaleString('vi-VN');
+                                                 return formatCurrencyValue(avgTn);
                                                })()}
                                              </td>
                                              <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-3 py-3 text-center border-r border-slate-200 text-[12px] whitespace-nowrap bg-orange-50/20">
-                                          </td>
+                                               {(() => {
+                                                  const avgTn = row.thunhap / 3;
+                                                  if (avgTn === 0) {
+                                                    return <span className="text-slate-300 font-normal text-xs">-</span>;
+                                                  }
+                                                  if (tbTn.top > 0) {
+                                                    return <span className="px-2.5 py-1 rounded bg-orange-100 text-orange-800 font-black text-xs">TOP</span>;
+                                                  }
+                                                  if (tbTn.bot > 0) {
+                                                    return <span className="px-2.5 py-1 rounded bg-rose-100 text-rose-700 font-black text-xs">BOT</span>;
+                                                  }
+                                                  return <span className="text-slate-300 font-normal text-xs">-</span>;
+                                               })()}
+                                             </td>
                                           </>
                                         )}
+                                        {showTraChamGroup && (
+                                           <>
+                                             {showMonthlyDtqd && (
+                                                <>
+                                                  <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                                                    "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
+                                                    rank3TTraChamTopBotStats.sets?.botM1Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
+                                                    rank3TTraChamTopBotStats.sets?.topM1Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
+                                                    "bg-rose-50/10 text-rose-700"
+                                                  )}>
+                                                    {row.tracham1 ? Math.round(row.tracham1) + '%' : '0%'}
+                                                  </td>
+                                                  <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                                                    "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
+                                                    rank3TTraChamTopBotStats.sets?.botM2Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
+                                                    rank3TTraChamTopBotStats.sets?.topM2Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
+                                                    "bg-rose-50/10 text-rose-700"
+                                                  )}>
+                                                    {row.tracham2 ? Math.round(row.tracham2) + '%' : '0%'}
+                                                  </td>
+                                                  <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                                                    "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
+                                                    rank3TTraChamTopBotStats.sets?.botM3Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
+                                                    rank3TTraChamTopBotStats.sets?.topM3Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
+                                                    "bg-rose-50/10 text-rose-700"
+                                                  )}>
+                                                    {row.tracham3 ? Math.round(row.tracham3) + '%' : '0%'}
+                                                  </td>
+                                                </>
+                                              )}
+                                              <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
+                                                "px-6 py-3 text-center border-r border-slate-200 font-mono font-black whitespace-nowrap transition-colors",
+                                                tbTc.top > 0 ? "bg-[#d1fae5] text-[#065f46]" :
+                                                tbTc.bot > 0 ? "bg-[#ffe4e6] text-[#be123c]" :
+                                                "bg-rose-50/10 text-rose-700"
+                                              )}>
+                                                {(() => {
+                                                  const avgTc = Math.round(row.tracham / 3);
+                                                  return avgTc > 0 ? avgTc + '%' : '0%';
+                                                })()}
+                                              </td>
+                                              <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-3 py-3 text-center border-r border-slate-200 text-[12px] whitespace-nowrap bg-rose-50/20">
+                                                {(() => {
+                                                   const avgTc = Math.round(row.tracham / 3);
+                                                   if (avgTc === 0) {
+                                                     return <span className="text-slate-300 font-normal text-xs">-</span>;
+                                                   }
+                                                   if (tbTc.top > 0) {
+                                                     return <span className="px-2.5 py-1 rounded bg-emerald-100 text-emerald-800 font-black text-xs">TOP</span>;
+                                                   }
+                                                   if (tbTc.bot > 0) {
+                                                     return <span className="px-2.5 py-1 rounded bg-rose-100 text-rose-700 font-black text-xs">BOT</span>;
+                                                   }
+                                                   return <span className="text-slate-300 font-normal text-xs">-</span>;
+                                                })()}
+                                              </td>
+                                           </>
+                                         )}
                                         <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-3 py-3 text-center text-[12px] whitespace-nowrap bg-slate-900/5">
                                           {(() => {
                                             const tbTn = rank3TThuNhapTopBotStats.stats[key] || { top: 0, bot: 0 };
+                                            const avgTn = row.thunhap / 3;
+                                            const effectiveTbTn = avgTn === 0 ? { top: 0, bot: 0 } : tbTn;
+                                            
+                                            const tbTc = rank3TTraChamTopBotStats.stats[key] || { top: 0, bot: 0 };
+                                            const avgTc = Math.round(row.tracham / 3);
+                                            const effectiveTbTc = avgTc === 0 ? { top: 0, bot: 0 } : tbTc;
+
                                             const totalTop = (showDtqdGroup ? tbDtqd.top : 0) + 
                                                              (showNganhHangGroup ? tbNh.top : 0) + 
                                                              (showEffGroup ? tbEff.top : 0) + 
-                                                             (showThuNhapGroup ? tbTn.top : 0);
+                                                             (showThuNhapGroup ? effectiveTbTn.top : 0) +
+                                                             (showTraChamGroup ? effectiveTbTc.top : 0);
 
                                             const totalBot = (showDtqdGroup ? tbDtqd.bot : 0) + 
                                                              (showNganhHangGroup ? tbNh.bot : 0) + 
                                                              (showEffGroup ? tbEff.bot : 0) + 
-                                                             (showThuNhapGroup ? tbTn.bot : 0);
+                                                             (showThuNhapGroup ? effectiveTbTn.bot : 0) +
+                                                             (showTraChamGroup ? effectiveTbTc.bot : 0);
                                             return (
                                               <div className="inline-flex items-center gap-1.5 font-black justify-center">
                                                 <span className={totalTop > 0 ? "text-emerald-700 font-black text-sm" : "text-slate-400 text-sm"}>
@@ -4773,6 +5248,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                 </motion.div>
               )}
             </AnimatePresence>
+            )}
           </div>
         </div>
       </main>

@@ -5,6 +5,30 @@ import { ImagePreviewModal } from '../components/ImagePreviewModal';
 import { removeAccents, cn, normalizeStoreId } from './RTST/utils';
 import { supabase } from '../supabaseClient';
 import { useStore } from '../contexts/StoreContext';
+import { db } from '../firebaseConfig';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { BaoHiemRule } from '../components/ConfigBaoHiemModal';
+
+let activeCustomBaoHiemRules: BaoHiemRule[] = [];
+let activeCustomCategoryMap: Record<string, { nganhHang?: string, large: string, small: string }> = {};
+
+const getMatchedBaoHiemRule = (code: string, name: string): BaoHiemRule | null => {
+  const cleanCode = String(code || '').trim();
+  const cleanName = String(name || '').toUpperCase();
+  const rules = activeCustomBaoHiemRules;
+  
+  if (rules && rules.length > 0) {
+    if (cleanCode) {
+      const match = rules.find(r => r.maSanPham && cleanCode === r.maSanPham);
+      if (match) return match;
+    }
+    if (cleanName) {
+      const match = rules.find(r => !r.maSanPham && r.tenSanPham && cleanName.includes(r.tenSanPham));
+      if (match) return match;
+    }
+  }
+  return null;
+};
 import {
   LayoutGrid,
   FileSpreadsheet,
@@ -321,19 +345,19 @@ const NHOM_HANG_MAP: Record<string, { large: string, small: string }> = {
 const NHOM_SMALL_DISPLAY: Record<string, string> = {
   'ML': 'Máy lạnh', 'MNN': 'Máy nước nóng', 'TL': 'Tủ lạnh', 'MG': 'Máy giặt',
   'AUDIO': 'Loa Karaoke', 'TIVI': 'Tivi', 'MLN': 'Lọc nước', 'QĐH': 'Quạt ĐH', 'CNL': 'Cây Nóng/Lạnh',
-  'NC NẮP RỜI': 'NC nắp rời', 'NC Đ.TỬ': 'NC điện tử', 'NC': 'Nồi cơm',
+  'NC NẮP RỜI': 'NC nắp rời', 'NC Đ.TỬ': 'NC điện tử', 'NC': 'Nồi cơm', 'N.CƠM': 'Nồi cơm',
   'HÚT BỤI': 'Hút bụi', 'BẾP GAS/ĐIỆN/HÚT MÙI': 'Bếp', 'XAY ÉP/S.TỐ': 'Xay ép',
   'XAY ÉP': 'Xay ép',
   'N.CHIÊN': 'Nồi chiên', 'ĐGD KHÁC': 'ĐGD khác', 'QUẠT': 'Quạt',
   'SMP': 'Smartphone', 'LAP': 'Laptop', 'TAB': 'Máy tính bảng',
-  'TN BLT': 'Tai nghe BT', 'TN DÂY': 'Tai nghe dây', 'CÁP': 'Cáp',
+  'TN BLT': 'Tai nghe BT', 'TN DÂY': 'Tai nghe dây', 'TN': 'Tai nghe', 'CÁP': 'Cáp',
   'ADAPTER': 'Sạc', 'T.NHỚ': 'Thẻ nhớ', 'M.DÁN': 'Miếng dán',
   'ỐP LƯNG': 'Ốp lưng', 'PK APPLE': 'PK Apple', 'BALO': 'Balo/Túi',
   'CAM': 'Camera', 'LOA': 'Loa', 'PIN SDP': 'Pin sạc', 'SIM': 'Sim',
   'SDP': 'Pin sạc',
   'CHUỘT': 'Chuột', 'Đ.HỒ': 'Đồng hồ', 'B.HIỂM': 'Bảo hiểm',
   'B.Hiểm': 'Bảo hiểm',
-  'XE ĐẠP': 'Xe đạp', 'VIEON': 'VieON', 'KHUNG TREO': 'Khung treo', 'LÕI LỌC': 'Lõi lọc',
+  'XE ĐẠP': 'Xe đạp', 'VIEON': 'VieON', 'KHUNG TREO': 'Khung treo', 'LÕI LỌC': 'Lõi lọc', 'ĐÈN MẶT TRỜI': 'Đèn mặt trời',
   'CHĂM SÓC SẮC ĐẸP': 'Chăm sóc sắc đẹp',
   'ĐIỆN THOẠI DI ĐỘNG': 'Điện thoại di động',
   'ĐỒNG HỒ THỜI TRANG': 'Đồng hồ thời trang',
@@ -368,6 +392,12 @@ const NGANH_DISPLAY: Record<string, string> = {
 const classifyProductByCode = (code: string): string | null => {
   const cleanCode = String(code || '').trim();
   if (!cleanCode) return null;
+  
+  if (activeCustomBaoHiemRules && activeCustomBaoHiemRules.length > 0) {
+    const match = activeCustomBaoHiemRules.find(r => r.maSanPham && cleanCode === r.maSanPham);
+    if (match) return match.phanLoai;
+  }
+
   if (cleanCode.startsWith('177655900')) return 'APPLE+';
   if (cleanCode.startsWith('46444990000')) return 'BHXM';
   return PRODUCT_CODE_MAP[cleanCode] || null;
@@ -375,6 +405,12 @@ const classifyProductByCode = (code: string): string | null => {
 
 const classifyProduct = (name: string) => {
   const n = String(name || '').toUpperCase();
+  
+  if (activeCustomBaoHiemRules && activeCustomBaoHiemRules.length > 0) {
+    const match = activeCustomBaoHiemRules.find(r => r.tenSanPham && n.includes(r.tenSanPham));
+    if (match) return match.phanLoai;
+  }
+  
   if (n.includes('ICALLME') || n.includes('ICALL')) return 'Icall';
   if (n.includes('MANGO')) return 'Mango';
   if (n.includes('GIC-BOLTTECH_BẢO VỆ MÀN HÌNH') || n.includes('BẢO VỆ MÀN HÌNH') || n.includes('BVMH')) return 'BVMH';
@@ -404,6 +440,11 @@ const classifyNhomHangLargeRaw = (category: string, productName?: string): strin
   const prodLower = prod.toLowerCase();
   const normCat = removeAccents(cat);
   const normProd = removeAccents(prod);
+
+  if (cat && activeCustomCategoryMap && activeCustomCategoryMap[cat.toUpperCase()]) {
+    const largeVal = activeCustomCategoryMap[cat.toUpperCase()].large;
+    return largeVal;
+  }
 
   const pClass = classifyProduct(prod);
   if (['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1'].includes(pClass)) {
@@ -503,6 +544,10 @@ const resolveNhomSmall = (category: string, nhomSmallValue: string, nhomLarge: s
   const prod = String(productName || '').trim();
   const catLower = cat.toLowerCase();
   
+  if (cat && activeCustomCategoryMap && activeCustomCategoryMap[cat.toUpperCase()]) {
+    return activeCustomCategoryMap[cat.toUpperCase()].small;
+  }
+
   if (nhomLarge === 'BẢO HIỂM') {
     return classifyProduct(prod);
   }
@@ -679,6 +724,7 @@ const getColumnIndices = (headers: string[]) => {
     return partial !== -1 ? partial : 33;
   })();
 
+  const idxProductCode = findIdx(['mã sản phẩm', 'mã hàng', 'ma san pham'], -1);
   const idxMarket = findIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'kho'], 1);
   const idxHinhThucXuat = findIdx(['hình thức xuất', 'loại hình', 'loại ycx', 'loại yêu cầu'], 3);
   const idxStatus = findIdx(['trạng thái xuất', 'trạng thái'], 13);
@@ -691,6 +737,7 @@ const getColumnIndices = (headers: string[]) => {
     idxCategory,
     idxSmallCat,
     idxProduct,
+    idxProductCode,
     idxMarket,
     idxHinhThucXuat,
     idxStatus,
@@ -789,6 +836,31 @@ const BcDtNganhHang: React.FC = () => {
 
   const [isLoadingDb, setIsLoadingDb] = useState(false);
   const [isSavingDb, setIsSavingDb] = useState(false);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'system_configs', 'nhom_hang_map'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && data.map) {
+          activeCustomCategoryMap = data.map;
+        }
+      }
+    });
+    
+    const unsubBH = onSnapshot(doc(db, 'system_configs', 'bao_hiem_map'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && data.rules) {
+          activeCustomBaoHiemRules = data.rules;
+        }
+      }
+    });
+
+    return () => {
+      unsub();
+      unsubBH();
+    };
+  }, []);
 
   // Load data from Firebase when currentStoreId changes
   const loadStoreData = useCallback(async (storeId: string) => {
@@ -985,23 +1057,44 @@ const BcDtNganhHang: React.FC = () => {
       if (lvl === 'nganh') {
         const cat = String(row[idxs.idxCategory] || '').trim();
         const prod = String(row[idxs.idxProduct] || '').trim();
+        const prodCode = idxs.idxProductCode !== -1 ? String(row[idxs.idxProductCode] || '').trim() : '';
+        const matchedRule = getMatchedBaoHiemRule(prodCode, prod);
+        if (matchedRule && matchedRule.nganhHangLon) {
+          return { key: matchedRule.nganhHangLon, name: matchedRule.nganhHangLon };
+        }
         const val = classifyNhomHangLarge(cat, prod);
-        return { key: val, name: getNganhName(val) };
+        return { key: val, name: val };
       }
       if (lvl === 'nhom') {
         const cat = String(row[idxs.idxCategory] || '').trim();
         const prod = String(row[idxs.idxProduct] || '').trim();
+        const prodCode = idxs.idxProductCode !== -1 ? String(row[idxs.idxProductCode] || '').trim() : '';
+        const matchedRule = getMatchedBaoHiemRule(prodCode, prod);
+        if (matchedRule && matchedRule.nhomHangNho) {
+          return { key: matchedRule.nhomHangNho, name: matchedRule.nhomHangNho };
+        }
         const large = classifyNhomHangLarge(cat, prod);
         const smallVal = idxs.idxSmallCat !== -1 ? String(row[idxs.idxSmallCat] || '').trim().toUpperCase() : '';
         const val = resolveNhomSmall(cat, smallVal, large, prod);
-        return { key: val, name: NHOM_SMALL_DISPLAY[val] || val };
+        return { key: val, name: val };
       }
       if (lvl === 'hang') {
         const cat = String(row[idxs.idxCategory] || '').trim();
         const prod = String(row[idxs.idxProduct] || '').trim();
-        const large = classifyNhomHangLarge(cat, prod);
-        const smallVal = idxs.idxSmallCat !== -1 ? String(row[idxs.idxSmallCat] || '').trim().toUpperCase() : '';
-        const small = resolveNhomSmall(cat, smallVal, large, prod);
+        const prodCode = idxs.idxProductCode !== -1 ? String(row[idxs.idxProductCode] || '').trim() : '';
+        const matchedRule = getMatchedBaoHiemRule(prodCode, prod);
+        let large = '';
+        let small = '';
+        if (matchedRule && matchedRule.nganhHangLon && matchedRule.nhomHangNho) {
+          large = matchedRule.nganhHangLon;
+          small = matchedRule.nhomHangNho;
+        } else {
+          large = classifyNhomHangLargeRaw(cat, prod);
+          const smallVal = idxs.idxSmallCat !== -1 ? String(row[idxs.idxSmallCat] || '').trim().toUpperCase() : '';
+          small = resolveNhomSmall(cat, smallVal, large, prod);
+          if (matchedRule && matchedRule.nganhHangLon) large = matchedRule.nganhHangLon;
+          if (matchedRule && matchedRule.nhomHangNho) small = matchedRule.nhomHangNho;
+        }
         const val = resolveBrandForProduct(prod, small);
         return { key: val, name: val };
       }
@@ -1051,9 +1144,22 @@ const BcDtNganhHang: React.FC = () => {
             const isTc = htx.includes('trả góp');
             const cat = String(row[idxs.idxCategory] || '').trim();
             const prod = String(row[idxs.idxProduct] || '').trim();
-            const large = classifyNhomHangLarge(cat, prod);
-            const smallVal = idxs.idxSmallCat !== -1 ? String(row[idxs.idxSmallCat] || '').trim().toUpperCase() : '';
-            const small = resolveNhomSmall(cat, smallVal, large, prod);
+            const prodCode = idxs.idxProductCode !== -1 ? String(row[idxs.idxProductCode] || '').trim() : '';
+            
+            const matchedRule = getMatchedBaoHiemRule(prodCode, prod);
+            
+            let large = '';
+            let small = '';
+            if (matchedRule && matchedRule.nganhHangLon && matchedRule.nhomHangNho) {
+              large = matchedRule.nganhHangLon;
+              small = matchedRule.nhomHangNho;
+            } else {
+              large = classifyNhomHangLarge(cat, prod);
+              const smallVal = idxs.idxSmallCat !== -1 ? String(row[idxs.idxSmallCat] || '').trim().toUpperCase() : '';
+              small = resolveNhomSmall(cat, smallVal, large, prod);
+              if (matchedRule && matchedRule.nganhHangLon) large = matchedRule.nganhHangLon;
+              if (matchedRule && matchedRule.nhomHangNho) small = matchedRule.nhomHangNho;
+            }
 
             sl += qty;
             dt += revenue;

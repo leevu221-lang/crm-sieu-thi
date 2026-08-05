@@ -5,6 +5,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../../supabaseClient';
+import { db } from '../../../firebaseConfig';
+import { doc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNotification } from '../../../contexts/NotificationContext';
 import { useStore, getStoreItem, setStoreItem } from '../../../contexts/StoreContext';
@@ -72,7 +74,14 @@ export async function decompressString(str: string): Promise<string> {
   return result;
 }
 
-let globalLastSaveTimestampMs = 0;
+// Persist across F5 by reading from localStorage
+let globalLastSaveTimestampMs = parseInt(localStorage.getItem('__rtst_last_save_ts') || '0', 10);
+
+// Helper to update both variable and localStorage
+function setGlobalLastSaveTs(ts: number) {
+  globalLastSaveTimestampMs = ts;
+  try { localStorage.setItem('__rtst_last_save_ts', String(ts)); } catch {}
+}
 
 export const useRealtimeData = (maKho: string) => {
   const { showNotification } = useNotification();
@@ -154,13 +163,12 @@ export const useRealtimeData = (maKho: string) => {
   const [isSavingRealtime, setIsSavingRealtime] = useState(false);
   const [isLoadingRealtime, setIsLoadingRealtime] = useState(false);
   const [isProcessingRealtime, setIsProcessingRealtime] = useState(false);
-  const [isYcxDirty, setIsYcxDirty] = useState(() => localStorage.getItem('RTST_YCX_DIRTY') === 'true');
+  const [isYcxDirty, setIsYcxDirty] = useState(false);
   const isYcxDirtyRef = useRef(isYcxDirty);
 
   // Keep ref in sync with state for use in callbacks without dependency issues
   useEffect(() => {
     isYcxDirtyRef.current = isYcxDirty;
-    localStorage.setItem('RTST_YCX_DIRTY', isYcxDirty.toString());
   }, [isYcxDirty]);
 
   const skipAutoSaveRef = useRef(false);
@@ -270,28 +278,23 @@ export const useRealtimeData = (maKho: string) => {
   }, []);
 
   const clearField = useCallback((setter: (val: string) => void) => {
-    // Block ALL restore paths (subscription + loadData) for 10 seconds
-    globalLastSaveTimestampMs = Date.now();
+    // Block ALL restore paths
+    setGlobalLastSaveTs(Date.now());
     skipSubscriptionRef.current = true;
-    // Call setter first (sync setter sets isDirtyRef=true internally)
     setter('');
-    // Override isDirtyRef AFTER setter to prevent auto-save from re-saving stale data
     isDirtyRef.current = false;
-    // Immediately persist empty field state to Firebase DB
+    // Save immediately — no delay
+    if (saveRealtimeDataRef.current) {
+      saveRealtimeDataRef.current(true);
+    }
+    // Release subscription block after 2s
     setTimeout(() => {
-      isDirtyRef.current = false; // Ensure still false before save
-      if (saveRealtimeDataRef.current) {
-        saveRealtimeDataRef.current(true);
-      }
-      // Release subscription block after save completes
-      setTimeout(() => {
-        skipSubscriptionRef.current = false;
-      }, 5000);
-    }, 100);
+      skipSubscriptionRef.current = false;
+    }, 2000);
   }, []);
 
   const saveRealtimeData = useCallback(async (silent = false, fieldName?: string) => {
-    globalLastSaveTimestampMs = Date.now();
+    setGlobalLastSaveTs(Date.now());
     isDirtyRef.current = false;
 
     const cleanStore = (activeStoreRef.current || '').trim();
@@ -390,7 +393,7 @@ export const useRealtimeData = (maKho: string) => {
       if (isDirtyRef.current) {
         saveRealtimeDataRef.current?.(true);
       }
-    }, 4000); // 4 seconds debounce
+    }, 800); // 800ms debounce — fast save
 
     return () => {
       if (autoSaveTimeoutRef.current) {
@@ -464,8 +467,8 @@ export const useRealtimeData = (maKho: string) => {
 
       if (record) {
         skipAutoSaveRef.current = true;
-        // Block loading if user recently cleared/edited data (within 10s protection window)
-        const isProtected = isDirtyRef.current || (Date.now() - globalLastSaveTimestampMs < 10000);
+        // Block loading ONLY if user has un-saved local edits in this instance
+        const isProtected = isDirtyRef.current;
         if (!isProtected) {
           setMarketInput(await sanitizeField(record.rt_bi_tong_quan));
           setCategoryInput(await sanitizeField(record.rt_nh_cum));
@@ -533,7 +536,7 @@ export const useRealtimeData = (maKho: string) => {
         },
         (payload: any) => {
           // console.log('[RTST] Realtime update received from DB:', payload);
-          if (skipSubscriptionRef.current || (Date.now() - globalLastSaveTimestampMs < 10000) || isDirtyRef.current) {
+          if (skipSubscriptionRef.current || (Date.now() - globalLastSaveTimestampMs < 3000) || isDirtyRef.current) {
             return;
           }
           if (payload.new) {
@@ -674,6 +677,64 @@ export const useRealtimeData = (maKho: string) => {
     setCategoryTargetInput(newVal);
   }, []);
 
+  // FORCE DELETE: Xoá toàn bộ dữ liệu trên Firebase, chặn mọi phục hồi
+  const forceDeleteAllData = useCallback(async () => {
+    const cleanStore = (activeStoreRef.current || '').trim();
+    if (!normalizedMaKho || !cleanStore) return;
+
+    // Block ALL restore paths for 30 seconds
+    setGlobalLastSaveTs(Date.now() + 20000); // Push timestamp far into future
+    skipSubscriptionRef.current = true;
+    isDirtyRef.current = false;
+
+    // Clear all local state + refs
+    clearData();
+
+    try {
+      const targetDocId = normalizeStoreId(cleanStore);
+      console.log(`[RealtimeData] FORCE DELETE all data for: "${targetDocId}"`);
+
+      // BYPASS adapter (merge:true) — use Firestore setDoc directly with merge:false
+      // This REPLACES the entire document, removing ALL old fields
+      const docRef = doc(db, 'store', targetDocId);
+      await setDoc(docRef, {
+        id: targetDocId,
+        warehouse_code: normalizedMaKho,
+        ten_sieu_thi: cleanStore,
+        updated_at: new Date().toISOString(),
+        // Realtime fields
+        rt_bi_tong_quan: '',
+        rt_nh_cum: '',
+        // Luyke fields
+        lk_bi_tong_quan: '',
+        lk_nh_sieu_thi: '',
+        lk_dt_nv: '',
+        lk_td_nv: '',
+        ds_nhan_vien: '',
+        dt_gio_cong: '',
+        data_phan_ca: '',
+        tragop_matran: '',
+        tragop_nv: '',
+        ban_kem_nv: '',
+        category_targets: [],
+        // YCX fields
+        ycx_data: '',
+        ycx_data_moi: ''
+      }); // NO merge — full overwrite
+
+      console.log('[RealtimeData] FORCE DELETE completed successfully');
+    } catch (err: any) {
+      console.error('[RealtimeData] Force delete failed:', err);
+    }
+
+    // Keep blocking for 30 more seconds
+    setGlobalLastSaveTs(Date.now() + 20000);
+    setTimeout(() => {
+      skipSubscriptionRef.current = false;
+      setGlobalLastSaveTs(Date.now());
+    }, 30000);
+  }, [normalizedMaKho, clearData]);
+
   return {
     marketInput, setMarketInput: setMarketInputSync,
     categoryInput, setCategoryInput: setCategoryInputSync,
@@ -696,6 +757,7 @@ export const useRealtimeData = (maKho: string) => {
     syncRealtimeData,
     loadData,
     clearData,
-    clearField
+    clearField,
+    forceDeleteAllData
   };
 };

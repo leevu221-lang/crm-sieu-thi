@@ -15,8 +15,21 @@ const removeAccentsLocal = (str: string): string => {
     .replace(/Đ/g, 'D');
 };
 
-export const getCategoryGroupType = (catName: string): 'ICT' | 'DICH_VU' | 'DMX' => {
+import { CategoryConfigItem } from '../../../hooks/useCategoryConfig';
+
+export const getCategoryGroupType = (catName: string, categoryConfig?: CategoryConfigItem[]): 'ICT' | 'DICH_VU' | 'DMX' => {
   if (!catName) return 'DMX';
+  
+  if (categoryConfig && categoryConfig.length > 0) {
+    const normName = catName.trim().toLowerCase();
+    const match = categoryConfig.find(c => c.name.toLowerCase().trim() === normName);
+    if (match) {
+      if (match.group === 'ICT') return 'ICT';
+      if (match.group === 'DỊCH VỤ') return 'DICH_VU';
+      return 'DMX';
+    }
+  }
+
   const norm = removeAccentsLocal(catName).toLowerCase().trim();
 
   // 1. NHÓM DỊCH VỤ / VAS / TRẢ CHẬM
@@ -110,25 +123,32 @@ export const EXACT_CATEGORY_ORDER: string[] = [
   "maylockhongkhihutamhutbui"
 ];
 
-export const getCustomCategoryIndex = (catName: string): number => {
+export const getCustomCategoryIndex = (catName: string, categoryConfig?: CategoryConfigItem[]): number => {
   if (!catName) return 999;
+  
+  if (categoryConfig && categoryConfig.length > 0) {
+    const normName = catName.trim().toLowerCase();
+    const idx = categoryConfig.findIndex(c => c.name.toLowerCase().trim() === normName);
+    if (idx !== -1) return idx;
+  }
+  
   const clean = removeAccentsLocal(catName).toLowerCase().replace(/[^a-z0-9]/g, '');
   
   const idx = EXACT_CATEGORY_ORDER.findIndex(k => clean === k || clean.includes(k) || k.includes(clean));
   if (idx !== -1) return idx;
   
-  return 500 + getCategoryGroupSortOrder(catName) * 10;
+  return 500 + getCategoryGroupSortOrder(catName, categoryConfig) * 10;
 };
 
-export const getCategoryGroupSortOrder = (catName: string): number => {
-  const group = getCategoryGroupType(catName);
+export const getCategoryGroupSortOrder = (catName: string, categoryConfig?: CategoryConfigItem[]): number => {
+  const group = getCategoryGroupType(catName, categoryConfig);
   if (group === 'ICT') return 1;
   if (group === 'DICH_VU') return 2;
   return 3; // DMX
 };
 
-const getCategoryBadgeStyleClasses = (catName: string): { bgText: string; hover: string } => {
-  const group = getCategoryGroupType(catName);
+export const getCategoryBadgeStyleClasses = (catName: string, categoryConfig?: CategoryConfigItem[]): { bgText: string; hover: string } => {
+  const group = getCategoryGroupType(catName, categoryConfig);
   if (group === 'ICT') {
     return { bgText: 'bg-[#f59e0b] text-black', hover: 'hover:bg-[#d97706]' };
   }
@@ -138,6 +158,7 @@ const getCategoryBadgeStyleClasses = (catName: string): { bgText: string; hover:
   // DMX
   return { bgText: 'bg-[#2563eb] text-white', hover: 'hover:bg-[#1d4ed8]' };
 };
+
 export const parseStaffMatrixDataRefined = (
   input: string, 
   staffCount: number, 
@@ -145,7 +166,8 @@ export const parseStaffMatrixDataRefined = (
   luykeCategories: CategoryData[], 
   daysPassed: number, 
   totalDays: number,
-  sortAlpha: boolean = false
+  sortAlpha: boolean = false,
+  categoryConfig?: CategoryConfigItem[]
 ): { staffMatrix: StaffMatrixData[], categories: string[] } => {
   const raw = input.trim();
   if (!raw) return { staffMatrix: [], categories: [] };
@@ -368,7 +390,7 @@ export const parseStaffMatrixDataRefined = (
   }
 
   // Sort categories by exact custom order specified by user
-  resolvedCategories.sort((a, b) => getCustomCategoryIndex(a) - getCustomCategoryIndex(b));
+  resolvedCategories.sort((a, b) => getCustomCategoryIndex(a, categoryConfig) - getCustomCategoryIndex(b, categoryConfig));
 
   const targetPerStaffPerCat: Record<string, number> = {};
   if (luykeCategories && luykeCategories.length > 0) {
@@ -450,7 +472,8 @@ interface SummaryThiDuaTableProps {
   totalDays: number;
   selectedStaffIds?: string[];
   categoryTargets: any[];
-  luykeCategories?: CategoryData[];
+  luykeCategories: CategoryData[];
+  categoryConfig?: CategoryConfigItem[];
 }
 
 const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
@@ -461,7 +484,8 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   totalDays,
   selectedStaffIds,
   categoryTargets,
-  luykeCategories = []
+  luykeCategories,
+  categoryConfig
 }) => {
   const tableRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -527,13 +551,14 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
 
   // Use passed luykeCategories (BC THÁNG displayed data) for staffMatrix calculation
   const { staffMatrix, categories } = parseStaffMatrixDataRefined(
-    thiDuaNv, 
+    thiDuaNv || '', 
     staffCount, 
     categoryTargets, 
     luykeCategories, 
     daysPassed, 
     totalDays,
-    isCatsSortedAlpha
+    false,
+    categoryConfig
   );
 
   const sortedStaffMatrix = React.useMemo(() => {
@@ -631,8 +656,10 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
           if (Array.isArray(parsed)) {
             // Filter to ensure only categories currently available are visible
             const validSaved = parsed.filter((c: string) => categories.includes(c));
-            setVisibleCategories(validSaved);
-            return;
+            if (validSaved.length > 0) {
+              setVisibleCategories(validSaved);
+              return;
+            }
           }
         } catch (e) {
           console.error(e);
@@ -644,7 +671,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
 
   // Save selected categories when selection changes
   React.useEffect(() => {
-    if (categories.length > 0) {
+    if (categories.length > 0 && visibleCategories.length > 0) {
       const savedKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
       localStorage.setItem(savedKey, JSON.stringify(visibleCategories));
     }
@@ -976,7 +1003,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                   <th 
                     className={cn(
                       "px-1 py-1 text-[12px] font-black uppercase tracking-tight text-center border border-white/20 select-none",
-                      getCategoryBadgeStyleClasses(catName).bgText
+                      getCategoryBadgeStyleClasses(catName, categoryConfig).bgText
                     )}
                     style={{
                       width: '70px',
@@ -1077,8 +1104,8 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                 <span className="text-lg">💡</span> Mẹo: Nhấp chuột phải (hoặc nhấn giữ trên điện thoại) vào ảnh và chọn "Sao chép hình ảnh"
               </p>
             </div>
-            <div className="overflow-auto p-4 bg-slate-50">
-              <img src={previewImage} alt="Preview" className="max-w-full h-auto shadow-sm" />
+            <div className="p-4 bg-slate-50 flex items-center justify-center min-h-[50vh] overflow-hidden">
+              <img src={previewImage} alt="Preview" className="max-w-full max-h-[calc(90vh-120px)] object-contain shadow-sm rounded-xl border border-slate-200" />
             </div>
           </div>
         </div>

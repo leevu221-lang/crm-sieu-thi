@@ -11,6 +11,8 @@ import { cleanCategoryName } from './EmployeeDetailTable';
 import { useLuykeData } from '../../RTST/hooks/useLuykeData';
 import { getCategoryGroupSortOrder, getCustomCategoryIndex } from './SummaryThiDuaTable';
 
+import { CategoryConfigItem } from '../../../hooks/useCategoryConfig';
+
 interface CategoryDetailByStaffTableProps {
   luyKeNganhHang: string;
   thiDuaNv: string;
@@ -20,9 +22,10 @@ interface CategoryDetailByStaffTableProps {
   categoryTargets: any[];
   selectedStaffIds?: string[];
   luykeCategories?: CategoryData[];
+  categoryConfig?: CategoryConfigItem[];
 }
 
-const parseStaffMatrixDataRefined = (input: string, staffCount: number, categoryTargets: any[], luykeCategories: CategoryData[], daysPassed: number, totalDays: number): { results: StaffMatrixData[], categories: string[] } => {
+const parseStaffMatrixDataRefined = (input: string, staffCount: number, categoryTargets: any[], luykeCategories: CategoryData[], daysPassed: number, totalDays: number, categoryConfig?: CategoryConfigItem[]): { results: StaffMatrixData[], categories: string[] } => {
   const raw = input.trim();
   if (!raw) return { results: [], categories: [] };
   const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -104,7 +107,7 @@ const parseStaffMatrixDataRefined = (input: string, staffCount: number, category
   });
 
   // Sort categories by exact custom order specified by user
-  displayCategories.sort((a, b) => getCustomCategoryIndex(a) - getCustomCategoryIndex(b));
+  displayCategories.sort((a, b) => getCustomCategoryIndex(a, categoryConfig) - getCustomCategoryIndex(b, categoryConfig));
 
   const results: StaffMatrixData[] = [];
   const excludedKeywords = ['Tổng', 'BP All In One', 'BP Trưởng Ca', 'Hỗ trợ BI', 'Copyright', 'Dashboard', 'BC ', 'HD sử dụng', 'Trang chủ', 'Báo cáo', 'Khối kinh doanh', 'Logo BI', 'avatar'];
@@ -200,9 +203,10 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   totalDays,
   categoryTargets,
   selectedStaffIds = [],
-  luykeCategories = []
+  luykeCategories,
+  categoryConfig
 }) => {
-  const { results: allStaffMatrix, categories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays);
+  const { results: allStaffMatrix, categories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, luykeCategories || [], daysPassed, totalDays, categoryConfig);
 
   // Build dropdown options from luykeCategories (BC Tháng) if available, otherwise fall back to parsed categories
   const dropdownCategories = React.useMemo(() => {
@@ -237,9 +241,11 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
           const parsed = JSON.parse(savedVal);
           if (Array.isArray(parsed)) {
             const validSaved = parsed.filter((c: string) => dropdownCategories.includes(c));
-            setSelectedCategories(validSaved);
-            initializedRef.current = true;
-            return;
+            if (validSaved.length > 0) {
+              setSelectedCategories(validSaved);
+              initializedRef.current = true;
+              return;
+            }
           }
         } catch (e) {
           console.error(e);
@@ -252,7 +258,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
 
   // Save selected categories when selection changes
   React.useEffect(() => {
-    if (dropdownCategories.length > 0 && initializedRef.current) {
+    if (dropdownCategories.length > 0 && initializedRef.current && selectedCategories.length > 0) {
       const savedKey = `EH_DETAIL_CATEGORIES_${activeStore || 'GLOBAL'}`;
       localStorage.setItem(savedKey, JSON.stringify(selectedCategories));
     }
@@ -400,31 +406,30 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   const handleCopyFeedback = (catName: string, rowData: any[]) => {
     if (rowData.length === 0) return;
 
-    const totalStaff = rowData.length;
-    const count = Math.max(1, Math.round(totalStaff * 0.2));
+    const botStaffs = rowData.filter(s => s.projectedRate < 100);
 
-    const top = rowData.slice(0, count);
-    const bot = rowData.slice(-count).reverse();
+    const tags = botStaffs.map(s => {
+      const parts = s.staffName.split('-');
+      if (parts.length > 1) {
+        const potentialId = parts.find(p => /\d{4,}/.test(p));
+        if (potentialId) {
+          const match = potentialId.match(/\d{4,}/);
+          if (match) return `@${match[0]}`;
+        }
+      }
+      
+      const fallbackMatch = s.staffName.match(/\d{4,}/);
+      if (fallbackMatch) return `@${fallbackMatch[0]}`;
+      
+      return '';
+    }).filter(t => t !== '').join('\n');
 
-    const text = `🌟 TOP 20% NHÂN VIÊN XUẤT SẮC:
-${top.map((s) => {
-      const parts = s.staffName.split(' - ');
-      const id = parts[0].trim();
-      const name = parts.length > 1 ? parts[1].trim() : '';
-      const shortName = name.split(' ').pop() || '';
-      return `${id} - ${shortName.toUpperCase()} (${Math.round(s.projectedRate)}%)`;
-    }).join('\n')}
+    if (!tags) {
+      showNotification('Không có nhân viên nào dưới 100% hoặc không tìm thấy mã NV', 'warning');
+      return;
+    }
 
-⚠️ NHÓM BOTTOM 20% CẦN ĐẨY MẠNH TIẾN ĐỘ:
-${bot.map((s) => {
-      const parts = s.staffName.split(' - ');
-      const id = parts[0].trim();
-      const name = parts.length > 1 ? parts[1].trim() : '';
-      const shortName = name.split(' ').pop() || '';
-      return `${id} - ${shortName.toUpperCase()} (${Math.round(s.projectedRate)}%)`;
-    }).join('\n')}
-
-Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu ngành hàng nhé! 💪`;
+    const text = `🚨 NHÂN VIÊN CÓ TỶ LỆ HOÀN THÀNH DƯỚI 100% :\n${tags}`;
 
     navigator.clipboard.writeText(text).then(() => {
       setCopiedCat(catName);
@@ -590,8 +595,8 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             : "bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100"
                         )}
                       >
-                        {copiedCat === catName ? <Check size={10} /> : <MessageSquare size={10} />}
-                        {copiedCat === catName ? "ĐÃ COPY" : "NHẬN XÉT"}
+                        {copiedCat === catName ? <Check size={10} /> : <span className="text-[12px] leading-none">@</span>}
+                        {copiedCat === catName ? "ĐÃ COPY" : "TAG TÊN"}
                       </button>
                       <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">{catName}</span>
                     </div>

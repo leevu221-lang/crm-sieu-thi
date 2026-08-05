@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, Search, Plus, Edit2, Trash2, Shield, AlertCircle, Loader2, CheckCircle2, X, 
-  Activity, Clock, Monitor, Smartphone, RefreshCw, Eye, Calendar, Layers, ShieldCheck, Zap
+  Activity, Clock, Monitor, Smartphone, RefreshCw, Eye, Calendar, Layers, ShieldCheck, Zap,
+  FileSpreadsheet
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { UserProfile } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
+import { db } from '../firebaseConfig';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface UserManagementProps {
   onBack: () => void;
@@ -41,11 +44,27 @@ export default function UserManagement({ onBack }: UserManagementProps) {
   const [logFilterAction, setLogFilterAction] = useState('ALL');
 
   const { userProfile } = useAuth();
+  const [duplicateIdsToDelete, setDuplicateIdsToDelete] = useState<string[]>([]);
+  const [webAppUrl, setWebAppUrl] = useState('');
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const isSuperAdminHardcoded = userProfile?.username === '43751' || userProfile?.username === 'ADMIN';
 
   useEffect(() => {
     fetchUsers();
     fetchAccessLogs();
+    
+    const loadConfig = async () => {
+      try {
+        const docRef = doc(db, 'system_configs', 'google_sheets_config');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setWebAppUrl(docSnap.data().webAppUrl || '');
+        }
+      } catch (e) {
+        console.error("Lỗi khi tải URL Google Sheets:", e);
+      }
+    };
+    loadConfig();
   }, []);
 
   if (!isSuperAdminHardcoded && !userProfile?.userPermissions?.canEditUser) {
@@ -68,7 +87,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
         supabase
           .from('ql_nguoi_dung')
           .select('*')
-          .limit(500),
+          .limit(200), // Reduce limit from 500 to 200 to save reads
         supabase
           .from('user_permissions')
           .select('user_id, allowed_pages')
@@ -80,7 +99,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
 
       const seenUsernames = new Set<string>();
       const mappedUsers: any[] = [];
-      const duplicateIdsToDelete: string[] = [];
+      const duplicateIds: string[] = [];
 
       (data || []).forEach((u: any) => {
         const cleanUsername = String(u.username || '').trim();
@@ -88,8 +107,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
         const key = cleanUsername.toUpperCase();
 
         if (seenUsernames.has(key)) {
-          console.warn('[DanhSachNguoiDung] Duplicate username found in DB, filtering out:', cleanUsername, u.id);
-          if (u.id) duplicateIdsToDelete.push(u.id);
+          if (u.id) duplicateIds.push(u.id);
           return;
         }
         seenUsernames.add(key);
@@ -112,32 +130,42 @@ export default function UserManagement({ onBack }: UserManagementProps) {
           requestedAt: u.requestedAt,
           phone: u.phone,
           isDemo: u.isDemo,
-          last_active_at: u.last_active_at,
+          last_active_at: cleanUsername === (localStorage.getItem('userProfile') ? JSON.parse(localStorage.getItem('userProfile') as string)?.username?.trim()?.toUpperCase() : null) ? new Date().toISOString() : u.last_active_at,
           last_login_at: u.last_login_at,
-          current_page: u.current_page,
+          current_page: cleanUsername === (localStorage.getItem('userProfile') ? JSON.parse(localStorage.getItem('userProfile') as string)?.username?.trim()?.toUpperCase() : null) ? 'Quản lý Người dùng' : u.current_page,
           device_info: u.device_info
         });
       });
 
-      setUsers(mappedUsers);
-
-      // Asynchronously delete duplicate documents from DB
-      if (duplicateIdsToDelete.length > 0) {
-        for (const id of duplicateIdsToDelete) {
-          try {
-            await supabase.from('ql_nguoi_dung').delete().eq('id', id);
-          } catch (e) {
-            console.error('[DanhSachNguoiDung] Delete duplicate doc error:', e);
-          }
-        }
+      // Ensure current user (especially 43751) is always displayed if they somehow got deleted from DB
+      const currentProfile = localStorage.getItem('userProfile') ? JSON.parse(localStorage.getItem('userProfile') as string) : null;
+      if (currentProfile && (currentProfile.username === '43751' || currentProfile.username === 'ADMIN') && !seenUsernames.has(currentProfile.username.toUpperCase())) {
+        mappedUsers.unshift({
+          username: currentProfile.username,
+          ma_kho: currentProfile.ma_kho || 'TNB_LEADER_DATA',
+          password: '---',
+          role: 'admin',
+          userPermissions: currentProfile.userPermissions || { canEditUser: true, allowedPages: [] },
+          permissions: currentProfile.permissions || [],
+          status: 'active',
+          isDemo: true,
+          last_active_at: new Date().toISOString(), // Display as online
+          current_page: 'Hệ thống',
+          device_info: 'Admin System'
+        });
       }
+
+      setUsers(mappedUsers);
+      setDuplicateIdsToDelete(duplicateIds);
+      setLoading(false);
+
     } catch (err: any) {
       console.error("Error fetching users:", err);
       setError(err.message || 'Không thể tải danh sách người dùng.');
-    } finally {
       setLoading(false);
     }
   };
+
 
   const fetchAccessLogs = async () => {
     setLogsLoading(true);
@@ -193,21 +221,33 @@ export default function UserManagement({ onBack }: UserManagementProps) {
           updateData.requestedAt = null;
         }
 
-        const { error } = await supabase
-          .from('ql_nguoi_dung')
-          .update(updateData)
-          .eq('username', isEditing.username);
+        const [updateRes, permRes] = await Promise.all([
+          supabase
+            .from('ql_nguoi_dung')
+            .update(updateData)
+            .eq('username', isEditing.username),
+          supabase
+            .from('user_permissions')
+            .upsert({ 
+              user_id: isEditing.username, 
+              allowed_pages: isEditing.userPermissions?.allowedPages || [] 
+            }, { onConflict: 'user_id' })
+        ]);
 
-        if (error) throw error;
-
-        const { error: permError } = await supabase
-          .from('user_permissions')
-          .upsert({ 
-            user_id: isEditing.username, 
-            allowed_pages: isEditing.userPermissions?.allowedPages || [] 
-          }, { onConflict: 'user_id' });
+        if (updateRes.error) throw updateRes.error;
+        if (permRes.error) throw permRes.error;
         
-        if (permError) throw permError;
+        // Log package update to Firebase if applicable
+        if (isEditing.packageDays) {
+          await supabase.from('lich_su_dang_ky').insert({
+            username: isEditing.username,
+            storeCode: isEditing.ma_kho,
+            action: 'EDIT_PACKAGE',
+            packageDays: isEditing.packageDays,
+            status: isEditing.status,
+            created_at: new Date().toISOString()
+          });
+        }
         
         const updatedUser = {
           ...isEditing,
@@ -246,20 +286,32 @@ export default function UserManagement({ onBack }: UserManagementProps) {
           created_at: new Date().toISOString()
         };
 
-        const { error: userError } = await supabase
-          .from('ql_nguoi_dung')
-          .upsert([newUser], { onConflict: 'username' });
+        const [userRes, permRes] = await Promise.all([
+          supabase
+            .from('ql_nguoi_dung')
+            .upsert([newUser], { onConflict: 'username' }),
+          supabase
+            .from('user_permissions')
+            .upsert({ 
+              user_id: newUser.username, 
+              allowed_pages: isEditing.userPermissions?.allowedPages || [] 
+            }, { onConflict: 'user_id' })
+        ]);
 
-        if (userError) throw userError;
-
-        const { error: permError } = await supabase
-          .from('user_permissions')
-          .upsert({ 
-            user_id: newUser.username, 
-            allowed_pages: isEditing.userPermissions?.allowedPages || [] 
-          }, { onConflict: 'user_id' });
-
-        if (permError) throw permError;
+        if (userRes.error) throw userRes.error;
+        if (permRes.error) throw permRes.error;
+        
+        // Log package update to Firebase if applicable
+        if (newUser.packageDays) {
+          await supabase.from('lich_su_dang_ky').insert({
+            username: newUser.username,
+            storeCode: newUser.storeCode,
+            action: 'CREATE_USER_WITH_PACKAGE',
+            packageDays: newUser.packageDays,
+            status: newUser.status,
+            created_at: new Date().toISOString()
+          });
+        }
         
         setUsers([isEditing, ...users]);
       }
@@ -292,6 +344,30 @@ export default function UserManagement({ onBack }: UserManagementProps) {
     } catch (err: any) {
       console.error("Error deleting user:", err);
       setError('Không thể xoá người dùng. Vui lòng thử lại.');
+    }
+  };
+
+  const handleDeleteDuplicates = async () => {
+    if (!window.confirm(`Hệ thống tìm thấy ${duplicateIdsToDelete.length} tài khoản trùng lặp.\n\nCẢNH BÁO: Việc xoá sẽ tốn ${duplicateIdsToDelete.length * 2} lượt Đọc/Ghi Firebase. Bạn có chắc chắn muốn dọn rác ngay bây giờ không?`)) {
+      return;
+    }
+    setSaving(true);
+    let deletedCount = 0;
+    try {
+      for (const id of duplicateIdsToDelete) {
+        await supabase.from('ql_nguoi_dung').delete().eq('id', id);
+        deletedCount++;
+        // Add 200ms delay to avoid rate limit spikes
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      showNotification(`Đã xoá xong ${deletedCount} tài khoản rác!`, 'success');
+      setDuplicateIdsToDelete([]);
+      fetchUsers();
+    } catch (err) {
+      console.error('[DanhSachNguoiDung] Delete duplicate error:', err);
+      showNotification(`Đã dừng sau khi xoá ${deletedCount} tài khoản do lỗi!`, 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -360,11 +436,257 @@ export default function UserManagement({ onBack }: UserManagementProps) {
         .eq('username', username);
 
       if (error) throw error;
+
+      // Save subscription history to Firebase
+      await supabase.from('lich_su_dang_ky').insert({
+        username: username,
+        storeCode: user?.ma_kho,
+        action: 'APPROVE',
+        packageDays: days,
+        status: 'active',
+        created_at: new Date().toISOString()
+      });
+
       setAlertConfig({ title: "Duyệt thành công", message: `Đã phê duyệt gói ${days} ngày cho tài khoản ${username}`, type: "success" });
       fetchUsers();
     } catch (err: any) {
       console.error("Error approving user:", err);
       setError('Lỗi khi phê duyệt gói cước.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+
+  const handleSyncToGoogleSheet = async () => {
+    const cleanUrl = String(webAppUrl || '').trim();
+    if (!cleanUrl) {
+      alert("⚠️ Vui lòng dán URL Web App Google Apps Script vào ô kế bên nút đồng bộ trước!");
+      return;
+    }
+    if (cleanUrl.includes('docs.google.com/spreadsheets')) {
+      alert("⚠️ Phát hiện sai URL: Bạn đang nhập liên kết của Google Sheets (docs.google.com/spreadsheets).\n\nBạn phải nhập URL Web App được tạo sau khi Triển khai mã Apps Script thành công (có dạng bắt đầu bằng https://script.google.com/macros/s/...).");
+      return;
+    }
+    if (!cleanUrl.includes('script.google.com/macros/s/')) {
+      alert("⚠️ URL không hợp lệ! URL Web App của Google Apps Script phải bắt đầu bằng:\nhttps://script.google.com/macros/s/...");
+      return;
+    }
+
+    if (saving) return;
+    setSaving(true);
+    setSyncStatus('loading');
+    try {
+      const docRef = doc(db, 'system_configs', 'google_sheets_config');
+      await setDoc(docRef, {
+        webAppUrl: cleanUrl,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      const usersData = users.map(user => {
+        const statusInfo = getAccessStatus(user.last_active_at);
+        
+        let cuocPhiStr = '';
+        if (user.username === '43751' || user.username === 'ADMIN' || user.isDemo) {
+          cuocPhiStr = 'MIỄN PHÍ / DEMO';
+        } else {
+          const statusText = user.status === 'active' ? 'Đã gia hạn'
+            : user.status === 'pending' ? 'Chờ duyệt'
+            : (user.status === 'expired' || (user.expiredAt && new Date() > new Date(user.expiredAt))) ? 'Hết hạn'
+            : 'Chưa đăng ký';
+          
+          let subDetails = '';
+          if (user.expiredAt) {
+            const daysLeft = getRemainingDays(user.expiredAt);
+            const remainingText = daysLeft !== null ? (daysLeft > 0 ? ` (Còn ${daysLeft} ngày)` : ' (Đã hết hạn)') : '';
+            subDetails = ` - Gói: ${user.packageDays || 0} ngày - Hạn: ${new Date(user.expiredAt).toLocaleDateString('vi-VN')}${remainingText}`;
+          }
+          cuocPhiStr = `${statusText}${subDetails}`;
+        }
+
+        const pagesText = user.userPermissions?.allowedPages?.join(', ') || '';
+
+        return {
+          username: user.username,
+          isOnline: statusInfo.isOnline ? 'Đang Online' : 'Ngoại tuyến',
+          lastActive: statusInfo.text + (user.device_info ? ` (${user.device_info})` : ''),
+          currentPage: user.current_page || 'Chưa xem',
+          storeCode: user.ma_kho || '',
+          password: user.password || '---',
+          cuocPhi: cuocPhiStr,
+          allowedPages: pagesText
+        };
+      });
+
+      const payload = {
+        users_list: usersData
+      };
+
+      const response = await fetch(cleanUrl, {
+        method: 'POST',
+        mode: 'cors',
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setSyncStatus('success');
+        setIsSyncModalOpen(false); // Close the Sync Modal
+        setAlertConfig({
+          title: "Đồng bộ thành công",
+          message: `Đã xuất và đồng bộ ${usersData.length} tài khoản người dùng lên Google Sheet!`,
+          type: "success"
+        });
+      } else {
+        throw new Error(result.error || 'Lỗi không xác định từ Apps Script');
+      }
+    } catch (e: any) {
+      console.error("Error syncing users to sheet:", e);
+      setSyncStatus('error');
+      alert(`❌ Lỗi đồng bộ Google Sheets: ${e.message || 'Vui lòng kiểm tra lại cấu hình Web App URL hoặc mã nguồn Apps Script.'}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const parseCuocPhi = (str: string) => {
+    const clean = String(str || '').toUpperCase();
+    if (clean.includes('MIỄN PHÍ') || clean.includes('DEMO')) {
+      return { status: 'active', paymentConfirmed: true, isDemo: true, packageDays: 360, expiredAt: null };
+    }
+    
+    let status = 'inactive';
+    let paymentConfirmed = false;
+    let packageDays = 30;
+    let expiredAt: string | null = null;
+    let isDemo = false;
+
+    if (clean.includes('ĐÃ GIA HẠN')) {
+      status = 'active';
+      paymentConfirmed = true;
+    } else if (clean.includes('CHỜ DUYỆT')) {
+      status = 'pending';
+      paymentConfirmed = false;
+    } else if (clean.includes('HẾT HẠN')) {
+      status = 'expired';
+      paymentConfirmed = true;
+    }
+
+    const pkgMatch = clean.match(/GÓI:\s*(\d+)\s*NGÀY/);
+    if (pkgMatch) {
+      packageDays = parseInt(pkgMatch[1]);
+    }
+
+    // Match DD/MM/YYYY
+    const expMatch = clean.match(/HẠN:\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (expMatch) {
+      const day = parseInt(expMatch[1]);
+      const month = parseInt(expMatch[2]) - 1; // 0-indexed
+      const year = parseInt(expMatch[3]);
+      const d = new Date(year, month, day, 23, 59, 59);
+      expiredAt = d.toISOString();
+    }
+
+    return { status, paymentConfirmed, isDemo, packageDays, expiredAt };
+  };
+
+  const handleImportFromGoogleSheet = async () => {
+    const cleanUrl = String(webAppUrl || '').trim();
+    if (!cleanUrl) {
+      alert("⚠️ Vui lòng dán URL Web App Google Apps Script vào ô nhập liệu trước!");
+      return;
+    }
+    if (!window.confirm("⚠️ BẠN CÓ CHẮC CHẮN?\n\nThao tác này sẽ cập nhật và GHI ĐÈ toàn bộ tài khoản người dùng trên hệ thống bằng dữ liệu từ Google Sheets!")) {
+      return;
+    }
+
+    if (saving) return;
+    setSaving(true);
+    setSyncStatus('loading');
+    try {
+      // 1. Save the new URL to Firestore
+      const docRef = doc(db, 'system_configs', 'google_sheets_config');
+      await setDoc(docRef, {
+        webAppUrl: cleanUrl,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      // 2. Fetch data from Google Sheet
+      const response = await fetch(cleanUrl);
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Lỗi không xác định từ Apps Script');
+      }
+
+      const usersList = result.data?.users_list;
+      if (!usersList || !Array.isArray(usersList)) {
+        throw new Error("Không tìm thấy dữ liệu Sheet 'Quản lý Người dùng' hoặc danh sách trống.");
+      }
+
+      // 3. Process each user and sync to Supabase
+      let successCount = 0;
+      for (const item of usersList) {
+        const username = String(item.username || '').trim();
+        if (!username) continue;
+
+        const parsedSub = parseCuocPhi(item.cuocPhi);
+
+        const allowedPages = String(item.allowedPages || '')
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean);
+
+        // Update ql_nguoi_dung
+        const { error: userError } = await supabase
+          .from('ql_nguoi_dung')
+          .upsert({
+            username: username,
+            storeCode: String(item.storeCode || '').trim(),
+            password: String(item.password || '---').trim(),
+            status: parsedSub.status,
+            paymentConfirmed: parsedSub.paymentConfirmed,
+            expiredAt: parsedSub.expiredAt,
+            packageDays: parsedSub.packageDays,
+            isDemo: parsedSub.isDemo,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'username' });
+
+        if (userError) {
+          console.error(`Lỗi cập nhật người dùng ${username}:`, userError);
+          continue;
+        }
+
+        // Update user_permissions
+        const { error: permError } = await supabase
+          .from('user_permissions')
+          .upsert({
+            user_id: username,
+            allowed_pages: allowedPages,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'user_id' });
+
+        if (permError) {
+          console.error(`Lỗi cập nhật quyền ${username}:`, permError);
+          continue;
+        }
+
+        successCount++;
+      }
+
+      setSyncStatus('success');
+      setIsSyncModalOpen(false); // Close the Sync Modal
+      setAlertConfig({
+        title: "Đồng bộ thành công",
+        message: `Đã nhập và đồng bộ thành công ${successCount} tài khoản người dùng từ Google Sheet về hệ thống!`,
+        type: "success"
+      });
+      fetchUsers();
+    } catch (e: any) {
+      console.error("Error importing users from sheet:", e);
+      setSyncStatus('error');
+      alert(`❌ Lỗi đồng bộ ngược Google Sheets: ${e.message || 'Vui lòng kiểm tra lại URL Apps Script hoặc cấu hình.'}`);
     } finally {
       setSaving(false);
     }
@@ -621,6 +943,17 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                 <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
                 Làm mới
               </button>
+              {duplicateIdsToDelete.length > 0 && (
+                <button
+                  onClick={handleDeleteDuplicates}
+                  disabled={saving}
+                  className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-bold transition-colors cursor-pointer text-xs border border-red-200 shadow-sm"
+                  title="Dọn rác tài khoản trùng lặp (Tốn Quota)"
+                >
+                  <Trash2 size={14} />
+                  Dọn Rác ({duplicateIdsToDelete.length})
+                </button>
+              )}
               <button
                 onClick={handleResetAllPasswords}
                 disabled={saving}
@@ -637,6 +970,14 @@ export default function UserManagement({ onBack }: UserManagementProps) {
               >
                 <Plus size={18} />
                 Thêm người dùng
+              </button>
+              <button
+                onClick={() => setIsSyncModalOpen(true)}
+                disabled={loading}
+                className="flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200 cursor-pointer disabled:opacity-50 whitespace-nowrap text-xs"
+              >
+                <FileSpreadsheet size={16} />
+                Đồng bộ Google Sheets
               </button>
             </div>
           </div>
@@ -800,7 +1141,10 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                                 { id: 'health', label: 'Sức Khoẻ', color: 'bg-rose-100 text-rose-700' },
                                 { id: 'toolhotro', label: 'Tool HT', color: 'bg-amber-100 text-amber-700' },
                                 { id: 'tnb_data', label: 'TNB DATA', color: 'bg-emerald-100 text-emerald-700' },
+                                { id: 'tnbleader', label: 'TNB LEADER', color: 'bg-amber-100 text-amber-700' },
                                 { id: 'birthday', label: 'Sinh Nhật', color: 'bg-pink-100 text-pink-700' },
+                                { id: 'feedback', label: 'HƯỚNG DẪN & GÓP Ý', color: 'bg-indigo-100 text-indigo-700' },
+                                { id: 'excelviewer', label: 'XEM FILE EXCEL', color: 'bg-emerald-100 text-emerald-700' },
                               ].filter(p => user.userPermissions?.allowedPages?.includes(p.id)).map(p => (
                                 <span key={p.id} className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${p.color}`}>{p.label}</span>
                               ))}
@@ -1224,15 +1568,21 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                       { id: 'health', label: 'Sức khoẻ nhân viên', color: 'bg-rose-500' },
                       { id: 'toolhotro', label: 'Tool Hỗ Trợ', color: 'bg-amber-500' },
                       { id: 'tnb_data', label: 'TNB DATA', color: 'bg-emerald-500' },
+                      { id: 'tnbleader', label: 'TNB LEADER', color: 'bg-amber-500' },
                       { id: 'birthday', label: 'Sinh nhật NV', color: 'bg-pink-500' },
+                      { id: 'feedback', label: 'HƯỚNG DẪN & GÓP Ý', color: 'bg-indigo-500' },
+                      { id: 'excelviewer', label: 'XEM FILE EXCEL', color: 'bg-emerald-500' },
                     ].map((page) => {
-                      const hasAccess = isEditing.userPermissions?.allowedPages?.includes(page.id) || false;
+                      const is43751Admin = String(isEditing.username).trim() === '43751';
+                      const hasAccess = is43751Admin || (isEditing.userPermissions?.allowedPages?.includes(page.id) || false);
                       return (
-                        <label key={page.id} className="flex items-center gap-3 p-4 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+                        <label key={page.id} className={`flex items-center gap-3 p-4 border border-slate-200 rounded-xl ${is43751Admin ? 'bg-slate-50 cursor-not-allowed opacity-80' : 'cursor-pointer hover:bg-slate-50'} transition-colors`}>
                           <input
                             type="checkbox"
                             checked={hasAccess}
+                            disabled={is43751Admin}
                             onChange={(e) => {
+                              if (is43751Admin) return;
                               const currentPages = isEditing.userPermissions?.allowedPages || [];
                               const newPages = e.target.checked 
                                 ? [...currentPages, page.id]
@@ -1245,7 +1595,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                                 } 
                               });
                             }}
-                            className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-600"
+                            className={`w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-600 ${is43751Admin ? 'cursor-not-allowed' : ''}`}
                           />
                           <div className="flex items-center gap-2">
                             <span className={`w-2.5 h-2.5 rounded-full ${page.color}`} />
@@ -1292,7 +1642,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
       {/* Custom Alert Modal */}
       <AnimatePresence>
         {alertConfig && (
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1334,6 +1684,149 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                   }`}
                 >
                   Đồng ý
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Google Sheets Sync Modal */}
+      <AnimatePresence>
+        {isSyncModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 120 }}
+              className="bg-white rounded-[32px] shadow-2xl border border-slate-100 max-w-lg w-full overflow-hidden flex flex-col relative"
+              style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}
+            >
+              {/* Background glow glows */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+              {/* Modal Header */}
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm shrink-0">
+                    <FileSpreadsheet size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">Đồng bộ Google Sheets</h3>
+                    <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Xuất dữ liệu người dùng</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSyncModalOpen(false);
+                    setSyncStatus('idle');
+                  }}
+                  className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200/60 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-5 flex-1 relative z-10">
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Tính năng này sẽ xuất toàn bộ danh sách thành viên hiện tại (gồm Mã NV, Trạng thái hoạt động, cước phí, mật khẩu, và quyền hạn truy cập) lên Google Sheets của bạn.
+                </p>
+
+                {/* URL INPUT FIELD */}
+                <div className="space-y-2">
+                  <label className="text-[11px] font-black text-slate-600 uppercase tracking-wider block">URL Web App Google Apps Script</label>
+                  <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-4 py-3.5 bg-slate-50 focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-transparent transition-all">
+                    <input
+                      type="text"
+                      placeholder="Dán URL Web App (https://script.google.com/macros/s/.../exec) tại đây..."
+                      value={webAppUrl}
+                      onChange={(e) => setWebAppUrl(e.target.value)}
+                      className="bg-transparent border-none outline-none text-xs font-mono w-full text-slate-700 placeholder-slate-400"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-normal">
+                    ⚠️ Phải dán URL **Web App** được tạo sau khi triển khai Apps Script trên file Trang tính. KHÔNG dán trực tiếp link của Google Sheet.
+                  </p>
+                </div>
+
+                {/* SYNC STATUS INFO */}
+                {syncStatus !== 'idle' && (
+                  <div className={`p-4 border rounded-2xl text-xs font-bold leading-normal flex items-start gap-2.5 ${
+                    syncStatus === 'loading' ? 'bg-indigo-50/50 border-indigo-100 text-indigo-700' :
+                    syncStatus === 'success' ? 'bg-emerald-50/50 border-emerald-100 text-emerald-700 animate-pulse' :
+                    'bg-rose-50/50 border-rose-100 text-rose-700'
+                  }`}>
+                    {syncStatus === 'loading' ? (
+                      <Loader2 size={16} className="animate-spin mt-0.5 shrink-0" />
+                    ) : syncStatus === 'success' ? (
+                      <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+                    ) : (
+                      <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                    )}
+                    <div>
+                      {syncStatus === 'loading' && "Đang thiết lập kết nối và đồng bộ dữ liệu người dùng..."}
+                      {syncStatus === 'success' && `Đồng bộ thành công! Dữ liệu đã được ghi vào Sheet "Quản lý Người dùng" trên file của bạn.`}
+                      {syncStatus === 'error' && "Đồng bộ thất bại. Vui lòng kiểm tra lại liên kết URL Apps Script hoặc kết nối mạng của bạn."}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-6 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSyncModalOpen(false);
+                    setSyncStatus('idle');
+                  }}
+                  className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 hover:text-slate-700 transition-colors text-xs cursor-pointer"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleImportFromGoogleSheet();
+                  }}
+                  disabled={saving}
+                  className="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100 flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed text-xs cursor-pointer"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Đang xử lý...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw size={14} />
+                      Đồng bộ ngược về Web
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleSyncToGoogleSheet();
+                  }}
+                  disabled={saving}
+                  className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100 flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed text-xs cursor-pointer"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Đang xử lý...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw size={14} />
+                      Bắt đầu đồng bộ
+                    </>
+                  )}
                 </button>
               </div>
             </motion.div>

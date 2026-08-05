@@ -135,11 +135,41 @@ export const birthdayService = {
     if (!isSupabaseConfigured) throw new Error('Firebase chưa được cấu hình');
 
     const groups: { [key: string]: Omit<EmployeeBirthday, 'id'>[] } = {};
+    const uniqueStoreIds = new Set<string>();
+    
     payloads.forEach(p => {
       const store = p.warehouse_code;
       if (!groups[store]) groups[store] = [];
       groups[store].push(p);
+      uniqueStoreIds.add(normalizeStoreId(store));
     });
+
+    // --- Validate Store Names against Firebase ---
+    if (uniqueStoreIds.size > 0) {
+      const { data: existingStores, error: checkError } = await supabase
+        .from('store')
+        .select('id, ten_sieu_thi')
+        .in('id', Array.from(uniqueStoreIds));
+        
+      if (checkError) {
+        throw new Error('Lỗi khi kiểm tra siêu thị trên Firebase: ' + checkError.message);
+      }
+      
+      const foundIds = new Set(existingStores?.map((s: any) => s.id) || []);
+      const invalidStoreNames: string[] = [];
+      
+      Object.keys(groups).forEach(storeName => {
+        const id = normalizeStoreId(storeName);
+        if (!foundIds.has(id)) {
+          invalidStoreNames.push(storeName);
+        }
+      });
+      
+      if (invalidStoreNames.length > 0) {
+        throw new Error(`SAI_TEN_SIEU_THI:Lỗi: Có ${invalidStoreNames.length} siêu thị sai tên (${invalidStoreNames.slice(0, 3).join(', ')}${invalidStoreNames.length > 3 ? '...' : ''}). Hãy copy đúng tên trên Bi!`);
+      }
+    }
+    // ---------------------------------------------
 
     for (const storeName of Object.keys(groups)) {
       const docId = normalizeStoreId(storeName);

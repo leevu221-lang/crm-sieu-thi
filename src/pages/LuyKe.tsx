@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import * as htmlToImage from 'html-to-image';
-import { RefreshCw, ShoppingBag, TrendingUp, Camera, LayoutGrid, Activity, Globe, ChevronDown, Zap, Upload, Trash2, HelpCircle, FileSpreadsheet, X } from 'lucide-react';
+import { RefreshCw, ShoppingBag, TrendingUp, Camera, LayoutGrid, Activity, Globe, ChevronDown, Zap, Upload, Trash2, HelpCircle, FileSpreadsheet, X, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { useLuykeData } from './RTST/hooks/useLuykeData';
@@ -13,6 +13,7 @@ import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';
 import { ImagePreviewModal } from '../components/ImagePreviewModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useMarket } from '../contexts/MarketContext';
+import { useStore } from '../contexts/StoreContext';
 import OverviewDashboard from './RTST/components/OverviewDashboard';
 import CategoryTable from './RTST/components/CategoryTable';
 import { BonusCalculatorForm } from './BonusCalculatorForm';
@@ -107,15 +108,15 @@ const parseNumericValue = (val: any): number => {
   return parseFloat(str) || 0;
 };
 
-const LuyKe: React.FC = () => {
+const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean }> = ({ pageMaintenanceState = {}, isUser43751Local = false }) => {
   const { userProfile } = useAuth();
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const { marketFilter, setMarketFilter, availableMarkets } = useMarket();
+  const { activeLuyKeTab: activeTab, setActiveLuyKeTab: setActiveTab } = useStore();
   const filteredMarkets = React.useMemo(() => {
     return (availableMarkets || []).filter(m => !isKhoLuuDong(m.name));
   }, [availableMarkets]);
   const [maKho, setMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
-  const [activeTab, setActiveTab] = useState<'summary' | 'efficiency' | 'thuong_st' | 'bcdtnh'>('summary');
 
   const is43751 = userProfile?.username === '43751';
 
@@ -976,6 +977,19 @@ const LuyKe: React.FC = () => {
 
         {/* Main Content Area - Right Side */}
         <div className="flex-1 min-w-0 space-y-6">
+          {pageMaintenanceState[`luyke_${activeTab}`] && !isUser43751Local ? (
+            <div className="flex items-center justify-center h-full p-6 mt-12">
+              <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-amber-200 shadow-xl w-full">
+                <div className="w-24 h-24 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-amber-500 shadow-inner">
+                  <AlertCircle size={48} />
+                </div>
+                <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">HỆ THỐNG ĐANG BẢO TRÌ</h1>
+                <p className="text-slate-500 font-medium leading-relaxed">
+                  Tab này đang trong quá trình bảo trì và nâng cấp. Xin lỗi vì sự bất tiện này!
+                </p>
+              </div>
+            </div>
+          ) : (
           <AnimatePresence mode="wait">
             {activeTab === 'summary' && (
               <motion.div
@@ -1442,6 +1456,7 @@ const LuyKe: React.FC = () => {
               </motion.div>
             )}
           </AnimatePresence>
+          )}
         </div>
       </main>
 

@@ -38,6 +38,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
   const [thidua3t1, setThidua3t1Internal] = useState<string>(() => initialCache?.thidua3t1 || '');
   const [thidua3t2, setThidua3t2Internal] = useState<string>(() => initialCache?.thidua3t2 || '');
   const [thidua3t3, setThidua3t3Internal] = useState<string>(() => initialCache?.thidua3t3 || '');
+  const [tracham3t1, setTracham3t1Internal] = useState<string>(() => initialCache?.tracham3t1 || '');
+  const [tracham3t2, setTracham3t2Internal] = useState<string>(() => initialCache?.tracham3t2 || '');
+  const [tracham3t3, setTracham3t3Internal] = useState<string>(() => initialCache?.tracham3t3 || '');
   const [rankMonth1, setRankMonth1Internal] = useState<string>(() => initialCache?.rankMonth1 || 'Tháng 1');
   const [rankMonth2, setRankMonth2Internal] = useState<string>(() => initialCache?.rankMonth2 || 'Tháng 2');
   const [rankMonth3, setRankMonth3Internal] = useState<string>(() => initialCache?.rankMonth3 || 'Tháng 3');
@@ -142,6 +145,24 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     rank3tDirtyRef.current = true;
     setNganhhang3t3Internal(val);
     if (globalHealthCache[targetKey]) globalHealthCache[targetKey].nganhhang3t3 = val;
+  }, [targetKey]);
+
+  const setTracham3t1 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setTracham3t1Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].tracham3t1 = val;
+  }, [targetKey]);
+
+  const setTracham3t2 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setTracham3t2Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].tracham3t2 = val;
+  }, [targetKey]);
+
+  const setTracham3t3 = useCallback((val: string) => {
+    rank3tDirtyRef.current = true;
+    setTracham3t3Internal(val);
+    if (globalHealthCache[targetKey]) globalHealthCache[targetKey].tracham3t3 = val;
   }, [targetKey]);
 
   const setGiocong3t1 = useCallback((val: string) => {
@@ -404,6 +425,16 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         ? (lkDataArr || []).map(r => r.thidua_3t_3 || '').filter(Boolean).join('\n')
         : (lkData?.thidua_3t_3 || '');
 
+      const tracham3t1Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.tracham_3t_1 || '').filter(Boolean).join('\n')
+        : (lkData?.tracham_3t_1 || '');
+      const tracham3t2Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.tracham_3t_2 || '').filter(Boolean).join('\n')
+        : (lkData?.tracham_3t_2 || '');
+      const tracham3t3Raw = isAllMode
+        ? (lkDataArr || []).map(r => r.tracham_3t_3 || '').filter(Boolean).join('\n')
+        : (lkData?.tracham_3t_3 || '');
+
       const rankMonth1Raw = isAllMode
         ? 'Tháng 1'
         : (lkData?.rank_month_1 || 'Tháng 1');
@@ -446,6 +477,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         setThidua3t1Internal(thidua3t1Raw);
         setThidua3t2Internal(thidua3t2Raw);
         setThidua3t3Internal(thidua3t3Raw);
+        setTracham3t1Internal(tracham3t1Raw);
+        setTracham3t2Internal(tracham3t2Raw);
+        setTracham3t3Internal(tracham3t3Raw);
         setRankMonth1Internal(rankMonth1Raw);
         setRankMonth2Internal(rankMonth2Raw);
         setRankMonth3Internal(rankMonth3Raw);
@@ -498,6 +532,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         thidua3t1: thidua3t1Raw,
         thidua3t2: thidua3t2Raw,
         thidua3t3: thidua3t3Raw,
+        tracham3t1: tracham3t1Raw,
+        tracham3t2: tracham3t2Raw,
+        tracham3t3: tracham3t3Raw,
         rankMonth1: rankMonth1Raw,
         rankMonth2: rankMonth2Raw,
         rankMonth3: rankMonth3Raw,
@@ -557,6 +594,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         setThidua3t1Internal(cached.thidua3t1 || '');
         setThidua3t2Internal(cached.thidua3t2 || '');
         setThidua3t3Internal(cached.thidua3t3 || '');
+        setTracham3t1Internal(cached.tracham3t1 || '');
+        setTracham3t2Internal(cached.tracham3t2 || '');
+        setTracham3t3Internal(cached.tracham3t3 || '');
         setRankMonth1Internal(cached.rankMonth1 || 'Tháng 1');
         setRankMonth2Internal(cached.rankMonth2 || 'Tháng 2');
         setRankMonth3Internal(cached.rankMonth3 || 'Tháng 3');
@@ -659,6 +699,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
             thidua_3t_1: thidua3t1,
             thidua_3t_2: thidua3t2,
             thidua_3t_3: thidua3t3,
+            tracham_3t_1: tracham3t1,
+            tracham_3t_2: tracham3t2,
+            tracham_3t_3: tracham3t3,
             rank_month_1: rankMonth1,
             rank_month_2: rankMonth2,
             rank_month_3: rankMonth3,
@@ -702,6 +745,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
               thidua_3t_1: thidua3t1,
               thidua_3t_2: thidua3t2,
               thidua_3t_3: thidua3t3,
+              tracham_3t_1: tracham3t1,
+              tracham_3t_2: tracham3t2,
+              tracham_3t_3: tracham3t3,
               rank_month_1: rankMonth1,
               rank_month_2: rankMonth2,
               rank_month_3: rankMonth3,
@@ -713,7 +759,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         }
       }
     };
-  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, thidua3t1, thidua3t2, thidua3t3, rankMonth1, rankMonth2, rankMonth3, maKho, storeName, tenSieuThi, isStoreReady]);
+  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, thidua3t1, thidua3t2, thidua3t3, tracham3t1, tracham3t2, tracham3t3, rankMonth1, rankMonth2, rankMonth3, maKho, storeName, tenSieuThi, isStoreReady]);
 
   // Auto-save banKemNv to DB with 2s debounce
   useEffect(() => {
@@ -956,6 +1002,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     thidua3t1, setThidua3t1,
     thidua3t2, setThidua3t2,
     thidua3t3, setThidua3t3,
+    tracham3t1, setTracham3t1,
+    tracham3t2, setTracham3t2,
+    tracham3t3, setTracham3t3,
     rankMonth1, setRankMonth1,
     rankMonth2, setRankMonth2,
     rankMonth3, setRankMonth3,

@@ -4,7 +4,7 @@ import { useStore } from '../contexts/StoreContext';
 import { birthdayService, EmployeeBirthday } from '../services/birthdayService';
 import { 
   Cake, Gift, Plus, Edit2, Trash2, Search, Calendar, 
-  AlertCircle, Loader2, Sparkles, Check, X, Store, Trash
+  AlertCircle, Loader2, Sparkles, Check, X, Store, Trash, Link2, DownloadCloud
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -26,8 +26,9 @@ const SinhNhatNv: React.FC = () => {
   const [formWarehouse, setFormWarehouse] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   
-
-  
+  // Google Sheets sync states
+  const [sheetUrl, setSheetUrl] = useState('');
+  const [syncing, setSyncing] = useState(false);
   // Dialog/Alert states
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState<string | null>(null);
@@ -52,6 +53,16 @@ const SinhNhatNv: React.FC = () => {
   useEffect(() => {
     setSelectedWarehouseFilter(marketFilter);
   }, [marketFilter]);
+
+  // Sync sheetUrl from localStorage (Global for all supermarkets)
+  useEffect(() => {
+    const savedUrl = localStorage.getItem('sheetUrl_GLOBAL');
+    if (savedUrl) {
+      setSheetUrl(savedUrl);
+    } else {
+      setSheetUrl('');
+    }
+  }, []);
 
   // Load birthdays
   const loadBirthdays = async () => {
@@ -138,6 +149,98 @@ const SinhNhatNv: React.FC = () => {
       showToast('Đã xảy ra lỗi khi lưu thông tin.', false);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Google Sheets Sync
+  const handleSheetSync = async () => {
+    if (!sheetUrl) {
+      showToast('Vui lòng nhập link Google Sheets', false);
+      return;
+    }
+    
+    // Extract ID
+    const match = sheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    if (!match || !match[1]) {
+      showToast('Link Google Sheets không hợp lệ', false);
+      return;
+    }
+    const sheetId = match[1];
+    const fetchUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=NHÂN VIÊN`;
+
+    try {
+      setSyncing(true);
+      const res = await fetch(fetchUrl);
+      if (!res.ok) throw new Error('Network error');
+      const text = await res.text();
+      
+      const lines = text.split('\n');
+      if (lines.length <= 1) {
+        showToast('Không tìm thấy dữ liệu trong Sheet "NHÂN VIÊN"', false);
+        return;
+      }
+      const payloads = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line.trim()) continue;
+        
+        // Match CSV elements considering quotes and commas
+        const regex = /(".*?"|[^",\s]+)(?=\s*,|\s*$)/g;
+        let parts = [];
+        let m;
+        while ((m = regex.exec(line)) !== null) {
+            parts.push(m[1].replace(/^"|"$/g, '').trim());
+        }
+        
+        if (parts.length < 3) {
+           parts = line.split(',').map(s => s.replace(/^"|"$/g, '').trim());
+        }
+        
+        if (parts.length >= 4) {
+          const name = parts[1];
+          const dateStr = parts[2];
+          const storeName = parts[3]; // Cột D: TÊN SIÊU THỊ
+          
+          if (!name || !dateStr || !storeName) continue;
+          if (name.toLowerCase() === 'họ tên nhân viên' || name.toLowerCase() === 'họ và tên') continue;
+          
+          let formattedDate = dateStr;
+          if (dateStr.includes('/')) {
+            const dparts = dateStr.split('/');
+            if (dparts.length === 3) {
+              formattedDate = `${dparts[2]}-${dparts[1].padStart(2, '0')}-${dparts[0].padStart(2, '0')}`;
+            }
+          }
+          
+          payloads.push({
+            employee_name: name,
+            birthday: formattedDate,
+            warehouse_code: storeName
+          });
+        }
+      }
+      
+      if (payloads.length > 0) {
+        await birthdayService.addBirthdays(payloads);
+        showToast(`Đã đồng bộ thành công ${payloads.length} nhân viên từ Google Sheets!`, true);
+        
+        // Lưu lại link Google Sheets vào local storage (GLOBAL)
+        localStorage.setItem('sheetUrl_GLOBAL', sheetUrl);
+        
+        await loadBirthdays();
+      } else {
+        showToast('Không tìm thấy dòng dữ liệu nào hợp lệ (yêu cầu đầy đủ STT, Họ tên, Ngày sinh, Tên siêu thị).', false);
+      }
+    } catch (e: any) {
+      console.error(e);
+      if (e.message && e.message.includes('SAI_TEN_SIEU_THI')) {
+        showToast(e.message.replace('SAI_TEN_SIEU_THI:', ''), false);
+      } else {
+        showToast('Lỗi khi tải dữ liệu từ Google Sheets. Hãy đảm bảo Link đã được chia sẻ công khai.', false);
+      }
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -426,6 +529,89 @@ const SinhNhatNv: React.FC = () => {
                 </button>
               </div>
             </form>
+
+            {/* Google Sheets Sync */}
+            <div className="mt-8 pt-6 border-t border-slate-200 space-y-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Link2 size={22} className="text-emerald-500" />
+                <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Đồng bộ từ Google Sheets</h2>
+              </div>
+              
+              <div className="bg-emerald-50 text-emerald-900 text-[14px] p-4 rounded-xl border border-emerald-200 leading-relaxed shadow-inner">
+                <strong className="text-emerald-700 text-[15px] uppercase tracking-wide">Hướng dẫn:</strong>
+                <ul className="list-disc pl-5 mt-2 space-y-1.5 font-medium">
+                  <li>Tạo trang tính với tên Sheet là <strong className="text-emerald-700">NHÂN VIÊN</strong></li>
+                  <li>Cột A: <strong className="text-emerald-700">STT</strong></li>
+                  <li>Cột B: <strong className="text-emerald-700">HỌ TÊN NHÂN VIÊN</strong></li>
+                  <li>Cột C: <strong className="text-emerald-700">NGÀY SINH</strong> (định dạng DD/MM/YYYY)</li>
+                  <li>Cột D: <strong className="text-emerald-700">TÊN SIÊU THỊ</strong> (Phải copy đúng chính xác tên siêu thị trên hệ thống Bi, nếu không báo lỗi)</li>
+                  <li>Link Google Sheet phải đặt chế độ <strong className="text-rose-600 uppercase">"Công Khai"</strong> (Bất kỳ ai có liên kết).</li>
+                </ul>
+                
+                <div className="mt-4 border border-emerald-200/60 rounded overflow-hidden shadow-sm overflow-x-auto">
+                  <table className="w-full min-w-max text-left bg-white text-xs">
+                    <thead>
+                      <tr className="bg-emerald-100/50 text-emerald-800 text-center border-b border-emerald-200/60">
+                        <th className="py-1.5 px-2 border-r border-emerald-200/60 font-semibold w-8">A</th>
+                        <th className="py-1.5 px-2 border-r border-emerald-200/60 font-semibold">B</th>
+                        <th className="py-1.5 px-2 border-r border-emerald-200/60 font-semibold">C</th>
+                        <th className="py-1.5 px-2 font-semibold">D</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-slate-600">
+                      <tr className="border-b border-slate-100">
+                        <td className="py-1.5 px-2 border-r border-slate-100 text-center font-bold bg-slate-50">STT</td>
+                        <td className="py-1.5 px-2 border-r border-slate-100 font-bold bg-slate-50">HỌ TÊN NHÂN VIÊN</td>
+                        <td className="py-1.5 px-2 border-r border-slate-100 font-bold bg-slate-50">NGÀY SINH</td>
+                        <td className="py-1.5 px-2 font-bold bg-slate-50 text-emerald-600">TÊN SIÊU THỊ</td>
+                      </tr>
+                      <tr className="border-b border-slate-50">
+                        <td className="py-1.5 px-2 border-r border-slate-100 text-center text-slate-400">1</td>
+                        <td className="py-1.5 px-2 border-r border-slate-100 font-medium">Nguyễn Văn A</td>
+                        <td className="py-1.5 px-2 border-r border-slate-100">25/09/1995</td>
+                        <td className="py-1.5 px-2">ĐML_CMA_CMA - 155A...</td>
+                      </tr>
+                      <tr>
+                        <td className="py-1.5 px-2 border-r border-slate-100 text-center text-slate-400">2</td>
+                        <td className="py-1.5 px-2 border-r border-slate-100 font-medium">Lê Thị B</td>
+                        <td className="py-1.5 px-2 border-r border-slate-100">14/09/2001</td>
+                        <td className="py-1.5 px-2">ĐML_CMA_CMA - TCH...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div className="bg-slate-100/80 border-t border-slate-200 px-3 py-1.5 text-[11px] text-slate-500 font-bold flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    Sheet: NHÂN VIÊN
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <input
+                  type="text"
+                  placeholder="Dán link Google Sheets vào đây..."
+                  value={sheetUrl}
+                  onChange={(e) => setSheetUrl(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSheetSync}
+                disabled={syncing || !sheetUrl.trim()}
+                className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold rounded-2xl shadow-lg shadow-emerald-100 hover:shadow-emerald-200 transition-all flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-not-allowed"
+              >
+                {syncing ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <>
+                    <DownloadCloud size={16} />
+                    <span>Đồng bộ dữ liệu</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
 

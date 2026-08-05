@@ -35,6 +35,14 @@ interface StoreContextType {
   setMarketFilter: (filter: string) => void;
   availableMarkets: StoreInfo[];
   setAvailableMarkets: (markets: StoreInfo[]) => void;
+  activeRealtimeTab: 'summary' | 'khai_thac' | 'khai_thac_moi';
+  setActiveRealtimeTab: (tab: 'summary' | 'khai_thac' | 'khai_thac_moi') => void;
+  activeToolHoTroTab: string;
+  setActiveToolHoTroTab: (tab: string) => void;
+  activeLuyKeTab: 'summary' | 'efficiency' | 'thuong_st' | 'bcdtnh';
+  setActiveLuyKeTab: (tab: 'summary' | 'efficiency' | 'thuong_st' | 'bcdtnh') => void;
+  activeHealthTab: 'DOANH_THU' | 'TONG_HOP_NV' | 'CHI_TIET' | 'THI_DUA' | 'NGANH_HANG' | 'PHUC_VU' | 'BAN_KEM_NV' | 'THUONG_NV' | 'TRA_CHAM_NV' | 'KHAI_THAC_NV' | 'RANK_3T_NV';
+  setActiveHealthTab: (tab: 'DOANH_THU' | 'TONG_HOP_NV' | 'CHI_TIET' | 'THI_DUA' | 'NGANH_HANG' | 'PHUC_VU' | 'BAN_KEM_NV' | 'THUONG_NV' | 'TRA_CHAM_NV' | 'KHAI_THAC_NV' | 'RANK_3T_NV') => void;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -92,6 +100,10 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [isStoreReady, setStoreReady] = useState(true);
   const [availableStores, setAvailableStoresRaw] = useState<StoreInfo[]>([]);
   const [storeVersion, setStoreVersion] = useState(0);
+  const [activeRealtimeTab, setActiveRealtimeTab] = useState<'summary' | 'khai_thac' | 'khai_thac_moi'>('summary');
+  const [activeToolHoTroTab, setActiveToolHoTroTab] = useState<string>('all-sticker');
+  const [activeLuyKeTab, setActiveLuyKeTab] = useState<'summary' | 'efficiency' | 'thuong_st' | 'bcdtnh'>('summary');
+  const [activeHealthTab, setActiveHealthTab] = useState<'DOANH_THU' | 'TONG_HOP_NV' | 'CHI_TIET' | 'THI_DUA' | 'NGANH_HANG' | 'PHUC_VU' | 'BAN_KEM_NV' | 'THUONG_NV' | 'TRA_CHAM_NV' | 'KHAI_THAC_NV' | 'RANK_3T_NV'>('DOANH_THU');
 
   // Keep a mutable ref to track currently loaded store names to skip redundant state changes
   const currentStoresRef = useRef<string[]>([]);
@@ -279,6 +291,14 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setMarketFilter: setCurrentStoreId,
     availableMarkets: availableStores,
     setAvailableMarkets: setAvailableStores,
+    activeRealtimeTab,
+    setActiveRealtimeTab,
+    activeToolHoTroTab,
+    setActiveToolHoTroTab,
+    activeLuyKeTab,
+    setActiveLuyKeTab,
+    activeHealthTab,
+    setActiveHealthTab,
   };
 
   return (

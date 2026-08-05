@@ -16,6 +16,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
   const [store1, setStore1] = useState('');
   const [store2, setStore2] = useState('');
   const [store3, setStore3] = useState('');
+  const [store4, setStore4] = useState('');
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -60,11 +61,13 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
             setStore1(stores[0] || '');
             setStore2(stores[1] || '');
             setStore3(stores[2] || '');
+            setStore4(stores[3] || '');
           } else {
             const ids = data.map((d: any) => d.id).filter(Boolean);
             setStore1(ids[0] || '');
             setStore2(ids[1] || '');
             setStore3(ids[2] || '');
+            setStore4(ids[3] || '');
           }
         }
       } catch (err) {
@@ -86,7 +89,8 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     const declaredStores = [
       store1.trim(),
       store2.trim(),
-      store3.trim()
+      store3.trim(),
+      store4.trim()
     ].filter(Boolean); // keep only non-empty ones, but if they want to clear they can
     
     if (declaredStores.length === 0) {
@@ -108,11 +112,12 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
       }
     }
 
-    // Fill up to 3 items
+    // Fill up to 4 items
     const storesArray = [
       store1.trim(),
       store2.trim(),
-      store3.trim()
+      store3.trim(),
+      store4.trim()
     ];
     
     try {
@@ -304,7 +309,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                     </li>
                     <li className="flex items-start gap-2.5">
                       <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0" />
-                      <span>Có thể nhập từ 1 đến tối đa 3 siêu thị thuộc quyền quản lý của anh/chị.</span>
+                      <span>Có thể nhập từ 1 đến tối đa 4 siêu thị thuộc quyền quản lý của anh/chị.</span>
                     </li>
                   </ul>
                 </div>
@@ -412,6 +417,25 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                       type="text"
                       value={store3}
                       onChange={(e) => setStore3(e.target.value)}
+                      className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-normal text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-normal placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
+                      placeholder="Nhập tên siêu thị đúng cú pháp trên Bi VD : ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH"
+                    />
+                  </div>
+                </div>
+
+                {/* Siêu thị 4 */}
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">
+                    Siêu thị 4
+                  </label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
+                      <Store size={18} />
+                    </div>
+                    <input
+                      type="text"
+                      value={store4}
+                      onChange={(e) => setStore4(e.target.value)}
                       className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-normal text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-sm placeholder:text-slate-400/80 placeholder:font-normal placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm"
                       placeholder="Nhập tên siêu thị đúng cú pháp trên Bi VD : ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH"
                     />

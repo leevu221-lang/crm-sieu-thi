@@ -52,13 +52,13 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const maKho = warehouseCode;
 
   // Global cluster-level BI strings
-  const [clusterSummaryInput, setClusterSummaryInput] = useState(() => localStorage.getItem(STORAGE_KEYS.CLUSTER_SUMMARY_INPUT) || '');
-  const [clusterCategoryInput, setClusterCategoryInput] = useState(() => localStorage.getItem(STORAGE_KEYS.CLUSTER_CATEGORY_INPUT) || '');
+  const [clusterSummaryInput, setClusterSummaryInput] = useState('');
+  const [clusterCategoryInput, setClusterCategoryInput] = useState('');
   
   // Per-store inputs
-  const [staffInput, setStaffInput] = useState(() => getStoreItem('BI_REAL_STAF_V1', currentStoreId) || '');
-  const [staffCategoryInput, setStaffCategoryInput] = useState(() => getStoreItem('BI_REAL_SCAT_V1', currentStoreId) || '');
-  const [staffListInput, setStaffListInput] = useState(() => getStoreItem('BI_REAL_STAFF_LIST_V1', currentStoreId) || '');
+  const [staffInput, setStaffInput] = useState('');
+  const [staffCategoryInput, setStaffCategoryInput] = useState('');
+  const [staffListInput, setStaffListInput] = useState('');
   const [dataPhanCa, setDataPhanCa] = useState<any>(null);
   const [dtGioCong, setDtGioCong] = useState<string>('');
   const [tragopMatran, setTragopMatran] = useState<string>('');
@@ -115,6 +115,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const tragopNvRef = useRef(tragopNv);
   const banKemNvRef = useRef(banKemNv);
   const categoryTargetsRef = useRef(categoryTargets);
+  const percentCacheRef = useRef<Map<string, number>>(new Map());
   const activeStoreRef = useRef(activeStore);
   
   useEffect(() => { activeStoreRef.current = activeStore; }, [activeStore]);
@@ -129,7 +130,14 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => { tragopMatranRef.current = tragopMatran; }, [tragopMatran]);
   useEffect(() => { tragopNvRef.current = tragopNv; }, [tragopNv]);
   useEffect(() => { banKemNvRef.current = banKemNv; }, [banKemNv]);
-  useEffect(() => { categoryTargetsRef.current = categoryTargets; }, [categoryTargets]);
+  useEffect(() => { 
+    categoryTargetsRef.current = categoryTargets; 
+    categoryTargets.forEach(t => {
+      if (t.percent !== undefined) {
+        percentCacheRef.current.set(cleanCategoryName(t.name), t.percent);
+      }
+    });
+  }, [categoryTargets]);
 
   const setBanKemNvSync = useCallback((val: string) => {
     setBanKemNvState(val);
@@ -203,17 +211,19 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const staffVal = cleanBiReportText(staffInputRef.current || '');
       const staffCategoryVal = cleanBiReportText(staffCategoryInputRef.current || '');
 
-      if (summaryVal) payload.lk_bi_tong_quan = summaryVal;
-      if (categoryVal) payload.lk_nh_sieu_thi = categoryVal;
-      if (targetsToSave && targetsToSave.length > 0) payload.category_targets = targetsToSave;
-      if (staffVal) payload.lk_dt_nv = staffVal;
-      if (staffCategoryVal) payload.lk_td_nv = staffCategoryVal;
-      if (staffListInputRef.current) payload.ds_nhan_vien = cleanBiReportText(staffListInputRef.current);
-      if (dtGioCongRef.current) payload.dt_gio_cong = cleanBiReportText(dtGioCongRef.current);
-      if (dataPhanCaRef.current) payload.data_phan_ca = dataPhanCaRef.current;
-      if (tragopMatranRef.current) payload.tragop_matran = cleanBiReportText(tragopMatranRef.current);
-      if (tragopNvRef.current) payload.tragop_nv = cleanBiReportText(tragopNvRef.current);
-      if (banKemNvRef.current) payload.ban_kem_nv = cleanBiReportText(banKemNvRef.current);
+      // Always include ALL fields — use empty string when cleared
+      // This ensures upsert clears deleted data on Firebase
+      payload.lk_bi_tong_quan = summaryVal || '';
+      payload.lk_nh_sieu_thi = categoryVal || '';
+      payload.category_targets = (targetsToSave && targetsToSave.length > 0) ? targetsToSave : [];
+      payload.lk_dt_nv = staffVal || '';
+      payload.lk_td_nv = staffCategoryVal || '';
+      payload.ds_nhan_vien = cleanBiReportText(staffListInputRef.current || '') || '';
+      payload.dt_gio_cong = cleanBiReportText(dtGioCongRef.current || '') || '';
+      payload.data_phan_ca = dataPhanCaRef.current || null;
+      payload.tragop_matran = cleanBiReportText(tragopMatranRef.current || '') || '';
+      payload.tragop_nv = cleanBiReportText(tragopNvRef.current || '') || '';
+      payload.ban_kem_nv = cleanBiReportText(banKemNvRef.current || '') || '';
 
       const { error } = await supabase
         .from('store')
@@ -435,7 +445,9 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             });
 
             if (matchedKey && matchedData) {
-              const percent = item.percent !== undefined ? item.percent : defaultPercent;
+              const cachedPercent = percentCacheRef.current.get(cleanCategoryName(matchedKey));
+              const percent = item.percent !== undefined ? item.percent : (cachedPercent !== undefined ? cachedPercent : defaultPercent);
+              
               newTargets.push({
                 name: matchedKey, // Use the parsed name to keep it in sync
                 target: matchedData.target,
@@ -451,7 +463,9 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           uniqueParsed.forEach((data, name) => {
             if (!processedNames.has(name)) {
               const existingPercent = percentMap.get(name);
-              const percent = existingPercent !== undefined ? existingPercent : defaultPercent;
+              const cachedPercent = percentCacheRef.current.get(cleanCategoryName(name));
+              const percent = existingPercent !== undefined ? existingPercent : (cachedPercent !== undefined ? cachedPercent : defaultPercent);
+              
               newTargets.push({
                 name,
                 target: data.target,
@@ -597,26 +611,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
   }, [categoryTargets, rawMaKho, activeStore, isStoreReady, saveLuykeData]);
 
-  // Sync to localStorage with debounce
-  // Warehouse-level keys: unprefixed. Per-store keys: prefixed with currentStoreId.
-  useEffect(() => {
-    const storeId = currentStoreId;
-    const timeoutId = setTimeout(() => {
-      // Global cluster-level keys
-      if (clusterSummaryInput) safeSetItem(STORAGE_KEYS.CLUSTER_SUMMARY_INPUT, clusterSummaryInput);
-      else localStorage.removeItem(STORAGE_KEYS.CLUSTER_SUMMARY_INPUT);
-      
-      if (clusterCategoryInput) safeSetItem(STORAGE_KEYS.CLUSTER_CATEGORY_INPUT, clusterCategoryInput);
-      else localStorage.removeItem(STORAGE_KEYS.CLUSTER_CATEGORY_INPUT);
-
-      // Per-store keys
-      if (storeId && storeId !== 'ALL') {
-        setStoreItem('BI_REAL_STAF_V1', storeId, staffInput);
-        setStoreItem('BI_REAL_SCAT_V1', storeId, staffCategoryInput);
-      }
-    }, 500);
-    return () => clearTimeout(timeoutId);
-  }, [clusterSummaryInput, clusterCategoryInput, staffInput, staffCategoryInput, currentStoreId]);
+  // localStorage sync removed — Firebase is the single source of truth
 
   // Auto-save debounce — skip when store is switching
   // MULTI-STORE GUARD: Block auto-save when isStoreReady=false to prevent cross-store contamination
@@ -642,7 +637,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     autoSaveTimeoutRef.current = setTimeout(() => {
       saveLuykeData(true, 'auto');
       autoSaveTimeoutRef.current = null;
-    }, 4000);
+    }, 800); // 800ms debounce — fast save
 
     return () => {
       if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current);
@@ -1235,11 +1230,10 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     clearField: (setter: (val: string) => void) => {
       skipSubscriptionRef.current = Date.now() + 10000;
       setter('');
-      setTimeout(() => {
-        if (saveLuykeDataRef.current) {
-          saveLuykeDataRef.current(true, 'auto');
-        }
-      }, 200);
+      // Save immediately — no delay
+      if (saveLuykeDataRef.current) {
+        saveLuykeDataRef.current(true, 'auto');
+      }
     }
   };
 

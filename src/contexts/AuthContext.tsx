@@ -45,20 +45,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .maybeSingle()
       ]);
 
+      if (!userData) {
+        console.warn(`User ${userProfile.username} has been deleted or not found. Logging out.`);
+        logout();
+        return;
+      }
+
       if (permData || userData) {
         setUserProfile(prev => {
           if (!prev) return null;
           const updated = {
             ...prev,
-            ...(userData ? {
-              expiredAt: userData.expiredAt,
-              status: userData.status,
-              packageDays: userData.packageDays,
-              paymentConfirmed: userData.paymentConfirmed,
-              requestedRenewPackage: userData.requestedRenewPackage,
-              requestedAt: userData.requestedAt,
-              isDemo: userData.isDemo
-            } : {}),
+            expiredAt: userData.expiredAt,
+            status: userData.status,
+            packageDays: userData.packageDays,
+            paymentConfirmed: userData.paymentConfirmed,
+            requestedRenewPackage: userData.requestedRenewPackage,
+            requestedAt: userData.requestedAt,
+            isDemo: userData.isDemo,
             userPermissions: {
               ...prev.userPermissions,
               allowedPages: permData?.allowed_pages || prev.userPermissions?.allowedPages || []
@@ -87,28 +91,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Sync permissions and subscription status on mount / username change
-  useEffect(() => {
-    if (userProfile?.username && userProfile.username !== 'ADMIN') {
-      refreshProfile();
-    }
-  }, [userProfile?.username]);
-  // Real-time Firestore Listener for subscription status
+  // Also poll every 30 seconds and refresh on window visibility focus to enforce subscription locking in real-time
   useEffect(() => {
     if (!userProfile?.username || userProfile.username === 'ADMIN') return;
 
-    const q = query(
+    // 1. Initial refresh
+    refreshProfile();
+
+    // 2. Periodic poll every 30 seconds
+    const interval = setInterval(() => {
+      refreshProfile();
+    }, 30000);
+
+    // 3. Tab visibility check
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshProfile();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [userProfile?.username]);
+  // Real-time Listeners (Firestore for subscription and permissions)
+  useEffect(() => {
+    if (!userProfile?.username || userProfile.username === 'ADMIN') return;
+
+    // 1. Firestore Listener for Subscription (ql_nguoi_dung)
+    const qUser = query(
       collection(db, 'ql_nguoi_dung'),
       where('username', '==', userProfile.username)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribeUser = onSnapshot(qUser, (snapshot) => {
       if (!snapshot.empty) {
         const userData = snapshot.docs[0].data();
         
-        // Update user profile with real-time Firestore updates
         setUserProfile(prev => {
           if (!prev) return null;
-          
           const updated = {
             ...prev,
             expiredAt: userData.expiredAt,
@@ -120,17 +143,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             phone: userData.phone,
             isDemo: userData.isDemo
           };
-
-          // Save to local storage
           localStorage.setItem('userProfile', JSON.stringify(updated));
           return updated;
         });
       }
     }, (error) => {
-      console.error('[AuthContext] Real-time listener error:', error);
+      console.error('[AuthContext] User real-time listener error:', error);
     });
 
-    return () => unsubscribe();
+    // 2. Firestore Listener for Permissions (user_permissions)
+    const qPerms = query(
+      collection(db, 'user_permissions'),
+      where('user_id', '==', userProfile.username)
+    );
+
+    const unsubscribePerms = onSnapshot(qPerms, (snapshot) => {
+      setUserProfile(prev => {
+        if (!prev) return null;
+        
+        const newAllowedPages = snapshot.empty ? [] : (snapshot.docs[0].data().allowed_pages || []);
+        
+        // Prevent unnecessary state updates if permissions are the same
+        if (JSON.stringify(prev.userPermissions?.allowedPages) === JSON.stringify(newAllowedPages)) {
+          return prev;
+        }
+
+        const updated = {
+          ...prev,
+          userPermissions: {
+            ...prev.userPermissions,
+            allowedPages: newAllowedPages
+          }
+        };
+        localStorage.setItem('userProfile', JSON.stringify(updated));
+        return updated;
+      });
+    }, (error) => {
+      console.error('[AuthContext] Permissions real-time listener error:', error);
+    });
+
+    return () => {
+      unsubscribeUser();
+      unsubscribePerms();
+    };
   }, [userProfile?.username]);
   async function login(username: string, maKho: string, password?: string): Promise<{ success: boolean; message: string }> {
     try {
@@ -184,7 +239,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       const isSuperAdmin = username === '43751';
-      const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'birthday'];
+      const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'tnbleader', 'birthday', 'bangiasoc'];
 
       const profile: UserProfile = {
         username: data.username,
@@ -230,7 +285,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           permissions: ['lkst', 'rtst', 'sknv', 'updata'] as any,
           userPermissions: {
             canEditUser: true,
-            allowedPages: ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'birthday']
+            allowedPages: ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'tnbleader', 'birthday']
           },
           ten_sieu_thi: `Siêu thị ${maKho} (Offline Mode)`,
           status: 'active',
