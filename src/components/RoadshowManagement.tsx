@@ -3,7 +3,7 @@ import {
   Plus, Trash2, Calendar, MapPin, Users, Megaphone, 
   Sparkles, Edit3, Save, X, FileText, Check, ArrowRight, 
   Flag, CalendarDays, ClipboardCheck, Loader2, Navigation,
-  Map, Eye, EyeOff, ClipboardList, Camera, RefreshCw
+  Map, Eye, EyeOff, ClipboardList, Camera, Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebaseConfig';
@@ -89,6 +89,8 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
   const [afternoonRoute, setAfternoonRoute] = useState('- TÀI LỘC, HOÀNG TÂM, LƯƠNG THẾ TRÂN');
   const [isCapturing, setIsCapturing] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [copySourceDate, setCopySourceDate] = useState('');
+  const [recentDates, setRecentDates] = useState<string[]>([]);
 
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -97,7 +99,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Sync data from Firestore
+  // Listen to Firestore real-time changes
   useEffect(() => {
     if (!warehouseCode) return;
     setLoading(true);
@@ -124,27 +126,72 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     return () => unsub();
   }, [warehouseCode]);
 
-  // Load checklist and planner configs from localStorage
+  // Load checklist, planner configs, and master staff list keyed by selected Date
   useEffect(() => {
+    if (!warehouseCode) return;
+
+    // Load static checklist
     const cachedChecklist = localStorage.getItem(`crm_roadshow_checklist_${warehouseCode}`);
     if (cachedChecklist) {
       setChecklist(JSON.parse(cachedChecklist));
     }
 
-    const cachedStaff = localStorage.getItem(`crm_roadshow_planner_staff_${warehouseCode}`);
-    if (cachedStaff) {
-      setStaffList(JSON.parse(cachedStaff));
-    }
-
-    const cachedPlannerConfigs = localStorage.getItem(`crm_roadshow_planner_configs_${warehouseCode}`);
-    if (cachedPlannerConfigs) {
-      const configs = JSON.parse(cachedPlannerConfigs);
-      if (configs.morningTime) setMorningTime(configs.morningTime);
-      if (configs.afternoonTime) setAfternoonTime(configs.afternoonTime);
-      if (configs.morningRoute) setMorningRoute(configs.morningRoute);
-      if (configs.afternoonRoute) setAfternoonRoute(configs.afternoonRoute);
-    }
+    // Scan recent planned dates to populate copy dropdown list
+    updateRecentDatesList();
   }, [warehouseCode]);
+
+  // Handle switching dates or loading data for the selected date
+  useEffect(() => {
+    if (!warehouseCode || !plannerDate) return;
+
+    // 1. Load Master Staff List
+    const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
+    const masterNames: string[] = cachedMaster ? JSON.parse(cachedMaster) : [];
+
+    // 2. Load Shifts for this specific date
+    const cachedShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`);
+    const dateShifts: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = cachedShifts ? JSON.parse(cachedShifts) : {};
+
+    // Map master names to shift states for this date
+    const mappedStaffList: StaffShiftState[] = masterNames.map(name => ({
+      name: name.toUpperCase(),
+      shift: dateShifts[name.toUpperCase()] || 'off' // Default to 'off' so they can check ca for each date
+    }));
+    setStaffList(mappedStaffList);
+
+    // 3. Load Configs (Routes, Times) for this specific date
+    const cachedConfigs = localStorage.getItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`);
+    if (cachedConfigs) {
+      const configs = JSON.parse(cachedConfigs);
+      setMorningTime(configs.morningTime || '7:00');
+      setAfternoonTime(configs.afternoonTime || '15:00');
+      setMorningRoute(configs.morningRoute || '');
+      setAfternoonRoute(configs.afternoonRoute || '');
+    } else {
+      // Default placeholder states if no configs exist for this date
+      setMorningTime('7:00');
+      setAfternoonTime('15:00');
+      setMorningRoute('');
+      setAfternoonRoute('');
+    }
+  }, [warehouseCode, plannerDate]);
+
+  const updateRecentDatesList = () => {
+    const prefix = `crm_roadshow_planner_shifts_${warehouseCode}_`;
+    const dates: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(prefix)) {
+        const datePart = key.replace(prefix, '');
+        if (datePart !== plannerDate) {
+          dates.push(datePart);
+        }
+      }
+    }
+    // Sort descending
+    const sorted = dates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    setRecentDates(sorted);
+  };
 
   // Save checklist helper
   const saveChecklistToCache = (newChecklist: ChecklistItem[]) => {
@@ -165,62 +212,110 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     showToast('Đã làm mới danh sách kiểm tra!', true);
   };
 
-  // Load staff pasted list
+  // Load staff pasted list into Master Staff List
   const handleLoadStaff = () => {
     const names = rawStaffInput
       .split('\n')
       .map(name => name.trim())
-      .filter(name => name.length > 0);
+      .filter(name => name.length > 0)
+      .map(name => name.toUpperCase());
 
     if (names.length === 0) {
       showToast('Vui lòng nhập tên nhân viên!', false);
       return;
     }
 
-    const newStaffList: StaffShiftState[] = names.map(name => {
-      // Preserve existing shift state if name already exists
-      const existing = staffList.find(s => s.name.toLowerCase() === name.toLowerCase());
-      return {
-        name: name.toUpperCase(),
-        shift: existing ? existing.shift : 'sang'
-      };
-    });
+    // 1. Save to Master Staff List (preserves employee list database)
+    localStorage.setItem(`crm_roadshow_planner_master_staff_${warehouseCode}`, JSON.stringify(names));
+
+    // 2. Set current date shifts (load shifts or default to 'off')
+    const cachedShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`);
+    const dateShifts: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = cachedShifts ? JSON.parse(cachedShifts) : {};
+
+    const newStaffList: StaffShiftState[] = names.map(name => ({
+      name,
+      shift: dateShifts[name] || 'off'
+    }));
 
     setStaffList(newStaffList);
-    localStorage.setItem(`crm_roadshow_planner_staff_${warehouseCode}`, JSON.stringify(newStaffList));
     setRawStaffInput('');
-    showToast(`Đã nạp thành công ${newStaffList.length} nhân viên!`, true);
+    showToast(`Đã nạp thành công ${names.length} nhân viên vào danh sách!`, true);
+    updateRecentDatesList();
   };
 
-  // Update employee shift
+  // Update employee shift and save specifically for the selected date
   const handleUpdateShift = (index: number, shift: 'sang' | 'chieu' | 'off' | 'dup') => {
     const updated = [...staffList];
     updated[index].shift = shift;
     setStaffList(updated);
-    localStorage.setItem(`crm_roadshow_planner_staff_${warehouseCode}`, JSON.stringify(updated));
+
+    // Save date-specific shifts
+    const shiftMap: Record<string, string> = {};
+    updated.forEach(s => {
+      shiftMap[s.name] = s.shift;
+    });
+    localStorage.setItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`, JSON.stringify(shiftMap));
+    updateRecentDatesList();
   };
 
-  // Clear planner list
+  // Clear planner list (removes master list and date shifts)
   const handleClearPlanner = () => {
     if (!window.confirm('Bạn có chắc chắn muốn xoá danh sách nhân sự hiện tại?')) return;
     setStaffList([]);
-    localStorage.removeItem(`crm_roadshow_planner_staff_${warehouseCode}`);
+    localStorage.removeItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
+    localStorage.removeItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`);
     showToast('Đã xoá danh sách nhân sự!', true);
+    updateRecentDatesList();
   };
 
-  // Save planner route/time configs
+  // Save planner route/time configs keyed by selected date
   const savePlannerConfigs = (key: string, value: string) => {
-    const cachedConfigs = localStorage.getItem(`crm_roadshow_planner_configs_${warehouseCode}`);
+    const cachedConfigs = localStorage.getItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`);
     const current = cachedConfigs ? JSON.parse(cachedConfigs) : {};
     current[key] = value;
-    localStorage.setItem(`crm_roadshow_planner_configs_${warehouseCode}`, JSON.stringify(current));
+    localStorage.setItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`, JSON.stringify(current));
+  };
+
+  // Copy plan from another date
+  const handleCopyPlanFromDate = () => {
+    if (!copySourceDate) {
+      showToast('Vui lòng chọn ngày nguồn để sao chép!', false);
+      return;
+    }
+
+    // 1. Copy shift state
+    const cachedShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${copySourceDate}`);
+    if (cachedShifts) {
+      localStorage.setItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`, cachedShifts);
+      
+      const masterNames = staffList.map(s => s.name);
+      const dateShifts = JSON.parse(cachedShifts);
+      const mapped = masterNames.map(name => ({
+        name,
+        shift: dateShifts[name] || 'off'
+      }));
+      setStaffList(mapped);
+    }
+
+    // 2. Copy configs (Time/Routes)
+    const cachedConfigs = localStorage.getItem(`crm_roadshow_planner_configs_${warehouseCode}_${copySourceDate}`);
+    if (cachedConfigs) {
+      localStorage.setItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`, cachedConfigs);
+      const configs = JSON.parse(cachedConfigs);
+      setMorningTime(configs.morningTime || '7:00');
+      setAfternoonTime(configs.afternoonTime || '15:00');
+      setMorningRoute(configs.morningRoute || '');
+      setAfternoonRoute(configs.afternoonRoute || '');
+    }
+
+    showToast(`Đã sao chép lịch chạy từ ngày ${copySourceDate}!`, true);
   };
 
   // Filter staff by shifts
   const morningStaff = staffList.filter(s => s.shift === 'sang' || s.shift === 'dup');
   const afternoonStaff = staffList.filter(s => s.shift === 'chieu' || s.shift === 'dup');
 
-  // Format date display: e.g. "Ngày 09/08" or "Ngày 4/8"
+  // Format date display: e.g. "Ngày 09/08"
   const getFormattedDateLabel = (dateStr: string) => {
     if (!dateStr) return '';
     const parts = dateStr.split('-');
@@ -326,6 +421,31 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleDeletePlan = async (id: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xoá lịch trình chạy Roadshow này?')) return;
+    
+    try {
+      const docRef = doc(db, 'system_configs', 'roadshow_schedules');
+      const updatedPlans = plans.filter(p => p.id !== id);
+
+      const docSnap = await getDoc(docRef);
+      const currentData = docSnap.exists() ? docSnap.data() : {};
+      currentData[warehouseCode] = updatedPlans;
+
+      await setDoc(docRef, currentData);
+      setPlans(updatedPlans);
+      localStorage.setItem(`crm_roadshows_${warehouseCode}`, JSON.stringify(updatedPlans));
+      showToast('Đã xoá lịch trình chạy thành công!', true);
+    } catch (error) {
+      console.error('Delete plan failed:', error);
+      showToast('Xoá lịch trình thất bại!', false);
+    }
+  };
+
+  const toggleMapVisibility = (id: string) => {
+    setOpenMapIds(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   // Helper to parse route nodes: split by "->", "-->", "➔"
@@ -442,6 +562,41 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                       className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
+                  
+                  {/* Copy schedule from another date */}
+                  {recentDates.length > 0 && (
+                    <div className="bg-indigo-50/50 p-3 rounded-2xl border border-indigo-100 space-y-2 mt-2">
+                      <label className="block text-[9px] font-black uppercase text-indigo-700 tracking-wider flex items-center gap-1">
+                        <Copy size={10} />
+                        Sao chép từ ngày chạy cũ
+                      </label>
+                      <div className="flex gap-1.5">
+                        <select
+                          value={copySourceDate}
+                          onChange={(e) => setCopySourceDate(e.target.value)}
+                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 focus:outline-none"
+                        >
+                          <option value="">-- Chọn ngày --</option>
+                          {recentDates.map(d => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={handleCopyPlanFromDate}
+                          disabled={!copySourceDate}
+                          className={cn(
+                            "px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shadow-sm",
+                            copySourceDate 
+                              ? "bg-indigo-600 text-white border-indigo-700 hover:bg-indigo-700" 
+                              : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                          )}
+                        >
+                          SAO CHÉP
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Giờ ca sáng</label>
@@ -476,7 +631,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                 <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
                   <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight mb-3 flex items-center gap-2">
                     <ClipboardCheck size={16} className="text-indigo-600" />
-                    2. Check Ca Nhân Viên nhanh
+                    2. Check Ca Nhân Viên nhanh ({getFormattedDateLabel(plannerDate)})
                   </h3>
                   
                   <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
@@ -515,7 +670,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                   <div>
                     <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">3. Báo cáo Tuyến Chạy Roadshow</h3>
-                    <p className="text-slate-400 text-xs font-bold">Tự động phân tách và gom nhóm. Nhập trực tiếp Tuyến đường vào ô trống.</p>
+                    <p className="text-slate-400 text-xs font-bold">Dữ liệu được lưu độc lập theo từng ngày. Đổi ngày chạy ở ô bên trái để lập lịch ngày khác.</p>
                   </div>
                   
                   <button
@@ -1165,7 +1320,6 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
 
       {/* Render Image Preview Modal */}
       <ImagePreviewModal previewImage={previewImage} setPreviewImage={setPreviewImage} />
-
 
     </div>
   );
