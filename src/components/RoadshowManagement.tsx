@@ -350,9 +350,9 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     showToast(`Đã sao chép lịch chạy từ ngày ${copySourceDate}!`, true);
   };
 
-  // Filter staff by shifts
-  const morningStaff = staffList.filter(s => s.shift === 'sang' || s.shift === 'dup');
-  const afternoonStaff = staffList.filter(s => s.shift === 'chieu' || s.shift === 'dup');
+  // Filter staff by shifts (ĐÚP and OFF will not be displayed on the roadshow table)
+  const morningStaff = staffList.filter(s => s.shift === 'sang');
+  const afternoonStaff = staffList.filter(s => s.shift === 'chieu');
 
   // Format date display: e.g. "Ngày 09/08"
   const getFormattedDateLabel = (dateStr: string) => {
