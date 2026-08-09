@@ -214,32 +214,71 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
 
   // Load staff pasted list into Master Staff List
   const handleLoadStaff = () => {
-    const names = rawStaffInput
+    const pastedNames = rawStaffInput
       .split('\n')
       .map(name => name.trim())
       .filter(name => name.length > 0)
       .map(name => name.toUpperCase());
 
-    if (names.length === 0) {
+    if (pastedNames.length === 0) {
       showToast('Vui lòng nhập tên nhân viên!', false);
       return;
     }
 
-    // 1. Save to Master Staff List (preserves employee list database)
-    localStorage.setItem(`crm_roadshow_planner_master_staff_${warehouseCode}`, JSON.stringify(names));
+    // 1. Load current master staff list
+    const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
+    const currentMaster: string[] = cachedMaster ? JSON.parse(cachedMaster) : [];
 
-    // 2. Set current date shifts (load shifts or default to 'off')
+    // Filter out names that already exist to avoid duplicates
+    const uniqueNewNames = pastedNames.filter(name => !currentMaster.includes(name));
+
+    if (uniqueNewNames.length === 0) {
+      showToast('Tất cả nhân sự nhập vào đã tồn tại trong danh sách!', false);
+      setRawStaffInput('');
+      return;
+    }
+
+    const updatedMaster = [...currentMaster, ...uniqueNewNames];
+
+    // 2. Save updated Master Staff List
+    localStorage.setItem(`crm_roadshow_planner_master_staff_${warehouseCode}`, JSON.stringify(updatedMaster));
+
+    // 3. Set current date shifts (load shifts or default to 'off' for new ones)
     const cachedShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`);
     const dateShifts: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = cachedShifts ? JSON.parse(cachedShifts) : {};
 
-    const newStaffList: StaffShiftState[] = names.map(name => ({
+    const newStaffList: StaffShiftState[] = updatedMaster.map(name => ({
       name,
       shift: dateShifts[name] || 'off'
     }));
 
     setStaffList(newStaffList);
     setRawStaffInput('');
-    showToast(`Đã nạp thành công ${names.length} nhân viên vào danh sách!`, true);
+    showToast(`Đã nạp thêm ${uniqueNewNames.length} nhân viên mới vào danh sách!`, true);
+    updateRecentDatesList();
+  };
+
+  // Delete individual staff member
+  const handleDeleteIndividualStaff = (nameToDelete: string) => {
+    const upperName = nameToDelete.toUpperCase();
+    
+    // 1. Remove from Master List
+    const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
+    const currentMaster: string[] = cachedMaster ? JSON.parse(cachedMaster) : [];
+    const updatedMaster = currentMaster.filter(name => name !== upperName);
+    localStorage.setItem(`crm_roadshow_planner_master_staff_${warehouseCode}`, JSON.stringify(updatedMaster));
+
+    // 2. Remove from shifts for current date
+    const cachedShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`);
+    const dateShifts: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = cachedShifts ? JSON.parse(cachedShifts) : {};
+    delete dateShifts[upperName];
+    localStorage.setItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`, JSON.stringify(dateShifts));
+
+    // 3. Update active state list
+    const updatedStaffList = staffList.filter(s => s.name !== upperName);
+    setStaffList(updatedStaffList);
+    
+    showToast(`Đã xoá nhân sự ${upperName} khỏi danh sách!`, true);
     updateRecentDatesList();
   };
 
@@ -637,7 +676,16 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                   <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
                     {staffList.map((staff, idx) => (
                       <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 border border-slate-100 rounded-xl bg-slate-55">
-                        <span className="text-xs font-black text-slate-700 truncate max-w-[120px]">{staff.name}</span>
+                        <div className="flex items-center gap-1.5 truncate">
+                          <button
+                            onClick={() => handleDeleteIndividualStaff(staff.name)}
+                            className="text-slate-300 hover:text-rose-500 transition-all p-1"
+                            title="Xoá nhân viên này"
+                          >
+                            <X size={12} />
+                          </button>
+                          <span className="text-xs font-black text-slate-700 truncate max-w-[120px]">{staff.name}</span>
+                        </div>
                         <div className="flex gap-1.5">
                           {(['sang', 'chieu', 'dup', 'off'] as const).map((shiftType) => (
                             <button
