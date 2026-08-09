@@ -337,8 +337,8 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     const tables = clone.querySelectorAll('table');
     tables.forEach((table) => {
       const htmlTable = table as HTMLTableElement;
-      htmlTable.style.width = 'auto';
-      htmlTable.style.minWidth = 'auto';
+      htmlTable.style.width = '100%';
+      htmlTable.style.minWidth = '100%';
       htmlTable.style.tableLayout = 'auto';
 
       // Remove fixed widths on all cells so columns auto-shrink to fit content
