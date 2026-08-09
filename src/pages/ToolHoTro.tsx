@@ -19,6 +19,7 @@ import BienBanTinhTrangHangHoa from '../components/BienBanTinhTrangHangHoa';
 import BaoGiaCongTyModal from '../components/BaoGiaCongTyModal';
 import StickerTemplateTab from '../components/StickerTemplateTab';
 import InventoryManagement from '../components/InventoryManagement';
+import { RoadshowManagement } from '../components/RoadshowManagement';
 
 import { STORAGE_KEYS } from './RTST/types';
 import { normalizeStoreId } from './RTST/utils';
@@ -2188,6 +2189,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     { id: 'phan-ca-tuan', label: 'PHÂN CA TUẦN', icon: UploadCloud, color: 'text-orange-500' },
     { id: 'bien-ban', label: 'BIÊN BẢN CÁC LOẠI', icon: FileText, color: 'text-rose-500' },
     ...(userProfile?.username === '43751' ? [{ id: 'kiem-ke', label: 'KIỂM KÊ', icon: ClipboardList, color: 'text-amber-500' }] : []),
+    { id: 'roadshow', label: 'ROADSHOW', icon: Calendar, color: 'text-fuchsia-500' },
   ];
 
   return (
@@ -2314,6 +2316,26 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 </div>
                 
                 <InventoryManagement warehouseCode={maKho || '43751'} />
+              </motion.div>
+            )}
+
+            {activeTab === 'roadshow' && (
+              <motion.div
+                key="roadshow"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
+                className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 min-h-[500px]"
+              >
+                <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                  <div className="p-2 bg-fuchsia-50 text-fuchsia-600 rounded-xl">
+                    <Calendar size={24} />
+                  </div>
+                  <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Kế Hoạch Tuyến Chạy Roadshow</h2>
+                </div>
+                
+                <RoadshowManagement warehouseCode={maKho || '43751'} />
               </motion.div>
             )}
 
