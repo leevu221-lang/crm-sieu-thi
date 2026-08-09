@@ -354,66 +354,63 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
           return;
         }
 
-        // Find header row indices and column indices
-        let headerRowIndex = -1;
+        // 1. Date details from plannerDate (YYYY-MM-DD)
+        const dateParts = plannerDate.split('-');
+        const dayStr = dateParts[2]; // e.g. "09"
+        const monthStr = dateParts[1]; // e.g. "08"
+        const dayNum = parseInt(dayStr, 10);
+        const monthNum = parseInt(monthStr, 10);
+
+        // Date search suffixes: e.g. "(09/08)" or "(9/8)"
+        const suffixWithZero = `(${dayStr}/${monthStr})`;
+        const suffixNoZero = `(${dayNum}/${monthNum})`;
+
         let nameColIndex = -1;
         let dayColIndex = -1;
 
-        // Day of month: e.g. "2026-08-09" -> day "9"
-        const targetDayNum = parseInt(plannerDate.split('-')[2], 10);
-        
-        // 1. Scan rows to find headers
-        for (let r = 0; r < Math.min(rows.length, 12); r++) {
-          const row = rows[r];
-          if (!row) continue;
-
-          let hasNameHeader = false;
-          let hasDateHeader = false;
-
-          for (let c = 0; c < row.length; c++) {
-            const val = String(row[c] || '').toLowerCase().trim();
-            if (val === 'stt' || val.includes('tên') || val.includes('ten') || val.includes('nhân viên') || val.includes('nhan vien') || val.includes('họ tên') || val.includes('ho ten') || val.includes('mã nv')) {
-              hasNameHeader = true;
-            }
-            const cellNum = parseInt(val, 10);
-            if (cellNum === targetDayNum || val === String(targetDayNum) || val === `0${targetDayNum}`) {
-              hasDateHeader = true;
-            }
-          }
-
-          if (hasNameHeader && hasDateHeader) {
-            headerRowIndex = r;
+        // 2. Identify date column index from the first row (row index 0)
+        const row0 = rows[0] || [];
+        for (let c = 0; c < row0.length; c++) {
+          const val = String(row0[c] || '').trim();
+          if (
+            val.includes(suffixWithZero) || 
+            val.includes(suffixNoZero) || 
+            val.includes(`${dayStr}/${monthStr}`) || 
+            val.includes(`${dayNum}/${monthNum}`)
+          ) {
+            dayColIndex = c;
             break;
           }
         }
 
-        if (headerRowIndex === -1) {
-          headerRowIndex = 0; // fallback to first row
+        // 3. Identify name column index (check row 0 and row 1)
+        for (let r = 0; r <= 1; r++) {
+          const row = rows[r] || [];
+          for (let c = 0; c < row.length; c++) {
+            const val = String(row[c] || '').toLowerCase().trim();
+            if (
+              val.includes('tên') || val.includes('ten') || 
+              val.includes('nhân viên') || val.includes('nhan vien') || 
+              val.includes('họ tên') || val.includes('ho ten') || 
+              val === 'nv' || val.includes('staff') || val === 'name'
+            ) {
+              nameColIndex = c;
+              break;
+            }
+          }
+          if (nameColIndex !== -1) break;
         }
 
-        const headers = rows[headerRowIndex] || [];
-        
-        // 2. Identify column index matching employee name and day of month
-        for (let c = 0; c < headers.length; c++) {
-          const val = String(headers[c] || '').toLowerCase().trim();
-          if (val.includes('tên') || val.includes('ten') || val.includes('nhân viên') || val.includes('nhan vien') || val.includes('họ tên') || val.includes('ho ten')) {
-            nameColIndex = c;
-          }
-          const cellNum = parseInt(val, 10);
-          if (cellNum === targetDayNum || val === String(targetDayNum) || val === `0${targetDayNum}`) {
-            dayColIndex = c;
-          }
-        }
-
+        // Fallbacks
         if (nameColIndex === -1) {
-          nameColIndex = headers.length > 2 ? 2 : (headers.length > 1 ? 1 : 0);
+          nameColIndex = row0.length > 2 ? 2 : (row0.length > 1 ? 1 : 0);
         }
         if (dayColIndex === -1) {
-          showToast(`Không tự động tìm thấy cột ngày ${targetDayNum} trong file Excel!`, false);
+          showToast(`Không tìm thấy cột ngày ${dayStr}/${monthStr} (ví dụ: CN (${dayStr}/${monthStr})) ở dòng đầu tiên của Excel!`, false);
           return;
         }
 
-        // 3. Load Master and Shift map
+        // 4. Load Master and Shift map
         const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
         const currentMaster: string[] = cachedMaster ? JSON.parse(cachedMaster) : [];
         const shiftMap: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = {};
