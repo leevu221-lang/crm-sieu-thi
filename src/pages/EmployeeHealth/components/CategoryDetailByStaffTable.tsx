@@ -619,11 +619,11 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
                   <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300 min-w-[600px]">
                     <thead>
                       <tr className="text-slate-900 h-[53px]">
-                        <th className="px-1 py-2.5 text-[16px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#10b981] whitespace-nowrap">STT</th>
+                        <th className="px-1 py-2.5 text-[16px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#10b981] w-[40px] min-w-[40px] max-w-[40px] whitespace-nowrap">STT</th>
                         <th className="px-2 py-2.5 text-[16px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#10b981] whitespace-nowrap">NHÂN VIÊN</th>
-                        <th className="px-1 py-2.5 text-[16px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#f97316] whitespace-nowrap">TARGET</th>
-                        <th className="px-1 py-2.5 text-[16px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#f97316] whitespace-nowrap">LUỸ KẾ</th>
-                        <th className="px-1 py-2.5 text-[16px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#f97316] whitespace-nowrap">%HT (DỰ KIẾN)</th>
+                        <th className="px-1 py-2.5 text-[16px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px] min-w-[60px] max-w-[60px] whitespace-nowrap">TARGET</th>
+                        <th className="px-1 py-2.5 text-[16px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px] min-w-[60px] max-w-[60px] whitespace-nowrap">LUỸ KẾ</th>
+                        <th className="px-1 py-2.5 text-[16px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px] min-w-[60px] max-w-[60px] whitespace-nowrap">%HT (DK)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -634,20 +634,20 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
                             key={row.staffName}
                             className="hover:bg-slate-50 transition-colors h-[48px]"
                           >
-                            <td className="px-1 py-2.5 text-[17px] font-utm-avo font-black text-slate-800 text-center border-r border-b border-slate-300 h-full">
+                            <td className="px-1 py-2.5 text-[17px] font-utm-avo font-black text-slate-800 text-center border-r border-b border-slate-300 w-[40px] min-w-[40px] max-w-[40px] h-full">
                               {index + 1}
                             </td>
-                            <td className="px-2 py-2.5 text-[17px] font-utm-avo font-black uppercase border-r border-b border-slate-300 text-[#0055aa] truncate max-w-[150px] h-full">
+                            <td className="px-2 py-2.5 text-[17px] font-utm-avo font-black uppercase border-r border-b border-slate-300 text-[#0055aa] whitespace-nowrap h-full">
                               {row.staffName}
                             </td>
-                            <td className="px-1 py-2.5 text-[17px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-slate-900 h-full">
+                            <td className="px-1 py-2.5 text-[17px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-slate-900 w-[60px] min-w-[60px] max-w-[60px] h-full">
                               {row.target.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
                             </td>
-                            <td className="px-1 py-2.5 text-[17px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-[#b91c1c] h-full">
+                            <td className="px-1 py-2.5 text-[17px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-[#b91c1c] w-[60px] min-w-[60px] max-w-[60px] h-full">
                               {row.accumulated.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
                             </td>
                             <td className={cn(
-                              "px-1 py-2.5 text-[17px] font-utm-avo font-black text-center border-r border-b border-slate-300 h-full",
+                              "px-1 py-2.5 text-[17px] font-utm-avo font-black text-center border-r border-b border-slate-300 w-[60px] min-w-[60px] max-w-[60px] h-full",
                               roundedRate >= 100 
                                 ? "text-[#15803d] bg-[#f0fdf4]" 
                                 : roundedRate >= 50 
