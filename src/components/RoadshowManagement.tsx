@@ -343,7 +343,12 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     reader.onload = (event) => {
       try {
         const data = new Uint8Array(event.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = XLSX.read(data, { 
+          type: 'array',
+          cellDates: true,
+          cellNF: true,
+          cellText: true
+        });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         
@@ -354,6 +359,41 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
           return;
         }
 
+        // Helper to convert Date/Serial numbers/String to standard cleaned date text
+        const parseExcelDate = (val: any): Date | null => {
+          if (val instanceof Date) return val;
+          if (typeof val === 'number' && val > 30000 && val < 60000) {
+            return new Date(Math.round((val - 25569) * 86400 * 1000));
+          }
+          if (typeof val === 'string') {
+            const match = val.match(/(\d{1,2})[\/\-](\d{1,2})/);
+            if (match) {
+              const d = parseInt(match[1], 10);
+              const m = parseInt(match[2], 10);
+              const dummy = new Date();
+              dummy.setDate(d);
+              dummy.setMonth(m - 1);
+              return dummy;
+            }
+            const parsed = Date.parse(val);
+            if (!isNaN(parsed)) return new Date(parsed);
+          }
+          return null;
+        };
+
+        const getCleanCellValue = (cellVal: any): string => {
+          if (cellVal === null || cellVal === undefined) return '';
+          const dateObj = parseExcelDate(cellVal);
+          if (dateObj) {
+            const d = dateObj.getDate();
+            const m = dateObj.getMonth() + 1;
+            const dStr = d < 10 ? '0' + d : String(d);
+            const mStr = m < 10 ? '0' + m : String(m);
+            return `(${dStr}/${mStr}) ${d}/${m}`;
+          }
+          return String(cellVal).toLowerCase().replace(/\s+/g, '');
+        };
+
         // 1. Date details from plannerDate (YYYY-MM-DD)
         const dateParts = plannerDate.split('-');
         const dayStr = dateParts[2]; // e.g. "09"
@@ -362,8 +402,10 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         const monthNum = parseInt(monthStr, 10);
 
         // Date search suffixes: e.g. "(09/08)" or "(9/8)"
-        const suffixWithZero = `(${dayStr}/${monthStr})`;
-        const suffixNoZero = `(${dayNum}/${monthNum})`;
+        const suffixWithZero = `(${dayStr}/${monthStr})`.replace(/\s+/g, '');
+        const suffixNoZero = `(${dayNum}/${monthNum})`.replace(/\s+/g, '');
+        const rawDateWithZero = `${dayStr}/${monthStr}`.replace(/\s+/g, '');
+        const rawDateNoZero = `${dayNum}/${monthNum}`.replace(/\s+/g, '');
 
         let nameColIndex = -1;
         let dayColIndex = -1;
@@ -371,12 +413,12 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         // 2. Identify date column index from the first row (row index 0)
         const row0 = rows[0] || [];
         for (let c = 0; c < row0.length; c++) {
-          const val = String(row0[c] || '').trim();
+          const val = getCleanCellValue(row0[c]);
           if (
             val.includes(suffixWithZero) || 
             val.includes(suffixNoZero) || 
-            val.includes(`${dayStr}/${monthStr}`) || 
-            val.includes(`${dayNum}/${monthNum}`)
+            val.includes(rawDateWithZero) || 
+            val.includes(rawDateNoZero)
           ) {
             dayColIndex = c;
             break;
@@ -411,30 +453,48 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         }
 
         // 4. Load Master and Shift map
-        const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
-        const currentMaster: string[] = cachedMaster ? JSON.parse(cachedMaster) : [];
+        let currentMaster: string[] = [];
+        try {
+          const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
+          if (cachedMaster) {
+            const parsed = JSON.parse(cachedMaster);
+            if (Array.isArray(parsed)) currentMaster = parsed;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+        
         const shiftMap: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = {};
 
-        for (let r = headerRowIndex + 1; r < rows.length; r++) {
+        // Parse data rows (start from index 1 since row 0 is date headers)
+        for (let r = 1; r < rows.length; r++) {
           const row = rows[r];
           if (!row || !row[nameColIndex]) continue;
 
           const rawName = String(row[nameColIndex]).trim().toUpperCase();
-          if (rawName === 'STT' || rawName.includes('CỘNG') || rawName.includes('TỔNG') || rawName.includes('THỜI GIAN') || rawName === 'NHÂN VIÊN') {
-            continue; // Skip summaries
+          if (
+            rawName === 'STT' || rawName.includes('CỘNG') || rawName.includes('TỔNG') || 
+            rawName.includes('THỜI GIAN') || rawName === 'NHÂN VIÊN' || rawName === 'HỌ TÊN' ||
+            rawName === 'HO TEN' || rawName === 'TÊN NV' || rawName === 'NAME'
+          ) {
+            continue;
           }
 
           const rawShiftVal = String(row[dayColIndex] || '').toLowerCase().trim();
           let shift: 'sang' | 'chieu' | 'off' | 'dup' = 'off';
 
           // Mapping rules: Ca 1,2,3 -> SÁNG, Ca 4,5 -> CHIỀU
-          if (rawShiftVal.includes('1') || rawShiftVal.includes('2') || rawShiftVal.includes('3') || 
-              rawShiftVal === 'c1' || rawShiftVal === 'c2' || rawShiftVal === 'c3' ||
-              rawShiftVal.includes('sáng') || rawShiftVal.includes('sang')) {
+          if (
+            rawShiftVal.includes('1') || rawShiftVal.includes('2') || rawShiftVal.includes('3') || 
+            rawShiftVal === 'c1' || rawShiftVal === 'c2' || rawShiftVal === 'c3' ||
+            rawShiftVal.includes('sáng') || rawShiftVal.includes('sang')
+          ) {
             shift = 'sang';
-          } else if (rawShiftVal.includes('4') || rawShiftVal.includes('5') || 
-                     rawShiftVal === 'c4' || rawShiftVal === 'c5' ||
-                     rawShiftVal.includes('chiều') || rawShiftVal.includes('chieu')) {
+          } else if (
+            rawShiftVal.includes('4') || rawShiftVal.includes('5') || 
+            rawShiftVal === 'c4' || rawShiftVal === 'c5' ||
+            rawShiftVal.includes('chiều') || rawShiftVal.includes('chieu')
+          ) {
             shift = 'chieu';
           }
 
