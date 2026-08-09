@@ -191,9 +191,23 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
         console.error('[StoreDeclaration] Error updating warehouses:', warehouseError);
       }
 
+      // 4. Update the user's status to 'pending' and declarationCompleted to true in ql_nguoi_dung to wait for admin approval
+      const { error: userUpdateError } = await supabase
+        .from('ql_nguoi_dung')
+        .update({
+          status: 'pending',
+          paymentConfirmed: false,
+          declarationCompleted: true
+        })
+        .eq('username', userProfile?.username);
+
+      if (userUpdateError) {
+        console.error('[StoreDeclaration] Error updating user status to pending:', userUpdateError);
+      }
+
       // Update the client state userProfile context immediately so the UI updates instantly
       if (updateStoreName) {
-        updateStoreName(store1.trim());
+        updateStoreName(store1.trim(), 'pending');
       }
       
       setStatusMessage({ type: 'success', text: 'Cập nhật cấu hình siêu thị thành công!' });
@@ -461,7 +475,14 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
               </button>
 
               <button
-                onClick={onComplete}
+                onClick={() => {
+                  const isNewUser = userProfile?.status === 'active' && (!userProfile?.ten_sieu_thi || userProfile?.ten_sieu_thi === userProfile?.ma_kho);
+                  if (isNewUser) {
+                    handleSave(true);
+                  } else {
+                    onComplete();
+                  }
+                }}
                 disabled={isSaving}
                 className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black flex items-center justify-center gap-2 transition-all active:scale-[0.98] tracking-wider uppercase text-xs border border-slate-200"
               >

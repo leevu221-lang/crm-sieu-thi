@@ -17,16 +17,21 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
   const { currentStoreId, isStoreReady } = useStore();
 
   const [manualAdjustment, setManualAdjustment] = useState(() => Number(localStorage.getItem('BI_REAL_ADJUST_V1')) || 0);
-  const [ycxFileName, setYcxFileName] = useState(() => localStorage.getItem(STORAGE_KEYS.YCX_FILE_NAME) || '');
-  const [ycxFileNameMoi, setYcxFileNameMoi] = useState(() => localStorage.getItem(STORAGE_KEYS.YCX_FILE_NAME + '_MOI') || '');
   const [linkBcTongHop, setLinkBcTongHop] = useState(() => localStorage.getItem(STORAGE_KEYS.LINK_BC_TONG_HOP) || '');
   const [linkNganhHangTongHop, setLinkNganhHangTongHop] = useState(() => localStorage.getItem(STORAGE_KEYS.LINK_NGANH_HANG_TONG_HOP) || '');
   const [selectedMonth, setSelectedMonth] = useState(() => {
-    const saved = localStorage.getItem('BI_REAL_SEL_MONTH_V1');
-    if (saved) return saved;
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  // Dirty ref: blocks Firebase overwrite for 5s after user changes month locally
+  const monthDirtyRef = useRef(false);
+  const monthDirtyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setSelectedMonthLocal = useCallback((val: string | ((prev: string) => string)) => {
+    setSelectedMonth(val);
+    monthDirtyRef.current = true;
+    if (monthDirtyTimerRef.current) clearTimeout(monthDirtyTimerRef.current);
+    monthDirtyTimerRef.current = setTimeout(() => { monthDirtyRef.current = false; }, 5000);
+  }, []);
   const [daysPassed, setDaysPassed] = useState(() => {
     const saved = localStorage.getItem('BI_REAL_DAYS_PASSED_V1');
     if (saved) return Number(saved);
@@ -167,7 +172,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
                 if (settings.stDtlk !== undefined) setStDtlk((prev: number) => prev !== settings.stDtlk ? settings.stDtlk : prev);
                 if (settings.stDtqd !== undefined) setStDtqd((prev: number) => prev !== settings.stDtqd ? settings.stDtqd : prev);
                 if (settings.manualAdjustment !== undefined) setManualAdjustment((prev: number) => prev !== settings.manualAdjustment ? settings.manualAdjustment : prev);
-                if (settings.selectedMonth) setSelectedMonth((prev: string) => prev !== settings.selectedMonth ? settings.selectedMonth : prev);
+                if (settings.selectedMonth && !monthDirtyRef.current) setSelectedMonth((prev: string) => prev !== settings.selectedMonth ? settings.selectedMonth : prev);
                 // daysPassed & totalDays are auto-calculated from selectedMonth, not loaded from DB
               }
             }
@@ -224,11 +229,9 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     localStorageTimerRef.current = setTimeout(() => {
       // Global/shared keys (not per-store)
       safeSetItem('BI_REAL_ADJUST_V1', manualAdjustment.toString());
-      safeSetItem(STORAGE_KEYS.YCX_FILE_NAME, ycxFileName);
-      safeSetItem(STORAGE_KEYS.YCX_FILE_NAME + '_MOI', ycxFileNameMoi);
       safeSetItem(STORAGE_KEYS.LINK_BC_TONG_HOP, linkBcTongHop);
       safeSetItem(STORAGE_KEYS.LINK_NGANH_HANG_TONG_HOP, linkNganhHangTongHop);
-      safeSetItem('BI_REAL_SEL_MONTH_V1', selectedMonth);
+      // selectedMonth persisted via Firebase only, not localStorage
       safeSetItem('BI_REAL_DAYS_PASSED_V1', daysPassed.toString());
       safeSetItem('BI_REAL_TOTAL_DAYS_V1', totalDays.toString());
       safeSetItem('BI_REAL_EXCLUDED_V1', JSON.stringify(excludedStaffIds));
@@ -249,7 +252,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       }
     }, 300); // Batch all localStorage writes with 300ms debounce
     return () => { if (localStorageTimerRef.current) clearTimeout(localStorageTimerRef.current); };
-  }, [manualAdjustment, ycxFileName, ycxFileNameMoi, linkBcTongHop, linkNganhHangTongHop, selectedMonth, daysPassed, totalDays, excludedStaffIds, storeSettings, staffListFileName, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, drillFilterStaff, currentStoreId]);
+  }, [manualAdjustment, linkBcTongHop, linkNganhHangTongHop, selectedMonth, daysPassed, totalDays, excludedStaffIds, storeSettings, staffListFileName, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, drillFilterStaff, currentStoreId]);
 
 
 
@@ -298,8 +301,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         selectedMonth,
         daysPassed,
         totalDays,
-        ycxFileName,
-        ycxFileNameMoi,
+
         linkBcTongHop,
         linkNganhHangTongHop,
         staffListFileName,
@@ -345,7 +347,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     } finally {
       setIsSavingStoreRevenue(false);
     }
-  }, [stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, ycxFileName, ycxFileNameMoi, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, drillFilterStaff, showNotification]);
+  }, [stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, drillFilterStaff, showNotification]);
 
   const loadStoreRevenue = useCallback(async (maKho: string, storeName?: string) => {
     if (!maKho) return;
@@ -415,11 +417,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           if (settings.manualAdjustment !== undefined) setManualAdjustment(settings.manualAdjustment);
           if (settings.selectedMonth) setSelectedMonth(settings.selectedMonth);
           // daysPassed & totalDays are auto-calculated from selectedMonth, not loaded from DB
-          if (settings.ycxFileName && !isYcxDirty) setYcxFileName(settings.ycxFileName);
-          else if (!isYcxDirty) setYcxFileName('');
-
-          if (settings.ycxFileNameMoi && !isYcxDirty) setYcxFileNameMoi(settings.ycxFileNameMoi);
-          else if (!isYcxDirty) setYcxFileNameMoi('');
+          // ycxFileName/ycxFileNameMoi are now loaded from Firebase via useRealtimeData
 
           if (settings.linkBcTongHop) setLinkBcTongHop(settings.linkBcTongHop);
           if (settings.linkNganhHangTongHop) setLinkNganhHangTongHop(settings.linkNganhHangTongHop);
@@ -615,16 +613,15 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     }, 4000); // 4s debounce
 
     return () => clearTimeout(timeoutId);
-  }, [maKho, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, ycxFileName, ycxFileNameMoi, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, drillFilterStaff, categoryMappingInput, isStoreReady]);
+  }, [maKho, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, drillFilterStaff, categoryMappingInput, isStoreReady]);
 
   return {
     categoryMappingInput, setCategoryMappingInput,
     manualAdjustment, setManualAdjustment,
-    ycxFileName, setYcxFileName,
-    ycxFileNameMoi, setYcxFileNameMoi,
+
     linkBcTongHop, setLinkBcTongHop,
     linkNganhHangTongHop, setLinkNganhHangTongHop,
-    selectedMonth, setSelectedMonth,
+    selectedMonth, setSelectedMonth: setSelectedMonthLocal,
     daysPassed, setDaysPassed,
     totalDays, setTotalDays,
     excludedStaffIds, setExcludedStaffIds,

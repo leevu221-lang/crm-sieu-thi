@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
-import { User, Store, Lock, LogIn, AlertCircle } from 'lucide-react';
+import { User, Store, Lock, LogIn, AlertCircle, UserPlus } from 'lucide-react';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -96,10 +96,12 @@ export default function Login() {
 
         {isRegisterMode && (
           <motion.div 
-            className="mb-6 p-4 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-3 text-amber-600 text-sm font-medium"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="mb-6 p-4 bg-indigo-50 border border-indigo-100 rounded-xl flex items-start gap-3 text-indigo-600 text-sm font-medium"
           >
-            <AlertCircle size={18} className="shrink-0 mt-0.5" />
-            <p>Vui lòng liên hệ Admin 43751 để được cấp tài khoản.</p>
+            <AlertCircle size={18} className="shrink-0 mt-0.5 text-indigo-500" />
+            <p>Tài khoản dùng thử sẽ được kích hoạt miễn phí 7 ngày đầy đủ tính năng.</p>
           </motion.div>
         )}
 
@@ -154,21 +156,32 @@ export default function Login() {
 
           <button
             type="submit"
-            disabled={isLoggingIn || isRegisterMode}
+            disabled={isLoggingIn}
             className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 transition-all active:scale-[0.98] disabled:opacity-70 disabled:pointer-events-none mt-2"
           >
             {isLoggingIn ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
               <>
-                <LogIn size={20} />
-                {'ĐĂNG NHẬP'}
+                {isRegisterMode ? <UserPlus size={20} /> : <LogIn size={20} />}
+                {isRegisterMode ? 'ĐĂNG KÝ' : 'ĐĂNG NHẬP'}
               </>
             )}
           </button>
         </form>
 
         <div className="mt-6 text-center">
+          <button
+            type="button"
+            onClick={() => {
+              setIsRegisterMode(!isRegisterMode);
+              setError('');
+              setSuccessMsg('');
+            }}
+            className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
+          >
+            {isRegisterMode ? 'Đã có tài khoản? Đăng nhập ngay' : 'Chưa có tài khoản? Đăng ký dùng thử 7 ngày'}
+          </button>
         </div>
       </motion.div>
       

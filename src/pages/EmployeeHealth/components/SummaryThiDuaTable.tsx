@@ -1069,7 +1069,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                     <React.Fragment key={idx}>
                       <td className={cn(
                           "px-1 py-0 text-[15px] font-black text-center border border-slate-200 truncate",
-                          roundedRate >= 100 ? "text-[#047857]" : "text-[#b91c1c]"
+                          roundedRate >= 100 ? "text-[#047857]" : roundedRate >= 80 ? "text-slate-900 bg-white" : "text-[#b91c1c]"
                       )}>
                           {roundedRate}%
                       </td>

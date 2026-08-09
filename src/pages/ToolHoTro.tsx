@@ -849,6 +849,9 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           }
           const nganhHangIdx = headerRow.findIndex((h: string) => h === 'ngành hàng');
           const nhomHangIdx = headerRow.findIndex((h: string) => h === 'nhóm hàng');
+          // Fallback for EVENT DMX: Col D (index 3) = Ngành hàng, Col E (index 4) = Nhóm hàng
+          const effectiveNganhHangIdx = nganhHangIdx !== -1 ? nganhHangIdx : (activeTab === 'sticker-event-dmx' ? 3 : -1);
+          const effectiveNhomHangIdx = nhomHangIdx !== -1 ? nhomHangIdx : (activeTab === 'sticker-event-dmx' ? 4 : -1);
           const qrIdx = headerRow.findIndex((h: string) => h.includes('qr') || h.includes('quét') || h.includes('điện thoại'));
           const tonKhoIdx = headerRow.findIndex((h: string) => h === 'tồn cuối' || h === 'tồn kho' || h === 'tồn' || h.includes('số lượng') || h.includes('sl') || h.includes('kho') || h.includes('qty'));
 
@@ -865,8 +868,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 const existing = inventoryMap.get(maSp);
                 
                 inventoryMap.set(maSp, {
-                  nganhHang: nganhHangIdx !== -1 ? String(row[nganhHangIdx] || '').trim() : '',
-                  nhomHang: nhomHangIdx !== -1 ? String(row[nhomHangIdx] || '').trim() : '',
+                  nganhHang: effectiveNganhHangIdx !== -1 ? String(row[effectiveNganhHangIdx] || '').trim() : '',
+                  nhomHang: effectiveNhomHangIdx !== -1 ? String(row[effectiveNhomHangIdx] || '').trim() : '',
                   qty: (existing?.qty || 0) + tonKhoVal
                 });
                 if (qrVal) {
@@ -1672,10 +1675,40 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           timestamp
         }));
         
-        const message = shouldAppend 
-          ? `Đã thêm ${parsedPriceData.length} sản phẩm vào danh sách!` 
-          : `Đã tải và đồng bộ ${parsedPriceData.length} sản phẩm bảng giá!`;
-        showNotification(message, 'success');
+        // Sync price data to Firebase for EVENT DMX tab
+        if (activeTab === 'sticker-event-dmx') {
+          const currentUsername = userProfile?.username || '43751';
+          const record = {
+            id: 'EVENT_DMX_GLOBAL',
+            ten_sieu_thi: 'Cấu hình EVENT ĐMX toàn hệ thống',
+            warehouse_code: 'GLOBAL',
+            sticker_ce_price_data: JSON.stringify(finalData),
+            updated_by: currentUsername,
+            updated_at: timestamp
+          };
+          
+          const { error: dbError } = await supabase
+            .from('store')
+            .upsert(record, { onConflict: 'id' });
+            
+          if (dbError) {
+            console.error('Lỗi khi lưu bảng giá lên Firebase:', dbError);
+            const message = shouldAppend 
+              ? `Đã thêm ${parsedPriceData.length} sản phẩm nhưng không thể lưu lên Firebase!` 
+              : `Đã tải ${parsedPriceData.length} sản phẩm nhưng không thể lưu lên Firebase!`;
+            showNotification(message, 'error');
+          } else {
+            const message = shouldAppend 
+              ? `Đã thêm ${parsedPriceData.length} sản phẩm và đồng bộ Firebase!` 
+              : `Đã tải ${parsedPriceData.length} sản phẩm bảng giá và đồng bộ Firebase!`;
+            showNotification(message, 'success');
+          }
+        } else {
+          const message = shouldAppend 
+            ? `Đã thêm ${parsedPriceData.length} sản phẩm vào danh sách!` 
+            : `Đã tải và đồng bộ ${parsedPriceData.length} sản phẩm bảng giá!`;
+          showNotification(message, 'success');
+        }
       }
     };
     reader.readAsArrayBuffer(file);

@@ -96,6 +96,8 @@ export const useRealtimeData = (maKho: string) => {
   const [categoryInput, setCategoryInput] = useState('');
   const [ycxData, setYcxData] = useState('');
   const [ycxDataMoi, setYcxDataMoi] = useState('');
+  const [ycxFileName, setYcxFileNameState] = useState('');
+  const [ycxFileNameMoi, setYcxFileNameMoiState] = useState('');
   const [categoryRevenueInput, setCategoryRevenueInput] = useState('');
   const [categoryTargetInput, setCategoryTargetInput] = useState('');
   const [activeStore, setActiveStore] = useState<string>(maKho);
@@ -111,6 +113,8 @@ export const useRealtimeData = (maKho: string) => {
   const categoryTargetInputRef = useRef(categoryTargetInput);
   const ycxDataRef = useRef(ycxData);
   const ycxDataMoiRef = useRef(ycxDataMoi);
+  const ycxFileNameRef = useRef(ycxFileName);
+  const ycxFileNameMoiRef = useRef(ycxFileNameMoi);
   const activeStoreRef = useRef(activeStore);
 
   useEffect(() => { marketInputRef.current = marketInput; }, [marketInput]);
@@ -119,6 +123,8 @@ export const useRealtimeData = (maKho: string) => {
   useEffect(() => { categoryTargetInputRef.current = categoryTargetInput; }, [categoryTargetInput]);
   useEffect(() => { ycxDataRef.current = ycxData; }, [ycxData]);
   useEffect(() => { ycxDataMoiRef.current = ycxDataMoi; }, [ycxDataMoi]);
+  useEffect(() => { ycxFileNameRef.current = ycxFileName; }, [ycxFileName]);
+  useEffect(() => { ycxFileNameMoiRef.current = ycxFileNameMoi; }, [ycxFileNameMoi]);
   useEffect(() => { activeStoreRef.current = activeStore; }, [activeStore]);
 
   // Sync activeStore and load data when StoreContext's currentStoreId changes
@@ -314,6 +320,10 @@ export const useRealtimeData = (maKho: string) => {
       const minifiedYcx = ycxDataRef.current ? minifyYcxData(ycxDataRef.current) : '';
       const minifiedYcxMoi = ycxDataMoiRef.current ? minifyYcxData(ycxDataMoiRef.current) : '';
 
+      // Compress YCX data to avoid exceeding Firestore 1MB document limit
+      const compressedYcx = minifiedYcx ? await compressString(minifiedYcx) : '';
+      const compressedYcxMoi = minifiedYcxMoi ? await compressString(minifiedYcxMoi) : '';
+
       const sanitizeField = (val: string) => {
         const s = String(val || '').trim();
         return s.startsWith('GZ:') ? '' : s;
@@ -324,6 +334,10 @@ export const useRealtimeData = (maKho: string) => {
       const categoryRevenueVal = sanitizeField(categoryRevenueInputRef.current);
       const categoryTargetVal = sanitizeField(categoryTargetInputRef.current);
 
+      // Read YCX file names from state refs
+      const ycxFileNameVal = ycxFileNameRef.current || '';
+      const ycxFileNameMoiVal = ycxFileNameMoiRef.current || '';
+
       const payload: any = {
         id: normalizeStoreId(cleanStore), // Normalized UPPERCASE ID to prevent duplicates
         warehouse_code: cleanMaKho,
@@ -333,8 +347,10 @@ export const useRealtimeData = (maKho: string) => {
         rt_nh_cum: categoryVal || '',
         lk_bi_tong_quan: categoryRevenueVal || '',
         lk_nh_sieu_thi: categoryTargetVal || '',
-        ycx_data: minifiedYcx || '',
-        ycx_data_moi: minifiedYcxMoi || ''
+        ycx_data: compressedYcx || '',
+        ycx_data_moi: compressedYcxMoi || '',
+        ycx_file_name: ycxFileNameVal,
+        ycx_file_name_moi: ycxFileNameMoiVal
       };
 
       const { error: upsertError } = await supabase
@@ -350,7 +366,8 @@ export const useRealtimeData = (maKho: string) => {
         setIsYcxDirty(false);
       }
       
-      console.log('[RealtimeData] Data saved successfully to DB for:', cleanMaKho);
+      const payloadSize = JSON.stringify(payload).length;
+      console.log(`[RealtimeData] Data saved successfully to DB for: ${cleanMaKho} | ycx: ${compressedYcx.length} bytes, ycx_moi: ${compressedYcxMoi.length} bytes, total payload: ${payloadSize} bytes`);
       if (!silent) {
         const msg = fieldName ? `Dữ liệu ${fieldName} đã được lưu thành công lên Firebase!` : 'Đã lưu dữ liệu Realtime thành công lên Firebase!';
         showNotification(msg, 'success');
@@ -442,7 +459,7 @@ export const useRealtimeData = (maKho: string) => {
       console.log(`[RealtimeData] Querying document ID: "${targetDocId}"`);
       const { data: record, error } = await supabase
         .from('store')
-        .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ycx_data_moi, ten_sieu_thi, updated_at')
+        .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ycx_data_moi, ycx_file_name, ycx_file_name_moi, ten_sieu_thi, updated_at')
         .eq('id', targetDocId)
         .maybeSingle();
 
@@ -476,6 +493,9 @@ export const useRealtimeData = (maKho: string) => {
           setCategoryTargetInput(await sanitizeField(record.lk_nh_sieu_thi));
           setYcxData(await sanitizeField(record.ycx_data));
           setYcxDataMoi(await sanitizeField(record.ycx_data_moi));
+          // Restore YCX file names from Firebase
+          setYcxFileNameState(record.ycx_file_name || '');
+          setYcxFileNameMoiState(record.ycx_file_name_moi || '');
         } else {
           console.log('[RealtimeData] BLOCKED loadData restore — user recently cleared/edited data');
         }
@@ -626,7 +646,7 @@ export const useRealtimeData = (maKho: string) => {
       // Query directly using the selected store name as the unique document ID
       const { data, error } = await supabase
         .from('store')
-        .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ycx_data_moi, ten_sieu_thi, updated_at')
+        .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ycx_data_moi, ycx_file_name, ycx_file_name_moi, ten_sieu_thi, updated_at')
         .eq('id', normalizeStoreId(activeStore.trim()))
         .maybeSingle();
 
@@ -639,6 +659,9 @@ export const useRealtimeData = (maKho: string) => {
         setCategoryTargetInput(data.lk_nh_sieu_thi || '');
         setYcxData(data.ycx_data || '');
         setYcxDataMoi(data.ycx_data_moi || '');
+        // Restore file names from Firebase
+        setYcxFileNameState(data.ycx_file_name || '');
+        setYcxFileNameMoiState(data.ycx_file_name_moi || '');
       } else {
         showNotification('Không tìm thấy dữ liệu Realtime để đồng bộ.', 'error');
       }
@@ -740,6 +763,8 @@ export const useRealtimeData = (maKho: string) => {
     categoryInput, setCategoryInput: setCategoryInputSync,
     ycxData, setYcxData: updateYcxData,
     ycxDataMoi, setYcxDataMoi: updateYcxDataMoi,
+    ycxFileName, setYcxFileName: setYcxFileNameState,
+    ycxFileNameMoi, setYcxFileNameMoi: setYcxFileNameMoiState,
     categoryRevenueInput, setCategoryRevenueInput: setCategoryRevenueInputSync,
     categoryTargetInput, setCategoryTargetInput: setCategoryTargetInputSync,
     activeStore, setActiveStore,

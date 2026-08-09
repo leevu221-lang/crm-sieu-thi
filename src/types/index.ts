@@ -28,6 +28,7 @@ export interface UserProfile {
   last_login_at?: string;
   current_page?: string;
   device_info?: string;
+  declarationCompleted?: boolean;
 }
 
 export interface UserData {

@@ -1197,6 +1197,157 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   const [showConfigLoaiBoModal, setShowConfigLoaiBoModal] = useState(false);
   const [customExclusionRules, setCustomExclusionRules] = useState<ExclusionRule[]>([]);
   const [showConfigGoogleSheetModal, setShowConfigGoogleSheetModal] = useState(false);
+  const [pendingUsers, setPendingUsers] = useState<any[]>([]);
+  const [pendingUsersCount, setPendingUsersCount] = useState(0);
+  const [editingUsername, setEditingUsername] = useState<string | null>(null);
+  const [editNameInput, setEditNameInput] = useState('');
+
+  // Fetch pending users for admin (43751)
+  const fetchPendingUsers = async () => {
+    try {
+      const { data: usersData, error: usersError } = await supabase
+        .from('ql_nguoi_dung')
+        .select('username, storeCode, status, password')
+        .eq('status', 'pending');
+      
+      if (!usersError && usersData) {
+        const usersWithWarehouse = await Promise.all(usersData.map(async (u: any) => {
+          const { data: wh } = await supabase
+            .from('warehouses')
+            .select('ten_kho')
+            .eq('ma_kho', u.storeCode)
+            .maybeSingle();
+          return {
+            username: u.username,
+            storeCode: u.storeCode,
+            password: u.password,
+            status: u.status,
+            ten_sieu_thi: wh?.ten_kho || `Siêu thị ${u.storeCode}`
+          };
+        }));
+        setPendingUsers(usersWithWarehouse);
+        setPendingUsersCount(usersWithWarehouse.length);
+      }
+    } catch (e) {
+      console.error('Error fetching pending users:', e);
+    }
+  };
+
+  useEffect(() => {
+    if (isUser43751) {
+      fetchPendingUsers();
+    }
+  }, [isUser43751, userProfile?.username]);
+
+  const handleEditSupermarketName = async (username: string, storeCode: string, oldStoreName: string, newStoreName: string) => {
+    if (!newStoreName || !newStoreName.trim()) return;
+    const cleanNewStoreName = newStoreName.trim();
+    if (cleanNewStoreName === oldStoreName) return;
+
+    try {
+      // 1. Update the warehouses table (ten_kho column)
+      const { error: whError } = await supabase
+        .from('warehouses')
+        .upsert({
+          ma_kho: storeCode,
+          ten_kho: cleanNewStoreName
+        }, { onConflict: 'ma_kho' });
+
+      if (whError) throw whError;
+
+      // 2. Normalize IDs
+      const oldId = normalizeStoreId(oldStoreName);
+      const newId = normalizeStoreId(cleanNewStoreName);
+
+      if (oldId && oldId !== newId) {
+        // Fetch old store doc
+        const { data: oldDoc } = await supabase
+          .from('store')
+          .eq('id', oldId)
+          .maybeSingle();
+
+        if (oldDoc) {
+          // Update the declared stores array to reflect the new store name if it is there
+          let updatedDeclaredStores = oldDoc.declared_stores || [];
+          if (Array.isArray(updatedDeclaredStores)) {
+            updatedDeclaredStores = updatedDeclaredStores.map((s: string) => 
+              s === oldStoreName ? cleanNewStoreName : s
+            );
+          }
+
+          // Create new document with new ID
+          const { error: insertError } = await supabase
+            .from('store')
+            .upsert({
+              ...oldDoc,
+              id: newId,
+              ten_sieu_thi: cleanNewStoreName,
+              declared_stores: updatedDeclaredStores,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'id' });
+
+          if (insertError) throw insertError;
+
+          // Delete old document
+          const { error: deleteError } = await supabase
+            .from('store')
+            .delete()
+            .eq('id', oldId);
+
+          if (deleteError) {
+            console.error('Error deleting old store doc:', deleteError);
+          }
+        }
+      }
+
+      // Refresh list
+      await fetchPendingUsers();
+      showNotification('Đã cập nhật tên siêu thị thành công và lưu vào Firebase!', 'success');
+    } catch (err: any) {
+      console.error('Error editing supermarket name:', err);
+      showNotification('Có lỗi xảy ra khi chỉnh sửa tên siêu thị: ' + (err.message || ''), 'error');
+    }
+  };
+
+  const handleApproveUser = async (username: string) => {
+    try {
+      const { error } = await supabase
+        .from('ql_nguoi_dung')
+        .update({
+          status: 'active',
+          paymentConfirmed: true
+        })
+        .eq('username', username);
+
+      if (error) throw error;
+
+      await fetchPendingUsers();
+      showNotification(`Đã duyệt kích hoạt tài khoản ${username} thành công!`, 'success');
+    } catch (err: any) {
+      console.error('Error approving user:', err);
+      showNotification('Có lỗi xảy ra khi phê duyệt người dùng: ' + (err.message || ''), 'error');
+    }
+  };
+
+  const handleRejectUser = async (username: string) => {
+    try {
+      const { error } = await supabase
+        .from('ql_nguoi_dung')
+        .update({
+          status: 'rejected',
+          paymentConfirmed: false
+        })
+        .eq('username', username);
+
+      if (error) throw error;
+
+      await fetchPendingUsers();
+      showNotification(`Đã từ chối kích hoạt tài khoản ${username}!`, 'success');
+    } catch (err: any) {
+      console.error('Error rejecting user:', err);
+      showNotification('Có lỗi xảy ra khi từ chối người dùng: ' + (err.message || ''), 'error');
+    }
+  };
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'system_configs', 'nhom_hang_map'), (docSnap) => {
@@ -1239,7 +1390,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       setActiveTab('summary');
     }
   }, [activeTab, isUser43751]);
-  const { ycxData, setYcxData, ycxDataMoi, setYcxDataMoi, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, hasLoadedFromDB, processError, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
+  const { ycxData, setYcxData, ycxDataMoi, setYcxDataMoi, ycxFileName, setYcxFileName, ycxFileNameMoi, setYcxFileNameMoi, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, hasLoadedFromDB, processError, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
 
   const daysRemaining = useMemo(() => {
     if (!userProfile?.expiredAt) return null;
@@ -1428,8 +1579,6 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   }, [inventorySchedules]);
 
   const {
-    ycxFileName, setYcxFileName,
-    ycxFileNameMoi, setYcxFileNameMoi,
     drillFilterStaff, setDrillFilterStaff,
     categoryMappingInput, setCategoryMappingInput
   } = useRTSTSharedData(selectedMaKho);
@@ -1544,8 +1693,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           // showNotification('Đã xử lý dữ liệu Excel thành công!', 'success'); // Hidden as requested
           // Wait longer for React re-render + useEffect ref update before saving to Firebase
           setTimeout(() => {
+            console.log('[YCX Upload] Triggering save to Firebase...');
             saveRealtimeData(false);
-          }, 1500);
+          }, 2500);
         } catch (error) {
           console.error(error);
           showNotification('Lỗi khi xử lý file Excel!', 'error');
@@ -1688,6 +1838,70 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const daysPassed = now.getDate();
     return { totalDaysInMonth, daysPassed };
   }, []);
+
+  // ===== SSG Boss: Load M.TIÊU H.NAY for TARGET column =====
+  const [ssgBossData, setSsgBossData] = useState<{
+    dataMap: Record<string, { dtqdNamTruoc: string; mucTieuSSG: string }>;
+    savedDtqd: Record<string, number>;
+    tbConLaiMap: Record<string, number>;
+  } | null>(null);
+
+  useEffect(() => {
+    const loadSSGBoss = async () => {
+      try {
+        const docRef = doc(db, 'app_settings', 'ssg_boss_data');
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          setSsgBossData({
+            dataMap: data.dataMap || {},
+            savedDtqd: data.savedDtqd || {},
+            tbConLaiMap: data.tbConLaiMap || {},
+          });
+        }
+      } catch (err) {
+        console.error('[RealtimePage] Error loading SSG Boss data:', err);
+      }
+    };
+    loadSSGBoss();
+  }, []);
+
+  // Calculate / fetch M.TIÊU H.NAY for the active store
+  const ssgTbConLai = useMemo(() => {
+    if (!ssgBossData || !activeStore) return 0;
+    const normActive = normalize(activeStore);
+    
+    // First try matching directly in tbConLaiMap using normalized store name
+    const tbConLaiKey = Object.keys(ssgBossData.tbConLaiMap).find(k => normalize(k) === normActive);
+    if (tbConLaiKey && typeof ssgBossData.tbConLaiMap[tbConLaiKey] === 'number') {
+      return ssgBossData.tbConLaiMap[tbConLaiKey];
+    }
+
+    // Fallback: calculate if tbConLaiMap value is missing
+    const matchedKey = Object.keys(ssgBossData.dataMap).find(k => normalize(k) === normActive);
+    if (!matchedKey) return 0;
+
+    const row = ssgBossData.dataMap[matchedKey];
+    const dtqdNamTruocRaw = row.dtqdNamTruoc || '0';
+    const dtqdNamTruoc = parseFloat(String(dtqdNamTruocRaw).replace(/[.,\s]/g, '')) || 0;
+    const mucTieuSSG = parseFloat(row.mucTieuSSG || '0') || 0;
+    if (dtqdNamTruoc <= 0 || mucTieuSSG <= 0) return 0;
+
+    const mucTieuSSGDecimal = mucTieuSSG / 100;
+    const targetHienTai = dtqdNamTruoc * mucTieuSSGDecimal;
+    const dtqdHienTai = ssgBossData.savedDtqd[matchedKey] || 0;
+
+    const { totalDaysInMonth, daysPassed } = mucTieu100Info;
+    const tbConLai = targetHienTai > 0 && daysPassed > 0
+      ? (targetHienTai * (daysPassed + 1) / totalDaysInMonth) - dtqdHienTai
+      : 0;
+    if (tbConLai < 0) {
+      const tbNgay = targetHienTai > 0 ? targetHienTai / totalDaysInMonth : 0;
+      return tbNgay;
+    }
+    return tbConLai;
+  }, [ssgBossData, activeStore, mucTieu100Info]);
+
 
   // compareMode MUST be declared before the useMemo that uses it (TDZ fix)
   const [compareMode, setCompareMode] = useState<'none' | 'day' | 'week' | 'month'>('none');
@@ -2468,7 +2682,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       forceDesktopLayout(clone);
 
       // 6. Style the cloned element itself so it lays out nicely
-      clone.style.width = options.width;
+      clone.style.display = 'inline-block';
+      clone.style.width = 'auto';
       clone.style.minWidth = options.minWidth;
       clone.style.height = 'auto';
       clone.style.margin = '0';
@@ -2481,13 +2696,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       }
       
       // Add nice padding and margins to make the screenshot look premium
-      if (options.isOverview) {
-        clone.style.padding = '32px';
-        clone.style.borderRadius = '32px';
-      } else {
-        clone.style.padding = '16px';
-        clone.style.borderRadius = '24px';
-      }
+      const padVal = options.isOverview ? 32 : 16;
+      clone.style.padding = `${padVal}px`;
+      clone.style.borderRadius = options.isOverview ? '32px' : '24px';
 
       // 7. Special handling for tables inside the clone to render completely without text wrapping or clipping
       // ONLY DO THIS IF WE ARE NOT CAPTURING OVERVIEW (to prevent breaking dashboard grid and full-width layouts)
@@ -2519,8 +2730,42 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       tempContainer.appendChild(clone);
       document.body.appendChild(tempContainer);
 
+      // Wait for fonts to load
+      if (document.fonts) {
+        await document.fonts.ready;
+      }
+
       // 8. Small delay to allow the browser's layout engine to compute sizes
       await new Promise(resolve => setTimeout(resolve, 200));
+
+      // 8.5 Shrink clone to exact content width (widest table or content)
+      if (!options.isOverview) {
+        // Find the widest table inside the clone
+        let maxTableWidth = 0;
+        clone.querySelectorAll('table').forEach(table => {
+          maxTableWidth = Math.max(maxTableWidth, (table as HTMLElement).scrollWidth);
+        });
+        // Use the widest table + padding as the exact width, or fallback to scrollWidth
+        const exactWidth = maxTableWidth > 0 ? maxTableWidth + padVal * 2 : clone.scrollWidth;
+        clone.style.width = `${exactWidth}px`;
+        clone.style.minWidth = `${exactWidth}px`;
+        clone.style.maxWidth = `${exactWidth}px`;
+        clone.style.display = 'block';
+        
+        // Force all direct children (header, etc.) to match clone width
+        Array.from(clone.children).forEach(child => {
+          (child as HTMLElement).style.maxWidth = '100%';
+        });
+
+        tempContainer.style.width = `${exactWidth + 100}px`;
+      } else {
+        // If it is overview, keep the original desktop width specified in options
+        clone.style.width = options.width;
+        clone.style.minWidth = options.minWidth;
+        clone.style.maxWidth = options.width;
+        tempContainer.style.width = `${targetWidthVal + 100}px`;
+      }
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       // 9. Capture the image using domToPng from the off-screen clone element
       const dataUrl = await domToPng(clone, {
@@ -2561,6 +2806,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
   const [showKhaiThacCols, setShowKhaiThacCols] = useState({
     doanhThu: true,
+    target: true,
+    pctHt: true,
     spChinh: true,
     baoHiem: true,
     vasBh: true,
@@ -3815,7 +4062,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       cardsGrid.classList.add('force-grid-cols-6');
     }
     // Force categories grid to 2 columns
-    const categoriesGrid = element.querySelector('.grid-cols-1.xl\\:grid-cols-2');
+    const categoriesGrid = element.querySelector('.grid-cols-1.xl\\:grid-cols-2') || element.querySelector('[class*="grid-cols-1"][class*="grid-cols-2"]');
     if (categoriesGrid) {
       categoriesGrid.classList.add('force-grid-cols-2');
     }
@@ -3826,7 +4073,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     if (cardsGrid) {
       cardsGrid.classList.remove('force-grid-cols-6');
     }
-    const categoriesGrid = element.querySelector('.grid-cols-1.xl\\:grid-cols-2');
+    const categoriesGrid = element.querySelector('.grid-cols-1.xl\\:grid-cols-2') || element.querySelector('[class*="grid-cols-1"][class*="grid-cols-2"]');
     if (categoriesGrid) {
       categoriesGrid.classList.remove('force-grid-cols-2');
     }
@@ -4251,6 +4498,89 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                         </button>
                       )}
                     </div>
+
+                    {/* Pending users notification with details and inline edit for Admin 43751 */}
+                    {isUser43751 && pendingUsers.length > 0 && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 space-y-4 no-capture shadow-sm">
+                        <div className="flex items-center gap-2 pb-2 border-b border-amber-200/50">
+                          <span className="text-xl animate-bounce">🔔</span>
+                          <span className="text-xs font-black text-amber-800 uppercase tracking-wider">
+                            Có {pendingUsers.length} người dùng mới đang chờ duyệt
+                          </span>
+                        </div>
+                        <div className="space-y-4">
+                          {pendingUsers.map((user) => (
+                            <div key={user.username} className="bg-white border border-amber-100 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                              <div className="space-y-2 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border border-indigo-100">
+                                    Tài khoản: {user.username}
+                                  </span>
+                                  <span className="bg-amber-50 text-amber-700 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border border-amber-100">
+                                    Mã kho: {user.storeCode}
+                                  </span>
+                                </div>
+                                <div className="text-xs font-bold text-slate-700 flex items-center gap-2 flex-wrap">
+                                  <span>Siêu thị khai báo:</span>
+                                  {editingUsername === user.username ? (
+                                    <div className="flex items-center gap-2 mt-1 w-full md:w-auto">
+                                      <input
+                                        type="text"
+                                        value={editNameInput}
+                                        onChange={(e) => setEditNameInput(e.target.value)}
+                                        className="px-3 py-1.5 border border-slate-300 rounded-xl font-bold text-slate-800 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none w-full md:w-[280px]"
+                                      />
+                                      <button
+                                        onClick={() => {
+                                          handleEditSupermarketName(user.username, user.storeCode, user.ten_sieu_thi, editNameInput);
+                                          setEditingUsername(null);
+                                        }}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider shrink-0 cursor-pointer transition-colors shadow-sm font-bold"
+                                      >
+                                        Lưu
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingUsername(null)}
+                                        className="bg-slate-100 hover:bg-slate-200 text-slate-500 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider shrink-0 cursor-pointer transition-colors font-bold"
+                                      >
+                                        Hủy
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-indigo-600 font-extrabold">{user.ten_sieu_thi}</span>
+                                      <button
+                                        onClick={() => {
+                                          setEditingUsername(user.username);
+                                          setEditNameInput(user.ten_sieu_thi);
+                                        }}
+                                        className="text-[10px] text-indigo-500 hover:text-indigo-700 font-black uppercase hover:underline cursor-pointer flex items-center gap-0.5 ml-1 font-bold"
+                                      >
+                                        [Sửa]
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
+                                <button
+                                  onClick={() => handleRejectUser(user.username)}
+                                  className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-2 rounded-xl font-black text-[11px] uppercase tracking-wider transition-colors shadow-sm cursor-pointer font-bold"
+                                >
+                                  Từ chối
+                                </button>
+                                <button
+                                  onClick={() => handleApproveUser(user.username)}
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-black text-[11px] uppercase tracking-wider transition-colors shadow-sm shadow-indigo-100 cursor-pointer font-bold"
+                                >
+                                  Duyệt Kích Hoạt
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {isEditingAnnounce && (
                       <div className="bg-slate-50 border border-slate-200/80 p-5 rounded-2xl space-y-4 no-capture">
@@ -5720,6 +6050,29 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           })}
                         </div>
                         <div className="flex flex-col gap-2.5 pl-[90px]">
+                          {showKhaiThacCols.doanhThu && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-[10px] font-black text-[#1d4ed8] w-20 flex items-center gap-1">💰 DOANH THU:</span>
+                              {[
+                                { key: 'target', label: 'TARGET' },
+                                { key: 'pctHt', label: '%HT' }
+                              ].map(btn => {
+                                const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols] ?? false;
+                                return (
+                                  <button
+                                    key={btn.key}
+                                    onClick={() => handleToggleKhaiThacCol(btn.key, !isActive)}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
+                                      ? 'bg-blue-50 text-[#1d4ed8] border-blue-200 shadow-sm'
+                                      : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                                      }`}
+                                  >
+                                    {btn.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                           {showKhaiThacCols.spChinh && (
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="text-[10px] font-black text-[#047857] w-20 flex items-center gap-1">📱 SP CHÍNH:</span>
@@ -5875,7 +6228,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               </div>
                             </th>
                             {showKhaiThacCols.doanhThu && (
-                              <th colSpan={5} className="py-1 px-3 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 font-black text-[13px] border-b border-blue-100">DOANH THU</th>
+                              <th colSpan={5 + (showKhaiThacCols.target ? 1 : 0) + (showKhaiThacCols.pctHt ? 1 : 0)} className="py-1 px-3 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 font-black text-[13px] border-b border-blue-100">DOANH THU</th>
                             )}
                             {showKhaiThacCols.spChinh && (
                               <th colSpan={1 + (showKhaiThacCols.spcSmf ? 1 : 0) + (showKhaiThacCols.spcLap ? 1 : 0) + (showKhaiThacCols.spcTab ? 1 : 0) + (showKhaiThacCols.spcTivi ? 1 : 0) + (showKhaiThacCols.spcMl ? 1 : 0) + (showKhaiThacCols.spcTl ? 1 : 0) + (showKhaiThacCols.spcMg ? 1 : 0)} className="py-1 px-3 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black text-[13px] border-b border-emerald-100">SP CHÍNH</th>
@@ -5911,8 +6264,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[11px] font-black uppercase">
                             {showKhaiThacCols.doanhThu && (
                               <>
+                                {showKhaiThacCols.target && (
+                                  <th className="py-1.5 px-2 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 w-20 cursor-pointer">TARGET</th>
+                                )}
                                 {renderKhaiThacHeader('dtThuc', 'DT THỰC', 'text-[#1d4ed8]', 'bg-[#eff6ff]', 'w-20')}
                                 {renderKhaiThacHeader('dtqd', 'DTQĐ', 'text-[#1d4ed8]', 'bg-[#eff6ff]', 'w-20')}
+                                {showKhaiThacCols.pctHt && (
+                                  <th className="py-1.5 px-2 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 w-20 cursor-pointer">%HT</th>
+                                )}
                                 {renderKhaiThacHeader('hqqd', 'HQQĐ', 'text-[#1d4ed8]', 'bg-[#eff6ff]', 'w-20')}
                                 {renderKhaiThacHeader('dtTraGop', 'DT T.GÓP', 'text-[#1d4ed8]', 'bg-[#eff6ff]', 'w-20')}
                                 {renderKhaiThacHeader('tc', '%TC', 'text-[#1d4ed8]', 'bg-[#eff6ff]', 'w-20')}
@@ -6054,6 +6413,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             };
 
                             const totalStaffCount = staffKhaiThacStats.length;
+                            const targetPerPerson = totalStaffCount > 0 && ssgTbConLai > 0 ? ssgTbConLai / totalStaffCount : 0;
                             const top20Idx = Math.max(1, Math.ceil(totalStaffCount * 0.2));
                             const bot20Idx = totalStaffCount - Math.max(1, Math.ceil(totalStaffCount * 0.2));
                             const getStaffIcon = (idx: number) => {
@@ -6066,25 +6426,6 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             };
                             return staffKhaiThacStats.length > 0 ? staffKhaiThacStats.map((item, idx) => {
                               const visibleSpChinhTotalQty = getVisibleSpChinhQty(item);
-
-                              const visibleVasTotalQty =
-                                (showKhaiThacCols.vasBh ? item.bhQty : 0) +
-                                (showKhaiThacCols.vasVieon ? item.vieonQty : 0) +
-                                (showKhaiThacCols.vasMangoIcall ? item.mangoIcallQty : 0);
-
-                              const visiblePkTotalQty =
-                                (showKhaiThacCols.pkCam ? item.pkCamQty : 0) +
-                                (showKhaiThacCols.pkLoa ? item.pkLoaQty : 0) +
-                                (showKhaiThacCols.pkPin ? item.pkPinQty : 0) +
-                                (showKhaiThacCols.pkTn ? item.pkTnQty : 0) +
-                                (showKhaiThacCols.pkDenMt ? item.pkDenMtQty : 0);
-
-                              const visibleGdTotalQty =
-                                (showKhaiThacCols.gdMln ? item.gdMlnQty : 0) +
-                                (showKhaiThacCols.gdNcom ? item.gdNcomQty : 0) +
-                                (showKhaiThacCols.gdNchien ? item.gdNchienQty : 0) +
-                                (showKhaiThacCols.gdQuat ? item.gdQuatQty : 0) +
-                                (showKhaiThacCols.gdQdh ? item.gdQdhQty : 0);
 
                               return (
                                 <tr key={item.staffName} className="border-b border-slate-100/70 hover:bg-slate-50/80 transition-colors h-10">
@@ -6099,8 +6440,21 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   {/* DOANH THU Cells */}
                                   {showKhaiThacCols.doanhThu && (
                                     <>
+                                      {showKhaiThacCols.target && (
+                                        <td className="py-2 px-2 text-center text-[13px] font-black text-[#7c3aed] bg-[#f5f3ff]/40 border-r border-slate-200/50">{targetPerPerson > 0 ? formatRev(targetPerPerson * 1_000_000) : '-'}</td>
+                                      )}
                                       <td className="py-2 px-2 text-center text-[13px] font-black text-[#1d4ed8] border-r border-slate-200/50">{formatRev(item.dtThuc)}</td>
                                       <td className="py-2 px-2 text-center text-[13px] font-black text-[#1d4ed8] border-r border-slate-200/50">{formatRev(item.dtqd)}</td>
+                                      {showKhaiThacCols.pctHt && (
+                                        <td className="py-2 px-2 text-center text-[13px] font-black bg-[#f5f3ff]/30 border-r border-slate-200/50">
+                                          {(() => {
+                                            if (targetPerPerson <= 0 || item.dtqd <= 0) return <span className="text-slate-400">-</span>;
+                                            const targetRaw = targetPerPerson * 1_000_000; // convert triệu → đồng
+                                            const pctHT = Math.round((item.dtqd / targetRaw) * 100);
+                                            return <span className={`${pctHT >= 100 ? 'text-emerald-600' : 'text-[#7c3aed]'} font-black`}>{pctHT}%</span>;
+                                          })()}
+                                        </td>
+                                      )}
                                       <td className="py-2 px-2 text-center border-r border-slate-200/50">{renderHqqd(item.hqqd)}</td>
                                       <td className="py-2 px-2 text-center text-[13px] font-black text-[#1d4ed8] border-r border-slate-200/50">{formatRev(item.dtTraGop)}</td>
                                       <td className="py-2 px-2 text-center border-r border-slate-200/50">{renderTcPct(item.dtTraGop, item.dtThuc)}</td>
@@ -6221,37 +6575,31 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               const totalSmfMotorola = staffKhaiThacStats.reduce((s, x) => s + x.smfMotorolaQty, 0);
 
                               const totalBhQty = staffKhaiThacStats.reduce((s, x) => s + x.bhQty, 0);
-                              const totalBhRev = staffKhaiThacStats.reduce((s, x) => s + x.bhRev, 0);
                               const totalVieonQty = staffKhaiThacStats.reduce((s, x) => s + x.vieonQty, 0);
-                              const totalVieonRev = staffKhaiThacStats.reduce((s, x) => s + x.vieonRev, 0);
                               const totalMangoIcallQty = staffKhaiThacStats.reduce((s, x) => s + x.mangoIcallQty, 0);
-                              const totalMangoIcallRev = staffKhaiThacStats.reduce((s, x) => s + x.mangoIcallRev, 0);
 
                               const totalSimQty = staffKhaiThacStats.reduce((s, x) => s + x.simQty, 0);
-                              const totalSimRev = staffKhaiThacStats.reduce((s, x) => s + x.simRev, 0);
 
-                              const totalDhQty = staffKhaiThacStats.reduce((s, x) => s + x.dhQty, 0);
                               const totalDhDhtt = staffKhaiThacStats.reduce((s, x) => s + x.dhDhttQty, 0);
                               const totalDhWear = staffKhaiThacStats.reduce((s, x) => s + x.dhWearQty, 0);
-                              const totalDhRev = staffKhaiThacStats.reduce((s, x) => s + x.dhRev, 0);
 
                               const totalPkCam = staffKhaiThacStats.reduce((s, x) => s + x.pkCamQty, 0);
                               const totalPkLoa = staffKhaiThacStats.reduce((s, x) => s + x.pkLoaQty, 0);
                               const totalPkPin = staffKhaiThacStats.reduce((s, x) => s + x.pkPinQty, 0);
                               const totalPkTn = staffKhaiThacStats.reduce((s, x) => s + x.pkTnQty, 0);
                               const totalPkDenMt = staffKhaiThacStats.reduce((s, x) => s + x.pkDenMtQty, 0);
-                              const totalPkRev = staffKhaiThacStats.reduce((s, x) => s + x.pkRev, 0);
 
-                              const totalGdQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQty, 0);
                               const totalGdMlnQty = staffKhaiThacStats.reduce((s, x) => s + x.gdMlnQty, 0);
                               const totalGdNcomQty = staffKhaiThacStats.reduce((s, x) => s + x.gdNcomQty, 0);
                               const totalGdNchienQty = staffKhaiThacStats.reduce((s, x) => s + x.gdNchienQty, 0);
                               const totalGdQuatQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQuatQty, 0);
                               const totalGdQdhQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQdhQty, 0);
 
-                              const formatFooterVal = (val: number) => val === 0 ? '-' : val;
+                              const formatFooterVal = (val: number) => {
+                                return val === 0 ? <span className="text-slate-300">-</span> : val.toLocaleString('vi-VN');
+                              };
                               const formatFooterRev = (val: number) => {
-                                if (val === 0) return '-';
+                                if (val === 0) return <span className="text-slate-300">-</span>;
                                 if (val >= 1_000_000) {
                                   const m = val / 1_000_000;
                                   if (m >= 1000) {
@@ -6274,7 +6622,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 );
                               };
                               const renderFooterTcPct = (tc: number, total: number) => {
-                                if (total === 0 || tc === 0) return <span className="text-slate-300">-</span>;
+                                if (total === 0 || tc === 0) {
+                                  return (
+                                    <span className="text-slate-300">-</span>
+                                  );
+                                }
                                 const pct = Math.round((tc / total) * 100);
                                 const colorClass = pct < 60 ? 'text-red-600' : 'text-emerald-600';
                                 return (
@@ -6284,35 +6636,27 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 );
                               };
 
-                              const totalVisibleSpChinhQty = totalSpChinhQty;
-
-                              const totalVisibleVasTotalQty =
-                                (showKhaiThacCols.vasBh ? totalBhQty : 0) +
-                                (showKhaiThacCols.vasVieon ? totalVieonQty : 0) +
-                                (showKhaiThacCols.vasMangoIcall ? totalMangoIcallQty : 0);
-
-                              const totalVisiblePkTotalQty =
-                                (showKhaiThacCols.pkCam ? totalPkCam : 0) +
-                                (showKhaiThacCols.pkLoa ? totalPkLoa : 0) +
-                                (showKhaiThacCols.pkPin ? totalPkPin : 0) +
-                                (showKhaiThacCols.pkTn ? totalPkTn : 0) +
-                                (showKhaiThacCols.pkDenMt ? totalPkDenMt : 0);
-
-                              const totalVisibleGdTotalQty =
-                                (showKhaiThacCols.gdMln ? totalGdMlnQty : 0) +
-                                (showKhaiThacCols.gdNcom ? totalGdNcomQty : 0) +
-                                (showKhaiThacCols.gdNchien ? totalGdNchienQty : 0) +
-                                (showKhaiThacCols.gdQuat ? totalGdQuatQty : 0) +
-                                (showKhaiThacCols.gdQdh ? totalGdQdhQty : 0);
-
                               return (
                                 <tr className="bg-[#e6fbf4] border-t-2 border-emerald-300 font-black text-slate-900 h-10 uppercase">
                                   <td className="py-2.5 px-4 text-left text-[14px] text-[#047857] font-black pl-6 border-r border-slate-200/50">TỔNG CỘNG</td>
                                   {/* DOANH THU Totals */}
                                   {showKhaiThacCols.doanhThu && (
                                     <>
+                                      {showKhaiThacCols.target && (
+                                        <td className="py-2 px-2 text-center text-[13px] text-[#7c3aed] font-black bg-[#f5f3ff]/60 border-r border-slate-200/50">{ssgTbConLai > 0 ? formatFooterRev(ssgTbConLai * 1_000_000) : '-'}</td>
+                                      )}
                                       <td className="py-2 px-2 text-center text-[13px] text-[#1d4ed8] font-black border-r border-slate-200/50">{formatFooterRev(totalDtThuc)}</td>
                                       <td className="py-2 px-2 text-center text-[13px] text-[#1d4ed8] font-black border-r border-slate-200/50">{formatFooterRev(totalDtqd)}</td>
+                                      {showKhaiThacCols.pctHt && (
+                                        <td className="py-2 px-2 text-center text-[13px] font-black bg-[#f5f3ff]/40 border-r border-slate-200/50">
+                                          {(() => {
+                                            if (ssgTbConLai <= 0 || totalDtqd <= 0) return <span className="text-slate-300">-</span>;
+                                            const totalTarget = ssgTbConLai * 1_000_000;
+                                            const pctHT = Math.round((totalDtqd / totalTarget) * 100);
+                                            return <span className={`${pctHT >= 100 ? 'text-emerald-600' : 'text-[#7c3aed]'} font-black`}>{pctHT}%</span>;
+                                          })()}
+                                        </td>
+                                      )}
                                       <td className="py-2 px-2 text-center text-[13px] text-[#1d4ed8] font-black border-r border-slate-200/50">
                                         {renderFooterHqqd(totalHqqd)}
                                       </td>

@@ -20,6 +20,14 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
   const [isSyncing, setIsSyncing] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
 
+  const handleSyncStatus = async () => {
+    setIsSyncing(true);
+    await onRefresh();
+    setTimeout(() => {
+      setIsSyncing(false);
+    }, 1000);
+  };
+
   useEffect(() => {
     // Detect if user transitioned to active status
     const isPending = isSuccess || userProfile.status === 'pending';
@@ -33,6 +41,89 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
       return () => clearTimeout(timer);
     }
   }, [userProfile.status, userProfile.paymentConfirmed, isSuccess, onClose]);
+
+  const isNewUserPendingApproval = (userProfile.status === 'pending' || userProfile.status === 'rejected') && !userProfile.requestedRenewPackage;
+
+  if (isNewUserPendingApproval) {
+    const isRejected = userProfile.status === 'rejected';
+
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden font-sans selection:bg-indigo-100 selection:text-indigo-900">
+        <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-50/50 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-amber-50/50 blur-3xl pointer-events-none" />
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-md bg-white rounded-3xl border border-slate-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] p-8 text-center relative z-10"
+        >
+          {isRejected ? (
+            <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-100 text-rose-500 flex items-center justify-center mx-auto mb-6 shadow-sm animate-bounce">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+          ) : (
+            <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-100 text-amber-500 flex items-center justify-center mx-auto mb-6 shadow-sm animate-pulse">
+              <Loader2 className="w-8 h-8 animate-spin" />
+            </div>
+          )}
+
+          <span className={`text-[10px] font-black uppercase tracking-widest block mb-2 ${isRejected ? 'text-rose-600' : 'text-amber-600'}`}>
+            {isRejected ? 'Đăng ký bị từ chối' : 'Đăng ký tài khoản mới'}
+          </span>
+          <h2 className="text-xl font-black text-slate-800 tracking-tight uppercase mb-4">
+            {isRejected ? 'Từ chối duyệt tài khoản' : 'Chờ phê duyệt tài khoản'}
+          </h2>
+
+          <div className="bg-slate-50 border border-slate-200/50 p-5 rounded-2xl text-left space-y-3 mb-6 text-slate-700 font-medium text-xs leading-relaxed">
+            <div className="flex justify-between border-b border-slate-200/50 pb-2">
+              <span className="text-slate-400 font-bold">Tài khoản (Username):</span>
+              <span className="font-extrabold text-slate-800">{userProfile.username}</span>
+            </div>
+            <div className="flex justify-between border-b border-slate-200/50 pb-2">
+              <span className="text-slate-400 font-bold">Mã kho (Store Code):</span>
+              <span className="font-extrabold text-slate-800">{userProfile.ma_kho}</span>
+            </div>
+            <div className="flex flex-col gap-1 pb-1">
+              <span className="text-slate-400 font-bold">Siêu thị khai báo:</span>
+              <span className={`font-extrabold bg-indigo-50/50 px-3 py-1.5 rounded-xl border border-indigo-100/50 text-[13px] text-center ${isRejected ? 'text-rose-600 border-rose-100 bg-rose-50/30' : 'text-indigo-600'}`}>{userProfile.ten_sieu_thi || `Siêu thị ${userProfile.ma_kho}`}</span>
+            </div>
+          </div>
+
+          <p className="text-slate-500 font-medium text-xs leading-relaxed mb-8 max-w-sm mx-auto">
+            {isRejected ? (
+              <>
+                Tài khoản của anh/chị đã bị Admin <strong className="text-rose-600">43751</strong> từ chối phê duyệt kích hoạt. Vui lòng liên hệ trực tiếp Admin để giải quyết.
+              </>
+            ) : (
+              <>
+                Thông tin đăng ký đã được lưu trên hệ thống. Vui lòng liên hệ Admin <strong className="text-indigo-600">43751</strong> duyệt kích hoạt tài khoản dùng thử 7 ngày để truy cập vào ứng dụng.
+              </>
+            )}
+          </p>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSyncStatus}
+              disabled={isSyncing}
+              className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl text-xs uppercase tracking-widest transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+              ĐỒNG BỘ TRẠNG THÁI
+            </button>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="px-4 py-3.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-black rounded-xl text-xs uppercase tracking-widest transition-colors shrink-0 cursor-pointer"
+                title="Đăng xuất"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   const packages = [
     { days: 7, label: 'Dùng thử 7 ngày (áp dụng tài khoản mới)', price: '0đ' },
@@ -89,14 +180,6 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleSyncStatus = async () => {
-    setIsSyncing(true);
-    await onRefresh();
-    setTimeout(() => {
-      setIsSyncing(false);
-    }, 1000);
   };
 
   const getStatusText = () => {

@@ -90,32 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  // Sync permissions and subscription status on mount / username change
-  // Also poll every 30 seconds and refresh on window visibility focus to enforce subscription locking in real-time
-  useEffect(() => {
-    if (!userProfile?.username || userProfile.username === 'ADMIN') return;
 
-    // 1. Initial refresh
-    refreshProfile();
-
-    // 2. Periodic poll every 30 seconds
-    const interval = setInterval(() => {
-      refreshProfile();
-    }, 30000);
-
-    // 3. Tab visibility check
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        refreshProfile();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [userProfile?.username]);
   // Real-time Listeners (Firestore for subscription and permissions)
   useEffect(() => {
     if (!userProfile?.username || userProfile.username === 'ADMIN') return;
@@ -141,7 +116,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             requestedRenewPackage: userData.requestedRenewPackage,
             requestedAt: userData.requestedAt,
             phone: userData.phone,
-            isDemo: userData.isDemo
+            isDemo: userData.isDemo,
+            declarationCompleted: userData.declarationCompleted
           };
           localStorage.setItem('userProfile', JSON.stringify(updated));
           return updated;
@@ -257,7 +233,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         packageDays: data.packageDays,
         paymentConfirmed: data.paymentConfirmed,
         requestedRenewPackage: data.requestedRenewPackage,
-        requestedAt: data.requestedAt
+        requestedAt: data.requestedAt,
+        declarationCompleted: data.declarationCompleted
       };
 
       localStorage.setItem('userProfile', JSON.stringify(profile));
@@ -309,11 +286,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function register(username: string, maKho: string, password?: string): Promise<{ success: boolean; message: string }> {
     try {
-      // Check if user already exists
+      const cleanUsername = String(username).trim();
+      const cleanMaKho = String(maKho).trim();
+
+      if (!cleanUsername || !cleanMaKho) {
+        return { success: false, message: 'Vui lòng nhập đầy đủ thông tin.' };
+      }
+
+      // Check if username already exists
       const { data: existingUser, error: checkError } = await supabase
         .from('ql_nguoi_dung')
         .select('username')
-        .eq('username', username)
+        .eq('username', cleanUsername)
         .maybeSingle();
         
       if (checkError) {
@@ -322,26 +306,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
         
       if (existingUser) {
-        return { success: false, message: 'Tên người dùng đã tồn tại. Vui lòng chọn tên khác.' };
+        return { success: false, message: 'Tên đăng nhập (Username) này đã tồn tại. Vui lòng chọn tên khác.' };
       }
+
 
       // Ensure warehouse exists
       const { data: warehouse } = await supabase
         .from('warehouses')
-        .select('ma_kho')
-        .eq('ma_kho', maKho)
+        .select('ma_kho, ten_kho')
+        .eq('ma_kho', cleanMaKho)
         .maybeSingle();
+
+      const defaultWarehouseName = `Siêu thị ${cleanMaKho}`;
+      const isStoreAlreadyDeclared = !!(warehouse && warehouse.ten_kho && warehouse.ten_kho !== defaultWarehouseName);
 
       if (!warehouse) {
         // Auto-create warehouse if it doesn't exist
-        await supabase.from('warehouses').insert({ ma_kho: maKho, ten_kho: `Siêu thị ${maKho}` });
+        await supabase.from('warehouses').insert({ ma_kho: cleanMaKho, ten_kho: defaultWarehouseName });
       }
 
-      // Insert new user
+      // Default subscription: 7-day trial
+      const trialDays = 7;
+      const trialExpiredAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
+
+      // All new users start with active status to let them declare their store name first.
+      // After they complete declaration, status is set to pending for approval.
       const newUser = {
-        username,
-        storeCode: maKho,
+        username: cleanUsername,
+        storeCode: cleanMaKho,
         password,
+        status: 'active',
+        paymentConfirmed: true,
+        packageDays: trialDays,
+        expiredAt: trialExpiredAt,
+        isDemo: false,
+        declarationCompleted: false,
         created_at: new Date().toISOString()
       };
 
@@ -354,11 +353,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, message: `Đăng ký thất bại: ${error.message}` };
       }
 
+      // Create default user permissions
+      const defaultPages = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'birthday', 'bangiasoc', 'tnb_data'];
+      const { error: permError } = await supabase
+        .from('user_permissions')
+        .insert({
+          user_id: cleanUsername,
+          allowed_pages: defaultPages,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (permError) {
+        console.error('Supabase permissions insert error:', permError);
+        return { success: false, message: `Lỗi tạo phân quyền mặc định: ${permError.message}` };
+      }
+
       // Fetch store name from warehouses
       const { data: storeData } = await supabase
         .from('warehouses')
         .select('ten_kho')
-        .eq('ma_kho', maKho)
+        .eq('ma_kho', cleanMaKho)
         .maybeSingle();
 
       const profile: UserProfile = {
@@ -367,15 +382,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password: newUser.password,
         role: 'user',
         permissions: ['lkst', 'rtst', 'sknv', 'updata'] as any,
-        ten_sieu_thi: storeData?.ten_kho || maKho
-      } as any;
+        userPermissions: {
+          canEditUser: false,
+          allowedPages: defaultPages
+        },
+        ten_sieu_thi: storeData?.ten_kho || cleanMaKho,
+        status: newUser.status as any,
+        paymentConfirmed: newUser.paymentConfirmed,
+        packageDays: newUser.packageDays,
+        expiredAt: newUser.expiredAt,
+        isDemo: newUser.isDemo,
+        declarationCompleted: newUser.declarationCompleted
+      };
+      
       localStorage.setItem('userProfile', JSON.stringify(profile));
+      sessionStorage.setItem('justLoggedIn', 'true');
+
+      // Record access login event
+      trackUserPing(newUser.username, newUser.storeCode, 'realtime', 'REGISTER');
       
       setTimeout(() => {
         setUserProfile(profile);
       }, 1500);
       
-      return { success: true, message: 'Đăng ký thành công.' };
+      return { success: true, message: 'Đăng ký thành công và đang chuyển hướng...' };
     } catch (err: any) {
       console.error('Register error:', err);
       let message = 'Đã xảy ra lỗi khi đăng ký.';
@@ -395,9 +425,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     sessionStorage.removeItem('justLoggedIn');
   }
 
-  function updateStoreName(newStoreName: string) {
+  function updateStoreName(newStoreName: string, newStatus?: string) {
     if (userProfile) {
-      const updatedProfile = { ...userProfile, ten_sieu_thi: newStoreName };
+      const updatedProfile = { 
+        ...userProfile, 
+        ten_sieu_thi: newStoreName,
+        status: newStatus ? newStatus as any : userProfile.status
+      };
       setUserProfile(updatedProfile);
       localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
     }

@@ -562,38 +562,35 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                       String(userProfile?.user_id || '').trim() === '43751';
 
   const dataLkSieuThiMapped = useMemo(() => {
-    console.log('[DEBUG] dataLkSieuThi length:', dataLkSieuThi.length);
-    if (dataLkSieuThi.length > 0) {
-      console.log('[DEBUG] First row of dataLkSieuThi:', dataLkSieuThi[0]);
-    }
-    const mapped = dataLkSieuThi.map(row => {
-      // row is from dataLkSieuThi (8 columns: A, C, D, F, J, K, L, Q)
-      // row[0] = Tỉnh (A)
-      // row[1] = Luỹ Kế (C)
-      // row[2] = Target (D)
-      // row[3] = %HT Dự kiến (F)
-      // row[4] = Siêu thị (J)
-      // row[5] = Kênh (K)
-      // row[6] = BOSS (L)
-      // row[7] = Ngành Hàng (Q)
-      const virtualRow: string[] = [];
-      virtualRow[0] = row[0] || ''; // Tỉnh
+    return dataLkSieuThi.map(row => {
+      // row in dataLkSieuThi is parsed from the Google Sheet tab "data SIÊU THỊ" using lkSTCols ['B','C','D','E','F','G','H','K','L','M','R']:
+      // row[0] = Tỉnh (Cột B / Cột 1) -> "An Giang"
+      // row[2] = Luỹ Kế (Cột D / Cột 3) -> "7.79"
+      // row[3] = Target (Cột E / Cột 4) -> "11.75"
+      // row[5] = %HT Dự kiến (Cột G / Cột 6) -> "562.90%"
+      // row[7] = Siêu thị (Cột K / Cột 10) -> "ĐMS_AGI_TTO - Lương An Trà"
+      // row[8] = Kênh (Cột L / Cột 11) -> "ĐMS"
+      // row[9] = BOSS (Cột M / Cột 12) -> "Em_12214"
+      // row[10] = Ngành Hàng (Cột R / Cột 17) -> "Nồi cơm"
+      const virtualRow = [];
+      virtualRow[0] = (row[0] || '').normalize('NFC'); // Tỉnh (Cột 1)
       virtualRow[1] = '';
-      virtualRow[2] = row[1] || ''; // Luỹ Kế
-      virtualRow[3] = row[2] || ''; // Target
-      virtualRow[4] = row[3] || ''; // %HT Dự kiến
-      virtualRow[5] = row[5] || ''; // Kênh (Used in VUNG brand filter)
-      virtualRow[6] = row[4] || ''; // Siêu thị (Used in SIEU_THI pivot table as stRt)
-      virtualRow[7] = row[5] || ''; // Kênh
-      virtualRow[8] = row[6] || ''; // BOSS
-      virtualRow[9] = row[7] || ''; // Ngành Hàng
+      virtualRow[2] = row[2] || ''; // Luỹ Kế (Cột 3)
+      virtualRow[3] = row[3] || ''; // Target (Cột 4)
+      virtualRow[4] = row[5] || ''; // %HT Dự kiến (Cột 6)
+      virtualRow[5] = (row[8] || '').normalize('NFC'); // Kênh (Cột 11)
+      virtualRow[6] = (row[7] || '').normalize('NFC'); // Siêu thị (Cột 10)
+      virtualRow[7] = (row[8] || '').normalize('NFC'); // Kênh (Cột 11)
+      virtualRow[8] = (row[9] || '').normalize('NFC'); // BOSS (Cột 12)
+      
+      let nganhHang = (row[10] || '').trim().toUpperCase().normalize('NFC');
+      if (nganhHang === 'B.HIỂM TTB') {
+        nganhHang = 'BẢO HIỂM';
+      }
+      virtualRow[9] = nganhHang; // Ngành Hàng (Cột 17)
+      
       return virtualRow;
     });
-    console.log('[DEBUG] dataLkSieuThiMapped length:', mapped.length);
-    if (mapped.length > 0) {
-      console.log('[DEBUG] First row of mapped:', mapped[0]);
-    }
-    return mapped;
   }, [dataLkSieuThi]);
 
   const isUser7611 = String(userProfile?.username || '').trim() === '7611' || 
@@ -688,6 +685,8 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
       // Only fetch 1 sheet: "data SIÊU THỊ"
       const resSieuThi = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('data SIÊU THỊ')}`);
 
+
+
       // --- Sheet "data SIÊU THỊ" ---
       if (resSieuThi.ok) {
         const csvST = await resSieuThi.text();
@@ -760,11 +759,13 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
           setHeadersRtSieuThi(rtST.headers);
           setDataRtSieuThi(rtST.data);
 
-          // LUỸ KẾ SIÊU THỊ: Cột A,C,D,F,J,K,L,Q (Tương ứng: Tỉnh, Luỹ Kế, Target, %HT Dự Kiến, Siêu Thị, Kênh, Boss, Ngành Hàng)
-          const lkSTCols = ['A','C','D','F','J','K','L','Q'].map(colLetterToIndex);
+          // LUỸ KẾ SIÊU THỊ: Cột B,C,D,E,F,G,H,K,L,M,R
+          const lkSTCols = ['B','C','D','E','F','G','H','K','L','M','R'].map(colLetterToIndex);
           const lkST = extractColumns(allHeaders, allData, lkSTCols);
           setHeadersLkSieuThi(lkST.headers);
           setDataLkSieuThi(lkST.data);
+
+
 
           // VÙNG PIVOT: Cột B (Tỉnh), D (DTLK), E (TARGET), L (Brand), R (Ngành Hàng)
           const vungCols = ['B', 'D', 'E', 'L', 'R'].map(colLetterToIndex);
@@ -886,34 +887,32 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
               <Database size={28} />
             </div>
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">TNB LEADER</h1>
-                {isUser43751 && (
-                  <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 shadow-sm shrink-0">
-                    <button
-                      onClick={() => setTnbDataMode('realtime')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                        tnbDataMode === 'realtime'
-                          ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'text-slate-500 hover:text-slate-800'
-                      }`}
-                    >
-                      REALTIME
-                    </button>
-                    <button
-                      onClick={() => setTnbDataMode('luyke')}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                        tnbDataMode === 'luyke'
-                          ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'text-slate-500 hover:text-slate-800'
-                      }`}
-                    >
-                      LUỸ KẾ
-                    </button>
-                  </div>
-                )}
-              </div>
+              <h1 className="text-2xl font-black text-slate-800 uppercase tracking-tight">TNB LEADER</h1>
               <p className="text-slate-500 font-medium mt-1">Dữ liệu nội bộ từ Google Sheet</p>
+              <div className="flex items-center gap-3 mt-3">
+                  <button
+                    onClick={() => setTnbDataMode('realtime')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-full border-2 transition-all duration-300 ${
+                      tnbDataMode === 'realtime'
+                        ? 'bg-indigo-100 border-indigo-400 text-indigo-800 shadow-md scale-105 font-black ring-2 ring-offset-1 ring-indigo-300'
+                        : 'bg-indigo-50/70 border-indigo-200 text-indigo-700 font-bold hover:scale-105 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <Zap size={18} strokeWidth={2.5} />
+                    <span className="text-[15px] tracking-wide whitespace-nowrap">REALTIME</span>
+                  </button>
+                  <button
+                    onClick={() => setTnbDataMode('luyke')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-full border-2 transition-all duration-300 ${
+                      tnbDataMode === 'luyke'
+                        ? 'bg-violet-100 border-violet-400 text-violet-800 shadow-md scale-105 font-black ring-2 ring-offset-1 ring-violet-300'
+                        : 'bg-violet-50/70 border-violet-200 text-violet-700 font-bold hover:scale-105 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <TrendingUp size={18} strokeWidth={2.5} />
+                    <span className="text-[15px] tracking-wide whitespace-nowrap">LUỸ KẾ</span>
+                  </button>
+                </div>
             </div>
           </div>
           
@@ -970,32 +969,8 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                 <span className="whitespace-nowrap">CẬP NHẬT DATA MỚI</span>
               </button>
             )}
-        </div>
-
-        {isUser43751 && tnbDataMode === 'luyke' && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-xs font-mono text-slate-800 space-y-2">
-            <h3 className="font-bold text-red-700 text-sm">🛠️ TNB LEADER DEBUG PANEL (CHỈ ANH XEM ĐƯỢC)</h3>
-            <p><strong>dataLkSieuThi length:</strong> {dataLkSieuThi.length}</p>
-            {dataLkSieuThi.length > 0 ? (
-              <div className="overflow-x-auto bg-white p-2 rounded border border-slate-200">
-                <p><strong>dataLkSieuThi (3 dòng đầu):</strong></p>
-                <pre>{JSON.stringify(dataLkSieuThi.slice(0, 3), null, 2)}</pre>
-              </div>
-            ) : (
-              <p className="text-red-600 font-bold">⚠️ dataLkSieuThi đang RỖNG!</p>
-            )}
-            
-            {dataLkSieuThiMapped.length > 0 ? (
-              <div className="overflow-x-auto bg-white p-2 rounded border border-slate-200">
-                <p><strong>dataLkSieuThiMapped (3 dòng đầu):</strong></p>
-                <pre>{JSON.stringify(dataLkSieuThiMapped.slice(0, 3), null, 2)}</pre>
-              </div>
-            ) : (
-              <p className="text-red-600 font-bold">⚠️ dataLkSieuThiMapped đang RỖNG!</p>
-            )}
           </div>
-        )}
-
+        </div>
         <div className="flex w-full overflow-x-auto hide-scrollbar py-4 px-2 gap-3 items-center">
           {[
             { 
@@ -1396,7 +1371,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
             <div className="flex-1 w-full">
               {(() => {
                 const renderPivotTable = (isRealtime: boolean, currentTableRef?: any) => {
-                  const isLuyKeMode = isUser43751 && tnbDataMode === 'luyke';
+                  const isLuyKeMode = tnbDataMode === 'luyke';
                   const dataSource = isLuyKeMode 
                     ? dataLkSieuThiMapped 
                     : ((activeTab === 'VUNG' && !isRealtime) ? dataVungPivot : dataRtSieuThi);
@@ -1444,17 +1419,19 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                 // 2. Extract unique categories preserving order
                 const categorySet = new Set<string>();
                 filtered.forEach(row => {
-                  const cat = ((activeTab === 'VUNG' && !isRealtime) ? row[4] : row[9]) || '';
-                  const cleanCat = cat.trim();
+                  // When isLuyKeMode, data is always dataLkSieuThiMapped which has cat at row[9]
+                  const cat = ((activeTab === 'VUNG' && !isRealtime && !isLuyKeMode) ? row[4] : row[9]) || '';
+                  const cleanCat = cat.trim().toUpperCase().normalize('NFC');
                   if (cleanCat && cleanCat !== '-') categorySet.add(cleanCat);
                 });
-                const CATEGORY_ORDER = categoryConfig.map(c => c.name);
-                const blueCatsData = categoryConfig.filter(c => c.group === 'CE').map(c => c.name);
+                const CATEGORY_ORDER = categoryConfig.map(c => c.name.toUpperCase().normalize('NFC'));
+                const blueCatsData = categoryConfig.filter(c => c.group === 'CE').map(c => c.name.toUpperCase().normalize('NFC'));
                 const allCats = Array.from(categorySet);
                 let categories = [];
                 if (sieuThiFilterNganhHangList.length > 0) {
-                  categories = CATEGORY_ORDER.filter(c => sieuThiFilterNganhHangList.includes(c));
-                  const extra = sieuThiFilterNganhHangList.filter(c => !CATEGORY_ORDER.includes(c));
+                  const filterUpper = sieuThiFilterNganhHangList.map(c => c.toUpperCase().normalize('NFC'));
+                  categories = CATEGORY_ORDER.filter(c => filterUpper.includes(c));
+                  const extra = filterUpper.filter(c => !CATEGORY_ORDER.includes(c));
                   categories = [...categories, ...extra];
                 } else {
                   categories = [
@@ -1465,7 +1442,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
 
                 if (sieuThiFilterNhomList.length > 0) {
                   categories = categories.filter(c => {
-                    const catObj = categoryConfig.find(cfg => cfg.name === c);
+                    const catObj = categoryConfig.find(cfg => cfg.name.toUpperCase().normalize('NFC') === c);
                     return catObj && sieuThiFilterNhomList.includes(catObj.group);
                   });
                 }
@@ -1506,7 +1483,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                   rowNames = storesList;
                 }
 
-                const pivotMap: Record<string, Record<string, { dtlk: number, target: number, rawPercent: number }>> = {};
+                const pivotMap: Record<string, Record<string, { dtlk: number, target: number, rawPercent: number, htDuKien: number }>> = {};
                 const parseNum = (str: any) => {
                   if (!str) return 0;
                   const clean = str.toString().replace(/,/g, '').replace(/ /g, '').replace(/[^0-9.-]/g, '');
@@ -1514,29 +1491,29 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                 };
 
                 filtered.forEach(row => {
-                  if (activeTab === 'VUNG' && !isRealtime) {
+                  if (activeTab === 'VUNG' && !isRealtime && !isLuyKeMode) {
+                    // VUNG LK (non-luyke): dataVungPivot columns
                     const prov = (row[0] || '').trim().toUpperCase();
                     const dtlk = parseNum(row[1]);
                     const target = parseNum(row[2]);
-                    const cat = (row[4] || '').trim();
+                    const cat = (row[4] || '').trim().toUpperCase().normalize('NFC');
                     if (prov && cat && cat !== '-') {
                       if (!pivotMap[prov]) pivotMap[prov] = {};
-                      if (!pivotMap[prov][cat]) pivotMap[prov][cat] = { dtlk: 0, target: 0, rawPercent: 0 };
+                      if (!pivotMap[prov][cat]) pivotMap[prov][cat] = { dtlk: 0, target: 0, rawPercent: 0, htDuKien: 0 };
                       pivotMap[prov][cat].dtlk += dtlk;
                       pivotMap[prov][cat].target += target;
                     }
-                  } else if (activeTab === 'VUNG' && isRealtime) {
+                  } else if (activeTab === 'VUNG' && (isRealtime || isLuyKeMode)) {
+                    // VUNG RT or VUNG+luyke: dataRtSieuThi / dataLkSieuThiMapped columns
                     const prov = (row[0] || '').trim().toUpperCase();
                     const dtlk = parseNum(row[2]); // CỘT 3
                     const target = parseNum(row[3]); // CỘT 4
                     const kenh = (row[7] || '').trim().toUpperCase(); // CỘT 9 (AC)
-                    const cat = (row[9] || '').trim(); // CỘT 13 (AG)
+                    const cat = (row[9] || '').trim().toUpperCase().normalize('NFC'); // CỘT 13 (AG)
                     
                     if (prov && cat && cat !== '-') {
                       let isValidKenh = false;
                       if (sieuThiFilterKenh.length === 0) {
-                        // Default to ĐMX channels if no filter is selected? The user said "DỰA VÀO BỘ LỌC KÊNH... NẾU BỘ LỌC ĐANG CHỌN ĐML...". If no filter is selected (which means TẤT CẢ KÊNH in the UI), we should probably include all or just keep the original behavior for empty.
-                        // Actually, if sieuThiFilterKenh is empty, let's include everything that was originally intended or just all 5 channels.
                         isValidKenh = ['ĐML', 'ĐMM', 'ĐMS', 'TGD', 'AAR'].includes(kenh);
                       } else {
                         if (sieuThiFilterKenh.includes(kenh)) isValidKenh = true;
@@ -1545,7 +1522,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
 
                       if (isValidKenh) {
                         if (!pivotMap[prov]) pivotMap[prov] = {};
-                        if (!pivotMap[prov][cat]) pivotMap[prov][cat] = { dtlk: 0, target: 0, rawPercent: 0 };
+                        if (!pivotMap[prov][cat]) pivotMap[prov][cat] = { dtlk: 0, target: 0, rawPercent: 0, htDuKien: 0 };
                         pivotMap[prov][cat].dtlk += dtlk;
                         pivotMap[prov][cat].target += target;
                       }
@@ -1553,11 +1530,17 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                   } else {
                     const stRt = (row[6] || '').trim().toUpperCase();
                     const rawPercent = parseNum(row[4]);
-                    const cat = (row[9] || '').trim();
+                    const htDuKien = parseNum(row[5]);
+                    const dtlk = parseNum(row[2]);
+                    const target = parseNum(row[3]);
+                    const cat = (row[9] || '').trim().toUpperCase().normalize('NFC');
                     if (stRt && cat && cat !== '-') {
                       if (!pivotMap[stRt]) pivotMap[stRt] = {};
-                      if (!pivotMap[stRt][cat]) pivotMap[stRt][cat] = { dtlk: 0, target: 0, rawPercent: 0 };
+                      if (!pivotMap[stRt][cat]) pivotMap[stRt][cat] = { dtlk: 0, target: 0, rawPercent: 0, htDuKien: 0 };
                       pivotMap[stRt][cat].rawPercent = rawPercent;
+                      pivotMap[stRt][cat].htDuKien = htDuKien;
+                      pivotMap[stRt][cat].dtlk += dtlk;
+                      pivotMap[stRt][cat].target += target;
                     }
                   }
                 });
@@ -1566,6 +1549,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                 const currentDay = Math.max(1, today.getDate() - 1);
                 const totalDays = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
                 const totalCats = categories.length;
+
 
                 const mappedRows = rowNames.map((prov) => {
                   let datCount = 0;
@@ -1590,7 +1574,9 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                     let textColor = 'text-slate-400';
                     let bgColor = 'bg-white';
                     
-                    if (activeTab === 'VUNG' && !isRealtime) {
+                    const isLuyKeMode = tnbDataMode === 'luyke';
+                    
+                    if (activeTab === 'VUNG' && (!isRealtime || isLuyKeMode)) {
                       if (cellData && cellData.target > 0) {
                         percent = ((cellData.dtlk / currentDay) * totalDays) / cellData.target * 100;
                         displayVal = percent.toFixed(0) + '%';
@@ -1605,7 +1591,12 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                       }
                     } else {
                       if (cellData) {
-                        percent = cellData.rawPercent;
+                        if (isLuyKeMode) {
+                          // SIEU_THI + luyke: rawPercent = row[4] = %HT Dự Kiến from spreadsheet
+                          percent = cellData.rawPercent;
+                        } else {
+                          percent = cellData.rawPercent;
+                        }
                         displayVal = percent.toFixed(0) + '%';
                       }
                     }
@@ -1620,7 +1611,10 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                         if (!shouldIgnoreForTGD) datCount++;
                         textColor = 'text-[#064e3b]';
                         bgColor = 'bg-emerald-100';
-                      } else if (percent <= 10) {
+                      } else if (isLuyKeMode && percent < 50) {
+                        textColor = 'text-red-600';
+                        bgColor = 'bg-red-100';
+                      } else if (!isLuyKeMode && percent <= 10) {
                         textColor = 'text-red-500';
                       } else {
                         textColor = 'text-slate-900';
@@ -1704,7 +1698,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                    let textColor = 'text-slate-400';
                    let bgColor = 'bg-white';
 
-                   if (activeTab === 'VUNG' && !isRealtime) {
+                   if (activeTab === 'VUNG' && (!isRealtime || isLuyKeMode)) {
                      if (sumTarget > 0) {
                        percent = ((sumDtlk / currentDay) * totalDays) / sumTarget * 100;
                        displayVal = percent.toFixed(0) + '%';
@@ -1718,7 +1712,11 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                        displayVal = '100%';
                      }
                    } else {
-                     if (countRawPercent > 0) {
+                     if (isLuyKeMode && sumTarget > 0) {
+                       // % Dự Kiến for SIEU_THI total row
+                       percent = ((sumDtlk / currentDay) * totalDays) / sumTarget * 100;
+                       displayVal = percent.toFixed(0) + '%';
+                     } else if (countRawPercent > 0) {
                        percent = sumRawPercent / countRawPercent;
                        displayVal = percent.toFixed(0) + '%';
                      }
@@ -1735,7 +1733,10 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                      if (percent >= 100) {
                        textColor = 'text-[#064e3b]';
                        bgColor = 'bg-emerald-100';
-                     } else if (percent <= 10) {
+                     } else if (isLuyKeMode && percent < 50) {
+                       textColor = 'text-red-600';
+                       bgColor = 'bg-red-100';
+                     } else if (!isLuyKeMode && percent <= 10) {
                        textColor = 'text-red-500';
                      } else {
                        textColor = 'text-slate-900';
@@ -1774,7 +1775,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
 
                 return (
                   <div className="w-full">
-<style>{`
+                    <style>{`
                       .export-short-mode .category-col { display: none !important; }
                     `}</style>
                     <div ref={currentTableRef} className="bg-white p-6 w-full inline-block rounded-xl">
@@ -1792,15 +1793,19 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                           yesterday.setDate(yesterday.getDate() - 1);
                           const yesterdayStr = `${String(yesterday.getDate()).padStart(2, '0')}/${String(yesterday.getMonth() + 1).padStart(2, '0')}/${yesterday.getFullYear()}`;
                           
-                          const isLuyKeModeLocal = isUser43751 && tnbDataMode === 'luyke';
-                          const isRealtimeEffective = isRealtime && !isLuyKeModeLocal;
-                          
-                          const titlePrefix = activeTab === 'VUNG' 
-                            ? (isRealtimeEffective ? `REALTIME THI ĐUA NGÀNH HÀNG NGÀY ${todayStr}` : `LUỸ KẾ THI ĐUA NGÀNH HÀNG THÁNG ${monthStr}`)
-                            : (isRealtimeEffective ? `REALTIME THI ĐUA NGÀNH HÀNG NGÀY ${todayStr}` : `LUỸ KẾ THI ĐUA NGÀNH HÀNG THÁNG ${monthStr}`);
-                          const displayTime = activeTab === 'VUNG' 
-                            ? (isRealtimeEffective ? timeStr : yesterdayStr)
-                            : (isRealtimeEffective ? timeStr : yesterdayStr);
+                          const isLuyKeMode = tnbDataMode === 'luyke';
+                          const isEffectiveRealtime = isRealtime && !isLuyKeMode;
+
+                          const titlePrefix = isLuyKeMode
+                            ? `LUỸ KẾ THI ĐUA NGÀNH HÀNG THÁNG ${monthStr}`
+                            : (activeTab === 'VUNG' 
+                                ? (isEffectiveRealtime ? `REALTIME THI ĐUA NGÀNH HÀNG NGÀY ${todayStr}` : `LUỸ KẾ THI ĐUA NGÀNH HÀNG THÁNG ${monthStr}`)
+                                : `REALTIME THI ĐUA NGÀNH HÀNG NGÀY ${todayStr}`);
+                          const displayTime = isLuyKeMode
+                            ? yesterdayStr
+                            : (activeTab === 'VUNG' 
+                                ? (isEffectiveRealtime ? timeStr : yesterdayStr)
+                                : timeStr);
                           
                           const getKenhTitle = () => {
                             if (sieuThiFilterKenh.length === 0) return "TẤT CẢ KÊNH";
@@ -1862,9 +1867,9 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                             TỶ LỆ
                           </th>
                           {(() => {
-                            const yellowCats = categoryConfig.filter(c => c.group === 'ICT').map(c => c.name);
-                            const greenCats = categoryConfig.filter(c => c.group === 'DỊCH VỤ').map(c => c.name);
-                            const blueCats = categoryConfig.filter(c => c.group === 'CE').map(c => c.name);
+                            const yellowCats = categoryConfig.filter(c => c.group === 'ICT').map(c => c.name.toUpperCase().normalize('NFC'));
+                            const greenCats = categoryConfig.filter(c => c.group === 'DỊCH VỤ').map(c => c.name.toUpperCase().normalize('NFC'));
+                            const blueCats = categoryConfig.filter(c => c.group === 'CE').map(c => c.name.toUpperCase().normalize('NFC'));
                             const yellowSpan = yellowCats.filter(c => categories.includes(c)).length;
                             const greenSpan = greenCats.filter(c => categories.includes(c)).length;
                             const blueSpan = blueCats.filter(c => categories.includes(c)).length;
@@ -1892,9 +1897,9 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                         {/* Sub Category Header row */}
                         <tr>
                           {categories.map((cat, idx) => {
-                            const yellowCats = categoryConfig.filter(c => c.group === 'ICT').map(c => c.name);
-                            const greenCats = categoryConfig.filter(c => c.group === 'DỊCH VỤ').map(c => c.name);
-                            const blueCats = categoryConfig.filter(c => c.group === 'CE').map(c => c.name);
+                            const yellowCats = categoryConfig.filter(c => c.group === 'ICT').map(c => c.name.toUpperCase().normalize('NFC'));
+                            const greenCats = categoryConfig.filter(c => c.group === 'DỊCH VỤ').map(c => c.name.toUpperCase().normalize('NFC'));
+                            const blueCats = categoryConfig.filter(c => c.group === 'CE').map(c => c.name.toUpperCase().normalize('NFC'));
                             let headerBg = '#3b82f6'; // Default blue
                             let textColor = 'text-white';
                             if (yellowCats.includes(cat)) { headerBg = '#f59e0b'; textColor = 'text-slate-900'; }
@@ -1982,7 +1987,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
             };
 
             const renderKhoTable = () => {
-              const isLuyKeMode = isUser43751 && tnbDataMode === 'luyke';
+              const isLuyKeMode = tnbDataMode === 'luyke';
               const dataSrc = isLuyKeMode ? dataLkSieuThiMapped : dataRtSieuThi;
               if (dataSrc.length === 0) return null;
 
@@ -2063,17 +2068,26 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                 return b.real - a.real;
               });
 
+              // Forecast calculation for LUỸ KẾ mode
+              const nowCalc = new Date();
+              const totalDaysInMonth = new Date(nowCalc.getFullYear(), nowCalc.getMonth() + 1, 0).getDate();
+              const daysPassed = Math.max(1, nowCalc.getDate() - 1); // Luỹ kế đến hôm qua
+
               let totalTarget = 0;
               let totalReal = 0;
               tableData.forEach(r => {
                 totalTarget += r.target;
                 totalReal += r.real;
               });
-              const totalHt = totalTarget > 0 ? (totalReal / totalTarget) * 100 : 0;
+              const totalHtRaw = totalTarget > 0 ? (totalReal / totalTarget) * 100 : 0;
+              const totalForecast = totalTarget > 0 ? ((totalReal / daysPassed) * totalDaysInMonth / totalTarget) * 100 : 0;
+              const totalHtDisplay = isLuyKeMode ? totalForecast : totalHtRaw;
 
               const now = new Date();
               const todayStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}`;
-              const timeStr = `${todayStr} || ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+              const timeStr = isLuyKeMode
+                ? `${String(new Date(now.getTime() - 86400000).getDate()).padStart(2, '0')}/${String(new Date(now.getTime() - 86400000).getMonth() + 1).padStart(2, '0')}`
+                : `${todayStr} || ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
               return (
                 <div className="flex flex-col lg:flex-row gap-6 items-start mt-8">
@@ -2097,7 +2111,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                       <thead>
                         <tr>
                           <th colSpan={5} style={{ backgroundColor: '#10b981' }} className="text-slate-900 px-4 py-3 text-center font-black text-[24px] uppercase tracking-wider whitespace-nowrap">
-                            REALTIME THI ĐUA {timeStr}
+                            {isLuyKeMode ? 'LUỸ KẾ THI ĐUA' : 'REALTIME THI ĐUA'} {timeStr}
                           </th>
                         </tr>
                         <tr>
@@ -2108,8 +2122,8 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                         <tr className="text-[18px]">
                           <th className="bg-emerald-500 text-slate-900 px-3 py-2 text-center font-black uppercase border-r border-b border-emerald-600 min-w-[120px] max-w-[120px] w-[120px]">Tỉnh</th>
                           <th className="bg-amber-500 text-slate-900 px-3 py-2 text-center font-black uppercase border-r border-b border-amber-600 min-w-[80px] max-w-[80px] w-[80px]">Target</th>
-                          <th className="bg-amber-500 text-slate-900 px-3 py-2 text-center font-black uppercase border-r border-b border-amber-600 min-w-[80px] max-w-[80px] w-[80px]">Real</th>
-                          <th className="bg-amber-500 text-slate-900 px-3 py-2 text-center font-black uppercase border-r border-b border-amber-600 min-w-[80px] max-w-[80px] w-[80px]">%HT</th>
+                          <th className="bg-amber-500 text-slate-900 px-3 py-2 text-center font-black uppercase border-r border-b border-amber-600 min-w-[80px] max-w-[80px] w-[80px]">{isLuyKeMode ? 'L.KẾ' : 'Real'}</th>
+                          <th className="bg-amber-500 text-slate-900 px-3 py-2 text-center font-black uppercase border-r border-b border-amber-600 min-w-[80px] max-w-[80px] w-[80px]">{isLuyKeMode ? '% D.KIẾN' : '%HT'}</th>
                           <th className="bg-amber-500 text-slate-900 px-3 py-2 text-center font-black uppercase border-b border-amber-600 min-w-[60px] max-w-[60px] w-[60px]">T/B</th>
                         </tr>
                       </thead>
@@ -2118,7 +2132,9 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                           const isTop = idx < 3;
                           const isBot = idx >= tableData.length - 3;
                           
-                          const htDisplay = `${row.ht.toFixed(1)}%`;
+                          const forecastHt = row.target > 0 ? ((row.real / daysPassed) * totalDaysInMonth / row.target) * 100 : (row.real > 0 ? 100 : 0);
+                          const displayHt = isLuyKeMode ? forecastHt : row.ht;
+                          const htDisplay = `${displayHt.toFixed(1)}%`;
                           
                           return (
                             <tr key={idx} className="border-b border-slate-200 bg-white hover:bg-slate-50 transition-colors">
@@ -2134,7 +2150,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                           <td className="px-3 py-2 text-center font-black border-r border-slate-300 text-[18px]">Tổng</td>
                           <td className="px-3 py-2 text-center font-black border-r border-slate-300 text-[18px]">{Math.round(totalTarget).toLocaleString()}</td>
                           <td className="px-3 py-2 text-center font-black border-r border-slate-300 text-[18px]">{Math.round(totalReal).toLocaleString()}</td>
-                          <td className="px-3 py-2 text-center font-black border-r border-slate-300 text-[18px]">{totalHt.toFixed(1)}%</td>
+                          <td className="px-3 py-2 text-center font-black border-r border-slate-300 text-[18px]">{totalHtDisplay.toFixed(1)}%</td>
                           <td className="px-3 py-2"></td>
                         </tr>
                       </tbody>
@@ -2146,7 +2162,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
             };
 
             const renderChiTietTable = () => {
-              const isLuyKeMode = isUser43751 && tnbDataMode === 'luyke';
+              const isLuyKeMode = tnbDataMode === 'luyke';
               const dataSrc = isLuyKeMode ? dataLkSieuThiMapped : dataRtSieuThi;
               if (dataSrc.length === 0) return null;
               
@@ -2244,7 +2260,9 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
               
               const now = new Date();
               const todayStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}`;
-              const timeStr = `${todayStr} || ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+              const timeStr = isLuyKeMode
+                ? `${String(new Date(now.getTime() - 86400000).getDate()).padStart(2, '0')}/${String(new Date(now.getTime() - 86400000).getMonth() + 1).padStart(2, '0')}`
+                : `${todayStr} || ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
               const handleNhanXet = () => {
                 const targetBosses = new Set<string>();
@@ -2414,7 +2432,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                           <thead className="sticky top-0 z-20">
                             <tr>
                               <th colSpan={4} className="bg-emerald-500 text-slate-900 px-4 py-3.5 text-center font-black text-[26px] uppercase tracking-wider whitespace-nowrap">
-                                {rtFilterTinh && rtFilterTinh !== 'TẤT CẢ TỈNH' ? `REALTIME THI ĐUA - ${rtFilterTinh.toUpperCase()}` : 'REALTIME THI ĐUA'}
+                                {rtFilterTinh && rtFilterTinh !== 'TẤT CẢ TỈNH' ? `${isLuyKeMode ? 'LUỸ KẾ' : 'REALTIME'} THI ĐUA - ${rtFilterTinh.toUpperCase()}` : (isLuyKeMode ? 'LUỸ KẾ THI ĐUA' : 'REALTIME THI ĐUA')}
                               </th>
                               <th colSpan={3} className="bg-amber-500 text-slate-900 px-4 py-3.5 text-right font-black text-[26px] whitespace-nowrap">
                                 {timeStr}
@@ -2440,7 +2458,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                                     <th className="px-3 py-2 text-left font-black uppercase whitespace-nowrap border-r border-emerald-600 bg-emerald-500 text-slate-900">KÊNH</th>
                                     <th className="px-3 py-2 text-center font-black uppercase whitespace-nowrap border-r border-emerald-600 bg-emerald-500 text-slate-900">SIÊU THỊ</th>
                                     <th className="px-3 py-2 text-center font-black uppercase whitespace-nowrap border-r border-amber-600 min-w-[60px] max-w-[60px] w-[60px] bg-amber-500 text-slate-900">TAR</th>
-                                    <th className="px-3 py-2 text-center font-black uppercase whitespace-nowrap border-r border-amber-600 min-w-[60px] max-w-[60px] w-[60px] bg-amber-500 text-slate-900">Real</th>
+                                    <th className="px-3 py-2 text-center font-black uppercase whitespace-nowrap border-r border-amber-600 min-w-[60px] max-w-[60px] w-[60px] bg-amber-500 text-slate-900">{isLuyKeMode ? 'L.KẾ' : 'Real'}</th>
                                     <th className="px-3 py-2 text-center font-black uppercase whitespace-nowrap min-w-[60px] max-w-[60px] w-[60px] bg-amber-500 text-slate-900">%HT</th>
                                   </tr>
                                   {groupData.map((row, idx) => {
@@ -2552,7 +2570,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                                     <th className="px-3 py-2 text-left font-black uppercase whitespace-nowrap border-r border-white bg-emerald-500 text-slate-900 min-w-[70px] max-w-[70px] w-[70px]">KÊNH</th>
                                     <th className="px-3 py-2 text-center font-black uppercase whitespace-nowrap border-r border-white bg-emerald-500 text-slate-900 min-w-[250px]">SIÊU THỊ</th>
                                     <th className="px-3 py-2 text-center font-black uppercase whitespace-nowrap border-r border-white min-w-[60px] max-w-[60px] w-[60px] bg-amber-500 text-slate-900">TAR</th>
-                                    <th className="px-3 py-2 text-center font-black uppercase whitespace-nowrap border-r border-white min-w-[60px] max-w-[60px] w-[60px] bg-amber-500 text-slate-900">Real</th>
+                                    <th className="px-3 py-2 text-center font-black uppercase whitespace-nowrap border-r border-white min-w-[60px] max-w-[60px] w-[60px] bg-amber-500 text-slate-900">{isLuyKeMode ? 'L.KẾ' : 'Real'}</th>
                                     <th className="px-3 py-2 text-center font-black uppercase whitespace-nowrap min-w-[60px] max-w-[60px] w-[60px] bg-amber-500 text-slate-900">%HT</th>
                                   </tr>
                                   {top20Data.map((row, idx) => {
@@ -2598,7 +2616,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                                     <th className="px-3 py-2 text-left font-black uppercase whitespace-nowrap border-r border-white bg-rose-500 text-white min-w-[70px] max-w-[70px] w-[70px]">KÊNH</th>
                                     <th className="px-3 py-2 text-center font-black uppercase whitespace-nowrap border-r border-white bg-rose-500 text-white min-w-[250px]">SIÊU THỊ</th>
                                     <th className="px-3 py-2 text-center font-black uppercase whitespace-nowrap border-r border-white min-w-[60px] max-w-[60px] w-[60px] bg-rose-500 text-white">TAR</th>
-                                    <th className="px-3 py-2 text-center font-black uppercase whitespace-nowrap border-r border-white min-w-[60px] max-w-[60px] w-[60px] bg-rose-500 text-white">Real</th>
+                                    <th className="px-3 py-2 text-center font-black uppercase whitespace-nowrap border-r border-white min-w-[60px] max-w-[60px] w-[60px] bg-rose-500 text-white">{isLuyKeMode ? 'L.KẾ' : 'Real'}</th>
                                     <th className="px-3 py-2 text-center font-black uppercase whitespace-nowrap min-w-[60px] max-w-[60px] w-[60px] bg-rose-500 text-white">%HT</th>
                                   </tr>
                                   {bot20Data.map((row, idx) => {
@@ -2649,7 +2667,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
             };
 
             const renderVungScorecard = () => {
-              const isLuyKeMode = isUser43751 && tnbDataMode === 'luyke';
+              const isLuyKeMode = tnbDataMode === 'luyke';
               const dataSrc = isLuyKeMode ? dataLkSieuThiMapped : dataRtSieuThi;
               if (dataSrc.length === 0) return null;
 
@@ -2716,7 +2734,11 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                 Object.keys(map).forEach(cat => {
                   const item = map[cat];
                   if (item.target > 0) {
-                    item.percent = (item.dtlk / item.target) * 100;
+                    if (isLuyKeMode) {
+                      item.percent = ((item.dtlk / currentDay) * totalDays) / item.target * 100;
+                    } else {
+                      item.percent = (item.dtlk / item.target) * 100;
+                    }
                   } else {
                     item.percent = null;
                   }
@@ -2848,9 +2870,9 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                       <h2 className="text-7xl font-black text-black tracking-tight leading-none">{title}</h2>
                       <p className="text-[14px] font-black text-black uppercase tracking-wider mt-1">{channelKenh}</p>
                       <div className="text-[13px] font-bold text-slate-905 uppercase mt-2 flex items-center gap-2">
-                        <span>REALTIME ĐẾN THỜI GIAN :</span>
+                        <span>{isLuyKeMode ? "LUỸ KẾ ĐẾN NGÀY :" : "REALTIME ĐẾN THỜI GIAN :"}</span>
                         <span className="text-red-600 font-black">
-                          {(() => {
+                          {isLuyKeMode ? yesterdayStr : (() => {
                             const pad = (n: number) => String(n).padStart(2, '0');
                             return `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())} || NGÀY ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
                           })()}
@@ -2871,7 +2893,7 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
                             <th className="py-2.5 px-1 border-r border-b border-slate-400 w-10"></th>
                             <th className="py-2.5 px-2 border-r border-b border-slate-400 w-28 whitespace-nowrap">NGÀNH HÀNG</th>
                             <th className="py-2.5 px-3 border-r border-b border-slate-400 text-left">NHÓM HÀNG</th>
-                            <th className="py-2.5 px-2 border-r border-b border-slate-400 w-32">% HOÀN THÀNH</th>
+                             <th className="py-2.5 px-2 border-r border-b border-slate-400 w-32">{isLuyKeMode ? "% DỰ KIẾN" : "% HOÀN THÀNH"}</th>
                             <th colSpan={2} className="py-2.5 px-2 w-36 leading-tight text-[12.5px] border-b border-slate-400 whitespace-nowrap">TỈ LỆ HOÀN THÀNH<br/>TRÊN 100%</th>
                           </tr>
                         </thead>
@@ -3004,8 +3026,73 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
             }
 
             if (activeTab === 'VUNG') {
+              const handleCopyVungSummary = () => {
+                const rows = searchedRowsRef.current || [];
+                if (rows.length === 0) {
+                  showNotification('Chưa có dữ liệu để copy.', 'error');
+                  return;
+                }
+                
+                const now = new Date();
+                const pad = (n: number) => String(n).padStart(2, '0');
+                const isLuyKeMode = tnbDataMode === 'luyke';
+
+                // Build kênh title
+                let kenhTitle = 'TẤT CẢ KÊNH';
+                if (sieuThiFilterKenh.length > 0) {
+                  const hasDMX = sieuThiFilterKenh.some(k => ['ĐML', 'ĐMM', 'ĐMS'].includes(k));
+                  const hasTGD = sieuThiFilterKenh.includes('TGD');
+                  if (hasDMX && hasTGD) kenhTitle = 'ĐMX & TGD';
+                  else if (hasDMX) kenhTitle = 'ĐMX';
+                  else if (hasTGD) kenhTitle = 'TGD';
+                  else kenhTitle = sieuThiFilterKenh.join(', ');
+                }
+
+                const timeStr = isLuyKeMode
+                  ? (() => {
+                      const yesterday = new Date(now);
+                      yesterday.setDate(yesterday.getDate() - 1);
+                      return `${pad(yesterday.getDate())}/${pad(yesterday.getMonth() + 1)}/${yesterday.getFullYear()}`;
+                    })()
+                  : `${pad(now.getHours())}:${pad(now.getMinutes())} ${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
+
+                const modeText = isLuyKeMode ? 'LUỸ KẾ' : 'REALTIME';
+
+                let text = `🏆 KẾT QUẢ THI ĐUA NGÀNH HÀNG KÊNH ${kenhTitle} – CẬP NHẬT ${modeText} ĐẾN ${timeStr}\n\n`;
+                
+                text += `⚠️ TỈNH CHƯA HIỆU QUẢ THI ĐUA\n\n`;
+
+                // Filter provinces with tỷ lệ < 50%, sort ascending (worst first)
+                const under50 = [...rows].filter(r => r.tyLe < 50).sort((a, b) => b.tyLe - a.tyLe);
+                
+                if (under50.length === 0) {
+                  text += `✅ Tất cả tỉnh đều đạt trên 50%!`;
+                } else {
+                  under50.forEach((r, idx) => {
+                    const emoji = r.tyLe >= 30 ? '🟡' : '🔴';
+                    text += `${idx + 1}. ${emoji} ${r.prov}: ${r.datCount}/${r.effectiveTotalCats} (${r.tyLe.toFixed(0)}%)\n`;
+                  });
+                }
+                
+                navigator.clipboard.writeText(text).then(() => {
+                  showNotification('Đã copy kết quả thi đua vào khay nhớ tạm!', 'success');
+                }).catch(err => {
+                  console.error('Failed to copy: ', err);
+                  showNotification('Không thể copy text, vui lòng thử lại.', 'error');
+                });
+              };
+
               return (
                 <div className="flex flex-col gap-8 w-full">
+                  <button
+                    onClick={handleCopyVungSummary}
+                    className="self-start flex items-center gap-3 px-6 py-3 rounded-2xl border-2 border-emerald-400 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-black text-[15px] uppercase tracking-wide transition-all duration-200 hover:scale-[1.02] shadow-sm hover:shadow-md"
+                  >
+                    <MessageSquare size={20} strokeWidth={2.5} />
+                    <span>
+                      🏆 KẾT QUẢ THI ĐUA NGÀNH HÀNG – CẬP NHẬT {tnbDataMode === 'luyke' ? 'LUỸ KẾ' : 'REALTIME'}
+                    </span>
+                  </button>
                   {renderPivotTable(true, rtTableRef)}
                   {renderVungScorecard()}
                 </div>

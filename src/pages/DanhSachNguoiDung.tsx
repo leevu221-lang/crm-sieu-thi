@@ -1008,6 +1008,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                 <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
                   <tr>
                     <th className="px-6 py-4 border-b border-slate-200">Mã NV</th>
+                    <th className="px-4 py-4 border-b border-slate-200">Trạng thái TK</th>
                     <th className="px-4 py-4 border-b border-slate-200">Trạng thái Online</th>
                     <th className="px-4 py-4 border-b border-slate-200">Lần truy cập cuối</th>
                     <th className="px-4 py-4 border-b border-slate-200">Trang đang xem</th>
@@ -1026,6 +1027,23 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                       <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
                         <td className="px-6 py-4 font-black text-slate-800">
                           {user.username}
+                        </td>
+
+                        {/* ACCOUNT STATUS (ACTIVE / LOCKED) */}
+                        <td className="px-4 py-4">
+                          {(() => {
+                            const isDemo = user.username === '43751' || user.username === 'ADMIN' || user.isDemo;
+                            if (isDemo) {
+                              return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-indigo-50 text-indigo-600 border border-indigo-200">Demo</span>;
+                            }
+                            const today = new Date(); today.setHours(0, 0, 0, 0);
+                            const expDate = user.expiredAt ? new Date(user.expiredAt) : null;
+                            if (expDate) expDate.setHours(0, 0, 0, 0);
+                            const isAccountActive = expDate ? expDate >= today : false;
+                            return isAccountActive
+                              ? <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">🟢 Hoạt động</span>
+                              : <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-rose-50 text-rose-700 border border-rose-200">🔒 Khoá</span>;
+                          })()}
                         </td>
 
                         {/* ONLINE STATUS BADGE */}

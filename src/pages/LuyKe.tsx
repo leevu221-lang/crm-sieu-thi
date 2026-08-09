@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import * as htmlToImage from 'html-to-image';
-import { RefreshCw, ShoppingBag, TrendingUp, Camera, LayoutGrid, Activity, Globe, ChevronDown, Zap, Upload, Trash2, HelpCircle, FileSpreadsheet, X, AlertCircle } from 'lucide-react';
+import { RefreshCw, ShoppingBag, TrendingUp, Camera, LayoutGrid, Activity, Globe, ChevronDown, Zap, Upload, Trash2, HelpCircle, FileSpreadsheet, X, AlertCircle, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { useLuykeData } from './RTST/hooks/useLuykeData';
@@ -22,6 +22,7 @@ import { ConfirmationModal } from './RTST/components/Modals';
 import { getCustomCategoryIndex } from './EmployeeHealth/components/SummaryThiDuaTable';
 import { normalize, isKhoLuuDong } from './RTST/utils';
 import BcDtNganhHang from './BcDtNganhHang';
+import SSGBoss from './SSGBoss';
 
 const getCategoryGroup = (name: string): 'yellow' | 'green' | 'blue' => {
   const normalized = name.toLowerCase().trim();
@@ -120,11 +121,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
 
   const is43751 = userProfile?.username === '43751';
 
-  useEffect(() => {
-    if (activeTab === 'bcdtnh' && userProfile?.username !== '43751') {
-      setActiveTab('summary');
-    }
-  }, [userProfile?.username, activeTab]);
+
 
   const {
     clusterSummaryInput, setClusterSummaryInput,
@@ -916,7 +913,8 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
             { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, color: 'text-indigo-600' },
             { id: 'efficiency', label: 'THƯỞNG QL/TC', icon: Activity, color: 'text-emerald-600' },
             { id: 'thuong_st', label: 'THƯỞNG ST', icon: Zap, color: 'text-amber-500' },
-            ...(is43751 ? [{ id: 'bcdtnh', label: 'BC DT NGÀNH HÀNG', icon: LayoutGrid, color: 'text-emerald-600' }] : [])
+            { id: 'bcdtnh', label: 'BC DT NGÀNH HÀNG', icon: LayoutGrid, color: 'text-emerald-600' },
+            { id: 'ssg_boss', label: 'SSG BOSS', icon: Trophy, color: 'text-amber-500' }
           ].map((item) => {
             const isActive = activeTab === item.id;
             const Icon = item.icon;
@@ -944,7 +942,8 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
               { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, color: 'text-indigo-600' },
               { id: 'efficiency', label: 'THƯỞNG QL/TC', icon: Activity, color: 'text-emerald-600' },
               { id: 'thuong_st', label: 'THƯỞNG ST', icon: Zap, color: 'text-amber-500' },
-              ...(is43751 ? [{ id: 'bcdtnh', label: 'BC DT NGÀNH HÀNG', icon: LayoutGrid, color: 'text-emerald-600' }] : [])
+              { id: 'bcdtnh', label: 'BC DT NGÀNH HÀNG', icon: LayoutGrid, color: 'text-emerald-600' },
+              { id: 'ssg_boss', label: 'SSG BOSS', icon: Trophy, color: 'text-amber-500' }
             ].map((item) => {
               const isActive = activeTab === item.id;
               const Icon = item.icon;
@@ -1444,7 +1443,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
               </motion.div>
             )}
 
-            {activeTab === 'bcdtnh' && is43751 && (
+            {activeTab === 'bcdtnh' && (
               <motion.div
                 key="bcdtnh"
                 initial={{ opacity: 0, y: 10 }}
@@ -1453,6 +1452,18 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                 transition={{ duration: 0.2 }}
               >
                 <BcDtNganhHang />
+              </motion.div>
+            )}
+
+            {activeTab === 'ssg_boss' && (
+              <motion.div
+                key="ssg_boss"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                <SSGBoss biMarkets={displayData.markets || []} daysPassed={daysPassed} totalDays={totalDays} />
               </motion.div>
             )}
           </AnimatePresence>

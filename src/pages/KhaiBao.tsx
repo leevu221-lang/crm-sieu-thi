@@ -39,6 +39,7 @@ const KhaiBao: React.FC = () => {
     categoryInput, setCategoryInput,
     categoryTargetInput, setCategoryTargetInput,
     ycxData, setYcxData,
+    ycxFileName, setYcxFileName,
     categoryRevenueInput, setCategoryRevenueInput,
     activeStore,
     processedData: rtProcessedData,
@@ -84,7 +85,6 @@ const KhaiBao: React.FC = () => {
 
   const {
     manualAdjustment, setManualAdjustment,
-    ycxFileName, setYcxFileName,
     linkBcTongHop, setLinkBcTongHop,
     linkNganhHangTongHop, setLinkNganhHangTongHop,
     selectedMonth, setSelectedMonth,

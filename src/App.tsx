@@ -71,12 +71,15 @@ export default function App() {
 
   const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro' | 'tnb_data' | 'birthday' | 'feedback' | 'excelviewer'>('realtime');
   const { userProfile, logout, refreshProfile } = useAuth();
-  const [declarationCompleted, setDeclarationCompleted] = useState(() => {
-    const justLoggedIn = sessionStorage.getItem('justLoggedIn');
-    // If justLoggedIn is null or not 'true', it means they refreshed (F5) the page.
-    // So we do not show the Store Declaration page again.
-    return justLoggedIn !== 'true';
-  });
+  const [showDeclarationForce, setShowDeclarationForce] = useState(false);
+  const isDeclarationRequired = useMemo(() => {
+    if (!userProfile) return false;
+    if (String(userProfile.username).trim() === '43751') return false;
+    
+    // Explicitly check for false, meaning the user registered but hasn't completed declaration yet.
+    return userProfile.declarationCompleted === false && 
+           (!userProfile.ten_sieu_thi || userProfile.ten_sieu_thi === userProfile.ma_kho);
+  }, [userProfile]);
   const { fontSize, setFontSize, fontFamily, setFontFamily } = useSettings();
   const { marketFilter, setMarketFilter, availableMarkets, activeRealtimeTab, activeToolHoTroTab, activeLuyKeTab, activeHealthTab } = useStore();
   const [showSettings, setShowSettings] = useState(false);
@@ -131,29 +134,18 @@ export default function App() {
   
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
   
-  // Subscription Gatekeeper check: Enforced only starting from 1/8/2026
+  // Subscription Gatekeeper: Lock if expiredAt <= now, unlock if expiredAt > now
   const isLocked = useMemo(() => {
     if (isSuperAdminHardcoded) return false;
     if (!userProfile) return false;
-    
-    // Forcibly lock these specific accounts immediately
-    const forcedLockList = ['65582', '64734', '33139', '89724'];
-    const currentUsername = String(userProfile.username || '').trim();
-    if (forcedLockList.includes(currentUsername)) {
-      return true;
-    }
-    
+    if (userProfile.status === 'pending' || userProfile.status === 'rejected') return true; // Lock if pending or rejected admin approval
     if (userProfile.isDemo) return false;
-    
-    const lockEffectiveDate = new Date('2026-08-01T00:00:00+07:00');
-    const isEnforced = new Date() >= lockEffectiveDate;
-    if (!isEnforced) return false;
 
-    const isUserActive = userProfile.status === 'active';
-    const isConfirmed = userProfile.paymentConfirmed === true;
-    const isExpired = userProfile.expiredAt ? new Date() > new Date(userProfile.expiredAt) : true;
-    
-    return !isUserActive || !isConfirmed || isExpired;
+    // Simple rule: expiredAt date >= today → unlocked, expiredAt date < today → locked
+    if (!userProfile.expiredAt) return true;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const expDate = new Date(userProfile.expiredAt); expDate.setHours(0, 0, 0, 0);
+    return expDate < today;
   }, [userProfile, isSuperAdminHardcoded]);
   const [showHeader, setShowHeader] = useState(true);
   const lastScrollYRef = useRef(0);
@@ -193,6 +185,16 @@ export default function App() {
     }
   }, [userProfile, currentPage, effectiveAllowedPages]);
 
+  // Listen for custom navigation events from child components
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const page = (e as CustomEvent).detail;
+      if (page) setCurrentPage(page as any);
+    };
+    window.addEventListener('navigate-page', handler);
+    return () => window.removeEventListener('navigate-page', handler);
+  }, []);
+
   // User Access & Activity Tracking
   useEffect(() => {
     if (!userProfile?.username || userProfile.username === 'ADMIN') return;
@@ -200,10 +202,10 @@ export default function App() {
     // Track initial page view / navigation
     trackUserPing(userProfile.username, userProfile.ma_kho, currentPage, 'NAVIGATE');
 
-    // Heartbeat ping every 60 seconds
+    // Heartbeat ping every 5 minutes (300,000ms) to optimize database writes
     const interval = setInterval(() => {
       trackUserPing(userProfile.username, userProfile.ma_kho, currentPage, 'PING');
-    }, 60000);
+    }, 300000);
 
     return () => clearInterval(interval);
   }, [userProfile?.username, userProfile?.ma_kho, currentPage]);
@@ -221,13 +223,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!userProfile) {
-      setDeclarationCompleted(false);
-    } else {
+    if (userProfile) {
       const isUser7611 = userProfile.username === '7611' || userProfile.ma_nhan_vien === '7611';
       if (isUser7611) {
         localStorage.setItem('rtst_ma_kho', 'TNB_LEADER_DATA');
-        setDeclarationCompleted(true);
       }
     }
   }, [userProfile]);
@@ -247,6 +246,16 @@ export default function App() {
 
 
 
+  if (isDeclarationRequired || showDeclarationForce) {
+    return (
+      <StoreDeclaration 
+        onComplete={() => setShowDeclarationForce(false)} 
+        userProfile={userProfile} 
+        updateStoreName={updateStoreName}
+      />
+    );
+  }
+
   if (isLocked) {
     return (
       <SubscriptionLockScreen 
@@ -254,15 +263,6 @@ export default function App() {
         onLogout={logout} 
         onRefresh={refreshProfile} 
       />
-    );
-  }
-
-  if (!declarationCompleted) {
-    return (
-      <StoreDeclaration onComplete={() => {
-        sessionStorage.setItem('justLoggedIn', 'false');
-        setDeclarationCompleted(true);
-      }} />
     );
   }
 
@@ -452,7 +452,7 @@ export default function App() {
               )}
 
               <button 
-                onClick={() => setDeclarationCompleted(false)}
+                onClick={() => setShowDeclarationForce(true)}
                 className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
                 title="Khai báo siêu thị"
               >

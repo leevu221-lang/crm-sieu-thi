@@ -1307,6 +1307,88 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     });
   };
 
+  const handleImportFromInsite = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text || text.trim() === '') {
+        showNotification('Không tìm thấy dữ liệu trong Clipboard. Vui lòng copy dữ liệu từ Insite trước!', 'warning');
+        return;
+      }
+      
+      let items: { maNhanVien: string; soTien: string }[] = [];
+      
+      if (text.startsWith('CRM_BONUS_DATA:')) {
+        try {
+          const jsonStr = text.substring('CRM_BONUS_DATA:'.length);
+          items = JSON.parse(jsonStr);
+        } catch (e) {
+          console.error('[THUONG] Error parsing JSON from Tampermonkey:', e);
+        }
+      } else {
+        // Fallback: Parse tab-separated values (TSV) from direct manual copy
+        const lines = text.split('\n');
+        for (const line of lines) {
+          const parts = line.split('\t').map(p => p.trim());
+          if (parts.length >= 2) {
+            const maNVIndex = parts.findIndex(p => /^\d{5,8}$/.test(p));
+            if (maNVIndex !== -1) {
+              const maNV = parts[maNVIndex];
+              let soTien = '';
+              for (let i = 0; i < parts.length; i++) {
+                if (i === maNVIndex || i === 0) continue;
+                const cleanVal = parts[i].replace(/[.,\sđ]/g, '');
+                if (cleanVal && /^\d+$/.test(cleanVal) && Number(cleanVal) >= 1000) {
+                  soTien = parts[i];
+                  break;
+                }
+              }
+              if (maNV && soTien) {
+                items.push({ maNhanVien: maNV, soTien });
+              }
+            }
+          }
+        }
+      }
+      
+      if (items.length === 0) {
+        showNotification('Không nhận diện được định dạng dữ liệu thưởng trong Clipboard. Vui lòng thử lại!', 'warning');
+        return;
+      }
+      
+      setThuongData(prev => {
+        const next = { ...prev };
+        let count = 0;
+        
+        filteredBiData.forEach(staff => {
+          const staffIdMatch = staff.fullId.match(/\d+/);
+          if (staffIdMatch) {
+            const numericId = staffIdMatch[0];
+            const matchedItem = items.find(item => item.maNhanVien === numericId);
+            if (matchedItem) {
+              next[staff.fullId] = {
+                ...(next[staff.fullId] || { truoc: '' }),
+                hientai: matchedItem.soTien
+              };
+              count++;
+            }
+          }
+        });
+        
+        if (count > 0) {
+          saveThuongToDb(next);
+          showNotification(`Đã tự động cập nhật thưởng hiện tại cho ${count} nhân viên thành công!`, 'success');
+        } else {
+          showNotification('Không tìm thấy mã nhân viên nào trùng khớp trong danh sách siêu thị!', 'warning');
+        }
+        return next;
+      });
+      
+    } catch (err) {
+      console.error('[THUONG] Error reading clipboard:', err);
+      showNotification('Không thể đọc dữ liệu từ Clipboard. Vui lòng cấp quyền truy cập clipboard cho trình duyệt!', 'error');
+    }
+  };
+
   // Default to check all when data is loaded or STORE changes
   // KEY FIX: marketFilter is NOT in deps — only biRevenueData change triggers this.
   // When marketFilter changes, we do NOT clear selectedStaffIds immediately to prevent layout shift (shaking/flicker).
@@ -3402,14 +3484,24 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               <p className="text-[9px] text-purple-400 font-black uppercase tracking-widest">Dán dữ liệu từ BI</p>
                             </div>
                           </div>
-                          <button
-                            onClick={() => handleClearThuong('hientai')}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-600 hover:text-rose-700 border border-rose-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm"
-                            title="Xóa toàn bộ dữ liệu thưởng tháng hiện tại"
-                          >
-                            <Trash2 size={10} className="text-rose-500" />
-                            Xóa dữ liệu
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={handleImportFromInsite}
+                              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 hover:text-purple-800 border border-purple-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm cursor-pointer"
+                              title="Tự động dán toàn bộ dữ liệu thưởng từ New Insite"
+                            >
+                              <Gift size={10} className="text-purple-500" />
+                              Dán từ Insite
+                            </button>
+                            <button
+                              onClick={() => handleClearThuong('hientai')}
+                              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-600 hover:text-rose-700 border border-rose-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm cursor-pointer"
+                              title="Xóa toàn bộ dữ liệu thưởng tháng hiện tại"
+                            >
+                              <Trash2 size={10} className="text-rose-500" />
+                              Xóa dữ liệu
+                            </button>
+                          </div>
                         </div>
                         <div className="space-y-2.5">
                           {filteredBiData.map((staff) => (
