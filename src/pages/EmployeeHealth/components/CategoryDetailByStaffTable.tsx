@@ -632,7 +632,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
                         return (
                           <tr
                             key={row.staffName}
-                            className="hover:bg-slate-50 transition-colors h-[53px]"
+                            className="hover:bg-slate-50 transition-colors h-[48px]"
                           >
                             <td className="px-1 py-2.5 text-[15px] font-sans font-black text-slate-800 text-center border-r border-b border-slate-300 h-full">
                               {index + 1}
