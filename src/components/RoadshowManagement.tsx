@@ -658,6 +658,34 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     return dateStr;
   };
 
+  // Capture table image
+  const handleCaptureTable = async () => {
+    if (tableRef.current) {
+      setIsCapturing(true);
+      try {
+        await new Promise(r => setTimeout(r, 200)); // Wait for render
+        const dataUrl = await htmlToImage.toPng(tableRef.current, {
+          backgroundColor: '#ffffff',
+          pixelRatio: 2,
+          style: {
+            padding: '24px',
+            borderRadius: '16px',
+            width: '680px',
+            margin: '0'
+          }
+        });
+        setPreviewImage(dataUrl);
+      } catch (err) {
+        console.error('Error capturing table image:', err);
+        showToast('Chụp ảnh bảng thất bại!', false);
+      } finally {
+        setIsCapturing(false);
+      }
+    } else {
+      showToast('Không tìm thấy bảng để chụp ảnh!', false);
+    }
+  };
+
   // History apply template
   const handleApplyHistoryTemplate = (type: 1 | 2 | 3) => {
     if (type === 1) {
