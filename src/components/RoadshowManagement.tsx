@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, Trash2, Calendar, MapPin, Users, Megaphone, 
-  CheckSquare, Sparkles, Edit3, Save, X, FileText, 
-  Check, ArrowRight, Flag, CalendarDays, ClipboardCheck, Loader2
+  Sparkles, Edit3, Save, X, FileText, Check, ArrowRight, 
+  Flag, CalendarDays, ClipboardCheck, Loader2, Navigation,
+  Map, Eye, EyeOff, ClipboardList
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebaseConfig';
@@ -38,6 +39,9 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; isSuccess: boolean } | null>(null);
+  
+  // Track which plan has map iframe open
+  const [openMapIds, setOpenMapIds] = useState<Record<string, boolean>>({});
 
   // Form states
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -90,7 +94,6 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
       setLoading(false);
     }, (error) => {
       console.error('Error fetching roadshows:', error);
-      // Fallback to local storage
       const cached = localStorage.getItem(`crm_roadshows_${warehouseCode}`);
       if (cached) {
         setPlans(JSON.parse(cached));
@@ -101,7 +104,6 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     return () => unsub();
   }, [warehouseCode]);
 
-  // Sync checklist from localStorage
   useEffect(() => {
     const cachedChecklist = localStorage.getItem(`crm_roadshow_checklist_${warehouseCode}`);
     if (cachedChecklist) {
@@ -168,12 +170,10 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
       let updatedPlans = [...plans];
 
       if (editingId) {
-        // Edit mode
         updatedPlans = updatedPlans.map(p => p.id === editingId ? {
           ...p, title, date, timeRange, leader, members, route, props, kpis, status, notes
         } : p);
       } else {
-        // Add mode
         const newPlan: RoadshowPlan = {
           id: 'rs-' + Date.now(),
           title, date, timeRange, leader, members, route, props, kpis, status, notes
@@ -181,7 +181,6 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         updatedPlans.push(newPlan);
       }
 
-      // Read current doc data to preserve other warehouses
       const docSnap = await getDoc(docRef);
       const currentData = docSnap.exists() ? docSnap.data() : {};
       currentData[warehouseCode] = updatedPlans;
@@ -190,7 +189,6 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
       setPlans(updatedPlans);
       localStorage.setItem(`crm_roadshows_${warehouseCode}`, JSON.stringify(updatedPlans));
       
-      // Reset form
       handleCancelEdit();
       showToast(editingId ? 'Đã cập nhật lịch trình thành công!' : 'Đã tạo lịch trình Roadshow mới!', true);
     } catch (error) {
@@ -250,6 +248,16 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     }
   };
 
+  const toggleMapVisibility = (id: string) => {
+    setOpenMapIds(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Helper to parse route nodes: split by "->", "-->", "➔"
+  const parseRouteNodes = (routeStr: string) => {
+    if (!routeStr) return [];
+    return routeStr.split(/(?:->|-->|➔|➔)/).map(s => s.trim()).filter(Boolean);
+  };
+
   // Filtered plans
   const filteredPlans = plans.filter(p => {
     const matchesSearch = 
@@ -288,8 +296,8 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
             <Sparkles size={24} className="text-amber-300" />
           </div>
           <div>
-            <h3 className="text-lg font-black uppercase tracking-tight">Lịch Trình Roadshow Mẫu Hoàn Hảo</h3>
-            <p className="text-white/70 text-xs font-medium">Bấm vào một mẫu bên dưới để tự động tạo nhanh lịch trình chạy tối ưu nhất!</p>
+            <h3 className="text-lg font-black uppercase tracking-tight">Gợi Ý Lộ Trình Mẫu Hợp Lý</h3>
+            <p className="text-white/70 text-xs font-medium">Chọn lộ trình tối ưu được thiết kế sẵn để tự động điền nhanh lịch trình chạy!</p>
           </div>
         </div>
 
@@ -299,9 +307,9 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
             className="bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/10 rounded-2xl p-4 text-left transition-all hover:scale-[1.02] flex flex-col justify-between h-36"
           >
             <div>
-              <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-900 text-[9px] font-black uppercase tracking-wider">CHẠY SÁNG</span>
+              <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-900 text-[9px] font-black uppercase tracking-wider">Tuyến Chợ Sáng</span>
               <h4 className="font-extrabold text-sm mt-2 line-clamp-1">Tuyến Chợ & Dân Cư</h4>
-              <p className="text-white/60 text-xs mt-1 line-clamp-2">Thu hút tiểu thương đi chợ sớm. Siêu thị qua khu chợ trung tâm.</p>
+              <p className="text-white/60 text-xs mt-1 line-clamp-2">Chạy chậm quanh khu vực chợ sầm uất lúc sáng sớm.</p>
             </div>
             <div className="flex items-center gap-1 text-xs text-amber-300 font-bold mt-2">
               Áp dụng ngay <ArrowRight size={14} />
@@ -313,9 +321,9 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
             className="bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/10 rounded-2xl p-4 text-left transition-all hover:scale-[1.02] flex flex-col justify-between h-36"
           >
             <div>
-              <span className="px-2 py-0.5 rounded bg-sky-400 text-slate-900 text-[9px] font-black uppercase tracking-wider">CHẠY CHIỀU</span>
-              <h4 className="font-extrabold text-sm mt-2 line-clamp-1">Tuyến Tan Tầm & Trường Học</h4>
-              <p className="text-white/60 text-xs mt-1 line-clamp-2">Tiếp cận phụ huynh học sinh và người đi làm về lúc cuối ngày.</p>
+              <span className="px-2 py-0.5 rounded bg-sky-400 text-slate-900 text-[9px] font-black uppercase tracking-wider">Tuyến Tan Tầm</span>
+              <h4 className="font-extrabold text-sm mt-2 line-clamp-1">Ngã Tư & Cổng Trường</h4>
+              <p className="text-white/60 text-xs mt-1 line-clamp-2">Phát tờ rơi nhanh tại ngã tư lớn và cổng trường học giờ ra về.</p>
             </div>
             <div className="flex items-center gap-1 text-xs text-sky-300 font-bold mt-2">
               Áp dụng ngay <ArrowRight size={14} />
@@ -327,9 +335,9 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
             className="bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/10 rounded-2xl p-4 text-left transition-all hover:scale-[1.02] flex flex-col justify-between h-36"
           >
             <div>
-              <span className="px-2 py-0.5 rounded bg-rose-400 text-white text-[9px] font-black uppercase tracking-wider">CHẠY CẢ NGÀY</span>
-              <h4 className="font-extrabold text-sm mt-2 line-clamp-1">Tuyến Điểm / Xã Xa Siêu Thị</h4>
-              <p className="text-white/60 text-xs mt-1 line-clamp-2">Điểm lưu động mở sim và giới thiệu dịch vụ tại các xã vùng xa.</p>
+              <span className="px-2 py-0.5 rounded bg-rose-400 text-white text-[9px] font-black uppercase tracking-wider">Chiến Dịch Xã</span>
+              <h4 className="font-extrabold text-sm mt-2 line-clamp-1">Điểm Tư Vấn Xã Xa</h4>
+              <p className="text-white/60 text-xs mt-1 line-clamp-2">Dựng điểm lưu động phát triển thuê bao và tiếp cận người dân liên xã.</p>
             </div>
             <div className="flex items-center gap-1 text-xs text-rose-300 font-bold mt-2">
               Áp dụng ngay <ArrowRight size={14} />
@@ -367,7 +375,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
             <div className="mb-4">
               <input
                 type="text"
-                placeholder="Tìm kiếm theo tiêu đề, tuyến đường, người phụ trách..."
+                placeholder="Tìm kiếm theo tên chiến dịch, địa danh tuyến đường, leader..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -382,81 +390,190 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
             ) : filteredPlans.length === 0 ? (
               <div className="py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                 <p className="text-slate-400 text-xs font-black uppercase">Không tìm thấy lịch trình chạy Roadshow nào</p>
-                <p className="text-slate-400/80 text-[11px] mt-1 font-bold">Hãy tạo lịch trình mới ở ô bên phải hoặc nhấn áp dụng Lịch Mẫu.</p>
+                <p className="text-slate-400/80 text-[11px] mt-1 font-bold">Hãy lập lịch mới hoặc chọn lịch mẫu gợi ý phía trên.</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {filteredPlans.map((plan) => (
-                  <div 
-                    key={plan.id} 
-                    className="p-5 border border-slate-200 hover:border-indigo-300 rounded-2xl bg-slate-50 hover:bg-indigo-50/20 transition-all shadow-sm flex flex-col md:flex-row justify-between gap-4"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={cn(
-                          "px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider",
-                          plan.status === 'completed' && "bg-emerald-100 text-emerald-700",
-                          plan.status === 'active' && "bg-amber-100 text-amber-700 animate-pulse",
-                          plan.status === 'pending' && "bg-slate-200 text-slate-700"
-                        )}>
-                          {plan.status === 'completed' ? 'Đã hoàn thành' : plan.status === 'active' ? 'Đang diễn ra' : 'Chưa bắt đầu'}
-                        </span>
-                        <span className="text-[11px] font-black text-slate-400 uppercase flex items-center gap-1">
-                          <Calendar size={12} />
-                          {plan.date} ({plan.timeRange})
-                        </span>
+              <div className="space-y-6">
+                {filteredPlans.map((plan) => {
+                  const nodes = parseRouteNodes(plan.route);
+                  const isMapOpen = !!openMapIds[plan.id];
+
+                  return (
+                    <div 
+                      key={plan.id} 
+                      className="border-l-4 border-indigo-600 rounded-2xl bg-white border border-slate-200 hover:border-indigo-300 transition-all shadow-sm overflow-hidden"
+                    >
+                      {/* Top Header Card Info */}
+                      <div className="p-5 space-y-4">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider",
+                              plan.status === 'completed' && "bg-emerald-100 text-emerald-700",
+                              plan.status === 'active' && "bg-amber-100 text-amber-700 animate-pulse",
+                              plan.status === 'pending' && "bg-slate-200 text-slate-700"
+                            )}>
+                              {plan.status === 'completed' ? 'Đã hoàn thành' : plan.status === 'active' ? 'Đang diễn ra' : 'Chưa bắt đầu'}
+                            </span>
+                            <span className="text-[11px] font-black text-slate-400 uppercase flex items-center gap-1">
+                              <Calendar size={12} />
+                              {plan.date} ({plan.timeRange})
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleStartEdit(plan)}
+                              className="p-1.5 bg-slate-50 hover:bg-indigo-50 text-indigo-600 rounded-lg transition-all"
+                              title="Chỉnh sửa"
+                            >
+                              <Edit3 size={15} />
+                            </button>
+                            <button
+                              onClick={() => handleDeletePlan(plan.id)}
+                              className="p-1.5 bg-slate-50 hover:bg-rose-50 text-rose-600 rounded-lg transition-all"
+                              title="Xoá lịch"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <h4 className="text-[17px] font-black text-slate-800 uppercase tracking-tight">{plan.title}</h4>
+                        
+                        {/* Info details blocks grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          
+                          {/* Route Milestone Visualizer */}
+                          <div className="md:col-span-2 bg-slate-50 p-4 rounded-xl space-y-2 border border-slate-100">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                              <MapPin size={12} className="text-rose-500" />
+                              Sơ đồ hành trình chạy (Milestones)
+                            </span>
+                            
+                            {nodes.length > 0 ? (
+                              <div className="flex flex-wrap items-center gap-y-2.5 gap-x-1.5 pt-1">
+                                {nodes.map((node, nIdx) => (
+                                  <React.Fragment key={nIdx}>
+                                    <div className="flex items-center gap-1 bg-white border border-slate-200 shadow-sm rounded-lg px-2.5 py-1">
+                                      <div className={cn(
+                                        "w-2 h-2 rounded-full",
+                                        nIdx === 0 ? "bg-rose-500 animate-ping" : 
+                                        nIdx === nodes.length - 1 ? "bg-emerald-500" : "bg-indigo-500"
+                                      )} />
+                                      <span className="text-[11px] font-black text-slate-700 uppercase">{node}</span>
+                                    </div>
+                                    {nIdx < nodes.length - 1 && (
+                                      <ArrowRight size={14} className="text-slate-400 shrink-0" />
+                                    )}
+                                  </React.Fragment>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-800 text-xs font-bold">{plan.route}</span>
+                            )}
+                          </div>
+
+                          <div className="flex items-start gap-2.5 p-3 border border-slate-100 rounded-xl bg-white">
+                            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
+                              <Users size={16} />
+                            </div>
+                            <div>
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Nhân sự tham gia</p>
+                              <p className="text-xs font-black text-slate-700 mt-0.5">{plan.leader || 'Chưa phân công phụ trách'}</p>
+                              {plan.members && <p className="text-[10px] font-bold text-slate-500">Đoàn chạy: {plan.members}</p>}
+                            </div>
+                          </div>
+
+                          <div className="flex items-start gap-2.5 p-3 border border-slate-100 rounded-xl bg-white">
+                            <div className="p-2 bg-amber-50 text-amber-600 rounded-lg shrink-0">
+                              <Megaphone size={16} />
+                            </div>
+                            <div>
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Công cụ hỗ trợ</p>
+                              <p className="text-xs font-bold text-slate-700 mt-0.5 line-clamp-2">{plan.props}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start gap-2.5 p-3 border border-slate-100 rounded-xl bg-white">
+                            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg shrink-0">
+                              <Flag size={16} />
+                            </div>
+                            <div>
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Chỉ tiêu cam kết</p>
+                              <p className="text-xs font-bold text-slate-700 mt-0.5 line-clamp-2">{plan.kpis}</p>
+                            </div>
+                          </div>
+
+                          {plan.notes && (
+                            <div className="md:col-span-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500 italic font-semibold">
+                              Lưu ý: {plan.notes}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Interactive Maps Section */}
+                        <div className="flex items-center gap-3 pt-2 border-t border-slate-100 flex-wrap">
+                          <button
+                            onClick={() => toggleMapVisibility(plan.id)}
+                            className={cn(
+                              "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all border",
+                              isMapOpen 
+                                ? "bg-rose-50 text-rose-600 border-rose-200" 
+                                : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                            )}
+                          >
+                            {isMapOpen ? <EyeOff size={14} /> : <Eye size={14} />}
+                            {isMapOpen ? 'ẨN BẢN ĐỒ' : 'XEM BẢN ĐỒ VỆ TINH'}
+                          </button>
+                          
+                          <a
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(plan.route)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-black transition-all"
+                          >
+                            <Navigation size={14} />
+                            DẪN ĐƯỜNG GOOGLE MAPS
+                          </a>
+                        </div>
                       </div>
-                      
-                      <h4 className="text-base font-black text-slate-800">{plan.title}</h4>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-xs font-bold text-slate-600">
-                        <p className="flex items-center gap-1.5">
-                          <MapPin size={14} className="text-rose-500 shrink-0" />
-                          <span className="text-slate-400 uppercase text-[10px] tracking-wider font-black">Lộ trình:</span>
-                          <span className="text-slate-800 line-clamp-1">{plan.route}</span>
-                        </p>
-                        <p className="flex items-center gap-1.5">
-                          <Users size={14} className="text-indigo-500 shrink-0" />
-                          <span className="text-slate-400 uppercase text-[10px] tracking-wider font-black">Nhân sự:</span>
-                          <span className="text-slate-800">{plan.leader || 'Chưa phân công'} {plan.members && `(${plan.members})`}</span>
-                        </p>
-                        <p className="flex items-center gap-1.5">
-                          <Megaphone size={14} className="text-amber-500 shrink-0" />
-                          <span className="text-slate-400 uppercase text-[10px] tracking-wider font-black">Công cụ:</span>
-                          <span className="text-slate-800 line-clamp-1">{plan.props}</span>
-                        </p>
-                        <p className="flex items-center gap-1.5">
-                          <Flag size={14} className="text-emerald-500 shrink-0" />
-                          <span className="text-slate-400 uppercase text-[10px] tracking-wider font-black">Chỉ tiêu:</span>
-                          <span className="text-slate-800 line-clamp-1">{plan.kpis}</span>
-                        </p>
-                      </div>
-                      
-                      {plan.notes && (
-                        <p className="text-[11px] text-slate-400 italic font-semibold border-t border-slate-200 pt-1.5 mt-1">
-                          Ghi chú: {plan.notes}
-                        </p>
-                      )}
+
+                      {/* Map Iframe panel (Slides open) */}
+                      <AnimatePresence>
+                        {isMapOpen && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="border-t border-slate-200 bg-slate-50"
+                          >
+                            <div className="p-4 space-y-2">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                <Map size={12} className="text-indigo-600" />
+                                Bản đồ vệ tinh thực tế (Google Maps Live Grid)
+                              </span>
+                              <div className="relative rounded-2xl overflow-hidden shadow-inner border border-slate-300/80 bg-slate-200 h-[300px]">
+                                <iframe
+                                  width="100%"
+                                  height="100%"
+                                  style={{ border: 0 }}
+                                  loading="lazy"
+                                  allowFullScreen
+                                  referrerPolicy="no-referrer-when-downgrade"
+                                  src={`https://maps.google.com/maps?q=${encodeURIComponent(plan.route)}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
+                                ></iframe>
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-bold text-center italic mt-1">
+                                * Lưu ý: Bản đồ được định vị dựa theo tuyến đường bạn điền. Điền cụ thể tên đường/địa điểm để có kết quả chính xác nhất.
+                              </p>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
-                    
-                    <div className="flex md:flex-col items-center justify-end gap-2 border-t md:border-t-0 border-slate-200 pt-3 md:pt-0 shrink-0">
-                      <button
-                        onClick={() => handleStartEdit(plan)}
-                        className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl transition-all w-9 h-9 flex items-center justify-center shadow-sm"
-                        title="Chỉnh sửa"
-                      >
-                        <Edit3 size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDeletePlan(plan.id)}
-                        className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-all w-9 h-9 flex items-center justify-center shadow-sm"
-                        title="Xoá lịch"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -533,11 +650,11 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
               </div>
 
               <div>
-                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Tuyến đường di chuyển *</label>
+                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Địa chỉ lộ trình (Sơ đồ nối bằng `-&gt;`) *</label>
                 <textarea
                   rows={2}
                   required
-                  placeholder="Ví dụ: Siêu thị -> Tuyến phố chính -> Chợ trung tâm -> Siêu thị"
+                  placeholder="Điền lộ trình nối tiếp: Siêu thị -> Đường Trần Hưng Đạo -> Chợ Huyện"
                   value={route}
                   onChange={(e) => setRoute(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -584,7 +701,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Ghi chú bổ sung</label>
                 <textarea
                   rows={2}
-                  placeholder="Nhập ghi chú hoặc căn dặn đội ngũ..."
+                  placeholder="Nhập ghi chú hoặc dặn dò..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -623,7 +740,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
               <h3 className="text-base font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
-                <ClipboardCheck size={18} className="text-indigo-600" />
+                <ClipboardList size={18} className="text-indigo-600" />
                 Danh Sách Chuẩn Bị
               </h3>
               <button 
@@ -634,7 +751,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
               </button>
             </div>
 
-            <p className="text-[11px] font-semibold text-slate-400 mb-3">Kiểm tra các hạng mục quan trọng trước khi xe lăn bánh để đảm bảo hiệu quả:</p>
+            <p className="text-[11px] font-semibold text-slate-400 mb-3">Kiểm tra các hạng mục trước khi chạy:</p>
 
             <div className="space-y-2.5">
               {checklist.map((item) => (
