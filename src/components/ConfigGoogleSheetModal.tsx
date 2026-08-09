@@ -4,6 +4,7 @@ import { db } from '../firebaseConfig';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { BaoHiemRule } from './ConfigBaoHiemModal';
 import { ExclusionRule } from './ConfigExclusionModal';
+import { QuyDoiRule } from './ConfigQuyDoiModal';
 
 interface ConfigGoogleSheetModalProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface ConfigGoogleSheetModalProps {
   currentNhomHangMap: Record<string, { nganhHang?: string, large: string, small: string }>;
   currentBaoHiemRules: BaoHiemRule[];
   currentExclusionRules: ExclusionRule[];
+  currentQuyDoiRules: QuyDoiRule[];
 }
 
 export const ConfigGoogleSheetModal: React.FC<ConfigGoogleSheetModalProps> = ({
@@ -20,7 +22,8 @@ export const ConfigGoogleSheetModal: React.FC<ConfigGoogleSheetModalProps> = ({
   onRefreshAllData,
   currentNhomHangMap,
   currentBaoHiemRules,
-  currentExclusionRules
+  currentExclusionRules,
+  currentQuyDoiRules
 }) => {
   const [webAppUrl, setWebAppUrl] = useState('');
   const [isSavingUrl, setIsSavingUrl] = useState(false);
@@ -145,6 +148,24 @@ function doGet(e) {
       }
     }
 
+    // 3.5. Đọc Cấu hình Quy Đổi
+    const quyDoiSheet = ss.getSheetByName("Cấu hình Quy Đổi") || ss.getSheetByName("quy_doi_map");
+    const quyDoiData = [];
+    if (quyDoiSheet) {
+      const rows = quyDoiSheet.getDataRange().getValues();
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (row[0] || row[1]) {
+          quyDoiData.push({
+            nganhHang: String(row[0] || '').trim(),
+            nhomHang: String(row[1] || '').trim(),
+            heSo: Number(row[2] || 1.0),
+            note: String(row[3] || '').trim()
+          });
+        }
+      }
+    }
+
     // 4. Đọc Danh sách Người dùng (Quản lý Người dùng)
     const userSheet = ss.getSheetByName("Quản lý Người dùng");
     const usersData = [];
@@ -173,6 +194,7 @@ function doGet(e) {
         nhom_hang_map: nhomHangData,
         bao_hiem_map: baoHiemData,
         loai_bo_map: loaiBoData,
+        quy_doi_map: quyDoiData,
         users_list: usersData
       }
     })).setMimeType(ContentService.MimeType.JSON);
@@ -266,6 +288,31 @@ function doPost(e) {
       sheet.getRange(1, 1, 1, 5).setFontWeight("bold").setBackground("#f3f4f6");
     }
 
+    // 3.5. Ghi Cấu hình Quy Đổi
+    if (postData.quy_doi_map) {
+      let sheet = ss.getSheetByName("Cấu hình Quy Đổi");
+      if (!sheet) {
+        sheet = ss.insertSheet("Cấu hình Quy Đổi");
+      }
+      sheet.clearContents();
+      sheet.clearFormats();
+      
+      const headers = ["Ngành Hàng", "Nhóm Hàng", "Hệ Số", "Ghi Chú"];
+      const rows = [headers];
+      
+      postData.quy_doi_map.forEach(item => {
+        rows.push([
+          item.nganhHang || '',
+          item.nhomHang || '',
+          item.heSo || 1.0,
+          item.note || ''
+        ]);
+      });
+      
+      sheet.getRange(1, 1, rows.length, 4).setValues(rows);
+      sheet.getRange(1, 1, 1, 4).setFontWeight("bold").setBackground("#f3f4f6");
+    }
+
     // 4. Ghi Danh sách Người dùng (Đúng tên chức năng: Quản lý Người dùng)
     if (postData.users_list) {
       let sheet = ss.getSheetByName("Quản lý Người dùng");
@@ -328,7 +375,8 @@ function doPost(e) {
       const payload = {
         nhom_hang_map: nhomHangList,
         bao_hiem_map: currentBaoHiemRules,
-        loai_bo_map: currentExclusionRules
+        loai_bo_map: currentExclusionRules,
+        quy_doi_map: currentQuyDoiRules
       };
 
       setSyncMessage('Đang gửi và ghi dữ liệu lên Google Sheets...');
@@ -372,7 +420,7 @@ function doPost(e) {
         throw new Error(result.error || 'Lỗi không xác định từ Apps Script');
       }
 
-      const { nhom_hang_map, bao_hiem_map, loai_bo_map } = result.data;
+      const { nhom_hang_map, bao_hiem_map, loai_bo_map, quy_doi_map } = result.data;
       
       setSyncMessage('Đang đồng bộ và cập nhật hệ thống...');
 
@@ -399,6 +447,11 @@ function doPost(e) {
       // 3. Save Exclusion Map
       if (loai_bo_map && Array.isArray(loai_bo_map)) {
         await setDoc(doc(db, 'system_configs', 'loai_bo_map'), { rules: loai_bo_map });
+      }
+
+      // 3.5. Save Quy Doi Map
+      if (quy_doi_map && Array.isArray(quy_doi_map)) {
+        await setDoc(doc(db, 'system_configs', 'quy_doi_map'), { rules: quy_doi_map });
       }
 
       setSyncStatus('success');

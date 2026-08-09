@@ -87,6 +87,7 @@ import { ImagePreviewModal } from '../components/ImagePreviewModal';
 import { ConfigNhomHangModal } from '../components/ConfigNhomHangModal';
 import { ConfigBaoHiemModal, BaoHiemRule } from '../components/ConfigBaoHiemModal';
 import { ConfigExclusionModal, ExclusionRule } from '../components/ConfigExclusionModal';
+import { ConfigQuyDoiModal, QuyDoiRule } from '../components/ConfigQuyDoiModal';
 import { ConfigGoogleSheetModal } from '../components/ConfigGoogleSheetModal';
 import { useLuykeData } from './RTST/hooks/useLuykeData';
 import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';
@@ -1196,6 +1197,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   const [customBaoHiemRules, setCustomBaoHiemRules] = useState<BaoHiemRule[]>([]);
   const [showConfigLoaiBoModal, setShowConfigLoaiBoModal] = useState(false);
   const [customExclusionRules, setCustomExclusionRules] = useState<ExclusionRule[]>([]);
+  const [showConfigQuyDoiModal, setShowConfigQuyDoiModal] = useState(false);
+  const [customQuyDoiRules, setCustomQuyDoiRules] = useState<QuyDoiRule[]>([]);
   const [showConfigGoogleSheetModal, setShowConfigGoogleSheetModal] = useState(false);
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
@@ -1378,10 +1381,20 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       }
     });
 
+    const unsubQD = onSnapshot(doc(db, 'system_configs', 'quy_doi_map'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && data.rules) {
+          setCustomQuyDoiRules(data.rules);
+        }
+      }
+    });
+
     return () => {
       unsub();
       unsubBH();
       unsubEx();
+      unsubQD();
     };
   }, []);
 
@@ -5219,6 +5232,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             <span className="hidden md:inline text-[11px] font-bold">CẤU HÌNH LOẠI BỎ</span>
                           </button>
                           <button
+                            onClick={() => setShowConfigQuyDoiModal(true)}
+                            className="p-2 bg-slate-100 hover:bg-purple-100 text-slate-500 hover:text-purple-600 rounded-lg transition-colors flex items-center gap-2"
+                            title="Cấu hình hệ số quy đổi"
+                          >
+                            <Settings size={18} />
+                            <span className="hidden md:inline text-[11px] font-bold">CẤU HÌNH QUY ĐỔI</span>
+                          </button>
+                          <button
                             onClick={() => setShowConfigGoogleSheetModal(true)}
                             className="p-2 bg-slate-100 hover:bg-green-100 text-slate-500 hover:text-green-600 rounded-lg transition-colors flex items-center gap-2"
                             title="Đồng bộ Google Sheets"
@@ -7476,6 +7497,24 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           }
         }}
       />
+      
+      {/* Config Quy Doi Modal */}
+      <ConfigQuyDoiModal
+        isOpen={showConfigQuyDoiModal}
+        onClose={() => setShowConfigQuyDoiModal(false)}
+        initialRules={customQuyDoiRules}
+        onSave={async (newRules) => {
+          setCustomQuyDoiRules(newRules);
+          try {
+            await setDoc(doc(db, 'system_configs', 'quy_doi_map'), { rules: newRules, updatedAt: serverTimestamp() }, { merge: true });
+            showNotification('Đã lưu cấu hình quy đổi lên hệ thống', 'success');
+          } catch (error) {
+            console.error('Error saving quy doi config to Firebase:', error);
+            showNotification('Có lỗi khi lưu cấu hình quy đổi lên Firebase', 'error');
+          }
+        }}
+      />
+      
       <ConfigGoogleSheetModal
         isOpen={showConfigGoogleSheetModal}
         onClose={() => setShowConfigGoogleSheetModal(false)}
@@ -7485,6 +7524,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         currentNhomHangMap={customNhomSmallMap}
         currentBaoHiemRules={customBaoHiemRules}
         currentExclusionRules={customExclusionRules}
+        currentQuyDoiRules={customQuyDoiRules}
       />
     </>
   );
