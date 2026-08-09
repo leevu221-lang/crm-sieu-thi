@@ -1743,10 +1743,84 @@ export const minifyYcxData = (data: string): string => {
   }
 };
 
-export const parseYcxData = (data: string, customRates?: Record<string, { normal: number, installment: number }>): YcxStaffData[] => {
+export const getQuyDoiMultiplier = (
+  nganhVal: string,
+  nhomVal: string,
+  quyDoiRules?: any[]
+): number => {
+  if (!quyDoiRules || !Array.isArray(quyDoiRules) || quyDoiRules.length === 0) {
+    return 1.0;
+  }
+
+  const clean = (s: string) => {
+    return removeAccents(String(s || '').toLowerCase())
+      .replace(/[^a-z0-9]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const cleanNganh = clean(nganhVal);
+  const cleanNhom = clean(nhomVal);
+
+  if (!cleanNganh && !cleanNhom) {
+    return 1.0;
+  }
+
+  // 1. Match both NganhHang and NhomHang
+  let matchedRule = quyDoiRules.find(r => {
+    const rNganh = clean(r.nganhHang);
+    const rNhom = clean(r.nhomHang);
+    if (!rNganh || !rNhom || rNhom === 'tat ca nhom hang') return false;
+    
+    const nganhMatches = cleanNganh === rNganh || cleanNganh.includes(rNganh) || rNganh.includes(cleanNganh);
+    const nhomMatches = cleanNhom === rNhom || cleanNhom.includes(rNhom) || rNhom.includes(cleanNhom);
+    return nganhMatches && nhomMatches;
+  });
+
+  // 2. Match only NganhHang
+  if (!matchedRule) {
+    matchedRule = quyDoiRules.find(r => {
+      const rNganh = clean(r.nganhHang);
+      const rNhom = clean(r.nhomHang);
+      if (!rNganh) return false;
+      if (rNhom && rNhom !== 'tat ca nhom hang') return false;
+      
+      return cleanNganh === rNganh || cleanNganh.includes(rNganh) || rNganh.includes(cleanNganh);
+    });
+  }
+
+  // 3. Match only NhomHang
+  if (!matchedRule) {
+    matchedRule = quyDoiRules.find(r => {
+      const rNganh = clean(r.nganhHang);
+      const rNhom = clean(r.nhomHang);
+      if (!rNhom || rNhom === 'tat ca nhom hang') return false;
+      if (rNganh && rNganh !== 'tat ca nganh hang') return false;
+
+      return cleanNhom === rNhom || cleanNhom.includes(rNhom) || rNhom.includes(cleanNhom);
+    });
+  }
+
+  if (matchedRule) {
+    const rawHeSo = Number(matchedRule.heSo);
+    return isNaN(rawHeSo) ? 1.0 : rawHeSo / 100;
+  }
+
+  return 1.0;
+};
+
+export const parseYcxData = (data: string, customQuyDoiRules?: any[]): YcxStaffData[] => {
   if (!data) return [];
   
-  const ratesToUse = customRates || CONVERSION_RATES;
+  let rules = Array.isArray(customQuyDoiRules) ? customQuyDoiRules : undefined;
+  if (!rules) {
+    try {
+      const cached = localStorage.getItem('crm_quy_doi_rules');
+      if (cached) rules = JSON.parse(cached);
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
   let rows: any[][] = [];
   try {
@@ -1810,12 +1884,22 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
   const idxQty = getIdx(['số lượng', 'sl', 'quantity']);
   const idxMarket = getIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm', 'kho', 'cửa hàng']);
   const idxColumnAO = getIdx(['nhóm ngành hàng', 'nhóm hàng', 'ngành hàng', 'nhóm']);
+  const idxNganhHang = (() => {
+    const exact = header.findIndex(h => h === 'ngành hàng' || h === 'nganh hang' || h === 'ngành hàng lớn' || h === 'nganh hang lon');
+    if (exact !== -1) return exact;
+    return header.findIndex(h => h.includes('ngành hàng') || h.includes('nganh hang') || h.includes('ngành') || h.includes('nganh'));
+  })();
+  const idxNhomHang = (() => {
+    const exact = header.findIndex(h => h === 'nhóm hàng' || h === 'nhom hang' || h === 'nhóm ngành hàng' || h === 'nhom nganh hang' || h === 'nhóm hàng nhỏ' || h === 'nhom hang nho');
+    if (exact !== -1) return exact;
+    return header.findIndex(h => h.includes('nhóm hàng') || h.includes('nhom hang') || h.includes('nhóm') || h.includes('nhom'));
+  })();
   const idxReturnStatus = getIdx(['trạng thái trả', 'trả hàng', 'tình trạng nhập trả', 'nhập trả']);
   const idxOrderId = getIdx(['mã ycx', 'mã yêu cầu', 'mã đơn', 'số chứng từ']);
   const idxCustomerName = getIdx(['tên khách hàng', 'khách hàng', 'tên kh']);
   const idxCustomerPhone = getIdx(['điện thoại', 'số điện thoại', 'sđt', 'phone']);
 
-  console.log('[parseYcxData] Column indices detected:', { idxStaffName, idxRevenue, idxMarket, idxStatus, idxType, idxMethod, idxOrderId });
+  console.log('[parseYcxData] Column indices detected:', { idxStaffName, idxRevenue, idxMarket, idxStatus, idxType, idxMethod, idxOrderId, idxNganhHang, idxNhomHang });
 
   // Fallback indices if header not found
   const colType = idxType;
@@ -1827,6 +1911,8 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
   const colQty = idxQty;
   const colMarket = idxMarket;
   const colColumnAO = idxColumnAO;
+  const colNganhHang = idxNganhHang;
+  const colNhomHang = idxNhomHang;
   const colReturnStatus = idxReturnStatus;
   const colOrderId = idxOrderId;
   const colCustomerName = idxCustomerName;
@@ -1997,8 +2083,12 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
          isInstallment = true;
        }
          
-         const { rate: maxRate, matchedCat } = getRowConversionRate(columnAO, rowString, isInstallment, ratesToUse);
-         const convertedRev = Math.round(revenue * maxRate);
+         const nganhVal = colNganhHang !== -1 && colNganhHang < cols.length ? String(cols[colNganhHang] || '').trim() : '';
+         const nhomVal = colNhomHang !== -1 && colNhomHang < cols.length ? String(cols[colNhomHang] || '').trim() : '';
+         
+         const multiplier = getQuyDoiMultiplier(nganhVal, nhomVal, rules);
+         const convertedRev = Math.round(revenue * multiplier);
+         const matchedCat = nganhVal || 'Khác';
          
          const current = staffMap.get(staffKey)!;
          current.totalRevenue += revenue;
@@ -2109,12 +2199,12 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
 
           current.convertedRevenue += convertedRev;
          current.marketName = market;
-         current.items.push({
-           productName,
-           revenue,
-           convertedRevenue: convertedRev,
-           category: matchedCat,
-           isInstallment,
+          current.items.push({
+            productName,
+            revenue,
+            convertedRevenue: convertedRev,
+            category: nganhVal || 'Khác',
+            isInstallment,
            quantity,
            status: colStatus !== -1 ? String(cols[colStatus] || '') : '',
            returnStatus: colReturnStatus !== -1 ? String(cols[colReturnStatus] || '') : '',
@@ -2142,10 +2232,18 @@ export const parseYcxData = (data: string, customRates?: Record<string, { normal
   })).sort((a, b) => b.convertedRevenue - a.convertedRevenue);
 };
 
-export const parseYcxRankData = (data: string, customRates?: Record<string, { normal: number, installment: number }>): YcxRankData[] => {
+export const parseYcxRankData = (data: string, customQuyDoiRules?: any[]): YcxRankData[] => {
   if (!data) return [];
   
-  const ratesToUse = customRates || CONVERSION_RATES;
+  let rules = Array.isArray(customQuyDoiRules) ? customQuyDoiRules : undefined;
+  if (!rules) {
+    try {
+      const cached = localStorage.getItem('crm_quy_doi_rules');
+      if (cached) rules = JSON.parse(cached);
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
   let rows: any[][] = [];
   try {
@@ -2209,6 +2307,16 @@ export const parseYcxRankData = (data: string, customRates?: Record<string, { no
   const idxProduct = getIdx(['tên sản phẩm', 'sản phẩm', 'tên hàng', 'hàng hóa']);
   const idxReturnStatus = getIdx(['trạng thái trả', 'trả hàng', 'tình trạng nhập trả', 'nhập trả']);
   const idxColumnAO = getIdx(['nhóm ngành hàng', 'nhóm hàng', 'ngành hàng', 'nhóm']);
+  const idxNganhHang = (() => {
+    const exact = header.findIndex(h => h === 'ngành hàng' || h === 'nganh hang' || h === 'ngành hàng lớn' || h === 'nganh hang lon');
+    if (exact !== -1) return exact;
+    return header.findIndex(h => h.includes('ngành hàng') || h.includes('nganh hang') || h.includes('ngành') || h.includes('nganh'));
+  })();
+  const idxNhomHang = (() => {
+    const exact = header.findIndex(h => h === 'nhóm hàng' || h === 'nhom hang' || h === 'nhóm ngành hàng' || h === 'nhom nganh hang' || h === 'nhóm hàng nhỏ' || h === 'nhom hang nho');
+    if (exact !== -1) return exact;
+    return header.findIndex(h => h.includes('nhóm hàng') || h.includes('nhom hang') || h.includes('nhóm') || h.includes('nhom'));
+  })();
 
   const colType = idxType !== -1 ? idxType : 3;
   const colMethod = idxMethod !== -1 ? idxMethod : 3;
@@ -2219,6 +2327,8 @@ export const parseYcxRankData = (data: string, customRates?: Record<string, { no
   const colProduct = idxProduct !== -1 ? idxProduct : 33;
   const colReturnStatus = idxReturnStatus !== -1 ? idxReturnStatus : 44; // Cột AS (Index 44)
   const colColumnAO = idxColumnAO !== -1 ? idxColumnAO : 40;
+  const colNganhHang = idxNganhHang;
+  const colNhomHang = idxNhomHang;
 
   const staffMap = new Map<string, { total: number, converted: number }>();
   const startIdx = headerIdx !== -1 ? headerIdx + 1 : 1;
@@ -2323,10 +2433,11 @@ export const parseYcxRankData = (data: string, customRates?: Record<string, { no
         isInstallment = true;
       }
 
-      const columnAO = String(cols[colColumnAO] || '').trim();
-      const { rate: maxRate } = getRowConversionRate(columnAO, rowString, isInstallment, ratesToUse);
-
-      const convertedRev = Math.round(revenue * maxRate);
+      const nganhVal = colNganhHang !== -1 && colNganhHang < cols.length ? String(cols[colNganhHang] || '').trim() : '';
+      const nhomVal = colNhomHang !== -1 && colNhomHang < cols.length ? String(cols[colNhomHang] || '').trim() : '';
+      
+      const multiplier = getQuyDoiMultiplier(nganhVal, nhomVal, rules);
+      const convertedRev = Math.round(revenue * multiplier);
       if (!staffMap.has(staff)) {
         staffMap.set(staff, { total: 0, converted: 0 });
       }

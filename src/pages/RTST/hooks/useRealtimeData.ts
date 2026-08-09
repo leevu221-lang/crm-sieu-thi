@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { db } from '../../../firebaseConfig';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNotification } from '../../../contexts/NotificationContext';
 import { useStore, getStoreItem, setStoreItem } from '../../../contexts/StoreContext';
@@ -22,8 +22,6 @@ import {
   parseCategoryData, 
   parseYcxData,
   parseYcxRankData,
-  fetchConversionRates,
-  CONVERSION_RATES,
   safeSetItem,
   isValidStoreName,
   minifyYcxData,
@@ -104,7 +102,7 @@ export const useRealtimeData = (maKho: string) => {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [hasLoadedFromDB, setHasLoadedFromDB] = useState(false);
   const [processError, setProcessError] = useState<string | null>(null);
-  const [conversionRates, setConversionRates] = useState<Record<string, { normal: number, installment: number }>>(CONVERSION_RATES);
+  const [quyDoiRules, setQuyDoiRules] = useState<any[]>([]);
 
   // Keep refs of inputs to prevent stale closures during saving
   const marketInputRef = useRef(marketInput);
@@ -221,8 +219,8 @@ export const useRealtimeData = (maKho: string) => {
       const markets = parseMarketData(marketTextToUse, 0, 'RTST');
       const luykeMarkets = luykeMarketTextToUse ? parseMarketData(luykeMarketTextToUse, 0, 'LUYKE') : [];
       const categories = parseCategoryData(categoryTextToUse, 0, 30, markets.length > 0 ? markets : luykeMarkets);
-      const staff = parseYcxData(ycxData, conversionRates);
-      const ycxRankData = parseYcxRankData(ycxData, conversionRates);
+      const staff = parseYcxData(ycxData, quyDoiRules);
+      const ycxRankData = parseYcxRankData(ycxData, quyDoiRules);
 
       console.log('[RealtimeData] handleProcess output:', {
         parsedMarketsCount: markets?.length || 0,
@@ -243,15 +241,20 @@ export const useRealtimeData = (maKho: string) => {
       console.error('[RealtimeData] handleProcess error:', error);
       setProcessError(error.message || 'Lỗi xử lý dữ liệu');
     }
-  }, [marketInput, categoryInput, categoryRevenueInput, categoryTargetInput, ycxData, conversionRates]);
+  }, [marketInput, categoryInput, categoryRevenueInput, categoryTargetInput, ycxData, quyDoiRules]);
 
-  // Fetch conversion rates on mount
+  // Listen to quy_doi_map config from Firestore on mount
   useEffect(() => {
-    const getRates = async () => {
-      const rates = await fetchConversionRates();
-      setConversionRates(rates);
-    };
-    getRates();
+    const unsub = onSnapshot(doc(db, 'system_configs', 'quy_doi_map'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && data.rules) {
+          setQuyDoiRules(data.rules);
+          localStorage.setItem('crm_quy_doi_rules', JSON.stringify(data.rules));
+        }
+      }
+    });
+    return () => unsub();
   }, []);
   useEffect(() => {
     setIsProcessingRealtime(true);
