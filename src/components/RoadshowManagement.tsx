@@ -241,7 +241,9 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
           pixelRatio: 2,
           style: {
             padding: '24px',
-            borderRadius: '16px'
+            borderRadius: '16px',
+            width: '680px',
+            margin: '0'
           }
         });
         setPreviewImage(dataUrl);
@@ -548,7 +550,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                             <th className="border-r border-black px-2 py-3 text-center text-[15px] font-utm-avo font-black uppercase text-red-600 w-16">STT</th>
                             <th className="border-r border-black px-3 py-3 text-left text-[15px] font-utm-avo font-black uppercase text-red-600 w-[200px]">NHÂN VIÊN</th>
                             <th className="border-r border-black px-3 py-3 text-center text-[15px] font-utm-avo font-black uppercase text-red-600 w-[180px]">{getFormattedDateLabel(plannerDate)}</th>
-                            <th className="px-3 py-3 text-left text-[15px] font-utm-avo font-black uppercase text-red-600">TUYẾN ĐƯỜNG</th>
+                            <th className="border-r border-black px-3 py-3 text-left text-[15px] font-utm-avo font-black uppercase text-red-600">TUYẾN ĐƯỜNG</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -559,7 +561,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                               <td className="border-r border-black px-2 py-4 text-center text-xs font-bold text-slate-400">-</td>
                               <td className="border-r border-black px-3 py-4 text-left text-xs font-bold text-slate-400 italic">Không có NV ca sáng</td>
                               <td className="border-r border-black px-3 py-4 text-center text-xs font-bold text-slate-400 italic">{morningTime} {getFormattedDateLabel(plannerDate)}</td>
-                              <td className="px-3 py-4 text-left text-xs font-bold text-slate-400 italic">Chưa sắp tuyến</td>
+                              <td className="border-r border-black px-3 py-4 text-left text-xs font-bold text-slate-400 italic">Chưa sắp tuyến</td>
                             </tr>
                           ) : (
                             morningStaff.map((staff, sIdx) => (
@@ -576,7 +578,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                                 {sIdx === 0 && (
                                   <td 
                                     rowSpan={morningStaff.length} 
-                                    className="px-3 py-2 text-left text-[14px] font-utm-avo font-black text-black align-middle bg-white w-[250px]"
+                                    className="border-r border-black px-3 py-2 text-left text-[14px] font-utm-avo font-black text-black align-middle bg-white w-[250px]"
                                   >
                                     {isCapturing ? (
                                       <div className="whitespace-pre-wrap font-utm-avo font-black text-black leading-relaxed p-1">
@@ -605,7 +607,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                             <td className="border-r border-black"></td>
                             <td className="border-r border-black"></td>
                             <td className="border-r border-black"></td>
-                            <td></td>
+                            <td className="border-r border-black"></td>
                           </tr>
 
                           {/* AFTERNOON SHIFT SECTION */}
@@ -614,7 +616,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                               <td className="border-r border-black px-2 py-4 text-center text-xs font-bold text-slate-400">-</td>
                               <td className="border-r border-black px-3 py-4 text-left text-xs font-bold text-slate-400 italic">Không có NV ca chiều</td>
                               <td className="border-r border-black px-3 py-4 text-center text-xs font-bold text-slate-400 italic">{afternoonTime} {getFormattedDateLabel(plannerDate)}</td>
-                              <td className="px-3 py-4 text-left text-xs font-bold text-slate-400 italic">Chưa sắp tuyến</td>
+                              <td className="border-r border-black px-3 py-4 text-left text-xs font-bold text-slate-400 italic">Chưa sắp tuyến</td>
                             </tr>
                           ) : (
                             afternoonStaff.map((staff, aIdx) => (
@@ -631,7 +633,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                                 {aIdx === 0 && (
                                   <td 
                                     rowSpan={afternoonStaff.length} 
-                                    className="px-3 py-2 text-left text-[14px] font-utm-avo font-black text-black align-middle bg-white w-[250px]"
+                                    className="border-r border-black px-3 py-2 text-left text-[14px] font-utm-avo font-black text-black align-middle bg-white w-[250px]"
                                   >
                                     {isCapturing ? (
                                       <div className="whitespace-pre-wrap font-utm-avo font-black text-black leading-relaxed p-1">
