@@ -572,11 +572,11 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
             const totalStaff = rowData.length;
 
             return (
-              <div key={catName} id={elementId} className="bg-white border-[15px] border-white shadow-xl overflow-hidden ring-1 ring-slate-300">
+              <div key={catName} id={elementId} className="bg-white border-[15px] border-white shadow-xl overflow-hidden ring-1 ring-slate-300 font-sans">
                 {/* Top Header */}
                 <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
                   <div className="p-4 flex flex-col items-center justify-center">
-                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center whitespace-nowrap">NGÀNH HÀNG</h2>
+                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center whitespace-nowrap font-sans">NGÀNH HÀNG</h2>
                     <div className="flex items-center gap-2 text-slate-600">
                       <button
                         onClick={() => handleExport(catName, elementId)}
@@ -597,18 +597,18 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
                         {copiedCat === catName ? <Check size={10} /> : <span className="text-[12px] leading-none">@</span>}
                         {copiedCat === catName ? "ĐÃ COPY" : "TAG TÊN"}
                       </button>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">{catName}</span>
+                      <span className="text-[14px] font-black uppercase tracking-wider text-[#b91c1c]">{catName}</span>
                     </div>
                   </div>
                   <div className="p-4 flex flex-col items-center justify-center">
-                    <h2 className="text-xl font-black text-rose-600 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">TIẾN ĐỘ</h2>
+                    <h2 className="text-xl font-black text-rose-700 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center font-sans">TIẾN ĐỘ</h2>
                     <div className="flex items-center gap-2 text-slate-600">
                       {totalStaff > 0 && (reachedCount / totalStaff) > 0.5 ? (
                         <TrendingUp size={14} className="text-emerald-500" />
                       ) : (
                         <TrendingDown size={14} className="text-rose-500" />
                       )}
-                      <span className="text-[10px] font-black uppercase tracking-widest">
+                      <span className="text-[12px] font-black uppercase tracking-wide text-slate-800">
                         ĐẠT : {reachedCount}/{totalStaff} || TỶ LỆ : {totalStaff > 0 ? ((reachedCount / totalStaff) * 100).toFixed(1) : 0}%
                       </span>
                     </div>
@@ -619,11 +619,11 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
                   <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300 min-w-[600px]">
                     <thead>
                       <tr className="text-slate-900 h-[53px]">
-                        <th className="px-1 py-2.5 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
-                        <th className="px-2 py-2.5 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#10b981] w-[150px]">NHÂN VIÊN</th>
-                        <th className="px-1 py-2.5 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#facc15] w-[54px]">TARGET</th>
-                        <th className="px-1 py-2.5 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#facc15] w-[54px]">LUỸ KẾ</th>
-                        <th className="px-1 py-2.5 text-[14px] font-utm-avo font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#facc15] w-[54px]">%HT (DỰ KIẾN)</th>
+                        <th className="px-1 py-2.5 text-[14px] font-sans font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
+                        <th className="px-2 py-2.5 text-[14px] font-sans font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#10b981] w-[150px]">NHÂN VIÊN</th>
+                        <th className="px-1 py-2.5 text-[14px] font-sans font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#f97316] w-[54px]">TARGET</th>
+                        <th className="px-1 py-2.5 text-[14px] font-sans font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#f97316] w-[54px]">LUỸ KẾ</th>
+                        <th className="px-1 py-2.5 text-[14px] font-sans font-black uppercase tracking-tight text-center border-r border-b border-slate-300 bg-[#f97316] w-[54px]">%HT (DỰ KIẾN)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -634,21 +634,25 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
                             key={row.staffName}
                             className="hover:bg-slate-50 transition-colors h-[53px]"
                           >
-                            <td className="px-1 py-2.5 text-[15px] font-utm-avo font-black text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a] h-full">
+                            <td className="px-1 py-2.5 text-[15px] font-sans font-black text-slate-800 text-center border-r border-b border-slate-300 h-full">
                               {index + 1}
                             </td>
-                            <td className="px-2 py-2.5 text-[15px] font-utm-avo font-black uppercase border-r border-b border-slate-300 text-slate-700 truncate max-w-[150px] h-full">
+                            <td className="px-2 py-2.5 text-[15px] font-sans font-black uppercase border-r border-b border-slate-300 text-[#0055aa] truncate max-w-[150px] h-full">
                               {row.staffName}
                             </td>
-                            <td className="px-1 py-2.5 text-[15px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-slate-800 h-full">
+                            <td className="px-1 py-2.5 text-[15px] font-sans font-black text-center border-r border-b border-slate-300 text-slate-900 h-full">
                               {row.target.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
                             </td>
-                            <td className="px-1 py-2.5 text-[15px] font-utm-avo font-black text-center border-r border-b border-slate-300 text-emerald-700 h-full">
+                            <td className="px-1 py-2.5 text-[15px] font-sans font-black text-center border-r border-b border-slate-300 text-[#b91c1c] h-full">
                               {row.accumulated.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
                             </td>
                             <td className={cn(
-                              "px-1 py-2.5 text-[15px] font-utm-avo font-black text-center border-r border-b border-slate-300 h-full",
-                              roundedRate >= 100 ? "text-emerald-600" : roundedRate >= 50 ? "text-amber-600" : "text-rose-600"
+                              "px-1 py-2.5 text-[15px] font-sans font-black text-center border-r border-b border-slate-300 h-full",
+                              roundedRate >= 100 
+                                ? "text-[#15803d] bg-[#f0fdf4]" 
+                                : roundedRate >= 50 
+                                  ? "text-slate-800" 
+                                  : "text-[#dc2626]"
                             )}>
                               {roundedRate}%
                             </td>
