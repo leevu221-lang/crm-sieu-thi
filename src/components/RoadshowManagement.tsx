@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Plus, Trash2, Calendar, MapPin, Users, Megaphone, 
   Sparkles, Edit3, Save, X, FileText, Check, ArrowRight, 
   Flag, CalendarDays, ClipboardCheck, Loader2, Navigation,
-  Map, Eye, EyeOff, ClipboardList, Camera, Copy
+  Map, Eye, EyeOff, ClipboardList, Camera, Copy, Upload,
+  BarChart3, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebaseConfig';
@@ -11,6 +12,7 @@ import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { cn } from '../pages/RTST/utils';
 import * as htmlToImage from 'html-to-image';
 import { ImagePreviewModal } from './ImagePreviewModal';
+import * as XLSX from 'xlsx';
 
 interface RoadshowManagementProps {
   warehouseCode: string;
@@ -42,8 +44,8 @@ interface StaffShiftState {
 }
 
 export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehouseCode }) => {
-  // Tabs: 'PLANNER' (Sắp tuyến nhanh) | 'HISTORY' (Lịch trình & Bản đồ)
-  const [activeTab, setActiveTab] = useState<'PLANNER' | 'HISTORY'>('PLANNER');
+  // Tabs: 'PLANNER' (Sắp tuyến nhanh) | 'STATS' (Thống kê tháng) | 'HISTORY' (Lịch trình & Bản đồ)
+  const [activeTab, setActiveTab] = useState<'PLANNER' | 'STATS' | 'HISTORY'>('PLANNER');
   
   // History tab states
   const [plans, setPlans] = useState<RoadshowPlan[]>([]);
@@ -93,13 +95,14 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
   const [recentDates, setRecentDates] = useState<string[]>([]);
 
   const tableRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = (message: string, isSuccess: boolean) => {
     setToast({ message, isSuccess });
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Listen to Firestore real-time changes
+  // Listen to Firestore real-time changes for History Plans
   useEffect(() => {
     if (!warehouseCode) return;
     setLoading(true);
@@ -140,26 +143,66 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     updateRecentDatesList();
   }, [warehouseCode]);
 
-  // Handle switching dates or loading data for the selected date
+  // Listen to Firestore real-time changes for Planner Data (Master staff & Shift states)
   useEffect(() => {
     if (!warehouseCode || !plannerDate) return;
+    const docRef = doc(db, 'system_configs', `roadshow_planner_${warehouseCode}`);
 
-    // 1. Load Master Staff List
+    const unsub = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        
+        // 1. Sync master staff list
+        const dbMaster = data.masterStaff || [];
+        localStorage.setItem(`crm_roadshow_planner_master_staff_${warehouseCode}`, JSON.stringify(dbMaster));
+
+        // 2. Sync shifts for selected date
+        const dbShifts = data.shifts || {};
+        const dateShifts = dbShifts[plannerDate] || {};
+        localStorage.setItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`, JSON.stringify(dateShifts));
+
+        // 3. Sync configs for selected date
+        const dbConfigs = data.configs || {};
+        const dateConfigs = dbConfigs[plannerDate] || {};
+        localStorage.setItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`, JSON.stringify(dateConfigs));
+
+        // Map to active state
+        const mappedStaffList: StaffShiftState[] = dbMaster.map((name: string) => ({
+          name: name.toUpperCase(),
+          shift: dateShifts[name.toUpperCase()] || 'off'
+        }));
+        setStaffList(mappedStaffList);
+
+        setMorningTime(dateConfigs.morningTime || '7:00');
+        setAfternoonTime(dateConfigs.afternoonTime || '15:00');
+        setMorningRoute(dateConfigs.morningRoute || '');
+        setAfternoonRoute(dateConfigs.afternoonRoute || '');
+      } else {
+        // Fallback to local storage if Firestore document doesn't exist yet
+        loadPlannerFromLocalStorage();
+      }
+      updateRecentDatesList();
+    }, (error) => {
+      console.error('Error listening to planner data:', error);
+      loadPlannerFromLocalStorage();
+    });
+
+    return () => unsub();
+  }, [warehouseCode, plannerDate]);
+
+  const loadPlannerFromLocalStorage = () => {
     const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
     const masterNames: string[] = cachedMaster ? JSON.parse(cachedMaster) : [];
 
-    // 2. Load Shifts for this specific date
     const cachedShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`);
     const dateShifts: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = cachedShifts ? JSON.parse(cachedShifts) : {};
 
-    // Map master names to shift states for this date
     const mappedStaffList: StaffShiftState[] = masterNames.map(name => ({
       name: name.toUpperCase(),
-      shift: dateShifts[name.toUpperCase()] || 'off' // Default to 'off' so they can check ca for each date
+      shift: dateShifts[name.toUpperCase()] || 'off'
     }));
     setStaffList(mappedStaffList);
 
-    // 3. Load Configs (Routes, Times) for this specific date
     const cachedConfigs = localStorage.getItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`);
     if (cachedConfigs) {
       const configs = JSON.parse(cachedConfigs);
@@ -168,13 +211,12 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
       setMorningRoute(configs.morningRoute || '');
       setAfternoonRoute(configs.afternoonRoute || '');
     } else {
-      // Default placeholder states if no configs exist for this date
       setMorningTime('7:00');
       setAfternoonTime('15:00');
       setMorningRoute('');
       setAfternoonRoute('');
     }
-  }, [warehouseCode, plannerDate]);
+  };
 
   const updateRecentDatesList = () => {
     const prefix = `crm_roadshow_planner_shifts_${warehouseCode}_`;
@@ -188,9 +230,39 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         }
       }
     }
-    // Sort descending
     const sorted = dates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
     setRecentDates(sorted);
+  };
+
+  // Save planner data to Firestore to sync in real-time
+  const savePlannerDataToFirestore = async (
+    masterList?: string[], 
+    shiftsForDate?: Record<string, string>,
+    configsForDate?: Record<string, string>
+  ) => {
+    try {
+      const docRef = doc(db, 'system_configs', `roadshow_planner_${warehouseCode}`);
+      const docSnap = await getDoc(docRef);
+      const currentData = docSnap.exists() ? docSnap.data() : { masterStaff: [], shifts: {}, configs: {} };
+
+      const updatedMaster = masterList || currentData.masterStaff || [];
+      const updatedShifts = { ...currentData.shifts };
+      if (shiftsForDate) {
+        updatedShifts[plannerDate] = shiftsForDate;
+      }
+      const updatedConfigs = { ...currentData.configs };
+      if (configsForDate) {
+        updatedConfigs[plannerDate] = configsForDate;
+      }
+
+      await setDoc(docRef, {
+        masterStaff: updatedMaster,
+        shifts: updatedShifts,
+        configs: updatedConfigs
+      });
+    } catch (error) {
+      console.error('Error saving planner data to firestore:', error);
+    }
   };
 
   // Save checklist helper
@@ -212,7 +284,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     showToast('Đã làm mới danh sách kiểm tra!', true);
   };
 
-  // Load staff pasted list into Master Staff List
+  // Load staff pasted list into Master Staff List (Appends only)
   const handleLoadStaff = () => {
     const pastedNames = rawStaffInput
       .split('\n')
@@ -229,7 +301,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
     const currentMaster: string[] = cachedMaster ? JSON.parse(cachedMaster) : [];
 
-    // Filter out names that already exist to avoid duplicates
+    // Filter out duplicates
     const uniqueNewNames = pastedNames.filter(name => !currentMaster.includes(name));
 
     if (uniqueNewNames.length === 0) {
@@ -240,10 +312,10 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
 
     const updatedMaster = [...currentMaster, ...uniqueNewNames];
 
-    // 2. Save updated Master Staff List
+    // 2. Save local
     localStorage.setItem(`crm_roadshow_planner_master_staff_${warehouseCode}`, JSON.stringify(updatedMaster));
 
-    // 3. Set current date shifts (load shifts or default to 'off' for new ones)
+    // 3. Save current date shifts
     const cachedShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`);
     const dateShifts: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = cachedShifts ? JSON.parse(cachedShifts) : {};
 
@@ -254,32 +326,155 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
 
     setStaffList(newStaffList);
     setRawStaffInput('');
+
+    // Sync Firestore
+    savePlannerDataToFirestore(updatedMaster, dateShifts);
+
     showToast(`Đã nạp thêm ${uniqueNewNames.length} nhân viên mới vào danh sách!`, true);
     updateRecentDatesList();
   };
 
-  // Delete individual staff member
-  const handleDeleteIndividualStaff = (nameToDelete: string) => {
-    const upperName = nameToDelete.toUpperCase();
-    
-    // 1. Remove from Master List
-    const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
-    const currentMaster: string[] = cachedMaster ? JSON.parse(cachedMaster) : [];
-    const updatedMaster = currentMaster.filter(name => name !== upperName);
-    localStorage.setItem(`crm_roadshow_planner_master_staff_${warehouseCode}`, JSON.stringify(updatedMaster));
+  // Import from Excel file
+  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    // 2. Remove from shifts for current date
-    const cachedShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`);
-    const dateShifts: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = cachedShifts ? JSON.parse(cachedShifts) : {};
-    delete dateShifts[upperName];
-    localStorage.setItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`, JSON.stringify(dateShifts));
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        
+        // Convert sheet to 2D array
+        const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        if (rows.length === 0) {
+          showToast('File Excel trống!', false);
+          return;
+        }
 
-    // 3. Update active state list
-    const updatedStaffList = staffList.filter(s => s.name !== upperName);
-    setStaffList(updatedStaffList);
-    
-    showToast(`Đã xoá nhân sự ${upperName} khỏi danh sách!`, true);
-    updateRecentDatesList();
+        // Find header row indices and column indices
+        let headerRowIndex = -1;
+        let nameColIndex = -1;
+        let dayColIndex = -1;
+
+        // Day of month: e.g. "2026-08-09" -> day "9"
+        const targetDayNum = parseInt(plannerDate.split('-')[2], 10);
+        
+        // 1. Scan rows to find headers
+        for (let r = 0; r < Math.min(rows.length, 12); r++) {
+          const row = rows[r];
+          if (!row) continue;
+
+          let hasNameHeader = false;
+          let hasDateHeader = false;
+
+          for (let c = 0; c < row.length; c++) {
+            const val = String(row[c] || '').toLowerCase().trim();
+            if (val === 'stt' || val.includes('tên') || val.includes('ten') || val.includes('nhân viên') || val.includes('nhan vien') || val.includes('họ tên') || val.includes('ho ten') || val.includes('mã nv')) {
+              hasNameHeader = true;
+            }
+            const cellNum = parseInt(val, 10);
+            if (cellNum === targetDayNum || val === String(targetDayNum) || val === `0${targetDayNum}`) {
+              hasDateHeader = true;
+            }
+          }
+
+          if (hasNameHeader && hasDateHeader) {
+            headerRowIndex = r;
+            break;
+          }
+        }
+
+        if (headerRowIndex === -1) {
+          headerRowIndex = 0; // fallback to first row
+        }
+
+        const headers = rows[headerRowIndex] || [];
+        
+        // 2. Identify column index matching employee name and day of month
+        for (let c = 0; c < headers.length; c++) {
+          const val = String(headers[c] || '').toLowerCase().trim();
+          if (val.includes('tên') || val.includes('ten') || val.includes('nhân viên') || val.includes('nhan vien') || val.includes('họ tên') || val.includes('ho ten')) {
+            nameColIndex = c;
+          }
+          const cellNum = parseInt(val, 10);
+          if (cellNum === targetDayNum || val === String(targetDayNum) || val === `0${targetDayNum}`) {
+            dayColIndex = c;
+          }
+        }
+
+        if (nameColIndex === -1) {
+          nameColIndex = headers.length > 2 ? 2 : (headers.length > 1 ? 1 : 0);
+        }
+        if (dayColIndex === -1) {
+          showToast(`Không tự động tìm thấy cột ngày ${targetDayNum} trong file Excel!`, false);
+          return;
+        }
+
+        // 3. Load Master and Shift map
+        const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
+        const currentMaster: string[] = cachedMaster ? JSON.parse(cachedMaster) : [];
+        const shiftMap: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = {};
+
+        for (let r = headerRowIndex + 1; r < rows.length; r++) {
+          const row = rows[r];
+          if (!row || !row[nameColIndex]) continue;
+
+          const rawName = String(row[nameColIndex]).trim().toUpperCase();
+          if (rawName === 'STT' || rawName.includes('CỘNG') || rawName.includes('TỔNG') || rawName.includes('THỜI GIAN') || rawName === 'NHÂN VIÊN') {
+            continue; // Skip summaries
+          }
+
+          const rawShiftVal = String(row[dayColIndex] || '').toLowerCase().trim();
+          let shift: 'sang' | 'chieu' | 'off' | 'dup' = 'off';
+
+          // Mapping rules: Ca 1,2,3 -> SÁNG, Ca 4,5 -> CHIỀU
+          if (rawShiftVal.includes('1') || rawShiftVal.includes('2') || rawShiftVal.includes('3') || 
+              rawShiftVal === 'c1' || rawShiftVal === 'c2' || rawShiftVal === 'c3' ||
+              rawShiftVal.includes('sáng') || rawShiftVal.includes('sang')) {
+            shift = 'sang';
+          } else if (rawShiftVal.includes('4') || rawShiftVal.includes('5') || 
+                     rawShiftVal === 'c4' || rawShiftVal === 'c5' ||
+                     rawShiftVal.includes('chiều') || rawShiftVal.includes('chieu')) {
+            shift = 'chieu';
+          }
+
+          if (!currentMaster.includes(rawName)) {
+            currentMaster.push(rawName);
+          }
+          shiftMap[rawName] = shift;
+        }
+
+        if (currentMaster.length === 0) {
+          showToast('Không đọc được nhân sự nào từ file Excel!', false);
+          return;
+        }
+
+        // Save local
+        localStorage.setItem(`crm_roadshow_planner_master_staff_${warehouseCode}`, JSON.stringify(currentMaster));
+        localStorage.setItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`, JSON.stringify(shiftMap));
+
+        // Sync Firestore
+        savePlannerDataToFirestore(currentMaster, shiftMap);
+
+        // Update states
+        const mappedStaffList: StaffShiftState[] = currentMaster.map(name => ({
+          name,
+          shift: shiftMap[name] || 'off'
+        }));
+        setStaffList(mappedStaffList);
+
+        showToast(`Nhập và tự động phân ca ngày ${targetDayNum} từ Excel thành công!`, true);
+        updateRecentDatesList();
+      } catch (err) {
+        console.error('Error reading excel:', err);
+        showToast('Lỗi đọc file Excel!', false);
+      }
+      e.target.value = ''; // reset
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   // Update employee shift and save specifically for the selected date
@@ -288,31 +483,63 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     updated[index].shift = shift;
     setStaffList(updated);
 
-    // Save date-specific shifts
     const shiftMap: Record<string, string> = {};
     updated.forEach(s => {
       shiftMap[s.name] = s.shift;
     });
     localStorage.setItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`, JSON.stringify(shiftMap));
+    
+    // Sync Firestore
+    savePlannerDataToFirestore(undefined, shiftMap);
     updateRecentDatesList();
   };
 
-  // Clear planner list (removes master list and date shifts)
+  // Delete individual staff member
+  const handleDeleteIndividualStaff = (nameToDelete: string) => {
+    const upperName = nameToDelete.toUpperCase();
+    
+    const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
+    const currentMaster: string[] = cachedMaster ? JSON.parse(cachedMaster) : [];
+    const updatedMaster = currentMaster.filter(name => name !== upperName);
+    localStorage.setItem(`crm_roadshow_planner_master_staff_${warehouseCode}`, JSON.stringify(updatedMaster));
+
+    const cachedShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`);
+    const dateShifts: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = cachedShifts ? JSON.parse(cachedShifts) : {};
+    delete dateShifts[upperName];
+    localStorage.setItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`, JSON.stringify(dateShifts));
+
+    const updatedStaffList = staffList.filter(s => s.name !== upperName);
+    setStaffList(updatedStaffList);
+    
+    // Sync Firestore
+    savePlannerDataToFirestore(updatedMaster, dateShifts);
+    
+    showToast(`Đã xoá nhân sự ${upperName} khỏi danh sách!`, true);
+    updateRecentDatesList();
+  };
+
+  // Clear planner list
   const handleClearPlanner = () => {
     if (!window.confirm('Bạn có chắc chắn muốn xoá danh sách nhân sự hiện tại?')) return;
     setStaffList([]);
     localStorage.removeItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
     localStorage.removeItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`);
+    
+    // Sync Firestore
+    savePlannerDataToFirestore([], {});
     showToast('Đã xoá danh sách nhân sự!', true);
     updateRecentDatesList();
   };
 
   // Save planner route/time configs keyed by selected date
-  const savePlannerConfigs = (key: string, value: string) => {
+  const handleSavePlannerConfigs = (key: string, value: string) => {
     const cachedConfigs = localStorage.getItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`);
     const current = cachedConfigs ? JSON.parse(cachedConfigs) : {};
     current[key] = value;
     localStorage.setItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`, JSON.stringify(current));
+
+    // Sync Firestore
+    savePlannerDataToFirestore(undefined, undefined, current);
   };
 
   // Copy plan from another date
@@ -322,13 +549,12 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
       return;
     }
 
-    // 1. Copy shift state
     const cachedShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${copySourceDate}`);
+    const dateShifts = cachedShifts ? JSON.parse(cachedShifts) : {};
     if (cachedShifts) {
       localStorage.setItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`, cachedShifts);
       
       const masterNames = staffList.map(s => s.name);
-      const dateShifts = JSON.parse(cachedShifts);
       const mapped = masterNames.map(name => ({
         name,
         shift: dateShifts[name] || 'off'
@@ -336,21 +562,89 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
       setStaffList(mapped);
     }
 
-    // 2. Copy configs (Time/Routes)
     const cachedConfigs = localStorage.getItem(`crm_roadshow_planner_configs_${warehouseCode}_${copySourceDate}`);
+    const configs = cachedConfigs ? JSON.parse(cachedConfigs) : {};
     if (cachedConfigs) {
       localStorage.setItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`, cachedConfigs);
-      const configs = JSON.parse(cachedConfigs);
       setMorningTime(configs.morningTime || '7:00');
       setAfternoonTime(configs.afternoonTime || '15:00');
       setMorningRoute(configs.morningRoute || '');
       setAfternoonRoute(configs.afternoonRoute || '');
     }
 
+    // Sync Firestore
+    savePlannerDataToFirestore(undefined, dateShifts, configs);
+
     showToast(`Đã sao chép lịch chạy từ ngày ${copySourceDate}!`, true);
   };
 
-  // Filter staff by shifts (ĐÚP and OFF will not be displayed on the roadshow table)
+  // Compute monthly statistics dynamically
+  const monthlyStats = useMemo(() => {
+    if (!plannerDate || staffList.length === 0) return [];
+    
+    const yearMonth = plannerDate.substring(0, 7); // e.g. "2026-08"
+    const prefix = `crm_roadshow_planner_shifts_${warehouseCode}_`;
+    const allShifts: Record<string, Record<string, string>> = {};
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(prefix)) {
+        const datePart = key.replace(prefix, '');
+        if (datePart.startsWith(yearMonth)) {
+          try {
+            allShifts[datePart] = JSON.parse(localStorage.getItem(key) || '{}');
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+    }
+
+    const uniqueDates = Object.keys(allShifts);
+    
+    return staffList.map(staff => {
+      let runCount = 0;
+      let offCount = 0;
+
+      uniqueDates.forEach(date => {
+        const dayShifts = allShifts[date] || {};
+        const shiftVal = dayShifts[staff.name] || 'off';
+        
+        if (shiftVal === 'sang' || shiftVal === 'chieu' || shiftVal === 'dup') {
+          runCount++;
+        } else {
+          offCount++;
+        }
+      });
+
+      const totalDays = runCount + offCount;
+      const rate = totalDays > 0 ? Math.round((runCount / totalDays) * 100) : 0;
+
+      return {
+        name: staff.name,
+        runCount,
+        offCount,
+        rate
+      };
+    }).sort((a, b) => a.runCount - b.runCount); // Sort ascending (least runs first)
+  }, [plannerDate, staffList, warehouseCode]);
+
+  const handleCopyStatsText = () => {
+    if (monthlyStats.length === 0) return;
+    const yearMonth = plannerDate.substring(0, 7);
+    const formattedMonth = `${yearMonth.split('-')[1]}/${yearMonth.split('-')[0]}`;
+    
+    let text = `📊 THỐNG KÊ TẦN SUẤT CHẠY ROADSHOW THÁNG ${formattedMonth}\n`;
+    text += `(Sắp xếp theo thứ tự ưu tiên phân công: từ ít chạy nhất đến nhiều nhất)\n\n`;
+    monthlyStats.forEach((s, idx) => {
+      text += `${idx + 1}. ${s.name}: ${s.runCount} lần chạy | ${s.offCount} lần off (Tỷ lệ: ${s.rate}%)\n`;
+    });
+
+    navigator.clipboard.writeText(text);
+    showToast('Đã sao chép bảng thống kê vào bộ nhớ tạm!', true);
+  };
+
+  // Filter staff by shifts
   const morningStaff = staffList.filter(s => s.shift === 'sang');
   const afternoonStaff = staffList.filter(s => s.shift === 'chieu');
 
@@ -364,36 +658,8 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     return dateStr;
   };
 
-  // Capture table image
-  const handleCaptureTable = async () => {
-    if (tableRef.current) {
-      setIsCapturing(true);
-      try {
-        await new Promise(r => setTimeout(r, 200)); // Wait for render
-        const dataUrl = await htmlToImage.toPng(tableRef.current, {
-          backgroundColor: '#ffffff',
-          pixelRatio: 2,
-          style: {
-            padding: '24px',
-            borderRadius: '16px',
-            width: '680px',
-            margin: '0'
-          }
-        });
-        setPreviewImage(dataUrl);
-      } catch (err) {
-        console.error('Error capturing table image:', err);
-        showToast('Chụp ảnh bảng thất bại!', false);
-      } finally {
-        setIsCapturing(false);
-      }
-    } else {
-      showToast('Không tìm thấy bảng để chụp ảnh!', false);
-    }
-  };
-
-  // Apply template to History form
-  const applyTemplate = (type: 1 | 2 | 3) => {
+  // History apply template
+  const handleApplyHistoryTemplate = (type: 1 | 2 | 3) => {
     if (type === 1) {
       setTitle('Roadshow Giờ Vàng - Chợ Huyện & Dân Cư');
       setTimeRange('08:00 - 10:30');
@@ -462,31 +728,6 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     }
   };
 
-  const handleDeletePlan = async (id: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xoá lịch trình chạy Roadshow này?')) return;
-    
-    try {
-      const docRef = doc(db, 'system_configs', 'roadshow_schedules');
-      const updatedPlans = plans.filter(p => p.id !== id);
-
-      const docSnap = await getDoc(docRef);
-      const currentData = docSnap.exists() ? docSnap.data() : {};
-      currentData[warehouseCode] = updatedPlans;
-
-      await setDoc(docRef, currentData);
-      setPlans(updatedPlans);
-      localStorage.setItem(`crm_roadshows_${warehouseCode}`, JSON.stringify(updatedPlans));
-      showToast('Đã xoá lịch trình chạy thành công!', true);
-    } catch (error) {
-      console.error('Delete plan failed:', error);
-      showToast('Xoá lịch trình thất bại!', false);
-    }
-  };
-
-  const toggleMapVisibility = (id: string) => {
-    setOpenMapIds(prev => ({ ...prev, [id]: !prev[id] }));
-  };
-
   // Helper to parse route nodes: split by "->", "-->", "➔"
   const parseRouteNodes = (routeStr: string) => {
     if (!routeStr) return [];
@@ -537,6 +778,17 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
           Sắp Tuyến Nhanh (Bảng Ảnh)
         </button>
         <button
+          onClick={() => setActiveTab('STATS')}
+          className={cn(
+            "pb-3 text-sm font-black uppercase tracking-wider border-b-2 transition-all px-2",
+            activeTab === 'STATS' 
+              ? "border-indigo-600 text-indigo-600" 
+              : "border-transparent text-slate-500 hover:text-slate-700"
+          )}
+        >
+          Thống Kê Tần Suất Chạy
+        </button>
+        <button
           onClick={() => setActiveTab('HISTORY')}
           className={cn(
             "pb-3 text-sm font-black uppercase tracking-wider border-b-2 transition-all px-2",
@@ -545,7 +797,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
               : "border-transparent text-slate-500 hover:text-slate-700"
           )}
         >
-          Quản Lý Lịch Trình & Bản Đồ Vệ Tinh
+          Lịch Trình & Bản Đồ Vệ Tinh
         </button>
       </div>
 
@@ -575,14 +827,31 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                   <div className="flex gap-2">
                     <button
                       onClick={handleLoadStaff}
-                      className="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                      className="flex-1 py-2 px-3 bg-indigo-65 hover:bg-indigo-700 text-indigo-700 hover:text-indigo-900 border border-indigo-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
                     >
-                      NẠP DANH SÁCH
+                      NẠP THÊM NV
                     </button>
+                    
+                    {/* Excel Upload trigger */}
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1"
+                    >
+                      <Upload size={12} />
+                      EXCEL PHÂN CA
+                    </button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleExcelUpload}
+                      accept=".xlsx, .xls"
+                      className="hidden"
+                    />
+
                     {staffList.length > 0 && (
                       <button
                         onClick={handleClearPlanner}
-                        className="py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                        className="py-2 px-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
                       >
                         XOÁ HẾT
                       </button>
@@ -644,7 +913,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                         value={morningTime}
                         onChange={(e) => {
                           setMorningTime(e.target.value);
-                          savePlannerConfigs('morningTime', e.target.value);
+                          handleSavePlannerConfigs('morningTime', e.target.value);
                         }}
                         className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
@@ -656,7 +925,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                         value={afternoonTime}
                         onChange={(e) => {
                           setAfternoonTime(e.target.value);
-                          savePlannerConfigs('afternoonTime', e.target.value);
+                          handleSavePlannerConfigs('afternoonTime', e.target.value);
                         }}
                         className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
@@ -793,7 +1062,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                                         value={morningRoute}
                                         onChange={(e) => {
                                           setMorningRoute(e.target.value);
-                                          savePlannerConfigs('morningRoute', e.target.value);
+                                          handleSavePlannerConfigs('morningRoute', e.target.value);
                                         }}
                                         className="w-full h-full border-0 bg-transparent resize-none focus:outline-none p-1 font-utm-avo font-black text-black leading-relaxed"
                                         placeholder="Nhập tuyến đường ca sáng..."
@@ -848,7 +1117,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                                         value={afternoonRoute}
                                         onChange={(e) => {
                                           setAfternoonRoute(e.target.value);
-                                          savePlannerConfigs('afternoonRoute', e.target.value);
+                                          handleSavePlannerConfigs('afternoonRoute', e.target.value);
                                         }}
                                         className="w-full h-full border-0 bg-transparent resize-none focus:outline-none p-1 font-utm-avo font-black text-black leading-relaxed"
                                         placeholder="Nhập tuyến đường ca chiều..."
@@ -872,6 +1141,94 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         </div>
       )}
 
+      {/* RENDER STATS TAB */}
+      {activeTab === 'STATS' && (
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="text-base font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                <BarChart3 size={20} className="text-indigo-600" />
+                Thống Kê Tần Suất Tham Gia Roadshow ({plannerDate.substring(5, 7)}/{plannerDate.substring(0, 4)})
+              </h3>
+              <p className="text-slate-400 text-xs font-semibold mt-0.5">
+                Nhân sự được sắp xếp ưu tiên từ ít chạy nhất (trên cùng) đến nhiều nhất để phân bổ lịch chạy đồng đều.
+              </p>
+            </div>
+            
+            <button
+              onClick={handleCopyStatsText}
+              disabled={monthlyStats.length === 0}
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm"
+            >
+              <Copy size={14} />
+              SAO CHÉP THỐNG KÊ
+            </button>
+          </div>
+
+          {monthlyStats.length === 0 ? (
+            <div className="py-20 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              <p className="text-slate-400 text-xs font-black uppercase">Chưa có dữ liệu thống kê tháng này</p>
+              <p className="text-slate-400/80 text-[11px] mt-1 font-bold">Lập lịch phân ca các ngày trong tháng để hệ thống tự động tổng hợp tần suất.</p>
+            </div>
+          ) : (
+            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+              <table className="w-full border-collapse bg-white">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 h-[45px]">
+                    <th className="px-4 py-2 text-center text-xs font-black text-slate-500 uppercase w-16">STT</th>
+                    <th className="px-6 py-2 text-left text-xs font-black text-slate-500 uppercase">NHÂN VIÊN</th>
+                    <th className="px-6 py-2 text-center text-xs font-black text-slate-500 uppercase w-40">SỐ LẦN CHẠY</th>
+                    <th className="px-6 py-2 text-center text-xs font-black text-slate-500 uppercase w-40">SỐ LẦN OFF</th>
+                    <th className="px-6 py-2 text-center text-xs font-black text-slate-500 uppercase w-40">TỶ LỆ CHẠY (%)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyStats.map((stat, idx) => (
+                    <tr 
+                      key={stat.name} 
+                      className={cn(
+                        "h-[48px] hover:bg-slate-50/50 transition-all border-b border-slate-100",
+                        stat.runCount === 0 ? "bg-rose-50/20" : ""
+                      )}
+                    >
+                      <td className="px-4 py-2 text-center text-xs font-bold text-slate-400">
+                        {idx + 1}
+                      </td>
+                      <td className="px-6 py-2 text-left text-sm font-black text-slate-800 uppercase flex items-center gap-2">
+                        {stat.name}
+                        {stat.runCount === 0 && (
+                          <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-700 text-[9px] font-black uppercase tracking-wider animate-pulse">Chưa chạy lần nào</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-2 text-center text-sm font-black text-indigo-600">
+                        {stat.runCount}
+                      </td>
+                      <td className="px-6 py-2 text-center text-sm font-bold text-slate-500">
+                        {stat.offCount}
+                      </td>
+                      <td className="px-6 py-2 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-16 bg-slate-100 h-2 rounded-full overflow-hidden">
+                            <div 
+                              className={cn(
+                                "h-full rounded-full",
+                                stat.rate > 60 ? "bg-indigo-600" : stat.rate > 30 ? "bg-amber-400" : "bg-rose-500"
+                              )} 
+                              style={{ width: `${stat.rate}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-black text-slate-700">{stat.rate}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* RENDER HISTORY & MAPS TAB */}
       {activeTab === 'HISTORY' && (
         <div className="space-y-6">
@@ -889,7 +1246,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
               <button 
-                onClick={() => applyTemplate(1)}
+                onClick={() => handleApplyHistoryTemplate(1)}
                 className="bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/10 rounded-2xl p-4 text-left transition-all hover:scale-[1.02] flex flex-col justify-between h-36"
               >
                 <div>
@@ -903,7 +1260,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
               </button>
 
               <button 
-                onClick={() => applyTemplate(2)}
+                onClick={() => handleApplyHistoryTemplate(2)}
                 className="bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/10 rounded-2xl p-4 text-left transition-all hover:scale-[1.02] flex flex-col justify-between h-36"
               >
                 <div>
@@ -917,7 +1274,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
               </button>
 
               <button 
-                onClick={() => applyTemplate(3)}
+                onClick={() => handleApplyHistoryTemplate(3)}
                 className="bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/10 rounded-2xl p-4 text-left transition-all hover:scale-[1.02] flex flex-col justify-between h-36"
               >
                 <div>
