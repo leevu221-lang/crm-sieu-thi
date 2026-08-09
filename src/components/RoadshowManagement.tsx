@@ -410,18 +410,30 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         let nameColIndex = -1;
         let dayColIndex = -1;
 
-        // 2. Identify date column index from the first row (row index 0)
+        // 2. Scan row 0 to map column indices to their corresponding date string (handling merged cells)
+        const colDateMap: string[] = [];
+        let currentActiveDate = '';
+
         const row0 = rows[0] || [];
         for (let c = 0; c < row0.length; c++) {
           const val = getCleanCellValue(row0[c]);
+          if (val && (val.includes('(') || val.includes('/') || val.match(/\d/))) {
+            currentActiveDate = val;
+          }
+          colDateMap[c] = currentActiveDate;
+        }
+
+        // Find all columns matching target date
+        const targetColIndices: number[] = [];
+        for (let c = 0; c < colDateMap.length; c++) {
+          const val = colDateMap[c] || '';
           if (
             val.includes(suffixWithZero) || 
             val.includes(suffixNoZero) || 
             val.includes(rawDateWithZero) || 
             val.includes(rawDateNoZero)
           ) {
-            dayColIndex = c;
-            break;
+            targetColIndices.push(c);
           }
         }
 
@@ -447,10 +459,29 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         if (nameColIndex === -1) {
           nameColIndex = row0.length > 2 ? 2 : (row0.length > 1 ? 1 : 0);
         }
-        if (dayColIndex === -1) {
+        if (targetColIndices.length === 0) {
           showToast(`Không tìm thấy cột ngày ${dayStr}/${monthStr} (ví dụ: CN (${dayStr}/${monthStr})) ở dòng đầu tiên của Excel!`, false);
           return;
         }
+
+        // Map column indices to Sáng and Chiều based on Ca headers in row 1
+        const morningCols: number[] = [];
+        const afternoonCols: number[] = [];
+
+        targetColIndices.forEach(c => {
+          const subHeader = String(rows[1]?.[c] || '').toLowerCase().trim();
+          if (
+            subHeader.includes('1') || subHeader.includes('2') || subHeader.includes('3') ||
+            subHeader.includes('sáng') || subHeader.includes('sang')
+          ) {
+            morningCols.push(c);
+          } else if (
+            subHeader.includes('4') || subHeader.includes('5') ||
+            subHeader.includes('chiều') || subHeader.includes('chieu')
+          ) {
+            afternoonCols.push(c);
+          }
+        });
 
         // 4. Load Master and Shift map
         let currentMaster: string[] = [];
@@ -466,8 +497,8 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         
         const shiftMap: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = {};
 
-        // Parse data rows (start from index 1 since row 0 is date headers)
-        for (let r = 1; r < rows.length; r++) {
+        // Parse data rows (start from index 2 since row 0 is date headers and row 1 is ca headers)
+        for (let r = 2; r < rows.length; r++) {
           const row = rows[r];
           if (!row || !row[nameColIndex]) continue;
 
@@ -475,26 +506,34 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
           if (
             rawName === 'STT' || rawName.includes('CỘNG') || rawName.includes('TỔNG') || 
             rawName.includes('THỜI GIAN') || rawName === 'NHÂN VIÊN' || rawName === 'HỌ TÊN' ||
-            rawName === 'HO TEN' || rawName === 'TÊN NV' || rawName === 'NAME'
+            rawName === 'HO TEN' || rawName === 'TÊN NV' || rawName === 'NAME' || rawName === 'HỌ VÀ TÊN' ||
+            rawName === 'HỌTÊN' || rawName === 'BỘ PHẬN' || rawName === 'BO PHAN'
           ) {
             continue;
           }
 
-          const rawShiftVal = String(row[dayColIndex] || '').toLowerCase().trim();
-          let shift: 'sang' | 'chieu' | 'off' | 'dup' = 'off';
+          let hasMorningShift = false;
+          morningCols.forEach(c => {
+            const cellVal = String(row[c] || '').trim();
+            if (cellVal && cellVal !== '0') {
+              hasMorningShift = true;
+            }
+          });
 
-          // Mapping rules: Ca 1,2,3 -> SÁNG, Ca 4,5 -> CHIỀU
-          if (
-            rawShiftVal.includes('1') || rawShiftVal.includes('2') || rawShiftVal.includes('3') || 
-            rawShiftVal === 'c1' || rawShiftVal === 'c2' || rawShiftVal === 'c3' ||
-            rawShiftVal.includes('sáng') || rawShiftVal.includes('sang')
-          ) {
+          let hasAfternoonShift = false;
+          afternoonCols.forEach(c => {
+            const cellVal = String(row[c] || '').trim();
+            if (cellVal && cellVal !== '0') {
+              hasAfternoonShift = true;
+            }
+          });
+
+          let shift: 'sang' | 'chieu' | 'off' | 'dup' = 'off';
+          if (hasMorningShift && hasAfternoonShift) {
+            shift = 'dup';
+          } else if (hasMorningShift) {
             shift = 'sang';
-          } else if (
-            rawShiftVal.includes('4') || rawShiftVal.includes('5') || 
-            rawShiftVal === 'c4' || rawShiftVal === 'c5' ||
-            rawShiftVal.includes('chiều') || rawShiftVal.includes('chieu')
-          ) {
+          } else if (hasAfternoonShift) {
             shift = 'chieu';
           }
 
