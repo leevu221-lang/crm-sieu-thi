@@ -308,12 +308,19 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     });
 
     // Set clone styling to take full layout unconstrained
-    clone.style.width = 'max-content';
+    if (element.id === 'all-categories-container') {
+      clone.style.width = selectedCategories.length > 1 ? '1600px' : '800px';
+      clone.style.display = 'grid'; // Ensure grid layout is preserved
+      clone.style.gridTemplateColumns = selectedCategories.length > 1 ? 'repeat(2, minmax(0, 1fr))' : '1fr';
+      clone.style.gap = '20px';
+    } else {
+      clone.style.width = 'max-content';
+      clone.style.display = 'inline-block';
+    }
     clone.style.height = 'auto';
     clone.style.margin = '0';
     clone.style.padding = '32px'; // Nice margin around the captured image
     clone.style.backgroundColor = '#ffffff';
-    clone.style.display = 'inline-block';
     clone.style.borderRadius = '32px'; // Round corners like target container
 
     // Make sure overflow wrappers in the clone are visible
@@ -382,20 +389,12 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   const handleExportAll = async () => {
     if (selectedCategories.length === 0) return;
     setIsCapturingAll(true);
-    const zip = new JSZip();
-
     try {
-      for (const catName of selectedCategories) {
-        const elementId = `cat-detail-${catName.replace(/\s+/g, '-')}`;
-        const element = document.getElementById(elementId);
-        if (element) {
-          const dataUrl = await captureElementHelper(element);
-          const base64Data = dataUrl.split(',')[1];
-          zip.file(`ChiTietNH_${catName.replace(/\s+/g, '_')}.png`, base64Data, { base64: true });
-        }
+      const element = document.getElementById('all-categories-container');
+      if (element) {
+        const dataUrl = await captureElementHelper(element);
+        setPreviewImage(dataUrl);
       }
-      const content = await zip.generateAsync({ type: "blob" });
-      saveAs(content, `BaoCao_NganhHang_${new Date().getTime()}.zip`);
     } catch (err) {
       console.error('Export all failed:', err);
     } finally {
@@ -543,7 +542,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
       </div>
 
       {/* Tables Section */}
-      <div className={cn(selectedCategories.length > 0 ? "grid grid-cols-1 md:grid-cols-2 gap-5" : "space-y-5")}>
+      <div id="all-categories-container" className={cn(selectedCategories.length > 0 ? "grid grid-cols-1 md:grid-cols-2 gap-5" : "space-y-5")}>
         {selectedCategories.length > 0 ? (
           selectedCategories.map((catName) => {
             const catIdx = categories.findIndex(c => cleanCategoryName(c) === cleanCategoryName(catName));
