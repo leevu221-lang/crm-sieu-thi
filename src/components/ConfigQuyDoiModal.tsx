@@ -354,14 +354,17 @@ export const ConfigQuyDoiModal: React.FC<ConfigQuyDoiModalProps> = ({ isOpen, on
                           />
                         </td>
                         <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={newForm.heSo}
-                            onChange={(e) => setNewForm(prev => ({ ...prev, heSo: parseFloat(e.target.value) || 0 }))}
-                            placeholder="Hệ số..."
-                            className="w-full p-1.5 border border-slate-200 rounded bg-white font-bold text-center text-slate-800"
-                          />
+                          <div className="relative flex items-center justify-center">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={newForm.heSo}
+                              onChange={(e) => setNewForm(prev => ({ ...prev, heSo: parseFloat(e.target.value) || 0 }))}
+                              placeholder="Hệ số..."
+                              className="w-full p-1.5 pr-6 border border-slate-200 rounded bg-white font-bold text-center text-slate-800"
+                            />
+                            <span className="absolute right-2 text-slate-400 font-bold select-none">%</span>
+                          </div>
                         </td>
                         <td className="px-3 py-2">
                           <input
@@ -411,13 +414,16 @@ export const ConfigQuyDoiModal: React.FC<ConfigQuyDoiModalProps> = ({ isOpen, on
                                   />
                                 </td>
                                 <td className="px-3 py-2">
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    value={editForm.heSo}
-                                    onChange={(e) => setEditForm(prev => ({ ...prev, heSo: parseFloat(e.target.value) || 0 }))}
-                                    className="w-full p-1.5 border border-slate-300 rounded bg-white font-bold text-center text-slate-800"
-                                  />
+                                  <div className="relative flex items-center justify-center">
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={editForm.heSo}
+                                      onChange={(e) => setEditForm(prev => ({ ...prev, heSo: parseFloat(e.target.value) || 0 }))}
+                                      className="w-full p-1.5 pr-6 border border-slate-300 rounded bg-white font-bold text-center text-slate-800"
+                                    />
+                                    <span className="absolute right-2 text-slate-400 font-bold select-none">%</span>
+                                  </div>
                                 </td>
                                 <td className="px-3 py-2">
                                   <input
@@ -447,7 +453,7 @@ export const ConfigQuyDoiModal: React.FC<ConfigQuyDoiModalProps> = ({ isOpen, on
                                   {rule.nhomHang || <span className="text-slate-300 font-normal">TẤT CẢ NHÓM HÀNG</span>}
                                 </td>
                                 <td className="px-4 py-3 text-center text-indigo-600 font-extrabold text-[13px] bg-slate-50/20">
-                                  {rule.heSo.toFixed(2)}
+                                  {rule.heSo}%
                                 </td>
                                 <td className="px-4 py-3 text-slate-500">
                                   {rule.note || <span className="text-slate-300">-</span>}
