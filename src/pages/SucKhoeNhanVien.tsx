@@ -685,6 +685,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   };
 
   const captureSingleEmployeeCard = async (element: HTMLElement): Promise<Blob | string> => {
+    const __tag = element.id.replace('employee-detail-', '') || '?';
+    const __t0 = performance.now();
     const tempContainer = document.createElement('div');
     tempContainer.style.position = 'absolute';
     tempContainer.style.top = '-9999px';
@@ -793,6 +795,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       }
     });
 
+    const __tPrep = performance.now();
     frameWrapper.appendChild(clone);
     tempContainer.appendChild(frameWrapper);
     document.body.appendChild(tempContainer);
@@ -805,6 +808,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       // already proven correct for this exact DOM). Try it FIRST; html2canvas
       // becomes the last-resort fallback for the rare case both fast paths fail.
       try {
+        const __t1 = performance.now();
         const dataUrl = await domToPng(frameWrapper, {
           backgroundColor: '#ffffff',
           scale: 2,
@@ -812,22 +816,26 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
           width: 1120,
           height: frameWrapper.scrollHeight,
         });
+        console.log(`[Export ${__tag}] prep=${(__tPrep - __t0).toFixed(0)}ms domToPng=${(performance.now() - __t1).toFixed(0)}ms total=${(performance.now() - __t0).toFixed(0)}ms`);
         return dataUrl;
       } catch (domErr) {
-        console.warn('domToPng failed, fallback to htmlToImage:', domErr);
+        console.warn(`[Export ${__tag}] domToPng failed after ${(performance.now() - __tPrep).toFixed(0)}ms, fallback to htmlToImage:`, domErr);
       }
 
       try {
+        const __t2 = performance.now();
         const dataUrl = await htmlToImage.toPng(frameWrapper, {
           backgroundColor: '#ffffff',
           pixelRatio: 2,
           style: { ...EXPORT_FONT_STYLE },
         });
+        console.log(`[Export ${__tag}] prep=${(__tPrep - __t0).toFixed(0)}ms htmlToImage=${(performance.now() - __t2).toFixed(0)}ms total=${(performance.now() - __t0).toFixed(0)}ms`);
         return dataUrl;
       } catch (htiErr) {
-        console.warn('htmlToImage failed, fallback to html2canvas:', htiErr);
+        console.warn(`[Export ${__tag}] htmlToImage failed, fallback to html2canvas:`, htiErr);
       }
 
+      const __t3 = performance.now();
       const canvas = await html2canvas(frameWrapper, {
         scale: 2,
         backgroundColor: '#ffffff',
@@ -838,6 +846,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         windowWidth: 1120,
       });
       const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+      console.log(`[Export ${__tag}] prep=${(__tPrep - __t0).toFixed(0)}ms html2canvas=${(performance.now() - __t3).toFixed(0)}ms total=${(performance.now() - __t0).toFixed(0)}ms`);
       if (blob) return blob;
       throw new Error('All capture strategies failed to produce an image');
     } finally {
