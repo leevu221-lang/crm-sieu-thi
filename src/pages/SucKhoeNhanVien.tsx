@@ -919,6 +919,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       await ensureFontsReady();
       const zip = new JSZip();
       let completedCount = 0;
+      const failedNames: string[] = [];
 
       // Pick the faster render strategy for THIS card shape once, up front (see
       // benchmarkCaptureStrategies), instead of assuming domToPng always wins.
@@ -942,10 +943,21 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
           const element = tables[idx];
           if (!element) continue;
 
+          const rawName = element.id.replace('employee-detail-', '').trim();
           try {
-            const rawName = element.id.replace('employee-detail-', '').trim();
             const cleanName = rawName.replace(/[/\\?%*:|"<>]/g, '_');
-            const result = await captureSingleEmployeeCard(element, order);
+            // Watchdog: if this one employee's data trips up every capture strategy
+            // in a way that never resolves or rejects (seen at 50 NV — batch stalls
+            // forever with no error, no progress, no zip), Promise.all(workers) would
+            // hang indefinitely because the whole batch waits on every worker. Race
+            // against a timeout so a single bad card is skipped instead of taking the
+            // entire export down with it.
+            const result = await Promise.race([
+              captureSingleEmployeeCard(element, order),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error(`Capture timed out after 25s`)), 25000)
+              ),
+            ]);
 
             if (result instanceof Blob) {
               zip.file(`ChiTiet_${String(idx + 1).padStart(2, '0')}_${cleanName}.png`, result);
@@ -954,7 +966,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
               zip.file(`ChiTiet_${String(idx + 1).padStart(2, '0')}_${cleanName}.png`, base64Data, { base64: true });
             }
           } catch (err) {
-            console.error(`Error capturing employee card ${idx}:`, err);
+            console.error(`[Export] FAILED for "${rawName}" (card ${idx + 1}/${tables.length}):`, err);
+            failedNames.push(rawName);
           } finally {
             completedCount++;
             const percent = Math.round((completedCount / tables.length) * 100);
@@ -974,7 +987,13 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
       const durationSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
       saveAs(content, `ChiTiet_All_${tables.length}_NV.zip`);
-      showNotification(`Đã xuất thành công ${completedCount}/${tables.length} nhân viên trong ${durationSeconds}s!`, 'success');
+      const successCount = tables.length - failedNames.length;
+      if (failedNames.length > 0) {
+        console.warn(`[Export] ${failedNames.length} nhân viên bị lỗi/timeout:`, failedNames);
+        showNotification(`Đã xuất ${successCount}/${tables.length} nhân viên trong ${durationSeconds}s. Bỏ qua ${failedNames.length} NV lỗi: ${failedNames.slice(0, 5).join(', ')}${failedNames.length > 5 ? '...' : ''}`, 'warning');
+      } else {
+        showNotification(`Đã xuất thành công ${successCount}/${tables.length} nhân viên trong ${durationSeconds}s!`, 'success');
+      }
     } catch (err) {
       console.error('Batch export error:', err);
       showNotification('Có lỗi xảy ra khi xuất ảnh hàng loạt!', 'error');
