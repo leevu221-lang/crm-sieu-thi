@@ -2,8 +2,10 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Upload, Download, FileSpreadsheet, X, Search, Filter, CheckSquare, Square } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import * as htmlToImage from 'html-to-image';
+import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
 import { useNotification } from '../contexts/NotificationContext';
 import { ImagePreviewModal } from '../components/ImagePreviewModal';
+import { CaptureLoadingOverlay } from '../components/CaptureLoadingOverlay';
 
 // Helper component for column filter dropdown
 const ColumnFilter = ({ 
@@ -268,28 +270,78 @@ export const ExcelViewer = () => {
   const exportImage = async () => {
     if (tableRef.current) {
       setIsExporting(true);
-      await new Promise(resolve => setTimeout(resolve, 300));
+      showNotification('Đang tạo ảnh, vui lòng đợi...', 'info');
+
+      const element = tableRef.current;
+      const targetWidth = Math.max(1050, element.scrollWidth + 48);
+
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.top = '-9999px';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.width = `${targetWidth}px`;
+      tempContainer.style.height = 'auto';
+      tempContainer.style.overflow = 'hidden';
+      tempContainer.style.zIndex = '-9999';
+      tempContainer.style.pointerEvents = 'none';
+
+      const clone = element.cloneNode(true) as HTMLElement;
+      clone.classList.add('export-short-mode');
+
+      // Style clone
+      clone.style.width = `${targetWidth}px`;
+      clone.style.minWidth = `${targetWidth}px`;
+      clone.style.height = 'auto';
+      clone.style.margin = '0';
+      clone.style.padding = '24px';
+      clone.style.backgroundColor = '#ffffff';
+      clone.style.display = 'inline-block';
+      clone.style.boxSizing = 'border-box';
+      clone.style.borderRadius = '24px';
+
+      const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+      scrollContainers.forEach((el) => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.overflow = 'visible';
+        htmlEl.style.width = '100%';
+        htmlEl.style.height = 'auto';
+        htmlEl.style.maxWidth = 'none';
+        htmlEl.style.maxHeight = 'none';
+      });
+
+      const tables = clone.querySelectorAll('table');
+      tables.forEach(table => {
+        const htmlTable = table as HTMLElement;
+        htmlTable.style.width = '100%';
+        htmlTable.style.minWidth = '100%';
+        htmlTable.style.boxSizing = 'border-box';
+      });
+
+      tempContainer.appendChild(clone);
+      document.body.appendChild(tempContainer);
+
       try {
-        showNotification('Đang tạo ảnh, vui lòng đợi...', 'info');
-        
-        tableRef.current.classList.add('export-short-mode');
-        const originalWidth = tableRef.current.style.width;
-        tableRef.current.style.width = 'max-content';
-        
-        // Give DOM time to update
-        await new Promise(resolve => setTimeout(resolve, 150));
-        
-        const imgData = await htmlToImage.toPng(tableRef.current, {
+        // ★ Ensure UTM Avo font is fully loaded before export
+        await ensureFontsReady();
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        const finalWidth = targetWidth;
+        const finalHeight = clone.offsetHeight || clone.scrollHeight;
+
+        const imgData = await htmlToImage.toPng(clone, {
           backgroundColor: '#ffffff',
           pixelRatio: 2,
+          skipFonts: false,
+          width: finalWidth,
+          height: finalHeight,
           style: {
             transform: 'scale(1)',
-            transformOrigin: 'top left'
+            transformOrigin: 'top left',
+            width: `${finalWidth}px`,
+            height: `${finalHeight}px`,
+            ...EXPORT_FONT_STYLE,
           }
         });
-        
-        tableRef.current.style.width = originalWidth;
-        tableRef.current.classList.remove('export-short-mode');
         
         // Show in popup instead of downloading
         setPreviewImage(imgData);
@@ -298,8 +350,8 @@ export const ExcelViewer = () => {
         console.error('Failed to export image', err);
         showNotification('Lỗi khi xuất ảnh', 'error');
       } finally {
-        if (tableRef.current) {
-          tableRef.current.classList.remove('export-short-mode');
+        if (document.body.contains(tempContainer)) {
+          document.body.removeChild(tempContainer);
         }
         setIsExporting(false);
       }
@@ -310,6 +362,7 @@ export const ExcelViewer = () => {
 
   return (
     <div className="min-h-[100dvh] w-full bg-slate-50 relative">
+      <CaptureLoadingOverlay isLoading={isExporting} />
       <ImagePreviewModal previewImage={previewImage} setPreviewImage={setPreviewImage} />
       
       <div className="w-full flex flex-col p-4 pb-32">

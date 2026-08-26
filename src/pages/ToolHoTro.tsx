@@ -5,7 +5,7 @@ import {
   ChevronDown, CheckCircle2, Save, Loader2, Calendar, ArrowUpDown, 
   SortAsc, SortDesc, PieChart, Users, UploadCloud, Settings, 
   ChevronRight, LayoutGrid, FileText, Tag, Scan, MapPin, ClipboardList,
-  RefreshCw, AlertCircle
+  RefreshCw, AlertCircle, Banknote
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
@@ -20,6 +20,7 @@ import BaoGiaCongTyModal from '../components/BaoGiaCongTyModal';
 import StickerTemplateTab from '../components/StickerTemplateTab';
 import InventoryManagement from '../components/InventoryManagement';
 import { RoadshowManagement } from '../components/RoadshowManagement';
+import BbkqTab from '../components/BbkqTab';
 
 import { STORAGE_KEYS } from './RTST/types';
 import { normalizeStoreId } from './RTST/utils';
@@ -118,86 +119,113 @@ export function AddressFlyerPreview({ item }: { item: AddressFlyerData }) {
     const regex = /(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/g;
     return text.split(regex).map((part, idx) => 
       regex.test(part) 
-        ? <span key={idx} className="text-[24px] font-black text-black mx-1 inline-block">{part}</span>
+        ? <span key={idx} className="text-[17px] font-black text-black mx-0.5 inline-block">{part}</span>
         : <span key={idx}>{part}</span>
     );
   };
 
   const formatDurationText = (text: string) => {
-    const match = text.match(/^(.*?)\s+(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)$/i);
-    return match ? (
-      <div className="flex flex-col items-center leading-none mt-1">
-        <span className="text-[15px] font-black tracking-wider uppercase leading-none">{match[1]}</span>
-        <span className="text-[26px] font-black text-black tracking-tight leading-none mt-1">{match[2]}</span>
-      </div>
-    ) : (
-      <span className="text-[15px] font-black tracking-wider uppercase">{text}</span>
+    const match = text.match(/^(.*?)\s+((?:\d{1,2}[-–—/])*\d{1,2}(?:\/\d{2,4})?)$/i);
+    if (match) {
+      return (
+        <div className="flex flex-col items-center leading-none my-0.5">
+          <span className="text-[11.5px] font-black tracking-wider uppercase leading-none">{match[1]}</span>
+          <span className="text-[19px] font-black text-black tracking-tight leading-none mt-0.5">{match[2]}</span>
+        </div>
+      );
+    }
+    return (
+      <span className="text-[12px] font-black tracking-wider uppercase">{text}</span>
     );
   };
 
   return (
-    <div className="w-[66mm] h-[142mm] bg-white flex flex-col justify-between p-3 box-border text-black select-none" style={{ border: '1.5px solid black', fontFamily: '"Oswald", sans-serif' }}>
+    <div className="w-[66mm] h-[142mm] bg-white flex flex-col justify-between p-2.5 box-border text-black select-none overflow-hidden" style={{ border: '1.5px solid black', fontFamily: '"Oswald", sans-serif' }}>
+      {/* Header */}
       <div className="text-center shrink-0">
-        <div className="font-black tracking-wide leading-tight uppercase text-[22px]">
+        <div className="font-black tracking-wide leading-tight uppercase text-[18px]">
           {item.headerTitle || "ĐIỆN MÁY XANH PHƯỜNG 8"}
         </div>
-        <div className="font-medium tracking-tight leading-tight text-slate-800 text-[13px]">
+        <div className="font-medium tracking-tight leading-tight text-slate-800 text-[11.5px]">
           {item.headerSubtitle || "(Ngã tư đèn xanh đèn đỏ đường Nguyễn Tất Thành)"}
         </div>
       </div>
-      <div className="bg-black w-full my-0.5 shrink-0 h-[2px]"></div>
-      <div className="flex-1 flex flex-col justify-between py-1 min-h-0 text-center overflow-hidden">
+
+      {/* Divider */}
+      <div className="bg-black w-full my-0.5 shrink-0 h-[1.5px]"></div>
+
+      {/* Middle Content */}
+      <div className="flex-1 flex flex-col justify-between py-0.5 min-h-0 text-center">
+        {/* Invitation */}
         <div className="flex flex-col items-center justify-center shrink-0">
-          <div className="font-black tracking-tight uppercase leading-none text-[22px]">
+          <div className="font-black tracking-tight uppercase leading-tight text-[17px]">
             {item.invitationTitle || "THƯ MỜI, THỨ 7 TUẦN NÀY"}
           </div>
-          <div className="leading-none text-slate-700 my-0.5 text-[8px]">⚭ ⚭ ⚭</div>
-          <div className="font-bold text-slate-800 leading-none text-[13px]">
+          <div className="leading-none text-slate-700 my-0.5 text-[7px]">⚭ ⚭ ⚭</div>
+          <div className="font-bold text-slate-800 leading-none text-[11.5px]">
             {item.invitationTarget || "Kính mời: Quý Khách Hàng thân yêu"}
           </div>
         </div>
-        <div className="font-bold tracking-tight uppercase leading-snug shrink-0 text-[13px]">
+
+        {/* Time & Location */}
+        <div className="font-bold tracking-tight uppercase leading-tight shrink-0 text-[11.5px]">
           <div>{formatTimeText(item.eventTimeLocation || "Ngày 28/03 đến ĐMX PHƯỜNG 8")}</div>
-          <div className="text-slate-800 font-medium my-0.5 text-[11px] normal-case">
+          <div className="text-black font-black my-0.5 text-[13.5px] uppercase tracking-wide">
             {item.eventDescription || "tham gia sự kiện KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN"}
           </div>
         </div>
-        <div className="font-black text-black leading-none tracking-tighter shrink-0 text-[72px]">
+
+        {/* Discount Percentage */}
+        <div className="font-black text-black leading-none tracking-tighter shrink-0 text-[54px] my-0.5">
           {item.discountPercentage || "50%"}
         </div>
+
+        {/* Duration */}
         <div className="shrink-0 leading-none">
           {formatDurationText(item.duration || "1 NGÀY DUY NHẤT 28/03")}
         </div>
-        <div className="font-bold tracking-wide uppercase leading-tight text-slate-800 shrink-0 text-[10.5px]">
-          <div>{item.categoriesLine1 || "ĐIỆN THOẠI & LAPTOP"}</div>
-          <div>{item.categoriesLine2 || "TIVI - TỦ LẠNH - MÁY GIẶT- MÁY LỌC NƯỚC"}</div>
-          <div>{item.categoriesLine3 || "MÁY LẠNH – QUẠT ĐIỀU HÒA"}</div>
+
+        {/* Categories (Dòng 1, 2, 3) */}
+        <div className="font-bold tracking-wide uppercase leading-tight text-slate-900 shrink-0 text-[9.5px] my-0.5">
+          {item.categoriesLine1 && <div>{item.categoriesLine1}</div>}
+          {item.categoriesLine2 && <div>{item.categoriesLine2}</div>}
+          {item.categoriesLine3 && <div>{item.categoriesLine3}</div>}
         </div>
-        <div className="flex flex-col items-center justify-center shrink-0">
-          <div className="font-black text-black leading-tight uppercase tracking-tight text-[13px]">
-            {item.specialOffer || "➔ RẺ HƠN CÁC ĐIỆN MÁY XANH KHÁC -10%"}
-          </div>
-          <div className="font-black text-slate-800 leading-none uppercase mt-0.5 text-[10px]">
-            {item.paymentTerm || "MUA TRẢ CHẬM - 0% LÃI SUẤT - TRẢ TRƯỚC 0đ"}
-          </div>
+
+        {/* Special Offer & Payment Term (Ưu đãi đặc biệt & Trả góp) */}
+        <div className="flex flex-col items-center justify-center shrink-0 mt-0.5 pt-0.5">
+          {item.specialOffer && (
+            <div className="font-black text-black leading-tight uppercase tracking-tight text-[11.5px]">
+              {item.specialOffer}
+            </div>
+          )}
+          {item.paymentTerm && (
+            <div className="font-black text-slate-800 leading-none uppercase mt-0.5 text-[9.5px]">
+              {item.paymentTerm}
+            </div>
+          )}
         </div>
       </div>
-      <div className="bg-black w-full my-0.5 shrink-0 h-[2px]"></div>
+
+      {/* Divider */}
+      <div className="bg-black w-full my-0.5 shrink-0 h-[1.5px]"></div>
+
+      {/* Footer */}
       <div className="text-center shrink-0">
-        <div className="font-black tracking-wide leading-tight uppercase text-[13px]">
+        <div className="font-black tracking-wide leading-tight uppercase text-[11.5px]">
           {item.footerTitle || "ĐIỆN MÁY XANH PHƯỜNG 8 CÀ MAU"}
         </div>
-        <div className="font-bold tracking-tight leading-tight uppercase mt-0.5 text-[10px]">
+        <div className="font-bold tracking-tight leading-tight uppercase mt-0.5 text-[9px]">
           {item.footerLine1 || "CAM KẾT GIÁ RẺ NHẤT THỊ TRƯỜNG CÀ MAU"}
         </div>
-        <div className="font-bold tracking-tight leading-tight uppercase text-[10px]">
+        <div className="font-bold tracking-tight leading-tight uppercase text-[9px]">
           {item.footerLine2 || "BAO GIÁ HOÀN TIỀN NẾU ĐÂU RẺ HƠN"}
         </div>
-        <div className="font-bold tracking-tight leading-tight uppercase flex items-center justify-center gap-0.5 text-[10px]">
+        <div className="font-bold tracking-tight leading-tight uppercase flex items-center justify-center gap-0.5 text-[9px]">
           <span>{item.footerLine3 || "NHIỀU SẢN PHẨM GIÁ SỐC BÊN DƯỚI"}</span>
           <span>⬇</span>
         </div>
-        <div className="font-medium tracking-tight leading-tight text-slate-800 italic mt-0.5 text-[10px]">
+        <div className="font-medium tracking-tight leading-tight text-slate-800 italic mt-0.5 text-[8.5px]">
           {item.footerLine4 || "Được giảm thêm 10%"}
         </div>
       </div>
@@ -310,6 +338,35 @@ const formatPriceInput = (val: string) => {
   if (!digits) return '';
   return parseInt(digits, 10).toLocaleString('vi-VN');
 };
+
+// Safe localStorage wrapper: catches quota errors, clears old sticker caches, and retries
+const STICKER_CACHE_KEYS = [
+  'rtst_sticker_mln_price_data', 'rtst_sticker_mln_inventory_data',
+  'rtst_sticker_gvgs_price_data', 'rtst_sticker_gvgs_inventory_data',
+  'rtst_sticker_dcnb_price_data', 'rtst_sticker_dcnb_inventory_data',
+  'rtst_sticker_event_dmx_price_data', 'rtst_sticker_event_dmx_inventory_data',
+  'rtst_sticker_ce_price_data', 'rtst_sticker_ce_inventory_data',
+  'rtst_sticker_lk_price_data', 'rtst_sticker_lk_inventory_data',
+  'rtst_sticker_price_data', 'rtst_sticker_inventory_data',
+];
+function safeLocalStorageSet(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e: any) {
+    if (e?.name === 'QuotaExceededError' || e?.code === 22 || e?.code === 1014) {
+      console.warn('[Storage] Quota exceeded, clearing old sticker caches...');
+      // Clear all sticker cache keys except the one we're trying to write
+      STICKER_CACHE_KEYS.forEach(k => { if (k !== key) try { localStorage.removeItem(k); } catch {} });
+      try {
+        localStorage.setItem(key, value);
+      } catch {
+        console.error('[Storage] Still exceeded after cleanup, skipping save for:', key);
+      }
+    } else {
+      console.error('[Storage] setItem error:', e);
+    }
+  }
+}
 
 export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local = false }: { pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean }) {
   const { userProfile } = useAuth();
@@ -556,7 +613,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 setLastUpdatePrice(formattedTime);
 
                 // Save to localStorage as a cache/copy
-                localStorage.setItem(keys.price, JSON.stringify({
+                safeLocalStorageSet(keys.price, JSON.stringify({
                   data: parsedPrice,
                   timestamp: data.updated_at || new Date().toISOString(),
                   updated_by: data.updated_by || '43751'
@@ -587,7 +644,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   React.useEffect(() => {
     if (priceData.length > 0) {
       const keys = getStorageKeysForTab(activeTab);
-      localStorage.setItem(keys.price, JSON.stringify({
+      safeLocalStorageSet(keys.price, JSON.stringify({
         data: priceData,
         timestamp: new Date().toISOString()
       }));
@@ -611,7 +668,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   const saveAddressConfig = async () => {
     setIsSaving(true);
     try {
-      localStorage.setItem(STORAGE_KEYS.STICKER_ADDRESS_DATA, JSON.stringify(addressFlyerData));
+      safeLocalStorageSet(STORAGE_KEYS.STICKER_ADDRESS_DATA, JSON.stringify(addressFlyerData));
       const storeName = currentStoreId !== 'ALL' ? currentStoreId : '';
       if (storeName) {
         const cleanStoreCode = maKho.replace(/^0+/, '');
@@ -656,7 +713,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   const savePhieuBhConfig = async () => {
     setIsSaving(true);
     try {
-      localStorage.setItem(STORAGE_KEYS.STICKER_PHIEU_BH_DATA, JSON.stringify(phieuBhData));
+      safeLocalStorageSet(STORAGE_KEYS.STICKER_PHIEU_BH_DATA, JSON.stringify(phieuBhData));
       const storeName = currentStoreId !== 'ALL' ? currentStoreId : '';
       if (storeName) {
         const cleanStoreCode = maKho.replace(/^0+/, '');
@@ -707,7 +764,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                   ? JSON.parse(data.in_dia_chi_data)
                   : data.in_dia_chi_data;
                 setAddressFlyerData(parsed || DEFAULT_ADDRESS_DATA);
-                localStorage.setItem(STORAGE_KEYS.STICKER_ADDRESS_DATA, JSON.stringify(parsed));
+                safeLocalStorageSet(STORAGE_KEYS.STICKER_ADDRESS_DATA, JSON.stringify(parsed));
               } catch (e) {
                 console.error('Error parsing DB address data:', e);
               }
@@ -743,7 +800,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                   ? JSON.parse(data.in_phieu_bh_data)
                   : data.in_phieu_bh_data;
                 setPhieuBhData(parsed || DEFAULT_PHIEU_BH);
-                localStorage.setItem(STORAGE_KEYS.STICKER_PHIEU_BH_DATA, JSON.stringify(parsed));
+                safeLocalStorageSet(STORAGE_KEYS.STICKER_PHIEU_BH_DATA, JSON.stringify(parsed));
               } catch (e) {
                 console.error('Error parsing DB phieu_bh data:', e);
               }
@@ -1187,7 +1244,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       // Save locally to localStorage
       const keys = getStorageKeysForTab(activeTab);
       const currentUsername = userProfile?.username || '43751';
-      localStorage.setItem(keys.price, JSON.stringify({
+      safeLocalStorageSet(keys.price, JSON.stringify({
         data: parsedData,
         timestamp: new Date().toISOString(),
         updated_by: currentUsername
@@ -1262,7 +1319,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         setInventoryData(data);
         const timestamp = new Date().toISOString();
         setLastUpdateInventory(new Date(timestamp).toLocaleString('vi-VN'));
-        localStorage.setItem(keys.inventory, JSON.stringify({
+        safeLocalStorageSet(keys.inventory, JSON.stringify({
           data,
           timestamp
         }));
@@ -1671,7 +1728,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         if (!shouldAppend) setLastUpdatePrice(new Date(timestamp).toLocaleString('vi-VN'));
         
         const keys = getStorageKeysForTab(activeTab);
-        localStorage.setItem(keys.price, JSON.stringify({
+        safeLocalStorageSet(keys.price, JSON.stringify({
           data: finalData,
           timestamp
         }));
@@ -1985,7 +2042,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       const keys = getStorageKeysForTab(activeTab);
       const storageKey = keys.inventory;
       
-      localStorage.setItem(storageKey, JSON.stringify({
+      safeLocalStorageSet(storageKey, JSON.stringify({
         data: scannedCodes,
         timestamp: new Date().toISOString()
       }));
@@ -2183,19 +2240,15 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
   const menuItems = [
     { id: 'all-sticker', label: 'ALL STICKER', icon: LayoutGrid, color: 'text-indigo-500' },
+    { id: 'bbkq', label: 'BBKQ (KIỂM QUỸ)', icon: Banknote, color: 'text-emerald-600' },
     { id: 'in-dia-chi', label: 'IN ĐỊA CHỈ', icon: MapPin, color: 'text-emerald-600' },
     { id: 'in-phieu-bh', label: 'IN PHIẾU BH', icon: FileText, color: 'text-sky-600' },
-    { id: 'phan-ca-thang', label: 'PHÂN CA THÁNG', icon: Users, color: 'text-purple-500' },
-    { id: 'phan-ca-tuan', label: 'PHÂN CA TUẦN', icon: UploadCloud, color: 'text-orange-500' },
-    { id: 'bien-ban', label: 'BIÊN BẢN CÁC LOẠI', icon: FileText, color: 'text-rose-500' },
-    ...(userProfile?.username === '43751' ? [{ id: 'kiem-ke', label: 'KIỂM KÊ', icon: ClipboardList, color: 'text-amber-500' }] : []),
-    { id: 'roadshow', label: 'ROADSHOW', icon: Calendar, color: 'text-fuchsia-500' },
   ];
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans">
-      {/* Top Header Section - Spans full width */}
-      <div className="bg-white border-b border-slate-200 px-8 py-5 sticky top-0 z-30 shadow-sm">
+    <div className="min-h-screen bg-[#f8fafc] font-utm-avo">
+      {/* Top Header Section - Mobile only (desktop uses sidebar) */}
+      <div className="bg-white border-b border-slate-200 px-8 py-5 sticky top-0 z-30 shadow-sm md:hidden">
         <div className="max-w-[1800px] mx-auto flex items-center justify-between">
           <div className="flex items-center gap-5">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#00965e] to-emerald-400 flex items-center justify-center text-white shadow-lg shadow-emerald-100">
@@ -2218,51 +2271,43 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         </div>
       </div>
 
-      <div className="max-w-[1800px] mx-auto flex flex-col lg:flex-row gap-8 p-8">
-        {/* Left Vertical Navigation */}
-        <div className="w-full lg:w-[320px] shrink-0">
-          <div className="flex flex-col gap-3 py-4 sticky top-[116px]">
-            {menuItems.map((item) => {
-              const isActive = activeTab === item.id || 
-                (item.id === 'all-sticker' && (
-                  activeTab === 'sticker-event-dmx' ||
-                  activeTab === 'sticker-event' ||
-                  activeTab === 'sticker-lk' ||
-                  activeTab === 'sticker-ce' ||
-                  activeTab === 'sticker-mln' ||
-                  activeTab === 'sticker-gvgs' ||
-                  activeTab === 'sticker-dcnb'
-                ));
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`flex items-center gap-4 px-6 py-5 rounded-[22px] border transition-all duration-300 group ${
-                    isActive 
-                      ? 'bg-white border-[#00965e] shadow-[0_15px_35px_-10px_rgba(0,150,94,0.15)] -translate-y-0.5 translate-x-1' 
-                      : 'bg-transparent border-transparent hover:bg-white/50 hover:border-slate-200 text-slate-500'
-                  }`}
-                >
-                  <div className={`p-2.5 rounded-xl transition-all duration-300 ${
-                    isActive ? 'bg-emerald-50 ' + item.color : 'bg-slate-100 text-slate-400 group-hover:bg-white group-hover:text-slate-500'
-                  }`}>
-                    <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-                  </div>
-                  <span className={`text-[15px] font-black tracking-tight uppercase ${isActive ? 'text-slate-800' : 'text-slate-500'}`}>
-                    {item.label}
-                  </span>
-                  {isActive && (
-                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[#00965e] shadow-[0_0_10px_rgba(0,150,94,0.5)]" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
+      <div className="max-w-[1800px] mx-auto p-4 sm:p-6 space-y-6">
+        {/* Top Horizontal Navigation Bar - Mobile only (desktop uses sidebar sub-tabs) */}
+        <div className="bg-white/90 backdrop-blur-xl p-2 rounded-2xl md:rounded-3xl border border-slate-200/80 shadow-sm flex items-center justify-start gap-2 overflow-x-auto no-scrollbar md:hidden">
+          {menuItems.map((item) => {
+            const isActive = activeTab === item.id || 
+              (item.id === 'all-sticker' && (
+                activeTab === 'sticker-event-dmx' ||
+                activeTab === 'sticker-event' ||
+                activeTab === 'sticker-lk' ||
+                activeTab === 'sticker-ce' ||
+                activeTab === 'sticker-mln' ||
+                activeTab === 'sticker-gvgs' ||
+                activeTab === 'sticker-dcnb'
+              ));
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`flex items-center gap-2.5 px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl md:rounded-2xl text-xs sm:text-sm font-black uppercase tracking-wider whitespace-nowrap transition-all duration-300 cursor-pointer shrink-0 active:scale-95 ${
+                  isActive
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/20 scale-[1.02]'
+                    : 'bg-slate-50 text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200/60'
+                }`}
+              >
+                <Icon size={18} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'text-white' : 'text-slate-500'} />
+                <span>{item.label}</span>
+                {isActive && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                )}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Main Content Area - Right Side */}
-        <div className="flex-1 min-w-0">
+        {/* Main Content Area - Full Width */}
+        <div className="w-full min-w-0">
           {pageMaintenanceState[`toolhotro_${activeTab}`] && !isUser43751Local ? (
             <div className="flex items-center justify-center h-full p-6 mt-12">
               <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-amber-200 shadow-xl w-full">
@@ -2277,65 +2322,15 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
             </div>
           ) : (
           <AnimatePresence mode="wait">
-{activeTab === 'phan-ca-thang' && (
+            {activeTab === 'bbkq' && (
               <motion.div
-                key="phan-ca-thang"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-              >
-                <PhanCaTable />
-              </motion.div>
-            )}
-
-            {activeTab === 'phan-ca-tuan' && (
-              <motion.div
-                key="phan-ca-tuan"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-              >
-                <PhanCaTuanTable />
-              </motion.div>
-            )}
-
-            {activeTab === 'kiem-ke' && (
-              <motion.div
-                key="kiem-ke"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
+                key="bbkq"
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
                 transition={{ duration: 0.2 }}
-                className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 min-h-[500px]"
               >
-                <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-                  <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
-                    <ClipboardList size={24} />
-                  </div>
-                  <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Kế Hoạch & Phân Công Kiểm Kê</h2>
-                </div>
-                
-                <InventoryManagement warehouseCode={maKho || '43751'} />
-              </motion.div>
-            )}
-
-            {activeTab === 'roadshow' && (
-              <motion.div
-                key="roadshow"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
-                className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 min-h-[500px]"
-              >
-                <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-                  <div className="p-2 bg-fuchsia-50 text-fuchsia-600 rounded-xl">
-                    <Calendar size={24} />
-                  </div>
-                  <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Kế Hoạch Tuyến Chạy Roadshow</h2>
-                </div>
-                
-                <RoadshowManagement warehouseCode={maKho || '43751'} />
+                <BbkqTab />
               </motion.div>
             )}
 
@@ -3608,10 +3603,10 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                 onChange={(e) => {
                                   if (activeTab === 'sticker-gvgs') {
                                     setGvgsHeaderTemplate(e.target.value);
-                                    localStorage.setItem('gvgs_header_template', e.target.value);
+                                    safeLocalStorageSet('gvgs_header_template', e.target.value);
                                   } else {
                                     setMlnHeaderTemplate(e.target.value);
-                                    localStorage.setItem('mln_header_template', e.target.value);
+                                    safeLocalStorageSet('mln_header_template', e.target.value);
                                   }
                                 }}
                                 className="w-full bg-white border-2 border-amber-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 text-amber-950 py-2 px-3.5 rounded-2xl text-xs font-black focus:outline-none transition-all shadow-sm"
@@ -3628,10 +3623,10 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                 onChange={(e) => {
                                   if (activeTab === 'sticker-gvgs') {
                                     setGvgsFooterTemplate(e.target.value);
-                                    localStorage.setItem('gvgs_footer_template', e.target.value);
+                                    safeLocalStorageSet('gvgs_footer_template', e.target.value);
                                   } else {
                                     setMlnFooterTemplate(e.target.value);
-                                    localStorage.setItem('mln_footer_template', e.target.value);
+                                    safeLocalStorageSet('mln_footer_template', e.target.value);
                                   }
                                 }}
                                 className="w-full bg-white border-2 border-indigo-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-indigo-950 py-2 px-3.5 rounded-2xl text-xs font-black focus:outline-none transition-all shadow-sm"
@@ -4610,50 +4605,6 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
             </motion.div>
           )}
 
-          {activeTab === 'bien-ban' && (
-            <motion.div
-              key="bien-ban"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2 }}
-              className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 min-h-[500px]"
-            >
-              <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-                  <FileText size={24} />
-                </div>
-                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">BIÊN BẢN CÁC LOẠI</h2>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <button
-                  onClick={() => {
-                    setBienBanTitle('BIÊN BẢN GHI NHẬN TÌNH TRẠNG HÀNG HÓA');
-                    setIsBienBanModalOpen(true);
-                  }}
-                  className="flex flex-col items-center justify-center p-6 bg-white border-2 border-indigo-100 hover:border-indigo-400 hover:shadow-lg hover:shadow-indigo-100/50 rounded-2xl transition-all cursor-pointer group"
-                >
-                  <div className="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <FileText size={32} />
-                  </div>
-                  <h3 className="text-lg font-bold text-slate-800 text-center uppercase">Biên bản Tình Trạng Hàng Hóa</h3>
-                  <p className="text-slate-500 text-sm text-center mt-2">Dùng khi ghi nhận tình trạng hàng hóa, in A4 ngang</p>
-                </button>
-                
-                <button
-                  onClick={() => setIsBaoGiaModalOpen(true)}
-                  className="flex flex-col items-center justify-center p-6 bg-white border-2 border-emerald-100 hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-100/50 rounded-2xl transition-all cursor-pointer group"
-                >
-                  <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <FileText size={32} />
-                  </div>
-                  <h3 className="text-lg font-bold text-slate-800 text-center uppercase">Báo Giá Công Ty</h3>
-                  <p className="text-slate-500 text-sm text-center mt-2">Dùng khi tạo báo giá, in A4 dọc</p>
-                </button>
-              </div>
-            </motion.div>
-          )}
           </AnimatePresence>
           )}
         </div>

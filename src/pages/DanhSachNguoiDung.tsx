@@ -15,16 +15,6 @@ interface UserManagementProps {
   onBack: () => void;
 }
 
-interface AccessLog {
-  id?: string;
-  username: string;
-  storeCode: string;
-  action: string;
-  page: string;
-  created_at: string;
-  device_info?: string;
-}
-
 export default function UserManagement({ onBack }: UserManagementProps) {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,13 +26,6 @@ export default function UserManagement({ onBack }: UserManagementProps) {
   const [saving, setSaving] = useState(false);
   const [alertConfig, setAlertConfig] = useState<{ title: string; message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  // Upgrade: Access Logs & Tabs state
-  const [activeTab, setActiveTab] = useState<'users' | 'access_logs'>('users');
-  const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
-  const [logsLoading, setLogsLoading] = useState(false);
-  const [logSearchTerm, setLogSearchTerm] = useState('');
-  const [logFilterAction, setLogFilterAction] = useState('ALL');
-
   const { userProfile } = useAuth();
   const [duplicateIdsToDelete, setDuplicateIdsToDelete] = useState<string[]>([]);
   const [webAppUrl, setWebAppUrl] = useState('');
@@ -51,7 +34,6 @@ export default function UserManagement({ onBack }: UserManagementProps) {
 
   useEffect(() => {
     fetchUsers();
-    fetchAccessLogs();
     
     const loadConfig = async () => {
       try {
@@ -129,11 +111,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
           requestedRenewPackage: u.requestedRenewPackage,
           requestedAt: u.requestedAt,
           phone: u.phone,
-          isDemo: u.isDemo,
-          last_active_at: cleanUsername === (localStorage.getItem('userProfile') ? JSON.parse(localStorage.getItem('userProfile') as string)?.username?.trim()?.toUpperCase() : null) ? new Date().toISOString() : u.last_active_at,
-          last_login_at: u.last_login_at,
-          current_page: cleanUsername === (localStorage.getItem('userProfile') ? JSON.parse(localStorage.getItem('userProfile') as string)?.username?.trim()?.toUpperCase() : null) ? 'Quản lý Người dùng' : u.current_page,
-          device_info: u.device_info
+          isDemo: u.isDemo
         });
       });
 
@@ -148,10 +126,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
           userPermissions: currentProfile.userPermissions || { canEditUser: true, allowedPages: [] },
           permissions: currentProfile.permissions || [],
           status: 'active',
-          isDemo: true,
-          last_active_at: new Date().toISOString(), // Display as online
-          current_page: 'Hệ thống',
-          device_info: 'Admin System'
+          isDemo: true
         });
       }
 
@@ -167,24 +142,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
   };
 
 
-  const fetchAccessLogs = async () => {
-    setLogsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('user_access_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(300);
 
-      if (!error && data) {
-        setAccessLogs(data);
-      }
-    } catch (err) {
-      console.error("Error fetching access logs:", err);
-    } finally {
-      setLogsLoading(false);
-    }
-  };
 
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -485,8 +443,6 @@ export default function UserManagement({ onBack }: UserManagementProps) {
       }, { merge: true });
 
       const usersData = users.map(user => {
-        const statusInfo = getAccessStatus(user.last_active_at);
-        
         let cuocPhiStr = '';
         if (user.username === '43751' || user.username === 'ADMIN' || user.isDemo) {
           cuocPhiStr = 'MIỄN PHÍ / DEMO';
@@ -509,9 +465,6 @@ export default function UserManagement({ onBack }: UserManagementProps) {
 
         return {
           username: user.username,
-          isOnline: statusInfo.isOnline ? 'Đang Online' : 'Ngoại tuyến',
-          lastActive: statusInfo.text + (user.device_info ? ` (${user.device_info})` : ''),
-          currentPage: user.current_page || 'Chưa xem',
           storeCode: user.ma_kho || '',
           password: user.password || '---',
           cuocPhi: cuocPhiStr,
@@ -720,47 +673,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
     return Math.round(price / months);
   };
 
-  // Helper for tracking online & last active status
-  const getAccessStatus = (lastActiveAt?: string) => {
-    if (!lastActiveAt) return { label: 'Ngoại tuyến', color: 'bg-slate-100 text-slate-400 border-slate-200', isOnline: false, text: 'Chưa truy cập' };
-    const date = new Date(lastActiveAt);
-    if (isNaN(date.getTime())) return { label: 'Ngoại tuyến', color: 'bg-slate-100 text-slate-400 border-slate-200', isOnline: false, text: 'Chưa truy cập' };
-
-    const diffMs = Date.now() - date.getTime();
-    const diffMin = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMin / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMin < 5) {
-      return { label: 'Đang Online', color: 'bg-emerald-100 text-emerald-700 border-emerald-300', isOnline: true, text: '🟢 Đang Online' };
-    }
-    if (diffMin < 60) {
-      return { label: 'Mới rời đi', color: 'bg-amber-100 text-amber-800 border-amber-300', isOnline: false, text: `${diffMin} phút trước` };
-    }
-    if (diffHours < 24) {
-      return { label: 'Hôm nay', color: 'bg-slate-100 text-slate-600 border-slate-200', isOnline: false, text: `${diffHours} giờ trước` };
-    }
-    if (diffDays === 1) {
-      return { label: 'Hôm qua', color: 'bg-slate-100 text-slate-500 border-slate-200', isOnline: false, text: `Hôm qua ${date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}` };
-    }
-    return { label: 'Ngoại tuyến', color: 'bg-slate-100 text-slate-400 border-slate-200', isOnline: false, text: `${diffDays} ngày trước` };
-  };
-
   const stats = React.useMemo(() => {
-    const now = Date.now();
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    const onlineUsers = users.filter(u => {
-      if (!u.last_active_at) return false;
-      const t = new Date(u.last_active_at).getTime();
-      return !isNaN(t) && (now - t) < 5 * 60 * 1000;
-    });
-
-    const todayUsers = users.filter(u => {
-      if (!u.last_active_at) return false;
-      return u.last_active_at.startsWith(todayStr);
-    });
-
     const activeUsers = users.filter(u => 
       u.username !== '43751' && 
       u.username !== 'ADMIN' && 
@@ -775,8 +688,6 @@ export default function UserManagement({ onBack }: UserManagementProps) {
     });
 
     return {
-      onlineCount: onlineUsers.length,
-      todayCount: todayUsers.length,
       totalCount: users.length,
       activeCount: activeUsers.length,
       monthly: totalMonthly,
@@ -791,38 +702,17 @@ export default function UserManagement({ onBack }: UserManagementProps) {
       (u.ma_kho && u.ma_kho.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
-    const now = Date.now();
-    const FIVE_MINUTES = 5 * 60 * 1000;
-
     return [...list].sort((a, b) => {
-      const timeA = a.last_active_at ? new Date(a.last_active_at).getTime() : 0;
-      const timeB = b.last_active_at ? new Date(b.last_active_at).getTime() : 0;
+      const isSuperA = a.username === '43751' || a.username === 'ADMIN';
+      const isSuperB = b.username === '43751' || b.username === 'ADMIN';
+      if (isSuperA && !isSuperB) return -1;
+      if (!isSuperA && isSuperB) return 1;
 
-      const isOnlineA = timeA > 0 && (now - timeA) < FIVE_MINUTES;
-      const isOnlineB = timeB > 0 && (now - timeB) < FIVE_MINUTES;
-
-      // 1. Prioritize Online users first
-      if (isOnlineA && !isOnlineB) return -1;
-      if (!isOnlineA && isOnlineB) return 1;
-
-      // 2. Secondary sort by last active time descending (most recent first)
-      if (timeA !== timeB) return timeB - timeA;
-
-      // 3. Fallback to username
       return a.username.localeCompare(b.username);
     });
   }, [users, searchTerm]);
 
-  const filteredLogs = accessLogs.filter(log => {
-    const matchesSearch = 
-      log.username.toLowerCase().includes(logSearchTerm.toLowerCase()) ||
-      (log.storeCode && log.storeCode.toLowerCase().includes(logSearchTerm.toLowerCase())) ||
-      (log.page && log.page.toLowerCase().includes(logSearchTerm.toLowerCase()));
 
-    const matchesAction = logFilterAction === 'ALL' || log.action.includes(logFilterAction);
-
-    return matchesSearch && matchesAction;
-  });
 
   return (
     <div className="max-w-[1400px] w-full mx-auto px-6 py-8" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
@@ -830,10 +720,10 @@ export default function UserManagement({ onBack }: UserManagementProps) {
         <div>
           <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tight mb-2 flex items-center gap-3">
             <Users size={32} className="text-indigo-600" />
-            Quản lý Người dùng & Theo dõi Truy cập
+            Quản lý Người dùng & Phân quyền
           </h1>
           <p className="text-slate-500 font-medium">
-            Phân quyền tài khoản, theo dõi trạng thái Online và nhật ký truy cập hệ thống
+            Quản lý danh sách tài khoản, phân quyền truy cập và gói cước sử dụng hệ thống
           </p>
         </div>
         <button
@@ -845,27 +735,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
       </div>
 
       {/* Statistics Dashboard Header */}
-      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 mb-8">
-        <div className="bg-emerald-500 text-white p-5 rounded-2xl border border-emerald-600 shadow-md shadow-emerald-200/50 flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-widest block text-emerald-100">Đang Online</span>
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
-            </span>
-          </div>
-          <span className="text-3xl font-black mt-2">
-            {stats.onlineCount} <span className="text-xs font-bold text-emerald-100 uppercase">User</span>
-          </span>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col justify-between">
-          <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Truy cập hôm nay</span>
-          <span className="text-2xl font-black text-slate-800 mt-2">
-            {stats.todayCount} <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">User</span>
-          </span>
-        </div>
-
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col justify-between">
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Tổng tài khoản</span>
           <span className="text-2xl font-black text-slate-800 mt-2">
@@ -888,38 +758,6 @@ export default function UserManagement({ onBack }: UserManagementProps) {
         </div>
       </div>
 
-      {/* Tabs Sub-Navigation */}
-      <div className="flex items-center gap-3 border-b border-slate-200 pb-3 mb-6">
-        <button
-          onClick={() => setActiveTab('users')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
-            activeTab === 'users' 
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <Users size={16} />
-          Danh sách Người dùng & Phân quyền ({users.length})
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab('access_logs');
-            fetchAccessLogs();
-          }}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
-            activeTab === 'access_logs' 
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <Activity size={16} />
-          Lịch sử Truy cập Website ({accessLogs.length})
-        </button>
-      </div>
-
-      {/* TAB 1: USERS LIST & PERMISSIONS */}
-      {activeTab === 'users' && (
         <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
           <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row gap-4 justify-between items-center">
             <div className="relative w-full sm:w-96">
@@ -1009,9 +847,6 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                   <tr>
                     <th className="px-6 py-4 border-b border-slate-200">Mã NV</th>
                     <th className="px-4 py-4 border-b border-slate-200">Trạng thái TK</th>
-                    <th className="px-4 py-4 border-b border-slate-200">Trạng thái Online</th>
-                    <th className="px-4 py-4 border-b border-slate-200">Lần truy cập cuối</th>
-                    <th className="px-4 py-4 border-b border-slate-200">Trang đang xem</th>
                     <th className="px-4 py-4 border-b border-slate-200">Mã Kho</th>
                     <th className="px-4 py-4 border-b border-slate-200">Mật khẩu</th>
                     <th className="px-4 py-4 border-b border-slate-200">Cước phí</th>
@@ -1021,8 +856,6 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredUsers.map((user, idx) => {
-                    const statusInfo = getAccessStatus(user.last_active_at);
-
                     return (
                       <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
                         <td className="px-6 py-4 font-black text-slate-800">
@@ -1044,41 +877,6 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                               ? <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">🟢 Hoạt động</span>
                               : <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-rose-50 text-rose-700 border border-rose-200">🔒 Khoá</span>;
                           })()}
-                        </td>
-
-                        {/* ONLINE STATUS BADGE */}
-                        <td className="px-4 py-4">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${statusInfo.color}`}>
-                            {statusInfo.isOnline && (
-                              <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                              </span>
-                            )}
-                            {statusInfo.label}
-                          </span>
-                        </td>
-
-                        {/* LAST ACTIVE TIME */}
-                        <td className="px-4 py-4 font-medium text-slate-600 text-xs whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            <Clock size={13} className="text-slate-400" />
-                            <span>{statusInfo.text}</span>
-                          </div>
-                          {user.device_info && (
-                            <div className="text-[10px] text-slate-400 font-normal mt-0.5">{user.device_info}</div>
-                          )}
-                        </td>
-
-                        {/* CURRENT PAGE */}
-                        <td className="px-4 py-4">
-                          {user.current_page ? (
-                            <span className="inline-block px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-lg text-[11px] font-bold">
-                              {user.current_page}
-                            </span>
-                          ) : (
-                            <span className="text-slate-300 text-xs italic">Chưa xem</span>
-                          )}
                         </td>
 
                         <td className="px-4 py-4 font-bold text-slate-700">
@@ -1204,104 +1002,6 @@ export default function UserManagement({ onBack }: UserManagementProps) {
             )}
           </div>
         </div>
-      )}
-
-      {/* TAB 2: ACCESS LOGS TABLE */}
-      {activeTab === 'access_logs' && (
-        <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-          <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row gap-4 justify-between items-center">
-            <div className="flex items-center gap-3 w-full sm:w-auto flex-1">
-              <div className="relative flex-1 max-w-sm">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Search size={18} className="text-slate-400" />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Lọc nhật ký theo Mã NV, Mã kho..."
-                  value={logSearchTerm}
-                  onChange={(e) => setLogSearchTerm(e.target.value)}
-                  className="block w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-600"
-                />
-              </div>
-
-              <select
-                value={logFilterAction}
-                onChange={(e) => setLogFilterAction(e.target.value)}
-                className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none"
-              >
-                <option value="ALL">Tất cả hành động</option>
-                <option value="Đăng nhập">🔑 Đăng nhập</option>
-                <option value="Chuyển trang">📄 Chuyển trang</option>
-              </select>
-            </div>
-
-            <button
-              onClick={fetchAccessLogs}
-              className="flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-100 text-xs cursor-pointer"
-            >
-              <RefreshCw size={14} className={logsLoading ? 'animate-spin' : ''} />
-              Làm mới nhật ký
-            </button>
-          </div>
-
-          <div className="overflow-x-auto">
-            {logsLoading ? (
-              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                <Loader2 size={40} className="animate-spin mb-4 text-indigo-600" />
-                <p className="font-bold uppercase tracking-wider text-xs">Đang tải nhật ký truy cập...</p>
-              </div>
-            ) : filteredLogs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                <Activity size={48} className="mb-4 opacity-20" />
-                <p className="font-medium">Chưa có nhật ký truy cập nào</p>
-              </div>
-            ) : (
-              <table className="w-full text-left text-[13px]">
-                <thead className="bg-slate-50 text-slate-600 font-bold uppercase text-[11px] tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4 border-b border-slate-200">Thời gian</th>
-                    <th className="px-6 py-4 border-b border-slate-200">Người dùng</th>
-                    <th className="px-6 py-4 border-b border-slate-200">Mã kho</th>
-                    <th className="px-6 py-4 border-b border-slate-200">Hành động</th>
-                    <th className="px-6 py-4 border-b border-slate-200">Trang truy cập</th>
-                    <th className="px-6 py-4 border-b border-slate-200">Thiết bị / Trình duyệt</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredLogs.map((log, idx) => (
-                    <tr key={log.id || idx} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs text-slate-500 font-medium">
-                        {log.created_at ? new Date(log.created_at).toLocaleString('vi-VN') : '---'}
-                      </td>
-                      <td className="px-6 py-4 font-black text-slate-800">
-                        {log.username}
-                      </td>
-                      <td className="px-6 py-4 font-bold text-slate-600">
-                        {log.storeCode || '---'}
-                      </td>
-                      <td className="px-6 py-4 font-bold">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs ${
-                          log.action?.includes('Đăng nhập') 
-                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                            : 'bg-blue-100 text-blue-800 border border-blue-200'
-                        }`}>
-                          {log.action}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 font-bold text-indigo-700">
-                        {log.page || 'Trang chủ'}
-                      </td>
-                      <td className="px-6 py-4 text-xs text-slate-500 font-medium">
-                        {log.device_info || 'Trình duyệt Web'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Delete Confirm Modal */}
       <AnimatePresence>
@@ -1590,6 +1290,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                       { id: 'birthday', label: 'Sinh nhật NV', color: 'bg-pink-500' },
                       { id: 'feedback', label: 'HƯỚNG DẪN & GÓP Ý', color: 'bg-indigo-500' },
                       { id: 'excelviewer', label: 'XEM FILE EXCEL', color: 'bg-emerald-500' },
+                      { id: 'lichpg', label: 'Lịch Làm Việc PG', color: 'bg-teal-500' },
                     ].map((page) => {
                       const is43751Admin = String(isEditing.username).trim() === '43751';
                       const hasAccess = is43751Admin || (isEditing.userPermissions?.allowedPages?.includes(page.id) || false);

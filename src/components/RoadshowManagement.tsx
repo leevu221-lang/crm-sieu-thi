@@ -4,18 +4,22 @@ import {
   Sparkles, Edit3, Save, X, FileText, Check, ArrowRight, 
   Flag, CalendarDays, ClipboardCheck, Loader2, Navigation,
   Map, Eye, EyeOff, ClipboardList, Camera, Copy, Upload,
-  BarChart3, RefreshCw
+  BarChart3, RefreshCw, Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebaseConfig';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { cn } from '../pages/RTST/utils';
+import { domToPng } from 'modern-screenshot';
 import * as htmlToImage from 'html-to-image';
+import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
 import { ImagePreviewModal } from './ImagePreviewModal';
 import * as XLSX from 'xlsx';
+import { useAuth } from '../contexts/AuthContext';
+import { useStore } from '../contexts/StoreContext';
 
 interface RoadshowManagementProps {
-  warehouseCode: string;
+  warehouseCode?: string;
 }
 
 export interface RoadshowPlan {
@@ -41,9 +45,63 @@ interface ChecklistItem {
 interface StaffShiftState {
   name: string;
   shift: 'sang' | 'chieu' | 'off' | 'dup'; // sang: morning, chieu: afternoon, off: off, dup: double shift (both)
+  isPg?: boolean;
 }
 
-export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehouseCode }) => {
+export const normalizeStaffName = (str: string): string => {
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]/g, ' ')
+    .trim();
+};
+
+export const getShiftForStaff = (
+  staffName: string,
+  shiftsMap: Record<string, 'sang' | 'chieu' | 'off' | 'dup'>
+): 'sang' | 'chieu' | 'off' | 'dup' => {
+  if (!shiftsMap || !staffName) return 'off';
+
+  // 1. Direct exact key match
+  const rawUpper = staffName.trim().toUpperCase();
+  if (shiftsMap[rawUpper]) return shiftsMap[rawUpper];
+
+  // 2. Direct normalized key match
+  const normStaff = normalizeStaffName(staffName);
+  const staffWords = normStaff.split(/\s+/).filter(Boolean);
+  const lastName = staffWords[staffWords.length - 1] || ''; // e.g. "mi", "duy", "nhan"
+
+  for (const [key, shiftVal] of Object.entries(shiftsMap)) {
+    const normKey = normalizeStaffName(key);
+    if (normKey === normStaff) return shiftVal;
+
+    // Handle keys like "157597 - Mi" or "100644 - Duy"
+    const keyWords = normKey.split(/\s+/).filter(Boolean);
+    const keyLastName = keyWords[keyWords.length - 1] || '';
+
+    // If last names match and staffWords contains it
+    if (lastName && keyLastName && lastName === keyLastName) {
+      return shiftVal;
+    }
+
+    // If one contains the other
+    if (normStaff.length > 2 && normKey.length > 2) {
+      if (normStaff.includes(normKey) || normKey.includes(normStaff)) {
+        return shiftVal;
+      }
+    }
+  }
+
+  return 'off';
+};
+
+export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehouseCode: propWarehouseCode }) => {
+  const { userProfile } = useAuth();
+  const { currentStoreId } = useStore();
+  const warehouseCode = propWarehouseCode || userProfile?.ma_kho || currentStoreId || '43751';
+
   // Tabs: 'PLANNER' (Sắp tuyến nhanh) | 'STATS' (Thống kê tháng) | 'HISTORY' (Lịch trình & Bản đồ)
   const [activeTab, setActiveTab] = useState<'PLANNER' | 'STATS' | 'HISTORY'>('PLANNER');
   
@@ -83,6 +141,8 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
 
   // Planner tab states
   const [rawStaffInput, setRawStaffInput] = useState('');
+  const [rawPgInput, setRawPgInput] = useState('');
+  const [masterPg, setMasterPg] = useState<string[]>([]);
   const [staffList, setStaffList] = useState<StaffShiftState[]>([]);
   const [plannerDate, setPlannerDate] = useState(new Date().toISOString().split('T')[0]);
   const [morningTime, setMorningTime] = useState('7:00');
@@ -93,6 +153,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [copySourceDate, setCopySourceDate] = useState('');
   const [recentDates, setRecentDates] = useState<string[]>([]);
+  const [isSyncingPg, setIsSyncingPg] = useState(false);
 
   const tableRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -102,32 +163,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     setTimeout(() => setToast(null), 3000);
   };
 
-  // Listen to Firestore real-time changes for History Plans
-  useEffect(() => {
-    if (!warehouseCode) return;
-    setLoading(true);
-    const docRef = doc(db, 'system_configs', 'roadshow_schedules');
 
-    const unsub = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const storePlans = data[warehouseCode] || [];
-        setPlans(storePlans);
-      } else {
-        setPlans([]);
-      }
-      setLoading(false);
-    }, (error) => {
-      console.error('Error fetching roadshows:', error);
-      const cached = localStorage.getItem(`crm_roadshows_${warehouseCode}`);
-      if (cached) {
-        setPlans(JSON.parse(cached));
-      }
-      setLoading(false);
-    });
-
-    return () => unsub();
-  }, [warehouseCode]);
 
   // Load checklist, planner configs, and master staff list keyed by selected Date
   useEffect(() => {
@@ -154,23 +190,61 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         
         // 1. Sync master staff list
         const dbMaster = data.masterStaff || [];
-        localStorage.setItem(`crm_roadshow_planner_master_staff_${warehouseCode}`, JSON.stringify(dbMaster));
+        if (dbMaster.length > 0) {
+          localStorage.setItem(`crm_roadshow_planner_master_staff_${warehouseCode}`, JSON.stringify(dbMaster));
+        }
 
-        // 2. Sync shifts for selected date
+        // 2. Sync master PG list
+        const dbPg = data.masterPg || [];
+        if (dbPg.length > 0) {
+          localStorage.setItem(`crm_roadshow_planner_master_pg_${warehouseCode}`, JSON.stringify(dbPg));
+          setMasterPg(dbPg);
+        }
+
+        // 3. Sync shifts for all dates from Firestore to localStorage
         const dbShifts = data.shifts || {};
-        const dateShifts = dbShifts[plannerDate] || {};
+        Object.keys(dbShifts).forEach(dKey => {
+          if (dbShifts[dKey] && Object.keys(dbShifts[dKey]).length > 0) {
+            const localRaw = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${dKey}`);
+            const localParsed = localRaw ? JSON.parse(localRaw) : {};
+            const merged = { ...localParsed, ...dbShifts[dKey] };
+            localStorage.setItem(`crm_roadshow_planner_shifts_${warehouseCode}_${dKey}`, JSON.stringify(merged));
+          }
+        });
+
+        // Get shifts for currently selected plannerDate
+        const localActiveRaw = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`);
+        const localActiveShifts = localActiveRaw ? JSON.parse(localActiveRaw) : {};
+        const firestoreActiveShifts = dbShifts[plannerDate] || {};
+        const dateShifts = { ...localActiveShifts, ...firestoreActiveShifts };
         localStorage.setItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`, JSON.stringify(dateShifts));
 
-        // 3. Sync configs for selected date
+        // 4. Sync configs for selected date
         const dbConfigs = data.configs || {};
         const dateConfigs = dbConfigs[plannerDate] || {};
         localStorage.setItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`, JSON.stringify(dateConfigs));
 
+        const effectiveMaster = dbMaster.length > 0 
+          ? dbMaster 
+          : (JSON.parse(localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`) || '[]'));
+
+        const effectivePg = dbPg.length > 0 
+          ? dbPg 
+          : (JSON.parse(localStorage.getItem(`crm_roadshow_planner_master_pg_${warehouseCode}`) || '[]'));
+
         // Map to active state
-        const mappedStaffList: StaffShiftState[] = dbMaster.map((name: string) => ({
-          name: name.toUpperCase(),
-          shift: dateShifts[name.toUpperCase()] || 'off'
-        }));
+        const mappedStaffList: StaffShiftState[] = [
+          ...effectiveMaster.map((name: string) => ({
+            name: name.toUpperCase(),
+            shift: getShiftForStaff(name, dateShifts),
+            isPg: false
+          })),
+          ...effectivePg.map((name: string) => ({
+            name: name.toUpperCase(),
+            shift: getShiftForStaff(name, dateShifts),
+            isPg: true
+          }))
+        ];
         setStaffList(mappedStaffList);
 
         setMorningTime(dateConfigs.morningTime || '7:00');
@@ -194,13 +268,25 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
     const masterNames: string[] = cachedMaster ? JSON.parse(cachedMaster) : [];
 
+    const cachedPg = localStorage.getItem(`crm_roadshow_planner_master_pg_${warehouseCode}`);
+    const pgNames: string[] = cachedPg ? JSON.parse(cachedPg) : [];
+    setMasterPg(pgNames);
+
     const cachedShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`);
     const dateShifts: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = cachedShifts ? JSON.parse(cachedShifts) : {};
 
-    const mappedStaffList: StaffShiftState[] = masterNames.map(name => ({
-      name: name.toUpperCase(),
-      shift: dateShifts[name.toUpperCase()] || 'off'
-    }));
+    const mappedStaffList: StaffShiftState[] = [
+      ...masterNames.map(name => ({
+        name: name.toUpperCase(),
+        shift: getShiftForStaff(name, dateShifts),
+        isPg: false
+      })),
+      ...pgNames.map(name => ({
+        name: name.toUpperCase(),
+        shift: getShiftForStaff(name, dateShifts),
+        isPg: true
+      }))
+    ];
     setStaffList(mappedStaffList);
 
     const cachedConfigs = localStorage.getItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`);
@@ -234,32 +320,124 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     setRecentDates(sorted);
   };
 
+  // Listen to cross-origin sync hash data from Tampermonkey script
+  useEffect(() => {
+    const handleHashSync = async () => {
+      if (typeof window === 'undefined' || !warehouseCode) return;
+      const hash = window.location.hash;
+      if (!hash.startsWith('#sync_data=')) return;
+
+      try {
+        const rawData = hash.replace('#sync_data=', '');
+        const decoded = decodeURIComponent(atob(rawData));
+        const payload = JSON.parse(decoded);
+
+        if (payload && payload.staff && payload.shifts) {
+          const confirmSync = window.confirm(
+            `Phát hiện dữ liệu phân ca tự động từ TGDD (${Object.keys(payload.shifts).length} ngày, ${payload.staff.length} nhân viên).\n\nBạn có đồng ý đồng bộ ca của các nhân sự này vào lịch trình CRM không?`
+          );
+
+          if (confirmSync) {
+            // 1. Load current master lists
+            const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
+            const currentMaster: string[] = cachedMaster ? JSON.parse(cachedMaster) : [];
+
+            const cachedPg = localStorage.getItem(`crm_roadshow_planner_master_pg_${warehouseCode}`);
+            const currentPg: string[] = cachedPg ? JSON.parse(cachedPg) : [];
+
+            // Merge master staff list
+            const payloadStaff = payload.staff.map((name: string) => name.toUpperCase().trim());
+            const updatedMaster = Array.from(new Set([...currentMaster, ...payloadStaff]));
+            localStorage.setItem(`crm_roadshow_planner_master_staff_${warehouseCode}`, JSON.stringify(updatedMaster));
+
+            // 2. Merge shifts for each date
+            const multiShifts: Record<string, Record<string, 'sang' | 'chieu' | 'off' | 'dup'>> = {};
+            
+            Object.keys(payload.shifts).forEach(dateKey => {
+              // Load current shifts for this date to preserve PG shifts
+              const cachedDateShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${dateKey}`);
+              const existingShifts: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = cachedDateShifts ? JSON.parse(cachedDateShifts) : {};
+
+              const merged = { ...existingShifts };
+              const datePayloadShifts = payload.shifts[dateKey];
+              
+              Object.keys(datePayloadShifts).forEach(name => {
+                const upperName = name.toUpperCase().trim();
+                merged[upperName] = datePayloadShifts[name];
+              });
+
+              localStorage.setItem(`crm_roadshow_planner_shifts_${warehouseCode}_${dateKey}`, JSON.stringify(merged));
+              multiShifts[dateKey] = merged;
+            });
+
+            // 3. Sync to Firestore in a single batch write
+            await savePlannerDataToFirestore(updatedMaster, undefined, undefined, multiShifts, currentPg);
+
+            showToast(`Đồng bộ thành công dữ liệu ca từ TGDD!`, true);
+
+            // Reload state
+            loadPlannerFromLocalStorage();
+          }
+        }
+      } catch (err) {
+        console.error('Error parsing sync data from URL hash:', err);
+        showToast('Lỗi giải mã dữ liệu đồng bộ ca!', false);
+      } finally {
+        // Clear hash without reloading the page
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    };
+
+    // Delay slightly to ensure storage is ready
+    const timer = setTimeout(handleHashSync, 500);
+    return () => clearTimeout(timer);
+  }, [warehouseCode, plannerDate]);
+
   // Save planner data to Firestore to sync in real-time
   const savePlannerDataToFirestore = async (
     masterList?: string[], 
     shiftsForDate?: Record<string, string>,
-    configsForDate?: Record<string, string>
+    configsForDate?: Record<string, string>,
+    multiShifts?: Record<string, Record<string, string>>,
+    pgList?: string[],
+    targetDateOverride?: string
   ) => {
     try {
       const docRef = doc(db, 'system_configs', `roadshow_planner_${warehouseCode}`);
       const docSnap = await getDoc(docRef);
-      const currentData = docSnap.exists() ? docSnap.data() : { masterStaff: [], shifts: {}, configs: {} };
+      const currentData = docSnap.exists() ? docSnap.data() : { masterStaff: [], masterPg: [], shifts: {}, configs: {} };
 
-      const updatedMaster = masterList || currentData.masterStaff || [];
-      const updatedShifts = { ...currentData.shifts };
-      if (shiftsForDate) {
-        updatedShifts[plannerDate] = shiftsForDate;
+      const updatedMaster = (masterList && masterList.length > 0) ? masterList : (currentData.masterStaff || []);
+      const updatedPg = (pgList && pgList.length > 0) ? pgList : (currentData.masterPg || []);
+      const updatedShifts = { ...(currentData.shifts || {}) };
+      
+      const effectiveDateKey = targetDateOverride || plannerDate;
+
+      if (multiShifts) {
+        Object.keys(multiShifts).forEach(dateKey => {
+          updatedShifts[dateKey] = {
+            ...(updatedShifts[dateKey] || {}),
+            ...multiShifts[dateKey]
+          };
+        });
+      } else if (shiftsForDate) {
+        updatedShifts[effectiveDateKey] = {
+          ...(updatedShifts[effectiveDateKey] || {}),
+          ...shiftsForDate
+        };
       }
-      const updatedConfigs = { ...currentData.configs };
+
+      const updatedConfigs = { ...(currentData.configs || {}) };
       if (configsForDate) {
-        updatedConfigs[plannerDate] = configsForDate;
+        updatedConfigs[effectiveDateKey] = configsForDate;
       }
 
       await setDoc(docRef, {
         masterStaff: updatedMaster,
+        masterPg: updatedPg,
         shifts: updatedShifts,
         configs: updatedConfigs
-      });
+      }, { merge: true });
     } catch (error) {
       console.error('Error saving planner data to firestore:', error);
     }
@@ -297,9 +475,12 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
       return;
     }
 
-    // 1. Load current master staff list
+    // 1. Load current master lists
     const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
     const currentMaster: string[] = cachedMaster ? JSON.parse(cachedMaster) : [];
+
+    const cachedPg = localStorage.getItem(`crm_roadshow_planner_master_pg_${warehouseCode}`);
+    const currentPg: string[] = cachedPg ? JSON.parse(cachedPg) : [];
 
     // Filter out duplicates
     const uniqueNewNames = pastedNames.filter(name => !currentMaster.includes(name));
@@ -319,19 +500,278 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     const cachedShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`);
     const dateShifts: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = cachedShifts ? JSON.parse(cachedShifts) : {};
 
-    const newStaffList: StaffShiftState[] = updatedMaster.map(name => ({
-      name,
-      shift: dateShifts[name] || 'off'
-    }));
+    const newStaffList: StaffShiftState[] = [
+      ...updatedMaster.map(name => ({
+        name,
+        shift: dateShifts[name] || 'off',
+        isPg: false
+      })),
+      ...currentPg.map(name => ({
+        name,
+        shift: dateShifts[name] || 'off',
+        isPg: true
+      }))
+    ];
 
     setStaffList(newStaffList);
     setRawStaffInput('');
 
     // Sync Firestore
-    savePlannerDataToFirestore(updatedMaster, dateShifts);
+    savePlannerDataToFirestore(updatedMaster, dateShifts, undefined, undefined, currentPg);
 
     showToast(`Đã nạp thêm ${uniqueNewNames.length} nhân viên mới vào danh sách!`, true);
     updateRecentDatesList();
+  };
+
+  // Load PG pasted list into Master PG List (Appends only)
+  const handleLoadPg = () => {
+    const pastedNames = rawPgInput
+      .split('\n')
+      .map(name => name.trim())
+      .filter(name => name.length > 0)
+      .map(name => name.toUpperCase());
+
+    if (pastedNames.length === 0) {
+      showToast('Vui lòng nhập tên PG!', false);
+      return;
+    }
+
+    // 1. Load current master lists
+    const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
+    const currentMaster: string[] = cachedMaster ? JSON.parse(cachedMaster) : [];
+
+    const cachedPg = localStorage.getItem(`crm_roadshow_planner_master_pg_${warehouseCode}`);
+    const currentPg: string[] = cachedPg ? JSON.parse(cachedPg) : [];
+
+    // Filter out duplicates
+    const uniqueNewPg = pastedNames.filter(name => !currentPg.includes(name));
+
+    if (uniqueNewPg.length === 0) {
+      showToast('Tất cả PG nhập vào đã tồn tại trong danh sách!', false);
+      setRawPgInput('');
+      return;
+    }
+
+    const updatedPg = [...currentPg, ...uniqueNewPg];
+
+    // 2. Save local
+    localStorage.setItem(`crm_roadshow_planner_master_pg_${warehouseCode}`, JSON.stringify(updatedPg));
+    setMasterPg(updatedPg);
+
+    // 3. Save current date shifts
+    const cachedShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`);
+    const dateShifts: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = cachedShifts ? JSON.parse(cachedShifts) : {};
+
+    const newStaffList: StaffShiftState[] = [
+      ...currentMaster.map(name => ({
+        name,
+        shift: dateShifts[name] || 'off',
+        isPg: false
+      })),
+      ...updatedPg.map(name => ({
+        name,
+        shift: dateShifts[name] || 'off',
+        isPg: true
+      }))
+    ];
+
+    setStaffList(newStaffList);
+    setRawPgInput('');
+
+    // Sync Firestore
+    savePlannerDataToFirestore(currentMaster, dateShifts, undefined, undefined, updatedPg);
+
+    showToast(`Đã nạp thêm ${uniqueNewPg.length} PG mới vào danh sách!`, true);
+    updateRecentDatesList();
+  };
+
+  // Calculate weeks of month matching LichLamViecPG exactly
+  const getWeeksOfMonth = (year: number, month: number) => {
+    let startDate = new Date(year, month, 1);
+    while (startDate.getDay() !== 1) startDate.setDate(startDate.getDate() + 1);
+    if (startDate.getDate() > 7) {
+      startDate = new Date(year, month, 1);
+      while (startDate.getDay() !== 1) startDate.setDate(startDate.getDate() - 1);
+    }
+
+    const lastDay = new Date(year, month + 1, 0);
+    const weeks: { dates: Date[] }[] = [];
+    let cur = new Date(startDate);
+
+    for (let w = 0; w < 6; w++) {
+      const dates: Date[] = [];
+      for (let dt = 0; dt < 7; dt++) {
+        dates.push(new Date(cur));
+        cur.setDate(cur.getDate() + 1);
+      }
+      if (dates.some(dt => dt.getMonth() === month)) weeks.push({ dates });
+      if (weeks.length >= 4 && cur > lastDay) break;
+    }
+    return weeks.slice(0, 5);
+  };
+
+  // Locate weekKey & dayIndex in Lich PG across current/prev/next months
+  const findPgWeekAndDayForDate = (dateStr: string) => {
+    const [yStr, mStr, dStr] = dateStr.split('-');
+    const tYear = parseInt(yStr, 10);
+    const tMonth = parseInt(mStr, 10) - 1; // 0-indexed
+    const tDay = parseInt(dStr, 10);
+
+    // Candidates: Current month, Previous month, Next month
+    const candidates = [
+      { y: tYear, m: tMonth },
+      { y: tMonth === 0 ? tYear - 1 : tYear, m: tMonth === 0 ? 11 : tMonth - 1 },
+      { y: tMonth === 11 ? tYear + 1 : tYear, m: tMonth === 11 ? 0 : tMonth + 1 },
+    ];
+
+    for (const cand of candidates) {
+      const candMonthKey = `${cand.y}-${String(cand.m + 1).padStart(2, '0')}`;
+      const weeks = getWeeksOfMonth(cand.y, cand.m);
+
+      for (let wIdx = 0; wIdx < weeks.length; wIdx++) {
+        const w = weeks[wIdx];
+        const dIdx = w.dates.findIndex(d => 
+          d.getFullYear() === tYear && 
+          d.getMonth() === tMonth && 
+          d.getDate() === tDay
+        );
+        if (dIdx !== -1) {
+          return {
+            monthKey: candMonthKey,
+            weekKey: `week${wIdx + 1}`,
+            dayIndex: dIdx,
+            weekDates: w.dates
+          };
+        }
+      }
+    }
+    return null;
+  };
+
+  // Map PG shift string from Lịch PG → Roadshow shift
+  const mapPgShiftToRoadshow = (shiftName: string): 'sang' | 'chieu' | 'off' | 'dup' => {
+    if (!shiftName) return 'off';
+    const norm = shiftName.toLowerCase().trim();
+    if (norm === 'off' || norm.includes('nghỉ') || norm.includes('nghi')) return 'off';
+    if (
+      norm.includes('gãy') || norm.includes('gay') || norm.includes('đúp') || norm.includes('dup') || norm.includes('full') || norm.includes('cả ngày') ||
+      norm.includes('2,3,4,5') || norm.includes('1,2,3,4,5') || norm.includes('2-3-4-5') || norm.includes('1-2-3-4-5') || norm.includes('2345') || norm.includes('12345')
+    ) return 'dup';
+    if (norm.includes('1,2,3') || norm.includes('1-2-3') || norm.includes('1,2') || norm.includes('1-2') || norm.includes('123') || norm.includes('12')) return 'sang';
+    if (norm.includes('3,4,5') || norm.includes('3-4-5') || norm.includes('345') || norm.includes('3,4') || norm.includes('4,5')) return 'chieu';
+    if (norm.includes('chiều') || norm.includes('chieu') || norm.includes('tối') || norm.includes('toi') || norm.includes('ca 4') || norm.includes('ca 5')) return 'chieu';
+    if (norm.includes('sáng') || norm.includes('sang') || norm.includes('trưa') || norm.includes('trua') || norm.includes('ca 1') || norm.includes('ca 2') || norm.includes('ca 3')) return 'sang';
+    if (norm.length > 0) return 'sang';
+    return 'off';
+  };
+
+  // Sync PG list directly from "Lịch PG" based on plannerDate (or targetDateOverride)
+  // One-click / auto-sync: reads PG schedule, adds directly to master PG list with shift mapping
+  const handleSyncPgFromLich = async (silent = false, targetDateOverride?: string) => {
+    const targetDateStr = targetDateOverride || plannerDate;
+    if (!targetDateStr) {
+      if (!silent) showToast('Vui lòng chọn ngày chạy Roadshow trước khi đồng bộ!', false);
+      return;
+    }
+
+    const weekInfo = findPgWeekAndDayForDate(targetDateStr);
+    if (!weekInfo) {
+      if (!silent) showToast('Không xác định được tuần của ngày này trong Lịch PG', false);
+      return;
+    }
+
+    setIsSyncingPg(true);
+    try {
+      const docRef = doc(db, 'lichLamViecPG', `GLOBAL_${weekInfo.monthKey}`);
+      const docSnap = await getDoc(docRef);
+
+      if (!docSnap.exists()) {
+        if (!silent) showToast(`Không tìm thấy dữ liệu Lịch PG cho tháng ${weekInfo.monthKey}`, false);
+        return;
+      }
+
+      const data = docSnap.data();
+      const ictRoster = data.ictRoster || [];
+      const dtdlgdRoster = data.dtdlgdRoster || [];
+      const weekDataDoc = data.weekData?.[weekInfo.weekKey] || { ict: {}, dtdlgd: {} };
+
+      const allPgFromLich: { name: string; shift: 'sang' | 'chieu' | 'off' | 'dup' }[] = [];
+
+      ictRoster.forEach((pg: any) => {
+        if (!pg.tenPgHang) return;
+        const namePart = pg.tenPgHang.split('-')[0].trim().toUpperCase();
+        const rawShift = weekDataDoc.ict?.[pg.id]?.shifts?.[weekInfo.dayIndex] || '';
+        allPgFromLich.push({ name: namePart, shift: mapPgShiftToRoadshow(rawShift) });
+      });
+
+      dtdlgdRoster.forEach((pg: any) => {
+        if (!pg.tenPgHang) return;
+        const namePart = pg.tenPgHang.split('-')[0].trim().toUpperCase();
+        const rawShift = weekDataDoc.dtdlgd?.[pg.id]?.shifts?.[weekInfo.dayIndex] || '';
+        allPgFromLich.push({ name: namePart, shift: mapPgShiftToRoadshow(rawShift) });
+      });
+
+      if (allPgFromLich.length === 0) {
+        if (!silent) showToast(`Không tìm thấy PG nào trong Lịch PG tháng ${weekInfo.monthKey}`, false);
+        return;
+      }
+
+      // 1. Load current master lists
+      const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
+      const currentMaster: string[] = cachedMaster ? JSON.parse(cachedMaster) : [];
+
+      const cachedPg = localStorage.getItem(`crm_roadshow_planner_master_pg_${warehouseCode}`);
+      const currentPg: string[] = cachedPg ? JSON.parse(cachedPg) : [];
+
+      // 2. Load current date shifts
+      const cachedShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${targetDateStr}`);
+      const dateShifts: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = cachedShifts ? JSON.parse(cachedShifts) : {};
+
+      // 3. Merge PG list and update shifts
+      const newPgNames = allPgFromLich.map(p => p.name);
+      const updatedPg = Array.from(new Set([...currentPg, ...newPgNames]));
+
+      allPgFromLich.forEach(({ name, shift }) => {
+        dateShifts[name] = shift;
+      });
+
+      // 4. Save to localStorage
+      localStorage.setItem(`crm_roadshow_planner_master_pg_${warehouseCode}`, JSON.stringify(updatedPg));
+      localStorage.setItem(`crm_roadshow_planner_shifts_${warehouseCode}_${targetDateStr}`, JSON.stringify(dateShifts));
+      setMasterPg(updatedPg);
+
+      // 5. Rebuild staffList for UI
+      const newStaffList: StaffShiftState[] = [
+        ...currentMaster.map(name => ({
+          name,
+          shift: getShiftForStaff(name, dateShifts),
+          isPg: false
+        })),
+        ...updatedPg.map(name => ({
+          name,
+          shift: getShiftForStaff(name, dateShifts),
+          isPg: true
+        }))
+      ];
+      setStaffList(newStaffList);
+
+      // 6. Clear textarea
+      setRawPgInput('');
+
+      // 7. Sync Firestore without wiping staff shifts
+      savePlannerDataToFirestore(currentMaster, dateShifts, undefined, undefined, updatedPg, targetDateStr);
+
+      if (!silent) {
+        const workingCount = allPgFromLich.filter(p => p.shift !== 'off').length;
+        showToast(`Đã đồng bộ ca cho ${allPgFromLich.length} PG (${workingCount} PG đi làm)!`, true);
+      }
+      updateRecentDatesList();
+    } catch (err) {
+      console.error('Error syncing PG schedule:', err);
+      if (!silent) showToast('Có lỗi xảy ra khi đồng bộ lịch PG', false);
+    } finally {
+      setIsSyncingPg(false);
+    }
   };
 
   // Import from Excel file
@@ -353,92 +793,90 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         const worksheet = workbook.Sheets[sheetName];
         
         // Convert sheet to 2D array
-        const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
         if (rows.length === 0) {
           showToast('File Excel trống!', false);
           return;
         }
 
-        // Helper to convert Date/Serial numbers/String to standard cleaned date text
-        const parseExcelDate = (val: any): Date | null => {
-          if (val instanceof Date) return val;
-          if (typeof val === 'number' && val > 30000 && val < 60000) {
-            return new Date(Math.round((val - 25569) * 86400 * 1000));
+        // 1. Get the year from plannerDate
+        const dateParts = plannerDate.split('-');
+        const plannerYear = parseInt(dateParts[0], 10) || new Date().getFullYear();
+
+        // Helper to extract standard YYYY-MM-DD from cell text/Date
+        const extractDateKey = (val: any): string | null => {
+          if (val === null || val === undefined) return null;
+          const str = String(val).trim();
+          if (!str) return null;
+
+          // 1. Check YYYY-MM-DD or YYYY/MM/DD
+          const isoMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+          if (isoMatch) {
+            const y = parseInt(isoMatch[1], 10);
+            const m = parseInt(isoMatch[2], 10);
+            const d = parseInt(isoMatch[3], 10);
+            return `${y}-${m < 10 ? '0' + m : m}-${d < 10 ? '0' + d : d}`;
           }
-          if (typeof val === 'string') {
-            const match = val.match(/(\d{1,2})[\/\-](\d{1,2})/);
-            if (match) {
-              const d = parseInt(match[1], 10);
-              const m = parseInt(match[2], 10);
-              const dummy = new Date();
-              dummy.setDate(d);
-              dummy.setMonth(m - 1);
-              return dummy;
+
+          // 2. Check DD/MM pattern (e.g. "T2 (24/08)", "24/08", "CN (30/08)", "30/8")
+          const dmMatch = str.match(/(\d{1,2})[\/\-](\d{1,2})/);
+          if (dmMatch) {
+            const d = parseInt(dmMatch[1], 10);
+            const m = parseInt(dmMatch[2], 10);
+            if (d >= 1 && d <= 31 && m >= 1 && m <= 12) {
+              return `${plannerYear}-${m < 10 ? '0' + m : m}-${d < 10 ? '0' + d : d}`;
             }
-            const parsed = Date.parse(val);
-            if (!isNaN(parsed)) return new Date(parsed);
           }
+
+          // 3. Check Date object
+          if (val instanceof Date) {
+            const y = val.getFullYear();
+            const m = val.getMonth() + 1;
+            const d = val.getDate();
+            return `${y}-${m < 10 ? '0' + m : m}-${d < 10 ? '0' + d : d}`;
+          }
+
           return null;
         };
 
-        const getCleanCellValue = (cellVal: any): string => {
-          if (cellVal === null || cellVal === undefined) return '';
-          const dateObj = parseExcelDate(cellVal);
-          if (dateObj) {
-            const d = dateObj.getDate();
-            const m = dateObj.getMonth() + 1;
-            const dStr = d < 10 ? '0' + d : String(d);
-            const mStr = m < 10 ? '0' + m : String(m);
-            return `(${dStr}/${mStr}) ${d}/${m}`;
+        // 2. Dynamically scan the first 10 rows to detect which row is the Date Header row
+        let dateRowIndex = 0;
+        let maxDateCols = 0;
+        for (let r = 0; r < Math.min(10, rows.length); r++) {
+          const row = rows[r] || [];
+          let dateColsCount = 0;
+          for (let c = 0; c < row.length; c++) {
+            if (extractDateKey(row[c])) {
+              dateColsCount++;
+            }
           }
-          return String(cellVal).toLowerCase().replace(/\s+/g, '');
-        };
+          if (dateColsCount > maxDateCols) {
+            maxDateCols = dateColsCount;
+            dateRowIndex = r;
+          }
+        }
 
-        // 1. Date details from plannerDate (YYYY-MM-DD)
-        const dateParts = plannerDate.split('-');
-        const dayStr = dateParts[2]; // e.g. "09"
-        const monthStr = dateParts[1]; // e.g. "08"
-        const dayNum = parseInt(dayStr, 10);
-        const monthNum = parseInt(monthStr, 10);
+        // 3. Dynamically locate the Shift Header row (e.g., contains "Ca 1", "Ca 2", "Ca 3")
+        let shiftRowIndex = dateRowIndex + 1;
+        for (let r = dateRowIndex + 1; r < Math.min(dateRowIndex + 4, rows.length); r++) {
+          const row = rows[r] || [];
+          const hasShiftWord = row.some(cell => {
+            const val = String(cell || '').toLowerCase().trim();
+            return (
+              val.includes('ca ') || val === 'ca1' || val === 'ca2' || 
+              val === 'ca3' || val === 'ca4' || val === 'ca5' || 
+              val.includes('sáng') || val.includes('chiều')
+            );
+          });
+          if (hasShiftWord) {
+            shiftRowIndex = r;
+            break;
+          }
+        }
 
-        // Date search suffixes: e.g. "(09/08)" or "(9/8)"
-        const suffixWithZero = `(${dayStr}/${monthStr})`.replace(/\s+/g, '');
-        const suffixNoZero = `(${dayNum}/${monthNum})`.replace(/\s+/g, '');
-        const rawDateWithZero = `${dayStr}/${monthStr}`.replace(/\s+/g, '');
-        const rawDateNoZero = `${dayNum}/${monthNum}`.replace(/\s+/g, '');
-
+        // 4. Identify the Employee Name column index by scanning up to the Shift Header row
         let nameColIndex = -1;
-        let dayColIndex = -1;
-
-        // 2. Scan row 0 to map column indices to their corresponding date string (handling merged cells)
-        const colDateMap: string[] = [];
-        let currentActiveDate = '';
-
-        const row0 = rows[0] || [];
-        for (let c = 0; c < row0.length; c++) {
-          const val = getCleanCellValue(row0[c]);
-          if (val && (val.includes('(') || val.includes('/') || val.match(/\d/))) {
-            currentActiveDate = val;
-          }
-          colDateMap[c] = currentActiveDate;
-        }
-
-        // Find all columns matching target date
-        const targetColIndices: number[] = [];
-        for (let c = 0; c < colDateMap.length; c++) {
-          const val = colDateMap[c] || '';
-          if (
-            val.includes(suffixWithZero) || 
-            val.includes(suffixNoZero) || 
-            val.includes(rawDateWithZero) || 
-            val.includes(rawDateNoZero)
-          ) {
-            targetColIndices.push(c);
-          }
-        }
-
-        // 3. Identify name column index (check row 0 and row 1)
-        for (let r = 0; r <= 1; r++) {
+        for (let r = 0; r <= shiftRowIndex; r++) {
           const row = rows[r] || [];
           for (let c = 0; c < row.length; c++) {
             const val = String(row[c] || '').toLowerCase().trim();
@@ -446,7 +884,8 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
               val.includes('tên') || val.includes('ten') || 
               val.includes('nhân viên') || val.includes('nhan vien') || 
               val.includes('họ tên') || val.includes('ho ten') || 
-              val === 'nv' || val.includes('staff') || val === 'name'
+              val === 'nv' || val.includes('staff') || val === 'name' ||
+              val === 'họ và tên' || val === 'hovaten'
             ) {
               nameColIndex = c;
               break;
@@ -455,35 +894,59 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
           if (nameColIndex !== -1) break;
         }
 
-        // Fallbacks
         if (nameColIndex === -1) {
-          nameColIndex = row0.length > 2 ? 2 : (row0.length > 1 ? 1 : 0);
+          const shiftRow = rows[shiftRowIndex] || [];
+          nameColIndex = shiftRow.length > 2 ? 1 : 0;
         }
-        if (targetColIndices.length === 0) {
-          showToast(`Không tìm thấy cột ngày ${dayStr}/${monthStr} (ví dụ: CN (${dayStr}/${monthStr})) ở dòng đầu tiên của Excel!`, false);
+
+        // 5. Group columns by Date Key YYYY-MM-DD
+        const dateColsMap: Record<string, number[]> = {};
+
+        // A. Check worksheet['!merges'] for exact date column ranges
+        if (worksheet['!merges'] && Array.isArray(worksheet['!merges'])) {
+          worksheet['!merges'].forEach(range => {
+            if (range.s.r <= dateRowIndex && range.e.r >= dateRowIndex) {
+              const cellAddress = XLSX.utils.encode_cell({ r: range.s.r, c: range.s.c });
+              const cell = worksheet[cellAddress];
+              const cellVal = cell?.w || cell?.v;
+              const dateKey = extractDateKey(cellVal);
+              if (dateKey) {
+                if (!dateColsMap[dateKey]) dateColsMap[dateKey] = [];
+                for (let c = range.s.c; c <= range.e.c; c++) {
+                  if (!dateColsMap[dateKey].includes(c)) {
+                    dateColsMap[dateKey].push(c);
+                  }
+                }
+              }
+            }
+          });
+        }
+
+        // B. If !merges didn't populate dateColsMap, use left-to-right propagation
+        if (Object.keys(dateColsMap).length === 0) {
+          let currentActiveDateKey = '';
+          const dateRow = rows[dateRowIndex] || [];
+          for (let c = 0; c < dateRow.length; c++) {
+            const cellVal = dateRow[c];
+            const dateKey = extractDateKey(cellVal);
+            if (dateKey) {
+              currentActiveDateKey = dateKey;
+            }
+            if (currentActiveDateKey) {
+              if (!dateColsMap[currentActiveDateKey]) {
+                dateColsMap[currentActiveDateKey] = [];
+              }
+              dateColsMap[currentActiveDateKey].push(c);
+            }
+          }
+        }
+
+        if (Object.keys(dateColsMap).length === 0) {
+          showToast(`Không tìm thấy cột ngày hợp lệ nào ở dòng ngày của Excel!`, false);
           return;
         }
 
-        // Map column indices to Sáng and Chiều based on Ca headers in row 1
-        const morningCols: number[] = [];
-        const afternoonCols: number[] = [];
-
-        targetColIndices.forEach(c => {
-          const subHeader = String(rows[1]?.[c] || '').toLowerCase().trim();
-          if (
-            subHeader.includes('1') || subHeader.includes('2') || subHeader.includes('3') ||
-            subHeader.includes('sáng') || subHeader.includes('sang')
-          ) {
-            morningCols.push(c);
-          } else if (
-            subHeader.includes('4') || subHeader.includes('5') ||
-            subHeader.includes('chiều') || subHeader.includes('chieu')
-          ) {
-            afternoonCols.push(c);
-          }
-        });
-
-        // 4. Load Master and Shift map
+        // 6. Load current Master
         let currentMaster: string[] = [];
         try {
           const cachedMaster = localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
@@ -494,53 +957,46 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         } catch (e) {
           console.error(e);
         }
-        
-        const shiftMap: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = {};
 
-        // Parse data rows (start from index 2 since row 0 is date headers and row 1 is ca headers)
-        for (let r = 2; r < rows.length; r++) {
+        // Helper to extract clean employee name from cell
+        const extractStaffName = (row: any[]): string => {
+          let raw = String(row[nameColIndex] || '').trim();
+          // If nameColIndex holds department name, check adjacent column
+          if (raw.startsWith('BP ') || raw.includes('Bộ Phận') || raw.includes('Bo Phan') || raw.length <= 1) {
+            if (row[nameColIndex + 1]) {
+              raw = String(row[nameColIndex + 1]).trim();
+            }
+          }
+          return raw.toUpperCase();
+        };
+
+        // Extract employee names first (to build/update the master staff list)
+        for (let r = shiftRowIndex + 1; r < rows.length; r++) {
           const row = rows[r];
-          if (!row || !row[nameColIndex]) continue;
+          if (!row) continue;
 
-          const rawName = String(row[nameColIndex]).trim().toUpperCase();
+          const rawName = extractStaffName(row);
           if (
-            rawName === 'STT' || rawName.includes('CỘNG') || rawName.includes('TỔNG') || 
+            !rawName || rawName === 'STT' || rawName.includes('CỘNG') || rawName.includes('TỔNG') || 
             rawName.includes('THỜI GIAN') || rawName === 'NHÂN VIÊN' || rawName === 'HỌ TÊN' ||
             rawName === 'HO TEN' || rawName === 'TÊN NV' || rawName === 'NAME' || rawName === 'HỌ VÀ TÊN' ||
-            rawName === 'HỌTÊN' || rawName === 'BỘ PHẬN' || rawName === 'BO PHAN'
+            rawName === 'HỌTÊN' || rawName === 'BỘ PHẬN' || rawName === 'BO PHAN' ||
+            rawName.includes('GIỜ CÔNG') || rawName.includes('NHÂN SỰ')
           ) {
             continue;
           }
 
-          let hasMorningShift = false;
-          morningCols.forEach(c => {
-            const cellVal = String(row[c] || '').trim();
-            if (cellVal && cellVal !== '0') {
-              hasMorningShift = true;
-            }
-          });
-
-          let hasAfternoonShift = false;
-          afternoonCols.forEach(c => {
-            const cellVal = String(row[c] || '').trim();
-            if (cellVal && cellVal !== '0') {
-              hasAfternoonShift = true;
-            }
-          });
-
-          let shift: 'sang' | 'chieu' | 'off' | 'dup' = 'off';
-          if (hasMorningShift && hasAfternoonShift) {
-            shift = 'dup';
-          } else if (hasMorningShift) {
-            shift = 'sang';
-          } else if (hasAfternoonShift) {
-            shift = 'chieu';
-          }
-
           if (!currentMaster.includes(rawName)) {
-            currentMaster.push(rawName);
+            // Check if there is already a matching name in currentMaster before pushing
+            const existingMatch = currentMaster.find(m => {
+              const nm = normalizeStaffName(m);
+              const nr = normalizeStaffName(rawName);
+              return nm === nr || (nm.length > 2 && nr.length > 2 && (nm.includes(nr) || nr.includes(nm)));
+            });
+            if (!existingMatch) {
+              currentMaster.push(rawName);
+            }
           }
-          shiftMap[rawName] = shift;
         }
 
         if (currentMaster.length === 0) {
@@ -548,21 +1004,220 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
           return;
         }
 
-        // Save local
+        // 7. Build shifts map for each date
+        const allDatesShifts: Record<string, Record<string, 'sang' | 'chieu' | 'off' | 'dup'>> = {};
+
+        Object.keys(dateColsMap).forEach(dateKey => {
+          const colIndices = dateColsMap[dateKey];
+          const ca1Cols: number[] = [];
+          const ca2Cols: number[] = [];
+          const ca3Cols: number[] = [];
+          const ca4Cols: number[] = [];
+          const ca5Cols: number[] = [];
+          const generalCols: number[] = [];
+
+          colIndices.forEach(c => {
+            const subHeader = String(rows[shiftRowIndex]?.[c] || '').toLowerCase().trim();
+            if (/\b1\b|ca\s*1|ca1/i.test(subHeader)) {
+              ca1Cols.push(c);
+            } else if (/\b2\b|ca\s*2|ca2/i.test(subHeader)) {
+              ca2Cols.push(c);
+            } else if (/\b3\b|ca\s*3|ca3/i.test(subHeader)) {
+              ca3Cols.push(c);
+            } else if (/\b4\b|ca\s*4|ca4/i.test(subHeader)) {
+              ca4Cols.push(c);
+            } else if (/\b5\b|ca\s*5|ca5/i.test(subHeader)) {
+              ca5Cols.push(c);
+            } else if (subHeader.includes('sáng') || subHeader.includes('sang')) {
+              ca1Cols.push(c);
+            } else if (subHeader.includes('chiều') || subHeader.includes('chieu') || subHeader.includes('tối') || subHeader.includes('toi')) {
+              ca4Cols.push(c);
+            } else {
+              generalCols.push(c);
+            }
+          });
+
+          const shiftMap: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = {};
+
+          for (let r = shiftRowIndex + 1; r < rows.length; r++) {
+            const row = rows[r];
+            if (!row) continue;
+
+            const rawName = extractStaffName(row);
+            if (
+              !rawName || rawName === 'STT' || rawName.includes('CỘNG') || rawName.includes('TỔNG') || 
+              rawName.includes('THỜI GIAN') || rawName === 'NHÂN VIÊN' || rawName === 'HỌ TÊN' ||
+              rawName === 'HO TEN' || rawName === 'TÊN NV' || rawName === 'NAME' || rawName === 'HỌ VÀ TÊN' ||
+              rawName === 'HỌTÊN' || rawName === 'BỘ PHẬN' || rawName === 'BO PHAN' ||
+              rawName.includes('GIỜ CÔNG') || rawName.includes('NHÂN SỰ')
+            ) {
+              continue;
+            }
+
+            const isCellValid = (c: number) => {
+              const val = String(row[c] || '').trim().toLowerCase();
+              return val !== '' && val !== '0' && val !== 'off' && val !== 'nghỉ' && val !== 'nghi' && val !== '-';
+            };
+
+            let hasCa1 = ca1Cols.some(isCellValid);
+            let hasCa2 = ca2Cols.some(isCellValid);
+            let hasCa3 = ca3Cols.some(isCellValid);
+            let hasCa4 = ca4Cols.some(isCellValid);
+            let hasCa5 = ca5Cols.some(isCellValid);
+
+            // Also check text inside all date columns (e.g. if single column per date or combined text)
+            const cellTexts: string[] = [];
+            colIndices.forEach(c => {
+              const val = String(row[c] || '').trim();
+              if (val && val !== '0') cellTexts.push(val);
+            });
+
+            cellTexts.forEach(txt => {
+              const t = txt.toLowerCase();
+              if (/\b1\b|ca\s*1|ca1/i.test(t)) hasCa1 = true;
+              if (/\b2\b|ca\s*2|ca2/i.test(t)) hasCa2 = true;
+              if (/\b3\b|ca\s*3|ca3/i.test(t)) hasCa3 = true;
+              if (/\b4\b|ca\s*4|ca4/i.test(t)) hasCa4 = true;
+              if (/\b5\b|ca\s*5|ca5/i.test(t)) hasCa5 = true;
+            });
+
+            // Determine shift based on Quy ước lọc ca Excel:
+            // Ca 1,2 = Ca Sáng
+            // Ca 1,2,3 = Ca Sáng
+            // Ca 3,4,5 = Ca Chiều
+            // Ca 2,3,4,5 = Ca Đúp
+            // Ca 1,2,3,4,5 = Ca Đúp
+            // Không có ca = OFF
+            let shift: 'sang' | 'chieu' | 'off' | 'dup' = 'off';
+            let matchedByKeyword = false;
+
+            for (const txt of cellTexts) {
+              const clean = txt.toLowerCase().replace(/\s+/g, '');
+              if (
+                clean.includes('đúp') || clean.includes('dup') || clean.includes('full') ||
+                clean.includes('2,3,4,5') || clean.includes('1,2,3,4,5') ||
+                clean.includes('2-3-4-5') || clean.includes('1-2-3-4-5') ||
+                clean.includes('2345') || clean.includes('12345')
+              ) {
+                shift = 'dup';
+                matchedByKeyword = true;
+                break;
+              }
+              if (
+                clean.includes('1,2,3') || clean.includes('1-2-3') || clean.includes('123') ||
+                clean.includes('1,2') || clean.includes('1-2') || clean.includes('12')
+              ) {
+                shift = 'sang';
+                matchedByKeyword = true;
+                break;
+              }
+              if (
+                clean.includes('3,4,5') || clean.includes('3-4-5') || clean.includes('345') ||
+                clean.includes('3,4') || clean.includes('4,5')
+              ) {
+                shift = 'chieu';
+                matchedByKeyword = true;
+                break;
+              }
+              if (clean.includes('sáng') || clean.includes('sang')) {
+                shift = 'sang';
+                matchedByKeyword = true;
+                break;
+              }
+              if (clean.includes('chiều') || clean.includes('chieu') || clean.includes('tối') || clean.includes('toi')) {
+                shift = 'chieu';
+                matchedByKeyword = true;
+                break;
+              }
+            }
+
+            if (!matchedByKeyword) {
+              const hasEarly = hasCa1 || hasCa2; // Ca 1 hoặc Ca 2
+              const hasLate = hasCa4 || hasCa5;  // Ca 4 hoặc Ca 5
+              const hasMid = hasCa3;             // Ca 3
+
+              if (!hasEarly && !hasMid && !hasLate) {
+                // Không có ca = OFF
+                shift = 'off';
+              } else if (hasEarly && hasLate) {
+                // Ca 2,3,4,5 hoặc Ca 1,2,3,4,5 = Ca Đúp
+                shift = 'dup';
+              } else if (hasEarly && !hasLate) {
+                // Ca 1,2 hoặc Ca 1,2,3 = Ca Sáng
+                shift = 'sang';
+              } else if (!hasEarly && (hasMid || hasLate)) {
+                // Ca 3,4,5 = Ca Chiều
+                shift = 'chieu';
+              } else {
+                shift = 'off';
+              }
+            }
+
+            // Save under rawName, namePart, and any matching master names
+            shiftMap[rawName] = shift;
+            if (rawName.includes('-')) {
+              const namePart = rawName.split('-')[1].trim();
+              if (namePart) shiftMap[namePart] = shift;
+            }
+            currentMaster.forEach(m => {
+              if (normalizeStaffName(m) === normalizeStaffName(rawName) || normalizeStaffName(m).includes(normalizeStaffName(rawName)) || normalizeStaffName(rawName).includes(normalizeStaffName(m))) {
+                shiftMap[m] = shift;
+              }
+            });
+          }
+
+          // Load existing local shifts and preserve PG shifts
+          let mergedShifts: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = {};
+          try {
+            const cachedShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${dateKey}`);
+            if (cachedShifts) {
+              mergedShifts = JSON.parse(cachedShifts);
+            }
+          } catch (e) {
+            console.error(e);
+          }
+
+          // Overwrite with newly imported Excel shifts
+          Object.keys(shiftMap).forEach(name => {
+            mergedShifts[name] = shiftMap[name];
+          });
+
+          allDatesShifts[dateKey] = mergedShifts;
+        });
+
+        // 8. Load PG list to preserve
+        const cachedPg = localStorage.getItem(`crm_roadshow_planner_master_pg_${warehouseCode}`);
+        const currentPg: string[] = cachedPg ? JSON.parse(cachedPg) : [];
+
+        // Save local master staff
         localStorage.setItem(`crm_roadshow_planner_master_staff_${warehouseCode}`, JSON.stringify(currentMaster));
-        localStorage.setItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`, JSON.stringify(shiftMap));
 
-        // Sync Firestore
-        savePlannerDataToFirestore(currentMaster, shiftMap);
+        // Save local shifts for all parsed dates
+        Object.keys(allDatesShifts).forEach(dateKey => {
+          localStorage.setItem(`crm_roadshow_planner_shifts_${warehouseCode}_${dateKey}`, JSON.stringify(allDatesShifts[dateKey]));
+        });
 
-        // Update states
-        const mappedStaffList: StaffShiftState[] = currentMaster.map(name => ({
-          name,
-          shift: shiftMap[name] || 'off'
-        }));
+        // Sync Firestore in a single batch
+        savePlannerDataToFirestore(currentMaster, undefined, undefined, allDatesShifts, currentPg);
+
+        // Update states for the currently selected plannerDate
+        const activeShifts = allDatesShifts[plannerDate] || {};
+        const mappedStaffList: StaffShiftState[] = [
+          ...currentMaster.map(name => ({
+            name,
+            shift: getShiftForStaff(name, activeShifts),
+            isPg: false
+          })),
+          ...currentPg.map(name => ({
+            name,
+            shift: getShiftForStaff(name, activeShifts),
+            isPg: true
+          }))
+        ];
         setStaffList(mappedStaffList);
 
-        showToast(`Nhập và tự động phân ca ngày ${targetDayNum} từ Excel thành công!`, true);
+        const totalImportedDays = Object.keys(allDatesShifts).length;
+        showToast(`Nhập và tự động phân ca thành công cho ${totalImportedDays} ngày từ Excel!`, true);
         updateRecentDatesList();
       } catch (err) {
         console.error('Error reading excel:', err);
@@ -599,6 +1254,12 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     const updatedMaster = currentMaster.filter(name => name !== upperName);
     localStorage.setItem(`crm_roadshow_planner_master_staff_${warehouseCode}`, JSON.stringify(updatedMaster));
 
+    const cachedPg = localStorage.getItem(`crm_roadshow_planner_master_pg_${warehouseCode}`);
+    const currentPg: string[] = cachedPg ? JSON.parse(cachedPg) : [];
+    const updatedPg = currentPg.filter(name => name !== upperName);
+    localStorage.setItem(`crm_roadshow_planner_master_pg_${warehouseCode}`, JSON.stringify(updatedPg));
+    setMasterPg(updatedPg);
+
     const cachedShifts = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`);
     const dateShifts: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = cachedShifts ? JSON.parse(cachedShifts) : {};
     delete dateShifts[upperName];
@@ -608,7 +1269,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     setStaffList(updatedStaffList);
     
     // Sync Firestore
-    savePlannerDataToFirestore(updatedMaster, dateShifts);
+    savePlannerDataToFirestore(updatedMaster, dateShifts, undefined, undefined, updatedPg);
     
     showToast(`Đã xoá nhân sự ${upperName} khỏi danh sách!`, true);
     updateRecentDatesList();
@@ -618,12 +1279,14 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
   const handleClearPlanner = () => {
     if (!window.confirm('Bạn có chắc chắn muốn xoá danh sách nhân sự hiện tại?')) return;
     setStaffList([]);
+    setMasterPg([]);
     localStorage.removeItem(`crm_roadshow_planner_master_staff_${warehouseCode}`);
+    localStorage.removeItem(`crm_roadshow_planner_master_pg_${warehouseCode}`);
     localStorage.removeItem(`crm_roadshow_planner_shifts_${warehouseCode}_${plannerDate}`);
     
     // Sync Firestore
-    savePlannerDataToFirestore([], {});
-    showToast('Đã xoá danh sách nhân sự!', true);
+    savePlannerDataToFirestore([], {}, undefined, undefined, []);
+    showToast('Đã xoá danh sách nhân sự và PG!', true);
     updateRecentDatesList();
   };
 
@@ -653,7 +1316,8 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
       const masterNames = staffList.map(s => s.name);
       const mapped = masterNames.map(name => ({
         name,
-        shift: dateShifts[name] || 'off'
+        shift: dateShifts[name] || 'off',
+        isPg: masterPg.includes(name)
       }));
       setStaffList(mapped);
     }
@@ -687,10 +1351,27 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
       if (key && key.startsWith(prefix)) {
         const datePart = key.replace(prefix, '');
         if (datePart.startsWith(yearMonth)) {
+          // Check if this date has route data
+          const configKey = `crm_roadshow_planner_configs_${warehouseCode}_${datePart}`;
+          let hasRoute = false;
           try {
-            allShifts[datePart] = JSON.parse(localStorage.getItem(key) || '{}');
+            const configs = JSON.parse(localStorage.getItem(configKey) || '{}');
+            if (
+              (configs.morningRoute && configs.morningRoute.trim() !== '') ||
+              (configs.afternoonRoute && configs.afternoonRoute.trim() !== '')
+            ) {
+              hasRoute = true;
+            }
           } catch (e) {
             console.error(e);
+          }
+
+          if (hasRoute) {
+            try {
+              allShifts[datePart] = JSON.parse(localStorage.getItem(key) || '{}');
+            } catch (e) {
+              console.error(e);
+            }
           }
         }
       }
@@ -706,7 +1387,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         const dayShifts = allShifts[date] || {};
         const shiftVal = dayShifts[staff.name] || 'off';
         
-        if (shiftVal === 'sang' || shiftVal === 'chieu' || shiftVal === 'dup') {
+        if (shiftVal === 'sang' || shiftVal === 'chieu') {
           runCount++;
         } else {
           offCount++;
@@ -740,9 +1421,12 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     showToast('Đã sao chép bảng thống kê vào bộ nhớ tạm!', true);
   };
 
-  // Filter staff by shifts
-  const morningStaff = staffList.filter(s => s.shift === 'sang');
-  const afternoonStaff = staffList.filter(s => s.shift === 'chieu');
+  // Filter staff by shifts:
+  // - Nhân viên ca chiều ở siêu thị -> chạy Roadshow Ca Sáng
+  // - Nhân viên ca sáng ở siêu thị -> chạy Roadshow Ca Chiều
+  // - Nhân viên ca ĐÚP & OFF -> KHÔNG phân lịch chạy Roadshow
+  const morningStaff = staffList.filter(s => s.shift === 'chieu');
+  const afternoonStaff = staffList.filter(s => s.shift === 'sang');
 
   // Format date display: e.g. "Ngày 09/08"
   const getFormattedDateLabel = (dateStr: string) => {
@@ -756,29 +1440,211 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
 
   // Capture table image
   const handleCaptureTable = async () => {
-    if (tableRef.current) {
-      setIsCapturing(true);
+    if (!tableRef.current) {
+      showToast('Không tìm thấy bảng để chụp ảnh!', false);
+      return;
+    }
+
+    setIsCapturing(true);
+
+    const element = tableRef.current;
+    const tableWidth = 1050;
+    const padding = 25;
+    const targetWidth = tableWidth + (padding * 2); // 1100px
+    const colWidths = ['70px', '280px', '230px', '470px'];
+
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'fixed';
+    tempContainer.style.top = '-9999px';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.width = `${targetWidth}px`;
+    tempContainer.style.height = 'auto';
+    tempContainer.style.overflow = 'hidden';
+    tempContainer.style.zIndex = '-9999';
+    tempContainer.style.opacity = '0';
+    tempContainer.style.pointerEvents = 'none';
+
+    const frameWrapper = document.createElement('div');
+    frameWrapper.style.width = `${targetWidth}px`;
+    frameWrapper.style.minWidth = `${targetWidth}px`;
+    frameWrapper.style.backgroundColor = '#ffffff';
+    frameWrapper.style.padding = `${padding}px`;
+    frameWrapper.style.margin = '0';
+    frameWrapper.style.boxSizing = 'border-box';
+    frameWrapper.style.boxShadow = 'none';
+    frameWrapper.style.display = 'inline-block';
+
+    const clone = element.cloneNode(true) as HTMLElement;
+
+    // 1. Replace all textareas in clone with styled div elements preserving exact text content
+    const textareas = clone.querySelectorAll('textarea');
+    textareas.forEach((ta) => {
+      const routeType = ta.getAttribute('data-route-type');
+      let textVal = (ta as HTMLTextAreaElement).value;
+      if (routeType === 'morning') {
+        textVal = morningRoute || textVal;
+      } else if (routeType === 'afternoon') {
+        textVal = afternoonRoute || textVal;
+      }
+
+      const div = document.createElement('div');
+      div.className = 'whitespace-pre-wrap font-utm-avo font-black text-black leading-relaxed text-[15px]';
+      div.style.whiteSpace = 'pre-wrap';
+      div.style.wordBreak = 'break-word';
+      div.style.fontFamily = 'UTM Avo, sans-serif';
+      div.style.fontWeight = '900';
+      div.style.color = '#000000';
+      div.style.fontSize = '15px';
+      div.style.lineHeight = '1.6';
+      div.style.padding = '8px 12px';
+      div.style.boxSizing = 'border-box';
+      div.style.width = '100%';
+      div.textContent = textVal || '';
+
+      ta.parentNode?.replaceChild(div, ta);
+    });
+
+    // 2. Hide buttons and elements with .no-capture
+    const noCaptureElements = clone.querySelectorAll('.no-capture, button');
+    noCaptureElements.forEach(el => {
+      (el as HTMLElement).style.display = 'none';
+    });
+
+    // 3. Strip all shadows, filters and classes for zero-shadow export
+    clone.style.boxShadow = 'none';
+    clone.style.textShadow = 'none';
+    clone.style.filter = 'none';
+    clone.style.padding = '0';
+    clone.style.margin = '0';
+    clone.style.width = `${tableWidth}px`;
+    clone.style.minWidth = `${tableWidth}px`;
+    clone.style.maxWidth = `${tableWidth}px`;
+    clone.style.boxSizing = 'border-box';
+
+    const allElements = clone.querySelectorAll('*');
+    allElements.forEach(el => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.boxShadow = 'none';
+      htmlEl.style.textShadow = 'none';
+      htmlEl.style.filter = 'none';
+      htmlEl.style.borderRadius = '0px';
+      Array.from(htmlEl.classList || []).forEach(cls => {
+        if (cls.startsWith('shadow-') || cls === 'shadow') {
+          htmlEl.classList.remove(cls);
+        }
+      });
+    });
+
+    // 4. Expand scroll containers
+    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+    scrollContainers.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.overflow = 'visible';
+      htmlEl.style.width = '100%';
+      htmlEl.style.height = 'auto';
+      htmlEl.style.maxWidth = 'none';
+      htmlEl.style.maxHeight = 'none';
+      el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
+    });
+
+    // 5. Lock Table & Cell Widths strictly across ALL rows
+    const tables = clone.querySelectorAll('table');
+    tables.forEach(table => {
+      const htmlTable = table as HTMLElement;
+      htmlTable.style.width = `${tableWidth}px`;
+      htmlTable.style.minWidth = `${tableWidth}px`;
+      htmlTable.style.maxWidth = `${tableWidth}px`;
+      htmlTable.style.boxSizing = 'border-box';
+      htmlTable.style.tableLayout = 'fixed';
+      htmlTable.style.borderCollapse = 'collapse';
+      htmlTable.style.border = '2px solid #000000';
+      htmlTable.style.margin = '0';
+
+      const cols = htmlTable.querySelectorAll('colgroup col');
+      cols.forEach((c, idx) => {
+        if (colWidths[idx]) {
+          (c as HTMLElement).style.width = colWidths[idx];
+          (c as HTMLElement).style.minWidth = colWidths[idx];
+          (c as HTMLElement).style.maxWidth = colWidths[idx];
+        }
+      });
+
+      const allRows = htmlTable.querySelectorAll('tr');
+      allRows.forEach(tr => {
+        const cells = tr.querySelectorAll('th, td');
+        if (cells.length === 4) {
+          cells.forEach((cell, cIdx) => {
+            const htmlCell = cell as HTMLElement;
+            htmlCell.style.width = colWidths[cIdx];
+            htmlCell.style.minWidth = colWidths[cIdx];
+            htmlCell.style.maxWidth = colWidths[cIdx];
+            htmlCell.style.boxSizing = 'border-box';
+          });
+        } else if (cells.length === 3) {
+          // Rows in rowSpan block (STT, NHÂN VIÊN, NGÀY)
+          cells.forEach((cell, cIdx) => {
+            const htmlCell = cell as HTMLElement;
+            htmlCell.style.width = colWidths[cIdx];
+            htmlCell.style.minWidth = colWidths[cIdx];
+            htmlCell.style.maxWidth = colWidths[cIdx];
+            htmlCell.style.boxSizing = 'border-box';
+          });
+        }
+      });
+    });
+
+    // Add clone inside frameWrapper
+    frameWrapper.appendChild(clone);
+    tempContainer.appendChild(frameWrapper);
+    document.body.appendChild(tempContainer);
+
+    try {
+      // 6. Ensure fonts and export image
+      await ensureFontsReady();
+      await new Promise(r => setTimeout(r, 200));
+
+      const finalWidth = targetWidth;
+      const finalHeight = frameWrapper.scrollHeight || frameWrapper.offsetHeight;
+
+      let dataUrl: string;
       try {
-        await new Promise(r => setTimeout(r, 200)); // Wait for render
-        const dataUrl = await htmlToImage.toPng(tableRef.current, {
+        dataUrl = await htmlToImage.toPng(frameWrapper, {
           backgroundColor: '#ffffff',
           pixelRatio: 2,
+          skipFonts: false,
+          width: finalWidth,
+          height: finalHeight,
           style: {
-            padding: '24px',
-            borderRadius: '16px',
-            width: '680px',
-            margin: '0'
+            transform: 'scale(1)',
+            transformOrigin: 'top left',
+            width: `${finalWidth}px`,
+            height: `${finalHeight}px`,
+            ...EXPORT_FONT_STYLE,
           }
         });
-        setPreviewImage(dataUrl);
-      } catch (err) {
-        console.error('Error capturing table image:', err);
-        showToast('Chụp ảnh bảng thất bại!', false);
-      } finally {
-        setIsCapturing(false);
+      } catch (errHtml) {
+        console.warn('htmlToImage failed, fallback to domToPng:', errHtml);
+        dataUrl = await domToPng(frameWrapper, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          quality: 0.98,
+          width: finalWidth,
+          height: finalHeight,
+          style: {
+            ...EXPORT_FONT_STYLE,
+          }
+        });
       }
-    } else {
-      showToast('Không tìm thấy bảng để chụp ảnh!', false);
+
+      setPreviewImage(dataUrl);
+    } catch (err) {
+      console.error('Error capturing table image:', err);
+      showToast('Chụp ảnh bảng thất bại!', false);
+    } finally {
+      if (document.body.contains(tempContainer)) {
+        document.body.removeChild(tempContainer);
+      }
+      setIsCapturing(false);
     }
   };
 
@@ -893,10 +1759,10 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         <button
           onClick={() => setActiveTab('PLANNER')}
           className={cn(
-            "pb-3 text-sm font-black uppercase tracking-wider border-b-2 transition-all px-2",
+            "pb-3 text-sm font-black uppercase tracking-wider border-b-2 transition-all px-3 py-1.5 rounded-t-xl",
             activeTab === 'PLANNER' 
-              ? "border-indigo-600 text-indigo-600" 
-              : "border-transparent text-slate-500 hover:text-slate-700"
+              ? "border-emerald-600 text-emerald-700 bg-emerald-50/60 shadow-xs" 
+              : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"
           )}
         >
           Sắp Tuyến Nhanh (Bảng Ảnh)
@@ -904,62 +1770,131 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         <button
           onClick={() => setActiveTab('STATS')}
           className={cn(
-            "pb-3 text-sm font-black uppercase tracking-wider border-b-2 transition-all px-2",
+            "pb-3 text-sm font-black uppercase tracking-wider border-b-2 transition-all px-3 py-1.5 rounded-t-xl",
             activeTab === 'STATS' 
-              ? "border-indigo-600 text-indigo-600" 
-              : "border-transparent text-slate-500 hover:text-slate-700"
+              ? "border-emerald-600 text-emerald-700 bg-emerald-50/60 shadow-xs" 
+              : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"
           )}
         >
           Thống Kê Tần Suất Chạy
-        </button>
-        <button
-          onClick={() => setActiveTab('HISTORY')}
-          className={cn(
-            "pb-3 text-sm font-black uppercase tracking-wider border-b-2 transition-all px-2",
-            activeTab === 'HISTORY' 
-              ? "border-indigo-600 text-indigo-600" 
-              : "border-transparent text-slate-500 hover:text-slate-700"
-          )}
-        >
-          Lịch Trình & Bản Đồ Vệ Tinh
         </button>
       </div>
 
       {/* RENDER PLANNER TAB */}
       {activeTab === 'PLANNER' && (
         <div className="space-y-6">
+          
+          {/* USER INSTRUCTIONS BANNER (TONE XANH LÁ & VÀNG) */}
+          <div className="bg-gradient-to-r from-emerald-50/90 via-amber-50/60 to-emerald-50/40 border-l-4 border-emerald-600 rounded-r-3xl rounded-l-lg p-5 shadow-md shadow-emerald-100/50 border-y border-r border-slate-200/50">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-emerald-600 text-white rounded-2xl shrink-0 shadow-lg shadow-emerald-200">
+                <Info size={22} className="animate-pulse" />
+              </div>
+              <div className="space-y-2">
+                <h4 className="text-xs font-black uppercase tracking-wider text-emerald-950 flex items-center gap-2">
+                  Quy trình thiết lập lịch chạy Roadshow:
+                  <span className="px-2 py-0.5 rounded bg-emerald-100 border border-emerald-300 text-emerald-800 text-[8px] font-black uppercase tracking-wider">Hướng dẫn nhanh</span>
+                </h4>
+                <ol className="list-decimal list-inside text-[11.5px] font-bold text-slate-750 space-y-2 leading-relaxed">
+                  <li>
+                    Truy cập trang quản lý ca trực:{" "}
+                    <a 
+                      href="https://office.thegioididong.com/quan-ly-phan-ca" 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-emerald-700 hover:text-emerald-900 underline hover:no-underline font-black decoration-2"
+                    >
+                      https://office.thegioididong.com/quan-ly-phan-ca
+                    </a>{" "}
+                    để tải file Excel phân ca.
+                  </li>
+                  <li>
+                    Nhập file Excel ca (nút <span className="text-emerald-800 font-black">EXCEL PHÂN CA</span>) để tự động phân ca chạy cho Nhân viên siêu thị.
+                  </li>
+                  <li>
+                    Nhập danh sách và thiết lập lịch phân ca <span className="text-amber-800 font-black">PG</span> (hoặc bấm <span className="text-teal-700 font-black">ĐỒNG BỘ LỊCH PG</span>).
+                  </li>
+                  <li>
+                    Nhập tuyến đường chạy tương ứng cho buổi Sáng & Chiều &rarr; Chụp ảnh xuất lịch chạy hoàn tất!
+                  </li>
+                  <li className="bg-amber-50/80 p-2.5 rounded-xl border border-amber-200 text-slate-900 font-black flex flex-wrap gap-x-2 gap-y-1.5 items-center">
+                    <span>Quy ước lọc ca Excel:</span>
+                    <span className="bg-amber-200/90 text-amber-950 px-2 py-0.5 rounded border border-amber-300 text-[10px] font-black">Ca 1,2 = Ca Sáng</span>
+                    <span className="bg-amber-200/90 text-amber-950 px-2 py-0.5 rounded border border-amber-300 text-[10px] font-black">Ca 1,2,3 = Ca Sáng</span>
+                    <span className="bg-emerald-100 text-emerald-950 px-2 py-0.5 rounded border border-emerald-300 text-[10px] font-black">Ca 3,4,5 = Ca Chiều</span>
+                    <span className="bg-teal-100 text-teal-950 px-2 py-0.5 rounded border border-teal-300 text-[10px] font-black">Ca 2,3,4,5 = Ca Đúp</span>
+                    <span className="bg-teal-100 text-teal-950 px-2 py-0.5 rounded border border-teal-300 text-[10px] font-black">Ca 1,2,3,4,5 = Ca Đúp</span>
+                    <span className="bg-rose-100 text-rose-800 px-2 py-0.5 rounded border border-rose-200 text-[10px] font-black">Không có ca = OFF</span>
+                  </li>
+                </ol>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             
             {/* Left Box: Input and Quick check */}
             <div className="xl:col-span-1 space-y-6">
               
               {/* Batch Input Staff Box */}
-              <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight mb-4 flex items-center gap-2">
-                  <Users size={16} className="text-indigo-600" />
+              <div className="bg-white rounded-3xl p-6 shadow-md border-2 border-emerald-500/80 shadow-emerald-50/40">
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight mb-4 flex items-center gap-2">
+                  <Users size={16} className="text-emerald-600" />
                   1. Nhập Nhân Sự Chạy Hôm Nay
                 </h3>
 
-                <div className="space-y-3">
-                  <textarea
-                    rows={4}
-                    placeholder="Dán danh sách tên NV (Mỗi dòng một tên)&#10;Ví dụ:&#10;NHẠN&#10;ĐẠI&#10;MI&#10;PHÚC"
-                    value={rawStaffInput}
-                    onChange={(e) => setRawStaffInput(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <div className="flex gap-2">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10.5px] font-black uppercase text-emerald-950 tracking-wider mb-1">Dán danh sách Nhân viên Siêu thị</label>
+                    <textarea
+                      rows={3}
+                      placeholder="Mỗi dòng một tên... Ví dụ:&#10;NHẠN&#10;ĐẠI&#10;MI"
+                      value={rawStaffInput}
+                      onChange={(e) => setRawStaffInput(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10.5px] font-black uppercase text-amber-900 tracking-wider mb-1">Dán danh sách PG</label>
+                    <textarea
+                      rows={3}
+                      placeholder="Mỗi dòng một tên... Ví dụ:&#10;LAN&#10;MAI&#10;VY"
+                      value={rawPgInput}
+                      onChange={(e) => setRawPgInput(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
                     <button
                       onClick={handleLoadStaff}
-                      className="flex-1 py-2 px-3 bg-indigo-65 hover:bg-indigo-700 text-indigo-700 hover:text-indigo-900 border border-indigo-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                      className="flex-1 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-xl text-xs font-black uppercase tracking-wider transition-all min-w-[90px]"
                     >
-                      NẠP THÊM NV
+                      THÊM NV
+                    </button>
+
+                    <button
+                      onClick={handleLoadPg}
+                      className="flex-1 py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-xs font-black uppercase tracking-wider transition-all min-w-[95px]"
+                    >
+                      THÊM PG
+                    </button>
+
+                    <button
+                      onClick={() => handleSyncPgFromLich(false)}
+                      disabled={isSyncingPg}
+                      className={`flex-1 py-2 px-3 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-300 rounded-xl text-xs font-black uppercase tracking-wider transition-all min-w-[95px] flex items-center justify-center gap-1 ${isSyncingPg ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      title="Tự động lấy tên PG có ca làm trong ngày này từ Lịch PG (cũng tự chạy khi đổi ngày)"
+                    >
+                      <RefreshCw size={12} className={isSyncingPg ? 'animate-spin' : ''} />
+                      {isSyncingPg ? 'ĐANG ĐỒNG BỘ...' : 'ĐỒNG BỘ LỊCH PG'}
                     </button>
                     
                     {/* Excel Upload trigger */}
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1"
+                      className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 min-w-[120px] shadow-sm shadow-emerald-200"
                     >
                       <Upload size={12} />
                       EXCEL PHÂN CA
@@ -986,19 +1921,52 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                 {/* Configurations */}
                 <div className="border-t border-slate-100 pt-4 mt-4 space-y-3">
                   <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Chọn ngày chạy Roadshow</label>
+                    <label className="block text-[10.5px] font-black uppercase text-slate-800 tracking-wider mb-1">Chọn ngày chạy Roadshow</label>
                     <input
                       type="date"
                       value={plannerDate}
-                      onChange={(e) => setPlannerDate(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      onChange={(e) => {
+                        const newDate = e.target.value;
+                        if (newDate) {
+                          setPlannerDate(newDate);
+                          
+                          // Instantly load shifts for the selected date from localStorage
+                          const cachedShiftsStr = localStorage.getItem(`crm_roadshow_planner_shifts_${warehouseCode}_${newDate}`);
+                          const dateShifts: Record<string, 'sang' | 'chieu' | 'off' | 'dup'> = cachedShiftsStr ? JSON.parse(cachedShiftsStr) : {};
+                          const cachedMaster = JSON.parse(localStorage.getItem(`crm_roadshow_planner_master_staff_${warehouseCode}`) || '[]');
+                          const cachedPg = JSON.parse(localStorage.getItem(`crm_roadshow_planner_master_pg_${warehouseCode}`) || '[]');
+                          
+                          setStaffList([
+                            ...cachedMaster.map((name: string) => ({
+                              name: name.toUpperCase(),
+                              shift: getShiftForStaff(name, dateShifts),
+                              isPg: false
+                            })),
+                            ...cachedPg.map((name: string) => ({
+                              name: name.toUpperCase(),
+                              shift: getShiftForStaff(name, dateShifts),
+                              isPg: true
+                            }))
+                          ]);
+
+                          const cachedConfigsStr = localStorage.getItem(`crm_roadshow_planner_configs_${warehouseCode}_${newDate}`);
+                          if (cachedConfigsStr) {
+                            const configs = JSON.parse(cachedConfigsStr);
+                            setMorningTime(configs.morningTime || '7:00');
+                            setAfternoonTime(configs.afternoonTime || '15:00');
+                            setMorningRoute(configs.morningRoute || '');
+                            setAfternoonRoute(configs.afternoonRoute || '');
+                          }
+                        }
+                      }}
+                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
                   
                   {/* Copy schedule from another date */}
                   {recentDates.length > 0 && (
-                    <div className="bg-indigo-50/50 p-3 rounded-2xl border border-indigo-100 space-y-2 mt-2">
-                      <label className="block text-[9px] font-black uppercase text-indigo-700 tracking-wider flex items-center gap-1">
+                    <div className="bg-amber-50/70 p-3 rounded-2xl border border-amber-200/80 space-y-2 mt-2">
+                      <label className="block text-[9.5px] font-black uppercase text-amber-900 tracking-wider flex items-center gap-1">
                         <Copy size={10} />
                         Sao chép từ ngày chạy cũ
                       </label>
@@ -1006,7 +1974,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                         <select
                           value={copySourceDate}
                           onChange={(e) => setCopySourceDate(e.target.value)}
-                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 focus:outline-none"
+                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none"
                         >
                           <option value="">-- Chọn ngày --</option>
                           {recentDates.map(d => (
@@ -1019,7 +1987,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                           className={cn(
                             "px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shadow-sm",
                             copySourceDate 
-                              ? "bg-indigo-600 text-white border-indigo-700 hover:bg-indigo-700" 
+                              ? "bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700" 
                               : "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
                           )}
                         >
@@ -1031,7 +1999,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Giờ ca sáng</label>
+                      <label className="block text-[10.5px] font-black uppercase text-slate-800 tracking-wider mb-1">Giờ ca sáng</label>
                       <input
                         type="text"
                         value={morningTime}
@@ -1039,11 +2007,11 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                           setMorningTime(e.target.value);
                           handleSavePlannerConfigs('morningTime', e.target.value);
                         }}
-                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Giờ ca chiều</label>
+                      <label className="block text-[10.5px] font-black uppercase text-slate-800 tracking-wider mb-1">Giờ ca chiều</label>
                       <input
                         type="text"
                         value={afternoonTime}
@@ -1051,7 +2019,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                           setAfternoonTime(e.target.value);
                           handleSavePlannerConfigs('afternoonTime', e.target.value);
                         }}
-                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                     </div>
                   </div>
@@ -1060,57 +2028,117 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
 
               {/* Staff shift assignment */}
               {staffList.length > 0 && (
-                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
-                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight mb-3 flex items-center gap-2">
-                    <ClipboardCheck size={16} className="text-indigo-600" />
+                <div className="bg-white rounded-3xl p-6 shadow-md border-2 border-emerald-500/80 shadow-emerald-50/40">
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight mb-3 flex items-center gap-2">
+                    <ClipboardCheck size={16} className="text-emerald-600" />
                     2. Check Ca Nhân Viên nhanh ({getFormattedDateLabel(plannerDate)})
                   </h3>
                   
-                  <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
-                    {staffList.map((staff, idx) => (
-                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 border border-slate-100 rounded-xl bg-slate-55">
-                        <div className="flex items-center gap-1.5 truncate">
-                          <button
-                            onClick={() => handleDeleteIndividualStaff(staff.name)}
-                            className="text-slate-300 hover:text-rose-500 transition-all p-1"
-                            title="Xoá nhân viên này"
-                          >
-                            <X size={12} />
-                          </button>
-                          <span className="text-xs font-black text-slate-700 truncate max-w-[120px]">{staff.name}</span>
-                        </div>
-                        <div className="flex gap-1.5">
-                          {(['sang', 'chieu', 'dup', 'off'] as const).map((shiftType) => (
-                            <button
-                              key={shiftType}
-                              onClick={() => handleUpdateShift(idx, shiftType)}
-                              className={cn(
-                                "px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all",
-                                staff.shift === shiftType
-                                  ? shiftType === 'sang' ? "bg-amber-400 text-slate-900" :
-                                    shiftType === 'chieu' ? "bg-indigo-600 text-white" :
-                                    shiftType === 'dup' ? "bg-purple-600 text-white animate-pulse" :
-                                    "bg-rose-500 text-white"
-                                  : "bg-slate-100 text-slate-400 hover:bg-slate-200"
-                              )}
-                            >
-                              {shiftType === 'sang' ? 'SÁNG' : shiftType === 'chieu' ? 'CHIỀU' : shiftType === 'dup' ? 'ĐÚP' : 'OFF'}
-                            </button>
-                          ))}
+                  <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1">
+                    {/* SUBSECTION: SUPERMARKET STAFF */}
+                    {staffList.some(s => !s.isPg) && (
+                      <div className="space-y-2">
+                        <h4 className="text-[10.5px] font-black text-emerald-950 uppercase tracking-wider mb-2 border-b border-emerald-100 pb-1">Nhân viên Siêu thị</h4>
+                        <div className="space-y-2">
+                          {staffList.map((staff, idx) => {
+                            if (staff.isPg) return null;
+                            return (
+                              <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 border border-slate-100 rounded-xl bg-slate-55">
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <button
+                                    onClick={() => handleDeleteIndividualStaff(staff.name)}
+                                    className="text-slate-350 hover:text-rose-500 transition-all p-1"
+                                    title="Xoá nhân sự này"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                  <span className="text-xs font-black text-slate-900 truncate max-w-[120px]">{staff.name}</span>
+                                </div>
+                                <div className="flex gap-1.5">
+                                  {(['sang', 'chieu', 'dup', 'off'] as const).map((shiftType) => (
+                                    <button
+                                      key={shiftType}
+                                      onClick={() => handleUpdateShift(idx, shiftType)}
+                                      className={cn(
+                                        "px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all",
+                                        staff.shift === shiftType
+                                          ? shiftType === 'sang' ? "bg-amber-400 text-slate-900 font-black shadow-xs" :
+                                            shiftType === 'chieu' ? "bg-emerald-600 text-white font-black shadow-xs" :
+                                            shiftType === 'dup' ? "bg-teal-600 text-white font-black shadow-xs animate-pulse" :
+                                            "bg-rose-500 text-white font-black shadow-xs"
+                                          : "bg-slate-100 text-slate-400 hover:bg-slate-200"
+                                      )}
+                                    >
+                                      {shiftType === 'sang' ? 'SÁNG' : shiftType === 'chieu' ? 'CHIỀU' : shiftType === 'dup' ? 'ĐÚP' : 'OFF'}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                    ))}
+                    )}
+
+                    {/* SUBSECTION: BRAND PG */}
+                    {staffList.some(s => s.isPg) && (
+                      <div className="space-y-2 pt-2 border-t border-slate-100">
+                        <h4 className="text-[10px] font-black text-amber-800 uppercase tracking-wider mb-2 border-b border-amber-200/80 pb-1">PG</h4>
+                        <div className="space-y-2">
+                          {staffList.map((staff, idx) => {
+                            if (!staff.isPg) return null;
+                            return (
+                              <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 border border-amber-200/60 rounded-xl bg-amber-50/40">
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <button
+                                    onClick={() => handleDeleteIndividualStaff(staff.name)}
+                                    className="text-amber-400 hover:text-rose-500 transition-all p-1"
+                                    title="Xoá PG này"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                  <span className="text-xs font-black text-amber-950 truncate max-w-[100px]">{staff.name}</span>
+                                  <span className="px-1.5 py-0.5 rounded bg-amber-200/80 text-amber-900 border border-amber-300 text-[8px] font-black tracking-wider uppercase ml-1">PG</span>
+                                </div>
+                                <div className="flex gap-1.5">
+                                  {(['sang', 'chieu', 'dup', 'off'] as const).map((shiftType) => (
+                                    <button
+                                      key={shiftType}
+                                      onClick={() => handleUpdateShift(idx, shiftType)}
+                                      className={cn(
+                                        "px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all",
+                                        staff.shift === shiftType
+                                          ? shiftType === 'sang' ? "bg-amber-400 text-slate-900 font-black shadow-xs" :
+                                            shiftType === 'chieu' ? "bg-emerald-600 text-white font-black shadow-xs" :
+                                            shiftType === 'dup' ? "bg-teal-600 text-white font-black shadow-xs animate-pulse" :
+                                            "bg-rose-500 text-white font-black shadow-xs"
+                                          : "bg-amber-50 text-amber-700/60 hover:bg-amber-100"
+                                      )}
+                                    >
+                                      {shiftType === 'sang' ? 'SÁNG' : shiftType === 'chieu' ? 'CHIỀU' : shiftType === 'dup' ? 'FULL' : 'OFF'}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Right Box: Results table styled exactly as requested */}
+            {/* Right Box: Results table styled exactly as requested (Tone Vàng & Xanh Lá) */}
             <div className="xl:col-span-2 space-y-4">
-              <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-4">
+              <div className="bg-white rounded-3xl p-6 shadow-md border-2 border-emerald-500/80 shadow-emerald-50/40 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                   <div>
-                    <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">3. Báo cáo Tuyến Chạy Roadshow</h3>
+                    <h3 className="text-base font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                      <Calendar size={18} className="text-emerald-600" />
+                      3. Báo cáo Tuyến Chạy Roadshow
+                    </h3>
                     <p className="text-slate-400 text-xs font-bold">Dữ liệu được lưu độc lập theo từng ngày. Đổi ngày chạy ở ô bên trái để lập lịch ngày khác.</p>
                   </div>
                   
@@ -1118,13 +2146,13 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                     onClick={handleCaptureTable}
                     disabled={isCapturing || staffList.length === 0}
                     className={cn(
-                      "flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95",
+                      "flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95",
                       isCapturing || staffList.length === 0
                         ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                        : "bg-indigo-600 text-white hover:bg-indigo-700"
+                        : "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-emerald-200"
                     )}
                   >
-                    <Camera size={14} />
+                    <Camera size={15} />
                     {isCapturing ? 'ĐANG CHỤP...' : 'CHỤP ẢNH LỊCH CHẠY'}
                   </button>
                 </div>
@@ -1135,126 +2163,123 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                     <p className="text-slate-400/80 text-[11px] mt-1 font-bold">Vui lòng nạp danh sách nhân sự ở ô bên trái để tự động tạo bảng.</p>
                   </div>
                 ) : (
-                  <div className="border border-slate-300 rounded-xl overflow-hidden bg-white shadow-md p-1">
-                    
-                    {/* Capturable container wrapper */}
-                    <div ref={tableRef} className="bg-white p-3 font-sans">
-                      
-                      <table className="w-full border-collapse border border-black min-w-[550px] bg-white">
-                        <thead>
-                          <tr className="bg-[#fef08a] h-[50px] border-b border-black">
-                            <th className="border-r border-black px-2 py-3 text-center text-[15px] font-utm-avo font-black uppercase text-red-600 w-16">STT</th>
-                            <th className="border-r border-black px-3 py-3 text-left text-[15px] font-utm-avo font-black uppercase text-red-600 w-[200px]">NHÂN VIÊN</th>
-                            <th className="border-r border-black px-3 py-3 text-center text-[15px] font-utm-avo font-black uppercase text-red-600 w-[180px]">{getFormattedDateLabel(plannerDate)}</th>
-                            <th className="border-r border-black px-3 py-3 text-left text-[15px] font-utm-avo font-black uppercase text-red-600">TUYẾN ĐƯỜNG</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          
-                          {/* MORNING SHIFT SECTION */}
-                          {morningStaff.length === 0 ? (
-                            <tr className="border-b border-black">
-                              <td className="border-r border-black px-2 py-4 text-center text-xs font-bold text-slate-400">-</td>
-                              <td className="border-r border-black px-3 py-4 text-left text-xs font-bold text-slate-400 italic">Không có NV ca sáng</td>
-                              <td className="border-r border-black px-3 py-4 text-center text-xs font-bold text-slate-400 italic">{morningTime} {getFormattedDateLabel(plannerDate)}</td>
-                              <td className="border-r border-black px-3 py-4 text-left text-xs font-bold text-slate-400 italic">Chưa sắp tuyến</td>
+                  <div className="border border-slate-200 rounded-3xl overflow-hidden bg-slate-50/60 shadow-xs p-3 sm:p-5">
+                  {/* Horizontal Scroll wrapper for responsive mobile viewing */}
+                  <div className="overflow-x-auto w-full pb-2">
+                    {/* Capturable unclipped table container */}
+                    <div ref={tableRef} className="bg-white p-4 sm:p-6 font-sans inline-block min-w-[1050px]">
+                      <table className="w-[1050px] border-collapse bg-white table-fixed border-2 border-black shadow-none">
+                          <colgroup>
+                            <col className="w-[70px]" />
+                            <col className="w-[280px]" />
+                            <col className="w-[230px]" />
+                            <col className="w-[470px]" />
+                          </colgroup>
+                          <thead>
+                            <tr className="bg-[#fee879] h-[52px] border-b-2 border-black">
+                              <th className="w-[70px] min-w-[70px] max-w-[70px] border-r border-black px-2 py-3 text-center text-[15px] sm:text-[16px] font-utm-avo font-black uppercase text-[#dc2626] box-border">STT</th>
+                              <th className="w-[280px] min-w-[280px] max-w-[280px] border-r border-black px-3 sm:px-4 py-3 text-left text-[15px] sm:text-[16px] font-utm-avo font-black uppercase text-[#dc2626] box-border">NHÂN VIÊN</th>
+                              <th className="w-[230px] min-w-[230px] max-w-[230px] border-r border-black px-3 py-3 text-center text-[15px] sm:text-[16px] font-utm-avo font-black uppercase text-[#dc2626] box-border">{getFormattedDateLabel(plannerDate)}</th>
+                              <th className="w-[470px] min-w-[470px] max-w-[470px] px-3 sm:px-4 py-3 text-left text-[15px] sm:text-[16px] font-utm-avo font-black uppercase text-[#dc2626] box-border">TUYẾN ĐƯỜNG</th>
                             </tr>
-                          ) : (
-                            morningStaff.map((staff, sIdx) => (
-                              <tr key={`morning-${sIdx}`} className="border-b border-black h-[48px]">
-                                <td className="border-r border-black px-2 py-1.5 text-center text-[16px] font-utm-avo font-black text-black">
-                                  {sIdx + 1}
-                                </td>
-                                <td className="border-r border-black px-3 py-1.5 text-left text-[16px] font-utm-avo font-black text-black uppercase">
-                                  {staff.name}
-                                </td>
-                                <td className="border-r border-black px-3 py-1.5 text-center text-[15px] font-utm-avo font-black text-black">
-                                  {morningTime} {getFormattedDateLabel(plannerDate)}
-                                </td>
-                                {sIdx === 0 && (
-                                  <td 
-                                    rowSpan={morningStaff.length} 
-                                    className="border-r border-black px-3 py-2 text-left text-[14px] font-utm-avo font-black text-black align-middle bg-white w-[250px]"
-                                  >
-                                    {isCapturing ? (
-                                      <div className="whitespace-pre-wrap font-utm-avo font-black text-black leading-relaxed p-1">
-                                        {morningRoute}
-                                      </div>
-                                    ) : (
+                          </thead>
+                          <tbody>
+                            
+                            {/* MORNING SHIFT SECTION */}
+                            {morningStaff.length === 0 ? (
+                              <tr className="border-b border-black">
+                                <td className="w-[70px] min-w-[70px] max-w-[70px] border-r border-black px-2 py-4 text-center text-xs font-bold text-slate-400 box-border">-</td>
+                                <td className="w-[280px] min-w-[280px] max-w-[280px] border-r border-black px-3 sm:px-4 py-4 text-left text-xs font-bold text-slate-400 italic box-border">Không có NV ca sáng</td>
+                                <td className="w-[230px] min-w-[230px] max-w-[230px] border-r border-black px-3 py-4 text-center text-xs font-bold text-slate-400 italic box-border">{morningTime} {getFormattedDateLabel(plannerDate)}</td>
+                                <td className="w-[470px] min-w-[470px] max-w-[470px] px-3 sm:px-4 py-4 text-left text-xs font-bold text-slate-400 italic box-border">Chưa sắp tuyến</td>
+                              </tr>
+                            ) : (
+                              morningStaff.map((staff, sIdx) => (
+                                <tr key={`morning-${sIdx}`} className="border-b border-black h-[48px]">
+                                  <td className="w-[70px] min-w-[70px] max-w-[70px] border-r border-black px-2 py-2 text-center text-[15px] sm:text-[16px] font-utm-avo font-black text-black box-border">
+                                    {sIdx + 1}
+                                  </td>
+                                  <td className="w-[280px] min-w-[280px] max-w-[280px] border-r border-black px-3 sm:px-4 py-2 text-left text-[15px] sm:text-[16px] font-utm-avo font-black text-black uppercase truncate box-border">
+                                    {staff.name}{staff.isPg ? ' (PG)' : ''}
+                                  </td>
+                                  <td className="w-[230px] min-w-[230px] max-w-[230px] border-r border-black px-3 py-2 text-center text-[14px] sm:text-[15px] font-utm-avo font-black text-black box-border">
+                                    {morningTime} {getFormattedDateLabel(plannerDate)}
+                                  </td>
+                                  {sIdx === 0 && (
+                                    <td 
+                                      rowSpan={morningStaff.length} 
+                                      className="w-[470px] min-w-[470px] max-w-[470px] px-3 sm:px-4 py-2 text-left text-[14px] sm:text-[15px] font-utm-avo font-black text-black align-middle bg-white box-border"
+                                    >
                                       <textarea
+                                        data-route-type="morning"
                                         rows={Math.max(3, morningStaff.length)}
                                         value={morningRoute}
                                         onChange={(e) => {
                                           setMorningRoute(e.target.value);
                                           handleSavePlannerConfigs('morningRoute', e.target.value);
                                         }}
-                                        className="w-full h-full border-0 bg-transparent resize-none focus:outline-none p-1 font-utm-avo font-black text-black leading-relaxed"
+                                        className="w-full h-full border-0 bg-transparent resize-none focus:outline-none p-1 font-utm-avo font-black text-black leading-relaxed text-[14px] sm:text-[15px]"
                                         placeholder="Nhập tuyến đường ca sáng..."
                                       />
-                                    )}
-                                  </td>
-                                )}
-                              </tr>
-                            ))
-                          )}
+                                    </td>
+                                  )}
+                                </tr>
+                              ))
+                            )}
 
-                          {/* GREEN SEPARATOR ROW */}
-                          <tr className="bg-[#86efac] h-7 border-b border-black">
-                            <td className="border-r border-black"></td>
-                            <td className="border-r border-black"></td>
-                            <td className="border-r border-black"></td>
-                            <td className="border-r border-black"></td>
-                          </tr>
-
-                          {/* AFTERNOON SHIFT SECTION */}
-                          {afternoonStaff.length === 0 ? (
-                            <tr>
-                              <td className="border-r border-black px-2 py-4 text-center text-xs font-bold text-slate-400">-</td>
-                              <td className="border-r border-black px-3 py-4 text-left text-xs font-bold text-slate-400 italic">Không có NV ca chiều</td>
-                              <td className="border-r border-black px-3 py-4 text-center text-xs font-bold text-slate-400 italic">{afternoonTime} {getFormattedDateLabel(plannerDate)}</td>
-                              <td className="border-r border-black px-3 py-4 text-left text-xs font-bold text-slate-400 italic">Chưa sắp tuyến</td>
+                            {/* GREEN SEPARATOR ROW */}
+                            <tr className="bg-[#86efac] h-7 sm:h-8 border-b border-black">
+                              <td className="w-[70px] min-w-[70px] max-w-[70px] border-r border-black bg-[#86efac] box-border"></td>
+                              <td className="w-[280px] min-w-[280px] max-w-[280px] border-r border-black bg-[#86efac] box-border"></td>
+                              <td className="w-[230px] min-w-[230px] max-w-[230px] border-r border-black bg-[#86efac] box-border"></td>
+                              <td className="w-[470px] min-w-[470px] max-w-[470px] bg-[#86efac] box-border"></td>
                             </tr>
-                          ) : (
-                            afternoonStaff.map((staff, aIdx) => (
-                              <tr key={`afternoon-${aIdx}`} className={cn(aIdx < afternoonStaff.length - 1 ? "border-b border-black" : "", "h-[48px]")}>
-                                <td className="border-r border-black px-2 py-1.5 text-center text-[16px] font-utm-avo font-black text-black">
-                                  {aIdx + 1}
-                                </td>
-                                <td className="border-r border-black px-3 py-1.5 text-left text-[16px] font-utm-avo font-black text-black uppercase">
-                                  {staff.name}
-                                </td>
-                                <td className="border-r border-black px-3 py-1.5 text-center text-[15px] font-utm-avo font-black text-black">
-                                  {afternoonTime} {getFormattedDateLabel(plannerDate)}
-                                </td>
-                                {aIdx === 0 && (
-                                  <td 
-                                    rowSpan={afternoonStaff.length} 
-                                    className="border-r border-black px-3 py-2 text-left text-[14px] font-utm-avo font-black text-black align-middle bg-white w-[250px]"
-                                  >
-                                    {isCapturing ? (
-                                      <div className="whitespace-pre-wrap font-utm-avo font-black text-black leading-relaxed p-1">
-                                        {afternoonRoute}
-                                      </div>
-                                    ) : (
+
+                            {/* AFTERNOON SHIFT SECTION */}
+                            {afternoonStaff.length === 0 ? (
+                              <tr>
+                                <td className="w-[70px] min-w-[70px] max-w-[70px] border-r border-black px-2 py-4 text-center text-xs font-bold text-slate-400 box-border">-</td>
+                                <td className="w-[280px] min-w-[280px] max-w-[280px] border-r border-black px-3 sm:px-4 py-4 text-left text-xs font-bold text-slate-400 italic box-border">Không có NV ca chiều</td>
+                                <td className="w-[230px] min-w-[230px] max-w-[230px] border-r border-black px-3 py-4 text-center text-xs font-bold text-slate-400 italic box-border">{afternoonTime} {getFormattedDateLabel(plannerDate)}</td>
+                                <td className="w-[470px] min-w-[470px] max-w-[470px] px-3 sm:px-4 py-4 text-left text-xs font-bold text-slate-400 italic box-border">Chưa sắp tuyến</td>
+                              </tr>
+                            ) : (
+                              afternoonStaff.map((staff, aIdx) => (
+                                <tr key={`afternoon-${aIdx}`} className={cn(aIdx < afternoonStaff.length - 1 ? "border-b border-black" : "", "h-[48px]")}>
+                                  <td className="w-[70px] min-w-[70px] max-w-[70px] border-r border-black px-2 py-2 text-center text-[15px] sm:text-[16px] font-utm-avo font-black text-black box-border">
+                                    {aIdx + 1}
+                                  </td>
+                                  <td className="w-[280px] min-w-[280px] max-w-[280px] border-r border-black px-3 sm:px-4 py-2 text-left text-[15px] sm:text-[16px] font-utm-avo font-black text-black uppercase truncate box-border">
+                                    {staff.name}{staff.isPg ? ' (PG)' : ''}
+                                  </td>
+                                  <td className="w-[230px] min-w-[230px] max-w-[230px] border-r border-black px-3 py-2 text-center text-[14px] sm:text-[15px] font-utm-avo font-black text-black box-border">
+                                    {afternoonTime} {getFormattedDateLabel(plannerDate)}
+                                  </td>
+                                  {aIdx === 0 && (
+                                    <td 
+                                      rowSpan={afternoonStaff.length} 
+                                      className="w-[470px] min-w-[470px] max-w-[470px] px-3 sm:px-4 py-2 text-left text-[14px] sm:text-[15px] font-utm-avo font-black text-black align-middle bg-white box-border"
+                                    >
                                       <textarea
+                                        data-route-type="afternoon"
                                         rows={Math.max(3, afternoonStaff.length)}
                                         value={afternoonRoute}
                                         onChange={(e) => {
                                           setAfternoonRoute(e.target.value);
                                           handleSavePlannerConfigs('afternoonRoute', e.target.value);
                                         }}
-                                        className="w-full h-full border-0 bg-transparent resize-none focus:outline-none p-1 font-utm-avo font-black text-black leading-relaxed"
+                                        className="w-full h-full border-0 bg-transparent resize-none focus:outline-none p-1 font-utm-avo font-black text-black leading-relaxed text-[14px] sm:text-[15px]"
                                         placeholder="Nhập tuyến đường ca chiều..."
                                       />
-                                    )}
-                                  </td>
-                                )}
-                              </tr>
-                            ))
-                          )}
+                                    </td>
+                                  )}
+                                </tr>
+                              ))
+                            )}
 
-                        </tbody>
-                      </table>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1265,13 +2290,13 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         </div>
       )}
 
-      {/* RENDER STATS TAB */}
+      {/* RENDER STATS TAB (TONE XANH LÁ & VÀNG) */}
       {activeTab === 'STATS' && (
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-6">
+        <div className="bg-white rounded-3xl p-6 shadow-md border-2 border-emerald-500/80 shadow-emerald-50/40 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
-              <h3 className="text-base font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
-                <BarChart3 size={20} className="text-indigo-600" />
+              <h3 className="text-base font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                <BarChart3 size={20} className="text-emerald-600" />
                 Thống Kê Tần Suất Tham Gia Roadshow ({plannerDate.substring(5, 7)}/{plannerDate.substring(0, 4)})
               </h3>
               <p className="text-slate-400 text-xs font-semibold mt-0.5">
@@ -1282,7 +2307,7 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
             <button
               onClick={handleCopyStatsText}
               disabled={monthlyStats.length === 0}
-              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm"
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm"
             >
               <Copy size={14} />
               SAO CHÉP THỐNG KÊ
@@ -1295,555 +2320,75 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
               <p className="text-slate-400/80 text-[11px] mt-1 font-bold">Lập lịch phân ca các ngày trong tháng để hệ thống tự động tổng hợp tần suất.</p>
             </div>
           ) : (
-            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-              <table className="w-full border-collapse bg-white">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 h-[45px]">
-                    <th className="px-4 py-2 text-center text-xs font-black text-slate-500 uppercase w-16">STT</th>
-                    <th className="px-6 py-2 text-left text-xs font-black text-slate-500 uppercase">NHÂN VIÊN</th>
-                    <th className="px-6 py-2 text-center text-xs font-black text-slate-500 uppercase w-40">SỐ LẦN CHẠY</th>
-                    <th className="px-6 py-2 text-center text-xs font-black text-slate-500 uppercase w-40">SỐ LẦN OFF</th>
-                    <th className="px-6 py-2 text-center text-xs font-black text-slate-500 uppercase w-40">TỶ LỆ CHẠY (%)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {monthlyStats.map((stat, idx) => (
-                    <tr 
-                      key={stat.name} 
-                      className={cn(
-                        "h-[48px] hover:bg-slate-50/50 transition-all border-b border-slate-100",
-                        stat.runCount === 0 ? "bg-rose-50/20" : ""
-                      )}
-                    >
-                      <td className="px-4 py-2 text-center text-xs font-bold text-slate-400">
-                        {idx + 1}
-                      </td>
-                      <td className="px-6 py-2 text-left text-sm font-black text-slate-800 uppercase flex items-center gap-2">
-                        {stat.name}
-                        {stat.runCount === 0 && (
-                          <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-700 text-[9px] font-black uppercase tracking-wider animate-pulse">Chưa chạy lần nào</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-2 text-center text-sm font-black text-indigo-600">
-                        {stat.runCount}
-                      </td>
-                      <td className="px-6 py-2 text-center text-sm font-bold text-slate-500">
-                        {stat.offCount}
-                      </td>
-                      <td className="px-6 py-2 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <div className="w-16 bg-slate-100 h-2 rounded-full overflow-hidden">
-                            <div 
-                              className={cn(
-                                "h-full rounded-full",
-                                stat.rate > 60 ? "bg-indigo-600" : stat.rate > 30 ? "bg-amber-400" : "bg-rose-500"
-                              )} 
-                              style={{ width: `${stat.rate}%` }}
-                            />
-                          </div>
-                          <span className="text-xs font-black text-slate-700">{stat.rate}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* RENDER HISTORY & MAPS TAB */}
-      {activeTab === 'HISTORY' && (
-        <div className="space-y-6">
-          {/* Suggested Templates Section */}
-          <div className="bg-gradient-to-r from-violet-600 to-indigo-700 rounded-3xl p-6 text-white shadow-xl">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-white/20 backdrop-blur-md rounded-2xl">
-                <Sparkles size={24} className="text-amber-300" />
-              </div>
-              <div>
-                <h3 className="text-lg font-black uppercase tracking-tight">Gợi Ý Lộ Trình Mẫu Hợp Lý</h3>
-                <p className="text-white/70 text-xs font-medium">Chọn lộ trình tối ưu được thiết kế sẵn để tự động điền nhanh lịch trình chạy!</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-              <button 
-                onClick={() => handleApplyHistoryTemplate(1)}
-                className="bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/10 rounded-2xl p-4 text-left transition-all hover:scale-[1.02] flex flex-col justify-between h-36"
-              >
-                <div>
-                  <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-900 text-[9px] font-black uppercase tracking-wider">Tuyến Chợ Sáng</span>
-                  <h4 className="font-extrabold text-sm mt-2 line-clamp-1">Tuyến Chợ & Dân Cư</h4>
-                  <p className="text-white/60 text-xs mt-1 line-clamp-2">Chạy chậm quanh khu vực chợ sầm uất lúc sáng sớm.</p>
-                </div>
-                <div className="flex items-center gap-1 text-xs text-amber-300 font-bold mt-2">
-                  Áp dụng ngay <ArrowRight size={14} />
-                </div>
-              </button>
-
-              <button 
-                onClick={() => handleApplyHistoryTemplate(2)}
-                className="bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/10 rounded-2xl p-4 text-left transition-all hover:scale-[1.02] flex flex-col justify-between h-36"
-              >
-                <div>
-                  <span className="px-2 py-0.5 rounded bg-sky-400 text-slate-900 text-[9px] font-black uppercase tracking-wider">Tuyến Tan Tầm</span>
-                  <h4 className="font-extrabold text-sm mt-2 line-clamp-1">Ngã Tư & Cổng Trường</h4>
-                  <p className="text-white/60 text-xs mt-1 line-clamp-2">Phát tờ rơi nhanh tại ngã tư lớn và cổng trường học giờ ra về.</p>
-                </div>
-                <div className="flex items-center gap-1 text-xs text-sky-300 font-bold mt-2">
-                  Áp dụng ngay <ArrowRight size={14} />
-                </div>
-              </button>
-
-              <button 
-                onClick={() => handleApplyHistoryTemplate(3)}
-                className="bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/10 rounded-2xl p-4 text-left transition-all hover:scale-[1.02] flex flex-col justify-between h-36"
-              >
-                <div>
-                  <span className="px-2 py-0.5 rounded bg-rose-400 text-white text-[9px] font-black uppercase tracking-wider">Chiến Dịch Xã</span>
-                  <h4 className="font-extrabold text-sm mt-2 line-clamp-1">Điểm Tư Vấn Xã Xa</h4>
-                  <p className="text-white/60 text-xs mt-1 line-clamp-2">Dựng điểm lưu động phát triển thuê bao và tiếp cận người dân liên xã.</p>
-                </div>
-                <div className="flex items-center gap-1 text-xs text-rose-300 font-bold mt-2">
-                  Áp dụng ngay <ArrowRight size={14} />
-                </div>
-              </button>
-            </div>
-          </div>
-
-          {/* Main Grid Section */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-            
-            {/* Left Columns - List & Filtering (Span 2) */}
-            <div className="xl:col-span-2 space-y-6">
-              <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4 mb-4">
-                  <h3 className="text-base font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
-                    <CalendarDays size={18} className="text-indigo-600" />
-                    Danh Sách Tuyến Chạy Roadshow
-                  </h3>
-                  
-                  <div className="flex items-center gap-2">
-                    <select 
-                      value={statusFilter} 
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-600 uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="all">TẤT CẢ TRẠNG THÁI</option>
-                      <option value="pending">CHƯA BẮT ĐẦU</option>
-                      <option value="active">ĐANG DIỄN RA</option>
-                      <option value="completed">ĐÃ HOÀN THÀNH</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="mb-4">
-                  <input
-                    type="text"
-                    placeholder="Tìm kiếm theo tên chiến dịch, địa danh tuyến đường, leader..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                {loading ? (
-                  <div className="py-12 flex flex-col items-center justify-center gap-2">
-                    <Loader2 size={32} className="text-indigo-600 animate-spin" />
-                    <span className="text-xs font-bold text-slate-400">Đang tải lịch trình chạy...</span>
-                  </div>
-                ) : filteredPlans.length === 0 ? (
-                  <div className="py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                    <p className="text-slate-400 text-xs font-black uppercase">Không tìm thấy lịch trình chạy Roadshow nào</p>
-                    <p className="text-slate-400/80 text-[11px] mt-1 font-bold">Hãy lập lịch mới hoặc chọn lịch mẫu gợi ý phía trên.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {filteredPlans.map((plan) => {
-                      const nodes = parseRouteNodes(plan.route);
-                      const isMapOpen = !!openMapIds[plan.id];
-
-                      return (
-                        <div 
-                          key={plan.id} 
-                          className="border-l-4 border-indigo-600 rounded-2xl bg-white border border-slate-200 hover:border-indigo-300 transition-all shadow-sm overflow-hidden"
+            <div className="border border-slate-200 rounded-3xl overflow-hidden bg-slate-50/60 shadow-xs p-3 sm:p-5">
+              <div className="bg-white p-4 sm:p-6 font-sans">
+                <div className="rounded-2xl border-2 border-black overflow-hidden bg-white shadow-none">
+                  <table className="w-full border-collapse bg-white table-fixed">
+                    <colgroup>
+                      <col className="w-[60px] sm:w-[75px]" />
+                      <col className="w-[240px] sm:w-[320px]" />
+                      <col className="w-[140px] sm:w-[160px]" />
+                      <col className="w-[140px] sm:w-[160px]" />
+                      <col className="w-[160px] sm:w-[180px]" />
+                    </colgroup>
+                    <thead>
+                      <tr className="bg-[#fee879] h-[52px] border-b border-black">
+                        <th className="border-r border-black px-2 py-3 text-center text-[15px] sm:text-[16px] font-utm-avo font-black uppercase text-[#dc2626]">STT</th>
+                        <th className="border-r border-black px-3 sm:px-4 py-3 text-left text-[15px] sm:text-[16px] font-utm-avo font-black uppercase text-[#dc2626]">NHÂN VIÊN</th>
+                        <th className="border-r border-black px-3 py-3 text-center text-[15px] sm:text-[16px] font-utm-avo font-black uppercase text-[#dc2626]">SỐ LẦN CHẠY</th>
+                        <th className="border-r border-black px-3 py-3 text-center text-[15px] sm:text-[16px] font-utm-avo font-black uppercase text-[#dc2626]">SỐ LẦN OFF</th>
+                        <th className="px-3 py-3 text-center text-[15px] sm:text-[16px] font-utm-avo font-black uppercase text-[#dc2626]">TỶ LỆ CHẠY</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthlyStats.map((stat, idx) => (
+                        <tr 
+                          key={stat.name} 
+                          className={cn(
+                            idx < monthlyStats.length - 1 ? "border-b border-black" : "",
+                            "h-[48px]",
+                            stat.runCount === 0 ? "bg-rose-50/40" : ""
+                          )}
                         >
-                          <div className="p-5 space-y-4">
-                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className={cn(
-                                  "px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider",
-                                  plan.status === 'completed' && "bg-emerald-100 text-emerald-700",
-                                  plan.status === 'active' && "bg-amber-100 text-amber-700 animate-pulse",
-                                  plan.status === 'pending' && "bg-slate-200 text-slate-700"
-                                )}>
-                                  {plan.status === 'completed' ? 'Đã hoàn thành' : plan.status === 'active' ? 'Đang diễn ra' : 'Chưa bắt đầu'}
-                                </span>
-                                <span className="text-[11px] font-black text-slate-400 uppercase flex items-center gap-1">
-                                  <Calendar size={12} />
-                                  {plan.date} ({plan.timeRange})
-                                </span>
-                              </div>
-
-                              <div className="flex items-center gap-1">
-                                <button
-                                  onClick={() => handleStartEdit(plan)}
-                                  className="p-1.5 bg-slate-50 hover:bg-indigo-50 text-indigo-600 rounded-lg transition-all"
-                                  title="Chỉnh sửa"
-                                >
-                                  <Edit3 size={15} />
-                                </button>
-                                <button
-                                  onClick={() => handleDeletePlan(plan.id)}
-                                  className="p-1.5 bg-slate-50 hover:bg-rose-50 text-rose-600 rounded-lg transition-all"
-                                  title="Xoá lịch"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
-                              </div>
-                            </div>
-                            
-                            <h4 className="text-[17px] font-black text-slate-800 uppercase tracking-tight">{plan.title}</h4>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="md:col-span-2 bg-slate-50 p-4 rounded-xl space-y-2 border border-slate-100">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                                  <MapPin size={12} className="text-rose-500" />
-                                  Sơ đồ hành trình chạy (Milestones)
-                                </span>
-                                
-                                {nodes.length > 0 ? (
-                                  <div className="flex flex-wrap items-center gap-y-2.5 gap-x-1.5 pt-1">
-                                    {nodes.map((node, nIdx) => (
-                                      <React.Fragment key={nIdx}>
-                                        <div className="flex items-center gap-1 bg-white border border-slate-200 shadow-sm rounded-lg px-2.5 py-1">
-                                          <div className={cn(
-                                            "w-2 h-2 rounded-full",
-                                            nIdx === 0 ? "bg-rose-500 animate-ping" : 
-                                            nIdx === nodes.length - 1 ? "bg-emerald-500" : "bg-indigo-500"
-                                          )} />
-                                          <span className="text-[11px] font-black text-slate-700 uppercase">{node}</span>
-                                        </div>
-                                        {nIdx < nodes.length - 1 && (
-                                          <ArrowRight size={14} className="text-slate-400 shrink-0" />
-                                        )}
-                                      </React.Fragment>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <span className="text-slate-800 text-xs font-bold">{plan.route}</span>
-                                )}
-                              </div>
-
-                              <div className="flex items-start gap-2.5 p-3 border border-slate-100 rounded-xl bg-white">
-                                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
-                                  <Users size={16} />
-                                </div>
-                                <div>
-                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Nhân sự tham gia</p>
-                                  <p className="text-xs font-black text-slate-700 mt-0.5">{plan.leader || 'Chưa phân công phụ trách'}</p>
-                                  {plan.members && <p className="text-[10px] font-bold text-slate-500">Đoàn chạy: {plan.members}</p>}
-                                </div>
-                              </div>
-
-                              <div className="flex items-start gap-2.5 p-3 border border-slate-100 rounded-xl bg-white">
-                                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg shrink-0">
-                                  <Megaphone size={16} />
-                                </div>
-                                <div>
-                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Công cụ hỗ trợ</p>
-                                  <p className="text-xs font-bold text-slate-700 mt-0.5 line-clamp-2">{plan.props}</p>
-                                </div>
-                              </div>
-
-                              <div className="flex items-start gap-2.5 p-3 border border-slate-100 rounded-xl bg-white">
-                                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg shrink-0">
-                                  <Flag size={16} />
-                                </div>
-                                <div>
-                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Chỉ tiêu cam kết</p>
-                                  <p className="text-xs font-bold text-slate-700 mt-0.5 line-clamp-2">{plan.kpis}</p>
-                                </div>
-                              </div>
-
-                              {plan.notes && (
-                                <div className="md:col-span-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500 italic font-semibold">
-                                  Lưu ý: {plan.notes}
-                                </div>
+                          <td className="border-r border-black px-2 py-1.5 text-center text-[15px] sm:text-[16px] font-utm-avo font-black text-black">
+                            {idx + 1}
+                          </td>
+                          <td className="border-r border-black px-3 sm:px-4 py-1.5 text-left text-[15px] sm:text-[16px] font-utm-avo font-black text-black uppercase truncate">
+                            <div className="flex items-center gap-2">
+                              <span>{stat.name}</span>
+                              {stat.runCount === 0 && (
+                                <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[8px] font-black uppercase tracking-wider animate-pulse border border-rose-200">OFF</span>
                               )}
                             </div>
-
-                            <div className="flex items-center gap-3 pt-2 border-t border-slate-100 flex-wrap">
-                              <button
-                                onClick={() => toggleMapVisibility(plan.id)}
-                                className={cn(
-                                  "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all border",
-                                  isMapOpen 
-                                    ? "bg-rose-50 text-rose-600 border-rose-200" 
-                                    : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
-                                )}
-                              >
-                                {isMapOpen ? <EyeOff size={14} /> : <Eye size={14} />}
-                                {isMapOpen ? 'ẨN BẢN ĐỒ' : 'XEM BẢN ĐỒ VỆ TINH'}
-                              </button>
-                              
-                              <a
-                                href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(plan.route)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-black transition-all"
-                              >
-                                <Navigation size={14} />
-                                DẪN ĐƯỜNG GOOGLE MAPS
-                              </a>
+                          </td>
+                          <td className="border-r border-black px-3 py-1.5 text-center text-[15px] sm:text-[16px] font-utm-avo font-black text-emerald-700">
+                            {stat.runCount}
+                          </td>
+                          <td className="border-r border-black px-3 py-1.5 text-center text-[15px] sm:text-[16px] font-utm-avo font-black text-slate-700">
+                            {stat.offCount}
+                          </td>
+                          <td className="px-3 py-1.5 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <div className="w-16 sm:w-20 bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
+                                <div 
+                                  className={cn(
+                                    "h-full rounded-full",
+                                    stat.rate > 60 ? "bg-emerald-600" : stat.rate > 30 ? "bg-amber-400" : "bg-rose-500"
+                                  )} 
+                                  style={{ width: `${stat.rate}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-black text-slate-700">{stat.rate}%</span>
                             </div>
-                          </div>
-
-                          <AnimatePresence>
-                            {isMapOpen && (
-                              <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: 'auto', opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                className="border-t border-slate-200 bg-slate-50"
-                              >
-                                <div className="p-4 space-y-2">
-                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                                    <Map size={12} className="text-indigo-600" />
-                                    Bản đồ vệ tinh thực tế (Google Maps Live Grid)
-                                  </span>
-                                  <div className="relative rounded-2xl overflow-hidden shadow-inner border border-slate-300/80 bg-slate-200 h-[300px]">
-                                    <iframe
-                                      width="100%"
-                                      height="100%"
-                                      style={{ border: 0 }}
-                                      loading="lazy"
-                                      allowFullScreen
-                                      referrerPolicy="no-referrer-when-downgrade"
-                                      src={`https://maps.google.com/maps?q=${encodeURIComponent(plan.route)}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
-                                    ></iframe>
-                                  </div>
-                                  <p className="text-[10px] text-slate-400 font-bold text-center italic mt-1">
-                                    * Lưu ý: Bản đồ được định vị dựa theo tuyến đường bạn điền.
-                                  </p>
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right Columns - Form & Preparation Checklist */}
-            <div className="space-y-6">
-              
-              {/* Add / Edit Form Card */}
-              <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
-                <h3 className="text-base font-black text-slate-800 uppercase tracking-tight border-b border-slate-100 pb-4 mb-4 flex items-center gap-2">
-                  <FileText size={18} className="text-indigo-600" />
-                  {editingId ? 'Cập Nhật Lịch Trình' : 'Lập Kế Hoạch Mới'}
-                </h3>
-
-                <form onSubmit={handleSubmitPlan} className="space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Tiêu đề chiến dịch *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ví dụ: Roadshow Sim Số / Điện Lạnh"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Ngày chạy</label>
-                      <input
-                        type="date"
-                        required
-                        value={histDate}
-                        onChange={(e) => setHistDate(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Khung giờ chạy</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="Ví dụ: 08:00 - 10:30"
-                        value={timeRange}
-                        onChange={(e) => setTimeRange(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Người phụ trách chính</label>
-                      <input
-                        type="text"
-                        placeholder="Ví dụ: Nguyễn Văn A"
-                        value={leader}
-                        onChange={(e) => setLeader(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Nhân sự đi cùng</label>
-                      <input
-                        type="text"
-                        placeholder="Ví dụ: B, C, D"
-                        value={members}
-                        onChange={(e) => setMembers(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Địa chỉ lộ trình (Sơ đồ nối bằng `-&gt;`) *</label>
-                    <textarea
-                      rows={2}
-                      required
-                      placeholder="Điền lộ trình nối tiếp: Siêu thị -> Đường Trần Hưng Đạo -> Chợ Huyện"
-                      value={route}
-                      onChange={(e) => setRoute(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Phương tiện & Công cụ hỗ trợ</label>
-                    <input
-                      type="text"
-                      placeholder="Ví dụ: Xe máy + Loa kéo + Cờ phướn"
-                      value={props}
-                      onChange={(e) => setProps(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Trạng thái chạy</label>
-                      <select
-                        value={status}
-                        onChange={(e: any) => setStatus(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      >
-                        <option value="pending">CHƯA BẮT ĐẦU</option>
-                        <option value="active">ĐANG DIỄN RA</option>
-                        <option value="completed">ĐÃ HOÀN THÀNH</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Chỉ tiêu / Mục tiêu</label>
-                      <input
-                        type="text"
-                        placeholder="Ví dụ: Phát 300 tờ rơi"
-                        value={kpis}
-                        onChange={(e) => setKpis(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1.5">Ghi chú bổ sung</label>
-                    <textarea
-                      rows={2}
-                      placeholder="Nhập ghi chú hoặc dặn dò..."
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-
-                  <div className="flex gap-2 border-t border-slate-100 pt-4 mt-2">
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all"
-                    >
-                      {saving ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : editingId ? (
-                        <Save size={14} />
-                      ) : (
-                        <Plus size={14} />
-                      )}
-                      {editingId ? 'CẬP NHẬT' : 'THÊM LỊCH'}
-                    </button>
-                    {editingId && (
-                      <button
-                        type="button"
-                        onClick={handleCancelEdit}
-                        className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
-                      >
-                        HỦY
-                      </button>
-                    )}
-                  </div>
-                </form>
-              </div>
-
-              {/* Checklist Card */}
-              <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
-                  <h3 className="text-base font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
-                    <ClipboardList size={18} className="text-indigo-600" />
-                    Danh Sách Chuẩn Bị
-                  </h3>
-                  <button 
-                    onClick={resetChecklist}
-                    className="text-[9px] font-black uppercase text-indigo-600 tracking-wider hover:underline"
-                  >
-                    LÀM MỚI
-                  </button>
-                </div>
-
-                <p className="text-[11px] font-semibold text-slate-400 mb-3">Kiểm tra các hạng mục trước khi chạy:</p>
-
-                <div className="space-y-2.5">
-                  {checklist.map((item) => (
-                    <label 
-                      key={item.id} 
-                      className={cn(
-                        "flex items-start gap-3 p-3 rounded-2xl border transition-all cursor-pointer select-none",
-                        item.completed 
-                          ? "bg-slate-50/55 border-slate-200/60 opacity-60" 
-                          : "bg-white border-slate-200 hover:border-indigo-300"
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0 cursor-pointer"
-                        checked={item.completed}
-                        onChange={() => toggleChecklistItem(item.id)}
-                      />
-                      <span className={cn(
-                        "text-xs font-bold text-slate-700 leading-tight",
-                        item.completed && "line-through text-slate-400"
-                      )}>
-                        {item.text}
-                      </span>
-                    </label>
-                  ))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-              
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -1853,3 +2398,4 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     </div>
   );
 };
+

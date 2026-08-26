@@ -165,11 +165,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [userProfile?.username]);
   async function login(username: string, maKho: string, password?: string): Promise<{ success: boolean; message: string }> {
     try {
-      const { data, error } = await supabase
+      // PG001 skips storeCode matching
+      const isPG001 = username.toUpperCase() === 'PG001';
+      let query = supabase
         .from('ql_nguoi_dung')
         .select('*')
-        .eq('username', username)
-        .eq('storeCode', maKho)
+        .eq('username', username);
+      
+      if (!isPG001) {
+        query = query.eq('storeCode', maKho);
+      }
+      
+      const { data, error } = await query
         .eq('password', password)
         .single();
 
@@ -430,7 +437,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const updatedProfile = { 
         ...userProfile, 
         ten_sieu_thi: newStoreName,
-        status: newStatus ? newStatus as any : userProfile.status
+        status: newStatus ? newStatus as any : userProfile.status,
+        declarationCompleted: true
       };
       setUserProfile(updatedProfile);
       localStorage.setItem('userProfile', JSON.stringify(updatedProfile));

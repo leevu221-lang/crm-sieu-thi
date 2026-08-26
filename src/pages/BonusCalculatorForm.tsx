@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, RotateCcw, Info, Edit, Check, AlertCircle } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
+import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
 
 interface Market {
   name: string;
@@ -257,16 +258,80 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
   const handleCapture = async () => {
     if (!containerRef.current) return;
     setIsCapturing(true);
-    document.body.classList.add('capturing-screenshot');
+
+    const element = containerRef.current;
+    const targetWidth = Math.max(1050, element.scrollWidth + 48);
+
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.top = '-9999px';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.width = `${targetWidth}px`;
+    tempContainer.style.height = 'auto';
+    tempContainer.style.overflow = 'hidden';
+    tempContainer.style.zIndex = '-9999';
+    tempContainer.style.pointerEvents = 'none';
+
+    const clone = element.cloneNode(true) as HTMLElement;
+
+    const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, input');
+    noCaptureElements.forEach(el => {
+      (el as HTMLElement).style.display = 'none';
+    });
+
+    clone.style.width = `${targetWidth}px`;
+    clone.style.minWidth = `${targetWidth}px`;
+    clone.style.height = 'auto';
+    clone.style.margin = '0';
+    clone.style.padding = '24px';
+    clone.style.backgroundColor = '#ffffff';
+    clone.style.display = 'inline-block';
+    clone.style.boxSizing = 'border-box';
+    clone.style.borderRadius = '24px';
+
+    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+    scrollContainers.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.overflow = 'visible';
+      htmlEl.style.width = '100%';
+      htmlEl.style.height = 'auto';
+      htmlEl.style.maxWidth = 'none';
+      htmlEl.style.maxHeight = 'none';
+      el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
+    });
+
+    const tables = clone.querySelectorAll('table');
+    tables.forEach(table => {
+      const htmlTable = table as HTMLElement;
+      htmlTable.style.width = '100%';
+      htmlTable.style.minWidth = '100%';
+      htmlTable.style.boxSizing = 'border-box';
+    });
+
+    tempContainer.appendChild(clone);
+    document.body.appendChild(tempContainer);
     
     try {
-      const dataUrl = await htmlToImage.toPng(containerRef.current, {
+      // ★ Ensure UTM Avo font is fully loaded before export
+      await ensureFontsReady();
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      const finalWidth = targetWidth;
+      const finalHeight = clone.offsetHeight || clone.scrollHeight;
+
+      const dataUrl = await htmlToImage.toPng(clone, {
         quality: 1.0,
         backgroundColor: '#ffffff',
         pixelRatio: 2,
+        skipFonts: false,
+        width: finalWidth,
+        height: finalHeight,
         style: {
           transform: 'scale(1)',
-          borderRadius: '0'
+          transformOrigin: 'top left',
+          width: `${finalWidth}px`,
+          height: `${finalHeight}px`,
+          ...EXPORT_FONT_STYLE,
         }
       });
       
@@ -278,7 +343,9 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
       console.error('Error capturing component:', error);
       alert('Không thể chụp ảnh bảng tính. Vui lòng thử lại!');
     } finally {
-      document.body.classList.remove('capturing-screenshot');
+      if (document.body.contains(tempContainer)) {
+        document.body.removeChild(tempContainer);
+      }
       setIsCapturing(false);
     }
   };

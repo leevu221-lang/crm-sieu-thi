@@ -225,7 +225,7 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                         <p className="text-[11px] font-bold text-white uppercase tracking-widest leading-tight">{card.label}</p>
                       </div>
                       <div>
-                        <p className="text-[45px] font-bold tracking-tight whitespace-nowrap font-oswald">{card.value}</p>
+                        <p className="text-[45px] font-bold tracking-tight whitespace-nowrap font-oswald text-white" style={{ fontFamily: "'Oswald', sans-serif" }}>{card.value}</p>
                       </div>
                     </div>
                   ));

@@ -470,77 +470,149 @@ const InputSection: React.FC<InputSectionProps> = ({
 
   return (
     <div className="space-y-6 mb-8" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
-      {/* Data Realtime Container - Redesigned */}
+      {/* Data Realtime Container - Modern V2 Redesign */}
       {activeTab === 'REALTIME' && (
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div>
-            <h1 className="text-[28px] font-black text-slate-700 tracking-tight">CẬP NHẬT DỮ LIỆU</h1>
-            <p className="text-[12px] text-slate-400 mt-1">Bấm vào các ô và dán dữ liệu (Ctrl+V) từ báo cáo BI.</p>
+        {/* Header Hero Card */}
+        <div className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 shrink-0">
+              <Zap size={24} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight uppercase" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                  CẬP NHẬT DỮ LIỆU
+                </h1>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  V2.0 BI
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 font-medium mt-1 flex items-center gap-1.5">
+                <span>⚡ Bấm vào từng ô và dán dữ liệu</span>
+                <kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[10px] font-bold text-slate-700 font-mono">Ctrl + V</kbd>
+                <span>từ báo cáo BI để tự động phân tích & đồng bộ.</span>
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
 
-
+          <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={() => setShowResetConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300 rounded-xl text-[13px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer active:scale-95 shadow-sm"
+              className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 hover:border-rose-300 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer active:scale-95 shadow-xs"
               title="Reset toàn bộ dữ liệu khai báo"
             >
-              <RefreshCw size={12} className={cn((isSavingRealtime || isLoadingRealtime) && "animate-spin")} />
+              <RefreshCw size={14} className={cn((isSavingRealtime || isLoadingRealtime) && "animate-spin")} />
               <span>RESET DỮ LIỆU</span>
             </button>
-            <div className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl">
-              <div className={cn("w-2.5 h-2.5 rounded-full", (isSavingRealtime || isLoadingRealtime) ? "bg-amber-400 animate-pulse" : "bg-emerald-500")} />
-              <span className="text-[13px] font-black text-slate-600 uppercase tracking-wider">
-                {isSavingRealtime ? "Đang lưu..." : isLoadingRealtime ? "Đang tải..." : lastUpdatedRealtime ? `Dữ liệu đã cập nhật ${lastUpdatedRealtime.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})}` : "Sẵn sàng"}
+
+            <div className="flex items-center gap-2.5 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl shadow-xs">
+              <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", (isSavingRealtime || isLoadingRealtime) ? "bg-amber-500 animate-ping" : "bg-emerald-500")} />
+              <span className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                {isSavingRealtime ? "ĐANG LƯU DỮ LIỆU..." : isLoadingRealtime ? "ĐANG TẢI DỮ LIỆU..." : lastUpdatedRealtime ? `ĐÃ CẬP NHẬT ${lastUpdatedRealtime.toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})}` : "HỆ THỐNG SẴN SÀNG"}
               </span>
             </div>
           </div>
         </div>
 
         {showAll && showRealtime && (
-        <div className="space-y-8">
+        <div className="space-y-6">
           {/* Two Groups: BÁO CÁO TỔNG HỢP + THI ĐUA CỤM */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {[
-              { title: 'BÁO CÁO TỔNG HỢP', color: 'bg-slate-700', items: [
-                { id: 'rt_market', label: 'REALTIME DT', value: marketInput, onChange: setMarketInput, onBlur: () => onSaveRealtime(false, 'REALTIME DT'), hasData: !!marketInput },
-                { id: 'rt_catrev', label: 'LUỸ KẾ DT', value: clusterSummaryInput || categoryRevenueInput, onChange: (val: string) => { setCategoryRevenueInput(val); setClusterSummaryInput(val); }, onBlur: () => { onSaveRealtime(false, 'LUỸ KẾ DT'); onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ DT'); }, hasData: !!(clusterSummaryInput || categoryRevenueInput), isLuyke: true },
-              ]},
-              { title: 'THI ĐUA CỤM', color: 'bg-orange-500', hasYcx: false, items: [
-                { id: 'rt_cat', label: 'REALTIME TĐ', value: categoryInput, onChange: setCategoryInput, onBlur: () => onSaveRealtime(false, 'REALTIME TĐ'), hasData: !!categoryInput },
-                { id: 'rt_catlk', label: 'LUỸ KẾ TĐ', value: categoryTargetInput || clusterCategoryInput, onChange: (val: string) => { setCategoryTargetInput(val); setClusterCategoryInput && setClusterCategoryInput(val); }, onBlur: () => { onSaveRealtime(false, 'LUỸ KẾ TĐ'); onSaveLuyke && onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ TĐ'); }, hasData: !!(categoryTargetInput || clusterCategoryInput) },
-              ]},
+              { 
+                title: 'BÁO CÁO TỔNG HỢP', 
+                subtitle: 'Dữ liệu Doanh thu Realtime & Luỹ kế',
+                badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                headerDot: 'bg-emerald-600',
+                activeColor: 'emerald',
+                items: [
+                  { id: 'rt_market', label: 'REALTIME DT', value: marketInput, onChange: setMarketInput, onBlur: () => onSaveRealtime(false, 'REALTIME DT'), hasData: !!marketInput },
+                  { id: 'rt_catrev', label: 'LUỸ KẾ DT', value: clusterSummaryInput || categoryRevenueInput, onChange: (val: string) => { setCategoryRevenueInput(val); setClusterSummaryInput(val); }, onBlur: () => { onSaveRealtime(false, 'LUỸ KẾ DT'); onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ DT'); }, hasData: !!(clusterSummaryInput || categoryRevenueInput), isLuyke: true },
+                ]
+              },
+              { 
+                title: 'THI ĐUA CỤM', 
+                subtitle: 'Dữ liệu Thi đua Realtime & Luỹ kế theo kênh',
+                badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
+                headerDot: 'bg-amber-500',
+                activeColor: 'amber',
+                hasYcx: false, 
+                items: [
+                  { id: 'rt_cat', label: 'REALTIME TĐ', value: categoryInput, onChange: setCategoryInput, onBlur: () => onSaveRealtime(false, 'REALTIME TĐ'), hasData: !!categoryInput },
+                  { id: 'rt_catlk', label: 'LUỸ KẾ TĐ', value: categoryTargetInput || clusterCategoryInput, onChange: (val: string) => { setCategoryTargetInput(val); setClusterCategoryInput && setClusterCategoryInput(val); }, onBlur: () => { onSaveRealtime(false, 'LUỸ KẾ TĐ'); onSaveLuyke && onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ TĐ'); }, hasData: !!(categoryTargetInput || clusterCategoryInput) },
+                ]
+              },
             ].map(group => (
-              <div key={group.title}>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className={cn("w-1.5 h-5 rounded-full", group.color)} />
-                  <h2 className="text-[15px] font-black text-slate-600 uppercase tracking-wider">{group.title}</h2>
+              <div key={group.title} className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className={cn("w-2.5 h-6 rounded-full shrink-0", group.headerDot)} />
+                    <div>
+                      <h2 className="text-[15px] font-black text-slate-800 uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                        {group.title}
+                      </h2>
+                      <p className="text-[11px] font-medium text-slate-400">
+                        {group.subtitle}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={cn("px-2.5 py-1 rounded-xl text-[10px] font-black uppercase border", group.badgeBg)}>
+                    BI NGUỒN
+                  </span>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {group.items.map(item => (
                     <div key={item.id} className="flex flex-col gap-2">
                       <div className={cn(
-                        "w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all text-left",
-                        item.hasData ? "border-teal-200 bg-teal-50/30 shadow-sm" : "border-slate-200 bg-white"
+                        "w-full flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-2xl border transition-all text-left shadow-xs",
+                        item.hasData 
+                          ? group.activeColor === 'emerald'
+                            ? "border-emerald-300 bg-gradient-to-r from-emerald-50/70 to-teal-50/50" 
+                            : "border-amber-300 bg-gradient-to-r from-amber-50/70 to-orange-50/50"
+                          : "border-slate-200 bg-slate-50/70 hover:bg-slate-50"
                       )}>
-                        <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
-                          item.hasData ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-400"
-                        )}>
-                          {item.hasData ? <Globe size={16} /> : <Download size={16} />}
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={cn(
+                            "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-xs transition-colors",
+                            item.hasData 
+                              ? group.activeColor === 'emerald' ? "bg-emerald-600 text-white" : "bg-amber-500 text-white"
+                              : "bg-white border border-slate-200 text-slate-400"
+                          )}>
+                            <Globe size={15} />
+                          </div>
+                          <div className="min-w-0">
+                            <span className={cn(
+                              "text-xs font-black uppercase tracking-wide block truncate",
+                              item.hasData 
+                                ? group.activeColor === 'emerald' ? "text-emerald-900" : "text-amber-900"
+                                : "text-slate-600"
+                            )}>
+                              {item.label}
+                            </span>
+                            {item.hasData && (
+                              <span className={cn(
+                                "text-[9px] font-extrabold uppercase",
+                                group.activeColor === 'emerald' ? "text-emerald-600" : "text-amber-600"
+                              )}>
+                                ✓ ĐÃ NẠP DỮ LIỆU
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <span className={cn("text-[12px] font-black uppercase tracking-wide", item.hasData ? "text-teal-700" : "text-slate-500")}>{item.label}</span>
-                          {item.hasData && lastUpdatedRealtime && ('isLuyke' in item && (item as any).isLuyke) && (
-                            <p className="text-[9px] text-slate-400 flex items-center gap-1 mt-0.5"><Calendar size={8} /> {lastUpdatedRealtime.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})} {lastUpdatedRealtime.toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'})}</p>
-                          )}
-                        </div>
+
                         {item.hasData && (
-                          <button onClick={(e) => { e.stopPropagation(); if (clearField) { clearField(item.onChange); } else { item.onChange(''); } }} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0 cursor-pointer" title="Xoá dữ liệu">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); if (clearField) { clearField(item.onChange); } else { item.onChange(''); } }} 
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all shrink-0 cursor-pointer border border-transparent hover:border-rose-200" 
+                            title="Xoá dữ liệu ô này"
+                          >
                             <X size={14} />
                           </button>
                         )}
                       </div>
+
                       <textarea
                         value={item.value}
                         onChange={(e) => item.onChange(e.target.value)}
@@ -549,7 +621,6 @@ const InputSection: React.FC<InputSectionProps> = ({
                           const pastedText = e.clipboardData.getData('text');
                           if (pastedText) {
                             item.onChange(pastedText);
-                            // Save to Firebase immediately after paste
                             setTimeout(() => {
                               if (item.onBlur) item.onBlur();
                               if (onSaveRealtime) onSaveRealtime(true);
@@ -558,14 +629,15 @@ const InputSection: React.FC<InputSectionProps> = ({
                         }}
                         onBlur={item.onBlur}
                         rows={3}
-                        placeholder="Dán dữ liệu (Ctrl+V)..."
-                        className="w-full bg-white border-2 border-slate-200 focus:border-blue-400 rounded-xl p-3 text-[15px] focus:ring-4 focus:ring-blue-100 outline-none resize-none font-sans font-normal transition-all"
+                        placeholder="Dán dữ liệu (Ctrl + V) tại đây..."
+                        className="w-full bg-white border border-slate-200 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15 rounded-2xl p-3 text-[13px] outline-none resize-none font-sans font-normal text-slate-800 transition-all shadow-inner placeholder:text-slate-300 placeholder:text-xs"
                       />
                     </div>
                   ))}
                 </div>
+
                 {group.hasYcx && (
-                  <label className="mt-3 flex items-center gap-2 px-4 py-3 rounded-2xl border-2 border-dashed border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/30 transition-all cursor-pointer">
+                  <label className="mt-3 flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-dashed border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/30 transition-all cursor-pointer">
                     <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0", ycxFileName ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-400")}>
                       <FileSpreadsheet size={16} />
                     </div>
@@ -579,37 +651,43 @@ const InputSection: React.FC<InputSectionProps> = ({
               </div>
             ))}
           </div>
-
-
         </div>
         )}
       </div>
       )}
 
-
-
-      {/* CẤU HÌNH SIÊU THỊ - New Independent Card */}
+      {/* CẤU HÌNH SIÊU THỊ - Modern V2 Card */}
       {activeTab === 'REALTIME' && (
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100">
+        <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 via-white to-slate-50/80">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="w-1.5 h-7 rounded-full bg-slate-700" />
-              <h2 className="text-[15px] font-black text-slate-700 uppercase tracking-tight">CẤU HÌNH SIÊU THỊ</h2>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
+                <Store size={20} />
+              </div>
+              <div>
+                <h2 className="text-[16px] font-black text-slate-900 uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                  CẤU HÌNH SIÊU THỊ & NHÂN VIÊN
+                </h2>
+                <p className="text-xs font-medium text-slate-400">
+                  Dữ liệu Doanh thu NV, Thi đua NV, Bán kèm, Trả góp và Phục vụ
+                </p>
+              </div>
             </div>
+
             {availableMarkets.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar bg-slate-50 p-1.5 rounded-2xl border border-slate-100">
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200">
               <button
                 onClick={() => onStoreChange?.('ALL')}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-xl text-[15px] font-black uppercase tracking-wider whitespace-nowrap transition-all active:scale-95",
+                  "flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap transition-all active:scale-95 cursor-pointer",
                   activeStore === 'ALL'
-                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
-                    : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
+                    ? "bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-500/20"
+                    : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
                 )}
               >
-                <LayoutGrid size={14} />
+                <LayoutGrid size={13} />
                 TẤT CẢ
               </button>
               {(() => {
@@ -632,13 +710,13 @@ const InputSection: React.FC<InputSectionProps> = ({
                   key={name}
                   onClick={() => onStoreChange?.(name)}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-black uppercase tracking-wider whitespace-nowrap transition-all active:scale-95",
+                    "flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider whitespace-nowrap transition-all active:scale-95 cursor-pointer",
                     activeStore === name
-                      ? "bg-teal-600 text-white shadow-lg shadow-teal-200"
-                      : "bg-white text-slate-500 hover:bg-slate-50 border border-slate-200"
+                      ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/20"
+                      : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
                   )}
                 >
-                  <Store size={14} />
+                  <Store size={13} />
                   {name}
                 </button>
               ));
@@ -718,31 +796,39 @@ const InputSection: React.FC<InputSectionProps> = ({
                 <div 
                   key={storeName} 
                   className={cn(
-                    "rounded-2xl overflow-hidden bg-white transition-all",
+                    "rounded-3xl overflow-hidden bg-white transition-all shadow-sm",
                     isActiveCard 
-                      ? "shadow-sm border border-slate-200" 
-                      : "shadow-sm border border-slate-200 cursor-pointer opacity-60 hover:opacity-100"
+                      ? "border-2 border-emerald-500/80 shadow-emerald-500/5 ring-4 ring-emerald-500/10" 
+                      : "border border-slate-200 cursor-pointer opacity-70 hover:opacity-100 hover:border-slate-300"
                   )}
                   onClick={!isActiveCard ? handleCardActivate : undefined}
                 >
-                  {/* Thin gradient top border */}
-                  <div className={cn("h-1 bg-gradient-to-r", color.border)} />
+                  {/* Gradient accent top stripe */}
+                  <div className={cn("h-1.5 bg-gradient-to-r", color.border)} />
 
-                  {/* Store Card Header — clean white */}
-                  <div className="px-5 py-4 flex items-center justify-between border-b border-slate-100">
+                  {/* Store Card Header */}
+                  <div className="px-5 py-4 flex items-center justify-between border-b border-slate-100 bg-slate-50/50">
                     <div>
-                      <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">{storeName}</h3>
-                      <p className="text-[12px] text-slate-400 font-black">Thống kê dữ liệu siêu thị.</p>
+                      <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                        {storeName}
+                      </h3>
+                      <p className="text-[11px] text-slate-400 font-medium">
+                        Cấu hình và dữ liệu chi tiết siêu thị
+                      </p>
                     </div>
                     {isActiveCard ? (
-                      <span className={cn("text-[9px] font-black px-3 py-1.5 rounded-lg", color.activeBadge)}>ĐANG CHỌN</span>
+                      <span className="text-[10px] font-black px-3 py-1 rounded-full bg-emerald-500 text-white shadow-xs">
+                        ĐANG CHỌN
+                      </span>
                     ) : (
-                      <span className="text-[9px] font-black text-slate-400 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50">BẤM ĐỂ CHỌN</span>
+                      <span className="text-[10px] font-black text-slate-500 px-3 py-1 rounded-full border border-slate-200 bg-white shadow-xs">
+                        BẤM ĐỂ CHỌN
+                      </span>
                     )}
                   </div>
 
                   {/* Store Card Body */}
-                  <div className="p-4 space-y-2 bg-white">
+                  <div className="p-4 sm:p-5 space-y-2.5 bg-white">
                     {storeFields.map(item => {
                       const val = item.value || '';
                       const hasData = !!val;
@@ -764,37 +850,61 @@ const InputSection: React.FC<InputSectionProps> = ({
                         } else if (item.setter) {
                           if (clearField) clearField(item.setter);
                           else item.setter('');
-                          // clearField now handles DB save internally via saveLuykeDataRef
                         }
                       };
 
                       return (
-                        <div key={item.key}>
+                        <div key={item.key} className="space-y-1.5">
                           <button 
                             onClick={() => { handleCardActivate(); toggleInput(item.key); }}
                             className={cn(
-                              "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 border-dashed transition-all text-left",
-                              expandedInput === item.key ? "border-blue-400 bg-blue-50/50 shadow-md" :
-                              hasData ? "border-teal-200 bg-teal-50/30 hover:shadow-md" : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
+                              "w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-2xl border transition-all text-left shadow-xs cursor-pointer active:scale-[0.99]",
+                              expandedInput === item.key ? "border-indigo-400 bg-indigo-50/60 shadow-sm" :
+                              hasData ? "border-emerald-300 bg-gradient-to-r from-emerald-50/60 to-teal-50/40" : "border-slate-200 bg-slate-50/60 hover:bg-slate-50"
                             )}
                           >
-                            <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0", hasData ? "bg-teal-100 text-teal-600" : "bg-slate-100 text-slate-400")}>
-                              <Upload size={13} />
-                            </div>
-                            <span className={cn("text-[13px] font-black uppercase tracking-wide flex-1", hasData ? "text-teal-700" : "text-slate-500")}>{item.label}</span>
-                            {(item as any).biLink && (
-                              <a href={(item as any).biLink} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-amber-500 hover:text-amber-600 shrink-0" title="Mở BI">
-                                <ExternalLink size={12} />
-                              </a>
-                            )}
-                            {hasData && (
-                              <div onClick={(e) => { e.stopPropagation(); handleClear(); }} className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0" title="Xoá dữ liệu">
-                                <X size={12} />
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className={cn(
+                                "w-7 h-7 rounded-xl flex items-center justify-center shrink-0 shadow-xs transition-colors",
+                                hasData ? "bg-emerald-600 text-white" : "bg-white border border-slate-200 text-slate-400"
+                              )}>
+                                <Upload size={13} />
                               </div>
-                            )}
+                              <span className={cn(
+                                "text-xs font-black uppercase tracking-wide truncate",
+                                hasData ? "text-emerald-900" : "text-slate-700"
+                              )}>
+                                {item.label}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {(item as any).biLink && (
+                                <a 
+                                  href={(item as any).biLink} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  onClick={(e) => e.stopPropagation()} 
+                                  className="text-amber-500 hover:text-amber-600 p-1 rounded-md hover:bg-amber-50 transition-colors" 
+                                  title="Mở báo cáo BI"
+                                >
+                                  <ExternalLink size={13} />
+                                </a>
+                              )}
+                              {hasData && (
+                                <div 
+                                  onClick={(e) => { e.stopPropagation(); handleClear(); }} 
+                                  className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer" 
+                                  title="Xoá dữ liệu"
+                                >
+                                  <X size={13} />
+                                </div>
+                              )}
+                            </div>
                           </button>
+
                           {expandedInput === item.key && isActiveCard && (
-                            <div className="relative w-full mt-1.5">
+                            <div className="relative w-full">
                               <textarea 
                                 value={val} 
                                 onChange={(e) => handleChange(e.target.value)} 
@@ -802,9 +912,9 @@ const InputSection: React.FC<InputSectionProps> = ({
                                 onBlur={() => onSaveLuyke(false, 'auto', undefined, undefined, item.label)} 
                                 rows={3} 
                                 autoFocus 
-                                placeholder="Dán dữ liệu (Ctrl+V)..." 
+                                placeholder="Dán dữ liệu (Ctrl + V)..." 
                                 className={cn(
-                                  "w-full bg-white border-2 border-blue-200 rounded-xl p-2.5 text-[12px] focus:ring-2 focus:ring-blue-400 outline-none resize-none font-sans font-normal shadow-inner",
+                                  "w-full bg-white border border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/15 rounded-2xl p-3 text-[13px] outline-none resize-none font-sans font-normal shadow-inner text-slate-800",
                                   item.configKey === 'tragop_matran' && "pb-10"
                                 )} 
                               />
@@ -815,7 +925,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                                     e.stopPropagation();
                                     syncTragopMatran();
                                   }}
-                                  className="absolute right-2.5 bottom-2.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm cursor-pointer z-10"
+                                  className="absolute right-2.5 bottom-2.5 px-3 py-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-xs cursor-pointer z-10"
                                 >
                                   Đồng bộ từ Khai báo
                                 </button>
@@ -828,37 +938,50 @@ const InputSection: React.FC<InputSectionProps> = ({
 
                     {/* Phục vụ upload */}
                     <div className={cn(
-                      "w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border-2 border-dashed transition-all group relative",
-                      !isActiveCard ? "cursor-pointer" : "cursor-pointer",
-                      cardPhucVu ? "border-teal-200 bg-teal-50/30 hover:shadow-md" : "border-slate-200 bg-slate-50 hover:border-indigo-300 hover:bg-slate-100"
+                      "w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-2xl border transition-all group relative shadow-xs",
+                      cardPhucVu ? "border-emerald-300 bg-gradient-to-r from-emerald-50/60 to-teal-50/40" : "border-slate-200 bg-slate-50/60 hover:bg-slate-50"
                     )}>
-                      <div className="flex items-center gap-3">
-                        <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0", cardPhucVu ? "bg-teal-100 text-teal-600" : "bg-indigo-100 text-indigo-600")}>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={cn(
+                          "w-7 h-7 rounded-xl flex items-center justify-center shrink-0 shadow-xs",
+                          cardPhucVu ? "bg-emerald-600 text-white" : "bg-indigo-50 border border-indigo-200 text-indigo-600"
+                        )}>
                           <UploadCloud size={13} />
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className={cn("text-[13px] font-black uppercase tracking-wide", cardPhucVu ? "text-teal-700" : "text-slate-700")}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={cn(
+                            "text-xs font-black uppercase tracking-wide truncate",
+                            cardPhucVu ? "text-emerald-900" : "text-slate-700"
+                          )}>
                             {cardPhucVu ? 'ĐÃ TẢI DỮ LIỆU' : 'CHỌN FILE DỮ LIỆU'}
                           </span>
                           <a 
                             href="https://crm.thegioididong.com/Reviewuser/ReportCustomerRatings" 
                             target="_blank" 
                             rel="noopener noreferrer" 
-                            className="text-indigo-500 hover:text-indigo-700 z-20 relative bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-md transition-colors"
+                            className="text-indigo-600 hover:text-indigo-800 z-20 relative bg-indigo-50 hover:bg-indigo-100 p-1 rounded-md transition-colors"
                             title="Lấy file Báo cáo Phục vụ từ CRM"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <ExternalLink size={14} />
+                            <ExternalLink size={12} />
                           </a>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className={cn("text-[9px] font-black px-1.5 py-0.5 rounded-md border", cardPhucVu ? "text-teal-500 bg-white border-teal-200" : "text-slate-400 bg-white border-slate-200")}>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <div className={cn(
+                          "text-[10px] font-black px-2 py-0.5 rounded-lg border",
+                          cardPhucVu ? "text-emerald-700 bg-white border-emerald-200" : "text-slate-500 bg-white border-slate-200"
+                        )}>
                           BÁO CÁO PHỤC VỤ
                         </div>
                         {cardPhucVu && isActiveCard && (
-                          <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (setPhucVu) setPhucVu(''); }} className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all shrink-0 z-20 relative cursor-pointer" title="Xoá dữ liệu">
-                            <X size={12} />
+                          <div 
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (setPhucVu) setPhucVu(''); }} 
+                            className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all shrink-0 z-20 relative cursor-pointer" 
+                            title="Xoá dữ liệu"
+                          >
+                            <X size={13} />
                           </div>
                         )}
                       </div>
@@ -868,12 +991,20 @@ const InputSection: React.FC<InputSectionProps> = ({
                     </div>
 
                     {/* % TARGET input — per-store */}
-                    <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border-2 border-dashed border-slate-200 bg-white">
-                      <div className="flex items-center gap-3">
-                        <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0", cardPercentTarget ? "bg-teal-100 text-teal-600" : "bg-slate-100 text-slate-400")}>
+                    <div className="flex items-center justify-between gap-3 px-3.5 py-2 rounded-2xl border border-slate-200 bg-slate-50/60 shadow-xs">
+                      <div className="flex items-center gap-2.5">
+                        <div className={cn(
+                          "w-7 h-7 rounded-xl flex items-center justify-center shrink-0 shadow-xs",
+                          cardPercentTarget ? "bg-emerald-600 text-white" : "bg-white border border-slate-200 text-slate-400"
+                        )}>
                           <Target size={13} />
                         </div>
-                        <span className={cn("text-[13px] font-black uppercase tracking-wide", cardPercentTarget ? "text-teal-700" : "text-slate-500")}>% TARGET</span>
+                        <span className={cn(
+                          "text-xs font-black uppercase tracking-wide",
+                          cardPercentTarget ? "text-emerald-900" : "text-slate-600"
+                        )}>
+                          % TARGET
+                        </span>
                       </div>
                       <input 
                         type="number" 
@@ -896,42 +1027,42 @@ const InputSection: React.FC<InputSectionProps> = ({
                         placeholder="0" 
                         disabled={!isActiveCard}
                         className={cn(
-                          "w-20 border rounded-lg p-1.5 text-xs font-sans font-normal text-center outline-none transition-all",
-                          isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400"
+                          "w-20 border rounded-xl p-1.5 text-xs font-sans font-bold text-center outline-none transition-all shadow-inner",
+                          isActiveCard ? "bg-white border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400"
                         )} 
                       />
                     </div>
 
                     {/* TARGET THI ĐUA — per-store, collapsible */}
                     {cardCategoryTargets.length > 0 && (
-                    <div className="mt-1 border-2 border-dashed border-violet-200 rounded-xl overflow-hidden">
+                    <div className="mt-2 border border-violet-200/90 rounded-2xl overflow-hidden shadow-xs bg-white">
                       <button 
                         onClick={() => toggleInput(`${storeName}_thidua`)}
                         className={cn(
-                          "w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left transition-all",
-                          expandedInput === `${storeName}_thidua` ? "bg-violet-50" : "bg-white hover:bg-violet-50/50"
+                          "w-full flex items-center justify-between gap-3 px-3.5 py-2.5 text-left transition-all cursor-pointer",
+                          expandedInput === `${storeName}_thidua` ? "bg-violet-50/80" : "bg-white hover:bg-violet-50/40"
                         )}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-violet-100 text-violet-600">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 bg-violet-600 text-white shadow-xs">
                             <Zap size={13} />
                           </div>
-                          <span className="text-[13px] font-black uppercase tracking-wide text-violet-700">TARGET THI ĐUA</span>
+                          <span className="text-xs font-black uppercase tracking-wide text-violet-900">TARGET THI ĐUA</span>
                         </div>
-                        <ChevronDown size={14} className={cn("text-violet-400 transition-transform", expandedInput === `${storeName}_thidua` && "rotate-180")} />
+                        <ChevronDown size={15} className={cn("text-violet-500 transition-transform", expandedInput === `${storeName}_thidua` && "rotate-180")} />
                       </button>
                       {expandedInput === `${storeName}_thidua` && (
-                        <div className="p-3 border-t border-violet-100 space-y-4">
+                        <div className="p-3.5 border-t border-violet-100 space-y-4 bg-slate-50/30">
                           {/* Toolbar — only for active card */}
                           {isActiveCard && (
                           <div className="flex flex-wrap items-center gap-2">
-                            <button onClick={onAnalyze} className="px-3 py-1.5 bg-violet-50 text-violet-600 border border-violet-100 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-violet-100 transition-all active:scale-95 flex items-center gap-1">
-                              <Zap size={10} /> ĐỒNG BỘ
+                            <button onClick={onAnalyze} className="px-3 py-1.5 bg-white text-violet-700 border border-violet-200 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-violet-50 transition-all active:scale-95 flex items-center gap-1 shadow-xs cursor-pointer">
+                              <Zap size={11} /> ĐỒNG BỘ
                             </button>
-                            <input type="number" value={globalPercent} onChange={(e) => handleGlobalPercentChange(Number(e.target.value))} className="w-16 bg-white border border-slate-200 rounded-lg p-1.5 text-[12px] font-sans font-normal text-center" placeholder="%" />
-                             <button onClick={() => { const nt = categoryTargets.map(item => ({ ...item, percent: globalPercent, adjustedTarget: item.target * (globalPercent / 100) })); setCategoryTargets(nt); onSaveLuyke(false, 'targets', undefined, nt, 'TARGET THI ĐUA'); }} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[9px] font-black uppercase hover:bg-indigo-700 transition-all active:scale-95">ÁP DỤNG ALL</button>
-                            <button onClick={() => onSaveLuyke(false, 'targets', undefined, undefined, 'TARGET THI ĐUA')} disabled={isSavingTargets} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[9px] font-black uppercase hover:bg-emerald-700 transition-all active:scale-95 flex items-center gap-1 disabled:opacity-50">
-                              {isSavingTargets ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />} LƯU
+                            <input type="number" value={globalPercent} onChange={(e) => handleGlobalPercentChange(Number(e.target.value))} className="w-16 bg-white border border-slate-200 rounded-xl p-1.5 text-[12px] font-sans font-bold text-center shadow-inner" placeholder="%" />
+                             <button onClick={() => { const nt = categoryTargets.map(item => ({ ...item, percent: globalPercent, adjustedTarget: item.target * (globalPercent / 100) })); setCategoryTargets(nt); onSaveLuyke(false, 'targets', undefined, nt, 'TARGET THI ĐUA'); }} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase transition-all active:scale-95 shadow-xs cursor-pointer">ÁP DỤNG ALL</button>
+                            <button onClick={() => onSaveLuyke(false, 'targets', undefined, undefined, 'TARGET THI ĐUA')} disabled={isSavingTargets} className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-[10px] font-black uppercase transition-all active:scale-95 flex items-center gap-1 disabled:opacity-50 shadow-xs cursor-pointer">
+                              {isSavingTargets ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />} LƯU
                             </button>
                           </div>
                           )}
@@ -940,11 +1071,11 @@ const InputSection: React.FC<InputSectionProps> = ({
                             const items = cardCategoryTargets.filter(item => type === 'SL' ? item.type === 'SL' : item.type !== 'SL');
                             if (items.length === 0) return null;
                             return (
-                              <div key={type}>
-                                <h4 className="text-[12px] font-black text-slate-400 mb-2 uppercase">Ngành hàng ({type})</h4>
+                              <div key={type} className="bg-white rounded-xl border border-slate-200 p-2.5">
+                                <h4 className="text-[11px] font-black text-slate-500 mb-2 uppercase">Ngành hàng ({type})</h4>
                                 <table className="w-full text-left border-collapse">
                                   <thead>
-                                    <tr className="text-[9px] text-slate-400 uppercase tracking-widest">
+                                    <tr className="text-[9px] text-slate-400 uppercase tracking-widest border-b border-slate-100">
                                       <th className="p-1.5">Tên NH</th>
                                       <th className="p-1.5">Target</th>
                                       <th className="p-1.5">Sau ĐC</th>
@@ -953,12 +1084,12 @@ const InputSection: React.FC<InputSectionProps> = ({
                                   </thead>
                                   <tbody>
                                     {items.map(item => (
-                                      <tr key={item.name} className="border-t border-slate-100">
-                                        <td className="p-1.5 text-[12px] font-black">{item.name}</td>
-                                        <td className="p-1.5 text-[12px]">{item.target.toLocaleString()}</td>
-                                        <td className="p-1.5 text-[12px] font-black text-indigo-600">{item.adjustedTarget.toLocaleString()}</td>
+                                      <tr key={item.name} className="border-t border-slate-50">
+                                        <td className="p-1.5 text-[11px] font-black text-slate-800">{item.name}</td>
+                                        <td className="p-1.5 text-[11px] text-slate-600">{item.target.toLocaleString()}</td>
+                                        <td className="p-1.5 text-[11px] font-black text-indigo-600">{item.adjustedTarget.toLocaleString()}</td>
                                         <td className="p-1.5 text-center">
-                                          <input type="number" value={item.percent} onChange={(e) => { if (!isActiveCard) return; const nv = Number(e.target.value); const nt = categoryTargets.map(t => t.name === item.name ? { ...t, percent: nv, adjustedTarget: t.target * (nv / 100) } : t); setCategoryTargets(nt); if (onSaveLuyke) { onSaveLuyke(true, 'targets', undefined, nt, 'TARGET THI ĐUA'); } }} disabled={!isActiveCard} className={cn("w-14 border rounded p-1 text-[12px] text-center font-sans font-normal outline-none", isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400")} />
+                                          <input type="number" value={item.percent} onChange={(e) => { if (!isActiveCard) return; const nv = Number(e.target.value); const nt = categoryTargets.map(t => t.name === item.name ? { ...t, percent: nv, adjustedTarget: t.target * (nv / 100) } : t); setCategoryTargets(nt); if (onSaveLuyke) { onSaveLuyke(true, 'targets', undefined, nt, 'TARGET THI ĐUA'); } }} disabled={!isActiveCard} className={cn("w-14 border rounded-lg p-1 text-[11px] text-center font-sans font-normal outline-none", isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400")} />
                                         </td>
                                       </tr>
                                     ))}
@@ -982,21 +1113,28 @@ const InputSection: React.FC<InputSectionProps> = ({
       </div>
       )}
 
-      {/* Time Settings Container */}
+      {/* Time Settings Container - Modern V2 */}
       {activeTab === 'REALTIME' && (
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm">
-        <div className="px-6 py-4 flex items-center justify-between bg-slate-50 border-b border-slate-200">
+      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
+        <div className="px-6 py-5 flex items-center justify-between bg-gradient-to-r from-slate-50/80 via-white to-slate-50/80 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+            <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
               <Calendar size={20} />
             </div>
-            <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">CÀI ĐẶT THỜI GIAN</h3>
+            <div>
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                CÀI ĐẶT THỜI GIAN
+              </h3>
+              <p className="text-xs font-medium text-slate-400">
+                Tháng báo cáo và tiến độ ngày trong tháng
+              </p>
+            </div>
           </div>
           <button 
             onClick={() => setShowTimeSettings(!showTimeSettings)}
-            className="w-10 h-10 rounded-xl flex items-center justify-center bg-white border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all"
+            className="w-9 h-9 rounded-xl flex items-center justify-center bg-slate-100/80 border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-200/80 transition-all cursor-pointer"
           >
-            <ChevronDown size={20} className={cn("transition-transform duration-300", showTimeSettings && "rotate-180")} />
+            <ChevronDown size={18} className={cn("transition-transform duration-300", showTimeSettings && "rotate-180")} />
           </button>
         </div>
         

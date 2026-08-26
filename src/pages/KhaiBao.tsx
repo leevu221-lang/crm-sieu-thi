@@ -287,10 +287,8 @@ const KhaiBao: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-black" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
-
-
-      <div className="max-w-[1260px] mx-auto p-8">
+    <div className="min-h-screen bg-[#f8fafc]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+      <div className="max-w-[1280px] mx-auto px-3.5 py-5 sm:px-6 sm:py-8">
          {/* Main Content Area */}
          <div>
           <InputSection 

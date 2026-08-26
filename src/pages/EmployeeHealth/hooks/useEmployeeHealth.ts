@@ -22,6 +22,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
   const [thiDuaNv, setThiDuaNv] = useState<string>(() => initialCache?.thiDuaNv || '');
   const [phucVu, setPhucVu] = useState<string>(() => initialCache?.phucVu || '');
   const [banKemNv, setBanKemNvInternal] = useState<string>(() => initialCache?.banKemNv || '');
+  const [nganhhangChinhNv, setNganhhangChinhNvInternal] = useState<string>(() => initialCache?.nganhhangChinhNv || '');
   const [tragopNv, setTragopNvInternal] = useState<string>(() => initialCache?.tragopNv || '');
   const [dtqd3t1, setDtqd3t1Internal] = useState<string>(() => initialCache?.dtqd3t1 || '');
   const [dtqd3t2, setDtqd3t2Internal] = useState<string>(() => initialCache?.dtqd3t2 || '');
@@ -50,6 +51,8 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
   const hasLoadedRef = useRef(false);
   const banKemDirtyRef = useRef(false);
   const banKemAutoSaveRef = useRef<NodeJS.Timeout | null>(null);
+  const nganhhangChinhDirtyRef = useRef(false);
+  const nganhhangChinhAutoSaveRef = useRef<NodeJS.Timeout | null>(null);
   const tragopDirtyRef = useRef(false);
   const tragopAutoSaveRef = useRef<NodeJS.Timeout | null>(null);
   const rank3tDirtyRef = useRef(false);
@@ -80,6 +83,35 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           }
         } catch (err) {
           console.error('[EmployeeHealth] Save ban_kem_nv error:', err);
+        }
+      }, 300);
+    }
+  }, [targetKey, maKho, storeName, tenSieuThi]);
+
+  const setNganhhangChinhNv = useCallback((val: string) => {
+    nganhhangChinhDirtyRef.current = true;
+    setNganhhangChinhNvInternal(val);
+    if (globalHealthCache[targetKey]) {
+      globalHealthCache[targetKey].nganhhangChinhNv = val;
+    }
+    const cleanStore = (storeName || tenSieuThi || '').trim();
+    if (maKho && cleanStore) {
+      if (nganhhangChinhAutoSaveRef.current) clearTimeout(nganhhangChinhAutoSaveRef.current);
+      nganhhangChinhAutoSaveRef.current = setTimeout(async () => {
+        try {
+          const { error } = await supabase.from('store').upsert({
+            id: normalizeStoreId(cleanStore),
+            warehouse_code: maKho.trim(),
+            ten_sieu_thi: cleanStore,
+            nganhhang_chinh_nv: cleanBiReportText(val),
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+          if (!error) {
+            nganhhangChinhDirtyRef.current = false;
+            console.log('[EmployeeHealth] Saved nganhhang_chinh_nv immediately to DB for', cleanStore);
+          }
+        } catch (err) {
+          console.error('[EmployeeHealth] Save nganhhang_chinh_nv error:', err);
         }
       }, 300);
     }
@@ -241,7 +273,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           .eq('ten_sieu_thi', cleanStore);
         lkQuery = supabase
           .from('store')
-          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, rank_month_1, rank_month_2, rank_month_3, ten_sieu_thi, updated_at')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, nganhhang_chinh_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, rank_month_1, rank_month_2, rank_month_3, ten_sieu_thi, updated_at')
           .eq('id', normalizeStoreId(cleanStore));
       } else {
         // ALL stores mode: query by warehouse_code
@@ -251,7 +283,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           .or(warehouseFilter);
         lkQuery = supabase
           .from('store')
-          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, rank_month_1, rank_month_2, rank_month_3, ten_sieu_thi, updated_at')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, nganhhang_chinh_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, rank_month_1, rank_month_2, rank_month_3, ten_sieu_thi, updated_at')
           .or(warehouseFilter);
       }
 
@@ -352,6 +384,10 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       const tragopNvRaw = isAllMode
         ? (lkDataArr || []).map(r => r.tragop_nv || '').filter(Boolean).join('\n')
         : (lkData?.tragop_nv || '');
+
+      const nganhhangChinhNvRaw = isAllMode
+        ? (lkDataArr || []).map(r => r.nganhhang_chinh_nv || '').filter(Boolean).join('\n')
+        : (lkData?.nganhhang_chinh_nv || '');
 
       const dtqd3t1Raw = isAllMode
         ? (lkDataArr || []).map(r => r.dtqd_3t_1 || '').filter(Boolean).join('\n')
@@ -461,6 +497,9 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       if (!tragopDirtyRef.current) {
         setTragopNvInternal(tragopNvRaw);
       }
+      if (!nganhhangChinhDirtyRef.current) {
+        setNganhhangChinhNvInternal(nganhhangChinhNvRaw);
+      }
       if (!rank3tDirtyRef.current) {
         setDtqd3t1Internal(dtqd3t1Raw);
         setDtqd3t2Internal(dtqd3t2Raw);
@@ -517,6 +556,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         phucVu: phucVuRaw,
         banKemNv: banKemNvRaw,
         tragopNv: tragopNvRaw,
+        nganhhangChinhNv: nganhhangChinhNvRaw,
         dtqd3t1: dtqd3t1Raw,
         dtqd3t2: dtqd3t2Raw,
         dtqd3t3: dtqd3t3Raw,
@@ -578,6 +618,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       setTenSieuThi(cached.tenSieuThi);
       if (!banKemDirtyRef.current) setBanKemNvInternal(cached.banKemNv);
       if (!tragopDirtyRef.current) setTragopNvInternal(cached.tragopNv);
+      if (!nganhhangChinhDirtyRef.current) setNganhhangChinhNvInternal(cached.nganhhangChinhNv || '');
       if (!rank3tDirtyRef.current) {
         setDtqd3t1Internal(cached.dtqd3t1 || '');
         setDtqd3t2Internal(cached.dtqd3t2 || '');
@@ -606,6 +647,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     // Reset dirty flag when switching stores to avoid stale banKemNv
     banKemDirtyRef.current = false;
     tragopDirtyRef.current = false;
+    nganhhangChinhDirtyRef.current = false;
     rank3tDirtyRef.current = false;
     hasLoadedRef.current = false;
     
@@ -647,7 +689,8 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
               (record.lk_td_nv !== undefined && record.lk_td_nv !== (cached.thiDuaNv || '')) ||
               (record.phuc_vu !== undefined && record.phuc_vu !== (cached.phucVu || '')) ||
               (!banKemDirtyRef.current && record.ban_kem_nv !== undefined && record.ban_kem_nv !== (cached.banKemNv || '')) ||
-              (!tragopDirtyRef.current && record.tragop_nv !== undefined && record.tragop_nv !== (cached.tragopNv || ''));
+              (!tragopDirtyRef.current && record.tragop_nv !== undefined && record.tragop_nv !== (cached.tragopNv || '')) ||
+              (!nganhhangChinhDirtyRef.current && record.nganhhang_chinh_nv !== undefined && record.nganhhang_chinh_nv !== (cached.nganhhangChinhNv || ''));
 
             if (hasChanged) {
               console.log('[EmployeeHealth] Monitored column change detected, refetching...');
@@ -875,6 +918,63 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     };
   }, [tragopNv, maKho, storeName, tenSieuThi, isStoreReady]);
 
+  // Auto-save nganhhangChinhNv to DB with 2s debounce
+  useEffect(() => {
+    if (!maKho || !hasLoadedRef.current || !nganhhangChinhDirtyRef.current) return;
+    if (!isStoreReady) return;
+    const cleanStore = (storeName || tenSieuThi || '').trim();
+    if (!cleanStore) return;
+
+    if (nganhhangChinhAutoSaveRef.current) {
+      clearTimeout(nganhhangChinhAutoSaveRef.current);
+    }
+
+    nganhhangChinhAutoSaveRef.current = setTimeout(async () => {
+      setIsSaving(true);
+      try {
+        const { error } = await supabase
+          .from('store')
+          .upsert({
+            id: normalizeStoreId(cleanStore),
+            warehouse_code: maKho.trim(),
+            ten_sieu_thi: cleanStore,
+            nganhhang_chinh_nv: nganhhangChinhNv,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+        if (error) {
+          console.error('[EmployeeHealth] Auto-save nganhhang_chinh_nv error:', error);
+        } else {
+          nganhhangChinhDirtyRef.current = false;
+        }
+      } catch (err) {
+        console.error('[EmployeeHealth] Auto-save nganhhang_chinh_nv failed:', err);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 2000);
+
+    return () => {
+      if (nganhhangChinhAutoSaveRef.current) clearTimeout(nganhhangChinhAutoSaveRef.current);
+      if (nganhhangChinhDirtyRef.current) {
+        const cleanStoreVal = (storeName || tenSieuThi || '').trim();
+        if (cleanStoreVal && maKho) {
+          supabase
+            .from('store')
+            .upsert({
+              id: normalizeStoreId(cleanStoreVal),
+              warehouse_code: maKho.trim(),
+              ten_sieu_thi: cleanStoreVal,
+              nganhhang_chinh_nv: nganhhangChinhNv,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'id' })
+            .then((res: any) => {
+              if (res.error) console.error('[EmployeeHealth] Auto-save nganhhang_chinh_nv on unmount error:', res.error);
+            });
+        }
+      }
+    };
+  }, [nganhhangChinhNv, maKho, storeName, tenSieuThi, isStoreReady]);
+
   const refresh = useCallback(() => {
     fetchAndMergeData();
   }, [fetchAndMergeData]);
@@ -946,6 +1046,40 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     }
   }, [maKho, tenSieuThi, storeName]);
 
+  const saveNganhhangChinhNv = useCallback(async (data: string) => {
+    if (!maKho) return;
+    const cleanMaKho = maKho.trim();
+    const cleanStore = (storeName || tenSieuThi || '').trim();
+    
+    if (!cleanStore) {
+      console.error('[EmployeeHealth] Cannot save nganhhang_chinh_nv: no store name available');
+      throw new Error('Chưa xác định được tên siêu thị. Vui lòng chọn siêu thị.');
+    }
+    
+    setNganhhangChinhNvInternal(data); // Optimistic update
+    nganhhangChinhDirtyRef.current = false; // Manual save clears dirty
+    setIsSaving(true);
+    try {
+        const { error } = await supabase
+          .from('store')
+          .upsert({
+            id: normalizeStoreId(cleanStore),
+            warehouse_code: cleanMaKho,
+            ten_sieu_thi: cleanStore,
+            nganhhang_chinh_nv: cleanBiReportText(data),
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'id' });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error saving nganhhang_chinh_nv data:', error);
+      setNganhhangChinhNvInternal(''); // Revert optimistic update on failure
+      throw error;
+    } finally {
+      setIsSaving(false);
+    }
+  }, [maKho, tenSieuThi, storeName]);
+
   const saveTragopNv = useCallback(async (data: string) => {
     if (!maKho) return;
     const cleanMaKho = maKho.trim();
@@ -1010,11 +1144,15 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
     rankMonth3, setRankMonth3,
     setBanKemNv,
     setTragopNv,
+    nganhhangChinhNv,
+    setNganhhangChinhNv,
     isLoading,
     isSaving,
     refresh,
     savePhucVu,
     saveBanKemNv,
-    saveTragopNv
+    saveNganhhangChinhNv,
+    saveTragopNv,
+    tenSieuThi
   };
 };

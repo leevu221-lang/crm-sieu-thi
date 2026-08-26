@@ -132,13 +132,69 @@ const ProfessionalDashboardTable: React.FC<Props> = ({ data, title = "DASHBOARD 
 
   const captureTable = async () => {
     if (tableRef.current) {
-      try {
-        document.body.classList.add('capturing-screenshot');
-        await new Promise(resolve => setTimeout(resolve, 100));
+      const element = tableRef.current;
+      const targetWidth = Math.max(1050, element.scrollWidth + 48);
 
-        const dataUrl = await domToPng(tableRef.current, {
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.top = '-9999px';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.width = `${targetWidth}px`;
+      tempContainer.style.height = 'auto';
+      tempContainer.style.overflow = 'hidden';
+      tempContainer.style.zIndex = '-9999';
+      tempContainer.style.pointerEvents = 'none';
+
+      const clone = element.cloneNode(true) as HTMLElement;
+
+      const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, input');
+      noCaptureElements.forEach(el => {
+        (el as HTMLElement).style.display = 'none';
+      });
+
+      clone.style.width = `${targetWidth}px`;
+      clone.style.minWidth = `${targetWidth}px`;
+      clone.style.height = 'auto';
+      clone.style.margin = '0';
+      clone.style.padding = '24px';
+      clone.style.backgroundColor = '#ffffff';
+      clone.style.display = 'inline-block';
+      clone.style.boxSizing = 'border-box';
+      clone.style.borderRadius = '24px';
+
+      const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+      scrollContainers.forEach((el) => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.overflow = 'visible';
+        htmlEl.style.width = '100%';
+        htmlEl.style.height = 'auto';
+        htmlEl.style.maxWidth = 'none';
+        htmlEl.style.maxHeight = 'none';
+        el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
+      });
+
+      const tables = clone.querySelectorAll('table');
+      tables.forEach(table => {
+        const htmlTable = table as HTMLElement;
+        htmlTable.style.width = '100%';
+        htmlTable.style.minWidth = '100%';
+        htmlTable.style.boxSizing = 'border-box';
+      });
+
+      tempContainer.appendChild(clone);
+      document.body.appendChild(tempContainer);
+
+      try {
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        const finalWidth = targetWidth;
+        const finalHeight = clone.offsetHeight || clone.scrollHeight;
+
+        const dataUrl = await domToPng(clone, {
           backgroundColor: '#ffffff',
           scale: 2,
+          width: finalWidth,
+          height: finalHeight
         });
         const link = document.createElement('a');
         link.href = dataUrl;
@@ -147,7 +203,9 @@ const ProfessionalDashboardTable: React.FC<Props> = ({ data, title = "DASHBOARD 
       } catch (error) {
         console.error('Lỗi khi chụp ảnh:', error);
       } finally {
-        document.body.classList.remove('capturing-screenshot');
+        if (document.body.contains(tempContainer)) {
+          document.body.removeChild(tempContainer);
+        }
       }
     }
   };

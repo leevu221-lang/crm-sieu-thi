@@ -6,6 +6,8 @@ import { domToPng } from 'modern-screenshot';
 import { saveAs } from 'file-saver';
 import { cleanCategoryName } from './EmployeeDetailTable';
 import { parseStaffMatrixDataRefined } from './SummaryThiDuaTable';
+import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
+import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
 
 const removeAccents = (str: string): string => {
   return str
@@ -343,8 +345,8 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
     const contentWidth = Math.max(originalElement.scrollWidth - 32, tableContainer ? tableContainer.scrollWidth : 0);
     const contentHeight = Math.max(originalElement.scrollHeight - 32, tableContainer ? tableContainer.scrollHeight : 0);
     
-    // We want 32px padding on all sides in the final image
-    const actualWidth = contentWidth + 64;
+    // Exact desktop width 1280px to guarantee all employee names fit 100% without truncation
+    const actualWidth = 1280;
     
     // Create a temporary container to hold the clone
     const container = document.createElement('div');
@@ -363,25 +365,75 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
     noCaptureElements.forEach(el => {
       (el as HTMLElement).style.display = 'none';
     });
+
+    // Zero shadow export
+    const allElements = clone.querySelectorAll('*');
+    allElements.forEach(el => {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.style) {
+        htmlEl.style.boxShadow = 'none';
+        htmlEl.style.textShadow = 'none';
+        htmlEl.style.filter = 'none';
+      }
+      if (htmlEl.classList) {
+        htmlEl.classList.remove('truncate');
+        Array.from(htmlEl.classList).forEach(cls => {
+          if (cls.startsWith('shadow') || cls.startsWith('drop-shadow')) {
+            htmlEl.classList.remove(cls);
+          }
+        });
+      }
+    });
     
     // Set clone styling to take full layout unconstrained
     clone.style.width = `${actualWidth}px`;
-    clone.style.height = 'max-content';
+    clone.style.minWidth = `${actualWidth}px`;
+    clone.style.maxWidth = `${actualWidth}px`;
+    clone.style.height = 'auto';
     clone.style.margin = '0';
-    clone.style.padding = '32px'; // 32px white border all around
+    clone.style.padding = '24px'; // 24px white border all around
     clone.style.backgroundColor = '#ffffff';
-    clone.style.display = 'inline-block';
+    clone.style.display = 'block';
+    clone.style.boxSizing = 'border-box';
+    clone.style.borderRadius = '24px';
+    clone.style.boxShadow = 'none';
     
-    // Make sure overflow wrappers in the clone are visible
+    // Make sure overflow wrappers in the clone are visible and fill full width
     const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
     scrollContainers.forEach((el) => {
       const htmlEl = el as HTMLElement;
       htmlEl.style.overflow = 'visible';
-      htmlEl.style.width = 'auto';
+      htmlEl.style.width = '100%';
       htmlEl.style.height = 'auto';
       htmlEl.style.maxWidth = 'none';
       htmlEl.style.maxHeight = 'none';
       el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
+    });
+
+    // Force all tables to stretch 100% cleanly inside their parent card with exact desktop column widths
+    const tables = clone.querySelectorAll('table');
+    tables.forEach(table => {
+      const htmlTable = table as HTMLElement;
+      htmlTable.style.width = '100%';
+      htmlTable.style.minWidth = '100%';
+      htmlTable.style.maxWidth = '100%';
+      htmlTable.style.boxSizing = 'border-box';
+      htmlTable.style.tableLayout = 'fixed';
+      htmlTable.style.borderCollapse = 'collapse';
+
+      const cols = htmlTable.querySelectorAll('colgroup col');
+      if (cols.length >= 10) {
+        (cols[0] as HTMLElement).style.width = '60px'; // HẠNG
+        (cols[1] as HTMLElement).style.width = '270px'; // NHÂN VIÊN
+        (cols[2] as HTMLElement).style.width = '80px'; // ĐÃ VỀ
+        (cols[3] as HTMLElement).style.width = '130px'; // DOANH THU THỰC
+        (cols[4] as HTMLElement).style.width = '150px'; // LUỸ KẾ QUY ĐỔI
+        (cols[5] as HTMLElement).style.width = '115px'; // HIỆU QUẢ QĐ
+        (cols[6] as HTMLElement).style.width = '120px'; // TRẢ CHẬM
+        (cols[7] as HTMLElement).style.width = '130px'; // MỤC TIÊU THÁNG
+        (cols[8] as HTMLElement).style.width = '95px'; // CÒN LẠI
+        (cols[9] as HTMLElement).style.width = '90px'; // DỰ KIẾN
+      }
     });
 
     // Force hide all scrollbars in the captured image
@@ -451,104 +503,115 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
     .trim();
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full space-y-3" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
       {/* Capture button */}
       <div className="flex justify-end no-capture">
         <button
           onClick={handleCapture}
           disabled={isCapturing}
           className={cn(
-            "flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95",
+            "flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer",
             isCapturing
-              ? "bg-slate-400 text-white cursor-wait"
-              : "bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:from-indigo-700 hover:to-indigo-800 shadow-indigo-200/50"
+              ? "bg-slate-300 text-slate-500 cursor-wait"
+              : "bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-emerald-200/50"
           )}
         >
-          <Camera size={16} />
-          {isCapturing ? 'ĐANG XUẤT...' : 'XUẤT ẢNH BÁO CÁO'}
+          <Camera size={14} />
+          <span>{isCapturing ? 'ĐANG XUẤT...' : 'XUẤT ẢNH BÁO CÁO'}</span>
         </button>
       </div>
 
-      <div ref={captureRef} className="bg-white p-4">
-        {/* Header */}
-        <div className="bg-white rounded-t-2xl px-8 py-6 text-center border border-slate-200 border-b-0">
-          <h2 style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }} className="text-[28px] text-[#0f172a] uppercase tracking-tight">
+      <div ref={captureRef} className="w-full bg-white border border-slate-200/90 p-2.5 sm:p-4 rounded-2xl shadow-sm flex flex-col">
+        {/* Top Header Banner: Emerald Gradient with Gold/Yellow Title */}
+        <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 sm:p-5 rounded-2xl text-white relative shrink-0 mb-3 text-center flex flex-col items-center justify-center">
+          <h2 style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }} className="text-[20px] sm:text-[25px] md:text-[28px] font-black text-[#FEF08A] uppercase tracking-wide leading-tight">
             BẢNG THI ĐUA NGÀNH HÀNG NHÂN VIÊN {dateStr}
           </h2>
           {storeDisplayName && (
-            <p style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 700 }} className="text-[14px] text-red-600 mt-1 uppercase tracking-wider">
-              {storeDisplayName}
+            <p style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 700 }} className="text-xs sm:text-sm font-bold text-white/95 mt-1.5 flex items-center justify-center gap-1.5">
+              <span>⚡ {storeDisplayName}</span>
             </p>
           )}
         </div>
 
-        {/* Table */}
-        <div className="border border-slate-300 border-t-0 rounded-b-2xl overflow-x-auto">
-          <table className="w-full border-collapse table-fixed" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", minWidth: '1230px' }}>
+        {/* Table Container with Emerald borders */}
+        <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
+          <table className="w-full border-separate border-spacing-0 table-fixed bg-white text-[12px] sm:text-[14px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", minWidth: '1105px' }}>
+            <colgroup>
+              <col style={{ width: '55px' }} />
+              <col style={{ width: '230px' }} />
+              <col style={{ width: '75px' }} />
+              <col style={{ width: '120px' }} />
+              <col style={{ width: '135px' }} />
+              <col style={{ width: '100px' }} />
+              <col style={{ width: '105px' }} />
+              <col style={{ width: '110px' }} />
+              <col style={{ width: '90px' }} />
+              <col style={{ width: '85px' }} />
+            </colgroup>
             <thead>
-              <tr className="h-[50px] text-[14px] font-black uppercase tracking-tight">
-                <th style={{ fontWeight: 900, backgroundColor: '#10b981', width: '70px' }} className="px-1 py-2 text-center border-r border-white/20 text-white">HẠNG</th>
-                <th style={{ fontWeight: 900, backgroundColor: '#10b981', width: '260px' }} className="px-2 py-2 text-center border-r border-white/20 text-white">NHÂN VIÊN</th>
-                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'achieved' ? '#059669' : '#10b981', width: '80px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#059669] transition-colors" onClick={() => handleSort('achieved')}>ĐÃ VỀ{renderSortArrows('achieved')}</th>
-                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'dtThuc' ? '#d97706' : '#f59e0b', width: '130px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#d97706] transition-colors" onClick={() => handleSort('dtThuc')}>DOANH THU THỰC{renderSortArrows('dtThuc')}</th>
-                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'lkQuyDoi' ? '#d97706' : '#f59e0b', width: '140px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#d97706] transition-colors" onClick={() => handleSort('lkQuyDoi')}>LUỸ KẾ QUY ĐỔI{renderSortArrows('lkQuyDoi')}</th>
-                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'effQd' ? '#d97706' : '#f59e0b', width: '110px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#d97706] transition-colors" onClick={() => handleSort('effQd')}>HIỆU QUẢ QĐ{renderSortArrows('effQd')}</th>
-                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'traCham' ? '#059669' : '#10b981', width: '110px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#059669] transition-colors" onClick={() => handleSort('traCham')}>TRẢ CHẬM{renderSortArrows('traCham')}</th>
-                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'target' ? '#059669' : '#10b981', width: '130px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#059669] transition-colors" onClick={() => handleSort('target')}>MỤC TIÊU THÁNG{renderSortArrows('target')}</th>
-                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'remaining' ? '#059669' : '#10b981', width: '110px' }} className="px-1 py-2 text-center border-r border-white/20 text-white cursor-pointer select-none hover:bg-[#059669] transition-colors" onClick={() => handleSort('remaining')}>CÒN LẠI{renderSortArrows('remaining')}</th>
-                <th style={{ fontWeight: 900, backgroundColor: sortColumn.key === 'projected' ? '#059669' : '#10b981', width: '90px' }} className="px-1 py-2 text-center text-white cursor-pointer select-none hover:bg-[#059669] transition-colors" onClick={() => handleSort('projected')}>DỰ KIẾN{renderSortArrows('projected')}</th>
+              <tr className="h-[46px] text-[12px] sm:text-[13.5px] font-black uppercase tracking-tight text-white">
+                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-600 bg-[#047857] text-white">HẠNG</th>
+                <th style={{ fontWeight: 900 }} className="px-3 py-0 text-left border-r border-b border-emerald-600 bg-[#059669] text-white">NHÂN VIÊN</th>
+                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-600 bg-[#047857] text-white cursor-pointer select-none hover:bg-emerald-800 transition-colors" onClick={() => handleSort('achieved')}>ĐÃ VỀ{renderSortArrows('achieved')}</th>
+                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-amber-600 bg-[#d97706] text-white cursor-pointer select-none hover:bg-amber-700 transition-colors" onClick={() => handleSort('dtThuc')}>DOANH THU THỰC{renderSortArrows('dtThuc')}</th>
+                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-amber-600 bg-[#d97706] text-white cursor-pointer select-none hover:bg-amber-700 transition-colors" onClick={() => handleSort('lkQuyDoi')}>LUỸ KẾ QUY ĐỔI{renderSortArrows('lkQuyDoi')}</th>
+                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-amber-600 bg-[#d97706] text-white cursor-pointer select-none hover:bg-amber-700 transition-colors" onClick={() => handleSort('effQd')}>HIỆU QUẢ QĐ{renderSortArrows('effQd')}</th>
+                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-600 bg-[#047857] text-white cursor-pointer select-none hover:bg-emerald-800 transition-colors" onClick={() => handleSort('traCham')}>TRẢ CHẬM{renderSortArrows('traCham')}</th>
+                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-600 bg-[#047857] text-white cursor-pointer select-none hover:bg-emerald-800 transition-colors" onClick={() => handleSort('target')}>MỤC TIÊU THÁNG{renderSortArrows('target')}</th>
+                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-600 bg-[#047857] text-white cursor-pointer select-none hover:bg-emerald-800 transition-colors" onClick={() => handleSort('remaining')}>CÒN LẠI{renderSortArrows('remaining')}</th>
+                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-b border-emerald-600 bg-[#047857] text-white cursor-pointer select-none hover:bg-emerald-800 transition-colors" onClick={() => handleSort('projected')}>DỰ KIẾN{renderSortArrows('projected')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody>
               {sortedCombinedData.length > 0 ? (
                 sortedCombinedData.map((row, index) => {
-                  const isStriped = index % 2 === 1;
+                  const isEven = index % 2 === 0;
                   const rankIcon = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : null;
 
                   // Progress bar color based on percentage
-                  const progressColor = row.progressPercent >= 100 ? 'bg-emerald-500' : 'bg-rose-400';
                   const progressWidth = Math.min(row.progressPercent, 120);
 
                   // Format mục tiêu
                   const targetStr = row.targetDisplay > 0 ? formatRevenue(row.targetDisplay) : '';
 
                   return (
-                    <tr key={row.staff.fullId} className={cn("h-[56px] transition-colors", isStriped ? "bg-[#f8faff]" : "bg-white", "hover:bg-slate-50/80")}>
+                    <tr key={row.staff.fullId} className={cn("h-[48px] transition-colors border-b border-emerald-100/90", isEven ? "bg-white" : "bg-emerald-50/20", "hover:bg-emerald-50/70")}>
                       {/* HẠNG */}
-                      <td className="px-3 py-2 text-center border-r border-slate-200">
+                      <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">
                         {rankIcon ? (
-                          <span className="text-[20px]">{rankIcon}</span>
+                          <span className="text-[18px] sm:text-[20px] inline-block">{rankIcon}</span>
                         ) : (
-                          <span style={{ fontWeight: 900 }} className="text-[18px] font-black text-slate-800">{index + 1}</span>
+                          <span style={{ fontWeight: 900 }} className="text-[13px] sm:text-[15px] font-black text-slate-700">#{index + 1}</span>
                         )}
                       </td>
 
                       {/* NHÂN VIÊN */}
-                      <td style={{ fontWeight: 900 }} className="px-4 py-2 border-r border-slate-200">
-                        <span className="text-[15px] font-black text-slate-800 uppercase tracking-tight">
+                      <td style={{ fontWeight: 900 }} className="px-3 py-0 border-r border-b border-emerald-100/90 text-left">
+                        <span className="text-[13px] sm:text-[14.5px] font-black text-slate-900 uppercase tracking-tight block truncate">
                           {formatName(row.staff.displayName)}
                         </span>
                       </td>
 
                       {/* ĐÃ VỀ */}
-                      <td style={{ fontWeight: 900 }} className={cn("px-2 py-2 text-center border-r border-slate-200", sortBg('achieved'))}>
-                        <span className="text-[15px] font-black text-slate-800">{row.achieved}/{row.totalCats}</span>
+                      <td style={{ fontWeight: 900 }} className={cn("px-1 py-0 text-center border-r border-b border-emerald-100/90 text-[13px] sm:text-[14.5px] font-black text-slate-800")}>
+                        <span>{row.achieved}/{row.totalCats}</span>
                       </td>
 
                       {/* DOANH THU THỰC */}
-                      <td style={{ fontWeight: 900 }} className={cn("px-2 py-2 text-center border-r border-slate-200", sortBg('dtThuc'))}>
-                        <span className="text-[16px] font-black text-slate-800">
+                      <td style={{ fontWeight: 900 }} className={cn("px-1 py-0 text-center border-r border-b border-emerald-100/90 text-[13px] sm:text-[14.5px] font-black text-rose-600")}>
+                        <span>
                           {formatRevenue(row.dtThuc)}
                         </span>
                       </td>
 
                       {/* LUỸ KẾ QUY ĐỔI (with progress bar) */}
-                      <td className={cn("px-2 py-2 border-r border-slate-200", sortBg('lkQuyDoi'))}>
-                        <div className="flex flex-col items-center gap-1">
-                          <span style={{ fontWeight: 900 }} className="text-[16px] font-black text-slate-800">
+                      <td className={cn("px-2 py-0 border-r border-b border-emerald-100/90")}>
+                        <div className="flex flex-col items-center justify-center gap-0.5">
+                          <span style={{ fontWeight: 900 }} className="text-[13px] sm:text-[14.5px] font-black text-slate-900">
                             {formatRevenue(row.lkQuyDoi)}
                           </span>
-                          <div className="w-full h-[18px] rounded-full overflow-hidden relative" style={{ backgroundColor: '#f1f5f9' }}>
+                          <div className="w-full h-[15px] rounded-full overflow-hidden relative bg-slate-100 border border-slate-200/60">
                             <div
                               className="h-full rounded-full transition-all"
                               style={{ 
@@ -556,7 +619,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
                                 backgroundColor: row.progressPercent >= 100 ? '#10b981' : '#fb7185'
                               }}
                             />
-                            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-[#0f172a] drop-shadow-[0_0_2px_rgba(255,255,255,0.8)]">
+                            <span className="absolute inset-0 flex items-center justify-center text-[9.5px] font-black text-[#0f172a]">
                               {Math.round(row.progressPercent)}%
                             </span>
                           </div>
@@ -564,51 +627,51 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
                       </td>
 
                       {/* HIỆU QUẢ QUY ĐỔI */}
-                      <td style={{ fontWeight: 900 }} className={cn("px-2 py-2 text-center border-r border-slate-200", sortBg('effQd'))}>
+                      <td style={{ fontWeight: 900 }} className={cn("px-1 py-0 text-center border-r border-b border-emerald-100/90 text-[13px] sm:text-[14.5px]")}>
                         <span className={cn(
-                          "text-[16px] font-black",
-                          row.effQd >= 50 ? "text-emerald-600" : "text-rose-600"
+                          "font-black",
+                          row.effQd >= 50 ? "text-emerald-700 font-black" : "text-rose-600 font-bold"
                         )}>
                           {row.effQd.toFixed(1)}%
                         </span>
                       </td>
 
                       {/* TỶ TRỌNG TRẢ CHẬM */}
-                      <td style={{ fontWeight: 900 }} className={cn("px-2 py-2 text-center border-r border-slate-200", sortBg('traCham'))}>
+                      <td style={{ fontWeight: 900 }} className={cn("px-1 py-0 text-center border-r border-b border-emerald-100/90 text-[13px] sm:text-[14.5px]")}>
                         <span className={cn(
-                          "text-[16px] font-black",
-                          row.traChamPercent >= 50 ? "text-emerald-600" : "text-rose-600"
+                          "font-black",
+                          row.traChamPercent >= 50 ? "text-emerald-700 font-black" : "text-rose-600 font-bold"
                         )}>
                           {row.traChamPercent > 0 ? `${row.traChamPercent.toFixed(2)}%` : ''}
                         </span>
                       </td>
 
                       {/* MỤC TIÊU THÁNG - Always show TARGET QĐ from DOANH THU NV */}
-                      <td style={{ fontWeight: 900 }} className={cn("px-2 py-2 text-center border-r border-slate-200", sortBg('target'))}>
-                        <span className="text-[16px] font-black text-slate-800">{targetStr}</span>
+                      <td style={{ fontWeight: 900 }} className={cn("px-1 py-0 text-center border-r border-b border-emerald-100/90 text-[13px] sm:text-[14.5px] font-bold text-slate-800")}>
+                        <span>{targetStr}</span>
                       </td>
 
                       {/* CÒN LẠI - Show ✅ HT when <= 0 */}
-                      <td style={{ fontWeight: 900 }} className={cn("px-2 py-2 text-center border-r border-slate-200", sortBg('remaining'))}>
+                      <td style={{ fontWeight: 900 }} className={cn("px-1 py-0 text-center border-r border-b border-emerald-100/90 text-[13px] sm:text-[14.5px]")}>
                         {row.remaining <= 0 ? (
                           <div className="flex items-center justify-center gap-1">
-                            <span className="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center">
-                              <Check size={12} className="text-white" strokeWidth={3} />
+                            <span className="w-4.5 h-4.5 bg-emerald-500 rounded-full flex items-center justify-center">
+                              <Check size={11} className="text-white" strokeWidth={3} />
                             </span>
-                            <span className="text-[12px] font-black text-emerald-600 uppercase">HT</span>
+                            <span className="text-[11.5px] font-black text-emerald-700 uppercase">HT</span>
                           </div>
                         ) : (
-                          <span className="text-[14px] font-black text-slate-800">
+                          <span className="font-bold text-slate-800">
                             {formatRevenue(row.remaining)}
                           </span>
                         )}
                       </td>
 
                       {/* DỰ KIẾN */}
-                      <td style={{ fontWeight: 900 }} className={cn("px-2 py-2 text-center", sortBg('projected'))}>
+                      <td style={{ fontWeight: 900 }} className={cn("px-1 py-0 text-center border-b border-emerald-100/90 text-[13px] sm:text-[14.5px]")}>
                         <span className={cn(
-                          "text-[14px] font-black",
-                          row.projected >= 100 ? "text-emerald-600" : "text-rose-600"
+                          "font-black",
+                          row.projected >= 100 ? "text-emerald-700 font-black" : "text-rose-600 font-bold"
                         )}>
                           {row.projected.toFixed(1)}%
                         </span>
@@ -629,23 +692,23 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
 
             {/* Footer / Totals */}
             {combinedData.length > 0 && (
-              <tfoot className="bg-[#f1f5f9] border-t-2 border-slate-300">
-                <tr className="h-[50px]">
-                  <td colSpan={2} style={{ fontWeight: 900 }} className="px-4 py-2 text-center border-r border-slate-200 text-[14px] font-black text-slate-800 uppercase tracking-wider">
-                    Tổng
+              <tfoot>
+                <tr className="h-[46px] text-white">
+                  <td colSpan={2} style={{ fontWeight: 900 }} className="px-3 py-0 text-center border-r border-emerald-600/50 text-[13px] sm:text-[15px] font-black text-white uppercase tracking-wider bg-[#047857]">
+                    TỔNG
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-2 py-2 text-center border-r border-slate-200 text-[13px] font-black text-slate-800">
+                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-[13px] sm:text-[14.5px] font-black text-white bg-[#047857]">
                     {totals.totalAchieved}
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-2 py-2 text-center border-r border-slate-200 text-[14px] font-black text-slate-800">
+                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-[13px] sm:text-[15px] font-black text-white bg-[#047857]">
                     {formatRevenue(totals.totalDtThuc)}
                   </td>
-                  <td className="px-2 py-2 border-r border-slate-200">
-                    <div className="flex flex-col items-center gap-1">
-                      <span style={{ fontWeight: 900 }} className="text-[14px] font-black text-slate-800">
+                  <td className="px-2 py-0 border-r border-emerald-600/50 bg-[#047857]">
+                    <div className="flex flex-col items-center justify-center gap-0.5">
+                      <span style={{ fontWeight: 900 }} className="text-[13px] sm:text-[15px] font-black text-white">
                         {formatRevenue(totals.totalLkQuyDoi)}
                       </span>
-                      <div className="w-full h-[18px] rounded-full overflow-hidden relative" style={{ backgroundColor: '#e2e8f0' }}>
+                      <div className="w-full h-[14px] rounded-full overflow-hidden relative bg-emerald-950/40">
                         <div
                           className="h-full rounded-full"
                           style={{ 
@@ -653,30 +716,28 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
                             backgroundColor: totals.totalProgress >= 100 ? '#10b981' : '#fbbf24'
                           }}
                         />
-                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-[#0f172a] drop-shadow-[0_0_2px_rgba(255,255,255,0.8)]">
+                        <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black text-white">
                           {Math.round(totals.totalProgress)}%
                         </span>
                       </div>
                     </div>
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-2 py-2 text-center border-r border-slate-200 text-[14px] font-black text-emerald-600">
-                    {/* Average efficiency not applicable for total */}
+                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-[13px] sm:text-[14.5px] font-black text-white bg-[#047857]">
+                    {/* Average efficiency */}
                   </td>
                   <td style={{ fontWeight: 900 }} className={cn(
-                    "px-2 py-2 text-center border-r border-slate-200 text-[14px] font-black",
-                    totals.avgTraCham >= 50 ? "text-emerald-600" : "text-rose-600"
+                    "px-1 py-0 text-center border-r border-emerald-600/50 text-[13px] sm:text-[14.5px] font-black text-white bg-[#047857]"
                   )}>
                     {totals.avgTraCham > 0 ? `${totals.avgTraCham.toFixed(2)}%` : ''}
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-2 py-2 text-center border-r border-slate-200 text-[14px] font-black text-slate-800">
+                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-[13px] sm:text-[15px] font-black text-white bg-[#047857]">
                     {formatRevenue(totals.totalTarget)}
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-2 py-2 text-center border-r border-slate-200 text-[14px] font-black text-slate-800">
+                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-[13px] sm:text-[15px] font-black text-white bg-[#047857]">
                     {totals.totalRemaining > 0 ? formatRevenue(totals.totalRemaining) : ''}
                   </td>
                   <td style={{ fontWeight: 900 }} className={cn(
-                    "px-2 py-2 text-center text-[14px] font-black",
-                    totals.totalProjected >= 100 ? "text-emerald-600" : "text-rose-600"
+                    "px-1 py-0 text-center text-[13px] sm:text-[15px] font-black text-white bg-[#047857]"
                   )}>
                     {totals.totalProjected.toFixed(1)}%
                   </td>
@@ -686,30 +747,11 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
           </table>
         </div>
       </div>
+      {/* Capture Loading Overlay */}
+      <CaptureLoadingOverlay isLoading={isCapturing} />
+
       {/* Image Preview Modal */}
-      {previewImage && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setPreviewImage(null)}>
-          <div className="relative bg-white rounded-2xl max-w-[90vw] max-h-[90vh] flex flex-col overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-4 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">Ảnh chụp màn hình</h3>
-              <button
-                onClick={() => setPreviewImage(null)}
-                className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="px-4 py-3 bg-amber-50 border-b border-amber-100 flex items-center justify-center">
-              <p className="text-[13px] font-black text-amber-800 uppercase tracking-wide flex items-center gap-2">
-                <span className="text-lg">💡</span> Mẹo: Nhấp chuột phải (hoặc nhấn giữ trên điện thoại) vào ảnh và chọn "Sao chép hình ảnh"
-              </p>
-            </div>
-            <div className="p-4 bg-slate-50 flex items-center justify-center min-h-[50vh] overflow-hidden">
-              <img src={previewImage} alt="Preview" className="max-w-full max-h-[calc(90vh-120px)] object-contain shadow-sm rounded-xl border border-slate-200" />
-            </div>
-          </div>
-        </div>
-      )}
+      <ImagePreviewModal previewImage={previewImage} setPreviewImage={setPreviewImage} />
     </div>
   );
 };

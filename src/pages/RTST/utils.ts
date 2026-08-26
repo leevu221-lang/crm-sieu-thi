@@ -107,6 +107,48 @@ export function getWorkingDayProgress(): number {
   return ((currentMinutes - startMinutes) / totalMinutes) * 100;
 }
 
+// --- IDB Local Cache for Massive YCX Files ---
+export const localYcxDb = {
+  db: null as IDBDatabase | null,
+  init(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      if (this.db) return resolve(this.db);
+      const req = indexedDB.open('CRM_SieuThi_LocalDB', 1);
+      req.onupgradeneeded = (e: any) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('ycx_cache')) {
+          db.createObjectStore('ycx_cache');
+        }
+      };
+      req.onsuccess = (e: any) => {
+        this.db = e.target.result;
+        resolve(this.db);
+      };
+      req.onerror = () => reject(req.error);
+    });
+  },
+  async set(key: string, value: string): Promise<void> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('ycx_cache', 'readwrite');
+      const store = tx.objectStore('ycx_cache');
+      store.put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  },
+  async get(key: string): Promise<string | null> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('ycx_cache', 'readonly');
+      const store = tx.objectStore('ycx_cache');
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(tx.error);
+    });
+  }
+};
+
 export function getMonthProgress(): { daysPassed: number, totalDays: number, percent: number } {
   const now = new Date();
   const daysPassed = now.getDate();
@@ -373,6 +415,7 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
   let actualVirtualIdx = -1;
   let dtHomQuaIdx = -1;
   let percentHTIdx = -1;
+  let percentHTTargetDuKienLNTTIdx = -1;
   let luotBillBanHangIdx = -1;
   let luotBillThuHoIdx = -1;
   let offset = 0; // Định nghĩa offset
@@ -434,6 +477,10 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
       percentHTIdx = cols.findIndex(c => {
         const lower = c.toLowerCase();
         return lower.includes("% ht") || lower.includes("tiến độ");
+      });
+      percentHTTargetDuKienLNTTIdx = cols.findIndex(c => {
+        const lower = c.toLowerCase();
+        return (lower.includes("% ht target") || lower.includes("% ht") || lower.includes("%ht")) && lower.includes("lntt");
       });
       luotBillBanHangIdx = cols.findIndex(c => {
         const lower = c.toLowerCase();
@@ -594,6 +641,10 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
         let installmentRateVal = 0;
         let dtckThangVal = 0;
         
+        const percentHTTargetDuKienLNTTVal = percentHTTargetDuKienLNTTIdx !== -1 && percentHTTargetDuKienLNTTIdx < cols.length
+          ? cleanNum(cols[percentHTTargetDuKienLNTTIdx])
+          : (cols.length >= 11 ? cleanNum(cols[10]) : (nameColIdx !== -1 && nameColIdx + 10 < cols.length ? cleanNum(cols[nameColIdx + 10]) : 0));
+
         if (pageType === 'LUYKE') {
           if (cols.length >= 10) {
             dtckThangVal = cleanNum(cols[cols.length - 10]);
@@ -626,6 +677,7 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
             actualVirtual,
             dtHomQua,
             percentHT,
+            percentHTTargetDuKienLNTT: percentHTTargetDuKienLNTTVal,
             installmentRate: installmentRateVal,
             dtckThang: dtckThangVal,
             isExplicitTarget: true,
@@ -1723,17 +1775,49 @@ export const minifyYcxData = (data: string): string => {
   const colColumnAO = idxColumnAO !== -1 ? idxColumnAO : 40;
   const colReturnStatus = idxReturnStatus;
 
+  const idxMaYcx = getIdx(['mã ycx', 'mã đơn', 'mã đơn hàng', 'mã phiếu', 'số phiếu', 'ycx']);
+  const idxNgayTao = getIdx(['ngày tạo', 'thời gian tạo', 'ngày xuất', 'thời gian xuất']);
+  const idxKhachHang = getIdx(['tên khách hàng', 'khách hàng', 'người mua', 'tên kh']);
+  const idxDienThoai = getIdx(['điện thoại', 'sđt', 'sdt']);
+
+  // Thêm các cột phục vụ cho filter (tránh bị filter empty do null out data)
+  const idxSmallCat = getIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ', 'nhóm nhỏ']);
+  const idxProductCode = getIdx(['mã sản phẩm', 'mã hàng', 'mã sp']);
+  const idxNhaSanXuat = getIdx(['nhà sản xuất', 'nha san xuat', 'nhà sx', 'nha sx', 'hãng sản xuất', 'hãng sx', 'brand']);
+  const idxThuTien = getIdx(['trạng thái thu tiền', 'thu tiền']);
+  
+  // Các cột phục vụ tính toán YCX Mới
+  const idxDtqdCol = getIdx(['doanh thu qđ', 'doanh thu qd', 'dt qd', 'dt quy doi']);
+  const idxDtThucCol = getIdx(['doanh thu (-r)']);
+
+  const colMaYcx = idxMaYcx !== -1 ? idxMaYcx : 0;
+  const colNgayTao = idxNgayTao !== -1 ? idxNgayTao : 2;
+  const colKhachHang = idxKhachHang !== -1 ? idxKhachHang : 16;
+  const colDienThoai = idxDienThoai !== -1 ? idxDienThoai : 17;
+
+  // Lọc ra danh sách các cột cần giữ lại nội dung
+  const essentialCols = [
+    colType, colMethod, colStatus, colStaffName, colStaffId,
+    colRevenue, colProduct, colQty, colMarket, colColumnAO, colReturnStatus,
+    colMaYcx, colNgayTao, colKhachHang, colDienThoai,
+    idxSmallCat, idxProductCode, idxNhaSanXuat, idxThuTien,
+    idxDtqdCol, idxDtThucCol
+  ];
+  const keepIndices = new Set(essentialCols.filter(i => i !== -1 && i !== undefined));
+
   const validRows = [];
-  // Keep headers
+  // Giữ nguyên dòng tiêu đề (Header) và các dòng bên trên
   for (let i = 0; i <= headerIdx; i++) {
     validRows.push(rows[i]);
   }
 
-  // Keep all data rows instead of filtering them out to prevent data loss in the source table display
+  // Tối ưu siêu mạnh: XOÁ TRẮNG (null out) nội dung của các cột KHÔNG QUAN TRỌNG.
+  // Mặc dù mảng vẫn giữ nguyên số lượng cột để không phá vỡ UI Bảng Gốc,
+  // nhưng các chuỗi rỗng ('') sẽ được GZIP nén lại chỉ còn vài bytes! Giúp vượt qua giới hạn 1MB của Supabase.
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const cols = rows[i];
     if (!cols || cols.length < 3) continue;
-    validRows.push(cols);
+    validRows.push(cols.map((val, idx) => keepIndices.has(idx) ? val : ''));
   }
 
   try {

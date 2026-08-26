@@ -312,7 +312,7 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
     const h = isRightLayout ? '132mm' : '148.5mm';
     return (
       <div 
-        className="bg-white flex flex-col p-2 box-border text-black select-none border border-slate-300"
+        className="sticker-font-own bg-white flex flex-col p-2 box-border text-black select-none border border-slate-300"
         style={{
           width: w,
           height: h,
@@ -390,7 +390,7 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
       const parts = text.split(dateRegex);
       return parts.map((part, idx) => {
         if (dateRegex.test(part)) {
-          return <span key={idx} className="font-black" style={{ fontSize: '24px', color: 'black', margin: '0 4px', display: 'inline-block' }}>{part}</span>;
+          return <span key={idx} className="font-black" style={{ fontSize: '17px', color: 'black', margin: '0 2px', display: 'inline-block' }}>{part}</span>;
         }
         return <span key={idx}>{part}</span>;
       });
@@ -398,21 +398,21 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
 
     const renderDuration = (text: string) => {
       if (!text) return '';
-      const match = text.match(/^(.*?)\s+(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)$/i);
+      const match = text.match(/^(.*?)\s+((?:\d{1,2}[-–—/])*\d{1,2}(?:\/\d{2,4})?)$/i);
       if (match) {
         return (
-          <div className="flex flex-col items-center leading-none mt-1">
-            <span className="font-black tracking-wide uppercase" style={{ fontSize: '15px' }}>{match[1]}</span>
-            <span className="font-black tracking-tight leading-none mt-1" style={{ fontSize: '26px', color: 'black' }}>{match[2]}</span>
+          <div className="flex flex-col items-center leading-none my-0.5">
+            <span className="font-black tracking-wide uppercase leading-none" style={{ fontSize: '11.5px' }}>{match[1]}</span>
+            <span className="font-black tracking-tight leading-none mt-0.5" style={{ fontSize: '19px', color: 'black' }}>{match[2]}</span>
           </div>
         );
       }
-      return <span className="font-black tracking-wide uppercase" style={{ fontSize: '15px' }}>{text}</span>;
+      return <span className="font-black tracking-wide uppercase" style={{ fontSize: '12px' }}>{text}</span>;
     };
 
     return (
       <div 
-        className="w-[66mm] h-[142mm] bg-white flex flex-col justify-between p-3 box-border text-black select-none"
+        className="w-[66mm] h-[142mm] bg-white flex flex-col justify-between p-2.5 box-border text-black select-none overflow-hidden"
         style={{
           border: '1.5px solid black',
           fontFamily: '"Oswald", sans-serif'
@@ -420,41 +420,41 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
       >
         {/* Header */}
         <div className="text-center shrink-0">
-          <div className="font-black tracking-wide leading-tight uppercase" style={{ fontSize: '22px' }}>
+          <div className="font-black tracking-wide leading-tight uppercase" style={{ fontSize: '18px' }}>
             {item.headerTitle || 'ĐIỆN MÁY XANH PHƯỜNG 8'}
           </div>
-          <div className="font-medium tracking-tight leading-tight text-slate-800" style={{ fontSize: '13px' }}>
+          <div className="font-medium tracking-tight leading-tight text-slate-800" style={{ fontSize: '11.5px' }}>
             {item.headerSubtitle || '(Ngã tư đèn xanh đèn đỏ đường Nguyễn Tất Thành)'}
           </div>
         </div>
 
         {/* Divider */}
-        <div className="bg-black w-full my-0.5 shrink-0" style={{ height: '2px' }}></div>
+        <div className="bg-black w-full my-0.5 shrink-0" style={{ height: '1.5px' }}></div>
 
         {/* Middle Content */}
-        <div className="flex-1 flex flex-col justify-between py-1 min-h-0 text-center overflow-hidden">
+        <div className="flex-1 flex flex-col justify-between py-0.5 min-h-0 text-center">
           {/* Invitation Title */}
           <div className="flex flex-col items-center justify-center shrink-0">
-            <div className="font-black tracking-tight uppercase leading-none" style={{ fontSize: '22px' }}>
+            <div className="font-black tracking-tight uppercase leading-tight" style={{ fontSize: '17px' }}>
               {item.invitationTitle || 'THƯ MỜI, THỨ 7 TUẦN NÀY'}
             </div>
             {/* Ornament */}
-            <div className="leading-none text-slate-700 my-0.5" style={{ fontSize: '8px' }}>⚭ ⚭ ⚭</div>
-            <div className="font-bold text-slate-800 leading-none" style={{ fontSize: '13px' }}>
+            <div className="leading-none text-slate-700 my-0.5" style={{ fontSize: '7px' }}>⚭ ⚭ ⚭</div>
+            <div className="font-bold text-slate-800 leading-none" style={{ fontSize: '11.5px' }}>
               {item.invitationTarget || 'Kính mời: Quý Khách Hàng thân yêu'}
             </div>
           </div>
 
           {/* Time & Location */}
-          <div className="font-bold tracking-tight uppercase leading-snug shrink-0" style={{ fontSize: '13px' }}>
+          <div className="font-bold tracking-tight uppercase leading-tight shrink-0" style={{ fontSize: '11.5px' }}>
             <div>{renderTimeLocation(item.eventTimeLocation || 'Ngày 28/03 đến ĐMX PHƯỜNG 8')}</div>
-            <div className="text-slate-800 font-medium my-0.5" style={{ fontSize: '11px', textTransform: 'none' }}>
+            <div className="text-black font-black my-0.5 uppercase tracking-wide" style={{ fontSize: '13.5px' }}>
               {item.eventDescription || 'tham gia sự kiện KHAI TRƯƠNG SIÊU GIẢM GIÁ ĐẾN'}
             </div>
           </div>
 
           {/* Huge Discount */}
-          <div className="font-black text-black leading-none tracking-tighter shrink-0" style={{ fontSize: '72px' }}>
+          <div className="font-black text-black leading-none tracking-tighter shrink-0 my-0.5" style={{ fontSize: '54px' }}>
             {item.discountPercentage || '50%'}
           </div>
 
@@ -464,42 +464,46 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
           </div>
 
           {/* Categories */}
-          <div className="font-bold tracking-wide uppercase leading-tight text-slate-800 shrink-0" style={{ fontSize: '10.5px' }}>
-            <div>{item.categoriesLine1 || 'ĐIỆN THOẠI & LAPTOP'}</div>
-            <div>{item.categoriesLine2 || 'TIVI - TỦ LẠNH - MÁY GIẶT- MÁY LỌC NƯỚC'}</div>
-            <div>{item.categoriesLine3 || 'MÁY LẠNH – QUẠT ĐIỀU HÒA'}</div>
+          <div className="font-bold tracking-wide uppercase leading-tight text-slate-900 shrink-0 my-0.5" style={{ fontSize: '9.5px' }}>
+            {item.categoriesLine1 && <div>{item.categoriesLine1}</div>}
+            {item.categoriesLine2 && <div>{item.categoriesLine2}</div>}
+            {item.categoriesLine3 && <div>{item.categoriesLine3}</div>}
           </div>
 
-          {/* Special Offer */}
-          <div className="flex flex-col items-center justify-center shrink-0">
-            <div className="font-black text-black leading-tight uppercase tracking-tight" style={{ fontSize: '13px' }}>
-              {item.specialOffer || '➔ RẺ HƠN CÁC ĐIỆN MÁY XANH KHÁC -10%'}
-            </div>
-            <div className="font-black text-slate-800 leading-none uppercase mt-0.5" style={{ fontSize: '10px' }}>
-              {item.paymentTerm || 'MUA TRẢ CHẬM - 0% LÃI SUẤT - TRẢ TRƯỚC 0đ'}
-            </div>
+          {/* Special Offer & Payment Term */}
+          <div className="flex flex-col items-center justify-center shrink-0 mt-0.5 pt-0.5">
+            {item.specialOffer && (
+              <div className="font-black text-black leading-tight uppercase tracking-tight" style={{ fontSize: '11.5px' }}>
+                {item.specialOffer}
+              </div>
+            )}
+            {item.paymentTerm && (
+              <div className="font-black text-slate-800 leading-none uppercase mt-0.5" style={{ fontSize: '9.5px' }}>
+                {item.paymentTerm}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Divider */}
-        <div className="bg-black w-full my-0.5 shrink-0" style={{ height: '2px' }}></div>
+        <div className="bg-black w-full my-0.5 shrink-0" style={{ height: '1.5px' }}></div>
 
         {/* Footer */}
         <div className="text-center shrink-0">
-          <div className="font-black tracking-wide leading-tight uppercase" style={{ fontSize: '13px' }}>
+          <div className="font-black tracking-wide leading-tight uppercase" style={{ fontSize: '11.5px' }}>
             {item.footerTitle || 'ĐIỆN MÁY XANH PHƯỜNG 8 CÀ MAU'}
           </div>
-          <div className="font-bold tracking-tight leading-tight uppercase mt-0.5" style={{ fontSize: '10px' }}>
+          <div className="font-bold tracking-tight leading-tight uppercase mt-0.5" style={{ fontSize: '9px' }}>
             {item.footerLine1 || 'CAM KẾT GIÁ RẺ NHẤT THỊ TRƯỜNG CÀ MAU'}
           </div>
-          <div className="font-bold tracking-tight leading-tight uppercase" style={{ fontSize: '10px' }}>
+          <div className="font-bold tracking-tight leading-tight uppercase" style={{ fontSize: '9px' }}>
             {item.footerLine2 || 'BAO GIÁ HOÀN TIỀN NẾU ĐÂU RẺ HƠN'}
           </div>
-          <div className="font-bold tracking-tight leading-tight uppercase flex items-center justify-center gap-0.5" style={{ fontSize: '10px' }}>
+          <div className="font-bold tracking-tight leading-tight uppercase flex items-center justify-center gap-0.5" style={{ fontSize: '9px' }}>
             <span>{item.footerLine3 || 'NHIỀU SẢN PHẨM GIÁ SỐC BÊN DƯỚI'}</span>
             <span>⬇</span>
           </div>
-          <div className="font-medium tracking-tight leading-tight text-slate-800 italic mt-0.5" style={{ fontSize: '10px' }}>
+          <div className="font-medium tracking-tight leading-tight text-slate-800 italic mt-0.5" style={{ fontSize: '8.5px' }}>
             {item.footerLine4 || 'Được giảm thêm 10%'}
           </div>
         </div>
@@ -515,7 +519,7 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
     const lastPart = priceParts[priceParts.length - 1];
 
     return (
-      <div className={`box-border shrink-0 overflow-hidden ${isA6 ? 'w-[148.5mm] h-[105mm] p-[3mm]' : 'w-[210mm] h-[148.5mm] p-[7mm]'}`}>
+      <div className={`sticker-font-own box-border shrink-0 overflow-hidden ${isA6 ? 'w-[148.5mm] h-[105mm] p-[3mm]' : 'w-[210mm] h-[148.5mm] p-[7mm]'}`}>
         <div className={`w-full h-full bg-white box-border flex flex-col justify-between border-black ${isA6 ? 'border-[4px] p-[1mm]' : 'border-[6px] p-[2mm]'}`}>
           <div 
             className="w-full h-full bg-white border-black box-border relative text-black flex flex-col justify-between" 
@@ -626,7 +630,7 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
     const categoryName = item.nganhHang || (item.name ? item.name.split(' ').slice(0, 3).join(' ') : 'SẢN PHẨM KHUYẾN MÃI');
 
     return (
-      <div className="w-[210mm] h-[297mm] bg-white p-[5mm] box-border shrink-0 overflow-hidden flex flex-col items-center">
+      <div className="sticker-font-own w-[210mm] h-[297mm] bg-white p-[5mm] box-border shrink-0 overflow-hidden flex flex-col items-center">
         <div className="w-full h-full bg-white border-[4px] border-black flex flex-col justify-between text-black pt-8 pb-8" style={{ fontFamily: '"UTM Colossalis", sans-serif' }}>
           
           {/* Section 1: Top category label - shrunken and padded to align with borders (10%) */}
@@ -775,17 +779,17 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
     const scaleFactor = isA4 ? 1.414 : 1.0;
     
     const categoryFontSize = Math.round(38 * scaleFactor);
-    const giasocFontSize = Math.round(125 * scaleFactor);
-    const discountFontSize = Math.round(145 * scaleFactor);
+    const giasocFontSize = Math.round(90 * scaleFactor);
+    const discountFontSize = Math.round(110 * scaleFactor);
     const nameBoxFontSize = Math.round(24 * scaleFactor);
-    const originalPriceFontSize = Math.round(58 * scaleFactor);
+    const originalPriceFontSize = Math.round(52 * scaleFactor);
     const mainPriceFS = Math.round(mainPriceFontSize * scaleFactor);
     const lastPartFS = Math.round(Math.round(mainPriceFontSize * 0.35) * scaleFactor);
     const promoDateFontSize = Math.round(18 * scaleFactor);
 
     return (
       <div 
-        className="bg-white box-border shrink-0 overflow-hidden flex flex-col items-center"
+        className="sticker-font-own bg-white box-border shrink-0 overflow-hidden flex flex-col items-center"
         style={{
           width: isA4 ? '210mm' : '148.5mm',
           height: isA4 ? '297mm' : '210mm',
@@ -793,18 +797,18 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
         }}
       >
         <div 
-          className="w-full h-full bg-white border-black flex flex-col justify-between text-black" 
+          className="w-full h-full bg-white border-black flex flex-col text-black" 
           style={{ 
             fontFamily: '"UTM Colossalis", sans-serif',
             borderStyle: 'solid',
             borderWidth: isA4 ? '6px' : '4px',
             paddingTop: isA4 ? '3mm' : '2mm',
-            paddingBottom: isA4 ? '4.5mm' : '3mm'
+            paddingBottom: isA4 ? '3mm' : '2mm'
           }}
         >
-          {/* Section 1: Top category label (8.5%) */}
+          {/* Section 1: Top category label (7%) */}
           <div 
-            className="h-[8.5%] bg-black text-white flex items-center justify-center shrink-0"
+            className="h-[7%] bg-black text-white flex items-center justify-center shrink-0"
             style={{
               marginRight: isA4 ? '3mm' : '2mm',
               marginLeft: isA4 ? '3mm' : '2mm'
@@ -815,23 +819,23 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
             </span>
           </div>
 
-          {/* Section 2: GIÁ SỐC Title (16%) */}
+          {/* Section 2: GIÁ SỐC Title (13%) */}
           <div 
-            className="h-[16%] flex items-center justify-center shrink-0 pt-1"
+            className="h-[13%] flex items-end justify-center shrink-0"
             style={{
-              marginTop: isA4 ? '3mm' : '2mm'
+              marginTop: isA4 ? '2mm' : '1mm'
             }}
           >
-            <span className="font-bold uppercase leading-[1.1]" style={{ fontFamily: '"UTM Colossalis", sans-serif', fontSize: `${giasocFontSize}px`, letterSpacing: '-0.02em' }}>
+            <span className="font-bold uppercase leading-none" style={{ fontFamily: '"UTM Colossalis", sans-serif', fontSize: `${giasocFontSize}px`, letterSpacing: '-0.02em' }}>
               GIÁ SỐC
             </span>
           </div>
 
-          {/* Section 3: Discount Percentage (19%) */}
+          {/* Section 3: Discount Percentage (16%) */}
           <div 
-            className="h-[19%] flex items-center justify-center shrink-0"
+            className="h-[16%] flex items-center justify-center shrink-0"
             style={{
-              marginBottom: isA4 ? '12px' : '8px'
+              marginTop: isA4 ? '-4px' : '-2px'
             }}
           >
             {discountPercent > 0 && (
@@ -841,8 +845,8 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
             )}
           </div>
 
-          {/* Section 4: Product Name Box (9.5%) */}
-          <div className="h-[9.5%] w-full px-8 py-1 shrink-0">
+          {/* Section 4: Product Name Box (9%) */}
+          <div className="h-[9%] w-full px-8 py-1 shrink-0">
             <div 
               className="w-full h-full border-black flex items-center justify-center px-4 text-center" 
               style={{ 
@@ -858,8 +862,8 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
             </div>
           </div>
 
-          {/* Section 5: Original Price (10%) */}
-          <div className="h-[10%] flex items-center justify-center shrink-0">
+          {/* Section 5: Original Price (9%) */}
+          <div className="h-[9%] flex items-center justify-center shrink-0">
             <div className="relative inline-block text-black" style={{ fontFamily: '"UTM Colossalis", sans-serif', fontSize: `${originalPriceFontSize}px` }}>
               {formatPrice(item.originalPrice)}
               <div 
@@ -869,9 +873,9 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
             </div>
           </div>
 
-          {/* Section 6: Final Discount Price (28%) */}
+          {/* Section 6: Final Discount Price (30%) */}
           <div 
-            className="h-[28%] flex items-center justify-center w-full shrink-0"
+            className="h-[30%] flex items-center justify-center w-full shrink-0"
             style={{
               paddingLeft: isA4 ? '3mm' : '2mm',
               paddingRight: isA4 ? '3mm' : '2mm'
@@ -887,8 +891,8 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
             </div>
           </div>
 
-          {/* Section 7: Promo date text (5%) */}
-          <div className="h-[5%] flex items-end justify-center w-full px-6 pb-1 shrink-0">
+          {/* Section 7: Promo date text (4%) */}
+          <div className="h-[4%] flex items-end justify-center w-full px-6 pb-1 shrink-0">
             <span className="text-black text-center" style={{ fontFamily: '"Montserrat", sans-serif', fontWeight: 800, fontSize: `${promoDateFontSize}px`, fontStyle: 'italic' }}>
               {mlnFooterTemplate
                 ? mlnFooterTemplate.replace('{date}', item.endDate || '31/05/2026')
@@ -908,7 +912,7 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
     const subPrice = priceStr.split('.').slice(1).join('.');
 
     return (
-      <div className="w-[148.5mm] h-[105mm] bg-white p-4 box-border relative text-black shrink-0 overflow-hidden flex flex-col justify-between border-[2px] border-black font-bold" style={{ fontFamily: '"Times New Roman", serif' }}>
+      <div className="sticker-font-own w-[148.5mm] h-[105mm] bg-white p-4 box-border relative text-black shrink-0 overflow-hidden flex flex-col justify-between border-[2px] border-black font-bold" style={{ fontFamily: '"Times New Roman", serif' }}>
         <div className="text-center">
           <div className="text-[32px] font-bold leading-tight">{item.name || 'Tên sản phẩm'}</div>
           <div className="flex items-center justify-center gap-4 mt-1">
@@ -934,7 +938,7 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
   }
 
   return (
-    <div className="w-[148.5mm] h-[105mm] bg-white border-[8px] border-black p-1.5 box-border relative text-black shrink-0 overflow-hidden" style={{ fontFamily: '"Oswald", sans-serif' }}>
+    <div className="sticker-font-own w-[148.5mm] h-[105mm] bg-white border-[8px] border-black p-1.5 box-border relative text-black shrink-0 overflow-hidden" style={{ fontFamily: '"Oswald", sans-serif' }}>
       <div className="w-full h-full border-[3px] border-black p-3 flex flex-col relative">
         {/* Top Section */}
         <div className="flex justify-between items-start gap-4">

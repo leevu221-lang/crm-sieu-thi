@@ -2,9 +2,12 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../contexts/StoreContext';
-import { Loader2, Save, Trash2, ChevronRight, ChevronLeft, Camera, RotateCcw, RefreshCw, GripVertical, Eye, EyeOff, CalendarCheck } from 'lucide-react';
+import { Loader2, Save, Trash2, ChevronRight, ChevronLeft, Camera, RotateCcw, RefreshCw, GripVertical, Eye, EyeOff, CalendarCheck, Users } from 'lucide-react';
+import { db } from '../firebaseConfig';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 import * as htmlToImage from 'html-to-image';
+import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
 import { useRealtimeData } from '../pages/RTST/hooks/useRealtimeData';
 import { normalizeStoreId } from '../pages/RTST/utils';
 import { format, startOfWeek, addDays, isSameDay, eachDayOfInterval, endOfWeek } from 'date-fns';
@@ -33,6 +36,8 @@ export default function PhanCaTuanTable() {
   const [showOnlyHC, setShowOnlyHC] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
   const summaryTableRef = useRef<HTMLDivElement>(null);
+  const [rawStaffInput, setRawStaffInput] = useState('');
+  const [showStaffInput, setShowStaffInput] = useState(false);
   
   // Generate dates for the current week
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -44,14 +49,94 @@ export default function PhanCaTuanTable() {
     });
   }, [currentWeekStart]);
 
+  const parseStaffListText = (text: string) => {
+    const lines = text.split('\n').filter(l => l.trim());
+    return lines.map(line => {
+      const parts = line.split('\t');
+      if (parts.length >= 2) {
+        return {
+          username: parts[1] || parts[0] || 'N/A',
+          fullId: parts[2] || '',
+          department: parts[0] || 'BP All In One - ĐMX',
+          shiftType: '',
+          shifts: {}
+        };
+      } else {
+        return {
+          username: line.trim(),
+          fullId: '',
+          department: 'BP All In One - ĐMX',
+          shiftType: '',
+          shifts: {}
+        };
+      }
+    });
+  };
+
+  const handleApplyStaffInput = () => {
+    if (!rawStaffInput.trim()) {
+      setSaveMessage({ type: 'error', text: 'Vui lòng nhập danh sách nhân viên!' });
+      setTimeout(() => setSaveMessage({ type: '', text: '' }), 3000);
+      return;
+    }
+    const newStaff = parseStaffListText(rawStaffInput);
+    
+    // Merge new staff with existing employees to preserve existing shifts!
+    setEmployees(prev => {
+      const updated = newStaff.map(ns => {
+        const existing = prev.find(emp => emp.username === ns.username);
+        if (existing) {
+          return {
+            ...ns,
+            shiftType: existing.shiftType || ns.shiftType,
+            shifts: existing.shifts || ns.shifts
+          };
+        }
+        return ns;
+      });
+      handleSaveToFirebaseDirect(updated, rawStaffInput);
+      return updated;
+    });
+    setSaveMessage({ type: 'success', text: 'Đã cập nhật danh sách nhân viên và lưu Firebase!' });
+    setTimeout(() => setSaveMessage({ type: '', text: '' }), 3000);
+  };
+
   const fetchEmployees = async (force = false) => {
-    if (!userProfile?.ma_kho) return;
+    const targetStore = currentStoreId || userProfile?.ma_kho || '';
+    if (!targetStore) return;
     setLoading(true);
     try {
-      // 1. Check local storage first (unless forced)
-      const localDataKey = `PHAN_CA_TUAN_DATA_${userProfile.ma_kho}`;
-      const localData = localStorage.getItem(localDataKey);
       const weekKey = format(currentWeekStart, 'yyyy-ww');
+      const storeId = normalizeStoreId(targetStore.trim());
+
+      // 1. Check Firebase Firestore
+      const docRef = doc(db, 'weekly_shifts', 'shifts_' + storeId);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const dbData = docSnap.data() || {};
+        const dbWeeks = dbData.weeks || {};
+        const dbStaffList = dbData.ds_nhan_vien || '';
+        
+        setRawStaffInput(dbStaffList);
+        
+        if (dbWeeks[weekKey] && Array.isArray(dbWeeks[weekKey]) && dbWeeks[weekKey].length > 0) {
+          setEmployees(dbWeeks[weekKey]);
+          setSaveMessage({ type: 'success', text: 'Đã tải dữ liệu từ Firebase!' });
+          setLoading(false);
+          return;
+        } else if (dbStaffList) {
+          const parsedStaff = parseStaffListText(dbStaffList);
+          setEmployees(parsedStaff);
+          setSaveMessage({ type: 'success', text: 'Đã tải danh sách nhân viên từ Firebase!' });
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 2. Fallback to LocalStorage
+      const localDataKey = `PHAN_CA_TUAN_DATA_${targetStore}`;
+      const localData = localStorage.getItem(localDataKey);
       
       if (localData && !force) {
         try {
@@ -67,12 +152,11 @@ export default function PhanCaTuanTable() {
         }
       }
 
-      // 2. Fallback to database or monthly data if no local weekly data
-      const targetStore = currentStoreId || userProfile.ma_kho || '';
+      // 3. Fallback to Supabase store ds_nhan_vien
       const { data: lkData, error } = await supabase
         .from('store')
         .select('ds_nhan_vien')
-        .eq('id', normalizeStoreId(targetStore.trim()))
+        .eq('id', storeId)
         .maybeSingle();
 
       if (error) {
@@ -83,6 +167,7 @@ export default function PhanCaTuanTable() {
 
       let rawEmployees: any[] = [];
       if (lkData?.ds_nhan_vien) {
+        setRawStaffInput(lkData.ds_nhan_vien);
         try {
           const lines = lkData.ds_nhan_vien.split('\n').filter((l: string) => l.trim());
           if (lines.length > 0) {
@@ -124,47 +209,59 @@ export default function PhanCaTuanTable() {
 
   useEffect(() => {
     fetchEmployees();
-  }, [userProfile?.ma_kho, currentWeekStart]);
+  }, [userProfile?.ma_kho, currentWeekStart, currentStoreId]);
 
   const handleUpdateShift = (username: string, date: Date, shiftIndex: number, value: string) => {
     const dateStr = format(date, 'yyyy-MM-dd');
     const numValue = parseFloat(value) || 0;
     
-    setEmployees(prev => prev.map(emp => {
-      if (emp.username === username) {
-        const newShifts = { ...emp.shifts };
-        const dayShifts = { ...(newShifts[dateStr] || {}) };
-        dayShifts[`ca${shiftIndex + 1}`] = numValue;
-        newShifts[dateStr] = dayShifts;
-        return { ...emp, shifts: newShifts };
-      }
-      return emp;
-    }));
+    setEmployees(prev => {
+      const updated = prev.map(emp => {
+        if (emp.username === username) {
+          const newShifts = { ...emp.shifts };
+          const dayShifts = { ...(newShifts[dateStr] || {}) };
+          dayShifts[`ca${shiftIndex + 1}`] = numValue;
+          newShifts[dateStr] = dayShifts;
+          return { ...emp, shifts: newShifts };
+        }
+        return emp;
+      });
+      handleSaveToFirebaseDirect(updated);
+      return updated;
+    });
   };
 
   const handleUpdateShiftType = (username: string, type: string) => {
-    setEmployees(prev => prev.map(emp => 
-      emp.username === username ? { ...emp, shiftType: type } : emp
-    ));
+    setEmployees(prev => {
+      const updated = prev.map(emp => 
+        emp.username === username ? { ...emp, shiftType: type } : emp
+      );
+      handleSaveToFirebaseDirect(updated);
+      return updated;
+    });
   };
 
   const handleToggleOff = (username: string, date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
-    setEmployees(prev => prev.map(emp => {
-      if (emp.username === username) {
-        const newShifts = { ...emp.shifts };
-        const dayShifts = { ...(newShifts[dateStr] || {}) };
-        dayShifts.isOff = !dayShifts.isOff;
-        if (dayShifts.isOff) {
-          SHIFTS.forEach((_, sIdx) => {
-            dayShifts[`ca${sIdx + 1}`] = 0;
-          });
+    setEmployees(prev => {
+      const updated = prev.map(emp => {
+        if (emp.username === username) {
+          const newShifts = { ...emp.shifts };
+          const dayShifts = { ...(newShifts[dateStr] || {}) };
+          dayShifts.isOff = !dayShifts.isOff;
+          if (dayShifts.isOff) {
+            SHIFTS.forEach((_, sIdx) => {
+              dayShifts[`ca${sIdx + 1}`] = 0;
+            });
+          }
+          newShifts[dateStr] = dayShifts;
+          return { ...emp, shifts: newShifts };
         }
-        newShifts[dateStr] = dayShifts;
-        return { ...emp, shifts: newShifts };
-      }
-      return emp;
-    }));
+        return emp;
+      });
+      handleSaveToFirebaseDirect(updated);
+      return updated;
+    });
   };
 
   const [draggedEmp, setDraggedEmp] = useState<string | null>(null);
@@ -206,7 +303,9 @@ export default function PhanCaTuanTable() {
       const newTargetIdx = newEmployees.findIndex(emp => emp.username === targetUsername);
       newEmployees.splice(newTargetIdx, 0, draggedEmployee);
 
-      return newEmployees;
+      const updated = newEmployees;
+      handleSaveToFirebaseDirect(updated);
+      return updated;
     });
 
     setDraggedEmp(null);
@@ -218,67 +317,154 @@ export default function PhanCaTuanTable() {
     setDragOverEmp(null);
   };
 
-  const handleSaveToLocal = () => {
-    if (!userProfile?.ma_kho) return;
-    setIsSaving(true);
+  const handleSaveToFirebaseDirect = async (currentEmployees = employees, currentRawInput = rawStaffInput) => {
+    const targetStore = currentStoreId || userProfile?.ma_kho || '';
+    if (!targetStore) return;
     try {
       const weekKey = format(currentWeekStart, 'yyyy-ww');
-      const localDataKey = `PHAN_CA_TUAN_DATA_${userProfile.ma_kho}`;
+      const storeId = normalizeStoreId(targetStore.trim());
+      const docRef = doc(db, 'weekly_shifts', 'shifts_' + storeId);
       
-      const localDataStr = localStorage.getItem(localDataKey);
-      let allData: any = {};
+      const docSnap = await getDoc(docRef);
+      const existingWeeks = docSnap.exists() ? (docSnap.data()?.weeks || {}) : {};
       
-      if (localDataStr) {
-        try {
-          allData = JSON.parse(localDataStr);
-        } catch (e) {}
-      }
-      
-      allData[weekKey] = employees;
-      localStorage.setItem(localDataKey, JSON.stringify(allData));
+      const updatedWeeks = {
+        ...existingWeeks,
+        [weekKey]: currentEmployees
+      };
+
+      await setDoc(docRef, {
+        warehouse_code: targetStore,
+        ds_nhan_vien: currentRawInput,
+        weeks: updatedWeeks,
+        updated_at: new Date().toISOString(),
+        updated_by: userProfile?.username || 'unknown'
+      }, { merge: true });
+
+      const localDataKey = `PHAN_CA_TUAN_DATA_${targetStore}`;
+      localStorage.setItem(localDataKey, JSON.stringify(updatedWeeks));
 
       const now = new Date().toISOString();
       setLastSaved(now);
       localStorage.setItem('PHAN_CA_TUAN_LAST_SAVED', now);
-      setSaveMessage({ type: 'success', text: 'Đã lưu vào trình duyệt!' });
     } catch (err) {
-      setSaveMessage({ type: 'error', text: 'Lỗi khi lưu!' });
+      console.error('Error in handleSaveToFirebaseDirect:', err);
+    }
+  };
+
+  const handleSaveToFirebase = async () => {
+    setIsSaving(true);
+    try {
+      await handleSaveToFirebaseDirect(employees, rawStaffInput);
+      setSaveMessage({ type: 'success', text: 'Đã lưu dữ liệu vào Firebase!' });
+    } catch (err: any) {
+      console.error('Error saving to Firebase:', err);
+      setSaveMessage({ type: 'error', text: 'Lỗi khi lưu vào Firebase!' });
     } finally {
       setIsSaving(false);
       setTimeout(() => setSaveMessage({ type: '', text: '' }), 3000);
     }
   };
 
-  const handleExportImage = async () => {
-    if (!tableRef.current) return;
+  const captureTableHelper = async (element: HTMLElement, fileName: string) => {
+    const targetWidth = Math.max(1200, element.scrollWidth + 48);
+
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.top = '-9999px';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.width = `${targetWidth}px`;
+    tempContainer.style.height = 'auto';
+    tempContainer.style.overflow = 'hidden';
+    tempContainer.style.zIndex = '-9999';
+    tempContainer.style.pointerEvents = 'none';
+
+    const clone = element.cloneNode(true) as HTMLElement;
+
+    const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, input');
+    noCaptureElements.forEach(el => {
+      (el as HTMLElement).style.display = 'none';
+    });
+
+    clone.style.width = `${targetWidth}px`;
+    clone.style.minWidth = `${targetWidth}px`;
+    clone.style.height = 'auto';
+    clone.style.margin = '0';
+    clone.style.padding = '24px';
+    clone.style.backgroundColor = '#ffffff';
+    clone.style.display = 'inline-block';
+    clone.style.boxSizing = 'border-box';
+    clone.style.borderRadius = '24px';
+
+    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+    scrollContainers.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.overflow = 'visible';
+      htmlEl.style.width = '100%';
+      htmlEl.style.height = 'auto';
+      htmlEl.style.maxWidth = 'none';
+      htmlEl.style.maxHeight = 'none';
+      el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
+    });
+
+    const tables = clone.querySelectorAll('table');
+    tables.forEach(table => {
+      const htmlTable = table as HTMLElement;
+      htmlTable.style.width = '100%';
+      htmlTable.style.minWidth = '100%';
+      htmlTable.style.boxSizing = 'border-box';
+    });
+
+    tempContainer.appendChild(clone);
+    document.body.appendChild(tempContainer);
+
     try {
-      const dataUrl = await htmlToImage.toPng(tableRef.current, {
+      // ★ Ensure UTM Avo font is fully loaded before export
+      await ensureFontsReady();
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      const finalWidth = targetWidth;
+      const finalHeight = clone.offsetHeight || clone.scrollHeight;
+
+      const dataUrl = await htmlToImage.toPng(clone, {
         quality: 1,
         backgroundColor: '#ffffff',
         pixelRatio: 2,
+        skipFonts: false,
+        width: finalWidth,
+        height: finalHeight,
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left',
+          width: `${finalWidth}px`,
+          height: `${finalHeight}px`,
+          ...EXPORT_FONT_STYLE,
+        }
       });
+
       const link = document.createElement('a');
       link.href = dataUrl;
-      link.download = 'PHAN_CA_TUAN.png';
+      link.download = fileName;
       link.click();
-      setSaveMessage({ type: 'success', text: 'Đã xuất ảnh bảng phân ca!' });
-    } catch (err) {}
+      setSaveMessage({ type: 'success', text: `Đã xuất ảnh ${fileName}!` });
+    } catch (err) {
+      console.error('Lỗi khi chụp ảnh:', err);
+      setSaveMessage({ type: 'error', text: 'Không thể chụp ảnh.' });
+    } finally {
+      if (document.body.contains(tempContainer)) {
+        document.body.removeChild(tempContainer);
+      }
+    }
+  };
+
+  const handleExportImage = async () => {
+    if (!tableRef.current) return;
+    await captureTableHelper(tableRef.current, 'PHAN_CA_TUAN.png');
   };
 
   const handleExportSummaryImage = async () => {
     if (!summaryTableRef.current) return;
-    try {
-      const dataUrl = await htmlToImage.toPng(summaryTableRef.current, {
-        quality: 1,
-        backgroundColor: '#ffffff',
-        pixelRatio: 2,
-      });
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = 'TOM_TAT_NHAN_VIEN_DI_CA_HANH_CHINH_TUAN.png';
-      link.click();
-      setSaveMessage({ type: 'success', text: 'Đã xuất ảnh tóm tắt ca hành chính!' });
-    } catch (err) {}
+    await captureTableHelper(summaryTableRef.current, 'TOM_TAT_NHAN_VIEN_DI_CA_HANH_CHINH_TUAN.png');
   };
 
   const handleAutoAssign = () => {
@@ -288,80 +474,84 @@ export default function PhanCaTuanTable() {
         shifts: { ...emp.shifts }
       }));
       
-      if (newEmployees.length === 0) return prev;
-      
-      const initialHcIndices = newEmployees
-        .map((emp, index) => emp.shiftType === 'Hành Chính' ? index : -1)
-        .filter(index => index !== -1);
-      
-      const N = initialHcIndices.length; 
-      if (N === 0) return prev;
-
-      const totalEmp = newEmployees.length;
-      let currentIndex = initialHcIndices[0];
+      const M = newEmployees.length;
+      if (M === 0) return prev;
 
       weekDates.forEach((date, dayIdx) => {
         const dateStr = format(date, 'yyyy-MM-dd');
-        let hcPairUsernames: string[] = [];
-        let selectedIndices: number[] = [];
+        let dailyPair: string[] = [];
         
-        while (selectedIndices.length < Math.min(N, totalEmp)) {
-          let found = false;
-          let attempts = 0;
-          while (attempts < totalEmp) {
-            const checkIdx = currentIndex % totalEmp;
-            const emp = newEmployees[checkIdx];
-            if (!selectedIndices.includes(checkIdx) && !emp.shifts?.[dateStr]?.isOff) {
-              selectedIndices.push(checkIdx);
-              hcPairUsernames.push(emp.username);
-              currentIndex++; 
-              found = true;
-              break;
-            }
-            currentIndex++;
-            attempts++;
-          }
-          if (!found) break; 
+        if (M % 2 === 0) {
+          // Even number of employees: fixed pairs
+          const pairIdx = dayIdx % (M / 2);
+          const firstEmpIdx = pairIdx * 2;
+          const secondEmpIdx = firstEmpIdx + 1;
+          
+          dailyPair = [
+            newEmployees[firstEmpIdx].username,
+            newEmployees[secondEmpIdx].username
+          ];
+        } else {
+          // Odd number of employees: rotating pairs
+          const idx1 = (dayIdx * 2) % M;
+          const idx2 = (dayIdx * 2 + 1) % M;
+          dailyPair = [
+            newEmployees[idx1].username,
+            newEmployees[idx2].username
+          ];
         }
-
+        
         newEmployees.forEach(emp => {
           const dayShifts = { ...(emp.shifts[dateStr] || {}) };
-          if (dayShifts.isOff) {
-            SHIFTS.forEach((_, sIdx) => {
-              dayShifts[`ca${sIdx + 1}`] = 0;
-            });
-            emp.shifts[dateStr] = dayShifts;
-            return;
-          }
-
+          
+          // Clear all shifts for today first
           SHIFTS.forEach((_, sIdx) => {
             dayShifts[`ca${sIdx + 1}`] = 0;
           });
-
-          if (hcPairUsernames.includes(emp.username)) {
+          
+          if (dayShifts.isOff) {
+            emp.shifts[dateStr] = dayShifts;
+            return;
+          }
+          
+          if (dailyPair.includes(emp.username)) {
+            // Active administrative shift pair: ca1 to ca5 are all active
             [1, 2, 3, 4, 5].forEach(s => dayShifts[`ca${s}`] = SHIFT_HOURS[`ca${s}`]);
+            emp.shiftType = 'Hành Chính';
           } else {
+            // Normal shift type alternates (morning/afternoon)
+            const defaultType = (emp.shiftType === 'Chiều' || emp.shiftType === 'Sáng') ? emp.shiftType : 'Sáng';
             const isEvenDay = dayIdx % 2 === 0;
-            if (emp.shiftType === 'Chiều') {
+            
+            if (defaultType === 'Chiều') {
               if (isEvenDay) {
                 [4, 5].forEach(s => dayShifts[`ca${s}`] = SHIFT_HOURS[`ca${s}`]);
               } else {
                 [1, 2, 3].forEach(s => dayShifts[`ca${s}`] = SHIFT_HOURS[`ca${s}`]);
               }
+              emp.shiftType = 'Chiều';
             } else {
               if (isEvenDay) {
                 [1, 2, 3].forEach(s => dayShifts[`ca${s}`] = SHIFT_HOURS[`ca${s}`]);
               } else {
                 [4, 5].forEach(s => dayShifts[`ca${s}`] = SHIFT_HOURS[`ca${s}`]);
               }
+              emp.shiftType = 'Sáng';
             }
           }
           emp.shifts[dateStr] = dayShifts;
         });
       });
+      
+      // Save directly to Firebase immediately!
+      setTimeout(() => {
+        handleSaveToFirebaseDirect(newEmployees);
+      }, 0);
+      
       return newEmployees;
     });
-    setSaveMessage({ type: 'success', text: 'Đã chia ca tự động!' });
+    setSaveMessage({ type: 'success', text: 'Đã chia ca tự động và lưu Firebase!' });
+    setTimeout(() => setSaveMessage({ type: '', text: '' }), 3000);
   };
 
   const calculateWeeklyTotal = (emp: any) => {
@@ -425,11 +615,39 @@ export default function PhanCaTuanTable() {
     }).filter(Boolean);
 
     setEmployees(newEmployees);
-    setSaveMessage({ type: 'success', text: 'Đã nhập danh sách từ Excel. Hãy nhấn LƯU.' });
+    const rawText = newEmployees.map(e => `${e.department}\t${e.username}\t${e.fullId}`).join('\n');
+    setRawStaffInput(rawText);
+    handleSaveToFirebaseDirect(newEmployees, rawText);
+    setSaveMessage({ type: 'success', text: 'Đã nhập danh sách từ Excel và lưu Firebase!' });
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
+    <div className="flex flex-col h-full bg-slate-50 phan-ca-tuan-container">
+      <style>{`
+        .phan-ca-tuan-container {
+          font-family: 'UTM Avo', sans-serif !important;
+        }
+        .phan-ca-tuan-container * {
+          font-family: 'UTM Avo', sans-serif !important;
+        }
+        .phan-ca-tuan-container th,
+        .phan-ca-tuan-container td,
+        .phan-ca-tuan-container button,
+        .phan-ca-tuan-container h1,
+        .phan-ca-tuan-container h3,
+        .phan-ca-tuan-container input,
+        .phan-ca-tuan-container textarea {
+          font-weight: 900 !important;
+        }
+        .phan-ca-tuan-container .text-\[11px\] { font-size: 12.1px !important; }
+        .phan-ca-tuan-container .text-\[12px\] { font-size: 13.2px !important; }
+        .phan-ca-tuan-container .text-\[10px\] { font-size: 11px !important; }
+        .phan-ca-tuan-container .text-\[9px\] { font-size: 10px !important; }
+        .phan-ca-tuan-container .text-xs { font-size: 0.825rem !important; }
+        .phan-ca-tuan-container .text-sm { font-size: 0.9625rem !important; }
+        .phan-ca-tuan-container .text-base { font-size: 1.1rem !important; }
+        .phan-ca-tuan-container .text-4xl { font-size: 2.475rem !important; }
+      `}</style>
       <div className="bg-white text-slate-800 px-4 py-3 flex items-center justify-between sticky top-0 z-50 shadow-md border-b border-slate-200 flex-wrap gap-4">
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-4xl font-black uppercase tracking-wider leading-tight text-[#004b8d] whitespace-nowrap">PHÂN CA TUẦN</h1>
@@ -493,10 +711,17 @@ export default function PhanCaTuanTable() {
           </button>
 
           <button
-            onClick={() => setEmployees(prev => prev.map(emp => ({ ...emp, shifts: {} })))}
+            onClick={() => setShowResetConfirm(true)}
             className="bg-gradient-to-b from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 border border-red-400 px-2 py-1.5 rounded-lg text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 shadow-md text-white min-h-[48px] w-[110px] leading-tight text-center whitespace-normal"
           >
             <RotateCcw size={14} className="shrink-0" /> Reset
+          </button>
+
+          <button
+            onClick={() => setShowStaffInput(!showStaffInput)}
+            className={`px-2 py-1.5 rounded-lg text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 shadow-md text-white min-h-[48px] w-[110px] leading-tight text-center whitespace-normal hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:shadow-md ${showStaffInput ? 'bg-gradient-to-b from-blue-600 to-blue-700 border border-blue-500 shadow-inner' : 'bg-gradient-to-b from-blue-500 to-blue-600 border border-blue-400'}`}
+          >
+            <Users size={14} className="shrink-0" /> Nhập DS nhân viên
           </button>
 
           <label className="cursor-pointer bg-gradient-to-b from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 border border-sky-400 px-2 py-1.5 rounded-lg text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 shadow-md text-white min-h-[48px] w-[110px] leading-tight text-center whitespace-normal">
@@ -507,7 +732,7 @@ export default function PhanCaTuanTable() {
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-1">
               <button
-                onClick={handleSaveToLocal}
+                onClick={handleSaveToFirebase}
                 disabled={isSaving}
                 className="bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 border border-emerald-400 px-3 py-2 rounded-lg text-[12px] font-bold uppercase transition-all flex items-center justify-center gap-2 shadow-md text-white min-h-[48px] min-w-[130px] leading-tight text-center whitespace-normal disabled:opacity-50"
               >
@@ -515,7 +740,7 @@ export default function PhanCaTuanTable() {
                 Lưu trình duyệt
               </button>
               <button
-                onClick={handleSaveToLocal}
+                onClick={handleSaveToFirebase}
                 disabled={isSaving}
                 className="bg-gradient-to-b from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 border border-amber-400 px-3 py-2 rounded-lg text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 shadow-md text-white min-h-[48px] w-[110px] leading-tight text-center whitespace-normal hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:shadow-md disabled:opacity-50"
               >
@@ -530,6 +755,34 @@ export default function PhanCaTuanTable() {
           </div>
         </div>
       </div>
+
+      {showStaffInput && (
+        <div className="bg-white p-4 border-b border-slate-200 shadow-inner flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Danh sách nhân viên (nhập mỗi nhân viên 1 dòng hoặc dán từ Excel)</h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleApplyStaffInput}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase px-3 py-1.5 rounded shadow transition-all hover:shadow-md"
+              >
+                Cập nhật & Lưu Firebase
+              </button>
+              <button
+                onClick={() => setShowStaffInput(false)}
+                className="bg-slate-500 hover:bg-slate-600 text-white text-xs font-bold uppercase px-3 py-1.5 rounded shadow transition-all hover:shadow-md"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+          <textarea
+            value={rawStaffInput}
+            onChange={(e) => setRawStaffInput(e.target.value)}
+            className="w-full h-40 p-3 border border-slate-300 rounded-lg text-xs font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all shadow-inner text-slate-800"
+            placeholder="BP All In One - ĐMX	Lộc_49641	99153&#10;BP All In One - ĐMX	Khiết_30660	99155&#10;&#10;Hoặc chỉ cần nhập tên mỗi dòng:&#10;Lộc_49641&#10;Khiết_30660"
+          />
+        </div>
+      )}
 
       <div className="flex-1 overflow-auto p-4">
         <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden min-w-max" ref={tableRef}>
@@ -797,9 +1050,14 @@ export default function PhanCaTuanTable() {
               </button>
               <button
                 onClick={() => {
-                  setEmployees(prev => prev.map(emp => ({ ...emp, shifts: {} })));
+                  setEmployees(prev => {
+                    const updated = prev.map(emp => ({ ...emp, shifts: {} }));
+                    handleSaveToFirebaseDirect(updated);
+                    return updated;
+                  });
                   setShowResetConfirm(false);
-                  setSaveMessage({ type: 'success', text: 'Đã làm mới bảng phân ca!' });
+                  setSaveMessage({ type: 'success', text: 'Đã làm mới bảng phân ca và lưu Firebase!' });
+                  setTimeout(() => setSaveMessage({ type: '', text: '' }), 3000);
                 }}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm"
               >

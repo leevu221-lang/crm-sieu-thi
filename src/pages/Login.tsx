@@ -19,16 +19,19 @@ export default function Login() {
     setError('');
     setSuccessMsg('');
     
-    if (!username || !maKho || !password) {
+    // PG001 skip store code
+    const isPG001 = username.toUpperCase() === 'PG001';
+    if (!username || (!isPG001 && !maKho) || !password) {
       setError('Vui lòng nhập đầy đủ thông tin.');
       return;
     }
+    const effectiveMaKho = isPG001 ? 'PG' : maKho;
 
     setIsLoggingIn(true);
     
     try {
       if (isRegisterMode) {
-        const result = await register(username, maKho, password);
+        const result = await register(username, effectiveMaKho, password);
         if (!result.success) {
           setError(result.message);
           setIsLoggingIn(false);
@@ -37,7 +40,7 @@ export default function Login() {
           // The redirect will happen automatically because userProfile is updated in AuthContext
         }
       } else {
-        const result = await login(username, maKho, password);
+        const result = await login(username, effectiveMaKho, password);
         if (!result.success) {
           setError(result.message === 'Tài khoản không tồn tại hoặc sai mật khẩu.' 
             ? 'Tài khoản không tồn tại hoặc sai mật khẩu. Vui lòng liên hệ Admin 43751 để được cấp tài khoản.'
@@ -122,6 +125,8 @@ export default function Login() {
             </div>
           </div>
 
+          {/* Mã kho - ẩn cho PG001 */}
+          {username.toUpperCase() !== 'PG001' && (
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Mã kho</label>
             <div className="relative">
@@ -137,6 +142,7 @@ export default function Login() {
               />
             </div>
           </div>
+          )}
 
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Mật khẩu</label>

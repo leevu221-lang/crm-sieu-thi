@@ -1,5 +1,5 @@
 import React, { useState, Suspense, lazy, useEffect, useMemo, useRef } from 'react';
-import { Database, BarChart3, Activity, HeartPulse, LogOut, User, Store, Loader2, Users, Shield, Settings, Type, Minus, Plus as PlusIcon, Monitor, Smartphone, LayoutGrid, AlertCircle, Wrench, ShieldAlert, RefreshCw, Zap, ShoppingBag, Globe, Trophy, Gift, X, MessageSquare, CreditCard, FileSpreadsheet } from 'lucide-react';
+import { Database, BarChart3, Activity, HeartPulse, LogOut, User, Store, Loader2, Users, Shield, Settings, Type, Minus, Plus as PlusIcon, Monitor, Smartphone, LayoutGrid, AlertCircle, Wrench, ShieldAlert, RefreshCw, Zap, ShoppingBag, Globe, Trophy, Gift, X, MessageSquare, CreditCard, FileSpreadsheet, CalendarDays, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from './contexts/AuthContext';
 import { useSettings } from './contexts/SettingsContext';
@@ -14,8 +14,9 @@ import SubscriptionLockScreen from './components/SubscriptionLockScreen';
 import { trackUserPing } from './services/accessTracker';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from './firebaseConfig';
+import { GradientV2Layout } from './layouts/v2/GradientV2Layout';
 
-// Wrapper to auto-reload if dynamic import fails (chunk load error)
+// Wrapper to auto-reload if dynamic import fails (chunk load error after deployment)
 const lazyWithRetry = (componentImport: () => Promise<any>) =>
   lazy(async () => {
     const pageHasAlreadyBeenForceRefreshed = JSON.parse(
@@ -26,7 +27,8 @@ const lazyWithRetry = (componentImport: () => Promise<any>) =>
       window.sessionStorage.setItem('page-has-been-force-refreshed', 'false');
       return component;
     } catch (error: any) {
-      if (!pageHasAlreadyBeenForceRefreshed) {
+      console.warn('[lazyWithRetry] Dynamic import failed, auto refreshing...', error);
+      if (!pageHasAlreadyBeenForceRefreshed || error?.message?.includes('Failed to fetch dynamically imported module')) {
         window.sessionStorage.setItem('page-has-been-force-refreshed', 'true');
         window.location.reload();
       }
@@ -34,20 +36,22 @@ const lazyWithRetry = (componentImport: () => Promise<any>) =>
     }
   });
 
-// Lazy load pages for better performance
-const NewRealtimePage = lazy(() => import('./pages/RealtimePage'));
-const UserManagement = lazy(() => import('./pages/DanhSachNguoiDung'));
-const EmployeeHealth = lazy(() => import('./pages/SucKhoeNhanVien'));
-const KhaiBao = lazy(() => import('./pages/KhaiBao'));
+// Lazy load pages for better performance with auto-retry
+const NewRealtimePage = lazyWithRetry(() => import('./pages/RealtimePage'));
+const UserManagement = lazyWithRetry(() => import('./pages/DanhSachNguoiDung'));
+const EmployeeHealth = lazyWithRetry(() => import('./pages/SucKhoeNhanVien'));
+const KhaiBao = lazyWithRetry(() => import('./pages/KhaiBao'));
 const LuyKe = lazyWithRetry(() => import('./pages/LuyKe'));
-const ToolHoTro = lazy(() => import('./pages/ToolHoTro'));
-const StickerCeScanner = lazy(() => import('./components/StickerCeScanner'));
-const TnbData = lazy(() => import('./pages/TnbData'));
-const TnbLeader = lazy(() => import('./pages/TnbLeader'));
-const SinhNhatNv = lazy(() => import('./pages/SinhNhatNv'));
-const FeedbackPage = lazy(() => import('./pages/FeedbackPage'));
-const ExcelViewer = lazy(() => import('./pages/ExcelViewer').then(module => ({ default: module.ExcelViewer })));
-const BanGiaSocPage = lazy(() => import('./pages/BanGiaSocPage').then(module => ({ default: module.BanGiaSocPage })));
+const ToolHoTro = lazyWithRetry(() => import('./pages/ToolHoTro'));
+const TienIch = lazyWithRetry(() => import('./pages/TienIch'));
+const StickerCeScanner = lazyWithRetry(() => import('./components/StickerCeScanner'));
+const TnbData = lazyWithRetry(() => import('./pages/TnbData'));
+const TnbLeader = lazyWithRetry(() => import('./pages/TnbLeader'));
+const SinhNhatNv = lazyWithRetry(() => import('./pages/SinhNhatNv'));
+const FeedbackPage = lazyWithRetry(() => import('./pages/FeedbackPage'));
+const ExcelViewer = lazyWithRetry(() => import('./pages/ExcelViewer').then(module => ({ default: module.ExcelViewer })));
+const BanGiaSocPage = lazyWithRetry(() => import('./pages/BanGiaSocPage').then(module => ({ default: module.BanGiaSocPage })));
+const LichLamViecPG = lazyWithRetry(() => import('./pages/LichLamViecPG'));
 const LoadingSpinner = () => (
   <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh]">
     <div className="relative">
@@ -69,19 +73,18 @@ export default function App() {
     );
   }
 
-  const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro' | 'tnb_data' | 'birthday' | 'feedback' | 'excelviewer'>('realtime');
-  const { userProfile, logout, refreshProfile } = useAuth();
+  const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro' | 'tienich' | 'tnb_data' | 'birthday' | 'feedback' | 'excelviewer' | 'lichpg'>('realtime');
+  const { userProfile, logout, refreshProfile, updateStoreName } = useAuth();
   const [showDeclarationForce, setShowDeclarationForce] = useState(false);
   const isDeclarationRequired = useMemo(() => {
     if (!userProfile) return false;
     if (String(userProfile.username).trim() === '43751') return false;
     
     // Explicitly check for false, meaning the user registered but hasn't completed declaration yet.
-    return userProfile.declarationCompleted === false && 
-           (!userProfile.ten_sieu_thi || userProfile.ten_sieu_thi === userProfile.ma_kho);
+    return userProfile.declarationCompleted === false;
   }, [userProfile]);
   const { fontSize, setFontSize, fontFamily, setFontFamily } = useSettings();
-  const { marketFilter, setMarketFilter, availableMarkets, activeRealtimeTab, activeToolHoTroTab, activeLuyKeTab, activeHealthTab } = useStore();
+  const { marketFilter, setMarketFilter, availableMarkets, activeRealtimeTab, activeToolHoTroTab, activeTienIchTab, activeLuyKeTab, activeHealthTab } = useStore();
   const [showSettings, setShowSettings] = useState(false);
   const [isDesktopView, setIsDesktopView] = useState(true);
   const [showSubscriptionForce, setShowSubscriptionForce] = useState(false);
@@ -89,11 +92,22 @@ export default function App() {
   // Page Maintenance Mode State
   const [pageMaintenanceState, setPageMaintenanceState] = useState<Record<string, boolean>>({});
   const [showMaintenanceConfirm, setShowMaintenanceConfirm] = useState(false);
+
   const effectivePageKey = currentPage === 'realtime' ? `realtime_${activeRealtimeTab}` : 
                            currentPage === 'toolhotro' ? `toolhotro_${activeToolHoTroTab}` : 
+                           currentPage === 'tienich' ? `tienich_${activeTienIchTab}` : 
                            currentPage === 'luyke' ? `luyke_${activeLuyKeTab}` :
                            currentPage === 'health' ? `health_${activeHealthTab}` :
                            currentPage;
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pageParam = params.get('page');
+    const hash = window.location.hash;
+    if (pageParam === 'health' || hash.startsWith('#sync_thuong=')) {
+      setCurrentPage('health');
+    }
+  }, []);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'system_settings', 'maintenance_status'), (docSnap) => {
@@ -106,14 +120,14 @@ export default function App() {
 
   // Hard Rule implementation for fallback if userProfile has missing userPermissions (legacy session)
   const isSuperAdminHardcoded = userProfile?.username === '43751' || userProfile?.username === 'ADMIN';
-  const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'tnbleader', 'birthday', 'feedback', 'excelviewer', 'bangiasoc'];
+  const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday', 'feedback', 'excelviewer', 'bangiasoc'];
   
   // Compute allowed pages
   const canEditUser = userProfile?.userPermissions?.canEditUser ?? isSuperAdminHardcoded;
   let allowedPages = isSuperAdminHardcoded ? ALL_PAGES : userProfile?.userPermissions?.allowedPages;
   
   if (!allowedPages) {
-    allowedPages = isSuperAdminHardcoded ? ALL_PAGES : ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'birthday']; // fallback for legacy normal users to not break the app completely without relogin
+    allowedPages = isSuperAdminHardcoded ? ALL_PAGES : ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'birthday']; // fallback for legacy normal users to not break the app completely without relogin
   }
   
   const is7611 = userProfile?.username === '7611' || userProfile?.ma_nhan_vien === '7611';
@@ -125,6 +139,10 @@ export default function App() {
     let pages = canEditUser && !allowedPages.includes('users') ? [...allowedPages, 'users'] : allowedPages;
     if (userProfile?.username === '43751' && !pages.includes('bangiasoc')) {
       pages = [...pages, 'bangiasoc'];
+    }
+    // Lịch PG only for user 43751 & PG001
+    if ((userProfile?.username === '43751' || userProfile?.username === 'PG001') && !pages.includes('lichpg')) {
+      pages = [...pages, 'lichpg'];
     }
     return pages;
   }, [canEditUser, allowedPages, userProfile?.username]);
@@ -195,20 +213,7 @@ export default function App() {
     return () => window.removeEventListener('navigate-page', handler);
   }, []);
 
-  // User Access & Activity Tracking
-  useEffect(() => {
-    if (!userProfile?.username || userProfile.username === 'ADMIN') return;
 
-    // Track initial page view / navigation
-    trackUserPing(userProfile.username, userProfile.ma_kho, currentPage, 'NAVIGATE');
-
-    // Heartbeat ping every 5 minutes (300,000ms) to optimize database writes
-    const interval = setInterval(() => {
-      trackUserPing(userProfile.username, userProfile.ma_kho, currentPage, 'PING');
-    }, 300000);
-
-    return () => clearInterval(interval);
-  }, [userProfile?.username, userProfile?.ma_kho, currentPage]);
 
   useEffect(() => {
     testSupabaseConnection().then(res => {
@@ -250,8 +255,6 @@ export default function App() {
     return (
       <StoreDeclaration 
         onComplete={() => setShowDeclarationForce(false)} 
-        userProfile={userProfile} 
-        updateStoreName={updateStoreName}
       />
     );
   }
@@ -270,37 +273,119 @@ export default function App() {
 
   const isSuperAdmin = canEditUser;
 
-  const getMarketTheme = (name: string) => {
-    const n = name.toUpperCase();
-    if (n === 'ALL') return { icon: LayoutGrid, color: 'text-indigo-600', bg: 'bg-indigo-600', shadow: 'shadow-indigo-100', border: 'border-indigo-500' };
-    if (n.startsWith('ĐML')) return { icon: Zap, color: 'text-blue-600', bg: 'bg-blue-600', shadow: 'shadow-blue-100', border: 'border-blue-500' };
-    if (n.startsWith('ĐMM')) return { icon: Smartphone, color: 'text-cyan-600', bg: 'bg-cyan-600', shadow: 'shadow-cyan-100', border: 'border-cyan-500' };
-    if (n.startsWith('ĐMS')) return { icon: ShoppingBag, color: 'text-emerald-600', bg: 'bg-emerald-600', shadow: 'shadow-emerald-100', border: 'border-emerald-500' }; // Changed from purple to emerald
-    if (n.startsWith('TGD')) return { icon: Globe, color: 'text-amber-500', bg: 'bg-amber-500', shadow: 'shadow-amber-100', border: 'border-amber-400' };
-    if (n.startsWith('AAR')) return { icon: Monitor, color: 'text-rose-600', bg: 'bg-rose-600', shadow: 'shadow-rose-100', border: 'border-rose-500' }; // Changed from slate to rose
-    return { icon: Store, color: 'text-slate-500', bg: 'bg-slate-600', shadow: 'shadow-slate-100', border: 'border-slate-500' };
-  };
-
   const BASE_NAV_ITEMS = [
     { id: 'realtime', label: 'BC NGÀY', icon: Activity, color: 'indigo' },
     { id: 'luyke', label: 'BC THÁNG', icon: BarChart3, color: 'blue' },
     { id: 'khaibao', label: 'Cập nhật', icon: Database, color: 'indigo' },
     { id: 'health', label: 'Sức khỏe NV', icon: HeartPulse, color: 'rose' },
     { id: 'toolhotro', label: 'Tool Hỗ Trợ', icon: Wrench, color: 'amber' },
+    { id: 'tienich', label: 'Tiện Ích', icon: LayoutGrid, color: 'purple' },
     { id: 'tnbleader', label: 'TNB LEADER', icon: Trophy, color: 'amber' },
     { id: 'birthday', label: 'Sinh nhật NV', icon: Gift, color: 'pink' },
     { id: 'feedback', label: 'HƯỚNG DẪN & GÓP Ý', icon: MessageSquare, color: 'indigo' },
     { id: 'excelviewer', label: 'XEM FILE EXCEL', icon: FileSpreadsheet, color: 'emerald' },
-    { id: 'bangiasoc', label: 'GIÁ SỐC', icon: ShoppingBag, color: 'rose' }
+    { id: 'bangiasoc', label: 'GIÁ SỐC', icon: ShoppingBag, color: 'rose' },
+    { id: 'lichpg', label: 'Lịch PG', icon: CalendarDays, color: 'teal' }
   ];
   
   const NAV_ITEMS = BASE_NAV_ITEMS.filter(item => effectiveAllowedPages.includes(item.id));
 
+  const renderMainContent = () => (
+    <LuykeDataProvider>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={currentPage}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="h-full"
+        >
+          <Suspense fallback={<LoadingSpinner />}>
+            {(() => {
+              const isMaintenanceBlockedByApp = !['realtime', 'toolhotro', 'tienich', 'luyke', 'health'].includes(currentPage) && pageMaintenanceState[currentPage] && !isUser43751Local;
+              
+              if (isMaintenanceBlockedByApp) {
+                // TNB Leader: redirect to new external link instead of maintenance notice
+                if (currentPage === 'tnbleader') {
+                  return (
+                    <div className="flex items-center justify-center h-full p-6 mt-12">
+                      <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-indigo-200 shadow-xl w-full">
+                        <div className="w-24 h-24 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-indigo-500 shadow-inner">
+                          <ExternalLink size={48} />
+                        </div>
+                        <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">ĐÃ CHUYỂN SANG TRANG MỚI</h1>
+                        <p className="text-slate-500 font-medium leading-relaxed mb-8">
+                          Trang TNB Leader đã được chuyển sang hệ thống mới. Vui lòng nhấn nút bên dưới để truy cập.
+                        </p>
+                        <a
+                          href="https://ltsdata1605-glitch.github.io/thiduavung/#/sieuthi"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all items-center justify-center gap-2"
+                        >
+                          <ExternalLink size={18} />
+                          MỞ TRANG MỚI
+                        </a>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="flex items-center justify-center h-full p-6 mt-12">
+                    <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-amber-200 shadow-xl w-full">
+                      <div className="w-24 h-24 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-amber-500 shadow-inner">
+                        <AlertCircle size={48} />
+                      </div>
+                      <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">HỆ THỐNG ĐANG BẢO TRÌ</h1>
+                      <p className="text-slate-500 font-medium leading-relaxed mb-8">
+                        Trang này đang trong quá trình bảo trì và nâng cấp. Vui lòng quay lại sau ít phút. Xin lỗi vì sự bất tiện này!
+                      </p>
+                      <button 
+                        onClick={() => setCurrentPage('realtime')}
+                        className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-lg shadow-amber-200 transition-all flex items-center justify-center mx-auto gap-2"
+                      >
+                        <RefreshCw size={18} />
+                        QUAY LẠI BC NGÀY
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
 
+              if (currentPage === 'realtime' && effectiveAllowedPages.includes('realtime')) return <NewRealtimePage pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
+              if (currentPage === 'khaibao' && effectiveAllowedPages.includes('khaibao')) return <KhaiBao />;
+              if (currentPage === 'luyke' && effectiveAllowedPages.includes('luyke')) return <LuyKe pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
+              if (currentPage === 'tnb_data' && effectiveAllowedPages.includes('tnb_data')) return <TnbData />;
+              if (currentPage === 'tnbleader' && effectiveAllowedPages.includes('tnbleader')) return <TnbLeader pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
+              if (currentPage === 'toolhotro' && effectiveAllowedPages.includes('toolhotro')) return <ToolHoTro pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
+              if (currentPage === 'tienich' && effectiveAllowedPages.includes('tienich')) return <TienIch pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
+              if (currentPage === 'users' && effectiveAllowedPages.includes('users')) {
+                return (
+                  <UserManagement onBack={() => {
+                    const firstAllowedNavPage = effectiveAllowedPages.find(p => p !== 'users');
+                    setCurrentPage((firstAllowedNavPage || 'realtime') as any);
+                  }} />
+                );
+              }
+              if (currentPage === 'health' && effectiveAllowedPages.includes('health')) return <EmployeeHealth pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
+              if (currentPage === 'birthday' && effectiveAllowedPages.includes('birthday')) return <SinhNhatNv />;
+              if (currentPage === 'feedback') return <FeedbackPage />;
+              if (currentPage === 'excelviewer' && effectiveAllowedPages.includes('excelviewer')) return <ExcelViewer />;
+              if (currentPage === 'bangiasoc' && effectiveAllowedPages.includes('bangiasoc')) return <BanGiaSocPage />;
+              if (currentPage === 'lichpg' && effectiveAllowedPages.includes('lichpg')) return <LichLamViecPG />;
+              return null;
+            })()}
+          </Suspense>
+        </motion.div>
+      </AnimatePresence>
+    </LuykeDataProvider>
+  );
 
   return (
-    <div className={`min-h-screen flex flex-col pb-24 md:pb-0 bg-slate-50 selection:bg-indigo-100 selection:text-indigo-900`}>
+    <>
       <VersionUpdateNotifier />
+
       {/* Firebase Error Banner */}
       <AnimatePresence>
         {supabaseError && (
@@ -325,328 +410,26 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Sticky Top Section */}
-      <motion.div 
-        initial={false}
-        animate={{ y: 0 }}
-        transition={{ duration: 0.3, ease: "easeInOut" }}
-        className="sticky top-0 z-50 bg-white print:hidden"
+      {/* V2 GRADIENT ENTERPRISE LAYOUT - Permanent Global Layout */}
+      <GradientV2Layout
+        userProfile={userProfile}
+        marketFilter={marketFilter}
+        setMarketFilter={setMarketFilter}
+        availableMarkets={availableMarkets}
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage as any}
+        canEditUser={canEditUser}
+        navItems={NAV_ITEMS}
+        pageMaintenanceState={pageMaintenanceState}
+        effectivePageKey={effectivePageKey}
+        setShowMaintenanceConfirm={setShowMaintenanceConfirm}
+        setShowSettings={setShowSettings}
+        setShowDeclarationForce={setShowDeclarationForce}
+        logout={logout}
+        supabaseError={supabaseError}
       >
-
-
-        {/* Top Header */}
-        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200">
-          <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-            </div>
-            
-            <div className="flex items-center gap-2 sm:gap-3">
-              {availableMarkets.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <div className="no-capture flex items-center gap-2 mr-2 bg-slate-50/50 p-1.5 rounded-2xl border border-slate-100 shadow-inner max-w-[180px] xs:max-w-[260px] sm:max-w-none overflow-x-auto no-scrollbar">
-                    <div className="flex items-center gap-2">
-                      {(() => {
-                        const allTheme = getMarketTheme('ALL');
-                        const AllIcon = allTheme.icon;
-                        return (
-                          <button
-                            onClick={() => setMarketFilter('ALL')}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[11px] font-bold transition-all duration-500 uppercase tracking-wider whitespace-nowrap active:scale-95 ${
-                              marketFilter === 'ALL'
-                                ? `bg-indigo-600 text-white shadow-lg shadow-indigo-200`
-                                : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'
-                            }`}
-                          >
-                            <AllIcon size={14} className={marketFilter === 'ALL' ? 'text-white' : 'text-slate-400'} />
-                            TẤT CẢ
-                          </button>
-                        );
-                      })()}
-                      
-                      {(() => {
-                        const prefixOrder = ['ĐML', 'ĐMM', 'TGD', 'ĐMS', 'ĐM3'];
-                        const getPrefixRank = (name: string) => {
-                          const upper = name.toUpperCase();
-                          // Check ĐMS3 before ĐMS to avoid false match
-                          for (let i = 0; i < prefixOrder.length; i++) {
-                            if (upper.startsWith(prefixOrder[i])) return i;
-                          }
-                          return prefixOrder.length;
-                        };
-                         return availableMarkets
-                           .filter(m => {
-                             const normName = (m.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase();
-                             return !normName.includes('kho ban hang luu dong');
-                           })
-                          .sort((a, b) => getPrefixRank(a.name) - getPrefixRank(b.name))
-                          .map(m => {
-                        const theme = getMarketTheme(m.name);
-                        const Icon = theme.icon;
-                        const isActive = marketFilter === m.name;
-                        
-                        return (
-                          <button
-                            key={m.name}
-                            onClick={() => setMarketFilter(m.name)}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[11px] font-bold transition-all duration-500 uppercase tracking-wider whitespace-nowrap active:scale-95 ${
-                              isActive
-                                ? `${theme.bg} text-white shadow-lg ${theme.shadow}`
-                                : `bg-white text-slate-500 hover:bg-slate-50 border border-slate-200`
-                            }`}
-                          >
-                            <Icon size={14} className={isActive ? 'text-white' : theme.color} />
-                            {m.name}
-                          </button>
-                        );
-                      });
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 px-3 py-2 rounded-2xl border border-slate-100 shadow-sm">
-                <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center">
-                  <User size={12} className="text-indigo-600" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-slate-800 truncate max-w-[70px] sm:max-w-[100px]">
-                    {userProfile?.username || 'User'}
-                  </span>
-                  {userProfile?.ma_kho && (
-                    <span className="text-[9px] font-black text-emerald-600 uppercase leading-none">
-                      Kho: {userProfile.ma_kho}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* View Toggle Button Removed */}
-              {canEditUser && (
-                <button 
-                  onClick={() => setCurrentPage('users')}
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${currentPage === 'users' ? 'text-indigo-600 bg-indigo-50 shadow-inner' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
-                  title="Quản lý người dùng"
-                >
-                  <Users size={20} />
-                </button>
-              )}
-
-              {userProfile && userProfile.username !== '43751' && userProfile.username !== 'ADMIN' && !userProfile.isDemo && (
-                <button 
-                  onClick={() => setShowSubscriptionForce(true)}
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all relative"
-                  title="Đăng ký gói cước / Gia hạn"
-                >
-                  <CreditCard size={20} />
-                  {userProfile.expiredAt && (() => {
-                    const exp = new Date(userProfile.expiredAt);
-                    const today = new Date();
-                    const diff = exp.getTime() - today.getTime();
-                    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-                    if (days <= 3) {
-                      return <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full animate-pulse" />;
-                    }
-                    return null;
-                  })()}
-                </button>
-              )}
-
-              <button 
-                onClick={() => setShowDeclarationForce(true)}
-                className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
-                title="Khai báo siêu thị"
-              >
-                <Store size={20} />
-              </button>
-
-              {isUser43751Local && (
-                <button 
-                  onClick={() => setShowSettings(true)}
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
-                  title="Cài đặt hiển thị"
-                >
-                  <Settings size={20} />
-                </button>
-              )}
-
-              <button 
-                onClick={() => logout()}
-                className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all"
-                title="Đăng xuất"
-              >
-                <LogOut size={20} />
-              </button>
-
-              {isUser43751Local && (
-                <>
-                  <button
-                    onClick={() => setShowMaintenanceConfirm(true)}
-                    className={`h-10 px-3 rounded-xl flex items-center justify-center font-bold text-xs transition-all ${pageMaintenanceState[effectivePageKey] ? 'bg-red-50 text-red-600 animate-pulse' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
-                    title={pageMaintenanceState[effectivePageKey] ? 'ĐANG BẢO TRÌ TRANG NÀY (BẤM ĐỂ TẮT)' : 'BẬT BẢO TRÌ TRANG NÀY'}
-                  >
-                    <AlertCircle size={20} />
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </header>
-
-        {/* Desktop Navigation */}
-        <nav className="hidden md:flex bg-white border-b border-slate-200">
-          <div className="max-w-7xl mx-auto w-full flex items-center justify-between px-4 lg:px-6 overflow-x-auto no-scrollbar">
-            <div className="flex items-center gap-1 lg:gap-2">
-              {NAV_ITEMS.map((item) => {
-                const isActive = currentPage === item.id;
-                const Icon = item.icon;
-                return (
-                  <button 
-                    key={item.id}
-                    onClick={() => setCurrentPage(item.id as any)}
-                    className={`flex items-center gap-2 px-3 lg:px-4 py-3.5 text-xs lg:text-sm font-black uppercase tracking-wider transition-colors whitespace-nowrap shrink-0 ${isActive ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
-                  >
-                    <Icon size={18} className="shrink-0" />
-                    <span className="whitespace-nowrap">{item.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </nav>
-
-
-      </motion.div>
-
-      <main className="flex-1 relative">
-
-
-        <LuykeDataProvider>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentPage}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="h-full"
-          >
-            <Suspense fallback={<LoadingSpinner />}>
-              {(() => {
-                const isUser43751Local = String(userProfile?.username || '').trim() === '43751';
-                const isMaintenanceBlockedByApp = !['realtime', 'toolhotro', 'luyke', 'health'].includes(currentPage) && pageMaintenanceState[currentPage] && !isUser43751Local;
-                
-                if (isMaintenanceBlockedByApp) {
-                  return (
-                    <div className="flex items-center justify-center h-full p-6 mt-12">
-                      <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-amber-200 shadow-xl w-full">
-                        <div className="w-24 h-24 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-amber-500 shadow-inner">
-                          <AlertCircle size={48} />
-                        </div>
-                        <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">HỆ THỐNG ĐANG BẢO TRÌ</h1>
-                        <p className="text-slate-500 font-medium leading-relaxed mb-8">
-                          Trang này đang trong quá trình bảo trì và nâng cấp. Vui lòng quay lại sau ít phút. Xin lỗi vì sự bất tiện này!
-                        </p>
-                        <button 
-                          onClick={() => setCurrentPage('realtime')}
-                          className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-lg shadow-amber-200 transition-all flex items-center justify-center mx-auto gap-2"
-                        >
-                          <RefreshCw size={18} />
-                          QUAY LẠI BC NGÀY
-                        </button>
-                      </div>
-                    </div>
-                  );
-                }
-
-                if (currentPage === 'realtime' && effectiveAllowedPages.includes('realtime')) return <NewRealtimePage pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
-                if (currentPage === 'khaibao' && effectiveAllowedPages.includes('khaibao')) return <KhaiBao />;
-                if (currentPage === 'luyke' && effectiveAllowedPages.includes('luyke')) return <LuyKe pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
-                if (currentPage === 'tnb_data' && effectiveAllowedPages.includes('tnb_data')) return <TnbData />;
-                if (currentPage === 'tnbleader' && effectiveAllowedPages.includes('tnbleader')) return <TnbLeader pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
-                if (currentPage === 'toolhotro' && effectiveAllowedPages.includes('toolhotro')) return <ToolHoTro pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
-                if (currentPage === 'users' && effectiveAllowedPages.includes('users')) {
-                  return (
-                    <UserManagement onBack={() => {
-                      const firstAllowedNavPage = effectiveAllowedPages.find(p => p !== 'users');
-                      setCurrentPage((firstAllowedNavPage || 'realtime') as any);
-                    }} />
-                  );
-                }
-                if (currentPage === 'health' && effectiveAllowedPages.includes('health')) return <EmployeeHealth pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
-                if (currentPage === 'birthday' && effectiveAllowedPages.includes('birthday')) return <SinhNhatNv />;
-                if (currentPage === 'feedback') return <FeedbackPage />;
-                if (currentPage === 'excelviewer' && effectiveAllowedPages.includes('excelviewer')) return <ExcelViewer />;
-                if (currentPage === 'bangiasoc' && effectiveAllowedPages.includes('bangiasoc')) return <BanGiaSocPage />;
-                return null;
-              })()}
-            </Suspense>
-          </motion.div>
-        </AnimatePresence>
-        </LuykeDataProvider>
-      </main>
-
-      {/* Global Copyright Footer */}
-      <footer className="w-full border-t border-slate-200 bg-white mt-12 px-6 py-6 pb-32 md:pb-6 print:hidden">
-        <div className="max-w-7xl mx-auto flex flex-col items-center justify-center text-center gap-2">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
-            <span>© {new Date().getFullYear()} CRM SIÊU THỊ</span>
-            <span className="text-slate-300">•</span>
-            <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-bold">v2.4.0</span>
-          </div>
-          <div className="text-[11px] text-slate-400 font-medium">
-            Phát triển & Thiết kế bởi <span className="font-extrabold text-slate-600 tracking-wider">Linh Vũ</span>
-          </div>
-        </div>
-      </footer>
-
-      {/* Mobile Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-6 left-4 right-4 bg-white/90 backdrop-blur-xl border border-white/20 z-[100] px-2 py-2 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] ring-1 ring-slate-900/5 print:hidden">
-        <div className="flex items-center justify-around relative">
-          {/* Active indicator background pill */}
-          <div className="absolute inset-0 flex items-center justify-around pointer-events-none px-2">
-            {NAV_ITEMS.map((item, index) => (
-              <div key={`bg-${item.id}`} className="flex-1 flex justify-center">
-                {currentPage === item.id && (
-                  <motion.div
-                    layoutId="nav-pill"
-                    className="w-14 h-14 bg-indigo-600/10 rounded-2xl"
-                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-
-          {NAV_ITEMS.map((item) => {
-            const isActive = currentPage === item.id;
-            const Icon = item.icon;
-            
-            return (
-              <button 
-                key={item.id}
-                onClick={() => setCurrentPage(item.id as any)}
-                className={`flex-1 flex flex-col items-center justify-center gap-1.5 h-16 relative z-10 transition-colors duration-300 ${isActive ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
-              >
-                <motion.div 
-                  whileTap={{ scale: 0.9 }}
-                  className={`relative flex items-center justify-center ${isActive ? 'scale-110' : ''}`}
-                >
-                  <Icon size={24} strokeWidth={isActive ? 2.5 : 2} className="transition-all duration-300" />
-                  {isActive && (
-                    <motion.div
-                      layoutId="nav-dot"
-                      className="absolute -top-1 -right-1 w-1.5 h-1.5 bg-indigo-600 rounded-full"
-                    />
-                  )}
-                </motion.div>
-                <span className={`text-[10px] font-black uppercase tracking-wider transition-all duration-300 whitespace-nowrap ${isActive ? 'opacity-100 scale-105' : 'opacity-60'}`}>
-                  {item.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+        {renderMainContent()}
+      </GradientV2Layout>
 
       {/* Settings Modal */}
       <AnimatePresence>
@@ -713,29 +496,46 @@ export default function App() {
 
                 {/* Font Family */}
                 <div className="space-y-3">
-                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Kiểu chữ</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Kiểu chữ toàn web</label>
+                    {!(String(userProfile?.username || '').trim() === '43751' || String(userProfile?.ma_nhan_vien || '').trim() === '43751' || String(userProfile?.user_id || '').trim() === '43751') && (
+                      <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60 flex items-center gap-1">
+                        🔒 Đã khóa (Theo 43751)
+                      </span>
+                    )}
+                  </div>
+                  
+                  {!(String(userProfile?.username || '').trim() === '43751' || String(userProfile?.ma_nhan_vien || '').trim() === '43751' || String(userProfile?.user_id || '').trim() === '43751') && (
+                    <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600">
+                      ⚡ Toàn bộ hệ thống đang đồng bộ Kiểu chữ theo cài đặt của <strong className="font-black text-slate-800">Quản trị viên 43751</strong>.
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-3 gap-2">
-                    <button 
-                      onClick={() => setFontFamily('Inter')}
-                      className={`p-3 rounded-xl border-2 transition-all text-left ${fontFamily === 'Inter' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-slate-200 bg-white'}`}
-                    >
-                      <div className={`text-base font-bold mb-1 ${fontFamily === 'Inter' ? 'text-indigo-600' : 'text-slate-800'}`}>Inter</div>
-                      <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">Mặc định</div>
-                    </button>
-                    <button 
-                      onClick={() => setFontFamily('Oswald')}
-                      className={`p-3 rounded-xl border-2 transition-all text-left font-oswald ${fontFamily === 'Oswald' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-slate-200 bg-white'}`}
-                    >
-                      <div className={`text-base font-bold mb-1 ${fontFamily === 'Oswald' ? 'text-indigo-600' : 'text-slate-800'}`}>Oswald</div>
-                      <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">Hiện đại</div>
-                    </button>
-                    <button 
-                      onClick={() => setFontFamily('UTM Avo')}
-                      className={`p-3 rounded-xl border-2 transition-all text-left font-utm-avo ${fontFamily === 'UTM Avo' ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-slate-200 bg-white'}`}
-                    >
-                      <div className={`text-base font-bold mb-1 ${fontFamily === 'UTM Avo' ? 'text-indigo-600' : 'text-slate-800'}`}>UTM Avo</div>
-                      <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">Tròn trịa</div>
-                    </button>
+                    {(['Inter', 'Oswald', 'UTM Avo'] as const).map((font) => {
+                      const is43751 = String(userProfile?.username || '').trim() === '43751' || String(userProfile?.ma_nhan_vien || '').trim() === '43751' || String(userProfile?.user_id || '').trim() === '43751';
+                      const labelMap: Record<string, string> = { 'Inter': 'Mặc định', 'Oswald': 'Hiện đại', 'UTM Avo': 'Tròn trịa' };
+                      const fontClassMap: Record<string, string> = { 'Inter': '', 'Oswald': 'font-oswald', 'UTM Avo': 'font-utm-avo' };
+                      const active = fontFamily === font;
+
+                      return (
+                        <button
+                          key={font}
+                          disabled={!is43751}
+                          onClick={() => {
+                            if (is43751) {
+                              setFontFamily(font, userProfile);
+                            }
+                          }}
+                          className={`p-3 rounded-xl border-2 transition-all text-left ${fontClassMap[font]} ${
+                            active ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 bg-white'
+                          } ${!is43751 ? 'opacity-65 cursor-not-allowed' : 'hover:border-slate-200 cursor-pointer active:scale-95'}`}
+                        >
+                          <div className={`text-base font-bold mb-1 ${active ? 'text-indigo-600' : 'text-slate-800'}`}>{font}</div>
+                          <div className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">{labelMap[font]}</div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -798,6 +598,6 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </>
   );
 }

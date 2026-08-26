@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
-import { Store, ArrowRight, Save, Loader2, Sparkles, LayoutGrid, Info, CheckCircle2, Copy, Check } from 'lucide-react';
+import { Store, ArrowRight, Save, Loader2, Sparkles, LayoutGrid, Info, CheckCircle2, Copy, Check, X } from 'lucide-react';
 import { isValidStoreName, normalizeStoreId } from './RTST/utils';
 
 interface StoreDeclarationProps {
@@ -192,22 +192,28 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
       }
 
       // 4. Update the user's status to 'pending' and declarationCompleted to true in ql_nguoi_dung to wait for admin approval
+      const isNewUser = userProfile?.declarationCompleted === false;
+      const updatePayload: any = {
+        declarationCompleted: true
+      };
+
+      if (isNewUser) {
+        updatePayload.status = 'pending';
+        updatePayload.paymentConfirmed = false;
+      }
+
       const { error: userUpdateError } = await supabase
         .from('ql_nguoi_dung')
-        .update({
-          status: 'pending',
-          paymentConfirmed: false,
-          declarationCompleted: true
-        })
+        .update(updatePayload)
         .eq('username', userProfile?.username);
 
       if (userUpdateError) {
-        console.error('[StoreDeclaration] Error updating user status to pending:', userUpdateError);
+        console.error('[StoreDeclaration] Error updating user status:', userUpdateError);
       }
 
       // Update the client state userProfile context immediately so the UI updates instantly
       if (updateStoreName) {
-        updateStoreName(store1.trim(), 'pending');
+        updateStoreName(store1.trim(), isNewUser ? 'pending' : userProfile?.status);
       }
       
       setStatusMessage({ type: 'success', text: 'Cập nhật cấu hình siêu thị thành công!' });
@@ -245,6 +251,15 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
         transition={{ type: 'spring', damping: 25, stiffness: 120 }}
         className="w-full max-w-4xl bg-white rounded-[32px] shadow-2xl shadow-indigo-100/50 p-6 sm:p-8 md:p-10 border border-slate-100 relative overflow-hidden"
       >
+        {/* Close button */}
+        <button
+          onClick={onComplete}
+          className="absolute top-4 right-4 z-30 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+          title="Đóng / Quay lại"
+        >
+          <X size={18} />
+        </button>
+
         {/* Background decorative glow */}
         <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-50/70 rounded-full blur-3xl -z-10" />
         <div className="absolute bottom-0 left-0 w-72 h-72 bg-emerald-50/50 rounded-full blur-3xl -z-10" />
@@ -476,7 +491,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
 
               <button
                 onClick={() => {
-                  const isNewUser = userProfile?.status === 'active' && (!userProfile?.ten_sieu_thi || userProfile?.ten_sieu_thi === userProfile?.ma_kho);
+                  const isNewUser = userProfile?.declarationCompleted === false;
                   if (isNewUser) {
                     handleSave(true);
                   } else {

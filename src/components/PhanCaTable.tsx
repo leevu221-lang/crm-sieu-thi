@@ -5,6 +5,7 @@ import { useStore } from '../contexts/StoreContext';
 import { Loader2, Save, Trash2, ChevronRight, ChevronLeft, Camera, RotateCcw, RefreshCw, GripVertical, Eye, EyeOff, CalendarCheck } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import * as htmlToImage from 'html-to-image';
+import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
 import { useRealtimeData } from '../pages/RTST/hooks/useRealtimeData';
 import { normalizeStoreId } from '../pages/RTST/utils';
 import { format, startOfWeek, addDays, isSameDay, parseISO, differenceInDays, startOfMonth, endOfMonth, eachDayOfInterval, addMonths } from 'date-fns';
@@ -261,44 +262,105 @@ export default function PhanCaTable() {
     setDragOverEmp(null);
   };
 
-  const handleExportImage = async () => {
-    if (!tableRef.current) return;
+  const captureTableHelper = async (element: HTMLElement, fileName: string) => {
+    const targetWidth = Math.max(1200, element.scrollWidth + 48);
+
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.top = '-9999px';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.width = `${targetWidth}px`;
+    tempContainer.style.height = 'auto';
+    tempContainer.style.overflow = 'hidden';
+    tempContainer.style.zIndex = '-9999';
+    tempContainer.style.pointerEvents = 'none';
+
+    const clone = element.cloneNode(true) as HTMLElement;
+
+    const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, input');
+    noCaptureElements.forEach(el => {
+      (el as HTMLElement).style.display = 'none';
+    });
+
+    clone.style.width = `${targetWidth}px`;
+    clone.style.minWidth = `${targetWidth}px`;
+    clone.style.height = 'auto';
+    clone.style.margin = '0';
+    clone.style.padding = '24px';
+    clone.style.backgroundColor = '#ffffff';
+    clone.style.display = 'inline-block';
+    clone.style.boxSizing = 'border-box';
+    clone.style.borderRadius = '24px';
+
+    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+    scrollContainers.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.overflow = 'visible';
+      htmlEl.style.width = '100%';
+      htmlEl.style.height = 'auto';
+      htmlEl.style.maxWidth = 'none';
+      htmlEl.style.maxHeight = 'none';
+      el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
+    });
+
+    const tables = clone.querySelectorAll('table');
+    tables.forEach(table => {
+      const htmlTable = table as HTMLElement;
+      htmlTable.style.width = '100%';
+      htmlTable.style.minWidth = '100%';
+      htmlTable.style.boxSizing = 'border-box';
+    });
+
+    tempContainer.appendChild(clone);
+    document.body.appendChild(tempContainer);
+
     try {
-      const dataUrl = await htmlToImage.toPng(tableRef.current, {
+      // ★ Ensure UTM Avo font is fully loaded before export
+      await ensureFontsReady();
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      const finalWidth = targetWidth;
+      const finalHeight = clone.offsetHeight || clone.scrollHeight;
+
+      const dataUrl = await htmlToImage.toPng(clone, {
         quality: 1,
         backgroundColor: '#ffffff',
         pixelRatio: 2,
+        skipFonts: false,
+        width: finalWidth,
+        height: finalHeight,
+        style: {
+          transform: 'scale(1)',
+          transformOrigin: 'top left',
+          width: `${finalWidth}px`,
+          height: `${finalHeight}px`,
+          ...EXPORT_FONT_STYLE,
+        }
       });
 
       const link = document.createElement('a');
       link.href = dataUrl;
-      link.download = 'LICH_PHAN_CA_THANG.png';
+      link.download = fileName;
       link.click();
-      setSaveMessage({ type: 'success', text: 'Đã xuất ảnh bảng phân ca!' });
+      setSaveMessage({ type: 'success', text: `Đã xuất ảnh ${fileName}!` });
     } catch (err) {
       console.error('Lỗi khi chụp ảnh:', err);
-      setSaveMessage({ type: 'error', text: 'Không thể chụp ảnh bảng phân ca.' });
+      setSaveMessage({ type: 'error', text: 'Không thể chụp ảnh.' });
+    } finally {
+      if (document.body.contains(tempContainer)) {
+        document.body.removeChild(tempContainer);
+      }
     }
+  };
+
+  const handleExportImage = async () => {
+    if (!tableRef.current) return;
+    await captureTableHelper(tableRef.current, 'LICH_PHAN_CA_THANG.png');
   };
 
   const handleExportSummaryImage = async () => {
     if (!summaryTableRef.current) return;
-    try {
-      const dataUrl = await htmlToImage.toPng(summaryTableRef.current, {
-        quality: 1,
-        backgroundColor: '#ffffff',
-        pixelRatio: 2,
-      });
-
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = 'TOM_TAT_NHAN_VIEN_DI_CA_HANH_CHINH.png';
-      link.click();
-      setSaveMessage({ type: 'success', text: 'Đã xuất ảnh tóm tắt ca hành chính!' });
-    } catch (err) {
-      console.error('Lỗi khi chụp ảnh tóm tắt:', err);
-      setSaveMessage({ type: 'error', text: 'Không thể chụp ảnh tóm tắt.' });
-    }
+    await captureTableHelper(summaryTableRef.current, 'TOM_TAT_NHAN_VIEN_DI_CA_HANH_CHINH.png');
   };
 
   const handleResetShifts = () => {

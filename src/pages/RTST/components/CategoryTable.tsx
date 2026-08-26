@@ -165,7 +165,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
                   <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-[60px]">TARGET</th>
                   <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">LUỸ KẾ</th>
                   <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>
-                  <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">CÒN LẠI</th>
+                  <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">C.LẠI</th>
                 </tr>
               </thead>
               <tbody>
@@ -188,7 +188,11 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
                         <td className="px-2 py-0 text-[13px] font-extrabold uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
                         <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
                         <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
-                        <td className={`px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 ${Math.round(rate) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(rate)}%</td>
+                        <td className="px-1 py-0 text-center border-r border-b border-slate-300">
+                          <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] leading-none ${Math.round(rate) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
+                            {Math.round(rate)}%
+                          </span>
+                        </td>
                         <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
                       </tr>
                     );

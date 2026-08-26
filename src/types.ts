@@ -1,6 +1,6 @@
 export type UserRole = 'admin' | 'user';
 
-export type PageName = 'nhanvien' | 'baocao' | 'kho' | 'users' | 'khai-bao' | 'realtime' | 'luyke' | 'health' | 'toolhotro' | 'birthday';
+export type PageName = 'nhanvien' | 'baocao' | 'kho' | 'users' | 'khai-bao' | 'realtime' | 'luyke' | 'health' | 'toolhotro' | 'tienich' | 'birthday';
 
 export interface UserPermissions {
   canEditUser: boolean;

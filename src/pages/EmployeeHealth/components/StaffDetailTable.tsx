@@ -67,8 +67,10 @@ const StaffDetailTable: React.FC<StaffDetailTableProps> = ({
                   <td className="px-4 py-2 text-center border-r border-slate-300 font-bold text-xs text-emerald-700">
                     {formatVal(luyKe)}
                   </td>
-                  <td className="px-4 py-2 text-center border-r border-slate-300 font-black text-xs text-emerald-600">
-                    {percentHT.toFixed(1)}%
+                  <td className="px-2 py-1 text-center border-r border-slate-300">
+                    <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-xs leading-none ${percentHT >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
+                      {percentHT.toFixed(1)}%
+                    </span>
                   </td>
                   <td className="px-4 py-2 text-center font-bold text-xs text-rose-600">
                     {remaining > 0 ? formatVal(remaining) : 0}

@@ -1,11 +1,14 @@
 import React, { useRef, useState } from 'react';
+import ReactDOM from 'react-dom';
 import { motion } from 'framer-motion';
 import { parseCategoryData, cn, cleanCategoryName } from '../../RTST/utils';
 import { StaffMatrixData, CategoryData } from '../../RTST/types';
-import { Download, Copy, Check, MessageSquare, ChevronDown, Search, X } from 'lucide-react';
+import { Download, Copy, Check, MessageSquare, MessageCircle, ChevronDown, Search, X, Sparkles } from 'lucide-react';
 import { domToPng } from 'modern-screenshot';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useLuykeData } from '../../RTST/hooks/useLuykeData';
+import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
+import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
 
 const removeAccentsLocal = (str: string): string => {
   return str
@@ -147,16 +150,18 @@ export const getCategoryGroupSortOrder = (catName: string, categoryConfig?: Cate
   return 3; // DMX
 };
 
-export const getCategoryBadgeStyleClasses = (catName: string, categoryConfig?: CategoryConfigItem[]): { bgText: string; hover: string } => {
+export const getCategoryBadgeStyleClasses = (catName: string, categoryConfig?: CategoryConfigItem[]): { bgText: string; hover: string; gradient: string } => {
   const group = getCategoryGroupType(catName, categoryConfig);
   if (group === 'ICT') {
-    return { bgText: 'bg-[#f59e0b] text-black', hover: 'hover:bg-[#d97706]' };
+    // Soft amber/gold gradient - light tone
+    return { bgText: 'text-amber-900', hover: 'hover:bg-[#fef3c7]', gradient: 'linear-gradient(135deg, #fef9c3, #fde68a, #fcd34d)' };
   }
   if (group === 'DICH_VU') {
-    return { bgText: 'bg-[#10b981] text-white', hover: 'hover:bg-[#059669]' };
+    // Soft emerald gradient - light tone
+    return { bgText: 'text-emerald-900', hover: 'hover:bg-[#d1fae5]', gradient: 'linear-gradient(135deg, #d1fae5, #a7f3d0, #6ee7b7)' };
   }
-  // DMX
-  return { bgText: 'bg-[#2563eb] text-white', hover: 'hover:bg-[#1d4ed8]' };
+  // DMX - Soft blue gradient - light tone
+  return { bgText: 'text-blue-900', hover: 'hover:bg-[#dbeafe]', gradient: 'linear-gradient(135deg, #dbeafe, #bfdbfe, #93c5fd)' };
 };
 
 export const parseStaffMatrixDataRefined = (
@@ -494,6 +499,11 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   const [catSearchTerm, setCatSearchTerm] = useState('');
   const [isCatDropdownOpen, setIsCatDropdownOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [isCommentOpen, setIsCommentOpen] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [copiedComment, setCopiedComment] = useState(false);
+  const [commentTemplate, setCommentTemplate] = useState<1 | 2 | 3>(1);
   const catDropdownRef = useRef<HTMLDivElement>(null);
 
   const { userProfile } = useAuth();
@@ -757,8 +767,75 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
     });
   };
 
+  const generateThiDuaComment = (template: 1 | 2 | 3 = 1) => {
+    if (filteredStaffMatrix.length === 0) return;
+    const total = filteredStaffMatrix.length;
+    const count20 = Math.max(1, Math.round(total * 0.2));
+    const top20 = filteredStaffMatrix.slice(0, count20);
+    const bottom20 = filteredStaffMatrix.slice(Math.max(count20, total - count20));
+
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    const dateStr = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
+
+    let text = '';
+
+    if (template === 1) {
+      // MẪU 1: TOP/BOT ST
+      text = `📊 TỔNG HỢP THI ĐUA SIÊU THỊ - ${timeStr} NGÀY ${dateStr}\n`;
+      text += `━━━━━━━━━━━━━━━━━━\n\n`;
+      text += `📈 KẾT QUẢ TỔNG QUAN:\n`;
+      text += `🎯 Tổng NV: ${total} || ĐẠT trên 50%: ${filteredStaffMatrix.filter(s => s.rate >= 0.5).length}/${total}\n\n`;
+      text += `🏆 TOP ${count20} DẪN ĐẦU:\n`;
+      top20.forEach((s, i) => {
+        const staffId = s.shortName.split(' - ')[0] || s.shortName;
+        text += `🔺 #${i + 1}. @${staffId}\n`;
+      });
+      text += `\n⚠️ BOTTOM ${count20} CẦN TĂNG TỐC:\n`;
+      bottom20.forEach((s, i) => {
+        const staffId = s.shortName.split(' - ')[0] || s.shortName;
+        text += `🔻 #${total - bottom20.length + i + 1}. @${staffId}\n`;
+      });
+      text += `\n💪 Hãy cố gắng bứt phá trong các ngày còn lại! 🔥`;
+    } else if (template === 2) {
+      // MẪU 2: DS Cần tăng tốc
+      const below50 = filteredStaffMatrix.filter(s => s.rate < 0.5);
+      text = `⚠️ DANH SÁCH NHÂN VIÊN CẦN TĂNG TỐC - ${timeStr} NGÀY ${dateStr}\n`;
+      text += `━━━━━━━━━━━━━━━━━━\n\n`;
+      text += `📊 Tổng NV dưới 50%: ${below50.length}/${total}\n\n`;
+      text += `🚨 DANH SÁCH CẦN CẢI THIỆN TIẾN ĐỘ:\n`;
+      below50.forEach((s, i) => {
+        const staffId = s.shortName.split(' - ')[0] || s.shortName;
+        const rateStr = (s.rate * 100).toFixed(0);
+        text += `🔻 #${i + 1}. @${staffId}\n`;
+      });
+      text += `\n💡 Cần hỗ trợ các NV trên đẩy mạnh bán hàng và tăng cường tư vấn!`;
+    } else {
+      // MẪU 3: Tóm tắt toàn bộ
+      text = `📝 TÓM TẮT THI ĐUA SIÊU THỊ - ${timeStr} NGÀY ${dateStr}\n`;
+      text += `━━━━━━━━━━━━━━━━━━\n\n`;
+      text += `🎯 Tổng NV: ${total}\n`;
+      text += `✅ ĐẠT (>=100%): ${filteredStaffMatrix.filter(s => s.rate >= 1).length}/${total}\n`;
+      text += `🟡 KHÁ (50-99%): ${filteredStaffMatrix.filter(s => s.rate >= 0.5 && s.rate < 1).length}/${total}\n`;
+      text += `🔴 YẾU (<50%): ${filteredStaffMatrix.filter(s => s.rate < 0.5).length}/${total}\n\n`;
+      text += `📊 BẢNG XẾP HẠNG ĐẦY ĐỦ:\n`;
+      filteredStaffMatrix.forEach((s, i) => {
+        const staffId = s.shortName.split(' - ')[0] || s.shortName;
+        const rateStr = (s.rate * 100).toFixed(0);
+        const icon = s.rate >= 1 ? '✅' : s.rate >= 0.5 ? '🟡' : '🔴';
+        text += `${icon} #${i + 1}. @${staffId}\n`;
+      });
+    }
+
+    setCommentText(text);
+    setCommentTemplate(template);
+    setCopiedComment(false);
+    return text;
+  };
+
   const handleExport = async () => {
     if (tableRef.current) {
+      setIsCapturing(true);
       const originalElement = tableRef.current;
       
       // Create a temporary container to hold the clone
@@ -851,42 +928,46 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
         console.error('Export failed:', err);
       } finally {
         document.body.removeChild(container);
+        setIsCapturing(false);
       }
     }
   };
 
   return (
-    <div ref={tableRef} className="card-thi-dua bg-white rounded-[16px] shadow-sm p-4 md:p-6 border border-slate-200" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
-      {/* Header */}
-      <div className="flex flex-row items-center justify-between w-full border-b border-slate-200 pb-4 mb-4">
-        <div className="flex flex-row items-center justify-between w-full border border-slate-200 rounded-xl py-4 bg-slate-50/30">
-          <div className="flex flex-col items-center justify-center w-1/2 border-r border-slate-200">
-            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">TỔNG HỢP THI ĐUA</h2>
-            <div className="flex items-center gap-2 text-slate-600 mt-1">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M3 7h18"/></svg>
-              <span className="text-sm font-bold">LUỸ KẾ ĐẾN NGÀY : {yesterdayStr}</span>
-            </div>
-          </div>
-          <div className="flex flex-col items-center justify-center w-1/2">
-            <h2 className="text-2xl font-black text-rose-600 uppercase tracking-tight">DỰ KIẾN</h2>
+    <div ref={tableRef} className="card-thi-dua bg-white rounded-2xl border border-slate-200/80 overflow-hidden" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
+      {/* ═══ Premium Gradient Banner Header (like BẢNG XẾP HẠNG DOANH THU) ═══ */}
+      <div className="relative bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] px-5 md:px-8 py-5 md:py-6">
+        <div className="flex flex-col items-center justify-center text-center">
+          <h2 className="text-[26px] sm:text-[32px] md:text-[36px] font-black text-[#FEF08A] uppercase tracking-wide leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, textShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+            TỔNG HỢP THI ĐUA
+          </h2>
+          <div className="flex items-center justify-center flex-wrap gap-2 sm:gap-3 mt-2 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              ✨ Luỹ kế dự kiến đến ngày: {yesterdayStr}
+            </span>
+            <span className="opacity-60">||</span>
+            <span className="text-[#FEF08A] font-extrabold whitespace-nowrap uppercase">
+              DỰ KIẾN
+            </span>
           </div>
         </div>
-        <div className="flex items-center gap-2 ml-4">
 
+        {/* Action Buttons - positioned top-right */}
+        <div className="absolute right-3 top-3 flex items-center gap-1.5">
           {/* Category Filter Dropdown */}
-          <div className="relative" ref={catDropdownRef}>
+          <div className="relative no-capture" ref={catDropdownRef}>
             <button
               onClick={() => setIsCatDropdownOpen(!isCatDropdownOpen)}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-all min-w-[180px] justify-between shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 border border-white/25 rounded-xl text-[10px] font-black uppercase tracking-wider text-white backdrop-blur-md transition-all min-w-[100px] justify-between cursor-pointer"
             >
               <span className="truncate">
                 {visibleCategories.length === categories.length
-                  ? "Tất cả ngành hàng"
+                  ? "Tất cả NH"
                   : visibleCategories.length === 0
-                    ? "Chưa chọn NH"
+                    ? "Chưa chọn"
                     : `${visibleCategories.length}/${categories.length} NH`}
               </span>
-              <ChevronDown size={14} className={cn("transition-transform text-slate-400", isCatDropdownOpen && "rotate-180")} />
+              <ChevronDown size={12} className={cn("transition-transform text-white/70", isCatDropdownOpen && "rotate-180")} />
             </button>
 
             {isCatDropdownOpen && (
@@ -899,20 +980,20 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                       placeholder="Tìm ngành hàng..."
                       value={catSearchTerm}
                       onChange={(e) => setCatSearchTerm(e.target.value)}
-                      className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold focus:ring-2 focus:ring-indigo-500 outline-none uppercase"
+                      className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold focus:ring-2 focus:ring-emerald-500/30 outline-none uppercase"
                     />
                   </div>
                 </div>
                 <div className="p-2 border-b border-slate-100 flex items-center justify-between px-4">
                   <button
                     onClick={() => setVisibleCategories([...categories])}
-                    className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-800 transition-colors"
+                    className="text-[10px] font-black uppercase text-emerald-600 hover:text-emerald-800 transition-colors cursor-pointer"
                   >
                     Chọn tất cả
                   </button>
                   <button
                     onClick={() => setVisibleCategories([])}
-                    className="text-[10px] font-black uppercase text-slate-500 hover:text-slate-700 transition-colors"
+                    className="text-[10px] font-black uppercase text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
                   >
                     Bỏ chọn tất cả
                   </button>
@@ -921,12 +1002,12 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                   {filteredCatList.map(cat => (
                     <label
                       key={cat}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-indigo-50 cursor-pointer transition-colors group"
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-emerald-50 cursor-pointer transition-colors group"
                     >
                       <div className={cn(
                         "w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all",
                         visibleCategories.includes(cat)
-                          ? "bg-indigo-600 border-indigo-600"
+                          ? "bg-emerald-600 border-emerald-600"
                           : "border-slate-200 group-hover:border-slate-300 bg-white"
                       )}>
                         {visibleCategories.includes(cat) && <Check size={12} className="text-white stroke-[3px]" />}
@@ -939,7 +1020,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                       />
                       <span className={cn(
                         "text-[11px] font-black uppercase tracking-wider transition-colors",
-                        visibleCategories.includes(cat) ? "text-indigo-600" : "text-slate-600"
+                        visibleCategories.includes(cat) ? "text-emerald-700" : "text-slate-600"
                       )}>
                         {cat}
                       </span>
@@ -951,75 +1032,106 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
           </div>
 
           <button 
-            onClick={handleCopyAll}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold uppercase transition-all",
-              isCopyingAll ? "bg-emerald-100 text-emerald-600 border border-emerald-200" : "bg-emerald-600 text-white hover:bg-emerald-700"
-            )}
+            onClick={() => {
+              generateThiDuaComment(commentTemplate);
+              setIsCommentOpen(true);
+            }}
+            className="no-capture flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
           >
-            {isCopyingAll ? <Check size={16} /> : <MessageSquare size={16} />}
-            {isCopyingAll ? "ĐÃ COPY" : "COPY BÁO CÁO"}
+            <Sparkles size={12} className="animate-pulse" />
+            <span>NHẬN XÉT</span>
           </button>
           <button 
             onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold uppercase hover:bg-indigo-700 transition-colors"
+            className="no-capture flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white border border-white/25 rounded-xl text-[10px] font-black uppercase tracking-wider backdrop-blur-md transition-all cursor-pointer"
           >
-            <Download size={16} />
+            <Download size={12} />
+            <span>XUẤT ẢNH</span>
           </button>
         </div>
       </div>
 
-      {/* Table */}
+      {/* ═══ Table ═══ */}
       <div className="overflow-x-auto">
         <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
           <thead>
             <tr className="text-slate-900 h-[85px]">
               <th 
-                className="px-1 py-1 text-[13px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none"
+                className="px-1 py-1 text-[13px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none cursor-pointer"
                 style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}
+                onClick={() => handleHeaderClick('default')}
               >
-                STT
+                STT{renderSortIcon('default')}
               </th>
               <th 
-                className="px-3 py-1 text-[13px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none"
+                className="px-3 py-1 text-[13px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none cursor-pointer"
                 style={{ width: '320px', minWidth: '320px', maxWidth: '320px' }}
+                onClick={() => handleHeaderClick('name')}
               >
-                NHÂN VIÊN
+                NHÂN VIÊN{renderSortIcon('name')}
               </th>
               <th 
-                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none"
+                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none cursor-pointer"
                 style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}
+                onClick={() => handleHeaderClick('achieved')}
               >
-                ĐẠT
+                ĐẠT{renderSortIcon('achieved')}
               </th>
               <th 
-                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none"
+                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none cursor-pointer"
                 style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}
+                onClick={() => handleHeaderClick('rate')}
               >
-                TỶ LỆ
+                TỶ LỆ{renderSortIcon('rate')}
               </th>
-              {categories.filter(catName => visibleCategories.includes(catName)).map(catName => (
-                <React.Fragment key={catName}>
-                  <th 
-                    className={cn(
-                      "px-1 py-1 text-[12px] font-black uppercase tracking-tight text-center border border-white/20 select-none",
-                      getCategoryBadgeStyleClasses(catName, categoryConfig).bgText
-                    )}
-                    style={{
-                      width: '70px',
-                      minWidth: '70px',
-                      maxWidth: '70px',
-                      wordBreak: 'break-word',
-                      whiteSpace: 'normal',
-                    }}
-                  >
-                    {catName}
-                  </th>
-                  {cleanCategoryName(catName) === 'maylanhdacquyen' && (
-                    <th className="bg-white border border-white/20" style={{ width: '40px', minWidth: '40px', maxWidth: '40px' }}></th>
-                  )}
-                </React.Fragment>
-              ))}
+              {(() => {
+                // Pre-compute group info for continuous gradient
+                const visibleCats = categories.filter(catName => visibleCategories.includes(catName));
+                const groupCounts: Record<string, number> = {};
+                const groupIndices: Record<string, number> = {};
+                visibleCats.forEach(catName => {
+                  const group = getCategoryGroupType(catName, categoryConfig);
+                  if (!groupCounts[group]) groupCounts[group] = 0;
+                  groupIndices[catName] = groupCounts[group];
+                  groupCounts[group]++;
+                });
+
+                return visibleCats.map(catName => {
+                  const catStyle = getCategoryBadgeStyleClasses(catName, categoryConfig);
+                  const group = getCategoryGroupType(catName, categoryConfig);
+                  const total = groupCounts[group] || 1;
+                  const idx = groupIndices[catName] || 0;
+                  // Spread gradient across group width
+                  const bgSize = `${total * 100}% 100%`;
+                  const bgPos = `${total > 1 ? (idx / (total - 1)) * 100 : 0}% 0%`;
+                  return (
+                    <React.Fragment key={catName}>
+                      <th 
+                        className={cn(
+                          "px-1 py-1 text-[12px] font-black uppercase tracking-tight text-center border border-white/20 select-none cursor-pointer",
+                          catStyle.bgText
+                        )}
+                        style={{
+                          width: '70px',
+                          minWidth: '70px',
+                          maxWidth: '70px',
+                          wordBreak: 'break-word',
+                          whiteSpace: 'normal',
+                          background: catStyle.gradient,
+                          backgroundSize: bgSize,
+                          backgroundPosition: bgPos,
+                        }}
+                        onClick={() => handleHeaderClick('category', catName)}
+                      >
+                        {catName}{renderSortIcon('category', catName)}
+                      </th>
+                      {cleanCategoryName(catName) === 'maylanhdacquyen' && (
+                        <th className="bg-white border border-white/20" style={{ width: '40px', minWidth: '40px', maxWidth: '40px' }}></th>
+                      )}
+                    </React.Fragment>
+                  );
+                });
+              })()}
             </tr>
           </thead>
           <tbody>
@@ -1034,29 +1146,29 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
               const ratePercentStr = `${(visibleRate * 100).toFixed(1)}%`;
 
               return (
-                <tr key={staff.fullId} className={cn("hover:bg-slate-50 transition-colors h-[40px]", staff.displayName.includes('30016') ? 'border-b border-slate-200' : '')}>
-                  <td className="px-2 py-0 text-center border border-slate-200 bg-[#d1fae5] text-slate-900 font-black text-[15px] truncate">
+                <tr key={staff.fullId} className={cn("hover:bg-slate-50/70 transition-colors h-[40px]", staff.displayName.includes('30016') ? 'border-b border-slate-200' : '')}>
+                  <td className="px-2 py-0 text-center border border-slate-200 bg-[#d1fae5] text-slate-900 font-black text-[13px] truncate">
                     {index + 1}
                   </td>
-                  <td className="px-3 py-0 border border-slate-200 text-[15px] font-black uppercase tracking-tight text-slate-700">
+                  <td className="px-3 py-0 border border-slate-200 text-[13px] font-black uppercase tracking-tight text-slate-700">
                     <div className="flex items-center justify-between group h-full">
                       <span>{staff.displayName}</span>
                       <button 
                         onClick={() => handleCopyStaff(staff)}
                         className={cn(
-                          "p-1 rounded-md transition-all opacity-0 group-hover:opacity-100",
-                          copiedId === staff.fullId ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400 hover:text-indigo-600"
+                          "p-1 rounded-md transition-all opacity-0 group-hover:opacity-100 cursor-pointer",
+                          copiedId === staff.fullId ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400 hover:text-emerald-600"
                         )}
                       >
                         {copiedId === staff.fullId ? <Check size={12} /> : <Copy size={12} />}
                       </button>
                     </div>
                   </td>
-                  <td className="px-1 py-0 text-[15px] font-black text-center border border-slate-200 bg-[#ecfdf5] text-[#065f46]">
+                  <td className="px-1 py-0 text-[13px] font-black text-center border border-slate-200 bg-[#ecfdf5] text-[#065f46]">
                     {visibleAchieved}/{visibleCategories.length}
                   </td>
                   <td className={cn(
-                    "px-1 py-0 text-[15px] font-black text-center border border-slate-200 bg-[#ecfdf5]",
+                    "px-1 py-0 text-[13px] font-black text-center border border-slate-200 bg-[#ecfdf5]",
                     isBelowHalf ? "text-[#b91c1c]" : "text-[#065f46]"
                   )}>
                     {ratePercentStr}
@@ -1068,8 +1180,12 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                   return (
                     <React.Fragment key={idx}>
                       <td className={cn(
-                          "px-1 py-0 text-[15px] font-black text-center border border-slate-200 truncate",
-                          roundedRate >= 100 ? "text-[#047857]" : roundedRate >= 80 ? "text-slate-900 bg-white" : "text-[#b91c1c]"
+                          "px-1 py-0 text-[13px] font-black text-center border border-slate-200 truncate",
+                          roundedRate >= 100
+                            ? "text-[#047857] bg-[#d1fae5]"  /* Xanh chữ + xanh nền */
+                            : roundedRate >= 50
+                              ? "text-slate-900 bg-white"      /* Đen chữ + trắng nền */
+                              : "text-[#b91c1c] bg-[#fee2e2]"  /* Đỏ chữ + đỏ nhạt nền */
                       )}>
                           {roundedRate}%
                       </td>
@@ -1086,30 +1202,95 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
         </table>
       </div>
 
-      {/* Image Preview Modal */}
-      {previewImage && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setPreviewImage(null)}>
-          <div className="relative bg-white rounded-2xl max-w-[90vw] max-h-[90vh] flex flex-col overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-4 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800">Ảnh chụp màn hình</h3>
-              <button
-                onClick={() => setPreviewImage(null)}
-                className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors"
-              >
-                <X size={20} />
+      {/* Comment Modal - Orange gradient design with template tabs */}
+      {isCommentOpen && ReactDOM.createPortal(
+        <div className="no-capture fixed inset-0 z-[9999] flex items-start justify-center pt-[5vh] bg-black/40 backdrop-blur-xs" onClick={() => setIsCommentOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-[580px] w-[95vw] mx-4 overflow-hidden border border-slate-200" onClick={e => e.stopPropagation()}>
+            {/* Header - Orange gradient */}
+            <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-[#ea580c] via-[#f97316] to-[#fb923c] text-white">
+              <div className="flex items-center gap-2.5">
+                <Sparkles size={18} className="text-white" />
+                <span className="text-[14px] font-black text-white uppercase tracking-wide" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                  Nhận xét thi đua
+                </span>
+              </div>
+              <button onClick={() => setIsCommentOpen(false)} className="p-1.5 rounded-lg hover:bg-white/20 text-white transition-colors cursor-pointer">
+                <X size={18} />
               </button>
             </div>
-            <div className="px-4 py-3 bg-amber-50 border-b border-amber-100 flex items-center justify-center">
-              <p className="text-[13px] font-black text-amber-800 uppercase tracking-wide flex items-center gap-2">
-                <span className="text-lg">💡</span> Mẹo: Nhấp chuột phải (hoặc nhấn giữ trên điện thoại) vào ảnh và chọn "Sao chép hình ảnh"
-              </p>
+
+            {/* Template Tabs */}
+            <div className="px-5 pt-4 pb-2">
+              <p className="text-[12px] font-black text-slate-500 mb-2 uppercase tracking-wide">Chọn mẫu nội dung nhận xét:</p>
+              <div className="flex gap-2">
+                {[
+                  { id: 1 as const, label: 'Mẫu 1: TOP/BOT NV', icon: '🏆' },
+                  { id: 2 as const, label: 'Mẫu 2: DS Cần tăng tốc', icon: '⚠️' },
+                  { id: 3 as const, label: 'Mẫu 3: Tóm tắt', icon: '⚡' },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setCommentTemplate(tab.id);
+                      generateThiDuaComment(tab.id);
+                    }}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all cursor-pointer border",
+                      commentTemplate === tab.id
+                        ? "bg-gradient-to-r from-[#ea580c] to-[#f97316] text-white border-orange-500 shadow-md"
+                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                    )}
+                  >
+                    <span>{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="p-4 bg-slate-50 flex items-center justify-center min-h-[50vh] overflow-hidden">
-              <img src={previewImage} alt="Preview" className="max-w-full max-h-[calc(90vh-120px)] object-contain shadow-sm rounded-xl border border-slate-200" />
+
+            {/* Body */}
+            <div className="px-5 pb-5">
+              <p className="text-[12px] font-black text-slate-500 mb-2 uppercase tracking-wide mt-2">
+                Nội dung nhận xét (có thể chỉnh sửa trực tiếp):
+              </p>
+              <textarea
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                rows={12}
+                className="w-full border border-slate-300 rounded-xl px-4 py-3 text-[13px] font-bold text-slate-800 leading-relaxed resize-y focus:ring-2 focus:ring-orange-400/40 focus:border-orange-400 outline-none bg-slate-50/50"
+                style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}
+              />
+              <div className="flex items-center justify-between mt-4">
+                <span className="text-[11px] font-bold text-slate-400 italic">
+                  Sẵn sàng dán trực tiếp vào Zalo / Line / Teams
+                </span>
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(commentText);
+                      setCopiedComment(true);
+                      setTimeout(() => setCopiedComment(false), 2000);
+                    } catch { /* fallback */ }
+                  }}
+                  className={`flex items-center gap-2 px-5 py-2.5 text-[12px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
+                    copiedComment 
+                      ? 'text-white bg-emerald-500 border border-emerald-600' 
+                      : 'text-white bg-gradient-to-r from-[#ea580c] to-[#f97316] hover:from-[#c2410c] hover:to-[#ea580c] border border-orange-500'
+                  }`}
+                >
+                  {copiedComment ? <><Check size={14} /> Đã copy!</> : <><Copy size={14} /> Sao chép nhận xét</>}
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
+
+      {/* Capture Loading Overlay */}
+      <CaptureLoadingOverlay isLoading={isCapturing} />
+
+      {/* Image Preview Modal */}
+      <ImagePreviewModal previewImage={previewImage} setPreviewImage={setPreviewImage} />
     </div>
   );
 };
