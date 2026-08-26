@@ -688,10 +688,19 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
   const runCaptureStrategy = async (frameWrapper: HTMLElement, strategy: CaptureStrategy): Promise<Blob | string> => {
     if (strategy === 'domToPng') {
+      // `font: false` is a TOP-LEVEL modern-screenshot option, not a `features` key —
+      // the previous `features: { font: false, image: false }` matched no real option
+      // (features only has copyScrollbar/removeAbnormalAttributes/removeControlCharacter/
+      // fixSvgXmlDecode/restoreScrollPosition) and silently did nothing, so domToPng was
+      // downloading and base64-embedding every @font-face on the page for EVERY card —
+      // almost certainly the actual source of the 15-30s+ per-card times measured. Fonts
+      // are already rendered by the browser via ensureFontsReady() before we ever call
+      // this, and the result is rasterized to PNG immediately in this same page, so
+      // there's nothing that needs a portable embedded font — safe to fully disable.
       return await domToPng(frameWrapper, {
         backgroundColor: '#ffffff',
         scale: 2,
-        features: { font: false, image: false },
+        font: false,
         width: 1120,
         height: frameWrapper.scrollHeight,
       });
@@ -700,6 +709,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       return await htmlToImage.toPng(frameWrapper, {
         backgroundColor: '#ffffff',
         pixelRatio: 2,
+        skipFonts: true,
         style: { ...EXPORT_FONT_STYLE },
       });
     }
