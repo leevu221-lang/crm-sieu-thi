@@ -136,6 +136,9 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
   // it — otherwise a manual save shortly after an edit gets duplicated by the debounce
   // firing again a few seconds later, doubling Firestore writes.
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Snapshot of the last value actually written to Firestore, used to skip no-op
+  // saves — see saveStoreRevenue.
+  const lastSavedRevenueSnapshotRef = useRef<string | null>(null);
 
   // Set up Supabase Realtime subscription for store shared settings
   // PERF: Removed stName from deps — uses stNameRef instead to avoid re-subscribing on every name change
@@ -307,37 +310,29 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       return;
     }
 
+    const cleanMaKho = maKho.trim();
+    const cleanStore = (storeToSave || maKho).trim();
+
+    // Use the actual stTargetSauHeSo value — no recalculation
+    const newTargetDataForCompare = {
+      stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi,
+      stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays,
+      linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings,
+      excelFileName, thuongStRows, topPercentRankLimit, drillFilterStaff, categoryMappingInput
+    };
+
+    // Skip the write entirely if nothing actually differs from the last value
+    // persisted for this store (excludes updated_at, which is always "different").
+    const currentSnapshotKey = JSON.stringify([normalizeStoreId(cleanStore), newTargetDataForCompare]);
+    if (lastSavedRevenueSnapshotRef.current === currentSnapshotKey) {
+      console.log('[RTSTSharedData] Skip save — no change detected');
+      return;
+    }
+
     setIsSavingStoreRevenue(true);
     try {
-      const cleanMaKho = maKho.trim();
-      const cleanStore = (storeToSave || maKho).trim();
-
-      // Use the actual stTargetSauHeSo value — no recalculation
-
       const newTargetData = {
-        stName,
-        stDtlk,
-        stDtqd,
-        stDtDuKienQD,
-        stPercentHTTargetDuKienQD,
-        stTargetQuyDoi,
-        stPercentTarget,
-        stTargetSauHeSo,
-        manualAdjustment,
-        selectedMonth,
-        daysPassed,
-        totalDays,
-
-        linkBcTongHop,
-        linkNganhHangTongHop,
-        staffListFileName,
-        excludedStaffIds,
-        storeSettings,
-        excelFileName,
-        thuongStRows,
-        topPercentRankLimit,
-        drillFilterStaff,
-        categoryMappingInput,
+        ...newTargetDataForCompare,
         updated_at: new Date().toISOString()
       };
 
@@ -363,6 +358,8 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         console.error('[SharedData] Upsert error:', error);
         throw error;
       }
+
+      lastSavedRevenueSnapshotRef.current = currentSnapshotKey;
     } catch (error: any) {
       console.error('Lỗi lưu cài đặt:', error);
       let message = `Lỗi lưu cài đặt: ${error.message}`;

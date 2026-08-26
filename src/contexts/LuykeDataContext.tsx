@@ -114,6 +114,9 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const tragopMatranRef = useRef(tragopMatran);
   const tragopNvRef = useRef(tragopNv);
   const banKemNvRef = useRef(banKemNv);
+  // Snapshot of the last value actually written to Firestore, used to skip no-op
+  // saves (onBlur fires even when the field wasn't actually changed) — see saveLuykeData.
+  const lastSavedLuykeSnapshotRef = useRef<string | null>(null);
   const categoryTargetsRef = useRef(categoryTargets);
   const percentCacheRef = useRef<Map<string, number>>(new Map());
   const activeStoreRef = useRef(activeStore);
@@ -197,14 +200,37 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return;
     }
 
+    const targetsToSave = overrideTargets || categoryTargetsRef.current;
+
+    const summaryVal = cleanBiReportText(clusterSummaryInputRef.current || '');
+    const categoryVal = cleanBiReportText(clusterCategoryInputRef.current || '');
+    const staffVal = cleanBiReportText(staffInputRef.current || '');
+    const staffCategoryVal = cleanBiReportText(staffCategoryInputRef.current || '');
+    const staffListVal = cleanBiReportText(staffListInputRef.current || '') || '';
+    const dtGioCongVal = cleanBiReportText(dtGioCongRef.current || '') || '';
+    const tragopMatranVal = cleanBiReportText(tragopMatranRef.current || '') || '';
+    const tragopNvVal = cleanBiReportText(tragopNvRef.current || '') || '';
+    const banKemNvVal = cleanBiReportText(banKemNvRef.current || '') || '';
+    const categoryTargetsVal = (targetsToSave && targetsToSave.length > 0) ? targetsToSave : [];
+
+    // Skip the write entirely if nothing actually differs from the last value
+    // persisted for this store — same reasoning as useRealtimeData.ts's guard.
+    const currentSnapshotKey = JSON.stringify([
+      normalizeStoreId(cleanStore), summaryVal, categoryVal, categoryTargetsVal, staffVal,
+      staffCategoryVal, staffListVal, dtGioCongVal, dataPhanCaRef.current, tragopMatranVal,
+      tragopNvVal, banKemNvVal
+    ]);
+    if (lastSavedLuykeSnapshotRef.current === currentSnapshotKey) {
+      console.log(`[LuykeData] Skip save — no change detected${fieldName ? ` (${fieldName})` : ''}`);
+      return;
+    }
+
     if (source === 'staff') setIsSavingStaff(true);
     if (source === 'targets') setIsSavingTargets(true);
     setIsProcessingSave(true);
     globalPendingSaves.add(cleanStore);
 
     try {
-      const targetsToSave = overrideTargets || categoryTargetsRef.current;
-
       const payload: any = {
         id: normalizeStoreId(cleanStore), // Normalized UPPERCASE ID to prevent duplicates
         warehouse_code: shortMaKho,
@@ -212,24 +238,19 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updated_at: new Date().toISOString()
       };
 
-      const summaryVal = cleanBiReportText(clusterSummaryInputRef.current || '');
-      const categoryVal = cleanBiReportText(clusterCategoryInputRef.current || '');
-      const staffVal = cleanBiReportText(staffInputRef.current || '');
-      const staffCategoryVal = cleanBiReportText(staffCategoryInputRef.current || '');
-
       // Always include ALL fields — use empty string when cleared
       // This ensures upsert clears deleted data on Firebase
       payload.lk_bi_tong_quan = summaryVal || '';
       payload.lk_nh_sieu_thi = categoryVal || '';
-      payload.category_targets = (targetsToSave && targetsToSave.length > 0) ? targetsToSave : [];
+      payload.category_targets = categoryTargetsVal;
       payload.lk_dt_nv = staffVal || '';
       payload.lk_td_nv = staffCategoryVal || '';
-      payload.ds_nhan_vien = cleanBiReportText(staffListInputRef.current || '') || '';
-      payload.dt_gio_cong = cleanBiReportText(dtGioCongRef.current || '') || '';
+      payload.ds_nhan_vien = staffListVal;
+      payload.dt_gio_cong = dtGioCongVal;
       payload.data_phan_ca = dataPhanCaRef.current || null;
-      payload.tragop_matran = cleanBiReportText(tragopMatranRef.current || '') || '';
-      payload.tragop_nv = cleanBiReportText(tragopNvRef.current || '') || '';
-      payload.ban_kem_nv = cleanBiReportText(banKemNvRef.current || '') || '';
+      payload.tragop_matran = tragopMatranVal;
+      payload.tragop_nv = tragopNvVal;
+      payload.ban_kem_nv = banKemNvVal;
 
       const { error } = await supabase
         .from('store')
@@ -239,6 +260,8 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         console.error('[LuykeData] Record upsert error:', error);
         throw error;
       }
+
+      lastSavedLuykeSnapshotRef.current = currentSnapshotKey;
 
       // Keep allStoresCache in sync after successful save
       setAllStoresCache(prev => {

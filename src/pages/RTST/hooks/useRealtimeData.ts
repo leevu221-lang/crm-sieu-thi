@@ -121,6 +121,9 @@ export const useRealtimeData = (maKho: string) => {
   const ycxFileNameRef = useRef(ycxFileName);
   const ycxFileNameMoiRef = useRef(ycxFileNameMoi);
   const activeStoreRef = useRef(activeStore);
+  // Snapshot of the last value actually written to (or freshly loaded from) Firestore,
+  // used to skip no-op saves — see saveRealtimeData.
+  const lastSavedSnapshotRef = useRef<string | null>(null);
 
   useEffect(() => { marketInputRef.current = marketInput; }, [marketInput]);
   useEffect(() => { categoryInputRef.current = categoryInput; }, [categoryInput]);
@@ -331,30 +334,45 @@ export const useRealtimeData = (maKho: string) => {
       }
       return;
     }
+    const cleanMaKho = normalizedMaKho;
+
+    const sanitizeField = (val: string) => {
+      const s = String(val || '').trim();
+      return s.startsWith('GZ:') ? '' : s;
+    };
+
+    const marketVal = sanitizeField(marketInputRef.current);
+    const categoryVal = sanitizeField(categoryInputRef.current);
+    const categoryRevenueVal = sanitizeField(categoryRevenueInputRef.current);
+    const categoryTargetVal = sanitizeField(categoryTargetInputRef.current);
+
+    // Read YCX file names from state refs
+    const ycxFileNameVal = ycxFileNameRef.current || '';
+    const ycxFileNameMoiVal = ycxFileNameMoiRef.current || '';
+
+    // Skip the write entirely if nothing actually differs from the last value we
+    // persisted for this store — onBlur fires on every field regardless of whether
+    // the user changed anything (e.g. tabbing through without editing, or only one
+    // of several fields sharing a blur handler actually changed), and each of those
+    // no-op saves was still a full Firestore write + notification. Compare BEFORE
+    // compressing YCX data too, so an unchanged value skips that CPU work as well.
+    const currentSnapshotKey = JSON.stringify([
+      normalizeStoreId(cleanStore), marketVal, categoryVal, categoryRevenueVal,
+      categoryTargetVal, ycxDataRef.current, ycxDataMoiRef.current, ycxFileNameVal, ycxFileNameMoiVal
+    ]);
+    if (lastSavedSnapshotRef.current === currentSnapshotKey) {
+      console.log(`[RealtimeData] Skip save — no change detected${fieldName ? ` (${fieldName})` : ''}`);
+      return;
+    }
+
     setIsSavingRealtime(true);
     try {
-      const cleanMaKho = normalizedMaKho;
-
       const minifiedYcx = ycxDataRef.current ? minifyYcxData(ycxDataRef.current) : '';
       const minifiedYcxMoi = ycxDataMoiRef.current ? minifyYcxData(ycxDataMoiRef.current) : '';
 
       // Compress YCX data to avoid exceeding Firestore 1MB document limit
       const compressedYcx = minifiedYcx ? await compressString(minifiedYcx) : '';
       const compressedYcxMoi = minifiedYcxMoi ? await compressString(minifiedYcxMoi) : '';
-
-      const sanitizeField = (val: string) => {
-        const s = String(val || '').trim();
-        return s.startsWith('GZ:') ? '' : s;
-      };
-
-      const marketVal = sanitizeField(marketInputRef.current);
-      const categoryVal = sanitizeField(categoryInputRef.current);
-      const categoryRevenueVal = sanitizeField(categoryRevenueInputRef.current);
-      const categoryTargetVal = sanitizeField(categoryTargetInputRef.current);
-
-      // Read YCX file names from state refs
-      const ycxFileNameVal = ycxFileNameRef.current || '';
-      const ycxFileNameMoiVal = ycxFileNameMoiRef.current || '';
 
       const payload: any = {
         id: normalizeStoreId(cleanStore), // Normalized UPPERCASE ID to prevent duplicates
@@ -391,7 +409,9 @@ export const useRealtimeData = (maKho: string) => {
         console.error('[RealtimeData] Upsert error:', upsertError);
         throw upsertError;
       }
-      
+
+      lastSavedSnapshotRef.current = currentSnapshotKey;
+
       if (!silent) {
         setIsYcxDirty(false);
       }
@@ -517,11 +537,15 @@ export const useRealtimeData = (maKho: string) => {
         // Block loading ONLY if user has un-saved local edits in this instance
         const isProtected = isDirtyRef.current;
         if (!isProtected) {
-          setMarketInput(await sanitizeField(record.rt_bi_tong_quan));
-          setCategoryInput(await sanitizeField(record.rt_nh_cum));
-          setCategoryRevenueInput(await sanitizeField(record.lk_bi_tong_quan));
-          setCategoryTargetInput(await sanitizeField(record.lk_nh_sieu_thi));
-          
+          const loadedMarket = await sanitizeField(record.rt_bi_tong_quan);
+          const loadedCategory = await sanitizeField(record.rt_nh_cum);
+          const loadedCategoryRevenue = await sanitizeField(record.lk_bi_tong_quan);
+          const loadedCategoryTarget = await sanitizeField(record.lk_nh_sieu_thi);
+          setMarketInput(loadedMarket);
+          setCategoryInput(loadedCategory);
+          setCategoryRevenueInput(loadedCategoryRevenue);
+          setCategoryTargetInput(loadedCategoryTarget);
+
           let finalYcxData = await sanitizeField(record.ycx_data);
           let finalYcxDataMoi = await sanitizeField(record.ycx_data_moi);
           let finalYcxFileName = record.ycx_file_name || '';
@@ -546,6 +570,14 @@ export const useRealtimeData = (maKho: string) => {
           // Restore YCX file names from Firebase or LocalDB
           setYcxFileNameState(finalYcxFileName);
           setYcxFileNameMoiState(finalYcxFileNameMoi);
+
+          // Seed the no-op-save guard with what we just loaded, so the first
+          // onBlur after loading (with no actual user edit) doesn't fire a
+          // redundant write just because *InputRef hasn't caught up to state yet.
+          lastSavedSnapshotRef.current = JSON.stringify([
+            targetDocId, loadedMarket, loadedCategory, loadedCategoryRevenue,
+            loadedCategoryTarget, finalYcxData, finalYcxDataMoi, finalYcxFileName, finalYcxFileNameMoi
+          ]);
         } else {
           console.log('[RealtimeData] BLOCKED loadData restore — user recently cleared/edited data');
         }
