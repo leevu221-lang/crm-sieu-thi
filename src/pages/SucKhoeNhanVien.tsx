@@ -4,16 +4,21 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { HeartPulse, Camera, TrendingUp, Search, ChevronDown, ChevronUp, Check, MessageSquare, FileText, ChevronRight, LayoutGrid, Info, Users, Printer, UploadCloud, Trophy, TrendingDown, Gift, Target, Trash2, Clock, X, ArrowLeft, ArrowRight, ArrowLeftRight, RotateCcw, RefreshCw, AlertCircle } from 'lucide-react';
+import ReactDOM from 'react-dom';
+import { HeartPulse, Camera, TrendingUp, Search, ChevronDown, ChevronUp, Check, MessageSquare, FileText, ChevronRight, LayoutGrid, Info, Users, Printer, UploadCloud, Trophy, TrendingDown, Gift, Target, Trash2, Clock, X, ArrowLeft, ArrowRight, ArrowLeftRight, RotateCcw, RefreshCw, AlertCircle, Eye, Filter, Upload, GripVertical, Tag, Sparkles, Copy, Swords, ClipboardPaste, Loader2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as htmlToImage from 'html-to-image';
+import { domToPng } from 'modern-screenshot';
+import html2canvas from 'html2canvas';
+import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 import { useEmployeeHealth } from './EmployeeHealth/hooks/useEmployeeHealth';
 import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';
 import { ImagePreviewModal } from '../components/ImagePreviewModal';
+import { CaptureLoadingOverlay } from '../components/CaptureLoadingOverlay';
 import { useLuykeData } from './RTST/hooks/useLuykeData';
 import { useAuth } from '../contexts/AuthContext';
 import { useMarket } from '../contexts/MarketContext';
@@ -24,6 +29,8 @@ import EmployeeDetailTable from './EmployeeHealth/components/EmployeeDetailTable
 import SummaryThiDuaTable, { parseStaffMatrixDataRefined } from './EmployeeHealth/components/SummaryThiDuaTable';
 import CategoryDetailByStaffTable from './EmployeeHealth/components/CategoryDetailByStaffTable';
 import TongHopNvTable from './EmployeeHealth/components/TongHopNvTable';
+import StaffComparisonModal, { StaffComparisonData } from './EmployeeHealth/components/StaffComparisonModal';
+import { GiaTriDhTab } from './EmployeeHealth/components/GiaTriDhTab';
 import { cn, parseStaffRankData, parseYcxData, normalizeStoreId, parseStaffValueList, normalize, parseCategoryData, cleanCategoryName, isKhoLuuDong, formatCurrencyValue } from './RTST/utils';
 import { useCategoryConfig } from '../hooks/useCategoryConfig';
 
@@ -74,8 +81,40 @@ const BONUS_COLS = [
   { name: 'Điểm thực lãnh', index: 7 }
 ];
 
+const LiveClockBadge = React.memo(() => {
+  const [liveClockStr, setLiveClockStr] = useState(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')} - ${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
+  });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      setLiveClockStr(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')} - ${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gradient-to-r from-slate-50 to-emerald-50/40 border border-emerald-200/90 text-emerald-800 rounded-full text-[10px] sm:text-xs md:text-sm font-black tracking-tight shadow-2xs whitespace-nowrap">
+      <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 animate-pulse" />
+      <span>{liveClockStr}</span>
+    </div>
+  );
+});
+
 const parseBonusData = (text: string, staffObj: any, marketFilter: string) => {
   if (!text || text.trim().length === 0) return { tong: null, details: Array(8).fill(null) };
+  
+  // Direct numeric fallback if user types/pastes a raw number directly into the individual input box
+  const cleanText = text.trim().replace(/[.,\sđ]/gi, '');
+  if (/^\d+$/.test(cleanText)) {
+    const val = parseInt(cleanText, 10);
+    const details = Array(8).fill(null);
+    details[7] = val; // Set the thuc lanh index
+    return { tong: val, details };
+  }
+
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   const currentStoreClean = marketFilter && marketFilter !== 'ALL' 
     ? removeAccents(marketFilter).replace(/^(dml|dms3|dms|dmm|tgd|aar|bhx)\s+/, '').trim()
@@ -257,70 +296,344 @@ const parseBonusData = (text: string, staffObj: any, marketFilter: string) => {
   return { tong: foundRow ? tong : null, details: foundRow ? details : Array(8).fill(null) };
 };
 
+interface CustomFilterPopoverProps {
+  label: string;
+  placeholder: string;
+  options: string[];
+  selected: string[];
+  onChange: (selected: string[]) => void;
+  pillBgClass: string;
+  searchIconColorClass: string;
+  icon: React.ReactNode;
+}
+
+const CustomFilterPopover: React.FC<CustomFilterPopoverProps> = ({
+  label,
+  placeholder,
+  options,
+  selected,
+  onChange,
+  pillBgClass,
+  searchIconColorClass,
+  icon
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const filteredOptions = useMemo(() => {
+    if (!searchQuery.trim()) return options;
+    const q = removeAccents(searchQuery).toLowerCase().trim();
+    return options.filter(opt => removeAccents(opt).toLowerCase().includes(q));
+  }, [options, searchQuery]);
+
+  const isAllSelected = selected.length === 0 || selected.length === options.length;
+
+  const getDisplayText = () => {
+    if (isAllSelected || selected.length === 0) return label;
+    if (selected.length === 1) {
+      const first = selected[0].replace(/^NNH\s+/, '').split(/[-–—]/)[0].trim();
+      return `${label}: ${first}`;
+    }
+    return `${label}: ${selected.length} đã chọn`;
+  };
+
+  const handleToggleOption = (opt: string) => {
+    if (selected.includes(opt)) {
+      const next = selected.filter(item => item !== opt);
+      onChange(next);
+    } else {
+      onChange([...selected, opt]);
+    }
+  };
+
+  const handleSelectAll = () => {
+    onChange([...options]);
+  };
+
+  const handleDeselectAll = () => {
+    onChange([]);
+  };
+
+  return (
+    <div className="relative inline-block text-left" ref={popoverRef}>
+      {/* Pill Button */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "flex items-center gap-1.5 px-4 py-2 rounded-full border-2 text-[17.5px] font-black cursor-pointer hover:opacity-90 transition-all select-none shadow-sm active:scale-95",
+          pillBgClass
+        )}
+      >
+        <span className="flex items-center gap-1.5">
+          {icon} {getDisplayText()}
+        </span>
+        <Search size={13} className={cn("ml-1", searchIconColorClass)} />
+      </button>
+
+      {/* Popover Box (Identical to HÌNH 2) */}
+      {isOpen && (
+        <div className="absolute left-0 mt-2 w-[330px] sm:w-[350px] bg-white border-2 border-indigo-100 rounded-[28px] shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
+          {/* Top Search Bar */}
+          <div className="relative mb-3">
+            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-500 pointer-events-none">
+              <Filter size={18} className="stroke-[2.5]" />
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={placeholder}
+              className="w-full pl-10 pr-4 py-2.5 bg-white border-2 border-indigo-400 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 rounded-2xl text-[15px] font-bold text-slate-800 placeholder-slate-400 outline-none shadow-sm transition-all"
+            />
+          </div>
+
+          {/* Action Row */}
+          <div className="flex items-center justify-between px-1 mb-2 pb-2 border-b border-slate-100 font-extrabold text-[15px]">
+            <button
+              type="button"
+              onClick={handleSelectAll}
+              className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 cursor-pointer transition-colors"
+            >
+              <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-[10px]">
+                <Upload size={12} className="stroke-[3]" />
+              </span>
+              Chọn tất cả
+            </button>
+            <button
+              type="button"
+              onClick={handleDeselectAll}
+              className="text-slate-600 hover:text-slate-900 cursor-pointer transition-colors"
+            >
+              Bỏ chọn
+            </button>
+          </div>
+
+          {/* Options List with iOS Switch Toggle */}
+          <div className="max-h-[260px] overflow-y-auto space-y-1 divide-y divide-slate-100/70 pr-1 custom-scrollbar">
+            {filteredOptions.length === 0 ? (
+              <div className="py-6 text-center text-slate-400 font-bold text-sm">
+                Không tìm thấy kết quả
+              </div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isSelected = selected.includes(opt);
+                const cleanDisplay = opt.replace(/^NNH\s+/, '');
+                return (
+                  <div
+                    key={opt}
+                    onClick={() => handleToggleOption(opt)}
+                    className="flex items-center justify-between py-2.5 px-2.5 rounded-xl hover:bg-indigo-50/50 cursor-pointer transition-colors select-none"
+                  >
+                    <span className="font-black text-[16px] text-slate-900 leading-tight pr-2">
+                      {cleanDisplay}
+                    </span>
+                    {/* iOS Toggle Switch */}
+                    <div className={cn(
+                      "w-11 h-6 flex items-center rounded-full p-0.5 cursor-pointer transition-colors duration-200 ease-in-out flex-shrink-0",
+                      isSelected ? "bg-indigo-600" : "bg-slate-200"
+                    )}>
+                      <div className={cn(
+                        "bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-200 ease-in-out",
+                        isSelected ? "translate-x-5" : "translate-x-0"
+                      )} />
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean }> = ({ pageMaintenanceState = {}, isUser43751Local = false }) => {
   const { userProfile, authEmployeeName } = useAuth();
+  const isUser43751 = isUser43751Local || 
+                      String(userProfile?.username || '').trim() === '43751' || 
+                      String(userProfile?.ma_nhan_vien || '').trim() === '43751' ||
+                      String(userProfile?.user_id || '').trim() === '43751';
   const { categoryConfig } = useCategoryConfig();
   const { showNotification } = useNotification();
   const { marketFilter, setMarketFilter, setAvailableMarkets } = useMarket();
   const { activeHealthTab: activeTab, setActiveHealthTab: setActiveTab } = useStore();
   const [maKho, setMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
   const [isCapturing, setIsCapturing] = useState(false);
+  const [batchExportProgress, setBatchExportProgress] = useState<{ current: number; total: number; percent: number } | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isCompareOpen, setIsCompareOpen] = useState(false);
+  const [compareStaffAId, setCompareStaffAId] = useState<string>('');
+  const [compareStaffBId, setCompareStaffBId] = useState<string>('');
   const [isCopied, setIsCopied] = useState(false);
   const [isTagCopied, setIsTagCopied] = useState(false);
   const pendingCopyStaffIdRef = useRef<{ staffId: string; nextStaffId: string } | null>(null);
   const captureRef = useRef<HTMLDivElement>(null);
   const capturePhucVuRef = useRef<HTMLDivElement>(null);
   const captureBanKemRef = useRef<HTMLDivElement>(null);
+  const captureGiaTriDhRef = useRef<HTMLDivElement>(null);
+  const captureCtktnvRef = useRef<HTMLDivElement>(null);
   const captureThuongNvRef = useRef<HTMLDivElement>(null);
   const captureElementHelper = async (element: HTMLElement) => {
+    // 1. Measure natural compact width of the table columns or containers
+    let sumColWidths = 0;
+    const sourceTable = element.querySelector('table');
+    if (sourceTable) {
+      const colEls = sourceTable.querySelectorAll('colgroup col, col');
+      if (colEls.length > 0) {
+        colEls.forEach(col => {
+          const wStr = (col as HTMLElement).style.width || '';
+          const minWStr = (col as HTMLElement).style.minWidth || '';
+          const w = parseInt(wStr || minWStr || '0', 10);
+          sumColWidths += w > 0 ? w : 120;
+        });
+      } else {
+        const thEls = sourceTable.querySelectorAll('thead tr:first-child th');
+        thEls.forEach(th => {
+          const wStr = (th as HTMLElement).style.width || '';
+          const minWStr = (th as HTMLElement).style.minWidth || '';
+          const w = parseInt(wStr || minWStr || '0', 10);
+          sumColWidths += w > 0 ? w : (th as HTMLElement).offsetWidth || 120;
+        });
+      }
+    }
+
+    let maxScrollWidth = 0;
+    if (sourceTable) {
+      maxScrollWidth = sourceTable.scrollWidth || 0;
+    }
     const allContainers = Array.from(element.querySelectorAll('.overflow-x-auto, table, [class*="overflow"]'));
-    let maxScrollWidth = element.scrollWidth - 32;
     allContainers.forEach(el => {
       if (el.scrollWidth > maxScrollWidth) {
         maxScrollWidth = el.scrollWidth;
       }
     });
-    const actualWidth = maxScrollWidth + 64;
+    if (element.scrollWidth > maxScrollWidth) {
+      maxScrollWidth = element.scrollWidth;
+    }
+
+    // Auto-fit content width: Desktop base 980px, or expand to exact sum of column widths / scrollWidth
+    const actualContentWidth = Math.max(980, sumColWidths, maxScrollWidth);
+    const framePadding = 20;
+    const totalExportWidth = actualContentWidth + framePadding * 2;
     
     // Create a temporary container to hold the clone
     const tempContainer = document.createElement('div');
     tempContainer.style.position = 'absolute';
     tempContainer.style.top = '-9999px';
     tempContainer.style.left = '-9999px';
-    tempContainer.style.width = `${actualWidth}px`;
+    tempContainer.style.width = `${totalExportWidth}px`;
     tempContainer.style.height = 'auto';
     tempContainer.style.overflow = 'hidden';
     tempContainer.style.zIndex = '-9999';
     tempContainer.style.pointerEvents = 'none';
+    tempContainer.style.backgroundColor = '#ffffff';
+
+    // Frame wrapper to ensure zero shadow, seamless border and generous white padding
+    const frameWrapper = document.createElement('div');
+    frameWrapper.style.width = `${totalExportWidth}px`;
+    frameWrapper.style.minWidth = `${totalExportWidth}px`;
+    frameWrapper.style.maxWidth = `${totalExportWidth}px`;
+    frameWrapper.style.padding = `${framePadding}px`;
+    frameWrapper.style.boxSizing = 'border-box';
+    frameWrapper.style.backgroundColor = '#ffffff';
+    frameWrapper.style.display = 'block';
+    frameWrapper.style.boxShadow = 'none';
+    frameWrapper.style.borderRadius = '0px';
 
     const clone = element.cloneNode(true) as HTMLElement;
 
     // Hide buttons/controls inside the clone
-    const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, .capture-btn');
+    const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, .capture-btn, input, select');
     noCaptureElements.forEach(el => {
       (el as HTMLElement).style.display = 'none';
     });
 
-    // Set clone styling to take full layout unconstrained
-    clone.style.width = `${actualWidth}px`;
-    clone.style.height = 'max-content';
-    clone.style.margin = '0';
-    clone.style.padding = '32px'; // Nice margin around the captured image
-    clone.style.backgroundColor = '#ffffff';
-    clone.style.display = 'inline-block';
-    clone.style.borderRadius = '32px'; // Round corners like target container
+    // Triệt tiêu hoàn toàn bóng mờ (Zero-Shadow Export Rule)
+    const allElements = clone.querySelectorAll('*');
+    allElements.forEach(el => {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.style) {
+        htmlEl.style.boxShadow = 'none';
+        htmlEl.style.textShadow = 'none';
+        htmlEl.style.filter = 'none';
+      }
+      if (htmlEl.classList) {
+        Array.from(htmlEl.classList).forEach(cls => {
+          if (cls.startsWith('shadow') || cls.startsWith('drop-shadow')) {
+            htmlEl.classList.remove(cls);
+          }
+        });
+      }
+    });
 
-    // Make sure overflow wrappers in the clone are visible
+    // Remove max-width constraint inside clone to fill clone width seamlessly
+    const innerCards = clone.querySelectorAll('.max-w-\\[880px\\], .max-w-\\[800px\\], .max-w-\\[960px\\]');
+    innerCards.forEach(c => {
+      (c as HTMLElement).style.maxWidth = '100%';
+      (c as HTMLElement).style.width = '100%';
+    });
+
+    // Set clone styling to take full layout unconstrained with UTM Avo Black font
+    clone.style.width = `${actualContentWidth}px`;
+    clone.style.minWidth = `${actualContentWidth}px`;
+    clone.style.maxWidth = `${actualContentWidth}px`;
+    clone.style.height = 'auto';
+    clone.style.margin = '0';
+    clone.style.padding = '0';
+    clone.style.backgroundColor = '#ffffff';
+    clone.style.display = 'block';
+    clone.style.boxSizing = 'border-box';
+    clone.style.borderRadius = '0px';
+    clone.style.boxShadow = 'none';
+    clone.style.fontFamily = "'UTM Avo', 'Inter', sans-serif";
+
+    // Make sure overflow wrappers in the clone are visible and fill full width
     const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
     scrollContainers.forEach((el) => {
       const htmlEl = el as HTMLElement;
       htmlEl.style.overflow = 'visible';
-      htmlEl.style.width = 'auto';
+      htmlEl.style.width = '100%';
+      htmlEl.style.minWidth = '100%';
       htmlEl.style.height = 'auto';
       htmlEl.style.maxWidth = 'none';
       htmlEl.style.maxHeight = 'none';
       el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
+    });
+
+    // Force all tables to stretch 100% cleanly inside their parent card with fixed layout
+    const tables = clone.querySelectorAll('table');
+    tables.forEach(table => {
+      const htmlTable = table as HTMLElement;
+      htmlTable.style.width = '100%';
+      htmlTable.style.minWidth = '100%';
+      htmlTable.style.maxWidth = 'none';
+      htmlTable.style.tableLayout = 'fixed';
+      htmlTable.style.boxSizing = 'border-box';
+    });
+
+    // Remove sticky positioning (causes rendering issues in capture)
+    const stickyEls = clone.querySelectorAll('.sticky, [style*="sticky"]');
+    stickyEls.forEach(el => {
+      (el as HTMLElement).style.position = 'relative';
+      (el as HTMLElement).style.left = 'auto';
+      (el as HTMLElement).style.zIndex = 'auto';
     });
 
     // Force hide all scrollbars in the captured image
@@ -328,6 +641,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     hideScrollbarStyle.innerHTML = `
       *::-webkit-scrollbar {
         display: none !important;
+        width: 0 !important;
+        height: 0 !important;
       }
       * {
         -ms-overflow-style: none !important;
@@ -336,28 +651,268 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     `;
     clone.appendChild(hideScrollbarStyle);
 
-    tempContainer.appendChild(clone);
+    frameWrapper.appendChild(clone);
+    tempContainer.appendChild(frameWrapper);
     document.body.appendChild(tempContainer);
 
     try {
+      // ★ Ensure UTM Avo font is fully loaded before export
+      await ensureFontsReady();
       await new Promise(r => setTimeout(r, 200));
 
-      const dataUrl = await htmlToImage.toPng(clone, {
+      const finalCaptureWidth = totalExportWidth;
+      const finalCaptureHeight = frameWrapper.offsetHeight || frameWrapper.scrollHeight;
+
+      const dataUrl = await htmlToImage.toPng(frameWrapper, {
         backgroundColor: '#ffffff',
         pixelRatio: 2,
-        width: actualWidth,
-        height: clone.scrollHeight,
+        skipFonts: false,
+        width: finalCaptureWidth,
+        height: finalCaptureHeight,
         cacheBust: true,
         style: {
           transform: 'scale(1)',
           transformOrigin: 'top left',
-          width: `${actualWidth}px`,
-          height: `${clone.scrollHeight}px`
+          width: `${finalCaptureWidth}px`,
+          height: `${finalCaptureHeight}px`,
+          ...EXPORT_FONT_STYLE,
         }
       });
       return dataUrl;
     } finally {
       document.body.removeChild(tempContainer);
+    }
+  };
+
+  const captureSingleEmployeeCard = async (element: HTMLElement): Promise<Blob | string> => {
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.top = '-9999px';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.width = '1120px';
+    tempContainer.style.height = 'auto';
+    tempContainer.style.zIndex = '-9999';
+    tempContainer.style.pointerEvents = 'none';
+    tempContainer.style.backgroundColor = '#ffffff';
+
+    const frameWrapper = document.createElement('div');
+    frameWrapper.style.width = '1120px';
+    frameWrapper.style.minWidth = '1120px';
+    frameWrapper.style.maxWidth = '1120px';
+    frameWrapper.style.padding = '20px';
+    frameWrapper.style.backgroundColor = '#ffffff';
+    frameWrapper.style.boxSizing = 'border-box';
+    frameWrapper.style.borderRadius = '24px';
+    frameWrapper.style.boxShadow = 'none';
+    frameWrapper.style.display = 'block';
+
+    const clone = element.cloneNode(true) as HTMLElement;
+
+    const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, .capture-btn, input, select');
+    noCaptureElements.forEach(el => {
+      (el as HTMLElement).style.display = 'none';
+    });
+
+    clone.style.width = '100%';
+    clone.style.minWidth = '100%';
+    clone.style.maxWidth = '100%';
+    clone.style.height = 'auto';
+    clone.style.margin = '0';
+    clone.style.padding = '0';
+    clone.style.backgroundColor = 'transparent';
+    clone.style.display = 'block';
+    clone.style.boxSizing = 'border-box';
+    clone.style.boxShadow = 'none';
+    clone.style.fontFamily = "'UTM Avo', 'Inter', sans-serif";
+
+    const innerCards = clone.querySelectorAll('.max-w-\\[960px\\], [class*="max-w"]');
+    innerCards.forEach(c => {
+      const htmlC = c as HTMLElement;
+      htmlC.style.maxWidth = '100%';
+      htmlC.style.width = '100%';
+      htmlC.style.boxShadow = 'none';
+    });
+
+    const statGrids = clone.querySelectorAll('[class*="grid-cols"]');
+    statGrids.forEach(g => {
+      const htmlG = g as HTMLElement;
+      htmlG.style.display = 'grid';
+      htmlG.style.gridTemplateColumns = 'repeat(6, minmax(0, 1fr))';
+      htmlG.style.width = '100%';
+      htmlG.style.boxSizing = 'border-box';
+    });
+
+    const allElements = clone.querySelectorAll('*');
+    allElements.forEach(el => {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.style) {
+        htmlEl.style.boxShadow = 'none';
+        htmlEl.style.textShadow = 'none';
+        htmlEl.style.filter = 'none';
+      }
+      if (htmlEl.classList) {
+        htmlEl.classList.remove('truncate');
+        Array.from(htmlEl.classList).forEach(cls => {
+          if (cls.startsWith('shadow') || cls.startsWith('drop-shadow') || cls.startsWith('ring')) {
+            htmlEl.classList.remove(cls);
+          }
+        });
+      }
+    });
+
+    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+    scrollContainers.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.overflow = 'visible';
+      htmlEl.style.width = '100%';
+      htmlEl.style.height = 'auto';
+      htmlEl.style.maxWidth = 'none';
+      htmlEl.style.maxHeight = 'none';
+      htmlEl.style.boxSizing = 'border-box';
+      el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
+    });
+
+    const tables = clone.querySelectorAll('table');
+    tables.forEach((table) => {
+      const htmlTable = table as HTMLElement;
+      htmlTable.style.width = '100%';
+      htmlTable.style.minWidth = '100%';
+      htmlTable.style.maxWidth = '100%';
+      htmlTable.style.boxSizing = 'border-box';
+      htmlTable.style.tableLayout = 'fixed';
+      htmlTable.style.borderCollapse = 'collapse';
+
+      const cols = htmlTable.querySelectorAll('colgroup col');
+      if (cols.length >= 6) {
+        (cols[0] as HTMLElement).style.width = '55px';
+        (cols[1] as HTMLElement).style.width = '480px';
+        (cols[2] as HTMLElement).style.width = '125px';
+        (cols[3] as HTMLElement).style.width = '125px';
+        (cols[4] as HTMLElement).style.width = '125px';
+        (cols[5] as HTMLElement).style.width = '150px';
+      }
+    });
+
+    frameWrapper.appendChild(clone);
+    tempContainer.appendChild(frameWrapper);
+    document.body.appendChild(tempContainer);
+
+    try {
+      // domToPng (modern-screenshot) renders via the browser's native SVG
+      // foreignObject pipeline instead of html2canvas's manual JS repaint of
+      // every CSS rule — several times faster for tables like this one, and
+      // it's what batch export was already falling back to (so the output is
+      // already proven correct for this exact DOM). Try it FIRST; html2canvas
+      // becomes the last-resort fallback for the rare case both fast paths fail.
+      try {
+        const dataUrl = await domToPng(frameWrapper, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          features: { font: false, image: false },
+          width: 1120,
+          height: frameWrapper.scrollHeight,
+        });
+        return dataUrl;
+      } catch (domErr) {
+        console.warn('domToPng failed, fallback to htmlToImage:', domErr);
+      }
+
+      try {
+        const dataUrl = await htmlToImage.toPng(frameWrapper, {
+          backgroundColor: '#ffffff',
+          pixelRatio: 2,
+          style: { ...EXPORT_FONT_STYLE },
+        });
+        return dataUrl;
+      } catch (htiErr) {
+        console.warn('htmlToImage failed, fallback to html2canvas:', htiErr);
+      }
+
+      const canvas = await html2canvas(frameWrapper, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false,
+        useCORS: true,
+        allowTaint: true,
+        width: 1120,
+        windowWidth: 1120,
+      });
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+      if (blob) return blob;
+      throw new Error('All capture strategies failed to produce an image');
+    } finally {
+      document.body.removeChild(tempContainer);
+    }
+  };
+
+  const handleExportAllStaffDetails = async () => {
+    const tables = Array.from(document.querySelectorAll('[id^="employee-detail-"]')) as HTMLElement[];
+    if (tables.length === 0) {
+      showNotification('Không tìm thấy danh sách nhân viên nào để xuất!', 'warning');
+      return;
+    }
+
+    setIsCapturing(true);
+    const startTime = Date.now();
+    setBatchExportProgress({ current: 0, total: tables.length, percent: 0 });
+
+    try {
+      await ensureFontsReady();
+      const zip = new JSZip();
+      let completedCount = 0;
+
+      // Concurrency pool sized to the device — domToPng's per-card work is mostly
+      // async (image/font decode, canvas→PNG encode) so more in-flight cards keeps
+      // the CPU busier than a fixed 6, without spawning so many that memory/GC
+      // pressure from many live canvases slows things back down.
+      const CONCURRENCY = Math.min(12, Math.max(6, (navigator.hardwareConcurrency || 6)));
+      let currentIndex = 0;
+
+      const worker = async () => {
+        while (currentIndex < tables.length) {
+          const idx = currentIndex++;
+          const element = tables[idx];
+          if (!element) continue;
+
+          try {
+            const rawName = element.id.replace('employee-detail-', '').trim();
+            const cleanName = rawName.replace(/[/\\?%*:|"<>]/g, '_');
+            const result = await captureSingleEmployeeCard(element);
+            
+            if (result instanceof Blob) {
+              zip.file(`ChiTiet_${String(idx + 1).padStart(2, '0')}_${cleanName}.png`, result);
+            } else if (typeof result === 'string') {
+              const base64Data = result.split(',')[1];
+              zip.file(`ChiTiet_${String(idx + 1).padStart(2, '0')}_${cleanName}.png`, base64Data, { base64: true });
+            }
+          } catch (err) {
+            console.error(`Error capturing employee card ${idx}:`, err);
+          } finally {
+            completedCount++;
+            const percent = Math.round((completedCount / tables.length) * 100);
+            setBatchExportProgress({ current: completedCount, total: tables.length, percent });
+          }
+        }
+      };
+
+      const workers = Array.from({ length: Math.min(CONCURRENCY, tables.length) }, () => worker());
+      await Promise.all(workers);
+
+      // Fast STORE compression (images are already PNG compressed)
+      const content = await zip.generateAsync({
+        type: "blob",
+        compression: "STORE"
+      });
+
+      const durationSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
+      saveAs(content, `ChiTiet_All_${tables.length}_NV.zip`);
+      showNotification(`Đã xuất thành công ${completedCount}/${tables.length} nhân viên trong ${durationSeconds}s!`, 'success');
+    } catch (err) {
+      console.error('Batch export error:', err);
+      showNotification('Có lỗi xảy ra khi xuất ảnh hàng loạt!', 'error');
+    } finally {
+      setIsCapturing(false);
+      setBatchExportProgress(null);
     }
   };
 
@@ -382,6 +937,187 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       setPreviewImage(dataUrl);
     } catch (err) {
       console.error('Error capturing ban kem board:', err);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  const handleCaptureGiaTriDh = async () => {
+    if (!captureGiaTriDhRef.current) return;
+    setIsCapturing(true);
+    try {
+      const dataUrl = await captureElementHelper(captureGiaTriDhRef.current);
+      setPreviewImage(dataUrl);
+    } catch (err) {
+      console.error('Error capturing gia tri dh board:', err);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleReceiveData = (text: string) => {
+      if (text && typeof text === 'string' && text.trim().length > 10) {
+        saveNganhhangChinhNv(text);
+        setSyncNganhHangModal({
+          isOpen: true,
+          status: 'success',
+          message: 'Đã nhận dữ liệu từ [⚡ AUTO COPY N.HÀNG CHÍNH] và dán vào Giá Trị ĐH thành công!'
+        });
+        setTimeout(() => {
+          setSyncNganhHangModal(prev => ({ ...prev, isOpen: false }));
+        }, 1400);
+      }
+    };
+
+    const handleCustomEvent = (e: any) => {
+      const text = e.detail?.data || e.detail?.text || e.detail;
+      handleReceiveData(text);
+    };
+
+    const handleMessage = (e: MessageEvent) => {
+      if (
+        e.data?.type === 'CRM_RECEIVE_BI_NGANHHANG_DATA' ||
+        e.data?.type === 'CRM_SYNC_NGANHHANG_RESPONSE' ||
+        e.data?.action === 'AUTO_COPY_NGANHHANG_RESPONSE'
+      ) {
+        handleReceiveData(e.data.data || e.data.payload || e.data.text);
+      }
+    };
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'crm_bi_nganhhang_copied_data' || e.key === 'crm_auto_copy_nganhhang_result') {
+        if (e.newValue) handleReceiveData(e.newValue);
+      }
+    };
+
+    document.addEventListener('CRM_RECEIVE_BI_NGANHHANG_DATA', handleCustomEvent);
+    document.addEventListener('CRM_SYNC_NGANHHANG_RESPONSE', handleCustomEvent);
+    document.addEventListener('CRM_RECEIVE_AUTO_COPY_DATA', handleCustomEvent);
+    window.addEventListener('message', handleMessage);
+    window.addEventListener('storage', handleStorage);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('crm_bi_sync_channel');
+      bc.onmessage = (event) => {
+        if (event.data?.action === 'CLEAR_GTDH_DATA') {
+          saveNganhhangChinhNv('');
+          return;
+        }
+        if (event.data?.text || event.data?.data) {
+          handleReceiveData(event.data.text || event.data.data);
+        }
+      };
+    } catch (err) {}
+
+    return () => {
+      document.removeEventListener('CRM_RECEIVE_BI_NGANHHANG_DATA', handleCustomEvent);
+      document.removeEventListener('CRM_SYNC_NGANHHANG_RESPONSE', handleCustomEvent);
+      document.removeEventListener('CRM_RECEIVE_AUTO_COPY_DATA', handleCustomEvent);
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('storage', handleStorage);
+      if (bc) bc.close();
+    };
+  }, []);
+
+  const handleAutoPasteNganhHangChinh = async () => {
+    // 1. Kiểm tra nhanh Clipboard trước: Nếu người dùng vừa bấm nút cam trên BI xong
+    try {
+      const clipText = await navigator.clipboard.readText();
+      if (clipText && clipText.trim().length > 20 && (clipText.includes('DTLK') || clipText.includes('DTQĐ') || clipText.includes('Nhân viên'))) {
+        saveNganhhangChinhNv(clipText);
+        setSyncNganhHangModal({
+          isOpen: true,
+          status: 'success',
+          message: 'Đã nhận dữ liệu từ [⚡ AUTO COPY N.HÀNG CHÍNH] và dán vào Giá Trị ĐH thành công!'
+        });
+        setTimeout(() => {
+          setSyncNganhHangModal(prev => ({ ...prev, isOpen: false }));
+        }, 1400);
+        return;
+      }
+    } catch (e) {}
+
+    // 2. Show Center Modal in Loading State
+    setSyncNganhHangModal({
+      isOpen: true,
+      status: 'loading',
+      message: 'Đang gửi lệnh tới tab BI: Đang tự động xổ 5 cấp và copy dữ liệu...'
+    });
+
+    const requestTime = Date.now();
+
+    // 3. Dispatch cross-tab events & channels for Tampermonkey / extensions / BI tabs
+    try {
+      document.dispatchEvent(new CustomEvent('CRM_REQUEST_BI_NGANHHANG_SYNC', { detail: { timestamp: requestTime } }));
+      document.dispatchEvent(new CustomEvent('CRM_TRIGGER_AUTO_COPY_NGANHHANG', { detail: { timestamp: requestTime } }));
+      document.dispatchEvent(new CustomEvent('CRM_AUTO_COPY_NHANG_CHINH', { detail: { timestamp: requestTime } }));
+      window.postMessage({ type: 'CRM_REQUEST_BI_NGANHHANG_SYNC', target: 'AUTO_COPY_NHANG', timestamp: requestTime }, '*');
+      window.postMessage({ type: 'CRM_TRIGGER_AUTO_COPY_NGANHHANG', target: 'AUTO_COPY_NHANG', timestamp: requestTime }, '*');
+      window.postMessage({ type: 'CRM_AUTO_COPY_NHANG_CHINH', target: 'AUTO_COPY_NHANG', timestamp: requestTime }, '*');
+      localStorage.setItem('crm_trigger_auto_copy_nganhhang', requestTime.toString());
+      localStorage.setItem('crm_bi_request_sync', JSON.stringify({ type: 'nganhhang', action: 'AUTO_COPY_NGANHHANG', time: requestTime }));
+      
+      const bc = new BroadcastChannel('crm_bi_sync_channel');
+      bc.postMessage({ action: 'AUTO_COPY_NGANHHANG_CHINH', timestamp: requestTime });
+      bc.postMessage({ type: 'CRM_REQUEST_BI_NGANHHANG_SYNC', timestamp: requestTime });
+    } catch (e) {
+      console.log('Cross-tab broadcast:', e);
+    }
+
+    // 4. Polling for clipboard after BI finishes 5-level expand (BI expand takes ~3.5-4s)
+    let foundData = false;
+    const delays = [3000, 1200, 1200, 1500, 1500];
+    
+    for (const delay of delays) {
+      await new Promise(r => setTimeout(r, delay));
+      const currentSaved = localStorage.getItem('nganhhangchinh_nv_data') || '';
+      if (currentSaved && currentSaved.trim().length > 20) {
+        foundData = true;
+        break;
+      }
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim().length > 20 && (text.includes('DTLK') || text.includes('DTQĐ') || text.includes('Nhân viên'))) {
+          saveNganhhangChinhNv(text);
+          foundData = true;
+          setSyncNganhHangModal({
+            isOpen: true,
+            status: 'success',
+            message: 'Đã nhận dữ liệu từ [⚡ AUTO COPY N.HÀNG CHÍNH] và dán vào Giá Trị ĐH thành công!'
+          });
+          setTimeout(() => {
+            setSyncNganhHangModal(prev => ({ ...prev, isOpen: false }));
+          }, 1400);
+          break;
+        }
+      } catch (err) {}
+    }
+
+    // 5. Fallback if after 8s no response received
+    if (!foundData) {
+      setSyncNganhHangModal(prev => {
+        if (prev.isOpen && prev.status === 'loading') {
+          return {
+            isOpen: true,
+            status: 'warning',
+            message: 'Chưa nhận được phản hồi tự động từ tab BI! Bạn có thể bấm nút màu cam [⚡ AUTO COPY N.HÀNG CHÍNH] trên tab BI, sau đó bấm Thử lại.'
+          };
+        }
+        return prev;
+      });
+    }
+  };
+
+  const handleCaptureCtktnv = async () => {
+    if (!captureCtktnvRef.current) return;
+    setIsCapturing(true);
+    try {
+      const dataUrl = await captureElementHelper(captureCtktnvRef.current);
+      setPreviewImage(dataUrl);
+    } catch (err) {
+      console.error('Error capturing CTKTNV board:', err);
     } finally {
       setIsCapturing(false);
     }
@@ -425,12 +1161,16 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     rankMonth3, setRankMonth3,
     setBanKemNv,
     setTragopNv,
+    nganhhangChinhNv,
+    setNganhhangChinhNv,
     isLoading: isHealthLoading,
     isSaving,
     refresh,
     savePhucVu,
     saveBanKemNv,
-    saveTragopNv
+    saveNganhhangChinhNv,
+    saveTragopNv,
+    tenSieuThi
   } = useEmployeeHealth(maKho, marketFilter !== 'ALL' ? marketFilter : undefined);
   const { 
     stTargetSauHeSo, setStTargetSauHeSo,
@@ -453,7 +1193,16 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   const [showIncome2, setShowIncome2] = useState(false);
   const [showIncome3, setShowIncome3] = useState(false);
   const [showBanKemInput, setShowBanKemInput] = useState(false);
+  const [showNganhhangChinhInput, setShowNganhhangChinhInput] = useState(false);
+  const [syncNganhHangModal, setSyncNganhHangModal] = useState<{
+    isOpen: boolean;
+    status: 'loading' | 'success' | 'warning';
+    message?: string;
+  }>({ isOpen: false, status: 'loading' });
+
   const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void; variant?: 'danger' | 'info' } | null>(null);
+
+
 
   // Filter processed markets
   const allowedMarkets = useMemo(() => {
@@ -536,6 +1285,23 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   const [isProjectedMonth1, setIsProjectedMonth1] = useState(false);
   const [isProjectedMonth2, setIsProjectedMonth2] = useState(false);
   const [isProjectedMonth3, setIsProjectedMonth3] = useState(false);
+
+  const [commentModal, setCommentModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    template: 1 | 2 | 3;
+    text: string;
+    tabs: { id: 1 | 2 | 3; label: string; icon: string }[];
+    generator: (tab: 1 | 2 | 3) => string;
+  }>({
+    isOpen: false,
+    title: '',
+    template: 1,
+    text: '',
+    tabs: [],
+    generator: () => '',
+  });
+  const [copiedComment, setCopiedComment] = useState(false);
 
   const captureTraChamRef = useRef<HTMLDivElement>(null);
   const captureKhaiThacRef = useRef<HTMLDivElement>(null);
@@ -1139,6 +1905,16 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       }));
   }, []);
 
+  const parseNganhhangChinhNvData = useCallback((text: string) => {
+    if (!text) return { headers: [], rows: [] };
+    const lines = text.split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+    if (lines.length === 0) return { headers: [], rows: [] };
+    const allParsed = lines.map(line => line.split('\t').map(c => c.trim()));
+    return { headers: allParsed[0], rows: allParsed.slice(1) };
+  }, []);
+
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef<string | null>(null);
@@ -1308,6 +2084,13 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   };
 
   const handleImportFromInsite = async () => {
+    // If Tampermonkey background sync helper is active, trigger it directly in the background!
+    if ((window as any).CRM_TAMPERMONKEY_ACTIVE) {
+      showNotification('Đang tải ngầm dữ liệu thưởng từ Insite...', 'info');
+      document.dispatchEvent(new CustomEvent('CRM_TRIGGER_SYNC_THUONG'));
+      return;
+    }
+
     try {
       const text = await navigator.clipboard.readText();
       if (!text || text.trim() === '') {
@@ -1325,23 +2108,43 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
           console.error('[THUONG] Error parsing JSON from Tampermonkey:', e);
         }
       } else {
-        // Fallback: Parse tab-separated values (TSV) from direct manual copy
+        // Fallback: Parse tab-separated, semicolon-separated, or space-separated values from manual copy
         const lines = text.split('\n');
         for (const line of lines) {
-          const parts = line.split('\t').map(p => p.trim());
+          let parts = line.split('\t').map(p => p.trim());
+          if (parts.length < 2) {
+            parts = line.split(/ {2,}/).map(p => p.trim());
+          }
+          if (parts.length < 2) {
+            parts = line.split(';').map(p => p.trim());
+          }
+          
           if (parts.length >= 2) {
-            const maNVIndex = parts.findIndex(p => /^\d{5,8}$/.test(p));
+            // Find a cell containing the Employee ID (5 to 8 digits)
+            let maNV = '';
+            let maNVIndex = -1;
+            
+            for (let i = 0; i < parts.length; i++) {
+              const match = parts[i].match(/\b\d{5,8}\b/);
+              if (match) {
+                maNV = match[0];
+                maNVIndex = i;
+                break;
+              }
+            }
+            
             if (maNVIndex !== -1) {
-              const maNV = parts[maNVIndex];
               let soTien = '';
+              // Search for a cell that looks like an amount (>= 1,000 VND)
               for (let i = 0; i < parts.length; i++) {
-                if (i === maNVIndex || i === 0) continue;
-                const cleanVal = parts[i].replace(/[.,\sđ]/g, '');
+                if (i === maNVIndex) continue;
+                const cleanVal = parts[i].replace(/[.,\sđ]/gi, '');
                 if (cleanVal && /^\d+$/.test(cleanVal) && Number(cleanVal) >= 1000) {
-                  soTien = parts[i];
+                  soTien = cleanVal;
                   break;
                 }
               }
+              
               if (maNV && soTien) {
                 items.push({ maNhanVien: maNV, soTien });
               }
@@ -1460,6 +2263,152 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       })
       .sort((a, b) => b.percent - a.percent);
   }, [tragopNv, selectedStaffIds, biRevenueData, parseTraChamData]);
+
+  const parsedBanKemRows = useMemo(() => {
+    return banKemNv ? parseBanKemData(banKemNv)
+      .filter(row => selectedStaffIds.length === 0 || selectedStaffIds.some(id => row.nhanVien.includes(id)))
+      .sort((a, b) => parseFloat(b.phanTramBill) - parseFloat(a.phanTramBill)) : [];
+  }, [banKemNv, selectedStaffIds, parseBanKemData]);
+
+  const generateBanKemComment = useCallback((tmpl: 1 | 2 | 3): string => {
+    if (parsedBanKemRows.length === 0) return '';
+    const total = parsedBanKemRows.length;
+    const threshold = Math.max(1, Math.ceil(total * 0.2));
+
+    const getStaffId = (nhanVien: string) => {
+      const match = nhanVien.match(/\d{4,6}/);
+      return match ? match[0] : nhanVien.trim();
+    };
+
+    if (tmpl === 1) {
+      const top = parsedBanKemRows.slice(0, threshold);
+      const bot = parsedBanKemRows.slice(Math.max(threshold, total - threshold));
+      let text = `📊 BÁO CÁO BÁN KÈM NHÂN VIÊN\n⚡ Luỹ kế tháng || TGSD: ${daysPassed}/${totalDays}\n━━━━━━━━━━━━━━━━━━\n\n`;
+      text += `🏆 TOP ${top.length} DẪN ĐẦU % BÁN KÈM:\n`;
+      top.forEach((r, i) => {
+        const id = getStaffId(r.nhanVien);
+        text += `🔺 #${i + 1}. @${id} - ${r.phanTramBill} (${r.luotBill} bill BK)\n`;
+      });
+      text += `\n⚠️ BOTTOM ${bot.length} CẦN TĂNG TỐC BÁN KÈM:\n`;
+      bot.forEach((r, i) => {
+        const id = getStaffId(r.nhanVien);
+        text += `🔻 #${total - bot.length + i + 1}. @${id} - ${r.phanTramBill}\n`;
+      });
+      text += `\n💪 Chủ động giới thiệu combo & phụ kiện kèm theo mọi đơn hàng! 🔥`;
+      return text;
+    } else if (tmpl === 2) {
+      const bot = parsedBanKemRows.slice(Math.max(threshold, total - threshold));
+      let text = `🚨 DANH SÁCH NHÂN VIÊN CẦN TĂNG TỐC BÁN KÈM:\n`;
+      text += `📊 Tổng: ${bot.length}/${total} nhân viên\n\n`;
+      bot.forEach((r, i) => {
+        const id = getStaffId(r.nhanVien);
+        text += `🟡 #${i + 1}. @${id}\n`;
+      });
+      text += `\n💡 Nhắc nhở và hỗ trợ các nhân viên trên bám sát chỉ số bán kèm hàng ngày!`;
+      return text;
+    } else {
+      const totalBK = parsedBanKemRows.reduce((s: number, r: any) => s + (parseInt(String(r.luotBill).replace(/[^0-9]/g, '')) || 0), 0);
+      const totalBH = parsedBanKemRows.reduce((s: number, r: any) => s + (parseInt(String(r.luotBillBanHang).replace(/[^0-9]/g, '')) || 0), 0);
+      const overallRate = totalBH > 0 ? ((totalBK / totalBH) * 100).toFixed(2) + '%' : '0%';
+      let text = `⚡ TÓM TẮT BÁN KÈM NHÂN VIÊN:\n`;
+      text += `📅 TGSD: ${daysPassed}/${totalDays} ngày\n`;
+      text += `👥 Tổng số nhân viên: ${total}\n`;
+      text += `📦 Tổng lượt bill bán kèm: ${totalBK.toLocaleString('vi-VN')}\n`;
+      text += `🧾 Tổng lượt bill bán hàng: ${totalBH.toLocaleString('vi-VN')}\n`;
+      text += `📈 Tỉ lệ bán kèm toàn siêu thị: ${overallRate}\n`;
+      const top1 = parsedBanKemRows[0];
+      if (top1) {
+        text += `🥇 Dẫn đầu: @${getStaffId(top1.nhanVien)} (${top1.phanTramBill} - ${top1.luotBill} bill BK)\n`;
+      }
+      return text;
+    }
+  }, [parsedBanKemRows, daysPassed, totalDays]);
+
+  const handleOpenBanKemComment = useCallback(() => {
+    const initialText = generateBanKemComment(1);
+    setCommentModal({
+      isOpen: true,
+      title: 'Nhận xét bán kèm',
+      template: 1,
+      text: initialText,
+      tabs: [
+        { id: 1, label: 'Mẫu 1: TOP/BOT NV', icon: '🏆' },
+        { id: 2, label: 'Mẫu 2: DS Cần tăng tốc', icon: '⚠️' },
+        { id: 3, label: 'Mẫu 3: Tóm tắt', icon: '⚡' },
+      ],
+      generator: generateBanKemComment,
+    });
+  }, [generateBanKemComment]);
+
+  const generateTraChamComment = useCallback((tmpl: 1 | 2 | 3): string => {
+    if (parsedTraChamRows.length === 0) return '';
+    const total = parsedTraChamRows.length;
+    const threshold = Math.max(1, Math.ceil(total * 0.2));
+
+    const getStaffId = (nhanVien: string) => {
+      const match = nhanVien.match(/\d{4,6}/);
+      return match ? match[0] : nhanVien.trim();
+    };
+
+    if (tmpl === 1) {
+      const top = parsedTraChamRows.slice(0, threshold);
+      const bot = parsedTraChamRows.slice(Math.max(threshold, total - threshold));
+      let text = `📊 BÁO CÁO TRẢ CHẬM NHÂN VIÊN\n⚡ Luỹ kế tháng || TGSD: ${daysPassed}/${totalDays}\n━━━━━━━━━━━━━━━━━━\n\n`;
+      text += `🏆 TOP ${top.length} TỈ LỆ TRẢ CHẬM CAO NHẤT:\n`;
+      top.forEach((r, i) => {
+        const id = getStaffId(r.nhanVien);
+        text += `🔺 #${i + 1}. @${id} - ${r.percent.toFixed(1)}% (DT: ${Math.round(r.installmentRevenue).toLocaleString('vi-VN')}đ)\n`;
+      });
+      text += `\n⚠️ BOTTOM ${bot.length} CẦN ĐẨY MẠNH TRẢ CHẬM:\n`;
+      bot.forEach((r, i) => {
+        const id = getStaffId(r.nhanVien);
+        text += `🔻 #${total - bot.length + i + 1}. @${id} - ${r.percent.toFixed(1)}%\n`;
+      });
+      text += `\n💪 Tư vấn linh hoạt các gói trả góp / trả chậm 0% để kích cầu mua sắm! 🔥`;
+      return text;
+    } else if (tmpl === 2) {
+      const bot = parsedTraChamRows.slice(Math.max(threshold, total - threshold));
+      let text = `🚨 DANH SÁCH NHÂN VIÊN CẦN ĐẨY MẠNH TRẢ CHẬM:\n`;
+      text += `📊 Tổng: ${bot.length}/${total} nhân viên\n\n`;
+      bot.forEach((r, i) => {
+        const id = getStaffId(r.nhanVien);
+        text += `🟡 #${i + 1}. @${id}\n`;
+      });
+      text += `\n💡 Tận dụng các chương trình trả chậm để chốt đơn phân khúc trung & cao cấp!`;
+      return text;
+    } else {
+      const totalRev = parsedTraChamRows.reduce((s: number, r: any) => s + r.totalRevenue, 0);
+      const totalInst = parsedTraChamRows.reduce((s: number, r: any) => s + r.installmentRevenue, 0);
+      const overallRate = totalRev > 0 ? ((totalInst / totalRev) * 100).toFixed(1) + '%' : '0%';
+      let text = `⚡ TÓM TẮT HIỆU QUẢ TRẢ CHẬM:\n`;
+      text += `📅 TGSD: ${daysPassed}/${totalDays} ngày\n`;
+      text += `👥 Tổng số nhân viên: ${total}\n`;
+      text += `💰 Tổng doanh thu thực: ${Math.round(totalRev).toLocaleString('vi-VN')}đ\n`;
+      text += `💳 Tổng doanh thu trả chậm: ${Math.round(totalInst).toLocaleString('vi-VN')}đ\n`;
+      text += `📈 Tỉ lệ trả chậm toàn siêu thị: ${overallRate}\n`;
+      const top1 = parsedTraChamRows[0];
+      if (top1) {
+        text += `🥇 Dẫn đầu trả chậm: @${getStaffId(top1.nhanVien)} (${top1.percent.toFixed(1)}%)\n`;
+      }
+      return text;
+    }
+  }, [parsedTraChamRows, daysPassed, totalDays]);
+
+  const handleOpenTraChamComment = useCallback(() => {
+    const initialText = generateTraChamComment(1);
+    setCommentModal({
+      isOpen: true,
+      title: 'Nhận xét trả chậm',
+      template: 1,
+      text: initialText,
+      tabs: [
+        { id: 1, label: 'Mẫu 1: TOP/BOT NV', icon: '🏆' },
+        { id: 2, label: 'Mẫu 2: DS Cần tăng tốc', icon: '⚠️' },
+        { id: 3, label: 'Mẫu 3: Tóm tắt', icon: '⚡' },
+      ],
+      generator: generateTraChamComment,
+    });
+  }, [generateTraChamComment]);
 
   const parseTn = useCallback((rawText: string) => {
     try {
@@ -2325,6 +3274,94 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     });
   }, [marketFilter, maKho]);
 
+  // Listen to cross-origin sync hash data for Thưởng NV
+  useEffect(() => {
+    const handleHashSyncThuong = () => {
+      if (typeof window === 'undefined' || !maKho) return;
+      const hash = window.location.hash;
+      if (!hash.startsWith('#sync_thuong=')) return;
+
+      try {
+        const rawData = hash.replace('#sync_thuong=', '');
+        const decoded = decodeURIComponent(atob(rawData));
+        const payload = JSON.parse(decoded);
+
+        if (payload && payload.thuongMap) {
+          const storeName = marketFilter !== 'ALL' ? marketFilter : 'siêu thị';
+          const confirmSync = window.confirm(
+            `Phát hiện dữ liệu thưởng nhân viên từ TGDD cho ${storeName} (${Object.keys(payload.thuongMap).length} nhân sự).\n\nBạn có đồng ý đồng bộ dữ liệu này vào CỘT THƯỞNG HIỆN TẠI không?`
+          );
+
+          if (confirmSync) {
+            setThuongData(prev => {
+              const updated = { ...prev };
+              Object.keys(payload.thuongMap).forEach(key => {
+                const upperKey = key.toUpperCase().trim();
+                if (!updated[upperKey]) {
+                  updated[upperKey] = { truoc: '', hientai: '' };
+                }
+                updated[upperKey].hientai = String(payload.thuongMap[key]);
+              });
+
+              // Save to database
+              saveThuongToDb(updated);
+              return updated;
+            });
+
+            // Switch to THƯỞNG NV tab
+            setActiveTab('THUONG_NV');
+          }
+        }
+      } catch (err) {
+        console.error('Error parsing sync_thuong hash data:', err);
+        alert('Lỗi giải mã dữ liệu đồng bộ thưởng!');
+      } finally {
+        // Clear URL hash
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    };
+
+    const timer = setTimeout(handleHashSyncThuong, 800);
+    return () => clearTimeout(timer);
+  }, [marketFilter, maKho]);
+
+  // Listen for background sync responses from Tampermonkey script
+  useEffect(() => {
+    const handleTampermonkeyResponse = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const payload = customEvent.detail;
+      
+      if (payload && payload.items) {
+        setThuongData(prev => {
+          const next = { ...prev };
+          let count = 0;
+          
+          filteredBiData.forEach(staff => {
+            const staffIdMatch = staff.fullId.match(/\d+/);
+            if (staffIdMatch) {
+              const numericId = staffIdMatch[0];
+              const matchedItem = payload.items.find((item: any) => item.maNhanVien === numericId);
+              if (matchedItem) {
+                next[staff.fullId] = {
+                  ...(next[staff.fullId] || { truoc: '' }),
+                  hientai: matchedItem.soTien
+                };
+                count++;
+              }
+            }
+          });
+          
+          saveThuongToDb(next);
+          showNotification(`Đã tự động đồng bộ ngầm thưởng của ${count} nhân sự thành công!`, 'success');
+          return next;
+        });
+      }
+    };
+
+    document.addEventListener('CRM_SYNC_THUONG_RESPONSE', handleTampermonkeyResponse);
+    return () => document.removeEventListener('CRM_SYNC_THUONG_RESPONSE', handleTampermonkeyResponse);
+  }, [filteredBiData]);
+
 
 
   const toggleStaffSelection = (id: string) => {
@@ -2349,8 +3386,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     }
   };
 
-  const handleCopyFeedback = () => {
-    if (filteredBiData.length === 0) return;
+  const generateDoanhThuNvComment = useCallback((tmpl: 1 | 2 | 3): string => {
+    if (filteredBiData.length === 0) return '';
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const dateStr = now.toLocaleDateString('vi-VN');
+    const nowHeader = `${timeStr} NGÀY ${dateStr}`;
 
     const targetQdPerStaff = filteredBiData.length > 0 ? stTargetSauHeSo / filteredBiData.length : 0;
 
@@ -2360,51 +3401,95 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       const percentHT = (actualTargetQdPerStaff > 0 && daysPassed > 0)
         ? (((actualActualVal / daysPassed) * totalDays) / actualTargetQdPerStaff) * 100
         : 0;
-
+      const staffId = staff.fullId?.match(/\d+/) ? staff.fullId.match(/\d+/)![0] : staff.fullId;
       return {
+        id: staffId,
         fullName: staff.displayName,
+        actualVal: staff.actualVal || 0,
+        virtualVal: staff.virtualVal || 0,
         percentHT
       };
     });
 
-    const count = Math.max(1, Math.round(staffStats.length * 0.2));
+    const sortedStaffs = [...staffStats].sort((a, b) => (b.actualVal || 0) - (a.actualVal || 0));
+    const count = Math.max(1, Math.min(3, Math.round(sortedStaffs.length * 0.2)));
+    const topStaffs = sortedStaffs.slice(0, count);
+    const botStaffs = sortedStaffs.length > count ? sortedStaffs.slice(-count) : [];
+    const staffAbove50 = sortedStaffs.filter(s => s.percentHT >= 50).length;
 
-    // Sort for %HT
-    const sortedByHT = [...staffStats].sort((a, b) => b.percentHT - a.percentHT);
-    const topHT = sortedByHT.slice(0, count);
-    const botHT = sortedByHT.slice(-count).reverse();
+    if (tmpl === 1) {
+      let t1 = `📊 TỔNG HỢP THI ĐUA SIÊU THỊ - ${nowHeader}\n`;
+      t1 += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+      t1 += `📈 KẾT QUẢ TỔNG QUAN:\n`;
+      t1 += `🎯 Tổng NV: ${sortedStaffs.length} || ĐẠT trên 50%: ${staffAbove50}/${sortedStaffs.length}\n\n`;
 
-    const text = `📊 BÁO CÁO DOANH THU QUY ĐỔI SIÊU THỊ: ${maKho}
+      if (topStaffs.length > 0) {
+        t1 += `🏆 TOP ${topStaffs.length} DẪN ĐẦU:\n`;
+        topStaffs.forEach((s, idx) => {
+          t1 += `🔺 #${idx + 1}. @${s.id}\n`;
+        });
+        t1 += `\n`;
+      }
 
-🌟 TOP 20% DOANH THU QUY ĐỔI
-${topHT.map((s) => {
-      const parts = s.fullName.split(' - ');
-      const id = parts[0].trim();
-      const name = parts.length > 1 ? parts[1].trim() : '';
-      const shortName = name.split(' ').pop() || '';
-      return `${id} - ${shortName.toUpperCase()} (${Math.floor(s.percentHT)}%)`;
-    }).join('\n')}
+      if (botStaffs.length > 0) {
+        t1 += `⚠️ BOTTOM ${botStaffs.length} CẦN TĂNG TỐC:\n`;
+        botStaffs.forEach((s, idx) => {
+          t1 += `🔻 #${sortedStaffs.length - botStaffs.length + idx + 1}. @${s.id}\n`;
+        });
+        t1 += `\n`;
+      }
 
-⚠️ NHÓM BOTTOM 20% DOANH THU QUY ĐỔI
-${botHT.map((s) => {
-      const parts = s.fullName.split(' - ');
-      const id = parts[0].trim();
-      const name = parts.length > 1 ? parts[1].trim() : '';
-      const shortName = name.split(' ').pop() || '';
-      return `${id} - ${shortName.toUpperCase()} (${Math.floor(s.percentHT)}%)`;
-    }).join('\n')}
+      t1 += `💪 Toàn đội cùng nhau bứt phá về đích ngoạn mục nhé! 🔥`;
+      return t1;
+    } else if (tmpl === 2) {
+      let t2 = `⚠️ DANH SÁCH NHÂN SỰ CẦN TĂNG TỐC DOANH THU - ${nowHeader}\n`;
+      t2 += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+      t2 += `📊 Tiến độ siêu thị (TGSD: ${daysPassed}/${totalDays} ngày)\n\n`;
+      t2 += `🚨 NHÂN VIÊN CẦN BỨT PHÁ (%HT < 100%):\n`;
+      const notDoneStaffs = sortedStaffs.filter(s => s.percentHT < 100);
+      if (notDoneStaffs.length > 0) {
+        notDoneStaffs.forEach(s => {
+          t2 += `• @${s.id}\n`;
+        });
+      } else {
+        t2 += `🎉 Tất cả nhân viên đều đạt trên 100% kế hoạch!\n`;
+      }
+      t2 += `\n🔥 Cố gắng tăng tốc tư vấn và bứt phá doanh số nhé!`;
+      return t2;
+    } else {
+      let t3 = `⚡ TÓM TẮT XẾP HẠNG DOANH THU NHÂN VIÊN\n`;
+      t3 += `📅 TGSD: ${daysPassed}/${totalDays} ngày || 👥 Tổng NV: ${sortedStaffs.length}\n`;
+      t3 += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+      t3 += `🎯 Tỉ lệ hoàn thành trên 50%: ${staffAbove50}/${sortedStaffs.length} NV\n`;
+      if (sortedStaffs[0]) {
+        t3 += `🥇 Dẫn đầu: @${sortedStaffs[0].id} (${sortedStaffs[0].percentHT.toFixed(1)}% HT - ${formatCurrencyValue(sortedStaffs[0].actualVal)})\n`;
+      }
+      if (topStaffs.length > 0) {
+        t3 += `🎯 Top: ${topStaffs.map(s => `@${s.id}`).join(', ')}\n`;
+      }
+      if (botStaffs.length > 0) {
+        t3 += `⚠️ Cần hỗ trợ: ${botStaffs.map(s => `@${s.id}`).join(', ')}\n`;
+      }
+      t3 += `🚀 Quyết tâm hoàn thành 100% mục tiêu!`;
+      return t3;
+    }
+  }, [filteredBiData, stTargetSauHeSo, daysPassed, totalDays]);
 
-Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu nhé! 💪`;
-
-    navigator.clipboard.writeText(text).then(() => {
-      setIsCopied(true);
-      showNotification('Đã copy nhận xét TOP / BOT vào clipboard!', 'success');
-      setTimeout(() => setIsCopied(false), 2000);
-    }).catch(err => {
-      console.error('Failed to copy text: ', err);
-      showNotification('Không thể copy. Vui lòng thử lại.', 'error');
+  const handleOpenDoanhThuNvComment = useCallback(() => {
+    const initialText = generateDoanhThuNvComment(1);
+    setCommentModal({
+      isOpen: true,
+      title: 'Nhận xét thi đua',
+      template: 1,
+      text: initialText,
+      tabs: [
+        { id: 1, label: 'Mẫu 1: TOP/BOT NV', icon: '🏆' },
+        { id: 2, label: 'Mẫu 2: DS Cần tăng tốc', icon: '⚠️' },
+        { id: 3, label: 'Mẫu 3: Tóm tắt', icon: '⚡' },
+      ],
+      generator: generateDoanhThuNvComment,
     });
-  };
+  }, [generateDoanhThuNvComment]);
 
   const handleCopyTags = () => {
     if (filteredBiData.length === 0) return;
@@ -2494,209 +3579,298 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
     { id: 'THUONG_NV', label: 'THƯỞNG NV', icon: Gift },
     { id: 'TRA_CHAM_NV', label: 'TRẢ CHẬM NV', icon: Clock },
     { id: 'RANK_3T_NV', label: 'XẾP HẠNG NV 3T', icon: Trophy },
+    { id: 'GIA_TRI_DH', label: 'GIÁ TRỊ ĐƠN HÀNG', icon: FileText },
   ];
 
-  return (
-    <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-64px)] bg-slate-50 overflow-hidden font-sans">
-      {/* Mobile Horizontal Tab Bar - shown only on mobile */}
-      <div className="lg:hidden bg-white border-b border-slate-200 sticky top-0 z-20">
-        <div className="flex items-center gap-2 px-3 py-2 overflow-x-auto no-scrollbar">
-          {menuItems.map((item) => {
-            const isActive = activeTab === item.id;
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id as any)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all shrink-0 ${
-                  isActive
-                    ? 'bg-[#00965e] text-white shadow-md'
-                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                }`}
-              >
-                <Icon size={14} strokeWidth={isActive ? 2.5 : 2} />
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Desktop Sidebar Menu - hidden on mobile */}
-      <aside
-        className={`hidden lg:flex bg-white border-r border-slate-200 flex-col h-full shadow-sm z-20 relative transition-all duration-300 w-[340px]`}
+  const renderStaffFilterDropdown = () => (
+    <div className="relative z-50" ref={filterRef}>
+      <button
+        onClick={() => setIsFilterOpen(!isFilterOpen)}
+        className="flex items-center gap-2.5 px-4 py-2 bg-white border border-slate-200 rounded-full text-sm font-black text-slate-700 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
       >
-        {/* Sidebar Header */}
-        <div className="p-8">
-          <div className="flex items-center gap-5 mb-10">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#00965e] to-emerald-400 flex items-center justify-center text-white shadow-lg shadow-emerald-100 shrink-0">
-              <HeartPulse size={28} />
-            </div>
-            <div>
-              <h2 className="text-xl font-black text-slate-800 leading-tight uppercase tracking-tight">Sức khỏe</h2>
-              <p className="text-[10px] font-black text-[#00965e] uppercase tracking-[0.2em] mt-1">Nhân viên</p>
-            </div>
-          </div>
-          
-        </div>
+        <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full" />
+        <span className="truncate uppercase tracking-tight">
+          {selectedStaffIds.length === biRevenueData.length
+            ? "Tất cả nhân viên"
+            : selectedStaffIds.length === 0
+              ? "Chưa chọn NV"
+              : `Đã chọn ${selectedStaffIds.length} NV`}
+        </span>
+        <ChevronDown size={16} className={cn("transition-transform text-slate-400", isFilterOpen && "rotate-180")} />
+      </button>
 
-        {/* Menu Items */}
-        <nav className="flex-1 px-6 py-4 space-y-3 overflow-y-auto custom-scrollbar">
-          {menuItems.map((item) => {
-            const isActive = activeTab === item.id;
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id as any)}
-                className={`w-full flex items-center gap-4 px-6 py-5 rounded-[22px] border transition-all duration-300 group ${
-                  isActive 
-                    ? 'bg-white border-[#00965e] shadow-[0_15px_35px_-10px_rgba(0,150,94,0.15)] -translate-y-0.5 translate-x-1' 
-                    : 'bg-transparent border-transparent hover:bg-white/50 hover:border-slate-200 text-slate-500'
-                }`}
-              >
-                <div className={`p-2.5 rounded-xl transition-all duration-300 ${
-                  isActive ? 'bg-emerald-50 text-[#00965e]' : 'bg-slate-100 text-slate-400 group-hover:bg-white group-hover:text-slate-500'
-                }`}>
-                  <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-                </div>
-                <span className={`text-[15px] font-sans font-bold tracking-tight uppercase ${isActive ? 'text-slate-800' : 'text-slate-500'}`} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700 }}>
-                  {item.label}
-                </span>
-                {isActive && (
-                  <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[#00965e] shadow-[0_0_10px_rgba(0,150,94,0.5)]" />
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Sidebar Footer Removed as per request */}
-      </aside>
-
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-auto relative bg-slate-50/50">
-        <div className="p-3 md:p-6 lg:p-10 w-full min-h-full">
-          {/* Header Section */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-indigo-600 text-white rounded-3xl flex items-center justify-center shadow-xl shadow-indigo-200">
-                <HeartPulse size={32} strokeWidth={2.5} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="px-2 py-0.5 bg-indigo-100 text-indigo-600 text-[10px] font-black uppercase rounded-full tracking-wider">Module Sức Khỏe</span>
-                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Realtime Active</span>
-                </div>
-                <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Sức khỏe nhân viên</h1>
-                <p className="text-slate-500 font-medium">Quản lý trạng thái làm việc và sức khỏe đội ngũ nhân sự</p>
+      <AnimatePresence>
+        {isFilterOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="absolute top-full left-0 sm:right-0 sm:left-auto mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[9999] overflow-hidden"
+          >
+            <div className="p-3 border-b border-slate-100 bg-slate-50/50">
+              <div className="relative">
+                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm nhanh..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 outline-none uppercase"
+                />
               </div>
             </div>
 
-            <div className="flex items-center gap-6">
-              {/* Multi-select Checkbox Filter moved to header */}
-              <div className="relative" ref={filterRef}>
+            <div className="max-h-72 overflow-y-auto p-2">
+              <div className="flex items-center justify-between px-3 mb-2.5">
                 <button
-                  onClick={() => setIsFilterOpen(!isFilterOpen)}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-black text-slate-700 hover:bg-slate-50 transition-all min-w-[200px] justify-between shadow-sm"
+                  onClick={() => {
+                    const allIds = biRevenueData.map(s => s.fullId);
+                    setSelectedStaffIds(allIds);
+                    saveStaffIdsToDb(allIds);
+                  }}
+                  className="text-xs font-black uppercase text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
                 >
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full" />
-                    <span className="truncate uppercase tracking-wider">
-                      {selectedStaffIds.length === biRevenueData.length
-                        ? "Tất cả nhân viên"
-                        : selectedStaffIds.length === 0
-                          ? "Chưa chọn NV"
-                          : `Đã chọn ${selectedStaffIds.length} NV`}
-                    </span>
-                  </div>
-                  <ChevronDown size={14} className={cn("transition-transform text-slate-400", isFilterOpen && "rotate-180")} />
+                  Chọn tất cả
                 </button>
-
-                <AnimatePresence>
-                  {isFilterOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      className="absolute top-full right-0 mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[100] overflow-hidden"
-                    >
-                      <div className="p-3 border-b border-slate-100 bg-slate-50/50">
-                        <div className="relative">
-                          <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                          <input
-                            type="text"
-                            placeholder="Tìm nhanh..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold focus:ring-2 focus:ring-indigo-500 outline-none uppercase"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="max-h-64 overflow-y-auto p-2">
-                        <div className="flex items-center justify-between px-3 mb-2">
-                          <button
-                            onClick={() => {
-                              const allIds = biRevenueData.map(s => s.fullId);
-                              setSelectedStaffIds(allIds);
-                              saveStaffIdsToDb(allIds);
-                            }}
-                            className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-800 transition-colors"
-                          >
-                            Chọn tất cả
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedStaffIds([]);
-                              saveStaffIdsToDb([]);
-                            }}
-                            className="text-[10px] font-black uppercase text-slate-500 hover:text-slate-700 transition-colors"
-                          >
-                            Bỏ chọn tất cả
-                          </button>
-                        </div>
-
-                        {biRevenueData.filter(s =>
-                          s.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          s.fullId.toLowerCase().includes(searchTerm.toLowerCase())
-                        ).map(staff => (
-                          <label
-                            key={staff.fullId}
-                            className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-indigo-50 cursor-pointer transition-colors group"
-                          >
-                            <div className={cn(
-                              "w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all",
-                              selectedStaffIds.includes(staff.fullId)
-                                ? "bg-indigo-600 border-indigo-600"
-                                : "border-slate-200 group-hover:border-slate-300 bg-white"
-                            )}>
-                              {selectedStaffIds.includes(staff.fullId) && <Check size={12} className="text-white stroke-[3px]" />}
-                            </div>
-                            <input
-                              type="checkbox"
-                              className="hidden"
-                              checked={selectedStaffIds.includes(staff.fullId)}
-                              onChange={() => toggleStaffSelection(staff.fullId)}
-                            />
-                            <div className="flex flex-col">
-                              <span className="text-[11px] font-black text-slate-800 uppercase leading-tight">{staff.displayName}</span>
-                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{staff.fullId}</span>
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <button
+                  onClick={() => {
+                    setSelectedStaffIds([]);
+                    saveStaffIdsToDb([]);
+                  }}
+                  className="text-xs font-black uppercase text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
+                >
+                  Bỏ chọn tất cả
+                </button>
               </div>
 
-              <div className="flex flex-col items-end">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Mã kho đang chọn</span>
-                <div className="px-4 py-2 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center gap-2">
-                  <div className="w-2 h-2 bg-indigo-600 rounded-full" />
-                  <span className="text-sm font-black text-slate-800">{maKho || 'CHƯA CHỌN'}</span>
+              {biRevenueData.filter(s =>
+                s.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                s.fullId.toLowerCase().includes(searchTerm.toLowerCase())
+              ).sort((a, b) => {
+                const aSelected = selectedStaffIds.includes(a.fullId) ? 1 : 0;
+                const bSelected = selectedStaffIds.includes(b.fullId) ? 1 : 0;
+                if (aSelected !== bSelected) return bSelected - aSelected;
+                return a.displayName.localeCompare(b.displayName);
+              }).map(staff => (
+                <label
+                  key={staff.fullId}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-indigo-50 cursor-pointer transition-colors group"
+                >
+                  <div className={cn(
+                    "w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all",
+                    selectedStaffIds.includes(staff.fullId)
+                      ? "bg-indigo-600 border-indigo-600"
+                      : "border-slate-200 group-hover:border-slate-300 bg-white"
+                  )}>
+                    {selectedStaffIds.includes(staff.fullId) && <Check size={11} className="text-white stroke-[3px]" />}
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="hidden"
+                    checked={selectedStaffIds.includes(staff.fullId)}
+                    onChange={() => toggleStaffSelection(staff.fullId)}
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-xs sm:text-[13px] font-black text-slate-800 uppercase leading-tight">{staff.displayName}</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{staff.fullId}</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+
+  const parsedNhcStaffRows = useMemo(() => {
+    const nhcRows: { name: string; dtThuc: number; dtqd: number; hieuQuaQD: number | null }[] = [];
+    if (nganhhangChinhNv) {
+      const lines = nganhhangChinhNv.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      for (const line of lines) {
+        const cols = line.split('\t').map(c => c.trim());
+        if (cols.length < 3) continue;
+        const name = cols[0];
+        if (!name || name.toLowerCase().startsWith('tổng') || name.toLowerCase().startsWith('total')) continue;
+        const dtThuc = parseFloat(cols[1].replace(/,/g, '')) || 0;
+        const dtqd = parseFloat(cols[2].replace(/,/g, '')) || 0;
+        const hieuQuaQD = cols.length >= 4 ? (parseFloat(cols[3].replace(/,/g, '').replace(/%/g, '')) || null) : null;
+        nhcRows.push({ name, dtThuc, dtqd, hieuQuaQD });
+      }
+    }
+    return nhcRows;
+  }, [nganhhangChinhNv]);
+
+  // Pre-calculate comparison staff list and detail categories for Head-to-Head Arena
+  const { comparisonStaffList, detailComparisonCategories } = useMemo(() => {
+    if (!biRevenueData || biRevenueData.length === 0) {
+      return { comparisonStaffList: [], detailComparisonCategories: [] };
+    }
+
+    const matrixRes = parseStaffMatrixDataRefined(
+      thiDuaNv || '',
+      filteredBiData.length > 0 ? filteredBiData.length : 1,
+      categoryTargets || [],
+      (processedData?.categories || []).filter((c: any) => isCategoryForMarket(c, marketFilter)),
+      daysPassed || 1,
+      totalDays || 30
+    );
+    const staffMatrix = matrixRes?.staffMatrix || [];
+    const detailCategories = matrixRes?.categories || [];
+    const parsedNhcRows = parsedNhcStaffRows;
+
+    const list: StaffComparisonData[] = biRevenueData.map((staff, idx) => {
+      const targetQdPerStaff = filteredBiData.length > 0 ? stTargetSauHeSo / filteredBiData.length : 0;
+      const actualTargetQd = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
+      const staffActualVal = staff.actualVal || 0;
+      const actualDtqd = Math.abs(staffActualVal) > 1000000 ? staffActualVal : staffActualVal * 1000000;
+      const staffPercentHT = (actualTargetQd > 0 && daysPassed > 0)
+        ? (((actualDtqd / daysPassed) * totalDays) / actualTargetQd) * 100
+        : 0;
+
+      const staffBonusHientai = (() => {
+        const hientai = thuongData[staff.fullId]?.hientai || '';
+        const res = parseBonusData(hientai, staff, marketFilter);
+        return res.tong;
+      })();
+
+      const staffTraChamRow = (parsedTraChamRows || []).find(row => {
+        const staffId = staff.fullId.toLowerCase().trim();
+        const staffName = (staff.displayName.split('-').pop() || '').trim();
+        const staffNameClean = removeAccents(staffName);
+        const rowValClean = removeAccents(row.nhanVien);
+        return rowValClean.includes(staffId) ||
+               rowValClean === staffNameClean ||
+               rowValClean.includes(staffNameClean) ||
+               staffNameClean.includes(rowValClean);
+      });
+      const staffInstallmentPercent = staffTraChamRow ? staffTraChamRow.percent : null;
+
+      const staffNhcRow = parsedNhcRows.find(row => {
+        const staffId = staff.fullId.toLowerCase().trim();
+        const staffName = (staff.displayName.split('-').pop() || '').trim();
+        const staffNameClean = removeAccents(staffName);
+        const rowValClean = removeAccents(row.name);
+        return rowValClean.includes(staffId) ||
+               rowValClean === staffNameClean ||
+               rowValClean.includes(staffNameClean) ||
+               staffNameClean.includes(rowValClean);
+      });
+
+      const effQd = (staff.effVal !== 0
+        ? (staff.effVal > 5 ? staff.effVal : staff.effVal * 100)
+        : ((staff.actualVal || 0) > 0
+          ? (((staff.virtualVal - (staff.actualVal || 0)) / (staff.actualVal || 0)) * 100)
+          : 0));
+
+      const staffHieuQuaQd = (staffNhcRow && staffNhcRow.hieuQuaQD !== null && staffNhcRow.hieuQuaQD !== undefined)
+        ? staffNhcRow.hieuQuaQD
+        : effQd;
+
+      const matrixStaff = (staffMatrix || []).find(s => s?.fullId === staff.fullId);
+      const rawMatrixValues = matrixStaff ? matrixStaff.rawValues : [];
+
+      const cleanName = staff.displayName.split(' - ').pop() || staff.displayName;
+
+      return {
+        fullId: staff.fullId,
+        displayName: staff.displayName,
+        cleanName,
+        rank: idx + 1,
+        targetQd: actualTargetQd / 1000000,
+        actualDtqd: actualDtqd / 1000000,
+        percentHT: staffPercentHT,
+        hieuQuaQd: staffHieuQuaQd,
+        bonusHientai: staffBonusHientai,
+        installmentPercent: staffInstallmentPercent,
+        rawMatrixValues,
+      };
+    });
+
+    return { comparisonStaffList: list, detailComparisonCategories: detailCategories };
+  }, [biRevenueData, filteredBiData, thiDuaNv, categoryTargets, processedData.categories, marketFilter, daysPassed, totalDays, stTargetSauHeSo, thuongData, parsedTraChamRows, nganhhangChinhNv]);
+
+  return (
+    <div className="w-full min-h-screen bg-slate-50 overflow-x-hidden font-sans" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
+      <main className="flex-1 overflow-auto relative bg-slate-50/50">
+        <div className="p-2.5 sm:p-5 lg:p-6 w-full min-h-full">
+          
+          {/* V2 Gradient Top Header Banner */}
+          <div className="relative z-30 bg-white/95 backdrop-blur-xl rounded-2xl sm:rounded-3xl border border-slate-200/90 shadow-lg sm:shadow-xl shadow-slate-200/30 p-3.5 sm:p-5 mb-4 sm:mb-6">
+            {/* Top brand gradient highlight strip */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#2563EB] via-[#7C3AED] to-[#EC4899] rounded-t-2xl sm:rounded-t-3xl" />
+            
+            <div className="flex flex-col gap-3 sm:gap-4">
+              {/* Top Deck: Branding + Staff & Store Info + Live Sync & Action Controls */}
+              <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-2.5 sm:pb-3 border-b border-slate-100">
+                {/* Left: Branding & Module Title */}
+                <div className="flex items-center gap-2.5 sm:gap-3.5">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-[#2563EB] via-[#7C3AED] to-[#EC4899] text-white flex items-center justify-center shadow-md shadow-indigo-500/25 shrink-0">
+                    <HeartPulse size={22} className="sm:w-[26px] sm:h-[26px]" strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base sm:text-xl md:text-2xl font-black bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-800 bg-clip-text text-transparent uppercase tracking-tight leading-tight">Sức Khỏe Nhân Viên</h2>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 text-emerald-700 text-[10px] sm:text-xs font-black rounded-full uppercase tracking-wider shadow-2xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Realtime
+                      </span>
+                    </div>
+                    <p className="text-[11px] sm:text-xs md:text-sm font-semibold text-slate-500 truncate max-w-[280px] sm:max-w-none">Hệ thống phân tích hiệu suất & thi đua siêu thị</p>
+                  </div>
+                </div>
+
+                {/* Middle/Right: Quick Filters & System Status Badges */}
+                <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 w-full sm:w-auto justify-start sm:justify-end">
+                  {/* Staff Multi-Select Filter */}
+                  <div className="flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-slate-50 to-indigo-50/30 border border-slate-200/90 rounded-full pl-2.5 sm:pl-3.5 pr-1 py-1 shadow-2xs">
+                    <span className="font-black text-slate-600 uppercase tracking-wider text-[10px] sm:text-xs">NHÂN VIÊN:</span>
+                    {renderStaffFilterDropdown()}
+                  </div>
+
+                  {/* Warehouse Badge */}
+                  <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-slate-50 border border-slate-200/90 rounded-full shadow-2xs">
+                    <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">MÃ KHO:</span>
+                    <span className="font-black text-[#2563EB] text-xs sm:text-sm">{maKho || 'CHƯA CHỌN'}</span>
+                  </div>
+
+                  {/* Live Clock / Update Indicator */}
+                  <LiveClockBadge />
+
+                  {/* Refresh Button */}
+                  <button
+                    onClick={() => {
+                      refresh();
+                      showNotification('Đang làm mới dữ liệu Sức Khỏe NV...', 'info');
+                    }}
+                    className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-[#2563EB] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] text-white rounded-full text-[10px] sm:text-xs md:text-sm font-black uppercase tracking-wider shadow-md shadow-indigo-500/20 cursor-pointer transition-all active:scale-95 ml-auto sm:ml-0"
+                  >
+                    <RotateCcw size={14} className="sm:w-[15px] sm:h-[15px]" />
+                    <span>Cập nhật</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Bottom Deck: Segmented Tab Bar Navigation — Mobile only */}
+              <div className="md:hidden w-full overflow-hidden">
+                <div className="flex items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 bg-slate-100/80 backdrop-blur-md rounded-xl sm:rounded-2xl border border-slate-200/80 overflow-x-auto no-scrollbar shadow-inner">
+                  {menuItems.map((item) => {
+                    const isActive = activeTab === item.id;
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setActiveTab(item.id as any)}
+                        className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[11px] sm:text-[13px] font-black uppercase tracking-wide whitespace-nowrap transition-all duration-200 cursor-pointer shrink-0 ${
+                          isActive
+                            ? 'bg-gradient-to-r from-[#2563EB] via-[#4F46E5] to-[#7C3AED] text-white shadow-md shadow-indigo-500/25 scale-[1.02] border border-indigo-400/30'
+                            : 'bg-white/80 text-slate-600 hover:text-slate-900 hover:bg-white border border-slate-200/60 hover:shadow-2xs'
+                        }`}
+                      >
+                        <Icon size={14} className={cn("sm:w-4 sm:h-4", isActive ? 'text-white' : 'text-slate-500')} strokeWidth={isActive ? 2.5 : 2} />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -2725,18 +3899,18 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="bg-white rounded-[32px] p-2 md:p-4 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-full mx-auto relative overflow-hidden"
+                  className="bg-white/95 backdrop-blur-sm rounded-3xl p-3 sm:p-5 shadow-xl shadow-slate-200/30 border border-slate-200/90 max-w-full mx-auto relative overflow-hidden"
                 >
                   {renderLoadingOverlay()}
-                  <div className="flex flex-wrap items-center justify-end gap-3 mb-4">
+                  <div className="flex flex-wrap items-center justify-end gap-2.5 mb-4">
                       <button
                         onClick={handleCapture}
                         disabled={isCapturing}
                          className={cn(
-                          "flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95",
+                          "flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer",
                           isCapturing
                             ? "bg-slate-400 text-white cursor-wait"
-                            : "bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:from-indigo-700 hover:to-indigo-800 shadow-indigo-200/50 border-t border-white/20"
+                            : "bg-gradient-to-r from-[#2563EB] to-[#4F46E5] text-white hover:from-[#1D4ED8] hover:to-[#4338CA] shadow-blue-500/20 border-t border-white/20"
                         )}
                       >
                         {isCapturing ? (
@@ -2749,36 +3923,31 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             />
                           </div>
                         ) : (
-                          <Camera size={16} />
+                          <Camera size={15} />
                         )}
                         {isCapturing ? 'ĐANG XUẤT...' : 'XUẤT ẢNH BÁO CÁO'}
                       </button>
 
                        <button
-                        onClick={handleCopyFeedback}
+                        onClick={handleOpenDoanhThuNvComment}
                         disabled={filteredBiData.length === 0}
                         className={cn(
-                          "flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95",
+                          "flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer",
                           filteredBiData.length === 0
                             ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                            : isCopied
-                              ? "bg-emerald-600 text-white shadow-emerald-200/50"
-                              : "bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700 shadow-amber-200/50 border-t border-white/20"
+                            : "bg-gradient-to-r from-[#2563EB] via-[#4F46E5] to-[#7C3AED] hover:from-[#1D4ED8] hover:via-[#4338CA] hover:to-[#6D28D9] text-white shadow-md shadow-indigo-500/25 border border-indigo-400/30"
                         )}
+                        title="Nhận xét thi đua xếp hạng doanh thu"
                       >
-                        {isCopied ? (
-                          <Check size={16} />
-                        ) : (
-                          <MessageSquare size={16} />
-                        )}
-                        {isCopied ? 'ĐÃ COPY!' : 'NHẬN XÉT TOP / BOT'}
+                        <MessageSquare size={14} className="text-white shrink-0" />
+                        <span>NHẬN XÉT</span>
                       </button>
 
                       <button
                         onClick={handleCopyTags}
                         disabled={filteredBiData.length === 0}
                         className={cn(
-                          "flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95",
+                          "flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer",
                           filteredBiData.length === 0
                             ? "bg-slate-200 text-slate-400 cursor-not-allowed"
                             : isTagCopied
@@ -2846,43 +4015,63 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   className="bg-white rounded-[32px] p-2 md:p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-full mx-auto space-y-6 relative overflow-hidden"
                 >
                   {renderLoadingOverlay()}
-                  {/* Export All Button */}
+                  {/* Export & Compare Actions Toolbar */}
                   {selectedStaffIds.length > 0 && (
-                    <div className="flex justify-center my-6">
+                    <div className="flex items-center justify-end gap-3 my-4 flex-wrap">
+                      {/* BUTTON SO SÁNH NV XỊN XÒ NHẤT */}
+                      <button
+                        onClick={() => {
+                          if (comparisonStaffList.length >= 2) {
+                            if (!compareStaffAId) setCompareStaffAId(comparisonStaffList[0].fullId);
+                            if (!compareStaffBId) setCompareStaffBId(comparisonStaffList[1].fullId);
+                          }
+                          setIsCompareOpen(true);
+                        }}
+                        disabled={comparisonStaffList.length < 2}
+                        className="flex items-center gap-2 px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-lg active:scale-95 cursor-pointer bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white shadow-orange-500/25 border border-amber-300/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Mở bảng so sánh & đối đầu trực tiếp 2 nhân viên"
+                      >
+                        <Swords size={16} />
+                        <span>SO SÁNH NV</span>
+                      </button>
+
+                      {/* BUTTON XUẤT ALL NV */}
                       <button
                         disabled={isCapturing}
-                        onClick={async () => {
-                          setIsCapturing(true);
-                          try {
-                            const zip = new JSZip();
-                            const tables = document.querySelectorAll('[id^="employee-detail-"]');
-
-                            for (let i = 0; i < tables.length; i++) {
-                              const element = tables[i] as HTMLElement;
-                              const dataUrl = await captureElementHelper(element);
-                              const base64Data = dataUrl.split(',')[1];
-                              zip.file(`ChiTiet_${element.id.replace('employee-detail-', '')}.png`, base64Data, { base64: true });
-                            }
-
-                            const content = await zip.generateAsync({ type: "blob" });
-                            saveAs(content, "ChiTiet_All_NV.zip");
-                          } finally {
-                            setIsCapturing(false);
-                          }
-                        }}
+                        onClick={handleExportAllStaffDetails}
                         className={cn(
-                          "text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest transition-all shadow-lg active:scale-95",
-                          isCapturing ? "bg-slate-400 cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700"
+                          "relative overflow-hidden flex items-center gap-2 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer",
+                          isCapturing 
+                            ? "bg-slate-800 cursor-not-allowed text-white/95 ring-2 ring-indigo-400/50 shadow-indigo-500/30" 
+                            : "bg-gradient-to-r from-[#2563EB] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] shadow-indigo-500/20"
                         )}
+                        title="Xuất trọn bộ file ZIP chứa tất cả ảnh Chi tiết nhân viên"
                       >
-                        {isCapturing ? "ĐANG XUẤT HÌNH ẢNH..." : "XUẤT ALL NV"}
+                        {batchExportProgress ? (
+                          <>
+                            <Loader2 size={15} className="animate-spin text-amber-300 shrink-0" />
+                            <span className="font-mono tracking-normal">
+                              ĐANG XUẤT {batchExportProgress.current}/{batchExportProgress.total} NV ({batchExportProgress.percent}%)
+                            </span>
+                            {/* Animated progress bar fill */}
+                            <div 
+                              className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-amber-400 via-yellow-300 to-emerald-400 transition-all duration-200" 
+                              style={{ width: `${batchExportProgress.percent}%` }}
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <Camera size={15} />
+                            <span>XUẤT ALL NV ({selectedStaffIds.length})</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   )}
 
                   {/* Employee Detail Table Section */}
                   {selectedStaffIds.length > 0 ? (
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-2.5">
                       {selectedStaffIds.map((id, idx) => {
                         const staff = biRevenueData.find(s => s.fullId === id);
                         if (!staff) return null;
@@ -2911,6 +4100,28 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                         });
                         const staffInstallmentPercent = staffTraChamRow ? staffTraChamRow.percent : null;
 
+                        const staffNhcRow = parsedNhcStaffRows.find(row => {
+                          const staffId = staff.fullId.toLowerCase().trim();
+                          const staffName = (staff.displayName.split('-').pop() || '').trim();
+                          const staffNameClean = removeAccents(staffName);
+                          const rowValClean = removeAccents(row.name);
+                          return rowValClean.includes(staffId) || 
+                                 rowValClean === staffNameClean ||
+                                 rowValClean.includes(staffNameClean) ||
+                                 staffNameClean.includes(rowValClean);
+                        });
+
+                        // Hiệu quả QĐ: Đồng bộ trực tiếp từ Bảng Doanh Thu NV (Bảng Xếp Hạng Doanh Thu)
+                        const effQd = (staff.effVal !== 0 
+                          ? (staff.effVal > 5 ? staff.effVal : staff.effVal * 100)
+                          : ((staff.actualVal || 0) > 0 
+                            ? (((staff.virtualVal - (staff.actualVal || 0)) / (staff.actualVal || 0)) * 100) 
+                            : 0));
+
+                        const staffHieuQuaQd = (staffNhcRow && staffNhcRow.hieuQuaQD !== null && staffNhcRow.hieuQuaQD !== undefined)
+                          ? staffNhcRow.hieuQuaQD
+                          : effQd;
+
                         return (
                           <motion.div
                             key={`detail-${id}`}
@@ -2930,9 +4141,18 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               staffTargetQd={targetQdPerStaff}
                               staffDtqd={staffActualVal}
                               staffPercentHT={staffPercentHT}
+                              staffHieuQuaQd={staffHieuQuaQd}
                               staffBonusHientai={staffBonusHientai}
                               staffInstallmentPercent={staffInstallmentPercent}
                               onPreviewImage={setPreviewImage}
+                              onOpenCompare={(targetStaffId) => {
+                                setCompareStaffAId(targetStaffId);
+                                const otherStaff = comparisonStaffList.find(s => s.fullId !== targetStaffId);
+                                if (otherStaff) {
+                                  setCompareStaffBId(otherStaff.fullId);
+                                }
+                                setIsCompareOpen(true);
+                              }}
                             />
                           </motion.div>
                         );
@@ -3079,6 +4299,93 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                       allHeaders[idx].trim().toUpperCase().includes('5 SAO')
                     );
 
+                    const generatePhucVuComment = (tmpl: 1 | 2 | 3): string => {
+                      if (sortedRows.length === 0) return '';
+                      const total = sortedRows.length;
+                      const count20 = Math.max(1, Math.ceil(total * 0.2));
+
+                      const getStaffInfo = (rowLine: string) => {
+                        const cells = rowLine.split('\t');
+                        const uIdx = visibleIndices.find(idx => {
+                          const h = allHeaders[idx].trim().toUpperCase();
+                          return h.includes('USER') || h.includes('MÃ NV');
+                        });
+                        const tIdx = visibleIndices.find(idx => {
+                          const h = allHeaders[idx].trim().toUpperCase();
+                          return h.includes('TÊN') || h.includes('TEN');
+                        });
+                        const s5Idx = allHeaders.findIndex(h => h.trim().toUpperCase().includes('5 SAO'));
+                        const scIdx = allHeaders.findIndex(h => h.trim().toUpperCase().includes('ĐIỂM KH HÀI LÒNG'));
+
+                        const rawId = uIdx !== undefined ? (cells[uIdx] || '').trim() : '';
+                        const name = tIdx !== undefined ? (cells[tIdx] || '').trim() : '';
+                        const id = rawId.match(/\d{4,6}/)?.[0] || (name.match(/\d{4,6}/)?.[0] || rawId || name);
+                        const star5 = s5Idx !== -1 ? (cells[s5Idx] || '0').trim() : '0';
+                        let score = scIdx !== -1 ? (cells[scIdx] || '0').trim() : '0';
+                        const numScore = parseFloat(score);
+                        if (!isNaN(numScore)) score = (Math.floor(numScore * 10) / 10).toString();
+                        return { id, name, star5, score };
+                      };
+
+                      if (tmpl === 1) {
+                        const top = sortedRows.slice(0, count20);
+                        const bot = sortedRows.slice(Math.max(count20, total - count20));
+                        let text = `📊 BÁO CÁO PHỤC VỤ NHÂN VIÊN\n⚡ Luỹ kế đến ngày: ${today} || TGSD: ${daysPassed}/${totalDays}\n━━━━━━━━━━━━━━━━━━\n\n`;
+                        text += `🏆 TOP ${top.length} XUẤT SẮC (5 SAO CAO NHẤT):\n`;
+                        top.forEach((r, i) => {
+                          const info = getStaffInfo(r);
+                          text += `🔺 #${i + 1}. @${info.id} - ${info.star5} lượt 5⭐ (Điểm: ${info.score})\n`;
+                        });
+                        text += `\n⚠️ BOTTOM ${bot.length} CẦN CẢI THIỆN PHỤC VỤ:\n`;
+                        bot.forEach((r, i) => {
+                          const info = getStaffInfo(r);
+                          text += `🔻 #${total - bot.length + i + 1}. @${info.id} - ${info.star5} lượt 5⭐\n`;
+                        });
+                        text += `\n💪 Nâng cao trải nghiệm khách hàng để tối đa lượt đánh giá 5 sao! 🔥`;
+                        return text;
+                      } else if (tmpl === 2) {
+                        const bot = sortedRows.slice(Math.max(count20, total - count20));
+                        let text = `🚨 DANH SÁCH NHÂN VIÊN CẦN NÂNG CAO PHỤC VỤ:\n`;
+                        text += `📊 Tổng: ${bot.length}/${total} nhân viên\n\n`;
+                        bot.forEach((r, i) => {
+                          const info = getStaffInfo(r);
+                          text += `🟡 #${i + 1}. @${info.id}\n`;
+                        });
+                        text += `\n💡 Chú ý chào đón, tư vấn chu đáo và hướng dẫn khách quét mã đánh giá phục vụ!`;
+                        return text;
+                      } else {
+                        let total5 = 0;
+                        sortedRows.forEach(r => {
+                          const info = getStaffInfo(r);
+                          total5 += parseInt(info.star5.replace(/[^0-9]/g, '')) || 0;
+                        });
+                        let text = `⚡ TÓM TẮT CHỈ SỐ PHỤC VỤ NHÂN VIÊN:\n`;
+                        text += `📅 Ngày cập nhật: ${today} (TGSD: ${daysPassed}/${totalDays})\n`;
+                        text += `👥 Tổng số nhân viên: ${total}\n`;
+                        text += `⭐ Tổng lượt đánh giá 5 sao: ${total5.toLocaleString('vi-VN')}\n`;
+                        const top1 = getStaffInfo(sortedRows[0]);
+                        text += `🥇 Dẫn đầu phục vụ: @${top1.id} (${top1.star5} lượt 5⭐)\n`;
+                        text += `\n🎯 Mục tiêu: 100% khách hàng hài lòng và đánh giá 5 sao!`;
+                        return text;
+                      }
+                    };
+
+                    const handleOpenPhucVuComment = () => {
+                      const initialText = generatePhucVuComment(1);
+                      setCommentModal({
+                        isOpen: true,
+                        title: 'Nhận xét phục vụ',
+                        template: 1,
+                        text: initialText,
+                        tabs: [
+                          { id: 1, label: 'Mẫu 1: TOP/BOT NV', icon: '🏆' },
+                          { id: 2, label: 'Mẫu 2: DS Cần cải thiện', icon: '⚠️' },
+                          { id: 3, label: 'Mẫu 3: Tóm tắt', icon: '⚡' },
+                        ],
+                        generator: generatePhucVuComment,
+                      });
+                    };
+
                     const handleExportPhucVuImage = async () => {
                       if (!capturePhucVuRef.current) return;
                       setIsCapturing(true);
@@ -3096,155 +4403,167 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                     return (
                       <div className="mt-10 w-full flex flex-col items-center">
-                        <div className="w-full flex justify-end mb-4">
+                        <div className="w-full flex justify-end items-center gap-2.5 mb-4">
+                          <button
+                            onClick={handleOpenPhucVuComment}
+                            className="no-capture flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-full text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer"
+                          >
+                            <Sparkles size={14} className="animate-pulse" />
+                            <span>NHẬN XÉT</span>
+                          </button>
                           <button
                             onClick={handleExportPhucVuImage}
                             disabled={isCapturing}
-                            className="flex items-center gap-2 px-6 py-3 bg-[#00965e] hover:bg-[#007b4e] text-white rounded-full font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-200 transition-all active:scale-95 disabled:opacity-50"
+                            className="flex items-center gap-2 px-5 py-2.5 bg-[#00965e] hover:bg-[#007b4e] text-white rounded-full font-black text-xs uppercase tracking-widest shadow-md shadow-emerald-200 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
                           >
-                            <Camera size={18} />
+                            <Camera size={16} />
                             {isCapturing ? 'ĐANG CHỤP...' : 'CHỤP ẢNH BÁO CÁO'}
                           </button>
                         </div>
 
-                        <div ref={capturePhucVuRef} className="p-6 bg-white rounded-[40px] w-full shadow-sm">
-                          {/* Custom Header from Image */}
-                          <div className="w-full bg-white border border-slate-200 border-b-0 rounded-t-[32px] overflow-hidden flex divide-x divide-slate-200 shadow-sm">
-                            <div className="flex-1 p-6 flex flex-col items-center justify-center relative">
-                              <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[28px] text-[#0f172a] uppercase tracking-tight mb-2">LUỸ KẾ PHỤC VỤ NHÂN VIÊN</h2>
-                              <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
-                              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[15px] text-slate-500 uppercase tracking-widest">LUỸ KẾ ĐẾN NGÀY : {today}</span>
-                            </div>
-                            <div className="w-2/5 p-6 flex flex-col items-center justify-center">
-                              <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[28px] text-[#e11d48] uppercase tracking-tight mb-2">DỰ KIẾN</h2>
-                              <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
-                              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[15px] text-slate-500 uppercase tracking-widest">
-                                TGSD: {daysPassed}/{totalDays}
-                              </span>
-                            </div>
+                        <div ref={capturePhucVuRef} className="bg-white rounded-2xl w-full border border-slate-200 overflow-hidden shadow-sm">
+                          {/* Header Banner - Emerald gradient */}
+                          <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] text-white p-3.5 sm:p-4 text-center flex flex-col items-center justify-center">
+                            <h2 className="text-[19px] sm:text-[23px] md:text-[26px] text-[#FEF08A] font-black uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+                              LUỸ KẾ PHỤC VỤ NHÂN VIÊN
+                            </h2>
+                            <p className="text-[11px] sm:text-[12px] text-white/80 font-bold mt-1" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
+                              ⚡ Luỹ kế đến ngày: {today} &nbsp;||&nbsp; TGSD: {daysPassed}/{totalDays}
+                            </p>
                           </div>
 
-                          <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-visible shadow-xl shadow-slate-200/50">
-                            <div className="w-full overflow-x-auto">
-                              <table className="w-full border-collapse min-w-[900px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
-                                <thead className="sticky top-0 z-20">
-                                  <tr className="text-[#0f172a] font-sans font-black text-[17px] uppercase tracking-wider h-[45px]">
-                                    <th style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }} className="bg-[#00965e] px-2 py-0 text-center border-r border-white/10 h-[35px] font-sans font-black text-[#0f172a]">STT</th>
-                                    {visibleIndices.map((idx, i) => {
-                                      // Map color regions like the image
-                                      let bgColor = 'bg-[#00965e]'; // First group (Emerald)
-                                      if (i >= 2) bgColor = 'bg-[#ffcb05]'; // Middle group (Amber)
-
-                                      const headerText = allHeaders[idx].trim().toUpperCase();
-                                      let widthClasses = ''; // Flexible width
-
-                                      return (
-                                        <th key={idx} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={`${bgColor} ${widthClasses} px-2 py-0 text-center border-r border-white/10 whitespace-normal break-words leading-tight text-[14px] h-[35px] font-sans font-black text-[#0f172a]`}>
-                                          {allHeaders[idx]}
-                                        </th>
-                                      );
-                                    })}
-                                    <th style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="bg-[#f58220] px-2 py-0 text-center border-r border-white/10 last:border-r-0 whitespace-nowrap text-[14px] h-[35px] font-sans font-black text-[#0f172a]">
-                                      TOP/BOT
+                          {/* Table */}
+                          <div className="w-full overflow-x-auto">
+                            <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
+                              <colgroup>
+                                <col style={{ width: '50px' }} />
+                                <col style={{ width: '250px' }} />
+                                {visibleIndices.slice(startIndex5Sao >= 0 ? startIndex5Sao : 2).map((_, i) => (
+                                  <col key={i} style={{ width: '80px' }} />
+                                ))}
+                                <col style={{ width: '60px' }} />
+                              </colgroup>
+                              <thead>
+                                <tr className="h-[40px]">
+                                  <th className="bg-[#047857] text-white px-2 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
+                                  <th className="bg-[#047857] text-white px-3 py-0 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
+                                  {visibleIndices.slice(startIndex5Sao >= 0 ? startIndex5Sao : 2).map((idx, i) => (
+                                    <th key={idx} className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                      {allHeaders[idx]}
                                     </th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                  {sortedRows.map((row, rowIdx) => {
-                                    const cells = row.split('\t');
-                                    const isStriped = rowIdx % 2 === 1;
-                                    const isTopOne = rowIdx < topLimit;
-                                    const isBottomOne = rowIdx >= totalRows - botLimit;
+                                  ))}
+                                  <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>XH</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {sortedRows.map((row, rowIdx) => {
+                                  const cells = row.split('\t');
+                                  const isTopOne = rowIdx < topLimit;
+                                  const isBottomOne = rowIdx >= totalRows - botLimit;
 
+                                  // Build staff name: combine USER NV + TÊN NV
+                                  const userNvIdx = visibleIndices.find(idx => {
+                                    const h = allHeaders[idx].trim().toUpperCase();
+                                    return h.includes('USER') || h.includes('MÃ NV');
+                                  });
+                                  const tenNvIdx = visibleIndices.find(idx => {
+                                    const h = allHeaders[idx].trim().toUpperCase();
+                                    return h.includes('TÊN') || h.includes('TEN');
+                                  });
+                                  const userId = userNvIdx !== undefined ? (cells[userNvIdx] || '').trim() : '';
+                                  const tenNv = tenNvIdx !== undefined ? (cells[tenNvIdx] || '').trim() : '';
+                                  const staffDisplay = tenNv && userId 
+                                    ? `${tenNv.toUpperCase()} - ${userId}` 
+                                    : (tenNv || userId || '').toUpperCase();
+
+                                  const nameColor = isTopOne ? 'text-emerald-700' : isBottomOne ? 'text-rose-600' : 'text-slate-800';
+                                  const rowBg = rowIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50';
+
+                                  return (
+                                    <tr key={rowIdx} className={`${rowBg} hover:bg-slate-50 transition-colors h-[44px] border-b border-slate-100`}>
+                                      <td className="px-2 py-0 text-center font-black text-slate-500 text-[12px] sm:text-[13px] border-r border-slate-100" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        #{rowIdx + 1}
+                                      </td>
+                                      <td className={`px-3 py-0 text-left font-black text-[12px] sm:text-[13px] border-r border-slate-100 truncate ${nameColor}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        {staffDisplay}
+                                      </td>
+                                      {visibleIndices.slice(startIndex5Sao >= 0 ? startIndex5Sao : 2).map((idx) => {
+                                        const value = cells[idx] || '';
+                                        const headerText = allHeaders[idx].trim().toUpperCase();
+                                        let displayValue = value;
+
+                                        if (headerText.includes('ĐIỂM KH HÀI LÒNG')) {
+                                          const numVal = parseFloat(value);
+                                          if (!isNaN(numVal) && value.trim() !== '') {
+                                            displayValue = (Math.floor(numVal * 10) / 10).toString();
+                                          }
+                                        }
+
+                                        // Color for satisfaction score
+                                        let tdColor = 'text-slate-700';
+                                        if (headerText.includes('ĐIỂM KH HÀI LÒNG')) {
+                                          const numVal = parseFloat(value);
+                                          if (!isNaN(numVal)) {
+                                            tdColor = numVal >= 7 ? 'text-emerald-600' : numVal >= 5 ? 'text-amber-600' : 'text-rose-600';
+                                          }
+                                        }
+
+                                        return (
+                                          <td key={idx} className={`px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 whitespace-nowrap ${tdColor}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                            {displayValue}
+                                          </td>
+                                        );
+                                      })}
+                                      <td className="px-1 py-0 text-center text-[11px] sm:text-[12px] font-black border-r border-slate-100 last:border-r-0 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        {isTopOne && <span className="text-emerald-700">Top</span>}
+                                        {isBottomOne && <span className="text-rose-600">Bot</span>}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                              <tfoot>
+                                <tr className="h-[44px] bg-[#047857] text-white">
+                                  <td colSpan={2} className="px-3 py-0 text-center font-black text-[12px] sm:text-[13px] uppercase tracking-widest border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                    Tổng
+                                  </td>
+                                  {visibleIndices.slice(startIndex5Sao >= 0 ? startIndex5Sao : 2).map((idx) => {
+                                    // Calculate column sum
+                                    let colSum: number | null = null;
+                                    sortedRows.forEach(row => {
+                                      const val = parseFloat((row.split('\t')[idx] || '').replace(/[^0-9.-]+/g, ''));
+                                      if (!isNaN(val)) colSum = (colSum || 0) + val;
+                                    });
+                                    const headerText = allHeaders[idx].trim().toUpperCase();
+                                    const isAvg = headerText.includes('ĐIỂM') || headerText.includes('TỈ LỆ');
+                                    let display = '—';
+                                    if (colSum !== null) {
+                                      if (isAvg) {
+                                        display = (colSum / sortedRows.length).toFixed(1);
+                                      } else {
+                                        display = colSum.toLocaleString('vi-VN');
+                                      }
+                                    }
                                     return (
-                                      <tr key={rowIdx} className={`${isStriped ? 'bg-[#f8faff]' : 'bg-white'} hover:bg-slate-50 transition-colors h-[35px]`}>
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="px-2 py-0 text-center font-extrabold text-slate-800 text-[16px] font-sans border-r border-slate-100 h-[35px]">{rowIdx + 1}</td>
-                                        {visibleIndices.map((idx, i) => {
-                                          const value = cells[idx] || '';
-                                          const headerText = allHeaders[idx].trim().toUpperCase();
-                                          const isStaffName = headerText.includes('TÊN') || headerText.includes('TEN') || i === 0;
-                                          const isUserNV = headerText.includes('USER') || headerText.includes('MÃ NV');
-                                          const isPercentage = value.includes('%');
-
-                                          // Numeric fonts per request
-                                          const isNumericColumn = !isStaffName && !isUserNV;
-                                          const fontClass = isNumericColumn ? 'font-oswald' : 'font-sans';
-
-                                          // Specific formatting based on reference image
-                                          let textColor = 'text-slate-700';
-                                          if (isStaffName) textColor = isTopOne ? 'text-[#2563eb]' : (isBottomOne ? 'text-[#e11d48]' : 'text-slate-800');
-                                          if (isPercentage) {
-                                            const numVal = parseFloat(value);
-                                            if (!isNaN(numVal)) {
-                                              textColor = numVal >= 100 ? 'text-[#059669]' : 'text-[#e11d48]';
-                                            }
-                                          }
-
-                                          let displayValue = value;
-                                          if (headerText.includes('ĐIỂM KH HÀI LÒNG')) {
-                                            const numVal = parseFloat(value);
-                                            if (!isNaN(numVal) && value.trim() !== '') {
-                                              displayValue = (Math.floor(numVal * 10) / 10).toString();
-                                            }
-                                          }
-
-                                          return (
-                                            <td key={idx} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className={`px-2 py-0 text-center text-[16px] font-sans font-extrabold ${textColor} border-r border-slate-100 whitespace-nowrap h-[45px]`}>
-                                              <div className="flex items-center justify-center gap-1 h-full px-2">
-                                                {isStaffName && <ChevronRight size={14} className="flex-shrink-0" />}
-                                                {isPercentage ? (
-                                                  <span className={`px-1.5 py-0.5 rounded ${parseFloat(value) >= 100 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                                                    {displayValue}
-                                                  </span>
-                                                ) : (
-                                                  <span>{displayValue}</span>
-                                                )}
-                                              </div>
-                                            </td>
-                                          );
-                                        })}
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="px-1 py-0 text-center text-[16px] font-extrabold font-sans border-r border-slate-100 last:border-r-0 whitespace-nowrap h-[35px]">
-                                           <div className="flex items-center justify-center gap-1 h-full">
-                                             {isTopOne && (
-                                               <div className="flex items-center gap-1 text-[#2563eb]">
-                                                 <Trophy size={14} className="flex-shrink-0" />
-                                                 <span className="text-[13px]">TOP</span>
-                                               </div>
-                                             )}
-                                             {isBottomOne && (
-                                               <div className="flex items-center gap-1 text-[#e11d48]">
-                                                 <TrendingDown size={14} className="flex-shrink-0" />
-                                                 <span className="text-[13px]">BOT</span>
-                                               </div>
-                                             )}
-                                             {!isTopOne && !isBottomOne && <span className="opacity-20 text-slate-400">-</span>}
-                                           </div>
-                                         </td>
-                                       </tr>
-                                     );
-                                   })}
-                                 </tbody>
-                                 <tfoot className="bg-[#f8faff] border-t-2 border-slate-200">
-                                   <tr style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="font-black text-slate-800 uppercase text-[14pt]">
-                                     <td colSpan={2} className="px-6 py-4 text-center">TỔNG</td>
-                                     {visibleIndices.slice(1).map((_, i) => (
-                                       <td key={i} className="px-4 py-4 text-center">---</td>
-                                     ))}
-                                     <td className="px-4 py-4 text-center">---</td>
-                                   </tr>
-                                 </tfoot>
-                               </table>
-                             </div>
-                           </div>
-                           {sortedRows.length > 50 && (
-                             <p className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">
-                               * Hiển thị danh sách đầy đủ nhân viên
-                             </p>
-                           )}
-                         </div>
-                       </div>
-                     );
-                   })()}
+                                      <td key={idx} className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        {display}
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>—</td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        </div>
+                        {sortedRows.length > 50 && (
+                          <p className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">
+                            * Hiển thị danh sách đầy đủ nhân viên
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                  </motion.div>
                )}
 
@@ -3279,12 +4598,21 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                         <FileText size={14} /> {showBanKemInput ? 'Ẩn ô dán dữ liệu' : 'Dán / Sửa dữ liệu'}
                       </button>
                       {banKemNv && (
-                        <button
-                          onClick={handleCaptureBanKem}
-                          className="flex items-center gap-2 px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-xl text-xs font-bold uppercase transition-all shadow-sm cursor-pointer"
-                        >
-                          <Camera size={16} /> CHỤP ẢNH BẢNG
-                        </button>
+                        <>
+                          <button
+                            onClick={handleOpenBanKemComment}
+                            className="no-capture flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer"
+                          >
+                            <Sparkles size={14} className="animate-pulse" />
+                            <span>NHẬN XÉT</span>
+                          </button>
+                          <button
+                            onClick={handleCaptureBanKem}
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer"
+                          >
+                            <Camera size={15} /> CHỤP ẢNH BẢNG
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -3329,73 +4657,95 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                     return (
                       <div
                         ref={captureBanKemRef}
-                        className="w-full bg-white rounded-[40px] overflow-hidden p-6"
+                        className="bg-white rounded-2xl w-full border border-slate-200 overflow-hidden shadow-sm"
                       >
-                        {/* Double Header Card */}
-                        <div className="w-full bg-white border border-slate-200 border-b-0 rounded-t-[32px] overflow-hidden flex divide-x divide-slate-200 shadow-sm">
-                          <div className="flex-1 p-6 flex flex-col items-center justify-center relative">
-                            <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[28px] text-[#0f172a] uppercase tracking-tight mb-2">BÁN KÈM NHÂN VIÊN</h2>
-                            <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
-                            <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[15px] text-slate-500 uppercase tracking-widest">LUỸ KẾ THÁNG</span>
-                          </div>
-                          <div className="w-2/5 p-6 flex flex-col items-center justify-center">
-                            <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[28px] text-[#e11d48] uppercase tracking-tight mb-2">DỰ KIẾN</h2>
-                            <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
-                            <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[15px] text-slate-500 uppercase tracking-widest">
-                              TGSD: {daysPassed}/{totalDays}
-                            </span>
-                          </div>
+                        {/* Header Banner - Emerald gradient */}
+                        <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] text-white p-3.5 sm:p-4 text-center flex flex-col items-center justify-center">
+                          <h2 className="text-[19px] sm:text-[23px] md:text-[26px] text-[#FEF08A] font-black uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+                            BÁN KÈM NHÂN VIÊN
+                          </h2>
+                          <p className="text-[11px] sm:text-[12px] text-white/80 font-bold mt-1" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
+                            ⚡ Luỹ kế tháng &nbsp;||&nbsp; TGSD: {daysPassed}/{totalDays}
+                          </p>
                         </div>
 
-                        <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-hidden shadow-lg shadow-slate-200/30">
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left text-[#0f172a] border-collapse" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
-                              <thead className="text-slate-900 uppercase border-b border-slate-200">
-                                <tr style={{ height: '50px' }}>
-                                  <th style={{ width: '60px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">STT</th>
-                                  <th style={{ width: '250px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black">NHÂN VIÊN</th>
-                                  <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">DTLK</th>
-                                  <th style={{ width: '150px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">LƯỢT BILL BÁN KÈM</th>
-                                  <th style={{ width: '150px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">%BILL BÁN KÈM</th>
-                                  <th style={{ width: '220px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">LƯỢT BILL BÁN HÀNG (TRỪ ONLINE, TRẢ GÓP)</th>
-                                  <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-6 py-3 text-center text-[#0f172a] font-sans font-black">HIỆU QUẢ</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800, fontSize: '14px' }}>
-                                {rows.map((row: any, i: number, arr: any[]) => {
-                                    const threshold = Math.max(1, Math.ceil(arr.length * 0.2));
-                                    const isTop = i < threshold;
-                                    const isBottom = i >= arr.length - threshold && !isTop;
-                                    const isStriped = i % 2 === 1;
-                                    return (
-                                      <tr key={i} className={`${isStriped ? 'bg-[#f8faff]' : 'bg-white'} hover:bg-slate-50 h-[48px]`}>
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="px-4 py-3 text-center border-r border-slate-200 text-[#0f172a]">{i + 1}</td>
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="px-6 py-3 border-r border-slate-200 text-[#0f172a] uppercase">{row.nhanVien}</td>
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-[#0f172a]">{row.dtlk || '0'}</td>
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-[#0f172a]">{row.luotBill}</td>
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className={`px-6 py-3 text-center border-r border-slate-200 font-mono ${isTop ? 'text-emerald-600' : isBottom ? 'text-rose-600' : 'text-[#0f172a]'}`}>{row.phanTramBill}</td>
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-[#0f172a]">{row.luotBillBanHang}</td>
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="px-6 py-3 text-center text-[#0f172a]">
-                                          {isTop && (
-                                            <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="inline-flex items-center justify-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded text-[11px] uppercase whitespace-nowrap">
-                                              <TrendingUp size={12} strokeWidth={3} /> TỐT
-                                            </span>
-                                          )}
-                                          {isBottom && (
-                                            <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800 }} className="inline-flex items-center justify-center gap-1 px-2.5 py-1 bg-rose-100 text-rose-700 rounded text-[11px] uppercase whitespace-nowrap">
-                                              <TrendingDown size={12} strokeWidth={3} /> CHÚ Ý
-                                            </span>
-                                          )}
-                                          {!isTop && !isBottom && (
-                                            <span className="text-slate-400">-</span>
-                                          )}
-                                        </td>
-                                      </tr>
-                                    );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
+                        {/* Table */}
+                        <div className="w-full overflow-x-auto">
+                          <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
+                            <colgroup>
+                              <col style={{ width: '50px' }} />
+                              <col style={{ width: '220px' }} />
+                              <col style={{ width: '100px' }} />
+                              <col style={{ width: '110px' }} />
+                              <col style={{ width: '100px' }} />
+                              <col style={{ width: '140px' }} />
+                              <col style={{ width: '70px' }} />
+                            </colgroup>
+                            <thead>
+                              <tr className="h-[40px]">
+                                <th className="bg-[#047857] text-white px-2 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
+                                <th className="bg-[#047857] text-white px-3 py-0 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
+                                <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DTLK</th>
+                                <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Lượt Bill BK</th>
+                                <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>%Bill BK</th>
+                                <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Lượt Bill BH</th>
+                                <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>XH</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map((row: any, i: number, arr: any[]) => {
+                                const threshold = Math.max(1, Math.ceil(arr.length * 0.2));
+                                const isTop = i < threshold;
+                                const isBottom = i >= arr.length - threshold && !isTop;
+                                const rowBg = i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50';
+                                const nameColor = isTop ? 'text-emerald-700' : isBottom ? 'text-rose-600' : 'text-slate-800';
+
+                                return (
+                                  <tr key={i} className={`${rowBg} hover:bg-slate-50 transition-colors h-[44px] border-b border-slate-100`}>
+                                    <td className="px-2 py-0 text-center font-black text-slate-500 text-[12px] sm:text-[13px] border-r border-slate-100" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                      #{i + 1}
+                                    </td>
+                                    <td className={`px-3 py-0 text-left font-black text-[12px] sm:text-[13px] border-r border-slate-100 truncate ${nameColor}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                      {(row.nhanVien || '').toUpperCase()}
+                                    </td>
+                                    <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 text-slate-700 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                      {row.dtlk || '0'}
+                                    </td>
+                                    <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 text-slate-700 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                      {row.luotBill}
+                                    </td>
+                                    <td className={`px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 whitespace-nowrap ${isTop ? 'text-emerald-600' : isBottom ? 'text-rose-600' : 'text-slate-700'}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                      {row.phanTramBill}
+                                    </td>
+                                    <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 text-slate-700 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                      {row.luotBillBanHang}
+                                    </td>
+                                    <td className="px-1 py-0 text-center text-[11px] sm:text-[12px] font-black whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                      {isTop && <span className="text-emerald-700">Top</span>}
+                                      {isBottom && <span className="text-rose-600">Bot</span>}
+                                      {!isTop && !isBottom && <span className="text-slate-300">-</span>}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                            <tfoot>
+                              <tr className="h-[44px] bg-[#047857] text-white">
+                                <td colSpan={2} className="px-3 py-0 text-center font-black text-[12px] sm:text-[13px] uppercase tracking-widest border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                  Tổng
+                                </td>
+                                <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>—</td>
+                                <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                  {rows.reduce((s: number, r: any) => s + (parseInt(String(r.luotBill).replace(/[^0-9]/g, '')) || 0), 0).toLocaleString('vi-VN')}
+                                </td>
+                                <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>—</td>
+                                <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                  {rows.reduce((s: number, r: any) => s + (parseInt(String(r.luotBillBanHang).replace(/[^0-9]/g, '')) || 0), 0).toLocaleString('vi-VN')}
+                                </td>
+                                <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>—</td>
+                              </tr>
+                            </tfoot>
+                          </table>
                         </div>
                       </div>
                     );
@@ -3488,10 +4838,10 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                             <button
                               onClick={handleImportFromInsite}
                               className="flex items-center gap-1.5 px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-700 hover:text-purple-800 border border-purple-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm cursor-pointer"
-                              title="Tự động dán toàn bộ dữ liệu thưởng từ New Insite"
+                              title="Tự động đồng bộ toàn bộ dữ liệu thưởng từ New Insite"
                             >
-                              <Gift size={10} className="text-purple-500" />
-                              Dán từ Insite
+                              <RefreshCw size={10} className="text-purple-500" />
+                              ĐỒNG BỘ THƯỞNG
                             </button>
                             <button
                               onClick={() => handleClearThuong('hientai')}
@@ -3543,7 +4893,7 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                               onClick={handleCaptureThuongNv}
                               disabled={isCapturing}
                               className={cn(
-                                "capture-btn flex items-center gap-1.5 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all",
+                                "capture-btn flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer",
                                 isCapturing ? "opacity-50 cursor-not-allowed" : "active:scale-95"
                               )}
                             >
@@ -3812,11 +5162,20 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                         <h3 style={{ fontFamily: 'var(--font-sans)', fontSize: '24px', fontWeight: '900' }} className="text-slate-800 uppercase tracking-widest font-sans font-black">LK TRẢ CHẬM NHÂN VIÊN</h3>
                       </div>
                       <div className="flex items-center gap-2">
+                        {parsedTraChamRows.length > 0 && (
+                          <button
+                            onClick={handleOpenTraChamComment}
+                            className="no-capture flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer"
+                          >
+                            <Sparkles size={14} className="animate-pulse" />
+                            <span>NHẬN XÉT</span>
+                          </button>
+                        )}
                         <button
                           onClick={handleCaptureTraCham}
-                          className="flex items-center gap-2 px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm"
+                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer"
                         >
-                          <Camera size={16} /> CHỤP ẢNH BẢNG
+                          <Camera size={15} /> CHỤP ẢNH BẢNG
                         </button>
                       </div>
                     </div>
@@ -3825,73 +5184,97 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                     <div
                       ref={captureTraChamRef}
-                      className="w-full bg-white rounded-[40px] overflow-hidden p-6"
+                      className="bg-white rounded-2xl w-full border border-slate-200 overflow-hidden shadow-sm"
                     >
                       {parsedTraChamRows.length > 0 ? (
                         <>
-                          {/* Double Header Card */}
-                          <div className="w-full bg-white border border-slate-200 border-b-0 rounded-t-[32px] overflow-hidden flex divide-x divide-slate-200 shadow-sm">
-                            <div className="flex-1 p-6 flex flex-col items-center justify-center relative">
-                              <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[28px] text-[#0f172a] uppercase tracking-tight mb-2">TRẢ CHẬM NHÂN VIÊN</h2>
-                              <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
-                              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[15px] text-slate-500 uppercase tracking-widest">LUỸ KẾ THÁNG</span>
-                            </div>
-                            <div className="w-2/5 p-6 flex flex-col items-center justify-center">
-                              <h2 style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[28px] text-[#e11d48] uppercase tracking-tight mb-2">DỰ KIẾN</h2>
-                              <div className="w-4/5 border-t-2 border-slate-200 mt-1 mb-2"></div>
-                              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="text-[15px] text-slate-500 uppercase tracking-widest">
-                                TGSD: {daysPassed}/{totalDays}
-                              </span>
-                            </div>
+                          {/* Header Banner - Emerald gradient */}
+                          <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] text-white p-3.5 sm:p-4 text-center flex flex-col items-center justify-center">
+                            <h2 className="text-[19px] sm:text-[23px] md:text-[26px] text-[#FEF08A] font-black uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+                              TRẢ CHẬM NHÂN VIÊN
+                            </h2>
+                            <p className="text-[11px] sm:text-[12px] text-white/80 font-bold mt-1" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
+                              ⚡ Luỹ kế tháng &nbsp;||&nbsp; TGSD: {daysPassed}/{totalDays}
+                            </p>
                           </div>
 
-                          <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-hidden shadow-lg shadow-slate-200/30">
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-left text-[#0f172a] border-collapse" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
-                                <thead className="text-slate-900 uppercase border-b border-slate-200">
-                                  <tr style={{ height: '50px' }}>
-                                    <th style={{ width: '60px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">STT</th>
-                                    <th style={{ width: '280px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black">NHÂN VIÊN</th>
-                                    <th style={{ width: '180px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">DOANH THU THỰC</th>
-                                    <th style={{ width: '200px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">DOANH THU TRẢ CHẬM</th>
-                                    <th style={{ width: '150px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">% TRẢ CHẬM</th>
-                                    <th style={{ width: '150px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-6 py-3 text-center text-[#0f172a] font-sans font-black">HIỆU QUẢ</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, fontSize: '14px' }}>
-                                  {parsedTraChamRows.map((row: any, i: number, arr: any[]) => {
-                                      const threshold = Math.max(1, Math.ceil(arr.length * 0.2));
-                                      const isTop = i < threshold;
-                                      const isBottom = i >= arr.length - threshold && !isTop;
-                                      const isStriped = i % 2 === 1;
-                                      return (
-                                        <tr key={i} className={`${isStriped ? 'bg-[#f8faff]' : 'bg-white'} hover:bg-slate-50 h-[48px]`}>
-                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-3 text-center border-r border-slate-200 text-[#0f172a]">{i + 1}</td>
-                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 border-r border-slate-200 text-[#0f172a] uppercase">{row.nhanVien}</td>
-                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-[#0f172a]">{Math.round(row.totalRevenue).toLocaleString('vi-VN')}</td>
-                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-[#0f172a]">{Math.round(row.installmentRevenue).toLocaleString('vi-VN')}</td>
-                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={`px-6 py-3 text-center border-r border-slate-200 font-mono ${isTop ? 'text-emerald-600' : isBottom ? 'text-rose-600' : 'text-[#0f172a]'}`}>{row.percent.toFixed(1)}%</td>
-                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center text-[#0f172a]">
-                                            {isTop && (
-                                              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="inline-flex items-center justify-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded text-[11px] uppercase whitespace-nowrap">
-                                                <TrendingUp size={12} strokeWidth={3} /> TỐT
-                                              </span>
-                                            )}
-                                            {isBottom && (
-                                              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="inline-flex items-center justify-center gap-1 px-2.5 py-1 bg-rose-100 text-rose-700 rounded text-[11px] uppercase whitespace-nowrap">
-                                                <TrendingDown size={12} strokeWidth={3} /> CHÚ Ý
-                                              </span>
-                                            )}
-                                            {!isTop && !isBottom && (
-                                              <span className="text-slate-400 font-black">-</span>
-                                            )}
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                </tbody>
-                              </table>
-                            </div>
+                          {/* Table */}
+                          <div className="w-full overflow-x-auto">
+                            <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
+                              <colgroup>
+                                <col style={{ width: '50px' }} />
+                                <col style={{ width: '220px' }} />
+                                <col style={{ width: '140px' }} />
+                                <col style={{ width: '140px' }} />
+                                <col style={{ width: '100px' }} />
+                                <col style={{ width: '70px' }} />
+                              </colgroup>
+                              <thead>
+                                <tr className="h-[40px]">
+                                  <th className="bg-[#047857] text-white px-2 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
+                                  <th className="bg-[#047857] text-white px-3 py-0 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
+                                  <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Thực</th>
+                                  <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Trả Chậm</th>
+                                  <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>% Trả Chậm</th>
+                                  <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>XH</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {parsedTraChamRows.map((row: any, i: number, arr: any[]) => {
+                                  const threshold = Math.max(1, Math.ceil(arr.length * 0.2));
+                                  const isTop = i < threshold;
+                                  const isBottom = i >= arr.length - threshold && !isTop;
+                                  const rowBg = i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50';
+                                  const nameColor = isTop ? 'text-emerald-700' : isBottom ? 'text-rose-600' : 'text-slate-800';
+
+                                  return (
+                                    <tr key={i} className={`${rowBg} hover:bg-slate-50 transition-colors h-[44px] border-b border-slate-100`}>
+                                      <td className="px-2 py-0 text-center font-black text-slate-500 text-[12px] sm:text-[13px] border-r border-slate-100" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        #{i + 1}
+                                      </td>
+                                      <td className={`px-3 py-0 text-left font-black text-[12px] sm:text-[13px] border-r border-slate-100 truncate ${nameColor}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        {(row.nhanVien || '').toUpperCase()}
+                                      </td>
+                                      <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 text-slate-700 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        {Math.round(row.totalRevenue).toLocaleString('vi-VN')}
+                                      </td>
+                                      <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 text-slate-700 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        {Math.round(row.installmentRevenue).toLocaleString('vi-VN')}
+                                      </td>
+                                      <td className={`px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 whitespace-nowrap ${isTop ? 'text-emerald-600' : isBottom ? 'text-rose-600' : 'text-slate-700'}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        {row.percent.toFixed(1)}%
+                                      </td>
+                                      <td className="px-1 py-0 text-center text-[11px] sm:text-[12px] font-black whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        {isTop && <span className="text-emerald-700">Top</span>}
+                                        {isBottom && <span className="text-rose-600">Bot</span>}
+                                        {!isTop && !isBottom && <span className="text-slate-300">-</span>}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                              <tfoot>
+                                <tr className="h-[44px] bg-[#047857] text-white">
+                                  <td colSpan={2} className="px-3 py-0 text-center font-black text-[12px] sm:text-[13px] uppercase tracking-widest border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                    Tổng
+                                  </td>
+                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                    {parsedTraChamRows.reduce((s: number, r: any) => s + Math.round(r.totalRevenue), 0).toLocaleString('vi-VN')}
+                                  </td>
+                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                    {parsedTraChamRows.reduce((s: number, r: any) => s + Math.round(r.installmentRevenue), 0).toLocaleString('vi-VN')}
+                                  </td>
+                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                    {(() => {
+                                      const totalRev = parsedTraChamRows.reduce((s: number, r: any) => s + r.totalRevenue, 0);
+                                      const totalInst = parsedTraChamRows.reduce((s: number, r: any) => s + r.installmentRevenue, 0);
+                                      return totalRev > 0 ? ((totalInst / totalRev) * 100).toFixed(1) + '%' : '—';
+                                    })()}
+                                  </td>
+                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>—</td>
+                                </tr>
+                              </tfoot>
+                            </table>
                           </div>
                         </>
                       ) : (
@@ -4827,9 +6210,9 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                         <button
                           onClick={handleCaptureRank3T}
                           disabled={isCapturing}
-                          className="flex items-center gap-2 px-4 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/20 active:scale-95 disabled:opacity-50 cursor-pointer"
                         >
-                          <Camera size={16} /> CHỤP ẢNH BẢNG
+                          <Camera size={15} /> CHỤP ẢNH BẢNG
                         </button>
                       </div>
                     </div>
@@ -4863,11 +6246,81 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                           <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-hidden shadow-lg shadow-slate-200/30">
                             <div className="overflow-x-auto">
-                              <table className="w-full text-left text-[#0f172a] border-collapse" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+                              <table className="w-full text-left text-[#0f172a] border-collapse table-fixed" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900, minWidth: '100%' }}>
+                                <colgroup>
+                                  <col style={{ width: '55px' }} />
+                                  <col style={{ width: '220px' }} />
+                                  {showDtqdGroup && (
+                                    <>
+                                      {showMonthlyDtqd && (
+                                        <>
+                                          <col style={{ width: '110px' }} />
+                                          <col style={{ width: '110px' }} />
+                                          <col style={{ width: '110px' }} />
+                                        </>
+                                      )}
+                                      <col style={{ width: '120px' }} />
+                                      <col style={{ width: '160px' }} />
+                                    </>
+                                  )}
+                                  {showNganhHangGroup && (
+                                    <>
+                                      {showMonthlyDtqd && (
+                                        <>
+                                          <col style={{ width: '120px' }} />
+                                          <col style={{ width: '120px' }} />
+                                          <col style={{ width: '120px' }} />
+                                        </>
+                                      )}
+                                      <col style={{ width: '140px' }} />
+                                      <col style={{ width: '160px' }} />
+                                    </>
+                                  )}
+                                  {showEffGroup && (
+                                    <>
+                                      {showMonthlyDtqd && (
+                                        <>
+                                          <col style={{ width: '110px' }} />
+                                          <col style={{ width: '110px' }} />
+                                          <col style={{ width: '110px' }} />
+                                        </>
+                                      )}
+                                      <col style={{ width: '120px' }} />
+                                      <col style={{ width: '160px' }} />
+                                    </>
+                                  )}
+                                  {showThuNhapGroup && (
+                                    <>
+                                      {showMonthlyDtqd && (
+                                        <>
+                                          <col style={{ width: '110px' }} />
+                                          <col style={{ width: '110px' }} />
+                                          <col style={{ width: '110px' }} />
+                                        </>
+                                      )}
+                                      <col style={{ width: '120px' }} />
+                                      <col style={{ width: '160px' }} />
+                                    </>
+                                  )}
+                                  {showTraChamGroup && (
+                                    <>
+                                      {showMonthlyDtqd && (
+                                        <>
+                                          <col style={{ width: '110px' }} />
+                                          <col style={{ width: '110px' }} />
+                                          <col style={{ width: '110px' }} />
+                                        </>
+                                      )}
+                                      <col style={{ width: '120px' }} />
+                                      <col style={{ width: '160px' }} />
+                                    </>
+                                  )}
+                                  <col style={{ width: '180px' }} />
+                                </colgroup>
                                 <thead className="text-slate-900 uppercase border-b border-slate-200">
                                   <tr>
-                                    <th rowSpan={2} style={{ width: '60px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black align-middle whitespace-nowrap">STT</th>
-                                    <th rowSpan={2} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black align-middle whitespace-nowrap min-w-[170px]">NHÂN VIÊN</th>
+                                    <th rowSpan={2} style={{ width: '55px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-2 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black align-middle whitespace-nowrap">STT</th>
+                                    <th rowSpan={2} style={{ width: '220px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black align-middle whitespace-nowrap">NHÂN VIÊN</th>
                                     {showDtqdGroup && (
                                       <th colSpan={showMonthlyDtqd ? 5 : 2} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-2.5 border-r border-b border-white/20 text-[#0f172a] bg-[#ffcb05] font-sans font-black text-center text-sm md:text-base tracking-wide uppercase whitespace-nowrap">
                                         DOANH THU QUY ĐỔI THÁNG {rankMonth1.replace(/tháng\s*/i, '')}, {rankMonth2.replace(/tháng\s*/i, '')}, {rankMonth3.replace(/tháng\s*/i, '')}
@@ -4981,8 +6434,8 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
 
                                     return (
                                       <tr key={i} className="bg-white hover:bg-slate-50 h-[48px]">
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-3 text-center border-r border-slate-100 bg-[#fef08a] text-[#0f172a] font-black whitespace-nowrap">{i + 1}</td>
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 border-r border-slate-100 bg-white text-[#0f172a] uppercase font-black whitespace-nowrap">{row.name}</td>
+                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-2 py-3 text-center border-r border-slate-100 bg-[#fef08a] text-[#0f172a] font-black whitespace-nowrap">{i + 1}</td>
+                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-3 border-r border-slate-100 bg-white text-[#0f172a] uppercase font-black truncate max-w-[220px]" title={row.name}>{row.name}</td>
                                         {showDtqdGroup && (
                                           <>
                                             {showMonthlyDtqd && (
@@ -5339,12 +6792,45 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
                   </div>
                 </motion.div>
               )}
+
+              {activeTab === 'GIA_TRI_DH' && (
+                <GiaTriDhTab
+                  nganhhangChinhNv={nganhhangChinhNv}
+                  saveNganhhangChinhNv={saveNganhhangChinhNv}
+                  handleAutoPasteNganhHangChinh={handleAutoPasteNganhHangChinh}
+                  renderLoadingOverlay={renderLoadingOverlay}
+                  searchTerm={searchTerm}
+                  selectedStaffIds={selectedStaffIds}
+                  biRevenueData={biRevenueData}
+                  parsedTraChamRows={parsedTraChamRows}
+                  tragopNv={tragopNv}
+                  onPreviewImage={setPreviewImage}
+                />
+              )}
+
+
             </AnimatePresence>
             )}
           </div>
         </div>
       </main>
       <ImagePreviewModal previewImage={previewImage} setPreviewImage={setPreviewImage} />
+
+      {/* ⚔️ Head-to-Head Staff Comparison Modal */}
+      <StaffComparisonModal
+        isOpen={isCompareOpen}
+        onClose={() => setIsCompareOpen(false)}
+        staffList={comparisonStaffList}
+        initialStaffAId={compareStaffAId}
+        initialStaffBId={compareStaffBId}
+        detailCategories={detailComparisonCategories}
+        luykeCategories={processedData.categories.filter((c: any) => isCategoryForMarket(c, marketFilter))}
+        categoryTargets={categoryTargets}
+        staffCount={filteredBiData.length > 0 ? filteredBiData.length : 1}
+        daysPassed={daysPassed}
+        totalDays={totalDays}
+        onPreviewImage={setPreviewImage}
+      />
       {/* Custom Confirm Modal */}
       <AnimatePresence>
         {confirmModal && (
@@ -5401,6 +6887,208 @@ Các bạn nhóm dưới cố gắng bứt phá để hoàn thành mục tiêu n
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Universal Comment Modal - Portal to document.body */}
+      {commentModal.isOpen && ReactDOM.createPortal(
+        <div className="no-capture fixed inset-0 z-[9999] flex items-start justify-center pt-[5vh] bg-black/40 backdrop-blur-xs" onClick={() => setCommentModal(prev => ({ ...prev, isOpen: false }))}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-[580px] w-[95vw] mx-4 overflow-hidden border border-slate-200" onClick={e => e.stopPropagation()}>
+            {/* Header - Orange gradient */}
+            <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-[#ea580c] via-[#f97316] to-[#fb923c] text-white">
+              <div className="flex items-center gap-2.5">
+                <Sparkles size={18} className="text-white" />
+                <span className="text-[14px] font-black text-white uppercase tracking-wide" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                  {commentModal.title}
+                </span>
+              </div>
+              <button onClick={() => setCommentModal(prev => ({ ...prev, isOpen: false }))} className="p-1.5 rounded-lg hover:bg-white/20 text-white transition-colors cursor-pointer">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Template Tabs */}
+            <div className="px-5 pt-4 pb-2">
+              <p className="text-[12px] font-black text-slate-500 mb-2 uppercase tracking-wide">Chọn mẫu nội dung nhận xét:</p>
+              <div className="flex gap-2">
+                {commentModal.tabs.map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      const text = commentModal.generator(tab.id);
+                      setCommentModal(prev => ({ ...prev, template: tab.id, text }));
+                    }}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all cursor-pointer border",
+                      commentModal.template === tab.id
+                        ? "bg-gradient-to-r from-[#ea580c] to-[#f97316] text-white border-orange-500 shadow-md"
+                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                    )}
+                  >
+                    <span>{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 pb-5">
+              <p className="text-[12px] font-black text-slate-500 mb-2 uppercase tracking-wide mt-2">
+                Nội dung nhận xét (có thể chỉnh sửa trực tiếp):
+              </p>
+              <textarea
+                value={commentModal.text}
+                onChange={(e) => setCommentModal(prev => ({ ...prev, text: e.target.value }))}
+                rows={12}
+                className="w-full border border-slate-300 rounded-xl px-4 py-3 text-[13px] font-bold text-slate-800 leading-relaxed resize-y focus:ring-2 focus:ring-orange-400/40 focus:border-orange-400 outline-none bg-slate-50/50"
+                style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}
+              />
+              <div className="flex items-center justify-between mt-4">
+                <span className="text-[11px] font-bold text-slate-400 italic">
+                  Sẵn sàng dán trực tiếp vào Zalo / Line / Teams
+                </span>
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(commentModal.text);
+                      setCopiedComment(true);
+                      setTimeout(() => setCopiedComment(false), 2000);
+                    } catch { /* fallback */ }
+                  }}
+                  className={`flex items-center gap-2 px-5 py-2.5 text-[12px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
+                    copiedComment 
+                      ? 'text-white bg-emerald-500 border border-emerald-600' 
+                      : 'text-white bg-gradient-to-r from-[#ea580c] to-[#f97316] hover:from-[#c2410c] hover:to-[#ea580c] border border-orange-500'
+                  }`}
+                >
+                  {copiedComment ? <><Check size={14} /> Đã copy!</> : <><Copy size={14} /> Sao chép nhận xét</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      , document.body)}
+
+      {/* 🌟 Center Loading / Success Modal for CẬP NHẬT DATA */}
+      {typeof document !== 'undefined' && ReactDOM.createPortal(
+        <AnimatePresence>
+          {syncNganhHangModal.isOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-[999999] flex items-center justify-center p-4"
+            >
+              <div
+                className="absolute inset-0 bg-black/45 backdrop-blur-md"
+                onClick={() => {
+                  if (syncNganhHangModal.status !== 'loading') {
+                    setSyncNganhHangModal(prev => ({ ...prev, isOpen: false }));
+                  }
+                }}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.88, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.88, y: 20 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 400 }}
+                className="relative bg-white rounded-[28px] shadow-2xl border border-slate-100 p-7 max-w-md w-full text-center space-y-4 overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {syncNganhHangModal.status === 'loading' && (
+                  <div className="space-y-4 py-2">
+                    <div className="w-16 h-16 rounded-3xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+                      <Loader2 size={36} className="animate-spin" />
+                    </div>
+                    <div>
+                      <h3 style={{ fontFamily: "'UTM Avo Black', 'UTM Avo', sans-serif" }} className="text-lg font-black text-slate-800 uppercase tracking-tight">
+                        ĐANG LOAD DỮ LIỆU...
+                      </h3>
+                      <p className="text-xs text-slate-500 font-medium mt-1 leading-relaxed">
+                        {syncNganhHangModal.message || 'Đang kết nối hệ thống BI và trích xuất dữ liệu chi tiết...'}
+                      </p>
+                    </div>
+                    <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full"
+                        animate={{ x: ['-100%', '100%'] }}
+                        transition={{ repeat: Infinity, duration: 1.2, ease: 'easeInOut' }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {syncNganhHangModal.status === 'success' && (
+                  <div className="space-y-4 py-2">
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: [0, 1.2, 1] }}
+                      transition={{ duration: 0.35 }}
+                      className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/30"
+                    >
+                      <Check size={36} className="stroke-[3]" />
+                    </motion.div>
+                    <div>
+                      <h3 style={{ fontFamily: "'UTM Avo Black', 'UTM Avo', sans-serif" }} className="text-lg font-black text-emerald-700 uppercase tracking-tight">
+                        ĐÃ CẬP NHẬT DỮ LIỆU XONG!
+                      </h3>
+                      <p className="text-xs text-slate-600 font-semibold mt-1">
+                        {syncNganhHangModal.message || 'Dữ liệu đã được nạp vào bảng phân tích Giá Trị Đơn Hàng.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {syncNganhHangModal.status === 'warning' && (
+                  <div className="space-y-4 py-2">
+                    <div className="w-16 h-16 rounded-3xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-inner">
+                      <AlertCircle size={36} />
+                    </div>
+                    <div>
+                      <h3 style={{ fontFamily: "'UTM Avo Black', 'UTM Avo', sans-serif" }} className="text-base font-black text-amber-900 uppercase tracking-tight">
+                        CHƯA CÓ DỮ LIỆU TỪ BI
+                      </h3>
+                      <p className="text-xs text-amber-800 font-medium mt-1.5 leading-relaxed bg-amber-50/80 p-2.5 rounded-xl border border-amber-200/60">
+                        {syncNganhHangModal.message || 'Vui lòng chọn đúng Siêu thị trên BI và bấm nút AUTO COPY trước!'}
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setSyncNganhHangModal(prev => ({ ...prev, isOpen: false }));
+                          handleAutoPasteNganhHangChinh();
+                        }}
+                        className="w-full sm:flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5 active:scale-95"
+                      >
+                        <RefreshCw size={14} /> Thử lại
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSyncNganhHangModal(prev => ({ ...prev, isOpen: false }));
+                          window.open('https://bi.thegioididong.com/khoi-ban-hang-sub?id=73920&tab=bcth&rt=1&dm=1', '_blank');
+                        }}
+                        className="w-full sm:flex-1 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Mở trang BI
+                      </button>
+                      <button
+                        onClick={() => setSyncNganhHangModal(prev => ({ ...prev, isOpen: false }))}
+                        className="w-full sm:w-auto py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Đóng
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Unified Global Capture Loading Overlay */}
+      <CaptureLoadingOverlay isLoading={isCapturing} />
     </div>
   );
 };
