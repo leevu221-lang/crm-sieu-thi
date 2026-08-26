@@ -684,9 +684,42 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     }
   };
 
-  const captureSingleEmployeeCard = async (element: HTMLElement): Promise<Blob | string> => {
-    const __tag = element.id.replace('employee-detail-', '') || '?';
-    const __t0 = performance.now();
+  type CaptureStrategy = 'domToPng' | 'htmlToImage' | 'html2canvas';
+
+  const runCaptureStrategy = async (frameWrapper: HTMLElement, strategy: CaptureStrategy): Promise<Blob | string> => {
+    if (strategy === 'domToPng') {
+      return await domToPng(frameWrapper, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        features: { font: false, image: false },
+        width: 1120,
+        height: frameWrapper.scrollHeight,
+      });
+    }
+    if (strategy === 'htmlToImage') {
+      return await htmlToImage.toPng(frameWrapper, {
+        backgroundColor: '#ffffff',
+        pixelRatio: 2,
+        style: { ...EXPORT_FONT_STYLE },
+      });
+    }
+    const canvas = await html2canvas(frameWrapper, {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      logging: false,
+      useCORS: true,
+      allowTaint: true,
+      width: 1120,
+      windowWidth: 1120,
+    });
+    const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error('html2canvas produced no blob');
+    return blob;
+  };
+
+  // Builds the off-screen, capture-ready clone of an employee detail card.
+  // Caller owns cleanup: remove the returned tempContainer from document.body when done.
+  const buildCaptureFrame = (element: HTMLElement): { tempContainer: HTMLElement; frameWrapper: HTMLElement } => {
     const tempContainer = document.createElement('div');
     tempContainer.style.position = 'absolute';
     tempContainer.style.top = '-9999px';
@@ -795,60 +828,67 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       }
     });
 
-    const __tPrep = performance.now();
     frameWrapper.appendChild(clone);
     tempContainer.appendChild(frameWrapper);
     document.body.appendChild(tempContainer);
+    return { tempContainer, frameWrapper };
+  };
+
+  // Times domToPng vs html2canvas against the SAME real card once, up front, and
+  // reports which is actually faster for this data shape. Their relative speed
+  // depends heavily on DOM size/complexity — domToPng (SVG foreignObject) is
+  // usually faster for simple markup but can lose badly on very large/deeply
+  // nested tables where per-node inline-style serialization dominates, which
+  // turned out to be the case here (16-30s+ per card once contention was
+  // factored out). Costs one extra capture up front instead of guessing wrong
+  // and paying for it on every card of the batch.
+  const benchmarkCaptureStrategies = async (element: HTMLElement): Promise<CaptureStrategy> => {
+    const { tempContainer, frameWrapper } = buildCaptureFrame(element);
+    try {
+      let domMs = Infinity;
+      let canvasMs = Infinity;
+      try {
+        const t0 = performance.now();
+        await runCaptureStrategy(frameWrapper, 'domToPng');
+        domMs = performance.now() - t0;
+      } catch (e) {
+        console.warn('[Export benchmark] domToPng failed:', e);
+      }
+      try {
+        const t0 = performance.now();
+        await runCaptureStrategy(frameWrapper, 'html2canvas');
+        canvasMs = performance.now() - t0;
+      } catch (e) {
+        console.warn('[Export benchmark] html2canvas failed:', e);
+      }
+      const winner: CaptureStrategy = canvasMs < domMs ? 'html2canvas' : 'domToPng';
+      console.log(`[Export benchmark] domToPng=${domMs.toFixed(0)}ms html2canvas=${canvasMs.toFixed(0)}ms → using ${winner} for the rest of the batch`);
+      return winner;
+    } finally {
+      document.body.removeChild(tempContainer);
+    }
+  };
+
+  const captureSingleEmployeeCard = async (element: HTMLElement, order: CaptureStrategy[]): Promise<Blob | string> => {
+    const __tag = element.id.replace('employee-detail-', '') || '?';
+    const __t0 = performance.now();
+    const { tempContainer, frameWrapper } = buildCaptureFrame(element);
+    const __tPrep = performance.now();
 
     try {
-      // domToPng (modern-screenshot) renders via the browser's native SVG
-      // foreignObject pipeline instead of html2canvas's manual JS repaint of
-      // every CSS rule — several times faster for tables like this one, and
-      // it's what batch export was already falling back to (so the output is
-      // already proven correct for this exact DOM). Try it FIRST; html2canvas
-      // becomes the last-resort fallback for the rare case both fast paths fail.
-      try {
-        const __t1 = performance.now();
-        const dataUrl = await domToPng(frameWrapper, {
-          backgroundColor: '#ffffff',
-          scale: 2,
-          features: { font: false, image: false },
-          width: 1120,
-          height: frameWrapper.scrollHeight,
-        });
-        console.log(`[Export ${__tag}] prep=${(__tPrep - __t0).toFixed(0)}ms domToPng=${(performance.now() - __t1).toFixed(0)}ms total=${(performance.now() - __t0).toFixed(0)}ms`);
-        return dataUrl;
-      } catch (domErr) {
-        console.warn(`[Export ${__tag}] domToPng failed after ${(performance.now() - __tPrep).toFixed(0)}ms, fallback to htmlToImage:`, domErr);
+      let lastErr: unknown = null;
+      for (const strategy of order) {
+        try {
+          const __t1 = performance.now();
+          const result = await runCaptureStrategy(frameWrapper, strategy);
+          console.log(`[Export ${__tag}] prep=${(__tPrep - __t0).toFixed(0)}ms ${strategy}=${(performance.now() - __t1).toFixed(0)}ms total=${(performance.now() - __t0).toFixed(0)}ms`);
+          return result;
+        } catch (err) {
+          lastErr = err;
+          console.warn(`[Export ${__tag}] ${strategy} failed, trying next strategy:`, err);
+        }
       }
-
-      try {
-        const __t2 = performance.now();
-        const dataUrl = await htmlToImage.toPng(frameWrapper, {
-          backgroundColor: '#ffffff',
-          pixelRatio: 2,
-          style: { ...EXPORT_FONT_STYLE },
-        });
-        console.log(`[Export ${__tag}] prep=${(__tPrep - __t0).toFixed(0)}ms htmlToImage=${(performance.now() - __t2).toFixed(0)}ms total=${(performance.now() - __t0).toFixed(0)}ms`);
-        return dataUrl;
-      } catch (htiErr) {
-        console.warn(`[Export ${__tag}] htmlToImage failed, fallback to html2canvas:`, htiErr);
-      }
-
-      const __t3 = performance.now();
-      const canvas = await html2canvas(frameWrapper, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-        logging: false,
-        useCORS: true,
-        allowTaint: true,
-        width: 1120,
-        windowWidth: 1120,
-      });
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-      console.log(`[Export ${__tag}] prep=${(__tPrep - __t0).toFixed(0)}ms html2canvas=${(performance.now() - __t3).toFixed(0)}ms total=${(performance.now() - __t0).toFixed(0)}ms`);
-      if (blob) return blob;
-      throw new Error('All capture strategies failed to produce an image');
+      throw lastErr instanceof Error ? lastErr : new Error('All capture strategies failed to produce an image');
     } finally {
       document.body.removeChild(tempContainer);
     }
@@ -870,11 +910,20 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       const zip = new JSZip();
       let completedCount = 0;
 
-      // Concurrency pool sized to the device — domToPng's per-card work is mostly
-      // async (image/font decode, canvas→PNG encode) so more in-flight cards keeps
-      // the CPU busier than a fixed 6, without spawning so many that memory/GC
-      // pressure from many live canvases slows things back down.
-      const CONCURRENCY = Math.min(12, Math.max(6, (navigator.hardwareConcurrency || 6)));
+      // Pick the faster render strategy for THIS card shape once, up front (see
+      // benchmarkCaptureStrategies), instead of assuming domToPng always wins.
+      const strategyOrder: CaptureStrategy = await benchmarkCaptureStrategies(tables[0]);
+      const order: CaptureStrategy[] = strategyOrder === 'html2canvas'
+        ? ['html2canvas', 'domToPng', 'htmlToImage']
+        : ['domToPng', 'htmlToImage', 'html2canvas'];
+
+      // Real-world captures on complex tables here turned out to be CPU-bound on
+      // the main thread — more "concurrent" workers just interleave and queue
+      // behind each other rather than truly parallelizing, and measured captures
+      // got progressively SLOWER (16s → 34s+) as concurrency rose. Keep the pool
+      // small so it can still overlap the async I/O portions (image/font decode)
+      // without starving every in-flight card of main-thread time.
+      const CONCURRENCY = Math.min(3, tables.length);
       let currentIndex = 0;
 
       const worker = async () => {
@@ -886,8 +935,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
           try {
             const rawName = element.id.replace('employee-detail-', '').trim();
             const cleanName = rawName.replace(/[/\\?%*:|"<>]/g, '_');
-            const result = await captureSingleEmployeeCard(element);
-            
+            const result = await captureSingleEmployeeCard(element, order);
+
             if (result instanceof Blob) {
               zip.file(`ChiTiet_${String(idx + 1).padStart(2, '0')}_${cleanName}.png`, result);
             } else if (typeof result === 'string') {
