@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { db } from '../../../firebaseConfig';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { getCachedDoc } from '../../../services/cachedFirestore';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNotification } from '../../../contexts/NotificationContext';
 import { useStore, getStoreItem, setStoreItem } from '../../../contexts/StoreContext';
@@ -25,7 +26,8 @@ import {
   safeSetItem,
   isValidStoreName,
   minifyYcxData,
-  normalizeStoreId
+  normalizeStoreId,
+  localYcxDb
 } from '../utils';
 
 // Compress string to base64 using native browser GZIP CompressionStream (99% size reduction for TSV)
@@ -98,7 +100,12 @@ export const useRealtimeData = (maKho: string) => {
   const [ycxFileNameMoi, setYcxFileNameMoiState] = useState('');
   const [categoryRevenueInput, setCategoryRevenueInput] = useState('');
   const [categoryTargetInput, setCategoryTargetInput] = useState('');
-  const [activeStore, setActiveStore] = useState<string>(maKho);
+  // NOTE: must start empty, NOT maKho — activeStore holds a STORE NAME (matches Firestore doc id
+  // via normalizeStoreId), while maKho is the warehouse code. Seeding it with maKho let the
+  // mount-time loadData() effect below (line ~578) race against the correct currentStoreId-driven
+  // load and, if a legacy doc happened to exist under the warehouse-code id, overwrite freshly
+  // loaded/saved data with stale data right after an F5 reload.
+  const [activeStore, setActiveStore] = useState<string>('');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [hasLoadedFromDB, setHasLoadedFromDB] = useState(false);
   const [processError, setProcessError] = useState<string | null>(null);
@@ -243,18 +250,18 @@ export const useRealtimeData = (maKho: string) => {
     }
   }, [marketInput, categoryInput, categoryRevenueInput, categoryTargetInput, ycxData, quyDoiRules]);
 
-  // Listen to quy_doi_map config from Firestore on mount
+  // One-time cached read (shared cache key with RealtimePage's admin config modal) instead
+  // of a permanent onSnapshot — see src/services/cachedFirestore.ts. This is rarely-edited
+  // business rule data, not something that needs a live push to every open session.
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'system_configs', 'quy_doi_map'), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data && data.rules) {
-          setQuyDoiRules(data.rules);
-          localStorage.setItem('crm_quy_doi_rules', JSON.stringify(data.rules));
-        }
+    let cancelled = false;
+    getCachedDoc<{ rules: any }>('system_configs', 'quy_doi_map').then((data) => {
+      if (!cancelled && data?.rules) {
+        setQuyDoiRules(data.rules);
+        try { localStorage.setItem('crm_quy_doi_rules', JSON.stringify(data.rules)); } catch {}
       }
     });
-    return () => unsub();
+    return () => { cancelled = true; };
   }, []);
   useEffect(() => {
     setIsProcessingRealtime(true);
@@ -306,6 +313,14 @@ export const useRealtimeData = (maKho: string) => {
     setGlobalLastSaveTs(Date.now());
     isDirtyRef.current = false;
 
+    // A save is happening now — cancel any pending debounced auto-save so we don't
+    // fire a second, redundant write ~800ms later for the same data (was doubling
+    // Firestore write quota usage on every onBlur save).
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
+    }
+
     const cleanStore = (activeStoreRef.current || '').trim();
     if (!normalizedMaKho || !cleanStore || !isValidStoreName(cleanStore)) {
       if (!silent && !cleanStore) {
@@ -355,6 +370,18 @@ export const useRealtimeData = (maKho: string) => {
         ycx_file_name: ycxFileNameVal,
         ycx_file_name_moi: ycxFileNameMoiVal
       };
+
+      // Backup locally FIRST to prevent data loss on F5 if payload exceeds Supabase limit
+      try {
+        await localYcxDb.set('ycx_' + normalizeStoreId(cleanStore), JSON.stringify({
+          ycx_data: compressedYcx || '',
+          ycx_data_moi: compressedYcxMoi || '',
+          ycx_file_name: ycxFileNameVal || '',
+          ycx_file_name_moi: ycxFileNameMoiVal || ''
+        }));
+      } catch (e) {
+        console.warn('[RealtimeData] Lỗi lưu LocalDB', e);
+      }
 
       const { error: upsertError } = await supabase
         .from('store')
@@ -494,11 +521,31 @@ export const useRealtimeData = (maKho: string) => {
           setCategoryInput(await sanitizeField(record.rt_nh_cum));
           setCategoryRevenueInput(await sanitizeField(record.lk_bi_tong_quan));
           setCategoryTargetInput(await sanitizeField(record.lk_nh_sieu_thi));
-          setYcxData(await sanitizeField(record.ycx_data));
-          setYcxDataMoi(await sanitizeField(record.ycx_data_moi));
-          // Restore YCX file names from Firebase
-          setYcxFileNameState(record.ycx_file_name || '');
-          setYcxFileNameMoiState(record.ycx_file_name_moi || '');
+          
+          let finalYcxData = await sanitizeField(record.ycx_data);
+          let finalYcxDataMoi = await sanitizeField(record.ycx_data_moi);
+          let finalYcxFileName = record.ycx_file_name || '';
+          let finalYcxFileNameMoi = record.ycx_file_name_moi || '';
+
+          // If empty (because it was too large to save to DB), try to recover from LocalDB
+          if (!finalYcxData || !finalYcxDataMoi || !finalYcxFileName) {
+            try {
+              const localPayload = await localYcxDb.get('ycx_' + targetDocId);
+              if (localPayload) {
+                const parsed = JSON.parse(localPayload);
+                if (!finalYcxData && parsed.ycx_data) finalYcxData = await sanitizeField(parsed.ycx_data);
+                if (!finalYcxDataMoi && parsed.ycx_data_moi) finalYcxDataMoi = await sanitizeField(parsed.ycx_data_moi);
+                if (!finalYcxFileName && parsed.ycx_file_name) finalYcxFileName = parsed.ycx_file_name;
+                if (!finalYcxFileNameMoi && parsed.ycx_file_name_moi) finalYcxFileNameMoi = parsed.ycx_file_name_moi;
+              }
+            } catch (e) {}
+          }
+
+          setYcxData(finalYcxData);
+          setYcxDataMoi(finalYcxDataMoi);
+          // Restore YCX file names from Firebase or LocalDB
+          setYcxFileNameState(finalYcxFileName);
+          setYcxFileNameMoiState(finalYcxFileNameMoi);
         } else {
           console.log('[RealtimeData] BLOCKED loadData restore — user recently cleared/edited data');
         }
@@ -513,6 +560,18 @@ export const useRealtimeData = (maKho: string) => {
         }
       } else {
         console.log(`[RealtimeData] No record found in DB for ID: "${targetDocId}" — keeping existing local data`);
+        if (!isDirtyRef.current) {
+          try {
+            const localPayload = await localYcxDb.get('ycx_' + targetDocId);
+            if (localPayload) {
+              const parsed = JSON.parse(localPayload);
+              if (parsed.ycx_data) setYcxData(await sanitizeField(parsed.ycx_data));
+              if (parsed.ycx_data_moi) setYcxDataMoi(await sanitizeField(parsed.ycx_data_moi));
+              if (parsed.ycx_file_name) setYcxFileNameState(parsed.ycx_file_name);
+              if (parsed.ycx_file_name_moi) setYcxFileNameMoiState(parsed.ycx_file_name_moi);
+            }
+          } catch (e) {}
+        }
       }
 
     } catch (err) {

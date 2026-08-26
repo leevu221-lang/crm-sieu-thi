@@ -2,12 +2,14 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
 import { ImagePreviewModal } from '../components/ImagePreviewModal';
+import { CaptureLoadingOverlay } from '../components/CaptureLoadingOverlay';
 import { removeAccents, cn, normalizeStoreId } from './RTST/utils';
 import { supabase } from '../supabaseClient';
 import { useStore } from '../contexts/StoreContext';
 import { db } from '../firebaseConfig';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { BaoHiemRule } from '../components/ConfigBaoHiemModal';
+import { getCachedDoc } from '../services/cachedFirestore';
 
 let activeCustomBaoHiemRules: BaoHiemRule[] = [];
 let activeCustomCategoryMap: Record<string, { nganhHang?: string, large: string, small: string }> = {};
@@ -815,7 +817,7 @@ const parseYcxRows = (data: string): any[][] => {
   return rows.filter(r => r.length > 0 && r.some(c => String(c).trim() !== ''));
 };
 
-const BcDtNganhHang: React.FC = () => {
+const BcDtNganhHang: React.FC<{ isUser43751?: boolean }> = ({ isUser43751 = false }) => {
   const { currentStoreId, warehouseCode } = useStore();
 
   const [lastMonthData, setLastMonthData] = useState(() => localStorage.getItem('bcdtnh_last_month_data') || '');
@@ -833,33 +835,23 @@ const BcDtNganhHang: React.FC = () => {
   const [drillExpandDepth, setDrillExpandDepth] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
 
   const [isLoadingDb, setIsLoadingDb] = useState(false);
   const [isSavingDb, setIsSavingDb] = useState(false);
 
+  // One-time cached reads (shared cache key with RealtimePage's admin config modals) —
+  // see src/services/cachedFirestore.ts. Avoids opening a 2nd permanent listener on the
+  // same rarely-changing config doc whenever this page is mounted alongside RealtimePage.
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'system_configs', 'nhom_hang_map'), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data && data.map) {
-          activeCustomCategoryMap = data.map;
-        }
-      }
+    let cancelled = false;
+    getCachedDoc<{ map: any }>('system_configs', 'nhom_hang_map').then((data) => {
+      if (!cancelled && data?.map) activeCustomCategoryMap = data.map;
     });
-    
-    const unsubBH = onSnapshot(doc(db, 'system_configs', 'bao_hiem_map'), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data && data.rules) {
-          activeCustomBaoHiemRules = data.rules;
-        }
-      }
+    getCachedDoc<{ rules: any }>('system_configs', 'bao_hiem_map').then((data) => {
+      if (!cancelled && data?.rules) activeCustomBaoHiemRules = data.rules;
     });
-
-    return () => {
-      unsub();
-      unsubBH();
-    };
+    return () => { cancelled = true; };
   }, []);
 
   // Load data from Firebase when currentStoreId changes
@@ -1278,6 +1270,7 @@ const BcDtNganhHang: React.FC = () => {
     const originalWidth = element.style.width;
     const originalMinWidth = element.style.minWidth;
     try {
+      setIsCapturing(true);
       element.classList.add('capturing-target');
       document.body.classList.add('capturing-screenshot');
 
@@ -1304,8 +1297,10 @@ const BcDtNganhHang: React.FC = () => {
       // Lock width to max-content to prevent column wrapping/clipping, but allow shrink-wrapping to eliminate whitespace
       element.style.width = 'max-content';
       element.style.minWidth = 'min-content';
-      element.style.padding = '12px';
+      element.style.padding = '24px';
       element.style.backgroundColor = '#ffffff';
+      element.style.boxSizing = 'border-box';
+      element.style.borderRadius = '24px';
 
       // Small delay for browser rendering to adapt
       await new Promise(resolve => setTimeout(resolve, 150));
@@ -1331,6 +1326,7 @@ const BcDtNganhHang: React.FC = () => {
       element.classList.remove('capturing-target');
       removeDesktopLayout(element);
       document.body.classList.remove('capturing-screenshot');
+      setIsCapturing(false);
     }
   };
 
@@ -1369,7 +1365,7 @@ const BcDtNganhHang: React.FC = () => {
         }
       `}} />
       {/* Title */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200/60 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-200/60 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center border border-emerald-100 shadow-inner">
             <LayoutGrid size={22} />
@@ -1574,8 +1570,8 @@ const BcDtNganhHang: React.FC = () => {
           </div>
 
           {/* Table Container Wrapper */}
-          <div className="bg-white rounded-3xl border border-slate-300 shadow-xl overflow-hidden" id="bcdtnh-table-capture-wrapper">
-            <div className="px-6 py-5 border-b border-slate-300 bg-white">
+          <div className="bg-white rounded-2xl border border-slate-300 shadow-sm overflow-hidden" id="bcdtnh-table-capture-wrapper">
+            <div className="px-3 sm:px-4 py-2.5 border-b border-slate-300 bg-white">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 font-bold border border-blue-100">
                   <Activity size={20} />
@@ -1590,7 +1586,7 @@ const BcDtNganhHang: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full border-collapse border border-slate-200/50 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-200/50 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap font-sans" style={{ borderSpacing: 0 }}>
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-300 text-slate-800 text-[13px] font-black uppercase">
+                  <tr className={`bg-slate-50 border-b border-slate-300 text-slate-800 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase`}>
                     <th rowSpan={2} className="py-2.5 px-4 text-left bg-slate-50 min-w-[240px] border-r border-slate-200/50 font-black align-middle">CHI TIẾT NGÀNH HÀNG</th>
                     <th colSpan={3} className="py-1 px-4 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black border-b border-emerald-100">SỐ LƯỢNG</th>
                     <th colSpan={3} className="py-1 px-4 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 font-black border-b border-blue-100">DOANH THU</th>
@@ -1598,7 +1594,7 @@ const BcDtNganhHang: React.FC = () => {
                     <th colSpan={3} className="py-1 px-4 text-center text-[#6b21a8] bg-[#f3e8ff] border-r border-slate-200/50 font-black border-b border-purple-100">GIÁ TRỊ ĐH</th>
                     <th colSpan={3} className="py-1 px-4 text-center text-[#be123c] bg-[#ffe4e6] font-black border-b border-rose-100">TRẢ CHẬM</th>
                   </tr>
-                  <tr className="bg-slate-50 border-b border-slate-300 text-slate-800 text-[10px] font-black uppercase">
+                  <tr className={`bg-slate-50 border-b border-slate-300 text-slate-800 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase`}>
                     <th className="py-1 px-2 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 w-20 font-black">Tháng này</th>
                     <th className="py-1 px-2 text-center text-slate-400 bg-slate-50/50 border-r border-slate-200/50 w-20 font-black">Tháng trước</th>
                     <th className="py-1 px-2 text-center text-rose-500 bg-[#ffe4e6] border-r border-slate-200/50 w-16 font-black">+/-</th>
@@ -1620,7 +1616,7 @@ const BcDtNganhHang: React.FC = () => {
                     <th className="py-1 px-2 text-center text-rose-500 bg-[#ffe4e6] w-16 font-black">+/-</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-[13px] font-black text-slate-700">
+                <tbody className={`divide-y divide-slate-100 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700`}>
                   {filteredFlatRows.map(row => {
                     const nodePrev = prevNodesMap.get(row.key);
                     const hasChildren = row.children && row.children.length > 0;
@@ -1664,13 +1660,13 @@ const BcDtNganhHang: React.FC = () => {
                             ) : (
                               <div className="w-5 h-5 mr-1.5 shrink-0" />
                             )}
-                            <span className={textClass}>{row.name}</span>
+                            <span className={`${isUser43751 ? 'text-[14px] tracking-tight' : ''} ${textClass}`}>{row.name}</span>
                           </div>
                         </td>
 
                         {/* SL Columns */}
                         <td className="py-2 px-4 text-right border-r border-slate-200/50">{row.sl === 0 ? '-' : row.sl.toLocaleString('vi-VN')}</td>
-                        <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                        <td className={`py-2 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>
                           {nodePrev ? nodePrev.sl.toLocaleString('vi-VN') : "-"}
                         </td>
                         <td className="py-2 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">
@@ -1679,7 +1675,7 @@ const BcDtNganhHang: React.FC = () => {
 
                         {/* DT Columns */}
                         <td className="py-2 px-4 text-right border-r border-slate-200/50">{fmtTr(row.dt)}</td>
-                        <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                        <td className={`py-2 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>
                           {nodePrev ? fmtTr(nodePrev.dt) : "-"}
                         </td>
                         <td className="py-2 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">
@@ -1688,7 +1684,7 @@ const BcDtNganhHang: React.FC = () => {
 
                         {/* DTQD Columns */}
                         <td className="py-2 px-4 text-right border-r border-slate-200/50">{fmtTr(row.dtqd)}</td>
-                        <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                        <td className={`py-2 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>
                           {nodePrev ? fmtTr(nodePrev.dtqd) : "-"}
                         </td>
                         <td className="py-2 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">
@@ -1697,7 +1693,7 @@ const BcDtNganhHang: React.FC = () => {
 
                         {/* GTDH Columns */}
                         <td className="py-2 px-4 text-right border-r border-slate-200/50">{orderValue > 0 ? orderValue.toFixed(1) : '-'}</td>
-                        <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                        <td className={`py-2 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>
                           {nodePrev && prevOrderValue > 0 ? prevOrderValue.toFixed(1) : "-"}
                         </td>
                         <td className="py-2 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">
@@ -1706,7 +1702,7 @@ const BcDtNganhHang: React.FC = () => {
 
                         {/* TRẢ CHẬM Columns */}
                         <td className="py-2 px-4 text-center border-r border-slate-200/50">{row.dt > 0 && row.tc_dt > 0 ? `${tcPct.toFixed(0)}%` : '-'}</td>
-                        <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                        <td className={`py-2 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>
                           {nodePrev && nodePrev.dt > 0 && nodePrev.tc_dt > 0 ? `${prevTcPct.toFixed(0)}%` : "-"}
                         </td>
                         <td className="py-2 px-2 text-center bg-slate-50/30">
@@ -1716,13 +1712,13 @@ const BcDtNganhHang: React.FC = () => {
                     );
                   })}
                 </tbody>
-                <tfoot className="bg-[#f8faff] border-t-2 border-slate-300 text-[13px] font-black text-slate-800">
+                <tfoot className={`bg-[#f8faff] border-t-2 border-slate-300 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-800`}>
                   <tr className="h-10">
-                    <td className="py-2 px-4 text-center border-r border-slate-200/50 uppercase tracking-widest font-black">TỔNG CỘNG</td>
+                    <td className={`py-2 px-4 text-center border-r border-slate-200/50 uppercase tracking-widest font-black ${isUser43751 ? 'text-[15px]' : ''}`}>TỔNG CỘNG</td>
                     
                     {/* SL Total */}
                     <td className="py-2 px-4 text-right border-r border-slate-200/50">{totals.sl.toLocaleString('vi-VN')}</td>
-                    <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                    <td className={`py-2 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>
                       {prevRawRows.length > 0 ? totals.prevSl.toLocaleString('vi-VN') : '-'}
                     </td>
                     <td className="py-2 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">
@@ -1731,7 +1727,7 @@ const BcDtNganhHang: React.FC = () => {
 
                     {/* DT Total */}
                     <td className="py-2 px-4 text-right border-r border-slate-200/50">{fmtTr(totals.dt)}</td>
-                    <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                    <td className={`py-2 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>
                       {prevRawRows.length > 0 ? fmtTr(totals.prevDt) : '-'}
                     </td>
                     <td className="py-2 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">
@@ -1740,7 +1736,7 @@ const BcDtNganhHang: React.FC = () => {
 
                     {/* DTQD Total */}
                     <td className="py-2 px-4 text-right border-r border-slate-200/50">{fmtTr(totals.dtqd)}</td>
-                    <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                    <td className={`py-2 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>
                       {prevRawRows.length > 0 ? fmtTr(flatRows.reduce((acc, r) => {
                         const prevNode = prevNodesMap.get(r.key);
                         return acc + (prevNode ? prevNode.dtqd : 0);
@@ -1769,6 +1765,9 @@ const BcDtNganhHang: React.FC = () => {
           <p className="text-xs text-slate-400 max-w-sm mt-1 leading-relaxed">Vui lòng tải lên tệp Excel YCX hoặc dán văn bản báo cáo cho cả hai tháng để xem bảng phân tích so sánh đối chiếu.</p>
         </div>
       )}
+
+      {/* Capture Loading Overlay */}
+      <CaptureLoadingOverlay isLoading={isCapturing} />
 
       {/* Image Preview Modal */}
       <ImagePreviewModal previewImage={previewImage} setPreviewImage={setPreviewImage} />

@@ -95,6 +95,22 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     const saved = getStoreItem('ST_TOP_PERCENT_LIMIT_V1', currentStoreId);
     return saved !== null ? Number(saved) : 7;
   });
+
+  const [excelOldFileName, setExcelOldFileName] = useState(() => cachedStore.excelOldFileName || getStoreItem('ST_EXCEL_OLD_FILE_NAME_V1', currentStoreId) || '');
+  const [thuongStOldRows, setThuongStOldRows] = useState<any[]>(() => {
+    if (cachedStore.thuongStOldRows !== undefined) return cachedStore.thuongStOldRows;
+    try {
+      const saved = getStoreItem('ST_THUONG_ST_OLD_ROWS_V1', currentStoreId);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [topPercentRankLimitOld, setTopPercentRankLimitOld] = useState<number>(() => {
+    if (cachedStore.topPercentRankLimitOld !== undefined) return cachedStore.topPercentRankLimitOld;
+    const saved = getStoreItem('ST_TOP_PERCENT_LIMIT_OLD_V1', currentStoreId);
+    return saved !== null ? Number(saved) : 7;
+  });
   const [allStoreTargets, setAllStoreTargets] = useState<Record<string, any>>(() => globalAllStoreTargets);
 
   const updateAllStoreTargets = useCallback((updater: any) => {
@@ -116,6 +132,10 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
 
   // PERF: Ref for saveStoreRevenue to use in auto-save without dependency cascade
   const saveStoreRevenueRef = useRef<((maKho: string, activeStore: string, silent?: boolean) => Promise<void>) | null>(null);
+  // Tracks the pending 4s debounced auto-save timer so an explicit save() call can cancel
+  // it — otherwise a manual save shortly after an edit gets duplicated by the debounce
+  // firing again a few seconds later, doubling Firestore writes.
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Set up Supabase Realtime subscription for store shared settings
   // PERF: Removed stName from deps — uses stNameRef instead to avoid re-subscribing on every name change
@@ -257,6 +277,12 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
 
 
   const saveStoreRevenue = useCallback(async (maKho: string, activeStore: string, silent = false) => {
+    // Cancel any pending debounced auto-save — we're saving now, so let's not also fire
+    // a redundant duplicate write a few seconds from now for the same data.
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
     // Prioritize a valid store name over the warehouse code
     let storeToSave = '';
     
@@ -431,6 +457,9 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           if (settings.excelFileName !== undefined) setExcelFileName(settings.excelFileName || '');
           if (settings.thuongStRows !== undefined) setThuongStRows(settings.thuongStRows || []);
           if (settings.topPercentRankLimit !== undefined) setTopPercentRankLimit(settings.topPercentRankLimit);
+          if (settings.excelOldFileName !== undefined) setExcelOldFileName(settings.excelOldFileName || '');
+          if (settings.thuongStOldRows !== undefined) setThuongStOldRows(settings.thuongStOldRows || []);
+          if (settings.topPercentRankLimitOld !== undefined) setTopPercentRankLimitOld(settings.topPercentRankLimitOld ?? 7);
         } else {
           // STRICT ISOLATION: Do NOT fallback to another store's data if no match is found
           console.log('[useRTSTSharedData] ✗ No settings found for', activeRecord.ten_sieu_thi, '- Enforcing strict isolation (clearing values)');
@@ -447,6 +476,9 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           setExcelFileName('');
           setThuongStRows([]);
           setTopPercentRankLimit(7);
+          setExcelOldFileName('');
+          setThuongStOldRows([]);
+          setTopPercentRankLimitOld(7);
           setDrillFilterStaff([]);
           setCategoryMappingInput('');
         }
@@ -463,6 +495,9 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         setExcelFileName('');
         setThuongStRows([]);
         setTopPercentRankLimit(7);
+        setExcelOldFileName('');
+        setThuongStOldRows([]);
+        setTopPercentRankLimitOld(7);
         setDrillFilterStaff([]);
         setCategoryMappingInput('');
       }
@@ -531,6 +566,9 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         existing.excelFileName === excelFileName &&
         existing.thuongStRows === thuongStRows &&
         existing.topPercentRankLimit === topPercentRankLimit &&
+        existing.excelOldFileName === excelOldFileName &&
+        existing.thuongStOldRows === thuongStOldRows &&
+        existing.topPercentRankLimitOld === topPercentRankLimitOld &&
         existing.categoryMappingInput === categoryMappingInput &&
         JSON.stringify(existing.drillFilterStaff) === JSON.stringify(drillFilterStaff)
       ) {
@@ -544,6 +582,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD,
           stTargetQuyDoi, stPercentTarget, stTargetSauHeSo,
           excelFileName, thuongStRows, topPercentRankLimit,
+          excelOldFileName, thuongStOldRows, topPercentRankLimitOld,
           drillFilterStaff, categoryMappingInput
         }
       };
@@ -551,7 +590,8 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
   }, [
     stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, 
     stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, excelFileName, 
-    thuongStRows, topPercentRankLimit, drillFilterStaff, currentStoreId, updateAllStoreTargets
+    thuongStRows, topPercentRankLimit, excelOldFileName, thuongStOldRows, topPercentRankLimitOld,
+    drillFilterStaff, currentStoreId, updateAllStoreTargets
   ]);
 
   // AUTO-REACT: When global currentStoreId changes, reload per-store settings from DB
@@ -582,6 +622,9 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     setExcelFileName(cached?.excelFileName || '');
     setThuongStRows(cached?.thuongStRows || []);
     setTopPercentRankLimit(cached?.topPercentRankLimit ?? 7);
+    setExcelOldFileName(cached?.excelOldFileName || '');
+    setThuongStOldRows(cached?.thuongStOldRows || []);
+    setTopPercentRankLimitOld(cached?.topPercentRankLimitOld ?? 7);
     setDrillFilterStaff(cached?.drillFilterStaff || []);
     setCategoryMappingInput(cached?.categoryMappingInput || '');
     
@@ -607,13 +650,41 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       return;
     }
 
-    const timeoutId = setTimeout(() => {
-      console.log('[AutoSave] Saving Shared settings for:', stName);
-      saveStoreRevenueRef.current?.(maKho, stName, true);
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      autoSaveTimerRef.current = null;
+      saveStoreRevenueRef.current?.(maKho, stName, true); // Silent save
     }, 4000); // 4s debounce
 
-    return () => clearTimeout(timeoutId);
-  }, [maKho, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi, stPercentTarget, stTargetSauHeSo, manualAdjustment, selectedMonth, daysPassed, totalDays, linkBcTongHop, linkNganhHangTongHop, staffListFileName, excludedStaffIds, storeSettings, drillFilterStaff, categoryMappingInput, isStoreReady]);
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+    };
+  }, [
+    maKho,
+    stName,
+    stDtlk,
+    stDtqd,
+    stDtDuKienQD,
+    stPercentHTTargetDuKienQD,
+    stTargetQuyDoi,
+    stPercentTarget,
+    stTargetSauHeSo,
+    manualAdjustment,
+    selectedMonth,
+    daysPassed,
+    totalDays,
+    linkBcTongHop,
+    linkNganhHangTongHop,
+    staffListFileName,
+    excludedStaffIds,
+    storeSettings,
+    drillFilterStaff,
+    categoryMappingInput,
+    isStoreReady
+  ]);
 
   return {
     categoryMappingInput, setCategoryMappingInput,
@@ -702,7 +773,15 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         console.error('Error updating store settings:', error);
       }
     }, [maKho, stName, stPercentTarget, stTargetQuyDoi]),
-    saveExcelThuongStData: useCallback(async (parsedRows: any[], fileName: string, detectedLimit: number, clusterStoreNames: string[]) => {
+    saveExcelThuongStData: useCallback(async (
+      parsedRows: any[], 
+      fileName: string, 
+      detectedLimit: number, 
+      clusterStoreNames: string[],
+      parsedOldRows?: any[],
+      oldFileName?: string,
+      detectedOldLimit?: number
+    ) => {
       if (!maKho) return;
       const cleanMaKho = maKho.trim();
       const shortMaKho = cleanMaKho.replace(/^0+/, '');
@@ -736,12 +815,27 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
               })
             : [];
 
+          const storeOldRows = oldFileName && parsedOldRows
+            ? parsedOldRows.filter(row => {
+                if (!row.storeName) return false;
+                const normRowStore = normalize(row.storeName);
+                const normStoreName = normalize(storeName);
+                return normRowStore === normStoreName || normRowStore.includes(normStoreName) || normStoreName.includes(normRowStore);
+              })
+            : (oldFileName === undefined ? (existingRecord?.taget_doanh_thu?.thuongStOldRows || []) : []);
+
+          const finalOldFileName = oldFileName !== undefined ? oldFileName : (existingRecord?.taget_doanh_thu?.excelOldFileName || '');
+          const finalOldLimit = detectedOldLimit !== undefined ? detectedOldLimit : (existingRecord?.taget_doanh_thu?.topPercentRankLimitOld ?? 7);
+
           const existingTargetData = existingRecord?.taget_doanh_thu || {};
           const newTargetData = {
             ...existingTargetData,
             excelFileName: fileName,
             thuongStRows: storeRows,
             topPercentRankLimit: detectedLimit,
+            excelOldFileName: finalOldFileName,
+            thuongStOldRows: storeOldRows,
+            topPercentRankLimitOld: finalOldLimit,
             updated_at: new Date().toISOString()
           };
 
@@ -765,15 +859,32 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
 
         // Update local states for the active store immediately
         const activeNormalized = (stName || currentStoreId || '').toUpperCase();
-        if (updatedCache[activeNormalized]) {
-          const activeData = updatedCache[activeNormalized];
+        let activeData = updatedCache[activeNormalized];
+        if (!activeData) {
+          const normActive = normalize(stName || currentStoreId || '');
+          for (const key of Object.keys(updatedCache)) {
+            const normKey = normalize(key);
+            if (normKey === normActive || normKey.includes(normActive) || normActive.includes(normKey)) {
+              activeData = updatedCache[key];
+              break;
+            }
+          }
+        }
+
+        if (activeData) {
           setExcelFileName(activeData.excelFileName || '');
           setThuongStRows(activeData.thuongStRows || []);
           setTopPercentRankLimit(activeData.topPercentRankLimit ?? 7);
+          setExcelOldFileName(activeData.excelOldFileName || '');
+          setThuongStOldRows(activeData.thuongStOldRows || []);
+          setTopPercentRankLimitOld(activeData.topPercentRankLimitOld ?? 7);
         } else {
           setExcelFileName(fileName);
-          setThuongStRows([]);
+          setThuongStRows(parsedRows || []);
           setTopPercentRankLimit(detectedLimit);
+          setExcelOldFileName(oldFileName || '');
+          setThuongStOldRows(parsedOldRows || []);
+          setTopPercentRankLimitOld(detectedOldLimit ?? 7);
         }
 
         updateAllStoreTargets((prev: any) => ({
@@ -781,10 +892,11 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           ...updatedCache
         }));
 
-        showNotification(
-          fileName ? 'Tải lên và đồng bộ dữ liệu thi đua thành công!' : 'Đã xóa dữ liệu thi đua thành công!',
-          'success'
-        );
+        const notificationMsg = fileName && oldFileName
+          ? `⚡ Domino: Đã đẩy '${oldFileName}' thành Hôm Qua và nạp '${fileName}' làm Hôm Nay!`
+          : (fileName ? 'Tải lên và đồng bộ dữ liệu thi đua thành công!' : 'Đã xóa dữ liệu thi đua thành công!');
+
+        showNotification(notificationMsg, 'success');
       } catch (err: any) {
         console.error('Lỗi lưu dữ liệu thi đua:', err);
         showNotification('Lỗi lưu dữ liệu thi đua: ' + err.message, 'error');
@@ -796,6 +908,12 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     setThuongStRows,
     topPercentRankLimit,
     setTopPercentRankLimit,
+    excelOldFileName,
+    setExcelOldFileName,
+    thuongStOldRows,
+    setThuongStOldRows,
+    topPercentRankLimitOld,
+    setTopPercentRankLimitOld,
     isSavingStoreRevenue,
     isLoadingStoreRevenue,
     saveStoreRevenue,

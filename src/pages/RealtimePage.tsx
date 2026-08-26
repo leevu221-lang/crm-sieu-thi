@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useDeferredValue, useTransition, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseClient';
 import { birthdayService } from '../services/birthdayService';
 import {
@@ -37,6 +38,7 @@ import {
   Activity,
   Star,
   Check,
+  Copy,
   Crown,
   Flame,
   Globe,
@@ -65,25 +67,28 @@ import {
   FileSpreadsheet,
   Database,
   Store,
-  ChevronsUpDown,
   ChevronsDownUp,
   Columns,
   Sliders,
   BarChart3,
-  Gift
+  Gift,
+  Edit3,
+  Trash2,
+  Settings
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { doc, onSnapshot, setDoc, getDoc, updateDoc, deleteDoc, serverTimestamp, collection } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, getDoc, getDocs, updateDoc, deleteDoc, serverTimestamp, collection, query, where } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { getCachedDoc, setCachedDoc } from '../services/cachedFirestore';
 import { NGANH_DISPLAY } from './BcDtNganhHang';
 import { NHOM_HANG_MAP } from '../utils/categoriesMap';
-import { Edit3, Trash2, Settings, FileSpreadsheet } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useMarket } from '../contexts/MarketContext';
 import { useStore } from '../contexts/StoreContext';
 import { useRealtimeData } from './RTST/hooks/useRealtimeData';
 import { ImagePreviewModal } from '../components/ImagePreviewModal';
+import { CaptureLoadingOverlay } from '../components/CaptureLoadingOverlay';
 import { ConfigNhomHangModal } from '../components/ConfigNhomHangModal';
 import { ConfigBaoHiemModal, BaoHiemRule } from '../components/ConfigBaoHiemModal';
 import { ConfigExclusionModal, ExclusionRule } from '../components/ConfigExclusionModal';
@@ -119,7 +124,7 @@ const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: bool
 
 const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0, isLarge = false, isColored = false }: any) => {
   const colorMap: any = {
-    indigo: 'text-indigo-600 bg-indigo-50',
+    indigo: 'text-[#2563EB] bg-blue-50',
     emerald: 'text-emerald-600 bg-emerald-50',
     amber: 'text-amber-600 bg-amber-50',
     rose: 'text-rose-600 bg-rose-50',
@@ -129,13 +134,13 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
   };
 
   const bgMap: any = {
-    indigo: 'bg-indigo-600 text-white border-indigo-500',
-    emerald: 'bg-emerald-600 text-white border-emerald-500',
-    amber: 'bg-amber-500 text-white border-amber-400',
-    rose: 'bg-rose-600 text-white border-rose-500',
-    slate: 'bg-slate-600 text-white border-slate-500',
-    blue: 'bg-blue-600 text-white border-blue-500',
-    orange: 'bg-orange-500 text-white border-orange-400'
+    indigo: 'bg-gradient-to-br from-[#2563EB] via-[#6366F1] to-[#7C3AED] text-white shadow-lg shadow-indigo-500/20 border-white/30',
+    emerald: 'bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 text-white shadow-lg shadow-emerald-500/20 border-white/30',
+    amber: 'bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 text-white shadow-lg shadow-amber-500/20 border-white/30',
+    rose: 'bg-gradient-to-br from-rose-600 via-pink-600 to-rose-700 text-white shadow-lg shadow-rose-500/20 border-white/30',
+    slate: 'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 text-white shadow-lg shadow-slate-500/20 border-white/30',
+    blue: 'bg-gradient-to-br from-blue-600 via-indigo-600 to-cyan-600 text-white shadow-lg shadow-blue-500/20 border-white/30',
+    orange: 'bg-gradient-to-br from-orange-500 via-amber-500 to-rose-500 text-white shadow-lg shadow-orange-500/20 border-white/30'
   };
 
   if (isColored) {
@@ -144,15 +149,27 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay, duration: 0.4 }}
-        className={`${bgMap[color] || 'bg-white'} p-5 rounded-2xl border-2 border-white transition-all duration-300 flex flex-col justify-between h-full`}
+        className={`${bgMap[color] || 'bg-white'} p-3.5 sm:p-5 rounded-2xl md:rounded-3xl border transition-all duration-300 flex flex-col justify-between h-full hover:scale-[1.02] shadow-lg`}
+        style={{ fontFamily: "'UTM Avo', sans-serif" }}
       >
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white/20 backdrop-blur-sm shrink-0">
-            <Icon size={18} strokeWidth={2.5} />
+        <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3 flex-nowrap min-w-0">
+          <div
+            className="stat-card-badge inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[8px] sm:text-[9.5px] font-black uppercase tracking-wider bg-white/20 backdrop-blur-md text-white border border-white/20 whitespace-nowrap shrink-0 max-w-full"
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            <Icon size={12} strokeWidth={2.5} className="shrink-0 text-white" />
+            <span
+              className="stat-card-title whitespace-nowrap leading-none truncate text-white"
+              style={{ whiteSpace: 'nowrap', wordBreak: 'keep-all', color: '#ffffff' }}
+            >
+              {title}
+            </span>
           </div>
-          <h3 className="text-[11px] font-bold text-white/90 uppercase tracking-widest leading-tight">{title}</h3>
           {trend !== undefined && (
-            <div className="flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-bold bg-white/20 backdrop-blur-sm ml-auto shrink-0">
+            <div
+              className="flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[8.5px] sm:text-[9px] font-black bg-white/25 backdrop-blur-md ml-auto shrink-0 border border-white/20 whitespace-nowrap text-white"
+              style={{ whiteSpace: 'nowrap' }}
+            >
               {trend > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
               {Math.abs(trend)}%
             </div>
@@ -160,11 +177,17 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
         </div>
 
         <div>
-          <div className="font-bold text-[45px] tracking-tight font-oswald whitespace-nowrap">
+          <div
+            className="font-bold text-[24px] xs:text-[29px] sm:text-[36px] md:text-[44px] lg:text-[48px] tracking-tight whitespace-nowrap drop-shadow-sm leading-none py-0.5 sm:py-1 text-white font-oswald truncate"
+            style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700, whiteSpace: 'nowrap' }}
+          >
             {value}
           </div>
           {subValue && (
-            <div className="mt-2 text-[11px] font-medium text-white/60">
+            <div
+              className="mt-0.5 sm:mt-1 text-[9px] sm:text-[10px] font-bold text-white/80 truncate whitespace-nowrap"
+              style={{ fontFamily: "'UTM Avo', sans-serif", whiteSpace: 'nowrap' }}
+            >
               {subValue}
             </div>
           )}
@@ -178,15 +201,16 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.4 }}
-      className={`bg-white p-5 rounded-2xl border border-slate-100 transition-all duration-300 flex flex-col justify-between ${isLarge ? 'md:col-span-2' : ''}`}
+      className={`bg-white p-3.5 sm:p-5 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm transition-all duration-300 flex flex-col justify-between ${isLarge ? 'md:col-span-2' : ''}`}
+      style={{ fontFamily: "'UTM Avo', sans-serif" }}
     >
-      <div className="flex items-center gap-2 mb-4">
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${colorMap[color] || 'bg-slate-50 text-slate-600'}`}>
-          <Icon size={18} strokeWidth={2.5} />
+      <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
+        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 ${colorMap[color] || 'bg-slate-50 text-slate-600'}`}>
+          <Icon size={16} strokeWidth={2.5} />
         </div>
-        <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-tight">{title}</h3>
+        <h3 className="text-[9.5px] xs:text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-wider leading-tight truncate">{title}</h3>
         {trend !== undefined && (
-          <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ml-auto shrink-0 ${trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+          <div className={`flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold ml-auto shrink-0 ${trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
             {trend > 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
             {Math.abs(trend)}%
           </div>
@@ -194,12 +218,14 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
       </div>
 
       <div>
-        <div className={`font-bold text-slate-900 tracking-tight font-oswald whitespace-nowrap ${isLarge ? 'text-[45px]' : 'text-[45px]'}`}>
+        <div className="font-bold text-[26.4px] xs:text-[31.2px] sm:text-[40.8px] md:text-[48px] lg:text-[55.2px] tracking-tight text-slate-800 leading-none py-0.5 sm:py-1 font-oswald truncate" style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700 }}>
           {value}
         </div>
-        <div className="mt-4 flex items-center gap-2 text-[10px] font-medium text-slate-500">
-          <span className="opacity-60">{subValue}</span>
-        </div>
+        {subValue && (
+          <div className="mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] font-medium text-slate-400 truncate" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+            {subValue}
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -1177,7 +1203,8 @@ const fmtRawDate = (raw: string): string => {
   return raw;
 };
 
-export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false }: { pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean }) {
+export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false }: { pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean, useV2Layout?: boolean }) {
+  const isV2Active = true;
   const { userProfile } = useAuth();
   const isAdmin = userProfile?.username === '43751' || userProfile?.username === 'ADMIN' || userProfile?.role === 'admin';
   const isUser43751 = String(userProfile?.username || '').trim() === '43751' || 
@@ -1205,6 +1232,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   const [editingUsername, setEditingUsername] = useState<string | null>(null);
   const [editNameInput, setEditNameInput] = useState('');
 
+  // Nhận xét Doanh thu & Ngành hàng Modal State
+  const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
+  const [selectedCommentTemplate, setSelectedCommentTemplate] = useState(0);
+  const [commentText, setCommentText] = useState('');
+  const [copiedComment, setCopiedComment] = useState(false);
+
   // Fetch pending users for admin (43751)
   const fetchPendingUsers = async () => {
     try {
@@ -1214,19 +1247,23 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         .eq('status', 'pending');
       
       if (!usersError && usersData) {
-        const usersWithWarehouse = await Promise.all(usersData.map(async (u: any) => {
-          const { data: wh } = await supabase
+        // Batch-fetch all warehouse names in one query instead of one query per pending
+        // user (N+1) — cheap when there are 0-2 pending users, wasteful once there are many.
+        const storeCodes = Array.from(new Set(usersData.map((u: any) => u.storeCode).filter(Boolean)));
+        const whMap = new Map<string, string>();
+        if (storeCodes.length > 0) {
+          const { data: whList } = await supabase
             .from('warehouses')
-            .select('ten_kho')
-            .eq('ma_kho', u.storeCode)
-            .maybeSingle();
-          return {
-            username: u.username,
-            storeCode: u.storeCode,
-            password: u.password,
-            status: u.status,
-            ten_sieu_thi: wh?.ten_kho || `Siêu thị ${u.storeCode}`
-          };
+            .select('ma_kho, ten_kho')
+            .in('ma_kho', storeCodes);
+          (whList || []).forEach((wh: any) => whMap.set(wh.ma_kho, wh.ten_kho));
+        }
+        const usersWithWarehouse = usersData.map((u: any) => ({
+          username: u.username,
+          storeCode: u.storeCode,
+          password: u.password,
+          status: u.status,
+          ten_sieu_thi: whMap.get(u.storeCode) || `Siêu thị ${u.storeCode}`
         }));
         setPendingUsers(usersWithWarehouse);
         setPendingUsersCount(usersWithWarehouse.length);
@@ -1352,50 +1389,29 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     }
   };
 
+  // One-time cached reads instead of 4 permanent onSnapshot listeners — these are
+  // admin-edited business rule tables that change rarely. See src/services/cachedFirestore.ts
+  // for why: a live listener here is billed on every mount AND to every open session
+  // on every edit, which at ~1000 concurrent users is the single biggest Firestore
+  // read multiplier in the app.
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'system_configs', 'nhom_hang_map'), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data && data.map) {
-          setCustomNhomSmallMap(data.map);
-        }
+    let cancelled = false;
+    getCachedDoc<{ map: any }>('system_configs', 'nhom_hang_map').then((data) => {
+      if (!cancelled && data?.map) setCustomNhomSmallMap(data.map);
+    });
+    getCachedDoc<{ rules: any }>('system_configs', 'bao_hiem_map').then((data) => {
+      if (!cancelled && data?.rules) {
+        setCustomBaoHiemRules(data.rules);
+        activeCustomBaoHiemRules = data.rules;
       }
     });
-    
-    const unsubBH = onSnapshot(doc(db, 'system_configs', 'bao_hiem_map'), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data && data.rules) {
-          setCustomBaoHiemRules(data.rules);
-          activeCustomBaoHiemRules = data.rules;
-        }
-      }
+    getCachedDoc<{ rules: any }>('system_configs', 'loai_bo_map').then((data) => {
+      if (!cancelled && data?.rules) setCustomExclusionRules(data.rules);
     });
-
-    const unsubEx = onSnapshot(doc(db, 'system_configs', 'loai_bo_map'), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data && data.rules) {
-          setCustomExclusionRules(data.rules);
-        }
-      }
+    getCachedDoc<{ rules: any }>('system_configs', 'quy_doi_map').then((data) => {
+      if (!cancelled && data?.rules) setCustomQuyDoiRules(data.rules);
     });
-
-    const unsubQD = onSnapshot(doc(db, 'system_configs', 'quy_doi_map'), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data && data.rules) {
-          setCustomQuyDoiRules(data.rules);
-        }
-      }
-    });
-
-    return () => {
-      unsub();
-      unsubBH();
-      unsubEx();
-      unsubQD();
-    };
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -1425,28 +1441,43 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   const [announceContentInput, setAnnounceContentInput] = useState('');
   const [isSavingAnnounce, setIsSavingAnnounce] = useState(false);
 
-  useEffect(() => {
-    const q = collection(db, 'system_announcements');
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const docs: any[] = [];
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.active) {
-          docs.push({ id: doc.id, ...data });
+  // One-time read (server-side filtered by active=true) + short localStorage cache,
+  // instead of a live onSnapshot on the whole collection. A permanent listener here
+  // was billed for every document on every mount AND re-billed to every concurrently
+  // open session on every single announcement edit — at ~1000 concurrent users that
+  // turns one admin edit into ~1000 reads. Announcements don't need sub-minute
+  // real-time propagation, so a 3-minute cache is a large read reduction for
+  // effectively no UX cost.
+  const loadAnnouncements = useCallback(async (force = false) => {
+    const CACHE_KEY = 'crm_announcements_cache_v1';
+    const TTL_MS = 3 * 60 * 1000;
+    if (!force) {
+      try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Date.now() - parsed.ts < TTL_MS) {
+            setAnnouncements(parsed.data);
+            return;
+          }
         }
-      });
-      // Sort in JS by updatedAt desc
-      docs.sort((a, b) => {
-        const tA = a.updatedAt?.seconds || 0;
-        const tB = b.updatedAt?.seconds || 0;
-        return tB - tA;
-      });
+      } catch {}
+    }
+    try {
+      const q = query(collection(db, 'system_announcements'), where('active', '==', true));
+      const snap = await getDocs(q);
+      const docs: any[] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
       setAnnouncements(docs);
-    }, (error) => {
-      console.error('[RealtimePage] Lỗi listener thông báo:', error);
-    });
-    return () => unsubscribe();
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: docs })); } catch {}
+    } catch (error) {
+      console.error('[RealtimePage] Lỗi tải thông báo:', error);
+    }
   }, []);
+
+  useEffect(() => {
+    loadAnnouncements(false);
+  }, [loadAnnouncements]);
 
   const handleSaveAnnouncement = async () => {
     if (!announceContentInput.trim()) {
@@ -1471,6 +1502,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       setEditingDocId(null);
       setAnnounceTitleInput('');
       setAnnounceContentInput('');
+      loadAnnouncements(true);
     } catch (err) {
       console.error('Failed to save announcement:', err);
       showNotification('Lỗi khi lưu thông báo.', 'error');
@@ -1490,6 +1522,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         setAnnounceTitleInput('');
         setAnnounceContentInput('');
       }
+      loadAnnouncements(true);
     } catch (err) {
       console.error('Failed to delete announcement:', err);
       showNotification('Lỗi khi xóa thông báo.', 'error');
@@ -1624,10 +1657,18 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     if (!file) return;
 
     setIsProcessingData(true);
+    const formatFileName = (name: string) => {
+      let n = name.replace(/\.xlsx?$|\.csv$/i, '');
+      if (/[a-f0-9]{20,}/i.test(n)) {
+        n = n.replace(/[a-f0-9]{20,}/i, '...');
+      }
+      return n.length > 30 ? n.substring(0, 27) + '...' : n;
+    };
+
     if (isMoiTab) {
-      setYcxFileNameMoi(prev => (prev && prev.trim() ? `${prev} + ${file.name}` : file.name));
+      setYcxFileNameMoi(prev => (prev && prev.trim() ? `${prev} + ${formatFileName(file.name)}` : formatFileName(file.name)));
     } else {
-      setYcxFileName(file.name);
+      setYcxFileName(formatFileName(file.name));
     }
 
     // Clear input value so same file can be uploaded again if needed
@@ -1638,7 +1679,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       setTimeout(() => {
         try {
           const bstr = evt.target?.result;
-          const wb = XLSX.read(bstr, { type: 'binary' });
+          const wb = XLSX.read(bstr, { type: 'binary', dense: true });
           const wsname = wb.SheetNames[0];
           const ws = wb.Sheets[wsname];
           const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
@@ -2638,6 +2679,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       minWidth: string;
       backgroundColor?: string;
       isOverview?: boolean;
+      isTableOnly?: boolean;
     }
   ) => {
     // 1. Create a temporary off-screen wrapper container
@@ -2647,8 +2689,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     tempContainer.style.left = '-9999px';
     
     // Parse target width and add safety margins
-    const targetWidthVal = parseInt(options.width);
-    tempContainer.style.width = isNaN(targetWidthVal) ? '20000px' : `${targetWidthVal + 100}px`;
+    const targetWidthVal = parseInt(options.width) || 2000;
+    tempContainer.style.width = `${Math.max(targetWidthVal + 500, 20000)}px`;
     tempContainer.style.height = 'auto';
     tempContainer.style.overflow = 'visible';
     tempContainer.style.zIndex = '-9999';
@@ -2667,7 +2709,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         (el as HTMLElement).style.display = 'none';
       });
 
-      // 4. Force all scrollable and overflow containers to render fully expanded
+      // 4. Force all scrollable and overflow containers to render fully expanded without truncation
       const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
       scrollContainers.forEach(el => {
         const htmlEl = el as HTMLElement;
@@ -2676,6 +2718,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         htmlEl.style.overflowY = 'visible';
         htmlEl.style.maxWidth = 'none';
         htmlEl.style.maxHeight = 'none';
+        htmlEl.style.height = 'auto';
       });
 
       // Clear any other inline overflow restrictions
@@ -2688,59 +2731,226 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           htmlEl.style.overflowY = 'visible';
           htmlEl.style.maxWidth = 'none';
           htmlEl.style.maxHeight = 'none';
+          htmlEl.style.height = 'auto';
         }
       });
 
-      // 5. Force desktop layout configurations
-      forceDesktopLayout(clone);
+      // 5. Force desktop layout configurations if overview
+      if (options.isOverview) {
+        forceDesktopLayout(clone);
+      }
 
       // 6. Style the cloned element itself so it lays out nicely
-      clone.style.display = 'inline-block';
-      clone.style.width = 'auto';
-      clone.style.minWidth = options.minWidth;
+      clone.style.display = 'block';
+      clone.style.width = options.isTableOnly ? 'max-content' : '100%';
+      clone.style.minWidth = options.isTableOnly ? 'max-content' : '100%';
+      clone.style.maxWidth = 'none';
       clone.style.height = 'auto';
-      clone.style.margin = '0';
+      clone.style.margin = '0 auto';
       clone.style.boxSizing = 'border-box';
       clone.style.overflow = 'visible';
-      clone.style.overflowX = 'visible';
-      clone.style.overflowY = 'visible';
+      clone.style.boxShadow = 'none';
+      clone.style.filter = 'none';
+      clone.style.backdropFilter = 'none';
+      (clone.style as any).webkitBackdropFilter = 'none';
+      clone.style.textShadow = 'none';
       if (options.backgroundColor) {
         clone.style.backgroundColor = options.backgroundColor;
       }
       
-      // Add nice padding and margins to make the screenshot look premium
-      const padVal = options.isOverview ? 32 : 16;
-      clone.style.padding = `${padVal}px`;
-      clone.style.borderRadius = options.isOverview ? '32px' : '24px';
+      // Strip all box shadows, filters, text shadows, and backdrop filters from the entire clone tree (Zero-Shadow Rule)
+      const allCloneNodes = clone.querySelectorAll('*');
+      allCloneNodes.forEach(el => {
+        const htmlEl = el as HTMLElement;
+        if (htmlEl.style) {
+          htmlEl.style.boxShadow = 'none';
+          htmlEl.style.filter = 'none';
+          htmlEl.style.backdropFilter = 'none';
+          (htmlEl.style as any).webkitBackdropFilter = 'none';
+          htmlEl.style.textShadow = 'none';
+        }
+        if (htmlEl.classList) {
+          htmlEl.classList.remove(
+            'shadow-sm', 'shadow-md', 'shadow-lg', 'shadow-xl', 'shadow-2xl', 'shadow-inner', 'shadow',
+            'drop-shadow-sm', 'drop-shadow-md', 'drop-shadow-lg', 'drop-shadow-xl', 'drop-shadow-2xl', 'drop-shadow',
+            'backdrop-blur-sm', 'backdrop-blur', 'backdrop-blur-md', 'backdrop-blur-lg', 'backdrop-blur-xl'
+          );
+        }
+      });
 
-      // 7. Special handling for tables inside the clone to render completely without text wrapping or clipping
-      // ONLY DO THIS IF WE ARE NOT CAPTURING OVERVIEW (to prevent breaking dashboard grid and full-width layouts)
-      if (!options.isOverview) {
-        const tables = clone.querySelectorAll('table');
-        tables.forEach(table => {
-          const htmlTable = table as HTMLTableElement;
-          htmlTable.style.width = 'auto';
-          htmlTable.style.minWidth = 'max-content';
-          htmlTable.style.tableLayout = 'auto';
-
-          const cells = htmlTable.querySelectorAll('th, td');
-          cells.forEach(cell => {
-            (cell as HTMLElement).style.whiteSpace = 'nowrap';
-          });
-
-          // Traverse up the parent chain and set width to max-content to prevent truncation
-          let parent = htmlTable.parentElement;
-          while (parent && parent !== clone) {
-            parent.style.width = 'max-content';
-            parent.style.minWidth = '100%';
-            parent.style.maxWidth = 'none';
-            parent = parent.parentElement;
+      // Ensure all grids render identically in desktop layout (6 stats cards & 2 category cards)
+      if (options.isOverview) {
+        const allGrids = clone.querySelectorAll('.grid, [class*="grid-cols-"]');
+        allGrids.forEach(g => {
+          const htmlG = g as HTMLElement;
+          if (htmlG.children.length === 6) {
+            htmlG.style.display = 'grid';
+            htmlG.style.gridTemplateColumns = 'repeat(6, minmax(0, 1fr))';
+            htmlG.style.gap = '20px';
+            htmlG.style.width = '100%';
+          }
+          if (htmlG.children.length === 2 && (htmlG.classList.contains('xl:grid-cols-2') || htmlG.classList.contains('grid-cols-1') || htmlG.classList.contains('grid'))) {
+            htmlG.style.display = 'grid';
+            htmlG.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+            htmlG.style.gap = '24px';
+            htmlG.style.width = '100%';
+            htmlG.style.alignItems = 'start';
           }
         });
       }
 
-      // Add clone to DOM inside the hidden off-screen container
-      tempContainer.appendChild(clone);
+      // Ensure all realtime subtitle banners never wrap awkwardly
+      const subtitles = clone.querySelectorAll('.whitespace-nowrap, [class*="text-xs"], [class*="text-sm"]');
+      subtitles.forEach(s => {
+        const htmlS = s as HTMLElement;
+        if (htmlS.textContent?.includes('Realtime:')) {
+          htmlS.style.whiteSpace = 'nowrap';
+          htmlS.style.flexWrap = 'nowrap';
+        }
+      });
+
+      // 7. Special handling for tables inside the clone to render full columns with natural fit
+      const tableContainers = clone.querySelectorAll('.overflow-x-auto, [class*="overflow-x-"]');
+      tableContainers.forEach(tc => {
+        const htmlTc = tc as HTMLElement;
+        htmlTc.style.width = options.isTableOnly ? 'max-content' : '100%';
+        htmlTc.style.overflow = 'visible';
+        htmlTc.style.boxSizing = 'border-box';
+      });
+
+      const tables = clone.querySelectorAll('table');
+      tables.forEach(table => {
+        const htmlTable = table as HTMLTableElement;
+        if (options.isTableOnly) {
+          htmlTable.style.width = 'max-content';
+          htmlTable.style.minWidth = 'max-content';
+          htmlTable.style.maxWidth = 'none';
+          htmlTable.style.tableLayout = 'auto';
+          htmlTable.style.borderCollapse = 'collapse';
+          // Remove colgroup col width constraints so auto-layout sizes columns by content
+          const colEls = htmlTable.querySelectorAll('colgroup col');
+          colEls.forEach(col => {
+            (col as HTMLElement).style.width = 'auto';
+            (col as HTMLElement).style.minWidth = 'auto';
+          });
+        } else {
+          htmlTable.style.width = '100%';
+          htmlTable.style.tableLayout = 'fixed';
+        }
+        htmlTable.style.boxSizing = 'border-box';
+
+        const cells = htmlTable.querySelectorAll('th, td');
+        cells.forEach(cell => {
+          const htmlCell = cell as HTMLElement;
+          htmlCell.style.boxSizing = 'border-box';
+          if (options.isTableOnly) {
+            htmlCell.style.whiteSpace = 'nowrap';
+            htmlCell.style.overflow = 'visible';
+            htmlCell.style.textOverflow = 'clip';
+            htmlCell.style.width = 'auto';
+            htmlCell.style.minWidth = 'auto';
+            htmlCell.style.maxWidth = 'none';
+            htmlCell.style.paddingLeft = '14px';
+            htmlCell.style.paddingRight = '14px';
+          } else {
+            htmlCell.style.whiteSpace = 'nowrap';
+            htmlCell.style.overflow = 'hidden';
+            htmlCell.style.textOverflow = 'ellipsis';
+          }
+        });
+      });
+
+      // Ensure StatCard badges & titles never wrap on screenshot export
+      const statBadges = clone.querySelectorAll('.stat-card-badge, [class*="rounded-full"]');
+      statBadges.forEach(b => {
+        const htmlB = b as HTMLElement;
+        htmlB.style.whiteSpace = 'nowrap';
+        htmlB.style.flexWrap = 'nowrap';
+        htmlB.querySelectorAll('span, div, p').forEach(s => {
+          const htmlS = s as HTMLElement;
+          htmlS.style.whiteSpace = 'nowrap';
+          htmlS.style.wordBreak = 'keep-all';
+          htmlS.style.overflow = 'hidden';
+          htmlS.style.textOverflow = 'ellipsis';
+        });
+      });
+
+      // Ensure StatCard numbers explicitly use Oswald in the screenshot clone
+      const statNumbers = clone.querySelectorAll('[style*="Oswald"], .font-oswald');
+      statNumbers.forEach(num => {
+        const htmlNum = num as HTMLElement;
+        htmlNum.style.fontFamily = "'Oswald', sans-serif";
+        htmlNum.style.fontWeight = '700';
+        htmlNum.style.whiteSpace = 'nowrap';
+      });
+
+      // Explicitly style ONLY emerald table banner headers with yellow text
+      clone.querySelectorAll('.bg-gradient-to-r h2, [class*="from-[#047857]"] h2').forEach(h2 => {
+        const el = h2 as HTMLElement;
+        el.style.color = '#FEF08A';
+        el.style.fontFamily = "'UTM Avo', sans-serif";
+        el.style.fontWeight = '900';
+        el.style.fontSize = '26px';
+        el.style.display = 'block';
+        el.style.textAlign = 'center';
+      });
+
+      // Explicitly ensure section titles (like "CHI TIẾT NGÀNH HÀNG" and Store Name) are SOLID BLACK & explicitly named
+      clone.querySelectorAll('h2, h3').forEach(header => {
+        const el = header as HTMLElement;
+        const text = (el.textContent || '').trim().normalize('NFC').toUpperCase();
+        if (text.includes('CHI TIẾT NGÀNH')) {
+          el.textContent = 'CHI TIẾT NGÀNH HÀNG';
+          el.style.color = '#0f172a';
+          el.style.fontFamily = "'UTM Avo', sans-serif";
+          el.style.fontWeight = '900';
+          el.style.textAlign = 'center';
+          el.style.display = 'block';
+          el.style.width = '100%';
+          el.style.background = 'none';
+          (el.style as any).webkitTextFillColor = '#0f172a';
+        } else if (!el.closest('.bg-gradient-to-r') && !el.closest('[class*="from-[#047857]"]')) {
+          el.style.color = '#0f172a'; // Pure black text-slate-900
+          el.style.fontFamily = "'UTM Avo', sans-serif";
+          el.style.fontWeight = '900';
+        }
+      });
+
+      // Ensure subtitle lines in emerald banners are white and visible
+      clone.querySelectorAll('.bg-gradient-to-r span, .bg-gradient-to-r p, .bg-gradient-to-r div, [class*="from-[#047857]"] span').forEach(node => {
+        const el = node as HTMLElement;
+        if (el.textContent && (el.textContent.includes('Luỹ kế:') || el.textContent.includes('Realtime:') || el.textContent.includes('ĐẠT') || el.textContent.includes('TGSD'))) {
+          el.style.color = '#ffffff';
+          el.style.fontFamily = "'UTM Avo', sans-serif";
+          el.style.fontWeight = '700';
+        }
+      });
+
+      // Ensure description texts outside banners stay readable slate
+      clone.querySelectorAll('p').forEach(p => {
+        const el = p as HTMLElement;
+        if (!el.closest('.bg-gradient-to-r')) {
+          el.style.color = '#64748b';
+        }
+      });
+
+      // Create an outer frame wrapper to give the screenshot a pristine white border without shadows
+      const frameWrapper = document.createElement('div');
+      frameWrapper.style.padding = options.isOverview ? '32px' : '24px';
+      frameWrapper.style.backgroundColor = options.backgroundColor || '#ffffff';
+      frameWrapper.style.borderRadius = options.isOverview ? '32px' : '24px';
+      frameWrapper.style.boxSizing = 'border-box';
+      frameWrapper.style.display = options.isTableOnly ? 'inline-block' : 'block';
+      frameWrapper.style.width = options.isTableOnly ? 'max-content' : (options.width || 'auto');
+      frameWrapper.style.minWidth = options.isTableOnly ? 'max-content' : (options.minWidth || 'auto');
+      frameWrapper.style.maxWidth = 'none';
+      frameWrapper.style.overflow = 'visible';
+      frameWrapper.style.boxShadow = 'none';
+
+      frameWrapper.appendChild(clone);
+
+      // Add frameWrapper to DOM inside the hidden off-screen container
+      tempContainer.appendChild(frameWrapper);
       document.body.appendChild(tempContainer);
 
       // Wait for fonts to load
@@ -2749,43 +2959,19 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       }
 
       // 8. Small delay to allow the browser's layout engine to compute sizes
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 250));
 
-      // 8.5 Shrink clone to exact content width (widest table or content)
-      if (!options.isOverview) {
-        // Find the widest table inside the clone
-        let maxTableWidth = 0;
-        clone.querySelectorAll('table').forEach(table => {
-          maxTableWidth = Math.max(maxTableWidth, (table as HTMLElement).scrollWidth);
-        });
-        // Use the widest table + padding as the exact width, or fallback to scrollWidth
-        const exactWidth = maxTableWidth > 0 ? maxTableWidth + padVal * 2 : clone.scrollWidth;
-        clone.style.width = `${exactWidth}px`;
-        clone.style.minWidth = `${exactWidth}px`;
-        clone.style.maxWidth = `${exactWidth}px`;
-        clone.style.display = 'block';
-        
-        // Force all direct children (header, etc.) to match clone width
-        Array.from(clone.children).forEach(child => {
-          (child as HTMLElement).style.maxWidth = '100%';
-        });
+      const rect = frameWrapper.getBoundingClientRect();
+      const exactWidth = Math.ceil(Math.max(rect.width, frameWrapper.scrollWidth, frameWrapper.offsetWidth, 100));
+      const exactHeight = Math.ceil(Math.max(rect.height, frameWrapper.scrollHeight, frameWrapper.offsetHeight, 100));
 
-        tempContainer.style.width = `${exactWidth + 100}px`;
-      } else {
-        // If it is overview, keep the original desktop width specified in options
-        clone.style.width = options.width;
-        clone.style.minWidth = options.minWidth;
-        clone.style.maxWidth = options.width;
-        tempContainer.style.width = `${targetWidthVal + 100}px`;
-      }
-      await new Promise(resolve => setTimeout(resolve, 50));
-
-      // 9. Capture the image using domToPng from the off-screen clone element
-      const dataUrl = await domToPng(clone, {
+      // 9. Capture the image using domToPng from the off-screen frameWrapper element with 3x scale for crisp sharpness
+      const dataUrl = await domToPng(frameWrapper, {
         backgroundColor: options.backgroundColor || '#ffffff',
-        scale: 3,
-        width: clone.scrollWidth,
-        height: clone.scrollHeight,
+        scale: 3, // Ultra-high 3x DPI for crystal-clear text and borders
+        features: { removeControlCharacter: true },
+        width: exactWidth,
+        height: exactHeight,
       });
 
       return dataUrl;
@@ -2804,10 +2990,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     try {
       setIsCapturing(true);
       await new Promise(resolve => setTimeout(resolve, 100));
+
       const dataUrl = await captureOffscreenHelper(element, {
-        width: '100%',
-        minWidth: '1200px',
-        backgroundColor: '#ffffff'
+        width: 'max-content',
+        minWidth: 'max-content',
+        backgroundColor: '#ffffff',
+        isTableOnly: true
       });
       setPreviewImage(dataUrl);
     } catch (err) {
@@ -3239,7 +3427,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   const [showDtlkComment, setShowDtlkComment] = useState(false);
   const [showLuykeColumn, setShowLuykeColumn] = useState(true);
   const [showTargetCols, setShowTargetCols] = useState(true);  // TARGET, REAL, %HT
-  const [showOrangeCols, setShowOrangeCols] = useState(false);  // CÒN LẠI, LUỸ KẾ, MỤC TIÊU 100%
+  const [showOrangeCols, setShowOrangeCols] = useState(true);  // CÒN LẠI, LUỸ KẾ, MỤC TIÊU 100%
   const [expandedStaff, setExpandedStaff] = useState<Record<string, boolean>>({});
   const [expandedCERows, setExpandedCERows] = useState<Record<string, boolean>>({});
   const [expandedCrossSellingStaff, setExpandedCrossSellingStaff] = useState<Record<string, boolean>>({});
@@ -4096,14 +4284,19 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const element = ref.current;
     if (element) {
       try {
+        setIsCapturing(true);
+        await new Promise(resolve => setTimeout(resolve, 100));
         const dataUrl = await captureOffscreenHelper(element, {
-          width: 'max-content',
-          minWidth: '750px',
-          backgroundColor: '#ffffff'
+          width: '720px',
+          minWidth: '720px',
+          backgroundColor: '#ffffff',
+          isTableOnly: true
         });
         setPreviewImage(dataUrl);
       } catch (error) {
         console.error(`Lỗi khi chụp ảnh ${filename}:`, error);
+      } finally {
+        setIsCapturing(false);
       }
     }
   };
@@ -4113,7 +4306,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       try {
         setIsCapturing(true);
         await new Promise(resolve => setTimeout(resolve, 100));
-        const screenWidth = Math.max(overviewRef.current.offsetWidth, 1450);
+        const screenWidth = 1850;
         const dataUrl = await captureOffscreenHelper(overviewRef.current, {
           width: `${screenWidth}px`,
           minWidth: `${screenWidth}px`,
@@ -4134,13 +4327,15 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     return () => clearInterval(timer);
   }, []);
 
-  const greeting = useMemo(() => {
+  const greetingData = useMemo(() => {
     const hour = currentTime.getHours();
-    if (hour < 10) return 'Chào buổi sáng';
-    if (hour < 13) return 'Chào buổi trưa';
-    if (hour < 18) return 'Chào buổi chiều';
-    return 'Chào buổi tối';
+    if (hour < 10) return { text: 'Chào buổi sáng', icon: '☀️', sub: 'Khởi đầu ngày mới tràn đầy năng lượng!' };
+    if (hour < 13) return { text: 'Chào buổi trưa', icon: '🌤️', sub: 'Chúc bạn bữa trưa ngon miệng và tiếp tục năng suất!' };
+    if (hour < 18) return { text: 'Chào buổi chiều', icon: '🌅', sub: 'Bứt phá doanh số ca chiều cùng siêu thị!' };
+    return { text: 'Chào buổi tối', icon: '🌙', sub: 'Tổng kết ca làm việc và theo dõi số liệu hôm nay!' };
   }, [currentTime]);
+
+  const greeting = greetingData.text;
 
   const summary = useMemo(() => {
     if (!processedData.markets.length) return null;
@@ -4260,55 +4455,226 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     });
   };
 
-  const generateCategoryComment = () => {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  // Helper to build 3 comment templates for Realtime Doanh thu & Ngành hàng (Matching Image 2)
+  const realtimeCommentTemplates = useMemo(() => {
+    const activeDeclared = filteredMarkets.find(m => marketFilter === 'ALL' || m.name === marketFilter) || filteredMarkets[0];
+    const parsedMarket = activeDeclared ? (processedData.markets.find(pm =>
+      normalize(pm.name).includes(normalize(activeDeclared.name)) ||
+      normalize(activeDeclared.name).includes(normalize(pm.name))
+    ) || {
+      name: activeDeclared.name,
+      targetQD: 0,
+      actualVirtual: 0,
+      actualReal: 0,
+      percentHT: 0,
+      installmentRate: 0,
+      luotBillBanHang: 0,
+      luotBillThuHo: 0
+    }) : {
+      name: 'Siêu Thị',
+      targetQD: 0,
+      actualVirtual: 0,
+      actualReal: 0,
+      percentHT: 0,
+      installmentRate: 0,
+      luotBillBanHang: 0,
+      luotBillThuHo: 0
+    };
 
-    let commentText = `📊 REALTIME NGÀNH HÀNG ĐẾN ${timeStr}\n\n`;
+    const marketName = activeDeclared?.name || parsedMarket?.name || 'SIÊU THỊ';
+    const now = lastUpdated || new Date();
+    const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const dateStr = now.toLocaleDateString('vi-VN');
+    const nowHeader = `${timeStr} NGÀY ${dateStr}`;
 
-    // SL categories under 100%
-    const slCats = filteredCategories
-      .filter(c => (c.type === 'SL' || c.type === 'ALL') && Math.round(c.rate || 0) < 100)
-      .sort((a, b) => (b.rate || 0) - (a.rate || 0));
+    const targetQD = formatCurrencyUnit(parsedMarket.targetQD || 0);
+    const actualVirtual = formatCurrencyUnit(parsedMarket.actualVirtual || 0);
+    const percentHT = Math.round(parsedMarket.percentHT || 0);
+    const installmentRate = (parsedMarket.installmentRate || 0).toFixed(1);
+    const luotBill = Math.round(parsedMarket.luotBillThuHo || 0);
 
-    if (slCats.length > 0) {
-      commentText += `📦 NGÀNH HÀNG (SL)\n`;
-      slCats.forEach(cat => {
-        const remaining = cat.target - cat.revenue;
-        commentText += `❌ ${cat.name}: còn ${remaining > 0 ? Math.round(remaining).toLocaleString() : 0}\n`;
+    const dtlk = (parsedMarket as any).actualReal || 0;
+    const dtqd = parsedMarket.actualVirtual || 0;
+    const valQd = dtlk > 0 ? (((dtqd - dtlk) / dtlk) * 100) : 0;
+    const percentQdStr = `${valQd >= 0 ? '+' : ''}${valQd.toFixed(1)}%`;
+
+    // SL Categories
+    const slCats = filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL');
+    const slDone = slCats.filter(c => Math.round(c.rate || 0) >= 100);
+    const slNotDone = slCats.filter(c => Math.round(c.rate || 0) < 100).sort((a, b) => (b.target - b.revenue) - (a.target - a.revenue));
+    const slTop = [...slCats].sort((a, b) => (b.rate || 0) - (a.rate || 0));
+
+    // DT Categories
+    const dtCats = filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL');
+    const dtDone = dtCats.filter(c => Math.round(c.rate || 0) >= 100);
+    const dtNotDone = dtCats.filter(c => Math.round(c.rate || 0) < 100).sort((a, b) => (b.target - b.revenue) - (a.target - a.revenue));
+    const dtTop = [...dtCats].sort((a, b) => (b.rate || 0) - (a.rate || 0));
+
+    // Staff Ranking
+    const activeStaffs = (processedData.staffs || []).filter(s => (s.actualVirtual || s.revenue || 0) > 0 || (s.percentHT || 0) > 0);
+    const sortedStaffs = [...activeStaffs].sort((a, b) => (b.percentHT || 0) - (a.percentHT || 0));
+    const topStaffs = sortedStaffs.slice(0, 3);
+    const botStaffs = sortedStaffs.length > 3 ? sortedStaffs.slice(-3).reverse() : [];
+    const staffAbove50 = activeStaffs.filter(s => (s.percentHT || 0) >= 50).length;
+
+    // MẪU 1: TOP/BOT NV (TOÀN DIỆN DOANH THU & NGÀNH HÀNG)
+    let t1 = `📊 TỔNG HỢP THI ĐUA SIÊU THỊ - ${nowHeader}\n`;
+    t1 += `🏪 Siêu thị: ${marketName}\n`;
+    t1 += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    t1 += `📈 KẾT QUẢ TỔNG QUAN:\n`;
+    t1 += `🎯 Target QĐ: ${targetQD} || Thực Đạt: ${actualVirtual} (${percentHT}% HT)\n`;
+    t1 += `💳 Tỷ trọng Trả Góp: ${installmentRate}% || % QĐ: ${percentQdStr}\n`;
+    t1 += `🧾 Lượt Bill Thu Hộ: ${luotBill.toLocaleString()} bill\n`;
+    if (activeStaffs.length > 0) {
+      t1 += `🎯 Tổng NV: ${activeStaffs.length} || ĐẠT trên 50%: ${staffAbove50}/${activeStaffs.length}\n`;
+    }
+    t1 += `📦 Tiến độ Ngành Hàng: SL [${slDone.length}/${slCats.length}] || DT [${dtDone.length}/${dtCats.length}]\n\n`;
+
+    if (topStaffs.length > 0) {
+      t1 += `🏆 TOP 3 DẪN ĐẦU:\n`;
+      topStaffs.forEach((s, idx) => {
+        t1 += `🔺 #${idx + 1}. ${s.cleanName || s.name || s.id} (${Math.round(s.percentHT || 0)}% HT - ${Math.round(s.actualVirtual || s.revenue || 0)} tr)\n`;
       });
-      commentText += `\n`;
+      t1 += `\n`;
     }
 
-    // DT categories under 100%
-    const dtCats = filteredCategories
-      .filter(c => (c.type === 'DT' || c.type === 'ALL') && Math.round(c.rate || 0) < 100)
-      .sort((a, b) => (b.rate || 0) - (a.rate || 0));
-
-    if (dtCats.length > 0) {
-      commentText += `💰 NGÀNH HÀNG (DT)\n`;
-      dtCats.forEach(cat => {
-        const remaining = cat.target - cat.revenue;
-        commentText += `❌ ${cat.name}: còn ${remaining > 0 ? Math.round(remaining).toLocaleString() : 0}\n`;
+    if (botStaffs.length > 0) {
+      t1 += `⚠️ BOTTOM 3 CẦN TĂNG TỐC:\n`;
+      botStaffs.forEach(s => {
+        t1 += `🔻 ${s.cleanName || s.name || s.id}: ${Math.round(s.percentHT || 0)}% HT (${Math.round(s.actualVirtual || s.revenue || 0)} tr)\n`;
       });
+      t1 += `\n`;
     }
 
+    if (dtTop.filter(c => c.rate >= 100).length > 0 || slTop.filter(c => c.rate >= 100).length > 0) {
+      t1 += `🌟 TOP NGÀNH HÀNG ĐẠT CHỈ TIÊU:\n`;
+      dtTop.filter(c => c.rate >= 100).slice(0, 3).forEach(c => {
+        t1 += `✨ DT: ${c.name} (${Math.round(c.rate)}% - ${Math.round(c.revenue).toLocaleString('vi-VN')} tr)\n`;
+      });
+      slTop.filter(c => c.rate >= 100).slice(0, 3).forEach(c => {
+        t1 += `✨ SL: ${c.name} (${Math.round(c.rate)}% - ${Math.round(c.revenue).toLocaleString('vi-VN')})\n`;
+      });
+      t1 += `\n`;
+    }
+
+    if (dtNotDone.length > 0 || slNotDone.length > 0) {
+      t1 += `🔴 NGÀNH HÀNG CẦN TẬP TRUNG TĂNG TỐC:\n`;
+      dtNotDone.slice(0, 4).forEach(c => {
+        const rem = Math.max(0, c.target - c.revenue);
+        t1 += `❌ DT: ${c.name} (${Math.round(c.rate)}% | Còn thiếu: ${rem.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} tr)\n`;
+      });
+      slNotDone.slice(0, 4).forEach(c => {
+        const rem = Math.max(0, c.target - c.revenue);
+        t1 += `❌ SL: ${c.name} (${Math.round(c.rate)}% | Còn thiếu: ${Math.round(rem).toLocaleString('vi-VN')})\n`;
+      });
+      t1 += `\n`;
+    }
+
+    t1 += `💪 Cả nhà cùng quyết tâm bứt phá để hoàn thành 100% mục tiêu ngày hôm nay nhé! 🔥`;
+
+    // MẪU 2: DS CẦN TĂNG TỐC
+    let t2 = `⚠️ DANH SÁCH CẦN TĂNG TỐC - ${nowHeader}\n`;
+    t2 += `🏪 Siêu thị: ${marketName}\n`;
+    t2 += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    t2 += `🎯 DOANH THU: Đạt ${actualVirtual}/${targetQD} (${percentHT}% HT)\n`;
+    t2 += `💳 Trả Góp: ${installmentRate}% | Bill Thu Hộ: ${luotBill} bill\n\n`;
+
+    if (dtNotDone.length > 0) {
+      t2 += `🚨 CÁC NGÀNH HÀNG (DT) CHƯA ĐẠT KẾ HOẠCH:\n`;
+      dtNotDone.forEach(c => {
+        const rem = Math.max(0, c.target - c.revenue);
+        t2 += `• ${c.name}: Đạt ${Math.round(c.revenue).toLocaleString('vi-VN')}/${Math.round(c.target).toLocaleString('vi-VN')} tr (${Math.round(c.rate)}%) -> 🔴 CÒN THIẾU: ${rem.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} tr\n`;
+      });
+      t2 += `\n`;
+    }
+
+    if (slNotDone.length > 0) {
+      t2 += `🚨 CÁC NGÀNH HÀNG (SL) CHƯA ĐẠT KẾ HOẠCH:\n`;
+      slNotDone.forEach(c => {
+        const rem = Math.max(0, c.target - c.revenue);
+        t2 += `• ${c.name}: Đạt ${Math.round(c.revenue).toLocaleString('vi-VN')}/${Math.round(c.target).toLocaleString('vi-VN')} (${Math.round(c.rate)}%) -> 🔴 CÒN THIẾU: ${Math.round(rem).toLocaleString('vi-VN')} cái\n`;
+      });
+      t2 += `\n`;
+    }
+
+    if (botStaffs.length > 0) {
+      t2 += `🔻 NHÂN SỰ CẦN ĐẨY MẠNH BỨT PHÁ:\n`;
+      botStaffs.forEach(s => {
+        t2 += `• ${s.cleanName || s.name || s.id}: ${Math.round(s.percentHT || 0)}% HT (${Math.round(s.actualVirtual || s.revenue || 0)} tr)\n`;
+      });
+      t2 += `\n`;
+    }
+
+    t2 += `🔥 Cố gắng lên toàn đội! Tập trung mời khách, tư vấn gói trả góp và đẩy mạnh các ngành hàng chưa đạt nhé!`;
+
+    // MẪU 3: TÓM TẮT
+    let t3 = `⚡ TÓM TẮT NHANH DOANH THU & NGÀNH HÀNG - ${timeStr}\n`;
+    t3 += `🏪 Siêu thị: ${marketName}\n`;
+    t3 += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    t3 += `📊 DTQĐ: ${actualVirtual}/${targetQD} (${percentHT}% HT)\n`;
+    t3 += `💳 Trả Góp: ${installmentRate}% | 🧾 Thu Hộ: ${luotBill} bill\n`;
+    t3 += `📦 Ngành hàng Đạt: SL [${slDone.length}/${slCats.length}] | DT [${dtDone.length}/${dtCats.length}]\n`;
+    if (dtNotDone.length > 0 || slNotDone.length > 0) {
+      t3 += `🎯 Trọng tâm cần đẩy: ${[...dtNotDone.slice(0, 3), ...slNotDone.slice(0, 2)].map(c => c.name).join(', ')}\n`;
+    }
+    t3 += `🚀 Quyết tâm hoàn thành 100% mục tiêu hôm nay!`;
+
+    return [
+      {
+        id: 1,
+        title: 'MẪU 1: TOP/BOT NV',
+        icon: '🏆',
+        text: t1
+      },
+      {
+        id: 2,
+        title: 'MẪU 2: DS CẦN TĂNG TỐC',
+        icon: '⚠️',
+        text: t2
+      },
+      {
+        id: 3,
+        title: 'MẪU 3: TÓM TẮT',
+        icon: '⚡',
+        text: t3
+      }
+    ];
+  }, [filteredMarkets, marketFilter, processedData.markets, processedData.staffs, filteredCategories, lastUpdated]);
+
+  const handleOpenCommentModal = () => {
+    setCommentText(realtimeCommentTemplates[selectedCommentTemplate]?.text || realtimeCommentTemplates[0]?.text || '');
+    setIsCommentModalOpen(true);
+    setCopiedComment(false);
+  };
+
+  const handleCopyComment = () => {
     navigator.clipboard.writeText(commentText).then(() => {
-      showNotification(`Đã copy nhận xét ngành hàng dưới 100% vào bộ nhớ tạm!`, 'success');
+      setCopiedComment(true);
+      showNotification('Đã sao chép nhận xét vào bộ nhớ tạm!', 'success');
+      setTimeout(() => setCopiedComment(false), 2500);
     });
+  };
+
+  const generateCategoryComment = () => {
+    handleOpenCommentModal();
   };
 
   const captureCategories = async () => {
     if (categoriesRef.current) {
       try {
+        setIsCapturing(true);
+        await new Promise(resolve => setTimeout(resolve, 100));
         const dataUrl = await captureOffscreenHelper(categoriesRef.current, {
-          width: 'max-content',
-          minWidth: 'min-content',
-          backgroundColor: '#f8fafc'
+          width: '1850px',
+          minWidth: '1850px',
+          backgroundColor: '#f8fafc',
+          isOverview: true
         });
         setPreviewImage(dataUrl);
       } catch (error) {
-        console.error('Lỗi khi chụp ảnh:', error);
+        console.error('Lỗi khi chụp ảnh categories:', error);
+      } finally {
+        setIsCapturing(false);
       }
     }
   };
@@ -4344,7 +4710,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           overflow: visible !important;
         }
       `}} />
-      <div className="min-h-screen bg-[#f8fafc]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
+      <div className="w-full" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
         {/* Non-blocking loading indicator */}
         {isLoadingRealtime && (
           <div className="fixed top-0 left-0 right-0 z-[100] h-1 bg-slate-100 overflow-hidden">
@@ -4395,13 +4761,13 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           </div>
         </div>
 
-        <div className="max-w-[1800px] mx-auto flex flex-col lg:flex-row gap-4 md:gap-8 p-3 md:p-8">
-          {/* Mobile Horizontal Tab Bar */}
-          <div className="lg:hidden flex items-center gap-2 overflow-x-auto no-scrollbar bg-white rounded-2xl p-2 border border-slate-100">
+        <div className="w-full space-y-3">
+          {/* Top Horizontal Subtab Navigation Bar — Mobile only (sidebar has these on desktop) */}
+          <div className="md:hidden bg-white/90 backdrop-blur-xl p-2 rounded-2xl md:rounded-3xl border border-slate-200/80 shadow-sm flex items-center justify-start gap-2 overflow-x-auto no-scrollbar">
             {[
-              { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, color: 'text-indigo-600' },
-              { id: 'khai_thac', label: 'DATA YCX', icon: Activity, color: 'text-emerald-600' },
-              ...(isUser43751 ? [{ id: 'khai_thac_moi', label: 'DATA YCX MỚI', icon: Activity, color: 'text-teal-600' }] : [])
+              { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, grad: 'from-indigo-600 to-purple-600', activeBg: 'bg-indigo-50 text-indigo-600' },
+              { id: 'khai_thac', label: 'DATA YCX', icon: Activity, grad: 'from-emerald-600 to-teal-600', activeBg: 'bg-emerald-50 text-emerald-600' },
+              ...(isUser43751 ? [{ id: 'khai_thac_moi', label: 'DATA YCX MỚI', icon: Activity, grad: 'from-teal-600 to-cyan-600', activeBg: 'bg-teal-50 text-teal-600' }] : [])
             ].map((item) => {
               const isActive = activeTab === item.id;
               const Icon = item.icon;
@@ -4412,59 +4778,24 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                     setActiveTab(item.id as any);
                     if (item.id === 'khai_thac' || item.id === 'khai_thac_moi') setRawTablePage(0);
                   })}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all shrink-0 ${isActive
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
-                    }`}
+                  className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl md:rounded-2xl text-[11px] sm:text-[12.5px] font-black uppercase tracking-wider whitespace-nowrap transition-all duration-300 cursor-pointer shrink-0 active:scale-95 ${
+                    isActive
+                      ? `bg-gradient-to-r ${item.grad} text-white shadow-md shadow-indigo-500/20 scale-[1.02]`
+                      : 'bg-slate-50 text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200/60'
+                  }`}
                 >
-                  <Icon size={16} strokeWidth={isActive ? 2.5 : 2} />
-                  {item.label}
+                  <Icon size={18} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'text-white' : 'text-slate-500'} />
+                  <span>{item.label}</span>
+                  {isActive && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                  )}
                 </button>
               );
             })}
           </div>
 
-          {/* Desktop Left Vertical Navigation */}
-          <div className="hidden lg:block w-[320px] shrink-0">
-            <div className="flex flex-col gap-3 py-4 sticky top-[116px]">
-
-              {[
-                { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, color: 'text-indigo-600' },
-                { id: 'khai_thac', label: 'DATA YCX', icon: Activity, color: 'text-emerald-600' },
-                ...(isUser43751 ? [{ id: 'khai_thac_moi', label: 'DATA YCX MỚI', icon: Activity, color: 'text-teal-600' }] : [])
-              ].map((item) => {
-                const isActive = activeTab === item.id;
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => startTransition(() => {
-                      setActiveTab(item.id as any);
-                      if (item.id === 'khai_thac' || item.id === 'khai_thac_moi') setRawTablePage(0);
-                    })}
-                    className={`flex items-center gap-4 px-6 py-5 rounded-[22px] border transition-all duration-300 group ${isActive
-                      ? 'bg-white border-indigo-500 shadow-[0_15px_35px_-10px_rgba(79,70,229,0.15)] -translate-y-0.5 translate-x-1'
-                      : 'bg-transparent border-transparent hover:bg-white/50 hover:border-slate-200 text-slate-500'
-                      }`}
-                  >
-                    <div className={`p-2.5 rounded-xl transition-all duration-300 ${isActive ? 'bg-indigo-50 ' + item.color : 'bg-slate-100 text-slate-400 group-hover:bg-white group-hover:text-slate-500'
-                      }`}>
-                      <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-                    </div>
-                    <span className={`text-[15px] font-black tracking-tight uppercase ${isActive ? 'text-slate-800' : 'text-slate-500'}`}>
-                      {item.label}
-                    </span>
-                    {isActive && (
-                      <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.5)]" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Main Content Area */}
-          <div className="flex-1 min-w-0">
+          {/* Main Content Area - Full Width */}
+          <div className="w-full min-w-0">
             {pageMaintenanceState[`realtime_${activeTab}`] && !isUser43751Local ? (
               <div className="flex items-center justify-center h-full p-6 mt-12">
                 <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-amber-200 shadow-xl w-full">
@@ -4490,23 +4821,50 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                 >
                   {/* Greeting & Birthday Banner */}
                   <motion.div
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="no-capture bg-white p-8 rounded-[32px] border border-slate-100 shadow-[0_15px_50px_-15px_rgba(0,0,0,0.03)] space-y-6"
+                    className="no-capture relative overflow-hidden bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-indigo-100/90 shadow-[0_4px_25px_-4px_rgba(79,70,229,0.08)] space-y-4"
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Lời chào</h3>
-                        <h2 className="text-2xl font-black text-slate-800 tracking-tight">
-                          {greeting}, <span className="text-indigo-600">{userProfile?.username?.split(' ')[0]}</span>
-                        </h2>
+                    {/* Ambient glow blobs */}
+                    <div className="absolute -top-12 -right-12 w-48 h-48 bg-gradient-to-br from-indigo-200/35 via-purple-100/25 to-transparent rounded-full blur-2xl pointer-events-none" />
+                    <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-gradient-to-tr from-emerald-100/35 via-cyan-100/25 to-transparent rounded-full blur-2xl pointer-events-none" />
+
+                    <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3.5">
+                      <div className="flex items-center gap-3.5">
+                        {/* Time Avatar Badge */}
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-700 text-white flex items-center justify-center text-2xl shadow-md shadow-indigo-500/25 shrink-0 border border-white/50">
+                          {greetingData.icon}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200/70 text-[10.5px] font-extrabold uppercase tracking-wider text-indigo-700 shadow-2xs">
+                              <Sparkles size={11} className="text-indigo-500 animate-pulse" />
+                              LỜI CHÀO HỆ THỐNG
+                            </span>
+                            {userProfile?.storeCode && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-slate-100 border border-slate-200/80 text-[11px] font-bold text-slate-600">
+                                Mã kho: <b className="text-slate-800 font-extrabold">{userProfile.storeCode}</b>
+                              </span>
+                            )}
+                          </div>
+                          <h2 className="text-xl sm:text-2xl md:text-[25px] font-black text-slate-850 tracking-tight mt-0.5">
+                            {greeting},{' '}
+                            <span className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-600 bg-clip-text text-transparent">
+                              {userProfile?.username?.split(' ')[0] || 'Bạn'}
+                            </span>{' '}
+                            👋
+                          </h2>
+                          <p className="text-[12px] font-medium text-slate-500 mt-0.5">
+                            {greetingData.sub}
+                          </p>
+                        </div>
                       </div>
                       {isAdmin && (
                         <button
                           onClick={() => setIsEditingAnnounce(prev => !prev)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all font-bold text-xs cursor-pointer shadow-sm bg-white shrink-0 no-capture"
+                          className="self-start md:self-auto inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white hover:bg-indigo-50/70 border border-slate-200 hover:border-indigo-200 text-slate-700 hover:text-indigo-600 transition-all font-bold text-xs shadow-2xs hover:shadow-xs cursor-pointer shrink-0"
                         >
-                          <Edit3 size={13} />
+                          <Edit3 size={13} className="text-indigo-600" />
                           <span>{isEditingAnnounce ? 'Đóng chỉnh sửa' : 'Chỉnh sửa thông báo'}</span>
                         </button>
                       )}
@@ -4514,17 +4872,17 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
                     {/* Pending users notification with details and inline edit for Admin 43751 */}
                     {isUser43751 && pendingUsers.length > 0 && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 space-y-4 no-capture shadow-sm">
-                        <div className="flex items-center gap-2 pb-2 border-b border-amber-200/50">
+                      <div className="relative z-10 bg-amber-50/90 border border-amber-200/80 rounded-2xl p-4 sm:p-5 space-y-3.5 no-capture shadow-xs">
+                        <div className="flex items-center gap-2 pb-2 border-b border-amber-200/60">
                           <span className="text-xl animate-bounce">🔔</span>
                           <span className="text-xs font-black text-amber-800 uppercase tracking-wider">
                             Có {pendingUsers.length} người dùng mới đang chờ duyệt
                           </span>
                         </div>
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                           {pendingUsers.map((user) => (
-                            <div key={user.username} className="bg-white border border-amber-100 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                              <div className="space-y-2 flex-1">
+                            <div key={user.username} className="bg-white border border-amber-100 rounded-xl p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
+                              <div className="space-y-1.5 flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border border-indigo-100">
                                     Tài khoản: {user.username}
@@ -4596,7 +4954,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                     )}
 
                     {isEditingAnnounce && (
-                      <div className="bg-slate-50 border border-slate-200/80 p-5 rounded-2xl space-y-4 no-capture">
+                      <div className="relative z-10 bg-slate-50/90 border border-slate-200/80 p-4 sm:p-5 rounded-2xl space-y-4 no-capture shadow-xs">
                         <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
                           <div className="text-[12px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                             📢 QUẢN LÝ DANH SÁCH THÔNG BÁO ({announcements.length})
@@ -4761,30 +5119,32 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
                     {/* Global System Announcement list */}
                     {!isEditingAnnounce && announcements.map((announce) => (
-                      <div key={announce.id} className="flex items-start gap-4 bg-amber-50/50 border border-amber-250/60 p-4 rounded-2xl relative overflow-hidden shadow-sm shadow-amber-50/30">
-                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-amber-200/50 animate-bounce">
-                          📢
-                        </div>
-                        <div className="flex-1 space-y-1">
-                          <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
-                            <span className="text-amber-600 font-black">THÔNG BÁO HỆ THỐNG:</span>
-                            {announce.title && (
-                              <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-lg font-black text-xs uppercase tracking-wide">
-                                {announce.title}
+                      <div
+                        key={announce.id}
+                        className="relative z-10 rounded-2xl border border-amber-300/80 bg-gradient-to-r from-amber-500/10 via-amber-50/60 to-orange-500/10 p-3.5 sm:p-4 shadow-2xs overflow-hidden"
+                      >
+                        <div className="flex items-start gap-3.5">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center text-lg shadow-md shadow-amber-500/25 shrink-0 border border-white/60 animate-bounce">
+                            📢
+                          </div>
+                          <div className="flex-1 min-w-0 space-y-1.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-[11px] uppercase tracking-wider px-3 py-0.5 rounded-lg shadow-2xs">
+                                {announce.title?.trim() || 'THÔNG BÁO HỆ THỐNG'}
                               </span>
-                            )}
-                          </p>
-                          <p className="text-[11px] text-rose-600 animate-pulse font-black uppercase tracking-tight leading-relaxed whitespace-pre-wrap">
-                            {announce.content}
-                          </p>
+                            </div>
+                            <div className="text-[12.5px] text-rose-700 font-bold leading-relaxed whitespace-pre-wrap bg-white/90 backdrop-blur-xs p-3 rounded-xl border border-amber-200/80 shadow-2xs">
+                              {announce.content}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}
 
                     {/* Personal Expiration Alert */}
                     {daysRemaining !== null && daysRemaining > 0 && daysRemaining <= 3 && (
-                      <div className="flex items-start gap-4 bg-rose-50/50 border border-rose-100 p-5 rounded-2xl relative overflow-hidden shadow-sm shadow-rose-50/30">
-                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-rose-200/50 animate-bounce">
+                      <div className="relative z-10 flex items-start gap-4 bg-gradient-to-r from-rose-500/10 via-rose-50/60 to-red-500/10 border border-rose-300/80 p-4 sm:p-5 rounded-2xl overflow-hidden shadow-2xs">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-red-600 text-white flex items-center justify-center text-lg shadow-md shadow-rose-500/25 shrink-0 border border-white/60 animate-bounce">
                           ⚠️
                         </div>
                         <div className="flex-1 space-y-1">
@@ -4800,20 +5160,20 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
                     {/* Integrated Birthday & Inventory Greetings */}
                     {(todayBirthdays.length > 0 || tomorrowBirthdays.length > 0 || activeInventoryNotification) && (
-                      <div className="flex flex-col gap-4">
+                      <div className="relative z-10 flex flex-col gap-3.5">
                         {activeInventoryNotification && (
-                          <div className="flex items-start gap-4 bg-amber-50/50 border border-amber-250/60 p-4 rounded-2xl relative overflow-hidden shadow-sm shadow-amber-50/30">
-                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-amber-200/50 animate-bounce">
+                          <div className="flex items-start gap-3.5 bg-gradient-to-r from-amber-500/10 via-amber-50/60 to-orange-500/10 border border-amber-300/80 p-3.5 sm:p-4 rounded-2xl overflow-hidden shadow-2xs">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center text-lg shadow-md shadow-amber-500/25 shrink-0 border border-white/60 animate-bounce">
                               📋
                             </div>
                             <div className="flex-1 space-y-1">
                               <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
-                                <span className="text-amber-600 font-black">LỊCH KIỂM KÊ CỦA SIÊU THỊ:</span>
-                                <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-lg font-black text-xs uppercase tracking-wide">
+                                <span className="text-amber-700 font-black">LỊCH KIỂM KÊ CỦA SIÊU THỊ:</span>
+                                <span className="bg-amber-100/90 border border-amber-300/70 text-amber-900 px-2.5 py-0.5 rounded-md font-extrabold text-[11px] uppercase tracking-wide">
                                   {activeInventoryNotification.title}
                                 </span>
                               </p>
-                              <p className="text-[11px] text-slate-655 font-black tracking-tight leading-relaxed">
+                              <p className="text-[11.5px] text-slate-700 font-bold tracking-tight leading-relaxed">
                                 {activeInventoryNotification.diffDays === 0 ? (
                                   <span className="text-rose-600 animate-pulse font-black uppercase">⚠️ HÔM NAY ĐANG KIỂM KÊ! Vui lòng tập trung và kiểm kê chính xác, nhanh chóng!</span>
                                 ) : (
@@ -4825,19 +5185,19 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                         )}
 
                         {todayBirthdays.length > 0 && (
-                          <div className="flex items-start gap-4 bg-rose-50/50 border border-rose-100 p-4 rounded-2xl relative overflow-hidden">
-                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-rose-100">
+                          <div className="flex items-start gap-3.5 bg-gradient-to-r from-rose-500/10 via-pink-50/60 to-rose-500/10 border border-rose-200/80 p-3.5 sm:p-4 rounded-2xl overflow-hidden shadow-2xs">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 text-white flex items-center justify-center text-lg shadow-md shadow-rose-500/25 shrink-0 border border-white/60">
                               🎂
                             </div>
                             <div className="flex-1 space-y-1">
                               <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
-                                <span className="text-rose-500 font-black">Hôm nay sinh nhật:</span>
-                                <span className="bg-rose-100 text-rose-600 px-2 py-0.5 rounded-lg font-black text-xs">
+                                <span className="text-rose-600 font-black">Hôm nay sinh nhật:</span>
+                                <span className="bg-rose-100/90 border border-rose-200 text-rose-700 px-2.5 py-0.5 rounded-md font-black text-xs">
                                   {todayBirthdays.join(', ')}
                                 </span>
-                                <span className="text-rose-500 font-black">! 🎉</span>
+                                <span className="text-rose-600 font-black">! 🎉</span>
                               </p>
-                              <p className="text-[11px] text-slate-500 font-medium">
+                              <p className="text-[11.5px] text-slate-500 font-medium">
                                 Hãy gửi lời chúc hoặc gửi kèm một món quà/lời chúc ý nghĩa đến nhân viên nhé!
                               </p>
                             </div>
@@ -4845,19 +5205,19 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                         )}
 
                         {tomorrowBirthdays.length > 0 && (
-                          <div className="flex items-start gap-4 bg-indigo-50/30 border border-indigo-100/50 p-4 rounded-2xl relative overflow-hidden">
-                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm shrink-0 border border-indigo-100/50">
+                          <div className="flex items-start gap-3.5 bg-gradient-to-r from-indigo-500/10 via-violet-50/60 to-indigo-500/10 border border-indigo-200/80 p-3.5 sm:p-4 rounded-2xl overflow-hidden shadow-2xs">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-lg shadow-md shadow-indigo-500/25 shrink-0 border border-white/60">
                               🎁
                             </div>
                             <div className="flex-1 space-y-1">
                               <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
-                                <span className="text-indigo-500 font-black">Ngày mai sinh nhật:</span>
-                                <span className="bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-lg font-black text-xs">
+                                <span className="text-indigo-600 font-black">Ngày mai sinh nhật:</span>
+                                <span className="bg-indigo-100/90 border border-indigo-200 text-indigo-700 px-2.5 py-0.5 rounded-md font-black text-xs">
                                   {tomorrowBirthdays.join(', ')}
                                 </span>
-                                <span className="text-indigo-500 font-black">! ✨</span>
+                                <span className="text-indigo-600 font-black">! ✨</span>
                               </p>
-                              <p className="text-[11px] text-slate-500 font-medium">
+                              <p className="text-[11.5px] text-slate-500 font-medium">
                                 Hãy chuẩn bị những lời chúc hoặc món quà bất ngờ cho đồng nghiệp vào ngày mai nhé!
                               </p>
                             </div>
@@ -4868,7 +5228,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                   </motion.div>
 
                   {/* Stats Grid Container */}
-                  <div className="space-y-6">
+                  <div className="space-y-3">
                     {filteredMarkets
                       .filter(m => marketFilter === 'ALL' || m.name === marketFilter)
                       .map((declaredMarket, mIdx) => {
@@ -4888,21 +5248,49 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                         };
 
                         return (
-                          <div key={mIdx} className="bg-white p-5 rounded-3xl border border-slate-100 space-y-4">
-                            <div className="flex flex-wrap items-center justify-between gap-4 px-2 border-b border-slate-50 pb-3">
-                              <div className="flex items-center gap-3">
-                                <div className={`w-3 h-3 rounded-full ${(parsedMarket as any).isSummary || parsedMarket.name === 'TỔNG' ? 'bg-rose-500 animate-pulse' : 'bg-indigo-500 shadow-[0_0_10px_rgba(79,70,229,0.3)]'}`} />
-                                <h3 className="text-[28px] font-black text-slate-800 uppercase tracking-wider">{declaredMarket.name}</h3>
+                          <div key={mIdx} className="relative overflow-hidden bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-indigo-100/90 shadow-[0_4px_25px_-4px_rgba(79,70,229,0.08)] space-y-4">
+                            {/* Ambient background glow */}
+                            <div className="absolute -top-10 -right-10 w-44 h-44 bg-gradient-to-br from-indigo-200/30 to-transparent rounded-full blur-2xl pointer-events-none" />
+                            <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-gradient-to-tr from-emerald-100/30 to-transparent rounded-full blur-2xl pointer-events-none" />
+
+                            {/* Header: Supermarket Banner */}
+                            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 pb-3.5 border-b border-slate-100/80">
+                              <div className="flex items-center gap-3.5">
+                                {/* 3D Gradient Store Icon Box */}
+                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-600 text-white flex items-center justify-center text-xl shadow-md shadow-emerald-500/25 shrink-0 border border-white/50">
+                                  <Store size={22} strokeWidth={2.2} />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/80 text-[10.5px] font-extrabold uppercase tracking-wider text-emerald-700 shadow-2xs">
+                                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
+                                      ĐANG HOẠT ĐỘNG
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200/70 text-[10.5px] font-extrabold uppercase tracking-wider text-indigo-700">
+                                      ⚡ BÁO CÁO REALTIME NGÀY
+                                    </span>
+                                    {lastUpdated && (
+                                      <span className="text-[11px] font-bold text-slate-400">
+                                        Cập nhật: {lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <h3 className="text-lg sm:text-xl md:text-2xl font-black text-slate-850 tracking-tight uppercase flex items-center gap-2">
+                                    <span className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-800 bg-clip-text text-transparent">
+                                      {declaredMarket.name}
+                                    </span>
+                                  </h3>
+                                </div>
                               </div>
                               <button
                                 onClick={captureOverview}
-                                className="no-capture flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all duration-300 shadow-lg shadow-indigo-100 active:scale-95 shrink-0"
+                                className="no-capture inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 active:scale-95 shrink-0 cursor-pointer w-full sm:w-auto self-start sm:self-auto border border-white/20"
                               >
-                                <Camera size={14} />
+                                <Camera size={16} />
                                 <span>Chụp tổng quan</span>
                               </button>
                             </div>
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
                               <StatCard
                                 title="TAGET QĐ"
                                 value={formatCurrencyUnit(parsedMarket.targetQD || 0)}
@@ -4963,224 +5351,467 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                       })}
                   </div>
 
-                  {/* Categories Tables moved to Summary */}
-                  <div className="space-y-6 pt-8 border-t border-slate-200">
-                    <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                      <div className="flex flex-col items-center gap-4">
-                        <h2 className="text-[27px] font-black text-slate-900 uppercase tracking-tight text-center">
-                          Chi tiết ngành hàng <span className="text-[10px] text-slate-300 ml-2">v2.0</span>
-                        </h2>
-                        <p className="text-[17px] text-slate-500">Theo dõi tiến độ hoàn thành mục tiêu ngành hàng</p>
-                        <div className="flex flex-wrap items-center justify-center gap-2 no-capture">
+                  {/* Categories Tables in Summary */}
+                  <div className="space-y-3.5" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                    {isV2Active ? (
+                      /* ===== V2 GRADIENT CATEGORY UI ===== */
+                      <>
+                        <div className="flex flex-wrap items-center justify-end gap-2.5 no-capture">
                           <button
                             onClick={() => setShowTargetCols(!showTargetCols)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 ${showTargetCols
-                              ? 'bg-yellow-50 text-yellow-700 border-yellow-300'
-                              : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-white'
+                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 cursor-pointer ${showTargetCols
+                              ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-transparent shadow-md shadow-orange-500/20'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 shadow-xs'
                               }`}
                           >
-                            <div className={`w-2 h-2 rounded-full ${showTargetCols ? 'bg-yellow-500' : 'bg-slate-400'}`}></div>
-                            TARGET · REAL · %HT · CÒN LẠI
+                            <div className={`w-2 h-2 rounded-full ${showTargetCols ? 'bg-white' : 'bg-slate-400'}`}></div>
+                            TARGET · REAL · %HT · C.LẠI
                           </button>
                           <button
                             onClick={() => setShowOrangeCols(!showOrangeCols)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 ${showOrangeCols
-                              ? 'bg-orange-50 text-orange-700 border-orange-300'
-                              : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-white'
+                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 cursor-pointer ${showOrangeCols
+                              ? 'bg-gradient-to-r from-[#7C3AED] to-[#EC4899] text-white border-transparent shadow-md shadow-purple-500/20'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 shadow-xs'
                               }`}
                           >
-                            <div className={`w-2 h-2 rounded-full ${showOrangeCols ? 'bg-orange-500' : 'bg-slate-400'}`}></div>
+                            <div className={`w-2 h-2 rounded-full ${showOrangeCols ? 'bg-white' : 'bg-slate-400'}`}></div>
                             LUỸ KẾ · MỤC TIÊU
                           </button>
                           <button
                             onClick={generateCategoryComment}
-                            className="flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                            className="flex items-center gap-2 px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-wider bg-gradient-to-r from-[#2563EB] via-[#4F46E5] to-[#7C3AED] hover:from-[#1D4ED8] hover:via-[#4338CA] hover:to-[#6D28D9] text-white shadow-md shadow-indigo-500/25 transition-all duration-300 active:scale-95 cursor-pointer border border-indigo-400/30"
                           >
-                            <MessageSquare size={14} />
-                            NHẬN XÉT
+                            <MessageSquare size={14} className="text-white shrink-0" />
+                            <span>NHẬN XÉT</span>
                           </button>
                           <button
                             onClick={captureCategories}
-                            className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[12px] font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 no-capture"
+                            className="flex items-center gap-2 px-6 py-2 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-[12px] font-black uppercase tracking-wider shadow-md shadow-emerald-500/25 transition-all duration-300 active:scale-95 no-capture cursor-pointer"
                           >
-                            <Camera size={16} />
+                            <Camera size={15} />
                             <span>Chụp ảnh</span>
                           </button>
                         </div>
-                      </div>
-                    </div>
 
-                    <div ref={categoriesRef} className="bg-white rounded-3xl overflow-hidden border border-slate-200">
-                      <div className="p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
-                        {/* Left Table: SLLK */}
-                        <div ref={categorySLRef} className="border border-slate-300 overflow-hidden min-w-0">
-                          <div className="bg-white p-[15px]">
-                            <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
-                              <div className="p-4 flex flex-col items-center justify-center">
-                                <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">NGÀNH HÀNG (SL)</h2>
-                                <div className="flex items-center justify-center gap-1.5">
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">REALTIME</span>
-                                  <button
-                                    onClick={() => captureElement(categorySLRef, 'NganhHang_SL_Realtime')}
-                                    className="no-capture p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
-                                    title="Chụp ảnh bảng Ngành hàng SL"
-                                  >
-                                    <Camera size={12} />
-                                  </button>
+                        <div ref={categoriesRef} className="w-full">
+                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5">
+                            {/* Left Table: SLLK */}
+                            <div ref={categorySLRef} className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden min-w-0 flex flex-col p-2 sm:p-2.5 shadow-sm">
+                              {/* Unified Emerald Gradient Header Banner */}
+                              <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 rounded-2xl text-white relative shrink-0 mb-2.5">
+                                <div className="flex flex-col items-center justify-center text-center">
+                                  <h2 className="text-[23px] sm:text-[27px] font-black text-[#FEF08A] uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                    NGÀNH HÀNG (SL)
+                                  </h2>
+                                  <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-2 mt-1.5 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                    <span className="flex items-center gap-1 whitespace-nowrap">
+                                      ⚡ Realtime: {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} - {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                                    </span>
+                                    <span className="opacity-70">||</span>
+                                    <span className="text-white font-extrabold whitespace-nowrap">
+                                      ĐẠT : {filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length}/{filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').length}
+                                    </span>
+                                  </div>
                                 </div>
+
+                                {/* Camera Capture Button */}
+                                <button
+                                  onClick={() => captureElement(categorySLRef, 'NganhHang_SL_Realtime')}
+                                  className="no-capture absolute right-3 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                                  title="Chụp ảnh bảng Ngành hàng SL"
+                                >
+                                  <Camera size={16} />
+                                </button>
                               </div>
-                              <div className="p-4 flex flex-col items-center justify-center">
-                                <h2 className="text-xl font-black text-rose-600 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">DỰ KIẾN</h2>
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
-                                  ĐẠT : {filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length}/{filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').length}
-                                </span>
+
+                              {showSllkComment && (
+                                <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl mb-2.5 no-capture">
+                                  <textarea
+                                    value={sllkComment}
+                                    onChange={(e) => setSllkComment(e.target.value)}
+                                    placeholder="Nhập nhận xét cho bảng SLLK..."
+                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-emerald-500/20 resize-none min-h-[60px] screenshot-comment"
+                                  />
+                                </div>
+                              )}
+
+                              <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
+                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, minWidth: '600px' }}>
+                                  <colgroup>
+                                    <col style={{ width: '40px' }} />
+                                    <col style={{ width: 'auto' }} />
+                                    <col style={{ width: '68px' }} />
+                                    <col style={{ width: '58px' }} />
+                                    <col style={{ width: '58px' }} />
+                                    <col style={{ width: '58px' }} />
+                                    {showOrangeCols && showLuykeColumn && <col style={{ width: '68px' }} />}
+                                    {showOrangeCols && <col style={{ width: '75px' }} />}
+                                  </colgroup>
+                                  <thead>
+                                    <tr className="text-white h-[46px]">
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>STT</th>
+                                      <th className={`px-2.5 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>TARGET</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>REAL</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden`}>%HT</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>C.LẠI</th>
+                                      {showOrangeCols && showLuykeColumn && <th className={`px-1 py-0 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#065F46] leading-tight whitespace-nowrap overflow-hidden`}>LK<br />C.LẠI</th>}
+                                      {showOrangeCols && <th className={`px-1 py-0 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase text-center border-b border-emerald-600 bg-[#065F46] leading-tight whitespace-nowrap overflow-hidden`}>M.TIÊU<br />/ NGÀY</th>}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {filteredCategories
+                                      .filter(c => c.type === 'SL' || c.type === 'ALL')
+                                      .sort((a, b) => (b.rate || 0) - (a.rate || 0))
+                                      .map((cat, idx) => {
+                                        const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type}`;
+                                        const lkRemaining = luykeRemainingMap.get(lkKey);
+                                        const remaining = cat.target - cat.revenue;
+                                        const isEven = idx % 2 === 0;
+                                        return (
+                                          <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40`}>{idx + 1}</td>
+                                            <td className={`px-2 py-0.5 ${isUser43751 ? 'text-[14px]' : 'text-[12.5px]'} font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 leading-snug tracking-tight`} title={cat.name}>{cat.name}</td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-slate-800`}>{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-r border-b border-emerald-100/90 text-emerald-700`}>{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
+                                            <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
+                                              <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black leading-none ${isUser43751 ? 'text-[12.5px] sm:text-[14px]' : 'text-[11.5px] sm:text-[13px]'} ${Math.round(cat.rate || 0) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
+                                                {Math.round(cat.rate || 0)}%
+                                              </span>
+                                            </td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-rose-600`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
+                                            {showOrangeCols && showLuykeColumn && (
+                                              <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-purple-700`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                            )}
+                                            {showOrangeCols && (() => {
+                                              const lkCat = luykeCatMap.get(lkKey);
+                                              if (!lkCat || lkCat.target === 0) return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b border-emerald-100/90 text-slate-400`}></td>;
+                                              const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
+                                              return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b border-emerald-100/90 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                            })()}
+                                          </tr>
+                                        );
+                                      })}
+                                  </tbody>
+                                </table>
                               </div>
                             </div>
 
-                            {showSllkComment && (
-                              <div className="my-4 no-capture">
-                                <textarea
-                                  value={sllkComment}
-                                  onChange={(e) => setSllkComment(e.target.value)}
-                                  placeholder="Nhập nhận xét cho bảng SLLK..."
-                                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 resize-none min-h-[60px] screenshot-comment"
-                                />
-                              </div>
-                            )}
+                            {/* Right Table: DTLK */}
+                            <div ref={categoryDTRef} className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden min-w-0 flex flex-col p-2 sm:p-2.5 shadow-sm">
+                              {/* Unified Emerald Gradient Header Banner */}
+                              <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 rounded-2xl text-white relative shrink-0 mb-2.5">
+                                <div className="flex flex-col items-center justify-center text-center">
+                                  <h2 className="text-[23px] sm:text-[27px] font-black text-[#FEF08A] uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                    NGÀNH HÀNG (DT)
+                                  </h2>
+                                  <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-2 mt-1.5 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                    <span className="flex items-center gap-1 whitespace-nowrap">
+                                      ⚡ Realtime: {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} - {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                                    </span>
+                                    <span className="opacity-70">||</span>
+                                    <span className="text-white font-extrabold whitespace-nowrap">
+                                      ĐẠT : {filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length}/{filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').length}
+                                    </span>
+                                  </div>
+                                </div>
 
-                            <div className="overflow-x-auto">
-                              <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
-                                <thead>
-                                  <tr className="text-slate-900 h-[60px]">
-                                    <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
-                                    <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
-                                    {showTargetCols && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">TARGET</th>}
-                                    {showTargetCols && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">REAL</th>}
-                                    {showTargetCols && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>}
-                                    {showTargetCols && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">CÒN LẠI</th>}
-                                    {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">LUỸ KẾ</th>}
-                                    {showOrangeCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[70px] leading-tight">MỤC TIÊU<br />100%/NGÀY</th>}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {filteredCategories
-                                    .filter(c => c.type === 'SL' || c.type === 'ALL')
-                                    .sort((a, b) => (b.rate || 0) - (a.rate || 0))
-                                    .map((cat, idx) => {
-                                      const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type}`;
-                                      const lkRemaining = luykeRemainingMap.get(lkKey);
-                                      const remaining = cat.target - cat.revenue;
-                                      return (
-                                        <tr key={idx} className="hover:bg-slate-50 transition-colors h-[40px]">
-                                          <td className="px-2 py-0 text-[15px] font-black text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
-                                          <td className="px-2 py-0 text-[15px] font-black uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
-                                          {showTargetCols && <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
-                                          {showTargetCols && <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
-                                          {showTargetCols && <td className={`px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
-                                          {showTargetCols && <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>}
-                                          {showOrangeCols && showLuykeColumn && (
-                                            <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-rose-600">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
-                                          )}
-                                          {showOrangeCols && (() => {
-                                            const lkCat = luykeCatMap.get(lkKey);
-                                            if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-slate-400"></td>;
-                                            const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
-                                            return <td className={`px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
-                                          })()}
-                                        </tr>
-                                      );
-                                    })}
-                                </tbody>
-                              </table>
+                                {/* Camera Capture Button */}
+                                <button
+                                  onClick={() => captureElement(categoryDTRef, 'NganhHang_DT_Realtime')}
+                                  className="no-capture absolute right-3 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                                  title="Chụp ảnh bảng Ngành hàng DT"
+                                >
+                                  <Camera size={16} />
+                                </button>
+                              </div>
+
+                              {showDtlkComment && (
+                                <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl mb-2.5 no-capture">
+                                  <textarea
+                                    value={dtlkComment}
+                                    onChange={(e) => setDtlkComment(e.target.value)}
+                                    placeholder="Nhập nhận xét cho bảng DTLK..."
+                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-emerald-500/20 resize-none min-h-[60px] screenshot-comment"
+                                  />
+                                </div>
+                              )}
+
+                              <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
+                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, minWidth: '600px' }}>
+                                  <colgroup>
+                                    <col style={{ width: '40px' }} />
+                                    <col style={{ width: 'auto' }} />
+                                    <col style={{ width: '68px' }} />
+                                    <col style={{ width: '58px' }} />
+                                    <col style={{ width: '58px' }} />
+                                    <col style={{ width: '58px' }} />
+                                    {showOrangeCols && showLuykeColumn && <col style={{ width: '68px' }} />}
+                                    {showOrangeCols && <col style={{ width: '75px' }} />}
+                                  </colgroup>
+                                  <thead>
+                                    <tr className="text-white h-[46px]">
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>STT</th>
+                                      <th className={`px-2.5 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>TARGET</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>REAL</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden`}>%HT</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>C.LẠI</th>
+                                      {showOrangeCols && showLuykeColumn && <th className={`px-1 py-0 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#065F46] leading-tight whitespace-nowrap overflow-hidden`}>LK<br />C.LẠI</th>}
+                                      {showOrangeCols && <th className={`px-1 py-0 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase text-center border-b border-emerald-600 bg-[#065F46] leading-tight whitespace-nowrap overflow-hidden`}>M.TIÊU<br />/ NGÀY</th>}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {filteredCategories
+                                      .filter(c => c.type === 'DT' || c.type === 'ALL')
+                                      .sort((a, b) => (b.rate || 0) - (a.rate || 0))
+                                      .map((cat, idx) => {
+                                        const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type === 'ALL' ? 'DT' : cat.type}`;
+                                        const lkRemaining = luykeRemainingMap.get(lkKey) || luykeRemainingMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
+                                        const remaining = cat.target - cat.revenue;
+                                        const isEven = idx % 2 === 0;
+                                        return (
+                                          <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40`}>{idx + 1}</td>
+                                            <td className={`px-2 py-0.5 ${isUser43751 ? 'text-[14px]' : 'text-[12.5px]'} font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 leading-snug tracking-tight`} title={cat.name}>{cat.name}</td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-slate-800`}>{Math.round(cat.target).toLocaleString()}</td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-r border-b border-emerald-100/90 text-emerald-700`}>{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                            <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
+                                              <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black leading-none ${isUser43751 ? 'text-[12.5px] sm:text-[14px]' : 'text-[11.5px] sm:text-[13px]'} ${Math.round(cat.rate || 0) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
+                                                {Math.round(cat.rate || 0)}%
+                                              </span>
+                                            </td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-rose-600`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
+                                            {showOrangeCols && showLuykeColumn && (
+                                              <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-purple-700`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                            )}
+                                            {showOrangeCols && (() => {
+                                              const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
+                                              if (!lkCat || lkCat.target === 0) return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b border-emerald-100/90 text-slate-400`}></td>;
+                                              const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
+                                              return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b border-emerald-100/90 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                            })()}
+                                          </tr>
+                                        );
+                                      })}
+                                  </tbody>
+                                </table>
+                              </div>
                             </div>
                           </div>
                         </div>
+                      </>
+                    ) : (
+                      /* ===== V1 CLASSIC CATEGORY UI ===== */
+                      <>
+                        <div className="flex flex-wrap items-center justify-end gap-2 no-capture">
+                          <button
+                            onClick={() => setShowTargetCols(!showTargetCols)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase transition-all duration-300 border cursor-pointer ${showTargetCols
+                              ? 'bg-amber-500 text-white border-amber-500 shadow-md shadow-amber-200'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                              }`}
+                          >
+                            TARGET · REAL · %HT · CÒN LẠI
+                          </button>
+                          <button
+                            onClick={() => setShowOrangeCols(!showOrangeCols)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase transition-all duration-300 border cursor-pointer ${showOrangeCols
+                              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white border-transparent shadow-md shadow-purple-200'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                              }`}
+                          >
+                            LUỸ KẾ · MỤC TIÊU
+                          </button>
+                          <button
+                            onClick={generateCategoryComment}
+                            className="p-2 bg-gradient-to-r from-[#2563EB] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] text-white rounded-xl transition-all duration-300 shadow-sm cursor-pointer"
+                            title="Nhận xét chung doanh thu & ngành hàng"
+                          >
+                            <MessageSquare size={16} />
+                          </button>
+                          <button
+                            onClick={captureCategories}
+                            className="p-2 bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-xl transition-all duration-300 border border-slate-200 no-capture cursor-pointer"
+                            title="Chụp ảnh toàn bộ Ngành hàng"
+                          >
+                            <Camera size={16} />
+                          </button>
+                        </div>
 
-                        {/* Right Table: DTLK */}
-                        <div ref={categoryDTRef} className="border border-slate-300 overflow-hidden min-w-0">
-                          <div className="bg-white p-[15px]">
-                            <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
-                              <div className="p-4 flex flex-col items-center justify-center">
-                                <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">NGÀNH HÀNG (DT)</h2>
-                                <div className="flex items-center justify-center gap-1.5">
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">REALTIME</span>
-                                  <button
-                                    onClick={() => captureElement(categoryDTRef, 'NganhHang_DT_Realtime')}
-                                    className="no-capture p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
-                                    title="Chụp ảnh bảng Ngành hàng DT"
-                                  >
-                                    <Camera size={12} />
-                                  </button>
+                        <div ref={categoriesRef} className="bg-white rounded-3xl overflow-hidden border border-slate-200">
+                          <div className="p-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+                            {/* Left Table: SLLK */}
+                            <div ref={categorySLRef} className="border border-slate-300 overflow-hidden min-w-0">
+                              <div className="bg-white p-[15px]">
+                                <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
+                                  <div className="p-4 flex flex-col items-center justify-center">
+                                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">NGÀNH HÀNG (SL)</h2>
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">REALTIME</span>
+                                      <button
+                                        onClick={() => captureElement(categorySLRef, 'NganhHang_SL_Realtime')}
+                                        className="no-capture p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                                        title="Chụp ảnh bảng Ngành hàng SL"
+                                      >
+                                        <Camera size={12} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div className="p-4 flex flex-col items-center justify-center">
+                                    <h2 className="text-xl font-black text-rose-600 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">DỰ KIẾN</h2>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                                      ĐẠT : {filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length}/{filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').length}
+                                    </span>
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="p-4 flex flex-col items-center justify-center">
-                                <h2 className="text-xl font-black text-rose-600 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">DỰ KIẾN</h2>
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
-                                  ĐẠT : {filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length}/{filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').length}
-                                </span>
+
+                                {showSllkComment && (
+                                  <div className="my-4 no-capture">
+                                    <textarea
+                                      value={sllkComment}
+                                      onChange={(e) => setSllkComment(e.target.value)}
+                                      placeholder="Nhập nhận xét cho bảng SLLK..."
+                                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 resize-none min-h-[60px] screenshot-comment"
+                                    />
+                                  </div>
+                                )}
+
+                                <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-sm">
+                                  <table className="w-full border-separate border-spacing-0" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+                                    <thead>
+                                      <tr className="text-white h-[52px]">
+                                        <th className="px-2 py-0 text-[14.5px] font-black uppercase text-center border-r border-b border-slate-800 bg-[#0F172A] w-10">STT</th>
+                                        <th className="px-3 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-slate-800 bg-[#0F172A]">NGÀNH HÀNG</th>
+                                        {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">TARGET</th>}
+                                        {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">REAL</th>}
+                                        {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">%HT</th>}
+                                        {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">CÒN LẠI</th>}
+                                        {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[12px] font-black uppercase text-center border-r border-b border-purple-900 bg-gradient-to-r from-[#6366F1] to-[#7C3AED] w-[65px] leading-tight">L.KẾ<br />CÒN LẠI</th>}
+                                        {showOrangeCols && <th className="px-2 py-0 text-[12px] font-black uppercase text-center border-r border-b border-purple-900 bg-gradient-to-r from-[#7C3AED] to-[#EC4899] w-[75px] leading-tight">MỤC TIÊU<br />100%/NGÀY</th>}
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {filteredCategories
+                                        .filter(c => c.type === 'SL' || c.type === 'ALL')
+                                        .sort((a, b) => (b.rate || 0) - (a.rate || 0))
+                                        .map((cat, idx) => {
+                                          const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type}`;
+                                          const lkRemaining = luykeRemainingMap.get(lkKey);
+                                          const remaining = cat.target - cat.revenue;
+                                          return (
+                                            <tr key={idx} className="hover:bg-indigo-50/50 transition-colors h-[40px]">
+                                              <td className="px-2 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-slate-200 bg-slate-50">{idx + 1}</td>
+                                              <td className="px-3 py-0 text-[14px] font-black uppercase border-r border-b border-slate-200 text-slate-900 truncate tracking-tight">{cat.name}</td>
+                                              {showTargetCols && <td className="px-2 py-0 text-[14.5px] font-bold text-center border-r border-b border-slate-200 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
+                                              {showTargetCols && <td className="px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 text-emerald-600">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
+                                              {showTargetCols && <td className={`px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-700 bg-emerald-50/80' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
+                                              {showTargetCols && <td className="px-2 py-0 text-[14.5px] font-bold text-center border-r border-b border-slate-200 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>}
+                                              {showOrangeCols && showLuykeColumn && (
+                                                <td className="px-2 py-0 text-[14.5px] font-bold text-center border-r border-b border-slate-200 text-purple-700">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                              )}
+                                              {showOrangeCols && (() => {
+                                                const lkCat = luykeCatMap.get(lkKey);
+                                                if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[14.5px] font-black text-center border-r border-slate-200 text-slate-400"></td>;
+                                                const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
+                                                return <td className={`px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                              })()}
+                                            </tr>
+                                          );
+                                        })}
+                                    </tbody>
+                                  </table>
+                                </div>
                               </div>
                             </div>
 
-                            {showDtlkComment && (
-                              <div className="my-4 no-capture">
-                                <textarea
-                                  value={dtlkComment}
-                                  onChange={(e) => setDtlkComment(e.target.value)}
-                                  placeholder="Nhập nhận xét cho bảng DTLK..."
-                                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 resize-none min-h-[60px] screenshot-comment"
-                                />
-                              </div>
-                            )}
+                            {/* Right Table: DTLK */}
+                            <div ref={categoryDTRef} className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden min-w-0">
+                              <div className="p-5">
+                                <div className="grid grid-cols-2 border-b border-slate-200 divide-x divide-slate-200 pb-3 mb-4">
+                                  <div className="p-2 flex flex-col items-center justify-center">
+                                    <h2 className="text-lg font-black bg-gradient-to-r from-slate-900 to-[#2563EB] bg-clip-text text-transparent uppercase tracking-tight pb-1 mb-1 border-b border-slate-100 w-full text-center">NGÀNH HÀNG (DT)</h2>
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <span className="text-[10px] font-black uppercase tracking-widest text-[#2563EB]">REALTIME</span>
+                                      <button
+                                        onClick={() => captureElement(categoryDTRef, 'NganhHang_DT_Realtime')}
+                                        className="no-capture p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                                        title="Chụp ảnh bảng Ngành hàng DT"
+                                      >
+                                        <Camera size={13} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div className="p-2 flex flex-col items-center justify-center">
+                                    <h2 className="text-lg font-black bg-gradient-to-r from-rose-600 to-orange-500 bg-clip-text text-transparent uppercase tracking-tight pb-1 mb-1 border-b border-slate-100 w-full text-center">DỰ KIẾN</h2>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#2563EB]">
+                                      ĐẠT : {filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length}/{filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').length}
+                                    </span>
+                                  </div>
+                                </div>
 
-                            <div className="overflow-x-auto">
-                              <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
-                                <thead>
-                                  <tr className="text-slate-900 h-[60px]">
-                                    <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-10">STT</th>
-                                    <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
-                                    {showTargetCols && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">TARGET</th>}
-                                    {showTargetCols && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">REAL</th>}
-                                    {showTargetCols && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>}
-                                    {showTargetCols && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">CÒN LẠI</th>}
-                                    {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[15px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">LUỸ KẾ</th>}
-                                    {showOrangeCols && <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[70px] leading-tight">MỤC TIÊU<br />100%/NGÀY</th>}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {filteredCategories
-                                    .filter(c => c.type === 'DT' || c.type === 'ALL')
-                                    .sort((a, b) => (b.rate || 0) - (a.rate || 0))
-                                    .map((cat, idx) => {
-                                      const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type === 'ALL' ? 'DT' : cat.type}`;
-                                      const lkRemaining = luykeRemainingMap.get(lkKey) || luykeRemainingMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
-                                      const remaining = cat.target - cat.revenue;
-                                      return (
-                                        <tr key={idx} className="hover:bg-slate-50 transition-colors h-[40px]">
-                                          <td className="px-2 py-0 text-[15px] font-black text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
-                                          <td className="px-2 py-0 text-[15px] font-black uppercase border-r border-b border-slate-300 text-black">{cat.name}</td>
-                                          {showTargetCols && <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
-                                          {showTargetCols && <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
-                                          {showTargetCols && <td className={`px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-600' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
-                                          {showTargetCols && <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>}
-                                          {showOrangeCols && showLuykeColumn && (
-                                            <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-rose-600">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
-                                          )}
-                                          {showOrangeCols && (() => {
-                                            const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
-                                            if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 text-slate-400"></td>;
-                                            const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
-                                            return <td className={`px-2 py-0 text-[15px] font-black text-center border-r border-b border-slate-300 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
-                                          })()}
-                                        </tr>
-                                      );
-                                    })}
-                                </tbody>
-                              </table>
+                                {showDtlkComment && (
+                                  <div className="my-4 no-capture">
+                                    <textarea
+                                      value={dtlkComment}
+                                      onChange={(e) => setDtlkComment(e.target.value)}
+                                      placeholder="Nhập nhận xét cho bảng DTLK..."
+                                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 resize-none min-h-[60px] screenshot-comment"
+                                    />
+                                  </div>
+                                )}
+
+                                <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-sm">
+                                  <table className="w-full border-separate border-spacing-0" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+                                    <thead>
+                                      <tr className="text-white h-[52px]">
+                                        <th className="px-2 py-0 text-[14.5px] font-black uppercase text-center border-r border-b border-slate-800 bg-[#0F172A] w-10">STT</th>
+                                        <th className="px-3 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-slate-800 bg-[#0F172A]">NGÀNH HÀNG</th>
+                                        {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">TARGET</th>}
+                                        {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">REAL</th>}
+                                        {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">%HT</th>}
+                                        {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">CÒN LẠI</th>}
+                                        {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[12px] font-black uppercase text-center border-r border-b border-purple-900 bg-gradient-to-r from-[#6366F1] to-[#7C3AED] w-[65px] leading-tight">L.KẾ<br />CÒN LẠI</th>}
+                                        {showOrangeCols && <th className="px-2 py-0 text-[12px] font-black uppercase text-center border-r border-b border-purple-900 bg-gradient-to-r from-[#7C3AED] to-[#EC4899] w-[75px] leading-tight">MỤC TIÊU<br />100%/NGÀY</th>}
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {filteredCategories
+                                        .filter(c => c.type === 'DT' || c.type === 'ALL')
+                                        .sort((a, b) => (b.rate || 0) - (a.rate || 0))
+                                        .map((cat, idx) => {
+                                          const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type === 'ALL' ? 'DT' : cat.type}`;
+                                          const lkRemaining = luykeRemainingMap.get(lkKey) || luykeRemainingMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
+                                          const remaining = cat.target - cat.revenue;
+                                          return (
+                                            <tr key={idx} className="hover:bg-indigo-50/50 transition-colors h-[40px]">
+                                              <td className="px-2 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-slate-200 bg-slate-50">{idx + 1}</td>
+                                              <td className="px-3 py-0 text-[14px] font-black uppercase border-r border-b border-slate-200 text-slate-900 truncate tracking-tight">{cat.name}</td>
+                                              {showTargetCols && <td className="px-2 py-0 text-[14.5px] font-bold text-center border-r border-b border-slate-200 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
+                                              {showTargetCols && <td className="px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 text-emerald-600">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
+                                              {showTargetCols && <td className={`px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-700 bg-emerald-50/80' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
+                                              {showTargetCols && <td className="px-2 py-0 text-[14.5px] font-bold text-center border-r border-b border-slate-200 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>}
+                                              {showOrangeCols && showLuykeColumn && (
+                                                <td className="px-2 py-0 text-[14.5px] font-bold text-center border-r border-b border-slate-200 text-purple-700">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                              )}
+                                              {showOrangeCols && (() => {
+                                                const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
+                                                if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 text-slate-400"></td>;
+                                                const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
+                                                return <td className={`px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                              })()}
+                                            </tr>
+                                          );
+                                        })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
+                      </>
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -5745,15 +6376,15 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                         <thead>
                           {compareMode === 'none' ? (
                             <>
-                              <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[13px] font-black uppercase">
+                              <tr className={`bg-slate-50 border-b border-slate-200/50 text-slate-800 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase`}>
                                 <th rowSpan={2} className="py-2.5 px-4 text-left bg-slate-50 min-w-[240px] border-r border-slate-200/50 font-black align-middle">CHI TIẾT NGÀNH HÀNG</th>
-                                <th colSpan={2} className="py-1 px-4 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black text-[13px] border-b border-emerald-100">SỐ LƯỢNG</th>
-                                <th colSpan={2} className="py-1 px-4 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 font-black text-[13px] border-b border-blue-100">DOANH THU</th>
+                                <th colSpan={2} className={`py-1 px-4 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} border-b border-emerald-100`}>SỐ LƯỢNG</th>
+                                <th colSpan={2} className={`py-1 px-4 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 font-black ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} border-b border-blue-100`}>DOANH THU</th>
                                 <th rowSpan={2} className="py-2.5 px-4 text-center text-[#b45309] bg-[#fef3c7] border-r border-slate-200/50 w-28 font-black align-middle">DTQĐ</th>
                                 <th rowSpan={2} className="py-2.5 px-4 text-center text-[#6b21a8] bg-[#f3e8ff] border-r border-slate-200/50 w-28 font-black align-middle">GIÁ TRỊ ĐH</th>
                                 <th rowSpan={2} className="py-2.5 px-4 text-center text-[#be123c] bg-[#ffe4e6] w-28 font-black align-middle">TRẢ CHẬM</th>
                               </tr>
-                              <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[11px] font-black uppercase">
+                              <tr className={`bg-slate-50 border-b border-slate-200/50 text-slate-800 ${isUser43751 ? 'text-[12.5px]' : 'text-[11px]'} font-black uppercase`}>
                                 <th className="py-1 px-4 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 w-24 font-black">SL</th>
                                 <th className="py-1 px-4 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 w-24 font-black">%SL</th>
                                 <th className="py-1 px-4 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 w-28 font-black">DT ⬇</th>
@@ -5762,7 +6393,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             </>
                           ) : (
                             <>
-                              <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[13px] font-black uppercase">
+                              <tr className={`bg-slate-50 border-b border-slate-200/50 text-slate-800 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase`}>
                                 <th rowSpan={2} className="py-2.5 px-4 text-left bg-slate-50 min-w-[240px] border-r border-slate-200/50 font-black align-middle">CHI TIẾT NGÀNH HÀNG</th>
                                 <th colSpan={3} className="py-1 px-4 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black border-b border-emerald-100">SỐ LƯỢNG</th>
                                 <th colSpan={3} className="py-1 px-4 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 font-black border-b border-blue-100">DOANH THU</th>
@@ -5770,7 +6401,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 <th colSpan={3} className="py-1 px-4 text-center text-[#6b21a8] bg-[#f3e8ff] border-r border-slate-200/50 font-black border-b border-purple-100">GIÁ TRỊ ĐH</th>
                                 <th colSpan={3} className="py-1 px-4 text-center text-[#be123c] bg-[#ffe4e6] font-black border-b border-rose-100">TRẢ CHẬM</th>
                               </tr>
-                              <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[10px] font-black uppercase">
+                              <tr className={`bg-slate-50 border-b border-slate-200/50 text-slate-800 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase`}>
                                 <th className="py-1 px-2 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 w-20 font-black">SL Kỳ này</th>
                                 <th className="py-1 px-2 text-center text-slate-400 bg-slate-50/50 border-r border-slate-200/50 w-20 font-black">{prevLabel}</th>
                                 <th className="py-1 px-2 text-center text-rose-500 bg-[#ffe4e6] border-r border-slate-200/50 w-16 font-black">+/-</th>
@@ -5855,15 +6486,15 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                       ) : (
                                         <div className="w-5 h-5 mr-1.5 shrink-0" />
                                       )}
-                                      <span className={`text-[13px] tracking-tight ${textClass}`}>{row.name}</span>
+                                      <span className={`${isUser43751 ? 'text-[14px]' : 'text-[13px]'} tracking-tight ${textClass}`}>{row.name}</span>
                                     </div>
                                   </td>
 
                                   {/* SL & %SL */}
-                                  <td className="py-2 px-4 text-right text-[13px] font-black text-slate-800 w-24 border-r border-slate-200/50">{row.sl === 0 ? '-' : row.sl.toLocaleString('vi-VN')}</td>
+                                  <td className={`py-2 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-800 w-24 border-r border-slate-200/50`}>{row.sl === 0 ? '-' : row.sl.toLocaleString('vi-VN')}</td>
                                   {compareMode !== 'none' && (
                                     <>
-                                      <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                                      <td className={`py-2 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>
                                         {nodePrev ? nodePrev.sl.toLocaleString('vi-VN') : "-"}
                                       </td>
                                       <td className="py-2 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">
@@ -5872,14 +6503,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                     </>
                                   )}
                                   {compareMode === 'none' && (
-                                    <td className="py-2 px-4 text-center text-[13px] font-black text-[#0f766e] w-24 border-r border-slate-200/50">{slPct.toFixed(0)}%</td>
+                                    <td className={`py-2 px-4 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-[#0f766e] w-24 border-r border-slate-200/50`}>{slPct.toFixed(0)}%</td>
                                   )}
 
                                   {/* DT & %DT */}
-                                  <td className={`py-2 px-4 text-right text-[13px] font-black w-28 border-r border-slate-200/50 ${row.dt === 0 ? 'text-rose-600 font-black' : 'text-slate-800'}`}>{fmtTr(row.dt)}</td>
+                                  <td className={`py-2 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-28 border-r border-slate-200/50 ${row.dt === 0 ? 'text-rose-600 font-black' : 'text-slate-800'}`}>{fmtTr(row.dt)}</td>
                                   {compareMode !== 'none' && (
                                     <>
-                                      <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                                      <td className={`py-2 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>
                                         {nodePrev ? fmtTr(nodePrev.dt) : "-"}
                                       </td>
                                       <td className="py-2 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">
@@ -5888,16 +6519,16 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                     </>
                                   )}
                                   {compareMode === 'none' && (
-                                    <td className={`py-2 px-4 text-center text-[13px] font-black w-24 border-r border-slate-200/50 ${row.dt === 0 ? 'text-rose-600 font-black' : 'text-[#ea580c]'}`}>
+                                    <td className={`py-2 px-4 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-24 border-r border-slate-200/50 ${row.dt === 0 ? 'text-rose-600 font-black' : 'text-[#ea580c]'}`}>
                                       {row.dt > 0 ? `${dtPct.toFixed(0)}%` : '-'}
                                     </td>
                                   )}
 
                                   {/* DTQĐ */}
-                                  <td className={`py-2 px-4 text-right text-[13px] font-black w-28 border-r border-slate-200/50 ${row.dtqd === 0 ? 'text-rose-600 font-black' : 'text-slate-800'}`}>{fmtTr(row.dtqd)}</td>
+                                  <td className={`py-2 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-28 border-r border-slate-200/50 ${row.dtqd === 0 ? 'text-rose-600 font-black' : 'text-slate-800'}`}>{fmtTr(row.dtqd)}</td>
                                   {compareMode !== 'none' && (
                                     <>
-                                      <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                                      <td className={`py-2 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>
                                         {nodePrev ? fmtTr(nodePrev.dtqd) : "-"}
                                       </td>
                                       <td className="py-2 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">
@@ -5907,12 +6538,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   )}
 
                                   {/* GIÁ TRỊ ĐH */}
-                                  <td className={`py-2 px-4 text-right text-[13px] font-black w-28 border-r border-slate-200/50 ${orderValue < 1.0 ? 'text-rose-600 font-black' : 'text-slate-800'}`}>
+                                  <td className={`py-2 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-28 border-r border-slate-200/50 ${orderValue < 1.0 ? 'text-rose-600 font-black' : 'text-slate-800'}`}>
                                     {orderValue > 0 ? orderValue.toFixed(1) : '-'}
                                   </td>
                                   {compareMode !== 'none' && (
                                     <>
-                                      <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                                      <td className={`py-2 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>
                                         {nodePrev && prevOrderValue > 0 ? prevOrderValue.toFixed(1) : "-"}
                                       </td>
                                       <td className="py-2 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">
@@ -5922,7 +6553,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   )}
 
                                   {/* TRẢ CHẬM */}
-                                  <td className={`py-2 px-4 text-center text-[13px] font-black w-28 border-r border-slate-200/50 ${row.dt === 0 || row.tc_dt === 0
+                                  <td className={`py-2 px-4 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-28 border-r border-slate-200/50 ${row.dt === 0 || row.tc_dt === 0
                                     ? 'text-rose-600 font-black'
                                     : tcPct >= 50
                                       ? 'text-[#047857]'
@@ -5932,7 +6563,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   </td>
                                   {compareMode !== 'none' && (
                                     <>
-                                      <td className="py-2 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">
+                                      <td className={`py-2 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>
                                         {nodePrev && nodePrev.dt > 0 && nodePrev.tc_dt > 0 ? `${prevTcPct.toFixed(0)}%` : "-"}
                                       </td>
                                       <td className="py-2 px-2 text-center bg-slate-50/30">
@@ -5971,14 +6602,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             if (compareMode === 'none') {
                               return (
                                 <tr className="bg-[#ccfbf1]/80 border-t-2 border-teal-300 font-black text-slate-900 h-10 uppercase">
-                                  <td className="py-3 px-4 text-left text-[14px] text-teal-800 font-black pl-6 border-r border-slate-200/50">TỔNG</td>
-                                  <td className="py-3 px-4 text-right text-[13px] text-slate-800 font-black border-r border-slate-200/50">{slTotal.toLocaleString('vi-VN')}</td>
-                                  <td className="py-3 px-4 text-center text-[13px] text-[#0f766e] font-black border-r border-slate-200/50">100%</td>
-                                  <td className="py-3 px-4 text-right text-[13px] text-slate-800 font-black border-r border-slate-200/50">{fmtTr(dtTotal)}</td>
-                                  <td className="py-3 px-4 text-center text-[13px] text-[#ea580c] font-black border-r border-slate-200/50">100%</td>
-                                  <td className="py-3 px-4 text-right text-[13px] text-slate-800 font-black border-r border-slate-200/50">{fmtTr(dtqdTotal)}</td>
-                                  <td className="py-3 px-4 text-right text-[13px] text-slate-800 font-black border-r border-slate-200/50">{totalOrderValue > 0 ? totalOrderValue.toFixed(1) : '-'}</td>
-                                  <td className={`py-3 px-4 text-center text-[13px] font-black ${totalTcPct >= 50 ? 'text-[#047857]' : totalTcPct > 0 ? 'text-amber-600' : 'text-rose-600'}`}>
+                                  <td className={`py-3 px-4 text-left ${isUser43751 ? 'text-[15px]' : 'text-[14px]'} text-teal-800 font-black pl-6 border-r border-slate-200/50`}>TỔNG</td>
+                                  <td className={`py-3 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50`}>{slTotal.toLocaleString('vi-VN')}</td>
+                                  <td className={`py-3 px-4 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-[#0f766e] font-black border-r border-slate-200/50`}>100%</td>
+                                  <td className={`py-3 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50`}>{fmtTr(dtTotal)}</td>
+                                  <td className={`py-3 px-4 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-[#ea580c] font-black border-r border-slate-200/50`}>100%</td>
+                                  <td className={`py-3 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50`}>{fmtTr(dtqdTotal)}</td>
+                                  <td className={`py-3 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50`}>{totalOrderValue > 0 ? totalOrderValue.toFixed(1) : '-'}</td>
+                                  <td className={`py-3 px-4 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black ${totalTcPct >= 50 ? 'text-[#047857]' : totalTcPct > 0 ? 'text-amber-600' : 'text-rose-600'}`}>
                                     {totalTcPct > 0 ? totalTcPct.toFixed(0) + '%' : '-'}
                                   </td>
                                 </tr>
@@ -5986,21 +6617,21 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             } else {
                               return (
                                 <tr className="bg-[#ccfbf1]/80 border-t-2 border-teal-300 font-black text-slate-900 h-10 uppercase">
-                                  <td className="py-3 px-4 text-left text-[14px] text-teal-800 font-black pl-6 border-r border-slate-200/50">TỔNG</td>
-                                  <td className="py-3 px-4 text-right text-[13px] text-slate-800 font-black border-r border-slate-200/50">{slTotal.toLocaleString('vi-VN')}</td>
-                                  <td className="py-3 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">{prevSlTotal.toLocaleString('vi-VN')}</td>
+                                  <td className={`py-3 px-4 text-left ${isUser43751 ? 'text-[15px]' : 'text-[14px]'} text-teal-800 font-black pl-6 border-r border-slate-200/50`}>TỔNG</td>
+                                  <td className={`py-3 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50`}>{slTotal.toLocaleString('vi-VN')}</td>
+                                  <td className={`py-3 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>{prevSlTotal.toLocaleString('vi-VN')}</td>
                                   <td className="py-3 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">{fmtDiff(slTotal, prevSlTotal)}</td>
-                                  <td className="py-3 px-4 text-right text-[13px] text-slate-800 font-black border-r border-slate-200/50">{fmtTr(dtTotal)}</td>
-                                  <td className="py-3 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">{fmtTr(prevDtTotal)}</td>
+                                  <td className={`py-3 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50`}>{fmtTr(dtTotal)}</td>
+                                  <td className={`py-3 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>{fmtTr(prevDtTotal)}</td>
                                   <td className="py-3 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">{fmtDiff(dtTotal, prevDtTotal, true)}</td>
-                                  <td className="py-3 px-4 text-right text-[13px] text-slate-800 font-black border-r border-slate-200/50">{fmtTr(dtqdTotal)}</td>
-                                  <td className="py-3 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">{fmtTr(prevDtqdTotal)}</td>
+                                  <td className={`py-3 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50`}>{fmtTr(dtqdTotal)}</td>
+                                  <td className={`py-3 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>{fmtTr(prevDtqdTotal)}</td>
                                   <td className="py-3 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">{fmtDiff(dtqdTotal, prevDtqdTotal, true)}</td>
-                                  <td className="py-3 px-4 text-right text-[13px] text-slate-800 font-black border-r border-slate-200/50">{totalOrderValue > 0 ? totalOrderValue.toFixed(1) : '-'}</td>
-                                  <td className="py-3 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">{prevTotalOrderValue > 0 ? prevTotalOrderValue.toFixed(1) : "-"}</td>
+                                  <td className={`py-3 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50`}>{totalOrderValue > 0 ? totalOrderValue.toFixed(1) : '-'}</td>
+                                  <td className={`py-3 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>{prevTotalOrderValue > 0 ? prevTotalOrderValue.toFixed(1) : "-"}</td>
                                   <td className="py-3 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">{fmtDiff(totalOrderValue, prevTotalOrderValue, false, 1)}</td>
-                                  <td className={`py-3 px-4 text-center text-[13px] font-black border-r border-slate-200/50 ${totalTcPct >= 50 ? 'text-[#047857]' : totalTcPct > 0 ? 'text-[#ea580c]' : 'text-rose-600'}`}>{totalTcPct > 0 ? totalTcPct.toFixed(0) + '%' : '-'}</td>
-                                  <td className="py-3 px-2 text-center bg-slate-50/50 text-[11px] font-black text-slate-400 border-r border-slate-200/50">{prevTotalTcPct > 0 ? prevTotalTcPct.toFixed(0) + '%' : "-"}</td>
+                                  <td className={`py-3 px-4 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black border-r border-slate-200/50 ${totalTcPct >= 50 ? 'text-[#047857]' : totalTcPct > 0 ? 'text-[#ea580c]' : 'text-rose-600'}`}>{totalTcPct > 0 ? totalTcPct.toFixed(0) + '%' : '-'}</td>
+                                  <td className={`py-3 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>{prevTotalTcPct > 0 ? prevTotalTcPct.toFixed(0) + '%' : "-"}</td>
                                   <td className="py-3 px-2 text-center bg-slate-50/30">{fmtDiff(tcTotal, prevTcTotal, true)}</td>
                                 </tr>
                               );
@@ -7355,34 +7986,37 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       </div>
 
       {/* Excel processing overlay */}
-      <AnimatePresence>
-        {isProcessingData && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-md"
-          >
+      {typeof window !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isProcessingData && (
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white/80 backdrop-blur-lg border border-white/20 p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm text-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-md"
             >
-              <div className="relative w-20 h-20 mb-6 flex items-center justify-center">
-                <div className="absolute inset-0 rounded-full border-4 border-indigo-100 animate-pulse"></div>
-                <div className="absolute inset-0 rounded-full border-4 border-t-indigo-600 border-r-indigo-400 border-b-transparent border-l-transparent animate-spin"></div>
-                <FileSpreadsheet size={32} className="text-indigo-600 animate-bounce" />
-              </div>
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white/80 backdrop-blur-lg border border-white/20 p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm text-center"
+              >
+                <div className="relative w-20 h-20 mb-6 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border-4 border-indigo-100 animate-pulse"></div>
+                  <div className="absolute inset-0 rounded-full border-4 border-t-indigo-600 border-r-indigo-400 border-b-transparent border-l-transparent animate-spin"></div>
+                  <FileSpreadsheet size={32} className="text-indigo-600 animate-bounce" />
+                </div>
 
-              <h3 className="text-lg font-black text-slate-800 uppercase tracking-wider mb-2">Đang xử lý dữ liệu...</h3>
-              <p className="text-[12px] font-medium text-slate-500 max-w-[240px]">
-                Hệ thống đang phân tích cấu trúc cột, làm sạch dữ liệu và tự động nhóm các ngành hàng/hãng sản xuất. Vui lòng chờ trong giây lát.
-              </p>
+                <h3 className="text-lg font-black text-slate-800 uppercase tracking-wider mb-2">Đang xử lý dữ liệu...</h3>
+                <p className="text-[12px] font-medium text-slate-500 max-w-[240px]">
+                  Hệ thống đang phân tích cấu trúc cột, làm sạch dữ liệu và tự động nhóm các ngành hàng/hãng sản xuất. Vui lòng chờ trong giây lát.
+                </p>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* BI Import Overlay */}
       <AnimatePresence>
@@ -7456,6 +8090,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           setCustomNhomSmallMap(newMap);
           try {
             await setDoc(doc(db, 'system_configs', 'nhom_hang_map'), { map: newMap, updatedAt: serverTimestamp() }, { merge: true });
+            setCachedDoc('system_configs', 'nhom_hang_map', { map: newMap });
             showNotification('Đã lưu cấu hình lên hệ thống', 'success');
           } catch (error) {
             console.error('Error saving map to Firebase:', error);
@@ -7473,6 +8108,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           setCustomBaoHiemRules(newRules);
           try {
             await setDoc(doc(db, 'system_configs', 'bao_hiem_map'), { rules: newRules, updatedAt: serverTimestamp() }, { merge: true });
+            setCachedDoc('system_configs', 'bao_hiem_map', { rules: newRules });
             showNotification('Đã lưu cấu hình BH & VAS lên hệ thống', 'success');
           } catch (error) {
             console.error('Error saving bao hiem config to Firebase:', error);
@@ -7490,6 +8126,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           setCustomExclusionRules(newRules);
           try {
             await setDoc(doc(db, 'system_configs', 'loai_bo_map'), { rules: newRules, updatedAt: serverTimestamp() }, { merge: true });
+            setCachedDoc('system_configs', 'loai_bo_map', { rules: newRules });
             showNotification('Đã lưu cấu hình loại bỏ lên hệ thống', 'success');
           } catch (error) {
             console.error('Error saving loai bo config to Firebase:', error);
@@ -7507,6 +8144,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           setCustomQuyDoiRules(newRules);
           try {
             await setDoc(doc(db, 'system_configs', 'quy_doi_map'), { rules: newRules, updatedAt: serverTimestamp() }, { merge: true });
+            setCachedDoc('system_configs', 'quy_doi_map', { rules: newRules });
             showNotification('Đã lưu cấu hình quy đổi lên hệ thống', 'success');
           } catch (error) {
             console.error('Error saving quy doi config to Firebase:', error);
@@ -7526,6 +8164,108 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         currentExclusionRules={customExclusionRules}
         currentQuyDoiRules={customQuyDoiRules}
       />
+
+      {/* Nhận xét Doanh thu & Ngành hàng Modal - 100% Pixel-Perfect matching Image 2 */}
+      {isCommentModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div
+            onClick={() => setIsCommentModalOpen(false)}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+          />
+          <div
+            className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 z-10 my-auto animate-in fade-in zoom-in-95 duration-200"
+            style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}
+          >
+            {/* Header Banner - Orange Gradient matching Image 2 */}
+            <div className="flex items-center justify-between px-5 sm:px-6 py-4 bg-gradient-to-r from-[#ea580c] via-[#f97316] to-[#fb923c] text-white">
+              <div className="flex items-center gap-2.5">
+                <Sparkles size={20} className="text-white" />
+                <span className="text-[14px] sm:text-[15px] font-black text-white uppercase tracking-wide">
+                  Nhận xét thi đua
+                </span>
+              </div>
+              <button
+                onClick={() => setIsCommentModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-white/20 text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Template Selector Tabs */}
+            <div className="px-5 sm:px-6 pt-5 pb-2">
+              <p className="text-[12px] font-black text-slate-500 mb-2.5 uppercase tracking-wide">
+                Chọn mẫu nội dung nhận xét:
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {realtimeCommentTemplates.map((tab, idx) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setSelectedCommentTemplate(idx);
+                      setCommentText(tab.text);
+                    }}
+                    className={`flex items-center justify-center gap-2 px-3 py-3 rounded-2xl text-[11px] sm:text-[11.5px] font-black uppercase tracking-wide transition-all cursor-pointer border ${
+                      selectedCommentTemplate === idx
+                        ? 'bg-gradient-to-r from-[#ea580c] to-[#f97316] text-white border-orange-500 shadow-md shadow-orange-500/25'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className="text-base">{tab.icon}</span>
+                    <span>{tab.title}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Editable Comment Box */}
+            <div className="px-5 sm:px-6 pb-6 pt-2 space-y-4">
+              <div>
+                <p className="text-[12px] font-black text-slate-500 mb-2 uppercase tracking-wide">
+                  Nội dung nhận xét (có thể chỉnh sửa trực tiếp):
+                </p>
+                <textarea
+                  value={commentText}
+                  onChange={e => setCommentText(e.target.value)}
+                  rows={12}
+                  className="w-full border border-slate-300 rounded-2xl px-4 py-3.5 text-[12.5px] sm:text-[13px] font-bold text-slate-800 leading-relaxed resize-y focus:ring-2 focus:ring-orange-400/40 focus:border-orange-400 outline-none bg-slate-50/50"
+                  style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}
+                />
+              </div>
+
+              {/* Footer Actions */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <span className="text-[11.5px] font-bold text-slate-400 italic">
+                  Sẵn sàng dán trực tiếp vào Zalo / Line / Teams
+                </span>
+                <button
+                  onClick={handleCopyComment}
+                  className={`flex items-center gap-2 px-6 py-3 text-[12px] font-black uppercase tracking-wider rounded-2xl transition-all cursor-pointer shadow-lg active:scale-95 ${
+                    copiedComment
+                      ? 'text-white bg-emerald-500 border border-emerald-600 shadow-emerald-500/20'
+                      : 'text-white bg-gradient-to-r from-[#ea580c] to-[#f97316] hover:from-[#c2410c] hover:to-[#ea580c] border border-orange-500 shadow-orange-500/25'
+                  }`}
+                >
+                  {copiedComment ? (
+                    <>
+                      <Check size={16} />
+                      <span>Đã copy!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={16} />
+                      <span>Sao chép nhận xét</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      <CaptureLoadingOverlay isLoading={isCapturing} />
     </>
   );
 }

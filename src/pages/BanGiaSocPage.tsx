@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ShoppingBag, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
-import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { getCachedDoc, setCachedDoc } from '../services/cachedFirestore';
 import { useNotification } from '../contexts/NotificationContext';
 import { useRealtimeData } from './RTST/hooks/useRealtimeData';
 import { useAuth } from '../contexts/AuthContext';
@@ -39,17 +40,21 @@ export const BanGiaSocPage: React.FC = () => {
   const { showNotification } = useNotification();
   const hasAutoSynced = useRef(false);
 
+  // One-time cached read (2 min TTL, shared cache key with BanGiaSocTab.tsx) instead
+  // of a permanent onSnapshot — see src/services/cachedFirestore.ts.
   useEffect(() => {
     loadData();
-    const docRef = doc(db, 'global_configs', 'ban_gia_soc');
-    const unsubscribe = onSnapshot(docRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.shockPriceInput !== undefined) setShockPriceInput(data.shockPriceInput);
-        if (data.pmhInput !== undefined) setPmhInput(data.pmhInput);
-      }
+    let cancelled = false;
+    getCachedDoc<{ shockPriceInput?: string; pmhInput?: string }>(
+      'global_configs',
+      'ban_gia_soc',
+      2 * 60 * 1000
+    ).then((data) => {
+      if (cancelled || !data) return;
+      if (data.shockPriceInput !== undefined) setShockPriceInput(data.shockPriceInput);
+      if (data.pmhInput !== undefined) setPmhInput(data.pmhInput);
     });
-    return () => unsubscribe();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -69,6 +74,7 @@ export const BanGiaSocPage: React.FC = () => {
         pmhInput,
         updatedAt: serverTimestamp()
       }, { merge: true }).then(() => {
+        setCachedDoc('global_configs', 'ban_gia_soc', { shockPriceInput, pmhInput });
         showNotification('Đã lưu cấu hình Bán Giá Sốc thành công.', 'success');
       }).catch(err => {
         console.error('Lỗi lưu cấu hình Bán Giá Sốc:', err);

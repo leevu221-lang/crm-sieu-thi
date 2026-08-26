@@ -179,6 +179,12 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
 
   const saveLuykeData = useCallback(async (isSilent: boolean = false, source: 'staff' | 'targets' | 'auto' | string = 'auto', storeName?: string, overrideTargets?: any[], fieldName?: string) => {
+    // A save is happening now — cancel any pending 800ms debounced auto-save so it
+    // doesn't fire a second, redundant write right after this one for the same data.
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
+    }
     const cleanStore = (storeName || activeStore || '').trim();
 
     if (!rawMaKho || !cleanStore || !isValidStoreName(cleanStore)) {

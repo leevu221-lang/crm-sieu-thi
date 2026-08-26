@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingBag, RefreshCw, CheckCircle2 } from 'lucide-react';
-import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
+import { getCachedDoc, setCachedDoc } from '../../../services/cachedFirestore';
 import { useNotification } from '../../../contexts/NotificationContext';
 
 interface BanGiaSocTabProps {
@@ -23,16 +24,20 @@ export const BanGiaSocTab: React.FC<BanGiaSocTabProps> = ({ rawYcxRows }) => {
   const [isSyncing, setIsSyncing] = useState(false);
   const { showNotification } = useNotification();
 
+  // One-time cached read (2 min TTL, shared cache key with BanGiaSocPage.tsx) instead
+  // of a permanent onSnapshot — see src/services/cachedFirestore.ts.
   useEffect(() => {
-    const docRef = doc(db, 'global_configs', 'ban_gia_soc');
-    const unsubscribe = onSnapshot(docRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.shockPriceInput !== undefined) setShockPriceInput(data.shockPriceInput);
-        if (data.pmhInput !== undefined) setPmhInput(data.pmhInput);
-      }
+    let cancelled = false;
+    getCachedDoc<{ shockPriceInput?: string; pmhInput?: string }>(
+      'global_configs',
+      'ban_gia_soc',
+      2 * 60 * 1000
+    ).then((data) => {
+      if (cancelled || !data) return;
+      if (data.shockPriceInput !== undefined) setShockPriceInput(data.shockPriceInput);
+      if (data.pmhInput !== undefined) setPmhInput(data.pmhInput);
     });
-    return () => unsubscribe();
+    return () => { cancelled = true; };
   }, []);
 
   const handleSync = () => {
@@ -45,6 +50,7 @@ export const BanGiaSocTab: React.FC<BanGiaSocTabProps> = ({ rawYcxRows }) => {
       pmhInput,
       updatedAt: serverTimestamp()
     }, { merge: true }).then(() => {
+      setCachedDoc('global_configs', 'ban_gia_soc', { shockPriceInput, pmhInput });
       showNotification('Đã lưu cấu hình Bán Giá Sốc thành công.', 'success');
     }).catch(err => {
       console.error('Lỗi lưu cấu hình Bán Giá Sốc:', err);

@@ -14,55 +14,113 @@ const normalizeStoreId = (name: string) => {
   return name.trim().normalize('NFC').toUpperCase();
 };
 
+// getBirthdays() has no per-store filter available (birthdays live inside each store's
+// document, keyed by store name/id rather than a queryable birthday collection), so
+// fetching them means reading every document in 'store'. That's fine once — but this is
+// called on every RealtimePage mount, and at ~1000 concurrent users that turns into
+// (number of stores) reads on every single page load. A short cache (in-memory for the
+// tab's lifetime + localStorage so it survives an F5) turns "every mount" into "at most
+// once every 5 minutes across the whole app", which is the single biggest read reduction
+// available here. See src/services/cachedFirestore.ts for the same pattern applied to
+// single-document config reads.
+const BIRTHDAY_CACHE_KEY = 'crm_birthdays_all_cache_v1';
+const BIRTHDAY_CACHE_TTL_MS = 5 * 60 * 1000;
+let birthdaysMemCache: { data: EmployeeBirthday[]; ts: number } | null = null;
+let birthdaysInFlight: Promise<EmployeeBirthday[]> | null = null;
+
+function invalidateBirthdaysCache() {
+  birthdaysMemCache = null;
+  try { localStorage.removeItem(BIRTHDAY_CACHE_KEY); } catch {}
+}
+
 export const birthdayService = {
   /**
-   * Lấy danh sách ngày sinh nhật nhân viên từ tất cả các siêu thị trong collection 'store'
+   * Lấy danh sách ngày sinh nhật nhân viên từ tất cả các siêu thị trong collection 'store'.
+   * Cached — pass force=true to bypass (e.g. right after an admin edits birthdays).
    */
-  async getBirthdays(warehouseCode?: string): Promise<EmployeeBirthday[]> {
+  async getBirthdays(warehouseCode?: string, force = false): Promise<EmployeeBirthday[]> {
     if (!isSupabaseConfigured) throw new Error('Firebase chưa được cấu hình');
 
-    // Query all store documents to fetch birthdays globally
-    const { data: stores, error } = await supabase
-      .from('store')
-      .select('birthday_data, ten_sieu_thi, id, warehouse_code');
+    const now = Date.now();
+    let allBirthdays: EmployeeBirthday[] | null = null;
 
-    if (error) {
-      console.error('[BirthdayService] getBirthdays error:', error);
-      throw error;
+    if (!force) {
+      if (birthdaysMemCache && now - birthdaysMemCache.ts < BIRTHDAY_CACHE_TTL_MS) {
+        allBirthdays = birthdaysMemCache.data;
+      } else if (!birthdaysMemCache) {
+        try {
+          const raw = localStorage.getItem(BIRTHDAY_CACHE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (now - parsed.ts < BIRTHDAY_CACHE_TTL_MS) {
+              birthdaysMemCache = parsed;
+              allBirthdays = parsed.data;
+            }
+          }
+        } catch {}
+      }
     }
 
-    const allBirthdays: EmployeeBirthday[] = [];
-    
-    if (stores) {
-      stores.forEach((store: any) => {
-        if (store.birthday_data) {
-          try {
-            const parsed = typeof store.birthday_data === 'string'
-              ? JSON.parse(store.birthday_data)
-              : store.birthday_data;
-              
-            if (Array.isArray(parsed)) {
-              parsed.forEach((b: any) => {
-                allBirthdays.push({
-                  id: b.id,
-                  employee_name: b.employee_name,
-                  birthday: b.birthday,
-                  warehouse_code: store.ten_sieu_thi || store.id
-                });
-              });
-            }
-          } catch (e) {
-            console.error('Error parsing birthday_data for store:', store.id, e);
+    if (allBirthdays === null) {
+      if (!force && birthdaysInFlight) {
+        allBirthdays = await birthdaysInFlight;
+      } else {
+        const fetchPromise = (async () => {
+          // Query all store documents to fetch birthdays globally
+          const { data: stores, error } = await supabase
+            .from('store')
+            .select('birthday_data, ten_sieu_thi, id, warehouse_code');
+
+          if (error) {
+            console.error('[BirthdayService] getBirthdays error:', error);
+            throw error;
           }
+
+          const result: EmployeeBirthday[] = [];
+          if (stores) {
+            stores.forEach((store: any) => {
+              if (store.birthday_data) {
+                try {
+                  const parsed = typeof store.birthday_data === 'string'
+                    ? JSON.parse(store.birthday_data)
+                    : store.birthday_data;
+
+                  if (Array.isArray(parsed)) {
+                    parsed.forEach((b: any) => {
+                      result.push({
+                        id: b.id,
+                        employee_name: b.employee_name,
+                        birthday: b.birthday,
+                        warehouse_code: store.ten_sieu_thi || store.id
+                      });
+                    });
+                  }
+                } catch (e) {
+                  console.error('Error parsing birthday_data for store:', store.id, e);
+                }
+              }
+            });
+          }
+
+          const entry = { data: result, ts: Date.now() };
+          birthdaysMemCache = entry;
+          try { localStorage.setItem(BIRTHDAY_CACHE_KEY, JSON.stringify(entry)); } catch {}
+          return result;
+        })();
+        birthdaysInFlight = fetchPromise;
+        try {
+          allBirthdays = await fetchPromise;
+        } finally {
+          birthdaysInFlight = null;
         }
-      });
+      }
     }
 
     // Filter by specific supermarket if requested
     if (warehouseCode && warehouseCode !== 'ALL') {
       return allBirthdays.filter(b => b.warehouse_code === warehouseCode);
     }
-    
+
     return allBirthdays;
   },
 
@@ -125,6 +183,7 @@ export const birthdayService = {
       throw error;
     }
 
+    invalidateBirthdaysCache();
     return { id: newId };
   },
 
@@ -222,6 +281,7 @@ export const birthdayService = {
         }, { onConflict: 'id' });
     }
 
+    invalidateBirthdaysCache();
     return { success: true };
   },
 
@@ -278,6 +338,7 @@ export const birthdayService = {
       throw error;
     }
 
+    invalidateBirthdaysCache();
     return { success: true };
   },
 
@@ -321,6 +382,7 @@ export const birthdayService = {
       }
     }
 
+    invalidateBirthdaysCache();
     return true;
   },
 
@@ -353,6 +415,7 @@ export const birthdayService = {
       throw error;
     }
 
+    invalidateBirthdaysCache();
     return true;
   }
 };

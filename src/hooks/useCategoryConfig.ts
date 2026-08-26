@@ -1,31 +1,32 @@
 import { useState, useEffect } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { getCachedDoc } from '../services/cachedFirestore';
 
 export interface CategoryConfigItem {
   name: string;
   group: string;
 }
 
+// One-time cached read (shared cache key with TnbLeader.tsx's own TNB_LEADER_DATA
+// listener) instead of a permanent onSnapshot — see src/services/cachedFirestore.ts.
 export const useCategoryConfig = () => {
   const [categoryConfig, setCategoryConfig] = useState<CategoryConfigItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'app_settings', 'TNB_LEADER_DATA'), (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        if (data.categories && Array.isArray(data.categories)) {
+    let cancelled = false;
+    getCachedDoc<{ categories?: CategoryConfigItem[] }>('app_settings', 'TNB_LEADER_DATA')
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.categories && Array.isArray(data.categories)) {
           setCategoryConfig(data.categories);
         }
-      }
-      setIsLoading(false);
-    }, (error) => {
-      console.error('Error fetching category config:', error);
-      setIsLoading(false);
-    });
-
-    return () => unsub();
+        setIsLoading(false);
+      })
+      .catch((error) => {
+        console.error('Error fetching category config:', error);
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => { cancelled = true; };
   }, []);
 
   return { categoryConfig, isLoading };
