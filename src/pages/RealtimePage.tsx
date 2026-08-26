@@ -99,9 +99,11 @@ import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';
 import { YcxStaffData } from './RTST/types';
 import { UnexportedOrdersTable } from './RTST/components/UnexportedOrdersTable';
 import { BanGiaSocTab } from './RTST/components/BanGiaSocTab';
+import { MucTieuNgayTab } from './RTST/components/MucTieuNgayTab';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
+import { ensureFontsReady } from '../utils/fontExportUtil';
 import { isValidStoreName, normalize, normalizeStoreId } from './RTST/utils';
 
 const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: boolean, onClick: () => void, icon: any, label: string, count?: number }) => (
@@ -2703,14 +2705,55 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       // Add the body class to trigger global screenshot styles
       document.body.classList.add('capturing-screenshot');
 
-      // 3. Hide all no-capture controls and interactive buttons in the clone
-      const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, input');
+      // 3. Preserve input values and convert inputs/textareas to styled text in the clone
+      const origInputs = Array.from(element.querySelectorAll('input, textarea'));
+      const cloneInputs = Array.from(clone.querySelectorAll('input, textarea'));
+
+      origInputs.forEach((origEl, idx) => {
+        const cloneEl = cloneInputs[idx] as HTMLInputElement | HTMLTextAreaElement;
+        if (!cloneEl) return;
+        
+        if (cloneEl.classList.contains('no-capture') || cloneEl.closest('.no-capture')) {
+          cloneEl.style.display = 'none';
+          return;
+        }
+
+        const inputVal = (origEl as HTMLInputElement | HTMLTextAreaElement).value;
+        if (cloneEl.tagName.toLowerCase() === 'textarea') {
+          if (inputVal && inputVal.trim()) {
+            const div = document.createElement('div');
+            div.textContent = inputVal;
+            div.className = cloneEl.className;
+            div.style.whiteSpace = 'pre-wrap';
+            div.style.wordBreak = 'break-word';
+            div.style.backgroundColor = 'transparent';
+            cloneEl.parentNode?.replaceChild(div, cloneEl);
+          } else {
+            cloneEl.style.display = 'none';
+          }
+        } else {
+          // Input element -> convert to styled text span
+          const span = document.createElement('span');
+          span.textContent = inputVal !== undefined && inputVal !== '' ? String(inputVal) : ((origEl as HTMLInputElement).placeholder || '0');
+          span.className = cloneEl.className;
+          span.style.display = 'inline-block';
+          span.style.width = '100%';
+          span.style.textAlign = 'center';
+          span.style.fontWeight = '900';
+          span.style.color = '#1e293b';
+          span.style.backgroundColor = 'transparent';
+          cloneEl.parentNode?.replaceChild(span, cloneEl);
+        }
+      });
+
+      // Hide all remaining no-capture controls and interactive buttons in the clone
+      const noCaptureElements = clone.querySelectorAll('.no-capture, button');
       noCaptureElements.forEach(el => {
         (el as HTMLElement).style.display = 'none';
       });
 
-      // 4. Force all scrollable and overflow containers to render fully expanded without truncation
-      const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+      // 4. Force only horizontal scrollable containers to render fully expanded, while preserving table-layout and table-wrapper boundaries
+      const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto');
       scrollContainers.forEach(el => {
         const htmlEl = el as HTMLElement;
         htmlEl.style.overflow = 'visible';
@@ -2718,21 +2761,46 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         htmlEl.style.overflowY = 'visible';
         htmlEl.style.maxWidth = 'none';
         htmlEl.style.maxHeight = 'none';
-        htmlEl.style.height = 'auto';
       });
 
-      // Clear any other inline overflow restrictions
-      const allCloneElements = clone.querySelectorAll('*');
-      allCloneElements.forEach(el => {
-        const htmlEl = el as HTMLElement;
-        if (htmlEl.style.overflow || htmlEl.style.overflowX || htmlEl.style.overflowY) {
-          htmlEl.style.overflow = 'visible';
-          htmlEl.style.overflowX = 'visible';
-          htmlEl.style.overflowY = 'visible';
-          htmlEl.style.maxWidth = 'none';
-          htmlEl.style.maxHeight = 'none';
-          htmlEl.style.height = 'auto';
-        }
+      // Calculate exact inner container width for tables
+      const framePadding = options.isOverview ? 64 : 40;
+      const targetWidthVal = parseInt(options.width || '780') || 780;
+      const innerCardWidth = targetWidthVal - framePadding; // 740px
+      const cardInnerPadding = 32; // 16px padding on left/right of captureRef
+      const exactTablePixelWidth = innerCardWidth - cardInnerPadding; // 708px
+
+      // Ensure all tables inside the clone strictly respect 100% width and fixed layout
+      const allTables = clone.querySelectorAll('table');
+      allTables.forEach(t => {
+        const htmlTable = t as HTMLElement;
+        htmlTable.style.width = '100%';
+        htmlTable.style.minWidth = '100%';
+        htmlTable.style.maxWidth = '100%';
+        htmlTable.style.tableLayout = 'fixed';
+      });
+
+      // Ensure all table wrappers inside clone have matching width
+      const tableWrappers = clone.querySelectorAll('.overflow-hidden.rounded-2xl.border, .rounded-2xl.border');
+      tableWrappers.forEach(w => {
+        const htmlW = w as HTMLElement;
+        htmlW.style.width = '100%';
+        htmlW.style.minWidth = '100%';
+        htmlW.style.maxWidth = '100%';
+        htmlW.style.boxSizing = 'border-box';
+        htmlW.style.overflow = 'hidden';
+      });
+
+      // Ensure all category name containers in tables truncate properly
+      const categorySpans = clone.querySelectorAll('span.truncate');
+      categorySpans.forEach(s => {
+        const htmlS = s as HTMLElement;
+        htmlS.style.overflow = 'hidden';
+        htmlS.style.textOverflow = 'ellipsis';
+        htmlS.style.whiteSpace = 'nowrap';
+        htmlS.style.maxWidth = '215px';
+        htmlS.style.display = 'inline-block';
+        htmlS.style.verticalAlign = 'middle';
       });
 
       // 5. Force desktop layout configurations if overview
@@ -2742,9 +2810,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
       // 6. Style the cloned element itself so it lays out nicely
       clone.style.display = 'block';
-      clone.style.width = options.isTableOnly ? 'max-content' : '100%';
-      clone.style.minWidth = options.isTableOnly ? 'max-content' : '100%';
-      clone.style.maxWidth = 'none';
+      clone.style.width = '100%';
+      clone.style.minWidth = '100%';
+      clone.style.maxWidth = '100%';
       clone.style.height = 'auto';
       clone.style.margin = '0 auto';
       clone.style.boxSizing = 'border-box';
@@ -2936,15 +3004,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
       // Create an outer frame wrapper to give the screenshot a pristine white border without shadows
       const frameWrapper = document.createElement('div');
-      frameWrapper.style.padding = options.isOverview ? '32px' : '24px';
+      frameWrapper.style.padding = options.isOverview ? '32px' : '20px';
       frameWrapper.style.backgroundColor = options.backgroundColor || '#ffffff';
       frameWrapper.style.borderRadius = options.isOverview ? '32px' : '24px';
       frameWrapper.style.boxSizing = 'border-box';
-      frameWrapper.style.display = options.isTableOnly ? 'inline-block' : 'block';
-      frameWrapper.style.width = options.isTableOnly ? 'max-content' : (options.width || 'auto');
-      frameWrapper.style.minWidth = options.isTableOnly ? 'max-content' : (options.minWidth || 'auto');
-      frameWrapper.style.maxWidth = 'none';
-      frameWrapper.style.overflow = 'visible';
+      frameWrapper.style.width = options.width || '780px';
+      frameWrapper.style.minWidth = options.minWidth || '780px';
+      frameWrapper.style.maxWidth = options.width || '780px';
+      frameWrapper.style.overflow = 'hidden';
       frameWrapper.style.boxShadow = 'none';
 
       frameWrapper.appendChild(clone);
@@ -2962,7 +3029,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       await new Promise(resolve => setTimeout(resolve, 250));
 
       const rect = frameWrapper.getBoundingClientRect();
-      const exactWidth = Math.ceil(Math.max(rect.width, frameWrapper.scrollWidth, frameWrapper.offsetWidth, 100));
+      const targetWidthNum = parseInt(options.width || '780') || 780;
+      const exactWidth = options.isTableOnly ? targetWidthNum : Math.ceil(Math.max(rect.width, frameWrapper.offsetWidth, 100));
       const exactHeight = Math.ceil(Math.max(rect.height, frameWrapper.scrollHeight, frameWrapper.offsetHeight, 100));
 
       // 9. Capture the image using domToPng from the off-screen frameWrapper element with 3x scale for crisp sharpness
@@ -4287,8 +4355,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         setIsCapturing(true);
         await new Promise(resolve => setTimeout(resolve, 100));
         const dataUrl = await captureOffscreenHelper(element, {
-          width: '720px',
-          minWidth: '720px',
+          width: '780px',
+          minWidth: '780px',
           backgroundColor: '#ffffff',
           isTableOnly: true
         });
@@ -4298,6 +4366,86 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       } finally {
         setIsCapturing(false);
       }
+    }
+  };
+
+  // Dedicated, minimal-intervention capture for MucTieuNgayTab's report card.
+  // captureElement()/captureOffscreenHelper() above hard-code a lot of DOM rewriting
+  // tuned for the "Ngành hàng SL/DT" tables (isTableOnly forces table-layout:auto and
+  // strips the fixed colgroup widths, and a hard-coded 215px max-width gets forced onto
+  // every `span.truncate` regardless of the real column width). MucTieuNgayTab's report
+  // is a fixed-width (760px), fixed-column-width (46/304/88/88/92/90px) card by design —
+  // running it through those overrides changes its layout in the exported PNG versus what
+  // the user actually sees on screen. This instead only does what's structurally required
+  // to render off-screen faithfully: preserve current input values (cloneNode doesn't
+  // reliably carry a React-controlled input's live value) and hide .no-capture elements —
+  // nothing about widths, truncation, or colors is touched, so the export matches the
+  // on-screen layout exactly.
+  const captureMucTieuNgayElement = async (ref: React.RefObject<HTMLDivElement | null>, filename: string) => {
+    const element = ref.current;
+    if (!element) return;
+    try {
+      setIsCapturing(true);
+      await ensureFontsReady();
+
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.top = '-9999px';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.zIndex = '-9999';
+      tempContainer.style.pointerEvents = 'none';
+      tempContainer.style.backgroundColor = '#ffffff';
+
+      const clone = element.cloneNode(true) as HTMLElement;
+
+      // Preserve current input values as plain text (matches what's on screen right now)
+      const origInputs = Array.from(element.querySelectorAll('input, textarea'));
+      const cloneInputs = Array.from(clone.querySelectorAll('input, textarea'));
+      origInputs.forEach((origEl, idx) => {
+        const cloneEl = cloneInputs[idx] as HTMLInputElement | HTMLTextAreaElement | undefined;
+        if (!cloneEl) return;
+        const span = document.createElement('span');
+        span.textContent = (origEl as HTMLInputElement).value || '0';
+        span.className = cloneEl.className;
+        span.style.display = 'inline-block';
+        span.style.width = '100%';
+        span.style.textAlign = 'center';
+        span.style.backgroundColor = 'transparent';
+        cloneEl.parentNode?.replaceChild(span, cloneEl);
+      });
+
+      // Hide only what's explicitly marked as excluded from capture (e.g. the
+      // instruction hint banner) or interactive controls — nothing else.
+      clone.querySelectorAll('.no-capture, button').forEach(el => {
+        (el as HTMLElement).style.display = 'none';
+      });
+
+      // Match the card's own authored max-width (w-full max-w-[760px]) so it renders
+      // off-screen at the same width it naturally has on screen.
+      clone.style.width = '760px';
+      clone.style.maxWidth = '760px';
+      clone.style.margin = '0';
+
+      tempContainer.appendChild(clone);
+      document.body.appendChild(tempContainer);
+
+      try {
+        await new Promise(resolve => setTimeout(resolve, 150));
+        const dataUrl = await domToPng(clone, {
+          backgroundColor: '#ffffff',
+          scale: 3,
+          font: false,
+          width: 760,
+          height: clone.scrollHeight,
+        });
+        setPreviewImage(dataUrl);
+      } finally {
+        document.body.removeChild(tempContainer);
+      }
+    } catch (error) {
+      console.error(`Lỗi khi chụp ảnh ${filename}:`, error);
+    } finally {
+      setIsCapturing(false);
     }
   };
 
@@ -4766,6 +4914,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           <div className="md:hidden bg-white/90 backdrop-blur-xl p-2 rounded-2xl md:rounded-3xl border border-slate-200/80 shadow-sm flex items-center justify-start gap-2 overflow-x-auto no-scrollbar">
             {[
               { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, grad: 'from-indigo-600 to-purple-600', activeBg: 'bg-indigo-50 text-indigo-600' },
+              { id: 'muc_tieu_ngay', label: 'MỤC TIÊU NGÀY', icon: Target, grad: 'from-emerald-600 via-teal-600 to-emerald-700', activeBg: 'bg-emerald-50 text-emerald-600' },
               { id: 'khai_thac', label: 'DATA YCX', icon: Activity, grad: 'from-emerald-600 to-teal-600', activeBg: 'bg-emerald-50 text-emerald-600' },
               ...(isUser43751 ? [{ id: 'khai_thac_moi', label: 'DATA YCX MỚI', icon: Activity, grad: 'from-teal-600 to-cyan-600', activeBg: 'bg-teal-50 text-teal-600' }] : [])
             ].map((item) => {
@@ -5813,6 +5962,25 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                       </>
                     )}
                   </div>
+                </motion.div>
+              )}
+
+              {activeTab === 'muc_tieu_ngay' && (
+                <motion.div
+                  key="muc_tieu_ngay"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <MucTieuNgayTab
+                    marketFilter={marketFilter}
+                    filteredMarkets={filteredMarkets}
+                    processedData={processedData}
+                    filteredCategories={filteredCategories}
+                    lastUpdated={lastUpdated}
+                    captureElement={captureMucTieuNgayElement}
+                    userProfile={userProfile}
+                  />
                 </motion.div>
               )}
 
