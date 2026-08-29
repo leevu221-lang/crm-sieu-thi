@@ -130,7 +130,7 @@ export default function StickerCeScanner() {
         {
           fps: 15,
           qrbox: (width: number, height: number) => {
-            const size = Math.min(width, height) * 0.7;
+            const size = Math.min(width, height) * 0.8;
             return { width: size, height: size };
           },
           aspectRatio: 1.0
@@ -432,13 +432,13 @@ export default function StickerCeScanner() {
         {isScanning && (
           <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
             {/* Dark mask outside the scanner frame */}
-            <div className="w-48 h-48 border-2 border-emerald-500 rounded-3xl relative flex items-center justify-center shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
+            <div className="w-[70vw] max-w-[280px] aspect-square border-2 border-emerald-500 rounded-3xl relative flex items-center justify-center shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
               {/* Laser line animation */}
               <div className="absolute left-2 right-2 h-0.5 bg-emerald-400 shadow-[0_0_8px_#34d399] top-1/2 -translate-y-1/2 animate-[pulse_1.5s_infinite]" />
-              <div className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-emerald-400 rounded-tl-lg" />
-              <div className="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-emerald-400 rounded-tr-lg" />
-              <div className="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-emerald-400 rounded-bl-lg" />
-              <div className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-emerald-400 rounded-br-lg" />
+              <div className="absolute top-2 left-2 w-5 h-5 border-t-2 border-l-2 border-emerald-400 rounded-tl-lg" />
+              <div className="absolute top-2 right-2 w-5 h-5 border-t-2 border-r-2 border-emerald-400 rounded-tr-lg" />
+              <div className="absolute bottom-2 left-2 w-5 h-5 border-b-2 border-l-2 border-emerald-400 rounded-bl-lg" />
+              <div className="absolute bottom-2 right-2 w-5 h-5 border-b-2 border-r-2 border-emerald-400 rounded-br-lg" />
             </div>
             <p className="mt-8 text-xs font-bold text-slate-300 uppercase tracking-widest bg-slate-900/80 px-4 py-2 rounded-full backdrop-blur-sm shadow-md">
               Đặt mã vạch vào khung hình

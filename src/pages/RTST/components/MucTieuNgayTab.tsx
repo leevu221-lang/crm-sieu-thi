@@ -25,7 +25,8 @@ import {
   Info,
   MessageSquare,
   Copy,
-  FileText
+  FileText,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -40,22 +41,24 @@ interface MucTieuNgayTabProps {
   filteredCategories: any[];
   lastUpdated: Date | null;
   captureElement: (ref: React.RefObject<HTMLDivElement | null>, name: string) => void;
+  captureElementDirect: (ref: React.RefObject<HTMLDivElement | null>) => void;
   userProfile?: any;
+  luykeProcessedData?: any;
 }
 
 // Fallback standard DT category template if no categories are uploaded yet
 const DEFAULT_DT_CATEGORIES = [
-  { name: 'ĐIỆN THOẠI', type: 'DT', defaultTarget: 12 },
-  { name: 'MÁY TÍNH BẢNG', type: 'DT', defaultTarget: 5 },
-  { name: 'LAPTOP', type: 'DT', defaultTarget: 6 },
-  { name: 'PHỤ KIỆN', type: 'DT', defaultTarget: 8 },
-  { name: 'ĐỒNG HỒ', type: 'DT', defaultTarget: 2 },
-  { name: 'BẢO HIỂM', type: 'DT', defaultTarget: 11 },
-  { name: 'TIVI', type: 'DT', defaultTarget: 30 },
-  { name: 'TỦ LẠNH', type: 'DT', defaultTarget: 30 },
-  { name: 'MÁY LẠNH', type: 'DT', defaultTarget: 10 },
-  { name: 'MÁY GIẶT', type: 'DT', defaultTarget: 10 },
-  { name: 'GIA DỤNG', type: 'DT', defaultTarget: 50 },
+  { name: 'ĐIỆN THOẠI', type: 'DT', defaultTarget: 0 },
+  { name: 'MÁY TÍNH BẢNG', type: 'DT', defaultTarget: 0 },
+  { name: 'LAPTOP', type: 'DT', defaultTarget: 0 },
+  { name: 'PHỤ KIỆN', type: 'DT', defaultTarget: 0 },
+  { name: 'ĐỒNG HỒ', type: 'DT', defaultTarget: 0 },
+  { name: 'BẢO HIỂM', type: 'DT', defaultTarget: 0 },
+  { name: 'TIVI', type: 'DT', defaultTarget: 0 },
+  { name: 'TỦ LẠNH', type: 'DT', defaultTarget: 0 },
+  { name: 'MÁY LẠNH', type: 'DT', defaultTarget: 0 },
+  { name: 'MÁY GIẶT', type: 'DT', defaultTarget: 0 },
+  { name: 'GIA DỤNG', type: 'DT', defaultTarget: 0 },
 ];
 
 export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
@@ -65,7 +68,9 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
   filteredCategories,
   lastUpdated,
   captureElement,
-  userProfile
+  captureElementDirect,
+  userProfile,
+  luykeProcessedData
 }) => {
   const { showNotification } = useNotification();
   const captureRef = useRef<HTMLDivElement | null>(null);
@@ -94,7 +99,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
   const currentStoreName = activeDeclared?.name || parsedMarket?.name || 'SIÊU THỊ';
   const storeNormalizedKey = normalizeStoreId(currentStoreName);
 
-  // State: Target Values for Table 1 (Overview KPIs)
+  // State: Target Values for Table 1 (Overview KPIs - strictly from BC NGÀY > TỔNG QUAN or custom user inputs, 0/blank if empty)
   const [overviewTargets, setOverviewTargets] = useState<{
     dtThuc: number;
     dtQd: number;
@@ -105,20 +110,21 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
     if (saved) {
       try { return JSON.parse(saved); } catch {}
     }
-    return { dtThuc: 200, dtQd: 300, effQd: 35.0, traCham: 50.0 };
+    return {
+      dtThuc: (parsedMarket as any)?.targetReal || 0,
+      dtQd: parsedMarket?.targetQD || 0,
+      effQd: 0,
+      traCham: 0
+    };
   });
 
-  // State: Target Values for Table 2 (Categories keyed by category name)
+  // State: Target Values for Table 2 (Categories keyed by category name - strictly from BC NGÀY > TỔNG QUAN, 0/blank if empty)
   const [categoryTargets, setCategoryTargets] = useState<Record<string, number>>(() => {
     const saved = localStorage.getItem(`DAILY_CAT_TARGETS_${storeNormalizedKey}`);
     if (saved) {
       try { return JSON.parse(saved); } catch {}
     }
-    const init: Record<string, number> = {};
-    DEFAULT_DT_CATEGORIES.forEach(c => {
-      init[c.name.toUpperCase()] = c.defaultTarget;
-    });
-    return init;
+    return {};
   });
 
   // State: Selected Category Keys (Multi-select filter)
@@ -269,6 +275,84 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
     return allAvailableCategoryList.filter(r => selectedCategoryKeys.includes(r.key));
   }, [allAvailableCategoryList, selectedCategoryKeys]);
 
+  // Đồng bộ Mục tiêu từ cột C.LẠI bên BC THÁNG > TỔNG QUAN (hoạt động song song với nhập thủ công)
+  const handleSyncFromLuyke = useCallback(() => {
+    if (!luykeProcessedData) {
+      showNotification('Chưa có dữ liệu BC THÁNG để đồng bộ!', 'warning');
+      return;
+    }
+
+    // 1. Sync Table 1 Overview KPIs from BC THÁNG > TỔNG QUAN (C.LẠI = Target - Lũy kế)
+    const luykeStore = luykeProcessedData.markets?.find((pm: any) =>
+      normalize(pm.name).includes(normalize(currentStoreName)) ||
+      normalize(currentStoreName).includes(normalize(pm.name))
+    );
+
+    let newOverview = { ...overviewTargets };
+    if (luykeStore) {
+      const lkTargetThuc = (luykeStore as any).targetReal || luykeStore.targetST || 0;
+      const lkActualThuc = (luykeStore as any).actualReal || 0;
+      const remainThuc = Math.max(0, lkTargetThuc - lkActualThuc);
+
+      const lkTargetQD = luykeStore.targetQD || 0;
+      const lkActualQD = luykeStore.actualVirtual || 0;
+      const remainQD = Math.max(0, lkTargetQD - lkActualQD);
+
+      newOverview = {
+        dtThuc: Math.round(remainThuc),
+        dtQd: Math.round(remainQD),
+        effQd: overviewTargets.effQd > 0 ? overviewTargets.effQd : (luykeStore.percentQD || 50),
+        traCham: overviewTargets.traCham > 0 ? overviewTargets.traCham : (luykeStore.installmentRate || 60),
+      };
+      setOverviewTargets(newOverview);
+    }
+
+    // 2. Sync Table 2 Category Targets from BC THÁNG > TỔNG QUAN > C.LẠI
+    const lkCats = luykeProcessedData.categories?.filter((cat: any) =>
+      marketFilter === 'ALL' || !cat.marketName ||
+      normalize(cat.marketName).includes(normalize(currentStoreName)) ||
+      normalize(currentStoreName).includes(normalize(cat.marketName))
+    ) || [];
+
+    if (lkCats.length === 0 && !luykeStore) {
+      showNotification('Không tìm thấy dữ liệu luỹ kế của siêu thị này trong BC THÁNG!', 'warning');
+      return;
+    }
+
+    const newCatTargets: Record<string, number> = { ...categoryTargets };
+    let syncCount = 0;
+
+    const lkRemainMap = new Map<string, number>();
+    lkCats.forEach((c: any) => {
+      const normN = normalize(c.name);
+      const keyWith = `${normN}__${c.type || 'DT'}`;
+      const keySimple = normN;
+      const remaining = (c.target || 0) - (c.revenue || c.actual || 0);
+      const val = remaining > 0 ? (c.type === 'SL' ? Math.round(remaining) : Math.round(remaining * 10) / 10) : 0;
+      lkRemainMap.set(keyWith, val);
+      if (!lkRemainMap.has(keySimple)) {
+        lkRemainMap.set(keySimple, val);
+      }
+    });
+
+    allAvailableCategoryList.forEach(item => {
+      const normN = normalize(item.name);
+      const keyWith = `${normN}__${item.type}`;
+      const keySimple = normN;
+      if (lkRemainMap.has(keyWith)) {
+        newCatTargets[item.name.toUpperCase()] = lkRemainMap.get(keyWith)!;
+        syncCount++;
+      } else if (lkRemainMap.has(keySimple)) {
+        newCatTargets[item.name.toUpperCase()] = lkRemainMap.get(keySimple)!;
+        syncCount++;
+      }
+    });
+
+    setCategoryTargets(newCatTargets);
+    saveTargetsDebounced(newOverview, newCatTargets, selectedCategoryKeys);
+    showNotification(`✅ Đã đồng bộ Mục tiêu theo Còn lại Luỹ Kế (${syncCount} ngành hàng)!`, 'success');
+  }, [luykeProcessedData, currentStoreName, marketFilter, overviewTargets, categoryTargets, selectedCategoryKeys, allAvailableCategoryList, saveTargetsDebounced, showNotification]);
+
   // Date and Time string
   const now = lastUpdated || new Date();
   const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
@@ -328,7 +412,12 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
     t2 += `📈 Hiệu quả QĐ: ${actualEff.toFixed(1)}% | Trả chậm: ${actualInstallment.toFixed(1)}%\n`;
     t2 += `🏆 Đạt Target: ${doneCats.length}/${displayedCategoryList.length} ngành hàng\n`;
     if (pendingCats.length > 0) {
-      t2 += `🚨 Top cần dí số: ${pendingCats.slice(0, 3).map(c => `${c.name} (còn ${Math.round(((categoryTargets[c.name] || c.defaultTarget || 0) - c.realtimeRevenue) * 10) / 10})`).join(', ')}\n`;
+      t2 += `🚨 Top cần dí số:\n`;
+      pendingCats.slice(0, 3).forEach(c => {
+        const targetVal = categoryTargets[c.name] !== undefined ? categoryTargets[c.name] : (c.defaultTarget || 0);
+        const remain = Math.round((targetVal - c.realtimeRevenue) * 10) / 10;
+        t2 += `• ${c.name} (còn ${remain})\n`;
+      });
     }
     t2 += `💪 Cả nhà cùng bứt phá hoàn thành 100% mục tiêu ngày hôm nay nhé!`;
 
@@ -382,26 +471,14 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
             <span>LỌC NGÀNH HÀNG ({selectedCount}/{allAvailableCategoryList.length})</span>
           </button>
 
-          {/* Reset Targets Button */}
+          {/* ĐỒNG BỘ LUỸ KẾ Button */}
           <button
-            onClick={() => {
-              if (!confirm('Khôi phục toàn bộ Mục tiêu về giá trị mặc định theo mẫu?')) return;
-              const defaultOverview = { dtThuc: 200, dtQd: 300, effQd: 35.0, traCham: 50.0 };
-              const defaultCat: Record<string, number> = {};
-              DEFAULT_DT_CATEGORIES.forEach(c => {
-                defaultCat[c.name.toUpperCase()] = c.defaultTarget;
-              });
-              setOverviewTargets(defaultOverview);
-              setCategoryTargets(defaultCat);
-              setSelectedCategoryKeys([]);
-              saveTargetsDebounced(defaultOverview, defaultCat, []);
-              showNotification('Đã khôi phục mục tiêu mặc định thành công!', 'success');
-            }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all active:scale-95 cursor-pointer"
-            title="Khôi phục mặc định"
+            onClick={handleSyncFromLuyke}
+            className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 text-white shadow-md shadow-emerald-500/25 transition-all active:scale-95 cursor-pointer border border-emerald-400/30"
+            title="Đồng bộ Mục tiêu từ cột C.LẠI bên BC THÁNG > TỔNG QUAN"
           >
-            <RotateCcw size={13} />
-            <span className="hidden sm:inline">MẶC ĐỊNH</span>
+            <RefreshCw size={14} />
+            <span>ĐỒNG BỘ LUỸ KẾ</span>
           </button>
 
           {/* NHẬN XÉT Button */}
@@ -414,15 +491,16 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
             <span>NHẬN XÉT</span>
           </button>
 
-          {/* Capture Image Button */}
+          {/* XUẤT ẢNH Button - Direct on-screen capture */}
           <button
-            onClick={() => captureElement(captureRef, 'MucTieuNgay_Realtime')}
-            className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] hover:from-[#036348] hover:to-[#059669] text-white shadow-md shadow-emerald-600/25 transition-all active:scale-95 cursor-pointer"
-            title="Chụp ảnh xuất báo cáo Mục Tiêu Ngày"
+            onClick={() => captureElementDirect(captureRef)}
+            className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] hover:from-[#036348] hover:to-[#059669] text-white shadow-md shadow-emerald-600/25 transition-all active:scale-95 cursor-pointer no-capture"
+            title="Xuất ảnh báo cáo Mục Tiêu Ngày (giữ nguyên layout web)"
           >
             <Camera size={15} />
-            <span>CHỤP ẢNH BÁO CÁO</span>
+            <span>XUẤT ẢNH</span>
           </button>
+
         </div>
       </div>
 
@@ -431,7 +509,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
         <div className="flex items-center gap-2.5">
           <span className="text-base shrink-0">💡</span>
           <div className="leading-snug">
-            <strong className="text-emerald-900 font-black uppercase">Hướng dẫn:</strong> Cột <strong className="text-emerald-800 uppercase underline decoration-emerald-500 underline-offset-2 font-black">"MỤC TIÊU"</strong> được nhập thủ công trực tiếp trên bảng và hệ thống sẽ tự động lưu riêng theo từng siêu thị.
+            <strong className="text-emerald-900 font-black uppercase">Hướng dẫn:</strong> Bấm nút <strong className="text-teal-800 uppercase font-black bg-teal-100 px-1.5 py-0.5 rounded border border-teal-200">"ĐỒNG BỘ LUỸ KẾ"</strong> để tự động điền mục tiêu từ cột <strong>C.LẠI</strong> bên <strong>BC THÁNG</strong>, hoặc nhập tay trực tiếp theo nhu cầu. Hệ thống tự động lưu riêng theo từng siêu thị.
           </div>
         </div>
         <button
@@ -487,21 +565,33 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
         <div className="overflow-hidden rounded-2xl border border-emerald-500/90 shadow-xs bg-white w-full" style={{ width: '100%' }}>
           <table className="w-full border-collapse table-fixed bg-white text-[13px] sm:text-[14px]" style={{ width: '100%', minWidth: '100%', maxWidth: '100%', tableLayout: 'fixed' }}>
             <colgroup>
-              <col style={{ width: '46px', minWidth: '46px' }} />
-              <col style={{ width: '304px', minWidth: '304px' }} />
-              <col style={{ width: '88px', minWidth: '88px' }} />
-              <col style={{ width: '88px', minWidth: '88px' }} />
-              <col style={{ width: '92px', minWidth: '92px' }} />
-              <col style={{ width: '90px', minWidth: '90px' }} />
+              <col width="6.5%" style={{ width: '6.5%' }} />
+              <col width="43.5%" style={{ width: '43.5%' }} />
+              <col width="12.5%" style={{ width: '12.5%' }} />
+              <col width="12.5%" style={{ width: '12.5%' }} />
+              <col width="13%" style={{ width: '13%' }} />
+              <col width="12%" style={{ width: '12%' }} />
             </colgroup>
             <thead>
               <tr className="text-white h-[42px]">
-                <th style={{ width: '46px', minWidth: '46px' }} className="px-1 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">STT</th>
-                <th style={{ width: '304px', minWidth: '304px' }} className="px-3 py-0 font-black uppercase text-left border border-emerald-600 bg-[#059669]">TIÊU CHÍ</th>
-                <th style={{ width: '88px', minWidth: '88px' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">MỤC TIÊU</th>
-                <th style={{ width: '88px', minWidth: '88px' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#059669]">THỰC HIỆN</th>
-                <th style={{ width: '92px', minWidth: '92px' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">HOÀN THÀNH</th>
-                <th style={{ width: '90px', minWidth: '90px' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#059669]">C.LẠI</th>
+                <th style={{ width: '6.5%' }} className="px-1 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">STT</th>
+                <th style={{ width: '43.5%' }} className="px-3 py-0 font-black uppercase text-left border border-emerald-600 bg-[#059669]">TIÊU CHÍ</th>
+                <th style={{ width: '12.5%' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">
+                  <div className="flex items-center justify-center gap-1">
+                    <span>MỤC TIÊU</span>
+                    <button
+                      type="button"
+                      onClick={handleSyncFromLuyke}
+                      className="no-capture p-0.5 hover:bg-white/20 rounded text-[#FEF08A] hover:text-white transition-colors cursor-pointer"
+                      title="Bấm để đồng bộ số Còn lại từ BC THÁNG"
+                    >
+                      <RefreshCw size={11} />
+                    </button>
+                  </div>
+                </th>
+                <th style={{ width: '12.5%' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#059669]">THỰC HIỆN</th>
+                <th style={{ width: '13%' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">HOÀN THÀNH</th>
+                <th style={{ width: '12%' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#059669]">C.LẠI</th>
               </tr>
             </thead>
             <tbody className="font-black">
@@ -510,11 +600,12 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                 <td className="px-1 py-0 font-black text-slate-700 text-center border border-emerald-100 bg-emerald-50/40 text-[12.5px] sm:text-[13.5px]">
                   1
                 </td>
-                <td style={{ minWidth: '304px' }} className="px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight">Doanh Thu Thực</td>
+                <td className="px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight">Doanh Thu Thực</td>
                 <td className="px-1.5 py-0 text-center border border-emerald-100 text-slate-800 bg-emerald-50/20">
                   <input
                     type="number"
-                    value={overviewTargets.dtThuc}
+                    value={overviewTargets.dtThuc > 0 ? overviewTargets.dtThuc : ''}
+                    placeholder="0"
                     onChange={(e) => handleOverviewTargetChange('dtThuc', Number(e.target.value))}
                     className="w-full text-center bg-transparent font-black focus:outline-none focus:bg-emerald-100/60 rounded py-0.5"
                     title="Nhập mục tiêu Doanh Thu Thực"
@@ -524,16 +615,24 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                   {Math.round(dtlk).toLocaleString()}
                 </td>
                 <td className="px-1 py-0 text-center border border-emerald-100">
-                  <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[13px] ${
-                    dtThucRate >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'
-                  }`}>
-                    {dtThucRate.toFixed(1)}%
-                  </span>
+                  {overviewTargets.dtThuc > 0 ? (
+                    <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[13px] ${
+                      dtThucRate >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'
+                    }`}>
+                      {dtThucRate.toFixed(1)}%
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 font-bold">-</span>
+                  )}
                 </td>
                 <td className="px-1.5 py-0 text-center border border-emerald-100 font-black">
-                  <span className={dtThucRemaining > 0 ? 'text-rose-600' : 'text-emerald-700'}>
-                    {dtThucRemaining > 0 ? Math.round(dtThucRemaining).toLocaleString() : '0'}
-                  </span>
+                  {overviewTargets.dtThuc > 0 ? (
+                    <span className={dtThucRemaining > 0 ? 'text-rose-600' : 'text-emerald-700'}>
+                      {dtThucRemaining > 0 ? Math.round(dtThucRemaining).toLocaleString() : '0'}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 font-bold">-</span>
+                  )}
                 </td>
               </tr>
 
@@ -542,11 +641,12 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                 <td className="px-1 py-0 font-black text-slate-700 text-center border border-emerald-100 bg-emerald-50/40 text-[12.5px] sm:text-[13.5px]">
                   2
                 </td>
-                <td style={{ minWidth: '304px' }} className="px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight">Doanh Thu Quy Đổi</td>
+                <td className="px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight">Doanh Thu Quy Đổi</td>
                 <td className="px-1.5 py-0 text-center border border-emerald-100 text-slate-800 bg-emerald-50/30">
                   <input
                     type="number"
-                    value={overviewTargets.dtQd}
+                    value={overviewTargets.dtQd > 0 ? overviewTargets.dtQd : ''}
+                    placeholder="0"
                     onChange={(e) => handleOverviewTargetChange('dtQd', Number(e.target.value))}
                     className="w-full text-center bg-transparent font-black focus:outline-none focus:bg-emerald-100/60 rounded py-0.5"
                     title="Nhập mục tiêu Doanh Thu Quy Đổi"
@@ -556,16 +656,24 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                   {Math.round(dtqd).toLocaleString()}
                 </td>
                 <td className="px-1 py-0 text-center border border-emerald-100">
-                  <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[13px] ${
-                    dtQdRate >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'
-                  }`}>
-                    {dtQdRate.toFixed(1)}%
-                  </span>
+                  {overviewTargets.dtQd > 0 ? (
+                    <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[13px] ${
+                      dtQdRate >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'
+                    }`}>
+                      {dtQdRate.toFixed(1)}%
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 font-bold">-</span>
+                  )}
                 </td>
                 <td className="px-1.5 py-0 text-center border border-emerald-100 font-black">
-                  <span className={dtQdRemaining > 0 ? 'text-rose-600' : 'text-emerald-700'}>
-                    {dtQdRemaining > 0 ? Math.round(dtQdRemaining).toLocaleString() : '0'}
-                  </span>
+                  {overviewTargets.dtQd > 0 ? (
+                    <span className={dtQdRemaining > 0 ? 'text-rose-600' : 'text-emerald-700'}>
+                      {dtQdRemaining > 0 ? Math.round(dtQdRemaining).toLocaleString() : '0'}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 font-bold">-</span>
+                  )}
                 </td>
               </tr>
 
@@ -574,13 +682,14 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                 <td className="px-1 py-0 font-black text-slate-700 text-center border border-emerald-100 bg-emerald-50/40 text-[12.5px] sm:text-[13.5px]">
                   3
                 </td>
-                <td style={{ minWidth: '304px' }} className="px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight">Hiệu Quả Quy Đổi</td>
+                <td className="px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight">Hiệu Quả Quy Đổi</td>
                 <td className="px-1.5 py-0 text-center border border-emerald-100 text-slate-800 bg-emerald-50/20">
                   <div className="flex items-center justify-center">
                     <input
                       type="number"
                       step="0.1"
-                      value={overviewTargets.effQd}
+                      value={overviewTargets.effQd > 0 ? overviewTargets.effQd : ''}
+                      placeholder="0"
                       onChange={(e) => handleOverviewTargetChange('effQd', Number(e.target.value))}
                       className="w-12 text-center bg-transparent font-black focus:outline-none focus:bg-emerald-100/60 rounded py-0.5"
                       title="Nhập % Mục tiêu Hiệu Quả QĐ"
@@ -592,12 +701,16 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                   {actualEff.toFixed(1)}%
                 </td>
                 <td className="px-1 py-0 text-center border border-emerald-100">
-                  <span className={`inline-flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[13px] ${
-                    diffEff >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'
-                  }`}>
-                    <span>{diffEff >= 0 ? '🟢 +' : '🔻 '}</span>
-                    <span>{diffEff.toFixed(1)}%</span>
-                  </span>
+                  {overviewTargets.effQd > 0 ? (
+                    <span className={`inline-flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[13px] ${
+                      diffEff >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'
+                    }`}>
+                      <span>{diffEff >= 0 ? '🟢 +' : '🔻 '}</span>
+                      <span>{diffEff.toFixed(1)}%</span>
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 font-bold">-</span>
+                  )}
                 </td>
                 <td className="px-1.5 py-0 text-center border border-emerald-100 font-bold text-slate-400">
                   -
@@ -609,13 +722,14 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                 <td className="px-1 py-0 font-black text-slate-700 text-center border border-emerald-100 bg-emerald-50/40 text-[12.5px] sm:text-[13.5px]">
                   4
                 </td>
-                <td style={{ minWidth: '304px' }} className="px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight">Trả Chậm</td>
+                <td className="px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight">Trả Chậm</td>
                 <td className="px-1.5 py-0 text-center border border-emerald-100 text-slate-800 bg-emerald-50/30">
                   <div className="flex items-center justify-center">
                     <input
                       type="number"
                       step="0.1"
-                      value={overviewTargets.traCham}
+                      value={overviewTargets.traCham > 0 ? overviewTargets.traCham : ''}
+                      placeholder="0"
                       onChange={(e) => handleOverviewTargetChange('traCham', Number(e.target.value))}
                       className="w-12 text-center bg-transparent font-black focus:outline-none focus:bg-emerald-100/60 rounded py-0.5"
                       title="Nhập % Mục tiêu Trả Chậm"
@@ -627,12 +741,16 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                   {actualInstallment.toFixed(1)}%
                 </td>
                 <td className="px-1 py-0 text-center border border-emerald-100">
-                  <span className={`inline-flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[13px] ${
-                    diffInstallment >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'
-                  }`}>
-                    <span>{diffInstallment >= 0 ? '🟢 +' : '🔻 '}</span>
-                    <span>{diffInstallment.toFixed(1)}%</span>
-                  </span>
+                  {overviewTargets.traCham > 0 ? (
+                    <span className={`inline-flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[13px] ${
+                      diffInstallment >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'
+                    }`}>
+                      <span>{diffInstallment >= 0 ? '🟢 +' : '🔻 '}</span>
+                      <span>{diffInstallment.toFixed(1)}%</span>
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 font-bold">-</span>
+                  )}
                 </td>
                 <td className="px-1.5 py-0 text-center border border-emerald-100 font-bold text-slate-400">
                   -
@@ -646,21 +764,33 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
         <div className="overflow-hidden rounded-2xl border border-emerald-500/90 shadow-xs bg-white w-full" style={{ width: '100%' }}>
           <table className="w-full border-collapse table-fixed bg-white text-[13px] sm:text-[14px]" style={{ width: '100%', minWidth: '100%', maxWidth: '100%', tableLayout: 'fixed' }}>
             <colgroup>
-              <col style={{ width: '46px', minWidth: '46px' }} />
-              <col style={{ width: '304px', minWidth: '304px' }} />
-              <col style={{ width: '88px', minWidth: '88px' }} />
-              <col style={{ width: '88px', minWidth: '88px' }} />
-              <col style={{ width: '92px', minWidth: '92px' }} />
-              <col style={{ width: '90px', minWidth: '90px' }} />
+              <col width="6.5%" style={{ width: '6.5%' }} />
+              <col width="43.5%" style={{ width: '43.5%' }} />
+              <col width="12.5%" style={{ width: '12.5%' }} />
+              <col width="12.5%" style={{ width: '12.5%' }} />
+              <col width="13%" style={{ width: '13%' }} />
+              <col width="12%" style={{ width: '12%' }} />
             </colgroup>
             <thead>
               <tr className="text-white h-[42px]">
-                <th style={{ width: '46px', minWidth: '46px' }} className="px-1 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">STT</th>
-                <th style={{ width: '304px', minWidth: '304px' }} className="px-3 py-0 font-black uppercase text-left border border-emerald-600 bg-[#059669]">NGÀNH HÀNG</th>
-                <th style={{ width: '88px', minWidth: '88px' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">MỤC TIÊU</th>
-                <th style={{ width: '88px', minWidth: '88px' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#059669]">THỰC HIỆN</th>
-                <th style={{ width: '92px', minWidth: '92px' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">HOÀN THÀNH</th>
-                <th style={{ width: '90px', minWidth: '90px' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#059669]">C.LẠI</th>
+                <th style={{ width: '6.5%' }} className="px-1 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">STT</th>
+                <th style={{ width: '43.5%' }} className="px-3 py-0 font-black uppercase text-left border border-emerald-600 bg-[#059669]">NGÀNH HÀNG</th>
+                <th style={{ width: '12.5%' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">
+                  <div className="flex items-center justify-center gap-1">
+                    <span>MỤC TIÊU</span>
+                    <button
+                      type="button"
+                      onClick={handleSyncFromLuyke}
+                      className="no-capture p-0.5 hover:bg-white/20 rounded text-[#FEF08A] hover:text-white transition-colors cursor-pointer"
+                      title="Bấm để đồng bộ số Còn lại từ BC THÁNG"
+                    >
+                      <RefreshCw size={11} />
+                    </button>
+                  </div>
+                </th>
+                <th style={{ width: '12.5%' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#059669]">THỰC HIỆN</th>
+                <th style={{ width: '13%' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">HOÀN THÀNH</th>
+                <th style={{ width: '12%' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#059669]">C.LẠI</th>
               </tr>
             </thead>
             <tbody className="font-black">
@@ -669,7 +799,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                 const thucHien = item.realtimeRevenue || 0;
                 const savedTarget = categoryTargets[item.name] !== undefined ? categoryTargets[item.name] : (item.defaultTarget || 0);
                 const hasTarget = savedTarget > 0;
-                const rate = hasTarget ? (thucHien / savedTarget) * 100 : (item.rate || 0);
+                const rate = hasTarget ? (thucHien / savedTarget) * 100 : 0;
                 const remaining = hasTarget ? (savedTarget - thucHien) : 0;
                 const isSL = item.type === 'SL';
 
@@ -678,7 +808,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                     <td className="px-1 py-0 font-black text-slate-700 text-center border border-emerald-100 bg-emerald-50/40 text-[12.5px] sm:text-[13.5px]">
                       {idx + 1}
                     </td>
-                    <td style={{ width: '304px', minWidth: '304px', maxWidth: '304px', overflow: 'hidden' }} className="px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight overflow-hidden" title={item.name}>
+                    <td style={{ maxWidth: 0, overflow: 'hidden' }} className="px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight overflow-hidden" title={item.name}>
                       <div className="flex items-center justify-between gap-1 w-full min-w-0" style={{ overflow: 'hidden' }}>
                         <span 
                           className="truncate block" 
@@ -696,7 +826,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                     <td className="px-1.5 py-0 text-center border border-emerald-100 text-slate-800 bg-emerald-50/20">
                       <input
                         type="number"
-                        value={categoryTargets[item.name] !== undefined ? categoryTargets[item.name] : (item.defaultTarget > 0 ? item.defaultTarget : '')}
+                        value={savedTarget > 0 ? savedTarget : ''}
                         onChange={(e) => handleCategoryTargetChange(item.name, Number(e.target.value))}
                         className="w-full text-center bg-transparent font-black focus:outline-none focus:bg-emerald-100/60 rounded py-0.5"
                         placeholder="0"
@@ -707,16 +837,14 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                       {thucHien > 0 ? (isSL ? Math.round(thucHien).toLocaleString() : (Math.round(thucHien * 10) / 10).toLocaleString()) : (isSL ? '0' : '0.0')}
                     </td>
                     <td className="px-1 py-0 text-center border border-emerald-100">
-                      {hasTarget || item.defaultTarget > 0 ? (
+                      {hasTarget ? (
                         <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[13px] ${
                           rate >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'
                         }`}>
                           {rate.toFixed(1)}%
                         </span>
                       ) : (
-                        <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-bold text-[11px] bg-slate-100 text-slate-500">
-                          #N/A
-                        </span>
+                        <span className="text-slate-400 font-bold">-</span>
                       )}
                     </td>
                     <td className="px-1.5 py-0 text-center border border-emerald-100 font-black">

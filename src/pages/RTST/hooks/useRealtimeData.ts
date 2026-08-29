@@ -222,13 +222,13 @@ export const useRealtimeData = (maKho: string) => {
         categoryInputLength: categoryInput?.length || 0,
         ycxDataLength: ycxData?.length || 0
       });
-      const marketTextToUse = (marketInput && marketInput.trim()) || (categoryRevenueInput && categoryRevenueInput.trim()) || '';
-      const luykeMarketTextToUse = (categoryRevenueInput && categoryRevenueInput.trim()) || (marketInput && marketInput.trim()) || '';
-      const categoryTextToUse = (categoryInput && categoryInput.trim()) || (categoryTargetInput && categoryTargetInput.trim()) || '';
+      const marketTextToUse = (marketInput && marketInput.trim()) || '';
+      const luykeMarketTextToUse = (categoryRevenueInput && categoryRevenueInput.trim()) || '';
+      const categoryTextToUse = (categoryInput && categoryInput.trim()) || '';
 
-      const markets = parseMarketData(marketTextToUse, 0, 'RTST');
+      const markets = marketTextToUse ? parseMarketData(marketTextToUse, 0, 'RTST') : [];
       const luykeMarkets = luykeMarketTextToUse ? parseMarketData(luykeMarketTextToUse, 0, 'LUYKE') : [];
-      const categories = parseCategoryData(categoryTextToUse, 0, 30, markets.length > 0 ? markets : luykeMarkets);
+      const categories = categoryTextToUse ? parseCategoryData(categoryTextToUse, 0, 30, markets.length > 0 ? markets : luykeMarkets) : [];
       const staff = parseYcxData(ycxData, quyDoiRules);
       const ycxRankData = parseYcxRankData(ycxData, quyDoiRules);
 

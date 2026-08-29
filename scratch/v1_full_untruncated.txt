@@ -1,0 +1,164 @@
+                        {/* Left Table: SLLK */}
+                        <div ref={categorySLRef} className="border border-slate-300 overflow-hidden min-w-0">
+                          <div className="bg-white p-[15px]">
+                            <div className="grid grid-cols-2 border-b border-slate-300 divide-x divide-slate-300">
+                              <div className="p-4 flex flex-col items-center justify-center">
+                                <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">NGÀNH HÀNG (SL)</h2>
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">REALTIME</span>
+                                  <button
+                                    onClick={() => captureElement(categorySLRef, 'NganhHang_SL_Realtime')}
+                                    className="no-capture p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                                    title="Chụp ảnh bảng Ngành hàng SL"
+                                  >
+                                    <Camera size={12} />
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="p-4 flex flex-col items-center justify-center">
+                                <h2 className="text-xl font-black text-rose-600 uppercase tracking-tight pb-2 mb-2 border-b border-slate-300 w-full text-center">DỰ KIẾN</h2>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                                  ĐẠT : {filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length}/{filteredCategories.filter(c => c.type === 'SL' || c.type === 'ALL').length}
+                                </span>
+                              </div>
+                            </div>
+
+                            {showSllkComment && (
+                              <div className="my-4 no-capture">
+                                <textarea
+                                  value={sllkComment}
+                                  onChange={(e) => setSllkComment(e.target.value)}
+                                  placeholder="Nhập nhận xét cho bảng SLLK..."
+                                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 resize-none min-h-[60px] screenshot-comment"
+                                />
+                              </div>
+                            )}
+
+                            <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-sm">
+                              <table className="w-full border-separate border-spacing-0" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+                                <thead>
+                                  <tr className="text-white h-[52px]">
+                                    <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-800 bg-[#0F172A] w-10">STT</th>
+                                    <th className="px-3 py-0 text-[13px] font-black uppercase text-left border-r border-b border-slate-800 bg-[#0F172A]">NGÀNH HÀNG</th>
+                                    {showTargetCols && <th className="px-2 py-0 text-[12px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">TARGET</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[12px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">REAL</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[12px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">%HT</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[12px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">CÒN LẠI</th>}
+                                    {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[11px] font-black uppercase text-center border-r border-b border-purple-900 bg-gradient-to-r from-[#6366F1] to-[#7C3AED] w-[65px] leading-tight">L.KẾ<br />CÒN LẠI</th>}
+                                    {showOrangeCols && <th className="px-2 py-0 text-[11px] font-black uppercase text-center border-r border-b border-purple-900 bg-gradient-to-r from-[#7C3AED] to-[#EC4899] w-[75px] leading-tight">MỤC TIÊU<br />100%/NGÀY</th>}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {filteredCategories
+                                    .filter(c => c.type === 'SL' || c.type === 'ALL')
+                                    .sort((a, b) => (b.rate || 0) - (a.rate || 0))
+                                    .map((cat, idx) => {
+                                      const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type}`;
+                                      const lkRemaining = luykeRemainingMap.get(lkKey);
+                                      const remaining = cat.target - cat.revenue;
+                                      return (
+                                        <tr key={idx} className="hover:bg-indigo-50/50 transition-colors h-[40px]">
+                                          <td className="px-2 py-0 text-[13px] font-black text-slate-700 text-center border-r border-b border-slate-200 bg-slate-50">{idx + 1}</td>
+                                          <td className="px-3 py-0 text-[13px] font-black uppercase border-r border-b border-slate-200 text-slate-900">{cat.name}</td>
+                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-bold text-center border-r border-b border-slate-200 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
+                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-black text-center border-r border-b border-slate-200 text-emerald-600">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
+                                          {showTargetCols && <td className={`px-2 py-0 text-[13px] font-black text-center border-r border-b border-slate-200 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-700 bg-emerald-50/80' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
+                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-bold text-center border-r border-b border-slate-200 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>}
+                                          {showOrangeCols && showLuykeColumn && (
+                                            <td className="px-2 py-0 text-[13px] font-bold text-center border-r border-b border-slate-200 text-purple-700">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                          )}
+                                          {showOrangeCols && (() => {
+                                            const lkCat = luykeCatMap.get(lkKey);
+                                            if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[13px] font-black text-center border-r border-b border-slate-200 text-slate-400"></td>;
+                                            const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
+                                            return <td className={`px-2 py-0 text-[13px] font-black text-center border-r border-b border-slate-200 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                          })()}
+                                        </tr>
+                                      );
+                                    })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right Table: DTLK */}
+                        <div ref={categoryDTRef} className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden min-w-0">
+                          <div className="p-5">
+                            <div className="grid grid-cols-2 border-b border-slate-200 divide-x divide-slate-200 pb-3 mb-4">
+                              <div className="p-2 flex flex-col items-center justify-center">
+                                <h2 className="text-lg font-black bg-gradient-to-r from-slate-900 to-[#2563EB] bg-clip-text text-transparent uppercase tracking-tight pb-1 mb-1 border-b border-slate-100 w-full text-center">NGÀNH HÀNG (DT)</h2>
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-[#2563EB]">REALTIME</span>
+                                  <button
+                                    onClick={() => captureElement(categoryDTRef, 'NganhHang_DT_Realtime')}
+                                    className="no-capture p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                                    title="Chụp ảnh bảng Ngành hàng DT"
+                                  >
+                                    <Camera size={13} />
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="p-2 flex flex-col items-center justify-center">
+                                <h2 className="text-lg font-black text-rose-600 uppercase tracking-tight pb-1 mb-1 border-b border-slate-100 w-full text-center">DỰ KIẾN</h2>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                                  ĐẠT : {filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').filter(c => Math.round(c.rate || 0) >= 100).length}/{filteredCategories.filter(c => c.type === 'DT' || c.type === 'ALL').length}
+                                </span>
+                              </div>
+                            </div>
+
+                            {showDtlkComment && (
+                              <div className="my-4 no-capture">
+                                <textarea
+                                  value={dtlkComment}
+                                  onChange={(e) => setDtlkComment(e.target.value)}
+                                  placeholder="Nhập nhận xét cho bảng DTLK..."
+                                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500/20 resize-none min-h-[60px] screenshot-comment"
+                                />
+                              </div>
+                            )}
+
+                            <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-sm">
+                              <table className="w-full border-separate border-spacing-0" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+                                <thead>
+                                  <tr className="text-white h-[52px]">
+                                    <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-800 bg-[#0F172A] w-10">STT</th>
+                                    <th className="px-3 py-0 text-[13px] font-black uppercase text-left border-r border-b border-slate-800 bg-[#0F172A]">NGÀNH HÀNG</th>
+                                    {showTargetCols && <th className="px-2 py-0 text-[12px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">TARGET</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[12px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">REAL</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[12px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">%HT</th>}
+                                    {showTargetCols && <th className="px-2 py-0 text-[12px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">CÒN LẠI</th>}
+                                    {showOrangeCols && showLuykeColumn && <th className="px-2 py-0 text-[11px] font-black uppercase text-center border-r border-b border-purple-900 bg-gradient-to-r from-[#6366F1] to-[#7C3AED] w-[65px] leading-tight">L.KẾ<br />CÒN LẠI</th>}
+                                    {showOrangeCols && <th className="px-2 py-0 text-[11px] font-black uppercase text-center border-r border-b border-purple-900 bg-gradient-to-r from-[#7C3AED] to-[#EC4899] w-[75px] leading-tight">MỤC TIÊU<br />100%/NGÀY</th>}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {filteredCategories
+                                    .filter(c => c.type === 'DT' || c.type === 'ALL')
+                                    .sort((a, b) => (b.rate || 0) - (a.rate || 0))
+                                    .map((cat, idx) => {
+                                      const lkKey = `${cat.name.trim().toUpperCase()}_${cat.type === 'ALL' ? 'DT' : cat.type}`;
+                                      const lkRemaining = luykeRemainingMap.get(lkKey) || luykeRemainingMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
+                                      const remaining = cat.target - cat.revenue;
+                                      return (
+                                        <tr key={idx} className="hover:bg-indigo-50/50 transition-colors h-[40px]">
+                                          <td className="px-2 py-0 text-[13px] font-black text-slate-700 text-center border-r border-b border-slate-200 bg-slate-50">{idx + 1}</td>
+                                          <td className="px-3 py-0 text-[13px] font-black uppercase border-r border-b border-slate-200 text-slate-900">{cat.name}</td>
+                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-bold text-center border-r border-b border-slate-200 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
+                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-black text-center border-r border-b border-slate-200 text-emerald-600">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
+                                          {showTargetCols && <td className={`px-2 py-0 text-[13px] font-black text-center border-r border-b border-slate-200 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-700 bg-emerald-50/80' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
+                                          {showTargetCols && <td className="px-2 py-0 text-[13px] font-bold text-center border-r border-b border-slate-200 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>}
+                                          {showOrangeCols && showLuykeColumn && (
+                                            <td className="px-2 py-0 text-[13px] font-bold text-center border-r border-b border-slate-200 text-purple-700">{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                          )}
+                                          {showOrangeCols && (() => {
+                                            const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
+                                            if (!lkCat || lkCat.target === 0) return <td className="px-2 py-0 text-[13px] font-black text-center border-r border-b border-slate-200 text-slate-400"></td>;
+                                            const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
+                                            return <td className={`px-2 py-0 text-[13px] font-black text-center border-r border-b border-slate-200 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                          })()}
+                                        </tr>
+                                      );
+                                    })}
+                                </tbody>
+                              </table>

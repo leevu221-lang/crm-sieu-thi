@@ -7,6 +7,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import * as htmlToImage from 'html-to-image';
 import { domToPng } from 'modern-screenshot';
+import html2canvas from 'html2canvas';
+import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
 import { 
   RefreshCw, ShoppingBag, TrendingUp, Camera, LayoutGrid, Activity, Globe, ChevronDown, Zap, Upload, Trash2, 
   HelpCircle, FileSpreadsheet, X, AlertCircle, Trophy, Target, BarChart3, CreditCard, Calendar, ArrowUpRight, 
@@ -249,6 +251,44 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     return localStorage.getItem('rtst_selected_store_filter') || 'ALL';
   });
   const [isProcessingData, setIsProcessingData] = useState(false);
+
+  // Sort modes for Category tables in BC Tháng:
+  // 'HT_DESC' (%HT giảm dần - mặc định) | 'HT_ASC' (%HT tăng dần) | 'CONLAI_DESC' (C.Lại giảm dần - thiếu nhiều nhất lên đầu) | 'CONLAI_ASC' (C.Lại tăng dần)
+  const [sortModeSL, setSortModeSL] = useState<'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC'>('HT_DESC');
+  const [sortModeDT, setSortModeDT] = useState<'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC'>('HT_DESC');
+
+  const sortCategoryList = (list: any[], mode: 'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC') => {
+    return [...list].sort((a: any, b: any) => {
+      let rateA = 0, rateB = 0;
+      if (a.target > 0 && daysPassed > 0) rateA = (((a.revenue / daysPassed) * totalDays) / a.target) * 100;
+      if (b.target > 0 && daysPassed > 0) rateB = (((b.revenue / daysPassed) * totalDays) / b.target) * 100;
+
+      const remA = a.target - a.revenue;
+      const remB = b.target - b.revenue;
+
+      if (mode === 'CONLAI_DESC') {
+        // C.LẠI GIẢM DẦN: Ngành thiếu nhiều nhất lên trước
+        if (remA > 0 && remB > 0) return remB - remA;
+        if (remA > 0 && remB <= 0) return -1;
+        if (remA <= 0 && remB > 0) return 1;
+        return remB - remA;
+      }
+
+      if (mode === 'CONLAI_ASC') {
+        // C.LẠI TĂNG DẦN: Đạt rồi (0) hoặc thiếu ít nhất lên trước
+        if (remA <= 0 && remB > 0) return -1;
+        if (remA > 0 && remB <= 0) return 1;
+        return remA - remB;
+      }
+
+      if (mode === 'HT_ASC') {
+        return rateA - rateB;
+      }
+
+      // Default: HT_DESC (%HT cao nhất)
+      return rateB - rateA;
+    });
+  };
 
   useEffect(() => {
     localStorage.setItem('rtst_selected_store_filter', selectedStoreFilter);
@@ -1714,10 +1754,13 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
         }
       });
 
-      // Force 2 columns grid for overview
+      // Force 2 columns grid for overview (skip specific Thuong ST grids)
       const grids = clone.querySelectorAll('.grid, [class*="grid-cols-"]');
       grids.forEach(g => {
         const htmlG = g as HTMLElement;
+        if (htmlG.classList.contains('thuong-st-kpi-grid') || htmlG.classList.contains('thuong-st-diff-grid')) {
+          return;
+        }
         if (htmlG.children.length === 6) {
           htmlG.style.display = 'grid';
           htmlG.style.gridTemplateColumns = 'repeat(6, minmax(0, 1fr))';
@@ -1732,6 +1775,46 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
           htmlG.style.width = '100%';
           htmlG.style.alignItems = 'start';
           htmlG.style.boxSizing = 'border-box';
+        }
+      });
+
+      // Top KPI Cards grid in BaoCaoThuongSt: 2 columns exactly matching on-screen UI (Ảnh 2)
+      const kpiGrids = clone.querySelectorAll('.thuong-st-kpi-grid');
+      kpiGrids.forEach(kg => {
+        const htmlKg = kg as HTMLElement;
+        htmlKg.style.display = 'grid';
+        htmlKg.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+        htmlKg.style.gap = '14px';
+        htmlKg.style.width = '100%';
+        htmlKg.style.boxSizing = 'border-box';
+      });
+
+      // Card 3: spans full width across both columns (grid-column: 1 / -1) exactly like on-screen UI
+      clone.querySelectorAll('.thuong-st-card-3').forEach(c3 => {
+        const htmlC3 = c3 as HTMLElement;
+        htmlC3.style.gridColumn = '1 / -1';
+        htmlC3.style.width = '100%';
+        htmlC3.style.boxSizing = 'border-box';
+      });
+
+      // Card 3 Diff Grid: Force 2 equal columns with clean gap and prevent any inner wrapping/overlaps
+      const diffGrids = clone.querySelectorAll('.thuong-st-diff-grid');
+      diffGrids.forEach(dg => {
+        const htmlDg = dg as HTMLElement;
+        htmlDg.style.display = 'grid';
+        htmlDg.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+        htmlDg.style.gap = '12px';
+        htmlDg.style.width = '100%';
+        htmlDg.style.boxSizing = 'border-box';
+      });
+
+      // Ensure text inside diff badges never wraps or overlaps
+      clone.querySelectorAll('.thuong-st-diff-grid *').forEach(node => {
+        const el = node as HTMLElement;
+        if (el.tagName === 'SPAN' || el.tagName === 'DIV') {
+          el.style.whiteSpace = 'nowrap';
+          el.style.overflow = 'visible';
+          el.style.textOverflow = 'clip';
         }
       });
 
@@ -1848,24 +1931,33 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       tempContainer.appendChild(frameWrapper);
       document.body.appendChild(tempContainer);
 
-      await new Promise(r => setTimeout(r, 350));
-
-      const fontStyle = document.createElement('style');
-      fontStyle.innerHTML = `
-        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&display=swap');
-        .font-oswald { font-family: 'Oswald', sans-serif !important; font-weight: 700 !important; }
-      `;
-      clone.appendChild(fontStyle);
+      await ensureFontsReady();
+      await new Promise(r => setTimeout(r, 100));
 
       const exactHeight = Math.max(frameWrapper.scrollHeight, frameWrapper.offsetHeight, clone.scrollHeight, 100);
 
-      const dataUrl = await domToPng(frameWrapper, {
-        scale: 2.5,
-        backgroundColor: '#ffffff',
-        width: targetWidthPx,
-        height: exactHeight,
-        features: { removeControlCharacter: true }
-      });
+      let dataUrl: string = '';
+      try {
+        const canvas = await html2canvas(frameWrapper, {
+          scale: 2.5,
+          backgroundColor: '#ffffff',
+          logging: false,
+          useCORS: true,
+          allowTaint: true,
+          width: targetWidthPx,
+          windowWidth: targetWidthPx,
+        });
+        dataUrl = canvas.toDataURL('image/png');
+      } catch (h2cErr) {
+        console.warn('html2canvas failed, fallback to domToPng:', h2cErr);
+        dataUrl = await domToPng(frameWrapper, {
+          scale: 2.5,
+          backgroundColor: '#ffffff',
+          width: targetWidthPx,
+          height: exactHeight,
+          features: { removeControlCharacter: true }
+        });
+      }
 
       document.body.removeChild(tempContainer);
       setPreviewImage(dataUrl);
@@ -1912,39 +2004,42 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
           overflow: visible !important;
         }
       `}} />
-      {/* Excel loading & processing overlay */}
-      <AnimatePresence>
-        {(isProcessingData || isInitialLoading) && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-md"
-          >
+      {/* Excel loading & processing overlay (Rendered via Portal to sit on top of Sidebar & Header) */}
+      {typeof document !== 'undefined' && ReactDOM.createPortal(
+        <AnimatePresence>
+          {(isProcessingData || isInitialLoading) && (
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white/80 backdrop-blur-lg border border-white/20 p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm text-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[999999] flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-md"
             >
-              <div className="relative w-20 h-20 mb-6 flex items-center justify-center">
-                <div className="absolute inset-0 rounded-full border-4 border-indigo-100 animate-pulse"></div>
-                <div className="absolute inset-0 rounded-full border-4 border-t-indigo-600 border-r-indigo-400 border-b-transparent border-l-transparent animate-spin"></div>
-                <FileSpreadsheet size={32} className="text-indigo-600 animate-bounce" />
-              </div>
-              
-              <h3 className="text-lg font-black text-slate-800 uppercase tracking-wider mb-2">
-                {isProcessingData ? "Đang xử lý dữ liệu..." : "Đang tải dữ liệu..."}
-              </h3>
-              <p className="text-[12px] font-medium text-slate-500 max-w-[240px]">
-                {isProcessingData 
-                  ? "Hệ thống đang phân tích cấu trúc cột, làm sạch dữ liệu và tự động nhóm các ngành hàng/hãng sản xuất. Vui lòng chờ trong giây lát."
-                  : "Hệ thống đang đồng bộ và tải dữ liệu cài đặt thi đua từ máy chủ. Vui lòng chờ trong giây lát."}
-              </p>
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white/90 backdrop-blur-xl border border-white/30 p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm text-center"
+              >
+                <div className="relative w-20 h-20 mb-6 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border-4 border-indigo-100 animate-pulse"></div>
+                  <div className="absolute inset-0 rounded-full border-4 border-t-indigo-600 border-r-indigo-400 border-b-transparent border-l-transparent animate-spin"></div>
+                  <FileSpreadsheet size={32} className="text-indigo-600 animate-bounce" />
+                </div>
+                
+                <h3 className="text-lg font-black text-slate-800 uppercase tracking-wider mb-2">
+                  {isProcessingData ? "Đang xử lý dữ liệu..." : "Đang tải dữ liệu..."}
+                </h3>
+                <p className="text-[12px] font-medium text-slate-500 max-w-[240px]">
+                  {isProcessingData 
+                    ? "Hệ thống đang phân tích cấu trúc cột, làm sạch dữ liệu và tự động nhóm các ngành hàng/hãng sản xuất. Vui lòng chờ trong giây lát."
+                    : "Hệ thống đang đồng bộ và tải dữ liệu cài đặt thi đua từ máy chủ. Vui lòng chờ trong giây lát."}
+                </p>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       <main className="max-w-[1800px] mx-auto p-3 sm:p-6 space-y-6">
         {/* Top Horizontal Subtab Navigation Bar — Mobile only (sidebar has these on desktop) */}
@@ -2176,28 +2271,78 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                       </div>
                     );
                   })}
-
                   {/* CHI TIẾT NGÀNH HÀNG (LUỸ KẾ) */}
                   <div ref={captureRefs.category} className="space-y-3.5">
-                    {/* Pill Actions (Hidden on screenshot export) */}
-                    <div className="flex flex-wrap items-center justify-end gap-2.5 no-capture">
-                      <button
-                        onClick={handleOpenCategoryCommentModal}
-                        className="flex items-center gap-2 px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-wider bg-gradient-to-r from-[#2563EB] via-[#4F46E5] to-[#7C3AED] hover:from-[#1D4ED8] hover:via-[#4338CA] hover:to-[#6D28D9] text-white shadow-md shadow-indigo-500/25 transition-all duration-300 active:scale-95 cursor-pointer border border-indigo-400/30"
-                        title="Nhận xét doanh thu & ngành hàng luỹ kế"
-                      >
-                        <MessageSquare size={14} className="text-white shrink-0" />
-                        <span>NHẬN XÉT</span>
-                      </button>
+                    {/* Pill Actions & Sort Controls (Hidden on screenshot export) */}
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 no-capture">
+                      {/* Quick Sort Category Controls */}
+                      <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-2xl border border-slate-200 shadow-2xs flex-wrap">
+                        <span className="text-[11px] font-black uppercase text-slate-500 px-2 hidden sm:inline">
+                          SẮP XẾP:
+                        </span>
+                        <button
+                          onClick={() => {
+                            setSortModeSL('HT_DESC');
+                            setSortModeDT('HT_DESC');
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            sortModeSL === 'HT_DESC' && sortModeDT === 'HT_DESC'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                          }`}
+                          title="Sắp xếp theo % hoàn thành cao nhất"
+                        >
+                          📊 MẶC ĐỊNH (%HT)
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSortModeSL('CONLAI_DESC');
+                            setSortModeDT('CONLAI_DESC');
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                            sortModeSL === 'CONLAI_DESC' && sortModeDT === 'CONLAI_DESC'
+                              ? 'bg-rose-600 text-white shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                          }`}
+                          title="Sắp xếp theo số lượng/doanh thu Còn Lại cần đạt nhiều nhất"
+                        >
+                          <span>🔥 C.LẠI GIẢM DẦN</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSortModeSL('CONLAI_ASC');
+                            setSortModeDT('CONLAI_ASC');
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                            sortModeSL === 'CONLAI_ASC' && sortModeDT === 'CONLAI_ASC'
+                              ? 'bg-amber-600 text-white shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                          }`}
+                          title="Sắp xếp theo Còn Lại tăng dần (Đã đạt / thiếu ít lên trước)"
+                        >
+                          <span>✨ C.LẠI TĂNG DẦN</span>
+                        </button>
+                      </div>
 
-                      <button
-                        onClick={() => captureElement(captureRefs.category, 'NganhHang_LuyKe')}
-                        className="flex items-center gap-2 px-6 py-2 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-[12px] font-black uppercase tracking-wider shadow-md shadow-emerald-500/25 transition-all duration-300 active:scale-95 cursor-pointer"
-                        title="Chụp ảnh 2 bảng Ngành hàng"
-                      >
-                        <Camera size={15} />
-                        <span>Chụp ảnh báo cáo</span>
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleOpenCategoryCommentModal}
+                          className="flex items-center gap-2 px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-wider bg-gradient-to-r from-[#2563EB] via-[#4F46E5] to-[#7C3AED] hover:from-[#1D4ED8] hover:via-[#4338CA] hover:to-[#6D28D9] text-white shadow-md shadow-indigo-500/25 transition-all duration-300 active:scale-95 cursor-pointer border border-indigo-400/30"
+                          title="Nhận xét doanh thu & ngành hàng luỹ kế"
+                        >
+                          <MessageSquare size={14} className="text-white shrink-0" />
+                          <span>NHẬN XÉT</span>
+                        </button>
+
+                        <button
+                          onClick={() => captureElement(captureRefs.category, 'NganhHang_LuyKe')}
+                          className="flex items-center gap-2 px-6 py-2 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-[12px] font-black uppercase tracking-wider shadow-md shadow-emerald-500/25 transition-all duration-300 active:scale-95 cursor-pointer"
+                          title="Chụp ảnh 2 bảng Ngành hàng"
+                        >
+                          <Camera size={15} />
+                          <span>Chụp ảnh báo cáo</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* 2 Tables Grid */}
@@ -2266,39 +2411,58 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                 <th className="px-2.5 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669]">NGÀNH HÀNG</th>
                                 <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">TARGET</th>
                                 <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">LUỸ KẾ</th>
-                                <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#059669]">%HT</th>
-                                <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-b border-emerald-600 bg-[#047857]">C.LẠI</th>
+                                <th 
+                                  onClick={() => setSortModeSL(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
+                                  className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 cursor-pointer select-none transition-colors ${
+                                    sortModeSL.startsWith('HT') ? 'bg-[#035940] hover:bg-[#024a35]' : 'bg-[#059669] hover:bg-[#047857]'
+                                  }`}
+                                  title="Bấm để sắp xếp %HT (Giảm dần / Tăng dần)"
+                                >
+                                  <div className="flex items-center justify-center gap-0.5">
+                                    <span>%HT</span>
+                                    <span className="text-[10.5px] opacity-90">{sortModeSL === 'HT_DESC' ? '▼' : (sortModeSL === 'HT_ASC' ? '▲' : '⇅')}</span>
+                                  </div>
+                                </th>
+                                <th 
+                                  onClick={() => setSortModeSL(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
+                                  className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-b border-emerald-600 cursor-pointer select-none transition-colors ${
+                                    sortModeSL.startsWith('CONLAI') ? 'bg-amber-700 hover:bg-amber-800' : 'bg-[#047857] hover:bg-[#036348]'
+                                  }`}
+                                  title="Bấm để sắp xếp theo C.LẠI (Còn lại nhiều nhất / ít nhất)"
+                                >
+                                  <div className="flex items-center justify-center gap-0.5">
+                                    <span>C.LẠI</span>
+                                    <span className="text-[10.5px] opacity-90">{sortModeSL === 'CONLAI_DESC' ? '▼' : (sortModeSL === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
+                                  </div>
+                                </th>
                               </tr>
                             </thead>
                             <tbody>
-                              {filteredCategories
-                                .filter((c: any) => c.type === 'SL' || c.type === 'ALL')
-                                .sort((a: any, b: any) => {
-                                  let rA = 0, rB = 0;
-                                  if (a.target > 0 && daysPassed > 0) rA = (((a.revenue / daysPassed) * totalDays) / a.target) * 100;
-                                  if (b.target > 0 && daysPassed > 0) rB = (((b.revenue / daysPassed) * totalDays) / b.target) * 100;
-                                  return rB - rA;
-                                })
-                                .map((cat: any, idx: number) => {
-                                  let rate = 0;
-                                  if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
-                                  const remaining = cat.target - cat.revenue;
-                                  const isEven = idx % 2 === 0;
-                                  return (
-                                    <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
-                                      <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
-                                      <td className="px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 truncate tracking-tight" title={cat.name}>{cat.name}</td>
-                                      <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
-                                      <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
-                                      <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
-                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
-                                          {Math.round(rate)}%
-                                        </span>
-                                      </td>
-                                      <td className="px-1 py-0 text-[14.5px] font-bold text-center border-b border-emerald-100/90 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
-                                    </tr>
-                                  );
-                                })}
+                              {sortCategoryList(
+                                filteredCategories.filter((c: any) => c.type === 'SL' || c.type === 'ALL'),
+                                sortModeSL
+                              ).map((cat: any, idx: number) => {
+                                let rate = 0;
+                                if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
+                                const remaining = cat.target - cat.revenue;
+                                const isEven = idx % 2 === 0;
+                                return (
+                                  <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
+                                    <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
+                                    <td className="px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 truncate tracking-tight" title={cat.name}>{cat.name}</td>
+                                    <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
+                                    <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                    <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
+                                      <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
+                                        {Math.round(rate)}%
+                                      </span>
+                                    </td>
+                                    <td className={`px-1 py-0 text-[14.5px] font-bold text-center border-b border-emerald-100/90 ${sortModeSL.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600`}>
+                                      {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
@@ -2368,39 +2532,58 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                 <th className="px-2.5 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669]">NGÀNH HÀNG</th>
                                 <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">TARGET</th>
                                 <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">LUỸ KẾ</th>
-                                <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#059669]">%HT</th>
-                                <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-b border-emerald-600 bg-[#047857]">C.LẠI</th>
+                                <th 
+                                  onClick={() => setSortModeDT(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
+                                  className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 cursor-pointer select-none transition-colors ${
+                                    sortModeDT.startsWith('HT') ? 'bg-[#035940] hover:bg-[#024a35]' : 'bg-[#059669] hover:bg-[#047857]'
+                                  }`}
+                                  title="Bấm để sắp xếp %HT (Giảm dần / Tăng dần)"
+                                >
+                                  <div className="flex items-center justify-center gap-0.5">
+                                    <span>%HT</span>
+                                    <span className="text-[10.5px] opacity-90">{sortModeDT === 'HT_DESC' ? '▼' : (sortModeDT === 'HT_ASC' ? '▲' : '⇅')}</span>
+                                  </div>
+                                </th>
+                                <th 
+                                  onClick={() => setSortModeDT(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
+                                  className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-b border-emerald-600 cursor-pointer select-none transition-colors ${
+                                    sortModeDT.startsWith('CONLAI') ? 'bg-amber-700 hover:bg-amber-800' : 'bg-[#047857] hover:bg-[#036348]'
+                                  }`}
+                                  title="Bấm để sắp xếp theo C.LẠI (Còn lại nhiều nhất / ít nhất)"
+                                >
+                                  <div className="flex items-center justify-center gap-0.5">
+                                    <span>C.LẠI</span>
+                                    <span className="text-[10.5px] opacity-90">{sortModeDT === 'CONLAI_DESC' ? '▼' : (sortModeDT === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
+                                  </div>
+                                </th>
                               </tr>
                             </thead>
                             <tbody>
-                              {filteredCategories
-                                .filter((c: any) => c.type === 'DT' || c.type === 'ALL')
-                                .sort((a: any, b: any) => {
-                                  let rA = 0, rB = 0;
-                                  if (a.target > 0 && daysPassed > 0) rA = (((a.revenue / daysPassed) * totalDays) / a.target) * 100;
-                                  if (b.target > 0 && daysPassed > 0) rB = (((b.revenue / daysPassed) * totalDays) / b.target) * 100;
-                                  return rB - rA;
-                                })
-                                .map((cat: any, idx: number) => {
-                                  let rate = 0;
-                                  if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
-                                  const remaining = cat.target - cat.revenue;
-                                  const isEven = idx % 2 === 0;
-                                  return (
-                                    <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
-                                      <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
-                                      <td className="px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 truncate tracking-tight" title={cat.name}>{cat.name}</td>
-                                      <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
-                                      <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
-                                      <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
-                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
-                                          {Math.round(rate)}%
-                                        </span>
-                                      </td>
-                                      <td className="px-1 py-0 text-[14.5px] font-bold text-center border-b border-emerald-100/90 text-rose-600">{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
-                                    </tr>
-                                  );
-                                })}
+                              {sortCategoryList(
+                                filteredCategories.filter((c: any) => c.type === 'DT' || c.type === 'ALL'),
+                                sortModeDT
+                              ).map((cat: any, idx: number) => {
+                                let rate = 0;
+                                if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
+                                const remaining = cat.target - cat.revenue;
+                                const isEven = idx % 2 === 0;
+                                return (
+                                  <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
+                                    <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
+                                    <td className="px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 truncate tracking-tight" title={cat.name}>{cat.name}</td>
+                                    <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
+                                    <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                    <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
+                                      <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
+                                        {Math.round(rate)}%
+                                      </span>
+                                    </td>
+                                    <td className={`px-1 py-0 text-[14.5px] font-bold text-center border-b border-emerald-100/90 ${sortModeDT.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600`}>
+                                      {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
@@ -2749,7 +2932,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                       </div>
 
                       {/* Top KPI StatCards (2 Cards or 3 Cards when comparing) */}
-                      <div className={`grid grid-cols-1 ${isComparing ? 'lg:grid-cols-3 sm:grid-cols-2' : 'sm:grid-cols-2'} gap-4`}>
+                      <div className="thuong-st-kpi-grid grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                         {/* Card 1: Luỹ kế kỳ báo cáo & Đối soát file */}
                         <div className="bg-slate-50/80 rounded-2xl border border-slate-200/80 p-4 flex items-center justify-between shadow-xs">
                           <div className="space-y-1 min-w-0">
@@ -2824,33 +3007,35 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
 
                         {/* Card 3: Biến động chi tiết theo ngành (chỉ hiện khi có 2 file) */}
                         {isComparing && (
-                          <div className="bg-white rounded-2xl border border-slate-200 p-3.5 flex flex-col justify-between shadow-xs sm:col-span-2 lg:col-span-1">
-                            <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
-                              <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">
+                          <div className="thuong-st-card-3 bg-white rounded-2xl border border-slate-200 p-3.5 flex flex-col justify-between shadow-xs col-span-1 sm:col-span-2 min-h-[110px]">
+                            <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
+                              <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">
                                 BIẾN ĐỘNG SO VỚI HÔM QUA
                               </span>
-                              <span className="text-[10px] font-bold text-indigo-600">
+                              <span className="text-[10px] font-bold text-indigo-600 shrink-0 whitespace-nowrap">
                                 {thuongStStats.all.length} nhóm ngành
                               </span>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2 mt-2">
+                            <div className="thuong-st-diff-grid grid grid-cols-2 gap-2 mt-2 grow">
                               {/* Red block: Giảm thưởng */}
                               <div 
                                 onClick={() => setBonusFilterTab('DECREASED')}
-                                className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                                className={`p-2.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between min-h-[64px] ${
                                   bonusFilterTab === 'DECREASED' 
                                     ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-400' 
-                                    : 'bg-rose-50/40 border-rose-100 hover:bg-rose-50'
+                                    : 'bg-rose-50/50 border-rose-200/80 hover:bg-rose-50'
                                 }`}
                               >
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[10.5px] font-black text-rose-700 uppercase">🔴 Giảm/Mất</span>
-                                  <span className="px-1.5 py-0.2 rounded-md bg-rose-200/80 text-rose-800 text-[10px] font-black">
+                                <div className="flex items-center justify-between gap-1 leading-none">
+                                  <span className="text-[11px] font-black text-rose-700 uppercase whitespace-nowrap shrink-0">
+                                    🔴 GIẢM/MẤT
+                                  </span>
+                                  <span className="px-1.5 py-0.5 rounded-md bg-rose-200/90 text-rose-800 text-[10px] font-black shrink-0 whitespace-nowrap">
                                     {thuongStStats.decreasedRows.length} ngành
                                   </span>
                                 </div>
-                                <div className="text-[13px] font-black text-rose-600 mt-0.5" style={{ fontFamily: "'Oswald', sans-serif" }}>
+                                <div className="text-[13px] font-black text-rose-600 mt-1.5 whitespace-nowrap leading-tight tracking-tight" style={{ fontFamily: "'UTM Avo', 'Oswald', sans-serif" }}>
                                   -{thuongStStats.totalDecreasedAmount.toLocaleString('vi-VN')} ₫
                                 </div>
                               </div>
@@ -2858,19 +3043,21 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                               {/* Green block: Tăng thưởng */}
                               <div 
                                 onClick={() => setBonusFilterTab('INCREASED')}
-                                className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                                className={`p-2.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between min-h-[64px] ${
                                   bonusFilterTab === 'INCREASED' 
                                     ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-400' 
-                                    : 'bg-emerald-50/40 border-emerald-100 hover:bg-emerald-50'
+                                    : 'bg-emerald-50/50 border-emerald-200/80 hover:bg-emerald-50'
                                 }`}
                               >
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[10.5px] font-black text-emerald-700 uppercase">🟢 Tăng/Mới</span>
-                                  <span className="px-1.5 py-0.2 rounded-md bg-emerald-200/80 text-emerald-800 text-[10px] font-black">
+                                <div className="flex items-center justify-between gap-1 leading-none">
+                                  <span className="text-[11px] font-black text-emerald-700 uppercase whitespace-nowrap shrink-0">
+                                    🟢 TĂNG/MỚI
+                                  </span>
+                                  <span className="px-1.5 py-0.5 rounded-md bg-emerald-200/90 text-emerald-800 text-[10px] font-black shrink-0 whitespace-nowrap">
                                     {thuongStStats.increasedRows.length} ngành
                                   </span>
                                 </div>
-                                <div className="text-[13px] font-black text-emerald-600 mt-0.5" style={{ fontFamily: "'Oswald', sans-serif" }}>
+                                <div className="text-[13px] font-black text-emerald-600 mt-1.5 whitespace-nowrap leading-tight tracking-tight" style={{ fontFamily: "'UTM Avo', 'Oswald', sans-serif" }}>
                                   +{thuongStStats.totalIncreasedAmount.toLocaleString('vi-VN')} ₫
                                 </div>
                               </div>

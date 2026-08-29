@@ -103,7 +103,6 @@ import { MucTieuNgayTab } from './RTST/components/MucTieuNgayTab';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
-import { ensureFontsReady } from '../utils/fontExportUtil';
 import { isValidStoreName, normalize, normalizeStoreId } from './RTST/utils';
 
 const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: boolean, onClick: () => void, icon: any, label: string, count?: number }) => (
@@ -2763,32 +2762,97 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         htmlEl.style.maxHeight = 'none';
       });
 
+      // EARLY: Strip ALL max-width constraints from clone tree BEFORE table processing
+      // This ensures table pixel widths set later have the final say
+      clone.style.maxWidth = 'none';
+      clone.classList.forEach(c => { if (c.startsWith('max-w-')) clone.classList.remove(c); });
+      const earlyAllNodes = clone.querySelectorAll('*');
+      earlyAllNodes.forEach(el => {
+        const htmlEl = el as HTMLElement;
+        if (htmlEl.classList) {
+          const toRemove: string[] = [];
+          htmlEl.classList.forEach(c => { if (c.startsWith('max-w-')) toRemove.push(c); });
+          toRemove.forEach(c => htmlEl.classList.remove(c));
+        }
+        if (htmlEl.style && htmlEl.style.maxWidth) {
+          htmlEl.style.maxWidth = 'none';
+        }
+      });
+
       // Calculate exact inner container width for tables
       const framePadding = options.isOverview ? 64 : 40;
       const targetWidthVal = parseInt(options.width || '780') || 780;
-      const innerCardWidth = targetWidthVal - framePadding; // 740px
+      const innerCardWidth = targetWidthVal - framePadding;
       const cardInnerPadding = 32; // 16px padding on left/right of captureRef
-      const exactTablePixelWidth = innerCardWidth - cardInnerPadding; // 708px
+      const exactTablePixelWidth = innerCardWidth - cardInnerPadding;
 
-      // Ensure all tables inside the clone strictly respect 100% width and fixed layout
+      // Fixed column widths: STT=46px, TIÊU CHÍ/NGÀNH HÀNG=350px, rest distributed evenly
+      const sttWidth = 46;
+      const nameColWidth = 350; // Cố định 350px cho cột TIÊU CHÍ & NGÀNH HÀNG
+      const remainingWidth = exactTablePixelWidth - sttWidth - nameColWidth;
+      const dataColWidth = Math.floor(remainingWidth / 4);
+      const lastDataColWidth = remainingWidth - (dataColWidth * 3); // Absorb rounding
+
+      const colWidths = [
+        sttWidth,        // STT: 46px
+        nameColWidth,    // TIÊU CHÍ / NGÀNH HÀNG: 350px (cố định)
+        dataColWidth,    // MỤC TIÊU
+        dataColWidth,    // THỰC HIỆN
+        dataColWidth,    // HOÀN THÀNH
+        lastDataColWidth // C.LẠI
+      ];
+
+      // Ensure all tables inside the clone strictly respect exact fixed width and column widths
+      // Using cssText with !important to absolutely override any CSS class or computed style
       const allTables = clone.querySelectorAll('table');
       allTables.forEach(t => {
         const htmlTable = t as HTMLElement;
-        htmlTable.style.width = '100%';
-        htmlTable.style.minWidth = '100%';
-        htmlTable.style.maxWidth = '100%';
-        htmlTable.style.tableLayout = 'fixed';
-      });
+        if (options.isTableOnly) {
+          // Force table width with !important
+          htmlTable.style.cssText += `; width: ${exactTablePixelWidth}px !important; min-width: ${exactTablePixelWidth}px !important; max-width: ${exactTablePixelWidth}px !important; display: table !important; table-layout: fixed !important; box-sizing: border-box !important;`;
 
-      // Ensure all table wrappers inside clone have matching width
-      const tableWrappers = clone.querySelectorAll('.overflow-hidden.rounded-2xl.border, .rounded-2xl.border');
-      tableWrappers.forEach(w => {
-        const htmlW = w as HTMLElement;
-        htmlW.style.width = '100%';
-        htmlW.style.minWidth = '100%';
-        htmlW.style.maxWidth = '100%';
-        htmlW.style.boxSizing = 'border-box';
-        htmlW.style.overflow = 'hidden';
+          // Force table's parent wrapper with !important
+          const parent = htmlTable.parentElement;
+          if (parent) {
+            parent.style.cssText += `; width: ${exactTablePixelWidth}px !important; min-width: ${exactTablePixelWidth}px !important; max-width: ${exactTablePixelWidth}px !important; box-sizing: border-box !important; overflow: hidden !important; display: block !important;`;
+          }
+
+          // Apply exact pixel width to each col in colgroup with !important
+          const cols = htmlTable.querySelectorAll('colgroup col');
+          cols.forEach((c, idx) => {
+            if (colWidths[idx]) {
+              const htmlCol = c as HTMLElement;
+              htmlCol.style.cssText += `; width: ${colWidths[idx]}px !important;`;
+              htmlCol.setAttribute('width', `${colWidths[idx]}`);
+            }
+          });
+
+          // Apply exact pixel width to each header th with !important
+          const ths = htmlTable.querySelectorAll('thead tr th');
+          ths.forEach((th, idx) => {
+            if (colWidths[idx]) {
+              const htmlTh = th as HTMLElement;
+              htmlTh.style.cssText += `; width: ${colWidths[idx]}px !important; min-width: ${colWidths[idx]}px !important; max-width: ${colWidths[idx]}px !important; box-sizing: border-box !important; overflow: hidden !important;`;
+            }
+          });
+
+          // Apply exact pixel width to EVERY td in tbody rows with !important
+          const bodyRows = htmlTable.querySelectorAll('tbody tr');
+          bodyRows.forEach(row => {
+            const tds = row.querySelectorAll('td');
+            tds.forEach((td, idx) => {
+              if (colWidths[idx]) {
+                const htmlTd = td as HTMLElement;
+                htmlTd.style.cssText += `; width: ${colWidths[idx]}px !important; min-width: ${colWidths[idx]}px !important; max-width: ${colWidths[idx]}px !important; box-sizing: border-box !important; overflow: hidden !important;`;
+              }
+            });
+          });
+        } else {
+          htmlTable.style.width = '100%';
+          htmlTable.style.minWidth = '100%';
+          htmlTable.style.maxWidth = '100%';
+          htmlTable.style.tableLayout = 'fixed';
+        }
       });
 
       // Ensure all category name containers in tables truncate properly
@@ -2798,7 +2862,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         htmlS.style.overflow = 'hidden';
         htmlS.style.textOverflow = 'ellipsis';
         htmlS.style.whiteSpace = 'nowrap';
-        htmlS.style.maxWidth = '215px';
+        htmlS.style.maxWidth = '290px';
         htmlS.style.display = 'inline-block';
         htmlS.style.verticalAlign = 'middle';
       });
@@ -2812,7 +2876,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       clone.style.display = 'block';
       clone.style.width = '100%';
       clone.style.minWidth = '100%';
-      clone.style.maxWidth = '100%';
+      clone.style.maxWidth = 'none';
       clone.style.height = 'auto';
       clone.style.margin = '0 auto';
       clone.style.boxSizing = 'border-box';
@@ -3052,25 +3116,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     }
   };
 
-  const handleCaptureTable = async (elementId: string, fileName: string) => {
-    const element = document.getElementById(elementId);
-    if (!element) return;
-    try {
-      setIsCapturing(true);
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      const dataUrl = await captureOffscreenHelper(element, {
-        width: 'max-content',
-        minWidth: 'max-content',
-        backgroundColor: '#ffffff',
-        isTableOnly: true
-      });
-      setPreviewImage(dataUrl);
-    } catch (err) {
-      console.error('Lỗi chụp ảnh bảng:', err);
-    } finally {
-      setIsCapturing(false);
-    }
+  const handleCaptureTable = async (elementId: string, _fileName: string) => {
+    return captureDirectHelper(elementId);
   };
 
   const [showKhaiThacCols, setShowKhaiThacCols] = useState({
@@ -4348,105 +4395,177 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     }
   };
 
-  const captureElement = async (ref: React.RefObject<HTMLDivElement | null>, filename: string) => {
-    const element = ref.current;
-    if (element) {
-      try {
-        setIsCapturing(true);
-        await new Promise(resolve => setTimeout(resolve, 100));
-        const dataUrl = await captureOffscreenHelper(element, {
-          width: '780px',
-          minWidth: '780px',
-          backgroundColor: '#ffffff',
-          isTableOnly: true
-        });
-        setPreviewImage(dataUrl);
-      } catch (error) {
-        console.error(`Lỗi khi chụp ảnh ${filename}:`, error);
-      } finally {
-        setIsCapturing(false);
-      }
+  // Universal direct on-screen capture helper:
+  // Expands the target element and its tables/scroll containers to full natural content dimensions,
+  // strips shadows, ensures all columns and rows are 100% visible, takes domToPng, and restores original layout.
+  const captureDirectHelper = async (targetInput: HTMLElement | React.RefObject<HTMLElement | null> | string | null) => {
+    let element: HTMLElement | null = null;
+    if (typeof targetInput === 'string') {
+      element = document.getElementById(targetInput);
+    } else if (targetInput && typeof targetInput === 'object' && 'current' in targetInput) {
+      element = (targetInput as any).current;
+    } else if (targetInput instanceof HTMLElement) {
+      element = targetInput;
     }
-  };
 
-  // Dedicated, minimal-intervention capture for MucTieuNgayTab's report card.
-  // captureElement()/captureOffscreenHelper() above hard-code a lot of DOM rewriting
-  // tuned for the "Ngành hàng SL/DT" tables (isTableOnly forces table-layout:auto and
-  // strips the fixed colgroup widths, and a hard-coded 215px max-width gets forced onto
-  // every `span.truncate` regardless of the real column width). MucTieuNgayTab's report
-  // is a fixed-width (760px), fixed-column-width (46/304/88/88/92/90px) card by design —
-  // running it through those overrides changes its layout in the exported PNG versus what
-  // the user actually sees on screen. This instead only does what's structurally required
-  // to render off-screen faithfully: preserve current input values (cloneNode doesn't
-  // reliably carry a React-controlled input's live value) and hide .no-capture elements —
-  // nothing about widths, truncation, or colors is touched, so the export matches the
-  // on-screen layout exactly.
-  const captureMucTieuNgayElement = async (ref: React.RefObject<HTMLDivElement | null>, filename: string) => {
-    const element = ref.current;
-    if (!element) return;
+    if (!element) {
+      console.warn('captureDirectHelper: target element not found', targetInput);
+      return;
+    }
+
     try {
       setIsCapturing(true);
-      await ensureFontsReady();
-
-      const tempContainer = document.createElement('div');
-      tempContainer.style.position = 'absolute';
-      tempContainer.style.top = '-9999px';
-      tempContainer.style.left = '-9999px';
-      tempContainer.style.zIndex = '-9999';
-      tempContainer.style.pointerEvents = 'none';
-      tempContainer.style.backgroundColor = '#ffffff';
-
-      const clone = element.cloneNode(true) as HTMLElement;
-
-      // Preserve current input values as plain text (matches what's on screen right now)
-      const origInputs = Array.from(element.querySelectorAll('input, textarea'));
-      const cloneInputs = Array.from(clone.querySelectorAll('input, textarea'));
-      origInputs.forEach((origEl, idx) => {
-        const cloneEl = cloneInputs[idx] as HTMLInputElement | HTMLTextAreaElement | undefined;
-        if (!cloneEl) return;
-        const span = document.createElement('span');
-        span.textContent = (origEl as HTMLInputElement).value || '0';
-        span.className = cloneEl.className;
-        span.style.display = 'inline-block';
-        span.style.width = '100%';
-        span.style.textAlign = 'center';
-        span.style.backgroundColor = 'transparent';
-        cloneEl.parentNode?.replaceChild(span, cloneEl);
-      });
-
-      // Hide only what's explicitly marked as excluded from capture (e.g. the
-      // instruction hint banner) or interactive controls — nothing else.
-      clone.querySelectorAll('.no-capture, button').forEach(el => {
-        (el as HTMLElement).style.display = 'none';
-      });
-
-      // Match the card's own authored max-width (w-full max-w-[760px]) so it renders
-      // off-screen at the same width it naturally has on screen.
-      clone.style.width = '760px';
-      clone.style.maxWidth = '760px';
-      clone.style.margin = '0';
-
-      tempContainer.appendChild(clone);
-      document.body.appendChild(tempContainer);
-
-      try {
-        await new Promise(resolve => setTimeout(resolve, 150));
-        const dataUrl = await domToPng(clone, {
-          backgroundColor: '#ffffff',
-          scale: 3,
-          font: false,
-          width: 760,
-          height: clone.scrollHeight,
-        });
-        setPreviewImage(dataUrl);
-      } finally {
-        document.body.removeChild(tempContainer);
+      document.body.classList.add('capturing-screenshot');
+      if (document.fonts) {
+        await document.fonts.ready;
       }
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      // Save original styles for element and all ancestors up to body
+      const savedStyles: { el: HTMLElement; cssText: string }[] = [];
+      
+      // Save and expand element itself
+      savedStyles.push({ el: element, cssText: element.style.cssText });
+      element.style.maxWidth = 'none';
+      element.style.width = 'max-content';
+      element.style.minWidth = 'max-content';
+      element.style.height = 'auto';
+      element.style.minHeight = '0px';
+      element.style.maxHeight = 'none';
+      element.style.overflow = 'visible';
+      element.style.boxShadow = 'none';
+      element.style.filter = 'none';
+      element.style.alignSelf = 'flex-start';
+      element.style.flex = '0 0 auto';
+
+      // Expand all ancestors so they don't clip the widened table
+      let parent = element.parentElement;
+      while (parent && parent !== document.body) {
+        savedStyles.push({ el: parent, cssText: parent.style.cssText });
+        parent.style.maxWidth = 'none';
+        parent.style.overflow = 'visible';
+        parent.style.width = 'auto';
+        parent.style.alignItems = 'flex-start';
+        parent = parent.parentElement;
+      }
+
+      // Expand all scroll containers and reset flex grow inside element
+      const scrollEls = element.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow-"], .grow, [class*="grow"]');
+      scrollEls.forEach(el => {
+        const htmlEl = el as HTMLElement;
+        savedStyles.push({ el: htmlEl, cssText: htmlEl.style.cssText });
+        htmlEl.style.overflow = 'visible';
+        htmlEl.style.overflowX = 'visible';
+        htmlEl.style.overflowY = 'visible';
+        htmlEl.style.maxWidth = 'none';
+        htmlEl.style.width = 'max-content';
+        htmlEl.style.minWidth = '100%';
+        htmlEl.style.height = 'auto';
+        htmlEl.style.minHeight = '0px';
+        htmlEl.style.maxHeight = 'none';
+        htmlEl.style.flexGrow = '0';
+      });
+
+      // Force all tables inside element to full natural width
+      const allTables = element.querySelectorAll('table');
+      allTables.forEach(t => {
+        const htmlT = t as HTMLElement;
+        savedStyles.push({ el: htmlT, cssText: htmlT.style.cssText });
+        htmlT.style.width = 'max-content';
+        htmlT.style.minWidth = '100%';
+        htmlT.style.maxWidth = 'none';
+        htmlT.style.tableLayout = 'auto';
+        htmlT.style.borderCollapse = 'collapse';
+      });
+
+      // Force all table cells to not truncate / clip
+      const allCells = element.querySelectorAll('th, td');
+      allCells.forEach(c => {
+        const htmlC = c as HTMLElement;
+        savedStyles.push({ el: htmlC, cssText: htmlC.style.cssText });
+        htmlC.style.whiteSpace = 'nowrap';
+        htmlC.style.maxWidth = 'none';
+        htmlC.style.overflow = 'visible';
+      });
+
+      // Strip shadows and filters from all children temporarily
+      const allChildren = element.querySelectorAll('*');
+      const savedShadows: { el: HTMLElement; bs: string; f: string; ts: string }[] = [];
+      allChildren.forEach(el => {
+        const htmlEl = el as HTMLElement;
+        const cs = getComputedStyle(htmlEl);
+        if (cs.boxShadow !== 'none' || cs.filter !== 'none' || cs.textShadow !== 'none') {
+          savedShadows.push({ el: htmlEl, bs: htmlEl.style.boxShadow, f: htmlEl.style.filter, ts: htmlEl.style.textShadow });
+          htmlEl.style.boxShadow = 'none';
+          htmlEl.style.filter = 'none';
+          htmlEl.style.textShadow = 'none';
+        }
+      });
+
+      // Remove Tailwind max-w-* classes temporarily
+      const removedClasses: { el: HTMLElement; classes: string[] }[] = [];
+      [element, ...Array.from(element.querySelectorAll('*'))].forEach(node => {
+        const htmlEl = node as HTMLElement;
+        if (htmlEl.classList) {
+          const toRemove: string[] = [];
+          htmlEl.classList.forEach(c => { if (c.startsWith('max-w-')) toRemove.push(c); });
+          if (toRemove.length > 0) {
+            removedClasses.push({ el: htmlEl, classes: toRemove });
+            toRemove.forEach(c => htmlEl.classList.remove(c));
+          }
+        }
+      });
+
+      // Let browser reflow to compute full natural dimensions
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Measure FULL content dimensions after expansion
+      const fullWidth = Math.ceil(Math.max(element.scrollWidth, element.offsetWidth, element.getBoundingClientRect().width));
+      const fullHeight = Math.ceil(Math.max(element.scrollHeight, element.offsetHeight, element.getBoundingClientRect().height));
+      
+      // Set explicit pixel dimensions on target element
+      element.style.width = `${fullWidth}px`;
+      element.style.minWidth = `${fullWidth}px`;
+      element.style.height = `${fullHeight}px`;
+      element.style.minHeight = `${fullHeight}px`;
+
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      const dataUrl = await domToPng(element, {
+        scale: 2.5,
+        backgroundColor: '#ffffff',
+        width: fullWidth,
+        height: fullHeight,
+        features: { removeControlCharacter: true }
+      });
+
+      // Restore all styles in reverse order
+      savedStyles.forEach(({ el, cssText }) => { el.style.cssText = cssText; });
+      savedShadows.forEach(({ el, bs, f, ts }) => {
+        el.style.boxShadow = bs;
+        el.style.filter = f;
+        el.style.textShadow = ts;
+      });
+      removedClasses.forEach(({ el, classes }) => {
+        classes.forEach(c => el.classList.add(c));
+      });
+
+      document.body.classList.remove('capturing-screenshot');
+      setPreviewImage(dataUrl);
     } catch (error) {
-      console.error(`Lỗi khi chụp ảnh ${filename}:`, error);
+      console.error('Lỗi khi chụp ảnh direct:', error);
+      document.body.classList.remove('capturing-screenshot');
     } finally {
       setIsCapturing(false);
     }
+  };
+
+  const captureElement = async (ref: React.RefObject<HTMLDivElement | null>, _filename: string) => {
+    return captureDirectHelper(ref);
+  };
+
+  const captureElementDirect = async (ref: React.RefObject<HTMLDivElement | null>) => {
+    return captureDirectHelper(ref);
   };
 
   const captureOverview = async () => {
@@ -4832,6 +4951,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       <style dangerouslySetInnerHTML={{__html: `
         .capturing-screenshot .no-capture { display: none !important; }
         .capturing-screenshot .capturing-screenshot-inline { display: inline !important; }
+        .capturing-screenshot .capture-only-title { display: block !important; }
         
         /* Force CSS Grid columns to render identically to on-screen column layout during screenshot capture */
         .capturing-screenshot .force-grid-cols-6 {
@@ -5543,9 +5663,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                         </div>
 
                         <div ref={categoriesRef} className="w-full">
-                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5">
+                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 items-start">
                             {/* Left Table: SLLK */}
-                            <div ref={categorySLRef} className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden min-w-0 flex flex-col p-2 sm:p-2.5 shadow-sm">
+                            <div ref={categorySLRef} className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden min-w-0 flex flex-col p-2 sm:p-2.5 shadow-sm self-start h-auto">
                               {/* Unified Emerald Gradient Header Banner */}
                               <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 rounded-2xl text-white relative shrink-0 mb-2.5">
                                 <div className="flex flex-col items-center justify-center text-center">
@@ -5584,7 +5704,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 </div>
                               )}
 
-                              <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
+                              <div className="overflow-x-auto w-full rounded-2xl border border-emerald-300/80">
                                 <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, minWidth: '600px' }}>
                                   <colgroup>
                                     <col style={{ width: '40px' }} />
@@ -5647,7 +5767,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             </div>
 
                             {/* Right Table: DTLK */}
-                            <div ref={categoryDTRef} className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden min-w-0 flex flex-col p-2 sm:p-2.5 shadow-sm">
+                            <div ref={categoryDTRef} className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden min-w-0 flex flex-col p-2 sm:p-2.5 shadow-sm self-start h-auto">
                               {/* Unified Emerald Gradient Header Banner */}
                               <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 rounded-2xl text-white relative shrink-0 mb-2.5">
                                 <div className="flex flex-col items-center justify-center text-center">
@@ -5686,7 +5806,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 </div>
                               )}
 
-                              <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
+                              <div className="overflow-x-auto w-full rounded-2xl border border-emerald-300/80">
                                 <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, minWidth: '600px' }}>
                                   <colgroup>
                                     <col style={{ width: '40px' }} />
@@ -5978,8 +6098,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                     processedData={processedData}
                     filteredCategories={filteredCategories}
                     lastUpdated={lastUpdated}
-                    captureElement={captureMucTieuNgayElement}
+                    captureElement={captureElement}
+                    captureElementDirect={captureElementDirect}
                     userProfile={userProfile}
+                    luykeProcessedData={luykeProcessedData}
                   />
                 </motion.div>
               )}

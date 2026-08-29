@@ -24,6 +24,7 @@ import {
   Store,
   Banknote,
   Sparkles,
+  Target,
 } from 'lucide-react';
 import { useStore } from '../../../contexts/StoreContext';
 
@@ -89,6 +90,7 @@ const SECTION_MAP: { title: string; ids: string[] }[] = [
 /* ── Submenu definitions ── */
 const REALTIME_SUBS = [
   { id: 'summary' as const, label: 'Tổng quan', icon: LayoutGrid },
+  { id: 'muc_tieu_ngay' as const, label: 'Mục tiêu ngày', icon: Target },
   { id: 'khai_thac' as const, label: 'Data YCX', icon: Activity },
 ];
 const REALTIME_SUBS_ADMIN = [

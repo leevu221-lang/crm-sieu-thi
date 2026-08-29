@@ -13,13 +13,18 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-async function checkUser() {
-  const snap = await getDoc(doc(db, 'ql_nguoi_dung', '39939'));
+async function checkPlanner() {
+  const snap = await getDoc(doc(db, 'system_configs', 'roadshow_planner_1841'));
   if (snap.exists()) {
-    console.log('User 38847 data:', snap.data());
+    const data = snap.data();
+    console.log('Master Staff Length:', data.masterStaff?.length);
+    const shifts = data.shifts || {};
+    const dateShifts = shifts['2026-08-10'] || {};
+    console.log('Shifts for 2026-08-10:');
+    console.log(JSON.stringify(dateShifts, null, 2));
   } else {
-    console.log('User 38847 not found!');
+    console.log('Document not found!');
   }
 }
 
-checkUser().then(() => process.exit(0));
+checkPlanner().then(() => process.exit(0));

@@ -35,8 +35,8 @@ interface StoreContextType {
   setMarketFilter: (filter: string) => void;
   availableMarkets: StoreInfo[];
   setAvailableMarkets: (markets: StoreInfo[]) => void;
-  activeRealtimeTab: 'summary' | 'khai_thac' | 'khai_thac_moi';
-  setActiveRealtimeTab: (tab: 'summary' | 'khai_thac' | 'khai_thac_moi') => void;
+  activeRealtimeTab: 'summary' | 'khai_thac' | 'khai_thac_moi' | 'muc_tieu_ngay';
+  setActiveRealtimeTab: (tab: 'summary' | 'khai_thac' | 'khai_thac_moi' | 'muc_tieu_ngay') => void;
   activeToolHoTroTab: string;
   setActiveToolHoTroTab: (tab: string) => void;
   activeTienIchTab: string;
@@ -102,7 +102,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [isStoreReady, setStoreReady] = useState(true);
   const [availableStores, setAvailableStoresRaw] = useState<StoreInfo[]>([]);
   const [storeVersion, setStoreVersion] = useState(0);
-  const [activeRealtimeTab, setActiveRealtimeTab] = useState<'summary' | 'khai_thac' | 'khai_thac_moi'>('summary');
+  const [activeRealtimeTab, setActiveRealtimeTab] = useState<'summary' | 'khai_thac' | 'khai_thac_moi' | 'muc_tieu_ngay'>('summary');
   const [activeToolHoTroTab, setActiveToolHoTroTab] = useState<string>('all-sticker');
   const [activeTienIchTab, setActiveTienIchTab] = useState<string>('phan-ca-thang');
   const [activeLuyKeTab, setActiveLuyKeTab] = useState<'summary' | 'cum' | 'efficiency' | 'thuong_st' | 'bcdtnh' | 'ssg_boss'>('summary');

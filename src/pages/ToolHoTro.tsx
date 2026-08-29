@@ -1331,14 +1331,17 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
             return;
           }
           const normalizedId = normalizeStoreId(storeName);
+          const cleanStoreCode = maKho.replace(/^0+/, '');
           
-          // STRICT UPDATE to avoid creating new documents
+          // Upsert to create if not exists, update if exists
           const { error: updateErr } = await supabase
             .from('store')
-            .update({ 
+            .upsert({ 
+              id: normalizedId,
+              ten_sieu_thi: storeName,
+              warehouse_code: cleanStoreCode,
               sticker_ce_inventory_data: JSON.stringify(data)
-            })
-            .eq('id', normalizedId);
+            }, { onConflict: 'id' });
             
           if (updateErr) {
             console.error('Lỗi khi lưu tồn kho lên Firebase:', updateErr);
@@ -1791,24 +1794,32 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   useEffect(() => {
     if (!isScannerOpen || !scannerSessionId) return;
 
+    const handleRealtimePayload = (payload: any) => {
+      if (payload.new && payload.new.scanned_codes) {
+        try {
+          const codes = JSON.parse(payload.new.scanned_codes);
+          if (Array.isArray(codes)) {
+            setScannedCodes(codes);
+          }
+        } catch (err) {
+          console.error('Lỗi khi parse mã quét từ DB:', err);
+        }
+      }
+    };
+
     const channel = supabase.channel(`public:scanner_sessions:${scannerSessionId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'scanner_sessions',
+        filter: `id=eq.${scannerSessionId}`
+      }, handleRealtimePayload)
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
         table: 'scanner_sessions',
         filter: `id=eq.${scannerSessionId}`
-      }, (payload: any) => {
-        if (payload.new && payload.new.scanned_codes) {
-          try {
-            const codes = JSON.parse(payload.new.scanned_codes);
-            if (Array.isArray(codes)) {
-              setScannedCodes(codes);
-            }
-          } catch (err) {
-            console.error('Lỗi khi parse mã quét từ DB:', err);
-          }
-        }
-      })
+      }, handleRealtimePayload)
       .subscribe();
 
     return () => {
@@ -3214,9 +3225,9 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 )}
 
                 {activeTab === 'sticker-event-dmx' && (
-                  <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-4 md:p-5 flex flex-col gap-4 md:gap-6">
                     {/* Left side: Thông tin người in */}
-                    <div className="flex-1 min-w-[200px]">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider">Thông tin người in <span className="text-red-500">*</span></h3>
                         <button 
@@ -3230,7 +3241,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                     </div>
 
                     {/* Right side: Buttons */}
-                    <div className="flex flex-row items-center gap-4 shrink-0">
+                    <div className="flex flex-row items-center gap-3 md:gap-4 shrink-0 overflow-x-auto pb-1 -mb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
                       <input 
                         type="file" 
                         accept=".xlsx, .xls" 
@@ -3975,8 +3986,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                         )}
                       </div>
                     </div>
-                    <div className="overflow-auto flex-1 p-0">
-                      <table className="w-full text-left border-collapse border border-slate-200">
+                    <div className="overflow-auto flex-1 p-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+                      <table className="w-full text-left border-collapse border border-slate-200 min-w-[900px]">
                         <thead className="sticky top-0 z-10">
                           <tr className="bg-slate-100 shadow-sm">
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 w-10 text-center">
@@ -4712,12 +4723,16 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
             <div className="p-4 md:p-6 overflow-hidden flex-1 flex flex-col items-center gap-3 md:gap-4 bg-white min-h-[300px]">
               {scannerMode === 'local' ? (
                 <div className="w-full flex-1 flex flex-col items-center gap-3 min-h-0 overflow-hidden">
-                  <div className="w-full max-w-[240px] md:max-w-[280px] aspect-square bg-slate-950 rounded-2xl overflow-hidden relative border border-slate-800 shadow-inner flex items-center justify-center shrink-0">
+                  <div className="w-full max-w-[85vw] md:max-w-[320px] aspect-square bg-slate-950 rounded-2xl overflow-hidden relative border border-slate-800 shadow-inner flex items-center justify-center shrink-0">
                     <div id="modal-reader" className="w-full h-full object-cover" />
                     {isScanning && (
                       <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-                        <div className="w-28 h-28 border-2 border-emerald-500 rounded-2xl relative flex items-center justify-center">
+                        <div className="w-[55%] aspect-square max-w-[200px] border-2 border-emerald-500 rounded-2xl relative flex items-center justify-center">
                           <div className="absolute left-1 right-1 h-0.5 bg-emerald-400 shadow-[0_0_8px_#34d399] top-1/2 -translate-y-1/2 animate-pulse" />
+                          <div className="absolute top-1.5 left-1.5 w-4 h-4 border-t-2 border-l-2 border-emerald-400 rounded-tl-lg" />
+                          <div className="absolute top-1.5 right-1.5 w-4 h-4 border-t-2 border-r-2 border-emerald-400 rounded-tr-lg" />
+                          <div className="absolute bottom-1.5 left-1.5 w-4 h-4 border-b-2 border-l-2 border-emerald-400 rounded-bl-lg" />
+                          <div className="absolute bottom-1.5 right-1.5 w-4 h-4 border-b-2 border-r-2 border-emerald-400 rounded-br-lg" />
                         </div>
                       </div>
                     )}

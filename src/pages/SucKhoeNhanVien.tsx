@@ -528,9 +528,27 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       maxScrollWidth = element.scrollWidth;
     }
 
-    // Auto-fit content width: Desktop base 980px, or expand to exact sum of column widths / scrollWidth
-    const actualContentWidth = Math.max(980, sumColWidths, maxScrollWidth);
-    const framePadding = 20;
+    // Detect compact ranking/report tabs
+    const isDoanhThuNvTab = Boolean(element.querySelector('.max-w-\\[880px\\]')) || 
+                            element.classList.contains('max-w-[880px]') ||
+                            Boolean(element.querySelector('h2')?.textContent?.includes('BẢNG XẾP HẠNG DOANH THU'));
+
+    const isPhucVuTab = Boolean(element.querySelector('h2')?.textContent?.includes('PHỤC VỤ NHÂN VIÊN'));
+    const isBanKemTab = Boolean(element.querySelector('h2')?.textContent?.includes('BÁN KÈM NHÂN VIÊN'));
+    const isTraChamTab = Boolean(element.querySelector('h2')?.textContent?.includes('TRẢ CHẬM NHÂN VIÊN'));
+
+    const isCompactTab = isDoanhThuNvTab || isPhucVuTab || isBanKemTab || isTraChamTab;
+
+    let compactWidth = 880;
+    if (isDoanhThuNvTab) compactWidth = 880;
+    else if (isPhucVuTab) compactWidth = Math.max(860, sumColWidths > 0 ? sumColWidths + 20 : 860);
+    else if (isBanKemTab) compactWidth = Math.max(840, sumColWidths > 0 ? sumColWidths + 20 : 840);
+    else if (isTraChamTab) compactWidth = Math.max(800, sumColWidths > 0 ? sumColWidths + 20 : 800);
+
+    // Auto-fit content width: For compact tabs, lock to their designated width matching web layout.
+    // For other tabs, Desktop base 980px or expand to exact sum of column widths / scrollWidth.
+    const actualContentWidth = isCompactTab ? compactWidth : Math.max(980, sumColWidths, maxScrollWidth);
+    const framePadding = isCompactTab ? 16 : 20;
     const totalExportWidth = actualContentWidth + framePadding * 2;
     
     // Create a temporary container to hold the clone
@@ -583,19 +601,34 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       }
     });
 
-    // Remove max-width constraint inside clone to fill clone width seamlessly
-    const innerCards = clone.querySelectorAll('.max-w-\\[880px\\], .max-w-\\[800px\\], .max-w-\\[960px\\]');
-    innerCards.forEach(c => {
-      (c as HTMLElement).style.maxWidth = '100%';
-      (c as HTMLElement).style.width = '100%';
-    });
+    if (!isCompactTab) {
+      // Remove max-width constraint inside clone to fill clone width seamlessly for other wide tabs
+      const innerCards = clone.querySelectorAll('.max-w-\\[880px\\], .max-w-\\[800px\\], .max-w-\\[960px\\], .max-w-\\[1260px\\]');
+      innerCards.forEach(c => {
+        (c as HTMLElement).style.maxWidth = '100%';
+        (c as HTMLElement).style.width = '100%';
+      });
+    } else {
+      // For compact tabs (DOANH THU NV, PHỤC VỤ, BÁN KÈM NV, TRẢ CHẬM NV):
+      // Lock container card width to compactWidth centered matching web
+      clone.style.width = `${actualContentWidth}px`;
+      clone.style.maxWidth = `${actualContentWidth}px`;
+      clone.style.margin = '0 auto';
+
+      const innerCards = clone.querySelectorAll('.max-w-\\[880px\\], .max-w-\\[800px\\], .max-w-\\[960px\\], .max-w-\\[1260px\\], .w-full');
+      innerCards.forEach(c => {
+        (c as HTMLElement).style.maxWidth = `${actualContentWidth}px`;
+        (c as HTMLElement).style.width = `${actualContentWidth}px`;
+        (c as HTMLElement).style.margin = '0 auto';
+      });
+    }
 
     // Set clone styling to take full layout unconstrained with UTM Avo Black font
     clone.style.width = `${actualContentWidth}px`;
     clone.style.minWidth = `${actualContentWidth}px`;
     clone.style.maxWidth = `${actualContentWidth}px`;
     clone.style.height = 'auto';
-    clone.style.margin = '0';
+    clone.style.margin = '0 auto';
     clone.style.padding = '0';
     clone.style.backgroundColor = '#ffffff';
     clone.style.display = 'block';
@@ -617,15 +650,32 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
     });
 
-    // Force all tables to stretch 100% cleanly inside their parent card with fixed layout
+    // Force all tables to stretch cleanly inside their parent card
     const tables = clone.querySelectorAll('table');
     tables.forEach(table => {
       const htmlTable = table as HTMLElement;
-      htmlTable.style.width = '100%';
-      htmlTable.style.minWidth = '100%';
-      htmlTable.style.maxWidth = 'none';
-      htmlTable.style.tableLayout = 'fixed';
       htmlTable.style.boxSizing = 'border-box';
+      htmlTable.style.tableLayout = 'fixed';
+      
+      if (isCompactTab) {
+        htmlTable.style.width = '100%';
+        htmlTable.style.maxWidth = '100%';
+        
+        if (isDoanhThuNvTab) {
+          htmlTable.style.minWidth = '820px';
+          const cols = htmlTable.querySelectorAll('colgroup col');
+          const defaultColWidths = ['50px', '310px', '100px', '100px', '105px', '115px', '60px'];
+          cols.forEach((col, idx) => {
+            if (defaultColWidths[idx]) {
+              (col as HTMLElement).style.width = defaultColWidths[idx];
+            }
+          });
+        }
+      } else {
+        htmlTable.style.width = '100%';
+        htmlTable.style.minWidth = '100%';
+        htmlTable.style.maxWidth = 'none';
+      }
     });
 
     // Remove sticky positioning (causes rendering issues in capture)
@@ -4524,22 +4574,26 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                             <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
                               <colgroup>
                                 <col style={{ width: '50px' }} />
-                                <col style={{ width: '250px' }} />
-                                {visibleIndices.slice(startIndex5Sao >= 0 ? startIndex5Sao : 2).map((_, i) => (
-                                  <col key={i} style={{ width: '80px' }} />
-                                ))}
-                                <col style={{ width: '60px' }} />
+                                <col style={{ width: '240px' }} />
+                                {visibleIndices.slice(startIndex5Sao >= 0 ? startIndex5Sao : 2).map((idx, i) => {
+                                  const h = (allHeaders[idx] || '').trim().toUpperCase();
+                                  const isScore = h.includes('ĐIỂM') || h.includes('DIEM') || h.includes('HÀI LÒNG') || h.includes('HAI LONG');
+                                  return (
+                                    <col key={i} style={{ width: isScore ? '105px' : '70px' }} />
+                                  );
+                                })}
+                                <col style={{ width: '55px' }} />
                               </colgroup>
                               <thead>
-                                <tr className="h-[40px]">
-                                  <th className="bg-[#047857] text-white px-2 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
-                                  <th className="bg-[#047857] text-white px-3 py-0 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
+                                <tr className="min-h-[44px] h-auto">
+                                  <th className="bg-[#047857] text-white px-1 py-1.5 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
+                                  <th className="bg-[#047857] text-white px-2.5 py-1.5 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
                                   {visibleIndices.slice(startIndex5Sao >= 0 ? startIndex5Sao : 2).map((idx, i) => (
-                                    <th key={idx} className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                    <th key={idx} className="bg-[#047857] text-white px-1 py-1.5 text-center text-[10.5px] sm:text-[11.5px] font-black uppercase tracking-tight border-r border-emerald-600/50 break-words whitespace-normal leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                       {allHeaders[idx]}
                                     </th>
                                   ))}
-                                  <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>XH</th>
+                                  <th className="bg-[#047857] text-white px-1 py-1.5 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>XH</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -6300,6 +6354,52 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/20 active:scale-95 disabled:opacity-50 cursor-pointer"
                         >
                           <Camera size={15} /> CHỤP ẢNH BẢNG
+                        </button>
+
+                        {/* Export Excel button */}
+                        <button
+                          onClick={() => {
+                            try {
+                              const tableEl = captureRank3TRef.current?.querySelector('table');
+                              if (!tableEl) {
+                                alert('Không tìm thấy bảng xếp hạng để xuất!');
+                                return;
+                              }
+                              const wb = XLSX.utils.table_to_book(tableEl, { 
+                                sheet: 'Xếp Hạng NV 3T',
+                                raw: false 
+                              });
+                              const ws = wb.Sheets['Xếp Hạng NV 3T'];
+                              
+                              // Auto-fit column widths based on content
+                              if (ws['!ref']) {
+                                const range = XLSX.utils.decode_range(ws['!ref']);
+                                const colWidths: { wch: number }[] = [];
+                                for (let C = range.s.c; C <= range.e.c; C++) {
+                                  let maxLen = 8;
+                                  for (let R = range.s.r; R <= range.e.r; R++) {
+                                    const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+                                    if (cell && cell.v != null) {
+                                      const len = String(cell.v).length;
+                                      if (len > maxLen) maxLen = Math.min(len, 35);
+                                    }
+                                  }
+                                  colWidths.push({ wch: maxLen + 2 });
+                                }
+                                ws['!cols'] = colWidths;
+                              }
+                              
+                              const storeName = marketFilter === 'ALL' ? 'TongHop' : marketFilter.replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1E00-\u1EFF]/g, '_').substring(0, 30);
+                              XLSX.writeFile(wb, `XepHang_NV_3T_${storeName}.xlsx`);
+                            } catch (err) {
+                              console.error('Lỗi xuất Excel:', err);
+                              alert('Lỗi khi xuất file Excel!');
+                            }
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#047857] to-[#059669] hover:from-[#036348] hover:to-[#047857] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer"
+                          title="Xuất bảng xếp hạng ra file Excel giữ nguyên định dạng"
+                        >
+                          <FileText size={15} /> XUẤT EXCEL
                         </button>
                       </div>
                     </div>

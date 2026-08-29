@@ -70,6 +70,44 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
     });
   };
 
+  const [sortMode, setSortMode] = useState<'HT_DESC' | 'HT_ASC' | 'CONLAI_DESC' | 'CONLAI_ASC'>('HT_DESC');
+
+  const sortCatList = (list: CategoryData[]) => {
+    return [...list].sort((a, b) => {
+      let rateA = 0;
+      let rateB = 0;
+      if (mode === 'luyke') {
+        if (a.target > 0 && daysPassed > 0) rateA = (((a.revenue / daysPassed) * totalDays) / a.target) * 100;
+        if (b.target > 0 && daysPassed > 0) rateB = (((b.revenue / daysPassed) * totalDays) / b.target) * 100;
+      } else {
+        if (a.target > 0) rateA = (a.revenue / a.target) * 100;
+        if (b.target > 0) rateB = (b.revenue / b.target) * 100;
+      }
+
+      const remA = a.target - a.revenue;
+      const remB = b.target - b.revenue;
+
+      if (sortMode === 'CONLAI_DESC') {
+        if (remA > 0 && remB > 0) return remB - remA;
+        if (remA > 0 && remB <= 0) return -1;
+        if (remA <= 0 && remB > 0) return 1;
+        return remB - remA;
+      }
+
+      if (sortMode === 'CONLAI_ASC') {
+        if (remA <= 0 && remB > 0) return -1;
+        if (remA > 0 && remB <= 0) return 1;
+        return remA - remB;
+      }
+
+      if (sortMode === 'HT_ASC') {
+        return rateA - rateB;
+      }
+
+      return rateB - rateA;
+    });
+  };
+
   const groups = ['ALL', 'SLLK', 'DTLK'];
   
   const filteredCats = categories
@@ -83,20 +121,6 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
       }
       
       return matchesMarket && matchesType;
-    })
-    .sort((a, b) => {
-      let rateA = 0;
-      let rateB = 0;
-      
-      if (mode === 'luyke') {
-        if (a.target > 0 && daysPassed > 0) rateA = (((a.revenue / daysPassed) * totalDays) / a.target) * 100;
-        if (b.target > 0 && daysPassed > 0) rateB = (((b.revenue / daysPassed) * totalDays) / b.target) * 100;
-      } else {
-        if (a.target > 0) rateA = (a.revenue / a.target) * 100;
-        if (b.target > 0) rateB = (b.revenue / b.target) * 100;
-      }
-      
-      return rateB - rateA;
     });
 
   // Separate SL and DT categories
@@ -104,29 +128,8 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
   const dtCats = filteredCats.filter(c => c.type === 'DT');
   const showSplit = catGroupFilter === 'ALL' && (slCats.length > 0 || dtCats.length > 0);
 
-  const sortedSlCats = slCats.sort((a, b) => {
-    let rA = 0, rB = 0;
-    if (mode === 'luyke') {
-      if (a.target > 0 && daysPassed > 0) rA = (((a.revenue / daysPassed) * totalDays) / a.target) * 100;
-      if (b.target > 0 && daysPassed > 0) rB = (((b.revenue / daysPassed) * totalDays) / b.target) * 100;
-    } else {
-      if (a.target > 0) rA = (a.revenue / a.target) * 100;
-      if (b.target > 0) rB = (b.revenue / b.target) * 100;
-    }
-    return rB - rA;
-  });
-
-  const sortedDtCats = dtCats.sort((a, b) => {
-    let rA = 0, rB = 0;
-    if (mode === 'luyke') {
-      if (a.target > 0 && daysPassed > 0) rA = (((a.revenue / daysPassed) * totalDays) / a.target) * 100;
-      if (b.target > 0 && daysPassed > 0) rB = (((b.revenue / daysPassed) * totalDays) / b.target) * 100;
-    } else {
-      if (a.target > 0) rA = (a.revenue / a.target) * 100;
-      if (b.target > 0) rB = (b.revenue / b.target) * 100;
-    }
-    return rB - rA;
-  });
+  const sortedSlCats = sortCatList(slCats);
+  const sortedDtCats = sortCatList(dtCats);
 
   const renderTable = (cats: CategoryData[], typeLabel: string) => {
     const achievedCount = cats.filter(c => {
@@ -164,15 +167,31 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
                   <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981]">NGÀNH HÀNG</th>
                   <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#10b981] w-[60px]">TARGET</th>
                   <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">LUỸ KẾ</th>
-                  <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#facc15] w-[60px]">%HT</th>
-                  <th className="px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 bg-[#f97316] w-[60px]">C.LẠI</th>
+                  <th 
+                    onClick={() => setSortMode(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
+                    className={`px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 cursor-pointer select-none ${
+                      sortMode.startsWith('HT') ? 'bg-[#eab308]' : 'bg-[#facc15]'
+                    } w-[60px]`}
+                    title="Bấm để sắp xếp %HT"
+                  >
+                    %HT {sortMode === 'HT_DESC' ? '▼' : (sortMode === 'HT_ASC' ? '▲' : '')}
+                  </th>
+                  <th 
+                    onClick={() => setSortMode(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
+                    className={`px-2 py-0 text-[13px] font-black uppercase text-center border-r border-b border-slate-300 cursor-pointer select-none ${
+                      sortMode.startsWith('CONLAI') ? 'bg-[#ea580c] text-white' : 'bg-[#f97316]'
+                    } w-[60px]`}
+                    title="Bấm để sắp xếp theo C.LẠI (Còn lại)"
+                  >
+                    C.LẠI {sortMode === 'CONLAI_DESC' ? '▼' : (sortMode === 'CONLAI_ASC' ? '▲' : '')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {cats.length === 0 ? (
                   <tr><td colSpan={6} className="py-8 text-center text-slate-400 text-sm border-r border-b border-slate-300">Chưa có dữ liệu</td></tr>
                 ) : (
-                  cats.map((cat, idx) => {
+                  sortCatList(cats).map((cat, idx) => {
                     let rate = 0;
                     if (cat.target > 0) {
                       if (mode === 'luyke' && daysPassed > 0 && totalDays > 0) {
