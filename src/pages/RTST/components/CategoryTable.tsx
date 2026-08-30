@@ -1,7 +1,6 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
- * CategoryTable v2.1 - Red name for < 100% HT
  */
 
 import React, { useState } from 'react';
@@ -205,7 +204,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
                     return (
                       <tr key={idx} className="group hover:bg-slate-50 transition-colors h-[40px]">
                         <td className="sticky-col sticky-col-1 px-2 py-0 text-[13px] font-extrabold text-slate-700 text-center border-r border-b border-slate-300 bg-[#fef08a]">{idx + 1}</td>
-                        <td className={`sticky-col sticky-col-2 bg-white group-hover:bg-slate-50 px-2 py-0 text-[13px] font-extrabold uppercase border-r border-b border-slate-300 ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-black'}`}><span className="sticky-col-cell-text">{cat.name}</span></td>
+                        <td className="sticky-col sticky-col-2 bg-white group-hover:bg-slate-50 px-2 py-0 text-[13px] font-extrabold uppercase border-r border-b border-slate-300 text-black"><span className="sticky-col-cell-text">{cat.name}</span></td>
                         <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
                         <td className="px-2 py-0 text-[13px] font-extrabold text-center border-r border-b border-slate-300 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
                         <td className="px-1 py-0 text-center border-r border-b border-slate-300">

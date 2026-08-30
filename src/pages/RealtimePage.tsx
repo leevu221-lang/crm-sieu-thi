@@ -1217,7 +1217,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   const { marketFilter, setMarketFilter, availableMarkets: filteredMarkets } = useMarket();
   const { isStoreReady, activeRealtimeTab: activeTab, setActiveRealtimeTab: setActiveTab } = useStore();
   const [selectedStaffs, setSelectedStaffs] = useState<string[]>([]);
-  const [selectedMaKho, setSelectedMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
+  const [selectedMaKho, setSelectedMaKho] = useState(userProfile?.ma_kho || '');
   
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [customNhomSmallMap, setCustomNhomSmallMap] = useState<Record<string, { nganhHang?: string, large: string, small: string }>>({});
@@ -1627,8 +1627,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
   const {
     drillFilterStaff, setDrillFilterStaff,
-    categoryMappingInput, setCategoryMappingInput,
-    allStoreTargets, stTargetSauHeSo, stTargetQuyDoi, stPercentTarget
+    categoryMappingInput, setCategoryMappingInput
   } = useRTSTSharedData(selectedMaKho);
 
   const customCategoryMap = useMemo(() => {
@@ -4754,21 +4753,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const dateStr = now.toLocaleDateString('vi-VN');
     const nowHeader = `${timeStr} NGÀY ${dateStr}`;
-    // Use raw targetQD from BC THÁNG (lũy kế) directly - matching OverviewDashboard
-    const activeLkMarket = activeDeclared ? luykeProcessedData?.markets?.find(lm =>
-      normalize(lm.name).includes(normalize(activeDeclared.name)) ||
-      normalize(activeDeclared.name).includes(normalize(lm.name))
-    ) : null;
-    const monthTargetQD = activeLkMarket?.targetQD || parsedMarket.targetQD || 0;
-    const totalDaysInMonth = mucTieu100Info.totalDaysInMonth || new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const dailyTargetQD = totalDaysInMonth > 0 ? Math.round(monthTargetQD / totalDaysInMonth) : monthTargetQD;
-    const dailyPercentHT = dailyTargetQD > 0 
-      ? Math.round(((parsedMarket.actualVirtual || 0) / dailyTargetQD) * 100) 
-      : Math.round(parsedMarket.percentHT || 0);
 
-    const targetQD = formatCurrencyUnit(dailyTargetQD);
+    const targetQD = formatCurrencyUnit(parsedMarket.targetQD || 0);
     const actualVirtual = formatCurrencyUnit(parsedMarket.actualVirtual || 0);
-    const percentHT = dailyPercentHT;
+    const percentHT = Math.round(parsedMarket.percentHT || 0);
     const installmentRate = (parsedMarket.installmentRate || 0).toFixed(1);
     const luotBill = Math.round(parsedMarket.luotBillThuHo || 0);
 
@@ -4797,7 +4785,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const staffAbove50 = activeStaffs.filter(s => (s.percentHT || 0) >= 50).length;
 
     // MẪU 1: TOP/BOT NV (TOÀN DIỆN DOANH THU & NGÀNH HÀNG)
-    let t1 = `📊 TỔNG HỢP DOANH THU & NGÀNH HÀNG SIÊU THỊ - ${nowHeader}\n`;
+    let t1 = `📊 TỔNG HỢP THI ĐUA SIÊU THỊ - ${nowHeader}\n`;
     t1 += `🏪 Siêu thị: ${marketName}\n`;
     t1 += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
     t1 += `📈 KẾT QUẢ TỔNG QUAN:\n`;
@@ -5528,18 +5516,6 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           luotBillThuHo: 0
                         };
 
-                        // Use raw targetQD from BC THÁNG (lũy kế) directly
-                        const lkMarket = luykeProcessedData?.markets?.find(lm =>
-                          normalize(lm.name).includes(normalize(declaredMarket.name)) ||
-                          normalize(declaredMarket.name).includes(normalize(lm.name))
-                        );
-                        const monthTargetQD = lkMarket?.targetQD || parsedMarket.targetQD || 0;
-                        const totalDaysInMonth = mucTieu100Info.totalDaysInMonth || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-                        const dailyTargetQD = totalDaysInMonth > 0 ? Math.round(monthTargetQD / totalDaysInMonth) : monthTargetQD;
-                        const dailyPercentHT = dailyTargetQD > 0 
-                          ? Math.round(((parsedMarket.actualVirtual || 0) / dailyTargetQD) * 100) 
-                          : Math.round(parsedMarket.percentHT || 0);
-
                         return (
                           <div key={mIdx} className="relative overflow-hidden bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-indigo-100/90 shadow-[0_4px_25px_-4px_rgba(79,70,229,0.08)] space-y-4">
                             {/* Ambient background glow */}
@@ -5586,7 +5562,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
                               <StatCard
                                 title="TAGET QĐ"
-                                value={formatCurrencyUnit(dailyTargetQD)}
+                                value={formatCurrencyUnit(parsedMarket.targetQD || 0)}
                                 subValue=""
                                 icon={Target}
                                 color="rose"
@@ -5602,7 +5578,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               />
                               <StatCard
                                 title="%HT"
-                                value={`${dailyPercentHT}%`}
+                                value={`${Math.round(parsedMarket.percentHT || 0)}%`}
                                 subValue=""
                                 icon={Activity}
                                 color="emerald"

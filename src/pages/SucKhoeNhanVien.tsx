@@ -1365,8 +1365,6 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   const marketPercentQD = currentMarket?.actualReal 
     ? (((currentMarket.actualVirtual || 0) - currentMarket.actualReal) / currentMarket.actualReal) * 100 
     : 0;
-  // Use raw targetQD from BC THÁNG parsed data; fallback to stTargetSauHeSo
-  const displayTargetQD = currentMarket?.targetQD || stTargetSauHeSo;
 
   // Sync stName and target fields when marketFilter or data changes (consistent with Lũy Kế page)
   useEffect(() => {
@@ -3541,7 +3539,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const dateStr = now.toLocaleDateString('vi-VN');
     const nowHeader = `${timeStr} NGÀY ${dateStr}`;
 
-    const targetQdPerStaff = filteredBiData.length > 0 ? displayTargetQD / filteredBiData.length : 0;
+    const targetQdPerStaff = filteredBiData.length > 0 ? stTargetSauHeSo / filteredBiData.length : 0;
 
     const staffStats = filteredBiData.map(staff => {
       const actualTargetQdPerStaff = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
@@ -3566,7 +3564,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const staffAbove50 = sortedStaffs.filter(s => s.percentHT >= 50).length;
 
     if (tmpl === 1) {
-      let t1 = `📊 TỔNG HỢP DOANH THU NHÂN VIÊN - ${nowHeader}\n`;
+      let t1 = `📊 TỔNG HỢP THI ĐUA SIÊU THỊ - ${nowHeader}\n`;
       t1 += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
       t1 += `📈 KẾT QUẢ TỔNG QUAN:\n`;
       t1 += `🎯 Tổng NV: ${sortedStaffs.length} || ĐẠT trên 50%: ${staffAbove50}/${sortedStaffs.length}\n\n`;
@@ -3590,7 +3588,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       t1 += `💪 Toàn đội cùng nhau bứt phá về đích ngoạn mục nhé! 🔥`;
       return t1;
     } else if (tmpl === 2) {
-      let t2 = `⚠️ DS CẦN TĂNG TỐC DOANH THU NHÂN VIÊN - ${nowHeader}\n`;
+      let t2 = `⚠️ DANH SÁCH NHÂN SỰ CẦN TĂNG TỐC DOANH THU - ${nowHeader}\n`;
       t2 += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
       t2 += `📊 Tiến độ siêu thị (TGSD: ${daysPassed}/${totalDays} ngày)\n\n`;
       t2 += `🚨 NHÂN VIÊN CẦN BỨT PHÁ (%HT < 100%):\n`;
@@ -3605,7 +3603,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       t2 += `\n🔥 Cố gắng tăng tốc tư vấn và bứt phá doanh số nhé!`;
       return t2;
     } else {
-      let t3 = `⚡ TÓM TẮT DOANH THU NHÂN VIÊN - ${nowHeader}\n`;
+      let t3 = `⚡ TÓM TẮT XẾP HẠNG DOANH THU NHÂN VIÊN\n`;
       t3 += `📅 TGSD: ${daysPassed}/${totalDays} ngày || 👥 Tổng NV: ${sortedStaffs.length}\n`;
       t3 += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
       t3 += `🎯 Tỉ lệ hoàn thành trên 50%: ${staffAbove50}/${sortedStaffs.length} NV\n`;
@@ -3621,7 +3619,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       t3 += `🚀 Quyết tâm hoàn thành 100% mục tiêu!`;
       return t3;
     }
-  }, [filteredBiData, displayTargetQD, daysPassed, totalDays]);
+  }, [filteredBiData, stTargetSauHeSo, daysPassed, totalDays]);
 
   const handleOpenDoanhThuNvComment = useCallback(() => {
     const initialText = generateDoanhThuNvComment(1);
@@ -3642,7 +3640,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   const handleCopyTags = () => {
     if (filteredBiData.length === 0) return;
 
-    const targetQdPerStaff = filteredBiData.length > 0 ? displayTargetQD / filteredBiData.length : 0;
+    const targetQdPerStaff = filteredBiData.length > 0 ? stTargetSauHeSo / filteredBiData.length : 0;
 
     const staffStats = filteredBiData.map(staff => {
       const actualTargetQdPerStaff = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
@@ -3868,7 +3866,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const parsedNhcRows = parsedNhcStaffRows;
 
     const list: StaffComparisonData[] = biRevenueData.map((staff, idx) => {
-      const targetQdPerStaff = filteredBiData.length > 0 ? displayTargetQD / filteredBiData.length : 0;
+      const targetQdPerStaff = filteredBiData.length > 0 ? stTargetSauHeSo / filteredBiData.length : 0;
       const actualTargetQd = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
       const staffActualVal = staff.actualVal || 0;
       const actualDtqd = Math.abs(staffActualVal) > 1000000 ? staffActualVal : staffActualVal * 1000000;
@@ -3936,7 +3934,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     });
 
     return { comparisonStaffList: list, detailComparisonCategories: detailCategories };
-  }, [biRevenueData, filteredBiData, thiDuaNv, categoryTargets, processedData.categories, marketFilter, daysPassed, totalDays, displayTargetQD, thuongData, parsedTraChamRows, nganhhangChinhNv]);
+  }, [biRevenueData, filteredBiData, thiDuaNv, categoryTargets, processedData.categories, marketFilter, daysPassed, totalDays, stTargetSauHeSo, thuongData, parsedTraChamRows, nganhhangChinhNv]);
 
   return (
     <div className="w-full min-h-screen bg-slate-50 overflow-x-hidden font-sans" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
@@ -4116,7 +4114,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                     <RevenueRankingTableQd
                       data={filteredBiData}
                       onCapture={handleCapture}
-                      stTargetQuyDoi={displayTargetQD}
+                      stTargetQuyDoi={stTargetSauHeSo}
                       daysPassed={daysPassed}
                       totalDays={totalDays}
                       stPercentHTTargetDuKienQD={marketPercentQD}
@@ -4223,7 +4221,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                       {selectedStaffIds.map((id, idx) => {
                         const staff = biRevenueData.find(s => s.fullId === id);
                         if (!staff) return null;
-                        const targetQdPerStaff = filteredBiData.length > 0 ? displayTargetQD / filteredBiData.length : 0;
+                        const targetQdPerStaff = filteredBiData.length > 0 ? stTargetSauHeSo / filteredBiData.length : 0;
                         const actualTargetQd = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
                         const staffActualVal = staff.actualVal || 0;
                         const actualDtqd = Math.abs(staffActualVal) > 1000000 ? staffActualVal : staffActualVal * 1000000;

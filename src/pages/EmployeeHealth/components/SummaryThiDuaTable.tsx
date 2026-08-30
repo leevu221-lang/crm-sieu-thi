@@ -747,7 +747,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
 
     const now = new Date();
     const dateStr = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
-    let text = `🌟 TỔNG HỢP THI ĐUA NHÂN VIÊN (${dateStr}):\n\n`;
+    let text = `🌟 TỔNG HỢP THI ĐUA SIÊU THỊ (${dateStr}):\n\n`;
     
     filteredStaffMatrix.forEach((staff, sIdx) => {
       const ratePercent = (staff.rate * 100).toFixed(0);
@@ -782,7 +782,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
 
     if (template === 1) {
       // MẪU 1: TOP/BOT ST
-      text = `📊 TỔNG HỢP THI ĐUA NHÂN VIÊN - ${timeStr} NGÀY ${dateStr}\n`;
+      text = `📊 TỔNG HỢP THI ĐUA SIÊU THỊ - ${timeStr} NGÀY ${dateStr}\n`;
       text += `━━━━━━━━━━━━━━━━━━\n\n`;
       text += `📈 KẾT QUẢ TỔNG QUAN:\n`;
       text += `🎯 Tổng NV: ${total} || ĐẠT trên 50%: ${filteredStaffMatrix.filter(s => s.rate >= 0.5).length}/${total}\n\n`;
@@ -800,7 +800,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
     } else if (template === 2) {
       // MẪU 2: DS Cần tăng tốc
       const below50 = filteredStaffMatrix.filter(s => s.rate < 0.5);
-      text = `⚠️ DS CẦN TĂNG TỐC THI ĐUA NHÂN VIÊN - ${timeStr} NGÀY ${dateStr}\n`;
+      text = `⚠️ DANH SÁCH NHÂN VIÊN CẦN TĂNG TỐC - ${timeStr} NGÀY ${dateStr}\n`;
       text += `━━━━━━━━━━━━━━━━━━\n\n`;
       text += `📊 Tổng NV dưới 50%: ${below50.length}/${total}\n\n`;
       text += `🚨 DANH SÁCH CẦN CẢI THIỆN TIẾN ĐỘ:\n`;
@@ -812,7 +812,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       text += `\n💡 Cần hỗ trợ các NV trên đẩy mạnh bán hàng và tăng cường tư vấn!`;
     } else {
       // MẪU 3: Tóm tắt toàn bộ
-      text = `📝 TÓM TẮT THI ĐUA NHÂN VIÊN - ${timeStr} NGÀY ${dateStr}\n`;
+      text = `📝 TÓM TẮT THI ĐUA SIÊU THỊ - ${timeStr} NGÀY ${dateStr}\n`;
       text += `━━━━━━━━━━━━━━━━━━\n\n`;
       text += `🎯 Tổng NV: ${total}\n`;
       text += `✅ ĐẠT (>=100%): ${filteredStaffMatrix.filter(s => s.rate >= 1).length}/${total}\n`;

@@ -11,7 +11,6 @@ import {
   RotateCcw, 
   Search, 
   X, 
-  Trash2,
   Edit3, 
   TrendingUp, 
   TrendingDown, 
@@ -151,9 +150,6 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
   const [showInlineComment, setShowInlineComment] = useState(false);
   const [inlineComment, setInlineComment] = useState('');
 
-  // State: Sort C.LẠI column
-  const [sortConLai, setSortConLai] = useState<'none' | 'desc' | 'asc'>('none');
-
   // Refs to avoid unnecessary updates and flickering
   const isEditingRef = useRef(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -272,34 +268,12 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
 
   // Filtered list to display based on selectedCategoryKeys
   const displayedCategoryList = useMemo(() => {
-    let list = allAvailableCategoryList;
-    if (selectedCategoryKeys.length > 0) {
-      if (selectedCategoryKeys.includes('__NONE__')) return [];
-      list = allAvailableCategoryList.filter(r => selectedCategoryKeys.includes(r.key));
+    if (selectedCategoryKeys.length === 0) {
+      return allAvailableCategoryList; // Show all by default
     }
-    // Sort by C.LẠI if active
-    if (sortConLai !== 'none') {
-      list = [...list].sort((a, b) => {
-        const targetA = categoryTargets[a.name] !== undefined ? categoryTargets[a.name] : (a.defaultTarget || 0);
-        const targetB = categoryTargets[b.name] !== undefined ? categoryTargets[b.name] : (b.defaultTarget || 0);
-        const remainA = targetA > 0 ? targetA - (a.realtimeRevenue || 0) : 0;
-        const remainB = targetB > 0 ? targetB - (b.realtimeRevenue || 0) : 0;
-        return sortConLai === 'desc' ? remainB - remainA : remainA - remainB;
-      });
-    }
-    return list;
-  }, [allAvailableCategoryList, selectedCategoryKeys, sortConLai, categoryTargets]);
-
-  // Handler: Remove a single category from view
-  const handleRemoveCategory = useCallback((catKey: string) => {
-    let currentSelected = selectedCategoryKeys.length > 0 
-      ? [...selectedCategoryKeys] 
-      : allAvailableCategoryList.map(c => c.key); // If showing all, init with all keys
-    const newSelected = currentSelected.filter(k => k !== catKey);
-    if (newSelected.length === 0) newSelected.push('__NONE__');
-    setSelectedCategoryKeys(newSelected);
-    saveTargetsDebounced(overviewTargets, categoryTargets, newSelected);
-  }, [selectedCategoryKeys, allAvailableCategoryList, overviewTargets, categoryTargets, saveTargetsDebounced]);
+    if (selectedCategoryKeys.includes('__NONE__')) return [];
+    return allAvailableCategoryList.filter(r => selectedCategoryKeys.includes(r.key));
+  }, [allAvailableCategoryList, selectedCategoryKeys]);
 
   // Đồng bộ Mục tiêu từ cột C.LẠI bên BC THÁNG > TỔNG QUAN (hoạt động song song với nhập thủ công)
   const handleSyncFromLuyke = useCallback(() => {
@@ -816,14 +790,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                 </th>
                 <th style={{ width: '12.5%' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#059669]">THỰC HIỆN</th>
                 <th style={{ width: '13%' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">HOÀN THÀNH</th>
-                <th 
-                  style={{ width: '12%' }} 
-                  className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#059669] cursor-pointer select-none hover:bg-[#047857] transition-colors"
-                  onClick={() => setSortConLai(prev => prev === 'desc' ? 'asc' : prev === 'asc' ? 'none' : 'desc')}
-                  title="Bấm để sắp xếp theo C.LẠI"
-                >
-                  C.LẠI {sortConLai === 'desc' ? '▼' : sortConLai === 'asc' ? '▲' : ''}
-                </th>
+                <th style={{ width: '12%' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#059669]">C.LẠI</th>
               </tr>
             </thead>
             <tbody className="font-black">
@@ -841,18 +808,10 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                     <td className="sticky-col sticky-col-1 px-1 py-0 font-black text-slate-700 text-center border border-emerald-100 bg-emerald-50/40 text-[12.5px] sm:text-[13.5px]">
                       {idx + 1}
                     </td>
-                    <td style={{ maxWidth: 0, overflow: 'hidden' }} className={`sticky-col sticky-col-2 group-hover:bg-emerald-50/50 px-1.5 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight overflow-hidden ${isEven ? 'bg-white' : 'bg-emerald-50/20'}`} title={item.name}>
+                    <td style={{ maxWidth: 0, overflow: 'hidden' }} className={`sticky-col sticky-col-2 group-hover:bg-emerald-50/50 px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight overflow-hidden ${isEven ? 'bg-white' : 'bg-emerald-50/20'}`} title={item.name}>
                       <div className="flex items-center justify-between gap-1 w-full min-w-0" style={{ overflow: 'hidden' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveCategory(item.key)}
-                          className="no-capture shrink-0 w-5 h-5 flex items-center justify-center rounded-full hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                          title={`Xóa ${item.name} khỏi danh sách`}
-                        >
-                          <X size={12} strokeWidth={3} />
-                        </button>
-                        <span 
-                          className="truncate block flex-1" 
+                        <span
+                          className="truncate block"
                           style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', minWidth: 0 }}
                         >
                           {item.name}

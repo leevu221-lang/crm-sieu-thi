@@ -25,15 +25,8 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
   onSelectStaff,
   stPercentHTTargetDuKienQD = 0
 }) => {
-  // Pre-compute %HT for sorting
-  const computePercentHT = (staff: StaffData) => {
-    const tgtPerStaff = data.length > 0 ? stTargetQuyDoi / data.length : 0;
-    const actualTgt = tgtPerStaff > 1000000 ? tgtPerStaff : tgtPerStaff * 1000000;
-    const actualVVal = Math.abs(staff.virtualVal || 0) > 1000000 ? (staff.virtualVal || 0) : (staff.virtualVal || 0) * 1000000;
-    return (actualTgt > 0 && daysPassed > 0) ? (((actualVVal / daysPassed) * totalDays) / actualTgt) * 100 : 0;
-  };
-  // Sort by %HT descending
-  const sortedData = [...data].sort((a, b) => computePercentHT(b) - computePercentHT(a));
+  // Sort by actualVal (Doanh thu QĐ) descending
+  const sortedData = [...data].sort((a, b) => (b.actualVal || 0) - (a.actualVal || 0));
 
   const formatName = (name: string) => {
     if (!name) return '';
@@ -55,8 +48,8 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
   const targetQdPerStaff = sortedData.length > 0 ? stTargetQuyDoi / sortedData.length : 0;
   const totalTargetQd = stTargetQuyDoi;
   const actualTotalTargetQd = totalTargetQd > 1000000 ? totalTargetQd : totalTargetQd * 1000000;
-  const actualTotalVirtual = Math.abs(totalVirtual) > 1000000 ? totalVirtual : totalVirtual * 1000000;
-  const totalPercentHT = (actualTotalTargetQd > 0 && daysPassed > 0) ? (((actualTotalVirtual / daysPassed) * totalDays) / actualTotalTargetQd) * 100 : 0;
+  const actualTotalActual = Math.abs(totalActual) > 1000000 ? totalActual : totalActual * 1000000;
+  const totalPercentHT = (actualTotalTargetQd > 0 && daysPassed > 0) ? (((actualTotalActual / daysPassed) * totalDays) / actualTotalTargetQd) * 100 : 0;
 
   return (
     <div className="w-full flex justify-center" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
@@ -94,24 +87,25 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                 <th style={{ fontWeight: 900 }} className="sticky-col sticky-col-1 px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">STT</th>
                 <th style={{ fontWeight: 900 }} className="sticky-col sticky-col-2 px-2.5 sm:px-3.5 py-0 text-left text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">NHÂN VIÊN</th>
                 <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">TARGET</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">L.KẾ</th>
+                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">REAL</th>
                 <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">%HT</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">HQ.QĐ</th>
+                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">HIỆU QUẢ</th>
                 <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">XH</th>
               </tr>
             </thead>
             <tbody>
               {sortedData.length > 0 ? (
                 sortedData.map((staff, index) => {
-                  // HQ.QĐ = (DOANH THU QĐ - DOANH THU) / DOANH THU × 100
-                  const effQd = (staff.actualVal || 0) > 0 
-                    ? ((staff.virtualVal - (staff.actualVal || 0)) / (staff.actualVal || 0)) * 100 
-                    : 0;
+                  const effQd = (staff.effVal !== 0 
+                    ? staff.effVal 
+                    : ((staff.actualVal || 0) > 0 
+                      ? ((staff.virtualVal - (staff.actualVal || 0)) / (staff.actualVal || 0)) * 100 
+                      : 0)) * 100;
                   const actualTargetQdPerStaff = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
-                  const actualVirtualVal = Math.abs(staff.virtualVal || 0) > 1000000 ? (staff.virtualVal || 0) : (staff.virtualVal || 0) * 1000000;
+                  const actualActualVal = Math.abs(staff.actualVal || 0) > 1000000 ? (staff.actualVal || 0) : (staff.actualVal || 0) * 1000000;
                   
                   const percentHT = (actualTargetQdPerStaff > 0 && daysPassed > 0) 
-                    ? (((actualVirtualVal / daysPassed) * totalDays) / actualTargetQdPerStaff) * 100 
+                    ? (((actualActualVal / daysPassed) * totalDays) / actualTargetQdPerStaff) * 100 
                     : 0;
                   
                   const topCount = Math.max(1, Math.round(sortedData.length * 0.2));
@@ -151,14 +145,14 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                         {targetQdPerStaff > 0 ? formatCurrencyValue(targetQdPerStaff) : '0'}
                       </td>
                       <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12.5px] sm:text-[14.5px] text-rose-600 whitespace-nowrap">
-                        {formatCurrencyValue(staff.virtualVal || 0)}
+                        {staff.actualVal !== null ? formatCurrencyValue(staff.actualVal) : ''}
                       </td>
                       <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
                         <span className={cn(
                           "inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[13px] leading-none",
                           percentHT >= 100 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-600"
                         )}>
-                          {Math.round(percentHT)}%
+                          {percentHT.toFixed(1)}%
                         </span>
                       </td>
                       <td style={{ fontWeight: 900 }} className={cn(
@@ -197,10 +191,10 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                     {totalTargetQd > 0 ? formatCurrencyValue(totalTargetQd) : '0'}
                   </td>
                   <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[13.5px] sm:text-[15px] whitespace-nowrap bg-[#047857]">
-                    {formatCurrencyValue(totalVirtual)}
+                    {formatCurrencyValue(totalActual)}
                   </td>
                   <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[13px] sm:text-[15px] whitespace-nowrap bg-[#047857]">
-                    {Math.round(totalPercentHT)}%
+                    {totalPercentHT.toFixed(1)}%
                   </td>
                   <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap bg-[#047857]">
                     {stPercentHTTargetDuKienQD > 0 ? `${stPercentHTTargetDuKienQD.toFixed(1)}%` : ''}

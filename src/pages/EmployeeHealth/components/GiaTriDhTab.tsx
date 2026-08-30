@@ -2764,7 +2764,7 @@ export const GiaTriDhTab: React.FC<GiaTriDhTabProps> = ({
 
     if (template === 1) {
       // MẪU 1: TOP/BOT NV
-      text = `📊 TỔNG HỢP GIÁ TRỊ ĐƠN HÀNG NHÂN VIÊN - ${timeStr} NGÀY ${dateStr}\n`;
+      text = `📊 TỔNG HỢP THI ĐUA SIÊU THỊ - ${timeStr} NGÀY ${dateStr}\n`;
       text += `━━━━━━━━━━━━━━━━━━\n\n`;
       text += `📈 KẾT QUẢ TỔNG QUAN:\n`;
       text += `🎯 Tổng NV: ${total} || ĐẠT trên 50%: ${goodStaffCount}/${total}\n\n`;
@@ -2787,7 +2787,7 @@ export const GiaTriDhTab: React.FC<GiaTriDhTabProps> = ({
         const rate = gc > 0 ? qd / gc : 0;
         return avgDtqdPerGc > 0 ? rate < avgDtqdPerGc : false;
       });
-      text = `⚠️ DS CẦN TĂNG TỐC GIÁ TRỊ ĐƠN HÀNG - ${timeStr} NGÀY ${dateStr}\n`;
+      text = `⚠️ DANH SÁCH NHÂN VIÊN CẦN TĂNG TỐC - ${timeStr} NGÀY ${dateStr}\n`;
       text += `━━━━━━━━━━━━━━━━━━\n\n`;
       text += `📊 Tổng NV dưới chuẩn trung bình: ${belowAvgList.length}/${total}\n\n`;
       text += `🚨 DANH SÁCH CẦN CẢI THIỆN TIẾN ĐỘ:\n`;
@@ -2798,7 +2798,7 @@ export const GiaTriDhTab: React.FC<GiaTriDhTabProps> = ({
       text += `\n💡 Cần hỗ trợ các NV trên đẩy mạnh bán hàng và tăng cường tư vấn!`;
     } else {
       // MẪU 3: TÓM TẮT
-      text = `📝 TÓM TẮT GIÁ TRỊ ĐƠN HÀNG NHÂN VIÊN - ${timeStr} NGÀY ${dateStr}\n`;
+      text = `📝 TÓM TẮT THI ĐUA KHAI THÁC NHÂN VIÊN - ${timeStr} NGÀY ${dateStr}\n`;
       text += `━━━━━━━━━━━━━━━━━━\n\n`;
       text += `🎯 Tổng NV: ${total}\n`;
       text += `⚡ Tổng DTQĐ: ${ctktnvTotals.sumDtQd ? fNum(ctktnvTotals.sumDtQd) : '0'} Tr\n`;
