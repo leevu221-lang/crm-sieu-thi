@@ -11,6 +11,7 @@ import {
   RotateCcw, 
   Search, 
   X, 
+  Trash2,
   Edit3, 
   TrendingUp, 
   TrendingDown, 
@@ -150,6 +151,9 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
   const [showInlineComment, setShowInlineComment] = useState(false);
   const [inlineComment, setInlineComment] = useState('');
 
+  // State: Sort C.LẠI column
+  const [sortConLai, setSortConLai] = useState<'none' | 'desc' | 'asc'>('none');
+
   // Refs to avoid unnecessary updates and flickering
   const isEditingRef = useRef(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -268,12 +272,34 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
 
   // Filtered list to display based on selectedCategoryKeys
   const displayedCategoryList = useMemo(() => {
-    if (selectedCategoryKeys.length === 0) {
-      return allAvailableCategoryList; // Show all by default
+    let list = allAvailableCategoryList;
+    if (selectedCategoryKeys.length > 0) {
+      if (selectedCategoryKeys.includes('__NONE__')) return [];
+      list = allAvailableCategoryList.filter(r => selectedCategoryKeys.includes(r.key));
     }
-    if (selectedCategoryKeys.includes('__NONE__')) return [];
-    return allAvailableCategoryList.filter(r => selectedCategoryKeys.includes(r.key));
-  }, [allAvailableCategoryList, selectedCategoryKeys]);
+    // Sort by C.LẠI if active
+    if (sortConLai !== 'none') {
+      list = [...list].sort((a, b) => {
+        const targetA = categoryTargets[a.name] !== undefined ? categoryTargets[a.name] : (a.defaultTarget || 0);
+        const targetB = categoryTargets[b.name] !== undefined ? categoryTargets[b.name] : (b.defaultTarget || 0);
+        const remainA = targetA > 0 ? targetA - (a.realtimeRevenue || 0) : 0;
+        const remainB = targetB > 0 ? targetB - (b.realtimeRevenue || 0) : 0;
+        return sortConLai === 'desc' ? remainB - remainA : remainA - remainB;
+      });
+    }
+    return list;
+  }, [allAvailableCategoryList, selectedCategoryKeys, sortConLai, categoryTargets]);
+
+  // Handler: Remove a single category from view
+  const handleRemoveCategory = useCallback((catKey: string) => {
+    let currentSelected = selectedCategoryKeys.length > 0 
+      ? [...selectedCategoryKeys] 
+      : allAvailableCategoryList.map(c => c.key); // If showing all, init with all keys
+    const newSelected = currentSelected.filter(k => k !== catKey);
+    if (newSelected.length === 0) newSelected.push('__NONE__');
+    setSelectedCategoryKeys(newSelected);
+    saveTargetsDebounced(overviewTargets, categoryTargets, newSelected);
+  }, [selectedCategoryKeys, allAvailableCategoryList, overviewTargets, categoryTargets, saveTargetsDebounced]);
 
   // Đồng bộ Mục tiêu từ cột C.LẠI bên BC THÁNG > TỔNG QUAN (hoạt động song song với nhập thủ công)
   const handleSyncFromLuyke = useCallback(() => {
@@ -562,20 +588,20 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
         </div>
 
         {/* ── Table 1: TIÊU CHÍ TỔNG QUAN ── */}
-        <div className="overflow-hidden rounded-2xl border border-emerald-500/90 shadow-xs bg-white w-full" style={{ width: '100%' }}>
-          <table className="w-full border-collapse table-fixed bg-white text-[13px] sm:text-[14px]" style={{ width: '100%', minWidth: '100%', maxWidth: '100%', tableLayout: 'fixed' }}>
+        <div className="overflow-hidden rounded-2xl border border-emerald-500/90 shadow-xs bg-white w-full mobile-table-scroll" style={{ width: '100%', '--sticky-col-1-width': '42px' } as React.CSSProperties}>
+          <table className="w-full border-collapse table-fixed bg-white text-[13px] sm:text-[14px] responsive-data-table" style={{ width: '100%', minWidth: '100%', maxWidth: '100%', tableLayout: 'fixed' }}>
             <colgroup>
-              <col width="6.5%" style={{ width: '6.5%' }} />
-              <col width="43.5%" style={{ width: '43.5%' }} />
-              <col width="12.5%" style={{ width: '12.5%' }} />
-              <col width="12.5%" style={{ width: '12.5%' }} />
-              <col width="13%" style={{ width: '13%' }} />
-              <col width="12%" style={{ width: '12%' }} />
+              <col width="6.5%" style={{ width: '6.5%' }} className="sticky-col-1-width" />
+              <col width="43.5%" style={{ width: '43.5%' }} className="sticky-col-2-width" />
+              <col width="12.5%" style={{ width: '12.5%' }} className="rht-col-num" />
+              <col width="12.5%" style={{ width: '12.5%' }} className="rht-col-num" />
+              <col width="13%" style={{ width: '13%' }} className="rht-col-num" />
+              <col width="12%" style={{ width: '12%' }} className="rht-col-num" />
             </colgroup>
             <thead>
               <tr className="text-white h-[42px]">
-                <th style={{ width: '6.5%' }} className="px-1 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">STT</th>
-                <th style={{ width: '43.5%' }} className="px-3 py-0 font-black uppercase text-left border border-emerald-600 bg-[#059669]">TIÊU CHÍ</th>
+                <th style={{ width: '6.5%' }} className="sticky-col sticky-col-1 px-1 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">STT</th>
+                <th style={{ width: '43.5%' }} className="sticky-col sticky-col-2 px-3 py-0 font-black uppercase text-left border border-emerald-600 bg-[#059669]">TIÊU CHÍ</th>
                 <th style={{ width: '12.5%' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">
                   <div className="flex items-center justify-center gap-1">
                     <span>MỤC TIÊU</span>
@@ -596,11 +622,11 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
             </thead>
             <tbody className="font-black">
               {/* 1. Doanh Thu Thực */}
-              <tr className="bg-white hover:bg-emerald-50/40 transition-colors h-[40px]">
-                <td className="px-1 py-0 font-black text-slate-700 text-center border border-emerald-100 bg-emerald-50/40 text-[12.5px] sm:text-[13.5px]">
+              <tr className="group bg-white hover:bg-emerald-50/40 transition-colors h-[40px]">
+                <td className="sticky-col sticky-col-1 px-1 py-0 font-black text-slate-700 text-center border border-emerald-100 bg-emerald-50/40 text-[12.5px] sm:text-[13.5px]">
                   1
                 </td>
-                <td className="px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight">Doanh Thu Thực</td>
+                <td className="sticky-col sticky-col-2 bg-white group-hover:bg-emerald-50/40 px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight"><span className="sticky-col-cell-text">Doanh Thu Thực</span></td>
                 <td className="px-1.5 py-0 text-center border border-emerald-100 text-slate-800 bg-emerald-50/20">
                   <input
                     type="number"
@@ -637,11 +663,11 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
               </tr>
 
               {/* 2. Doanh Thu Quy Đổi */}
-              <tr className="bg-emerald-50/20 hover:bg-emerald-50/40 transition-colors h-[40px]">
-                <td className="px-1 py-0 font-black text-slate-700 text-center border border-emerald-100 bg-emerald-50/40 text-[12.5px] sm:text-[13.5px]">
+              <tr className="group bg-emerald-50/20 hover:bg-emerald-50/40 transition-colors h-[40px]">
+                <td className="sticky-col sticky-col-1 px-1 py-0 font-black text-slate-700 text-center border border-emerald-100 bg-emerald-50/40 text-[12.5px] sm:text-[13.5px]">
                   2
                 </td>
-                <td className="px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight">Doanh Thu Quy Đổi</td>
+                <td className="sticky-col sticky-col-2 bg-emerald-50/20 group-hover:bg-emerald-50/40 px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight"><span className="sticky-col-cell-text">Doanh Thu Quy Đổi</span></td>
                 <td className="px-1.5 py-0 text-center border border-emerald-100 text-slate-800 bg-emerald-50/30">
                   <input
                     type="number"
@@ -678,11 +704,11 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
               </tr>
 
               {/* 3. Hiệu Quả Quy Đổi */}
-              <tr className="bg-white hover:bg-emerald-50/40 transition-colors h-[40px]">
-                <td className="px-1 py-0 font-black text-slate-700 text-center border border-emerald-100 bg-emerald-50/40 text-[12.5px] sm:text-[13.5px]">
+              <tr className="group bg-white hover:bg-emerald-50/40 transition-colors h-[40px]">
+                <td className="sticky-col sticky-col-1 px-1 py-0 font-black text-slate-700 text-center border border-emerald-100 bg-emerald-50/40 text-[12.5px] sm:text-[13.5px]">
                   3
                 </td>
-                <td className="px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight">Hiệu Quả Quy Đổi</td>
+                <td className="sticky-col sticky-col-2 bg-white group-hover:bg-emerald-50/40 px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight"><span className="sticky-col-cell-text">Hiệu Quả Quy Đổi</span></td>
                 <td className="px-1.5 py-0 text-center border border-emerald-100 text-slate-800 bg-emerald-50/20">
                   <div className="flex items-center justify-center">
                     <input
@@ -718,11 +744,11 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
               </tr>
 
               {/* 4. Trả Chậm */}
-              <tr className="bg-emerald-50/20 hover:bg-emerald-50/40 transition-colors h-[40px]">
-                <td className="px-1 py-0 font-black text-slate-700 text-center border border-emerald-100 bg-emerald-50/40 text-[12.5px] sm:text-[13.5px]">
+              <tr className="group bg-emerald-50/20 hover:bg-emerald-50/40 transition-colors h-[40px]">
+                <td className="sticky-col sticky-col-1 px-1 py-0 font-black text-slate-700 text-center border border-emerald-100 bg-emerald-50/40 text-[12.5px] sm:text-[13.5px]">
                   4
                 </td>
-                <td className="px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight">Trả Chậm</td>
+                <td className="sticky-col sticky-col-2 bg-emerald-50/20 group-hover:bg-emerald-50/40 px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight"><span className="sticky-col-cell-text">Trả Chậm</span></td>
                 <td className="px-1.5 py-0 text-center border border-emerald-100 text-slate-800 bg-emerald-50/30">
                   <div className="flex items-center justify-center">
                     <input
@@ -761,20 +787,20 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
         </div>
 
         {/* ── Table 2: NGÀNH HÀNG (Đồng bộ Tab Tổng Quan) ── */}
-        <div className="overflow-hidden rounded-2xl border border-emerald-500/90 shadow-xs bg-white w-full" style={{ width: '100%' }}>
-          <table className="w-full border-collapse table-fixed bg-white text-[13px] sm:text-[14px]" style={{ width: '100%', minWidth: '100%', maxWidth: '100%', tableLayout: 'fixed' }}>
+        <div className="overflow-hidden rounded-2xl border border-emerald-500/90 shadow-xs bg-white w-full mobile-table-scroll" style={{ width: '100%', '--sticky-col-1-width': '42px' } as React.CSSProperties}>
+          <table className="w-full border-collapse table-fixed bg-white text-[13px] sm:text-[14px] responsive-data-table" style={{ width: '100%', minWidth: '100%', maxWidth: '100%', tableLayout: 'fixed' }}>
             <colgroup>
-              <col width="6.5%" style={{ width: '6.5%' }} />
-              <col width="43.5%" style={{ width: '43.5%' }} />
-              <col width="12.5%" style={{ width: '12.5%' }} />
-              <col width="12.5%" style={{ width: '12.5%' }} />
-              <col width="13%" style={{ width: '13%' }} />
-              <col width="12%" style={{ width: '12%' }} />
+              <col width="6.5%" style={{ width: '6.5%' }} className="sticky-col-1-width" />
+              <col width="43.5%" style={{ width: '43.5%' }} className="sticky-col-2-width" />
+              <col width="12.5%" style={{ width: '12.5%' }} className="rht-col-num" />
+              <col width="12.5%" style={{ width: '12.5%' }} className="rht-col-num" />
+              <col width="13%" style={{ width: '13%' }} className="rht-col-num" />
+              <col width="12%" style={{ width: '12%' }} className="rht-col-num" />
             </colgroup>
             <thead>
               <tr className="text-white h-[42px]">
-                <th style={{ width: '6.5%' }} className="px-1 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">STT</th>
-                <th style={{ width: '43.5%' }} className="px-3 py-0 font-black uppercase text-left border border-emerald-600 bg-[#059669]">NGÀNH HÀNG</th>
+                <th style={{ width: '6.5%' }} className="sticky-col sticky-col-1 px-1 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">STT</th>
+                <th style={{ width: '43.5%' }} className="sticky-col sticky-col-2 px-3 py-0 font-black uppercase text-left border border-emerald-600 bg-[#059669]">NGÀNH HÀNG</th>
                 <th style={{ width: '12.5%' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">
                   <div className="flex items-center justify-center gap-1">
                     <span>MỤC TIÊU</span>
@@ -790,7 +816,14 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                 </th>
                 <th style={{ width: '12.5%' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#059669]">THỰC HIỆN</th>
                 <th style={{ width: '13%' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#047857]">HOÀN THÀNH</th>
-                <th style={{ width: '12%' }} className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#059669]">C.LẠI</th>
+                <th 
+                  style={{ width: '12%' }} 
+                  className="px-1.5 py-0 font-black uppercase text-center border border-emerald-600 bg-[#059669] cursor-pointer select-none hover:bg-[#047857] transition-colors"
+                  onClick={() => setSortConLai(prev => prev === 'desc' ? 'asc' : prev === 'asc' ? 'none' : 'desc')}
+                  title="Bấm để sắp xếp theo C.LẠI"
+                >
+                  C.LẠI {sortConLai === 'desc' ? '▼' : sortConLai === 'asc' ? '▲' : ''}
+                </th>
               </tr>
             </thead>
             <tbody className="font-black">
@@ -804,14 +837,22 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                 const isSL = item.type === 'SL';
 
                 return (
-                  <tr key={item.key || idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/50 transition-colors h-[40px]`}>
-                    <td className="px-1 py-0 font-black text-slate-700 text-center border border-emerald-100 bg-emerald-50/40 text-[12.5px] sm:text-[13.5px]">
+                  <tr key={item.key || idx} className={`group ${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/50 transition-colors h-[40px]`}>
+                    <td className="sticky-col sticky-col-1 px-1 py-0 font-black text-slate-700 text-center border border-emerald-100 bg-emerald-50/40 text-[12.5px] sm:text-[13.5px]">
                       {idx + 1}
                     </td>
-                    <td style={{ maxWidth: 0, overflow: 'hidden' }} className="px-3 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight overflow-hidden" title={item.name}>
+                    <td style={{ maxWidth: 0, overflow: 'hidden' }} className={`sticky-col sticky-col-2 group-hover:bg-emerald-50/50 px-1.5 py-0 font-black text-slate-900 border border-emerald-100 uppercase tracking-tight overflow-hidden ${isEven ? 'bg-white' : 'bg-emerald-50/20'}`} title={item.name}>
                       <div className="flex items-center justify-between gap-1 w-full min-w-0" style={{ overflow: 'hidden' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCategory(item.key)}
+                          className="no-capture shrink-0 w-5 h-5 flex items-center justify-center rounded-full hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                          title={`Xóa ${item.name} khỏi danh sách`}
+                        >
+                          <X size={12} strokeWidth={3} />
+                        </button>
                         <span 
-                          className="truncate block" 
+                          className="truncate block flex-1" 
                           style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', minWidth: 0 }}
                         >
                           {item.name}

@@ -553,6 +553,14 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
         htmlEl.style.maxWidth = 'none';
       });
 
+      // Remove sticky-column positioning (causes rendering issues in capture)
+      clone.querySelectorAll('.sticky-col, [class*="sticky-col"]').forEach(el => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.position = 'relative';
+        htmlEl.style.left = 'auto';
+        htmlEl.style.zIndex = 'auto';
+      });
+
       // 4. Force table to 100% width with fixed table-layout
       const tableEl = clone.querySelector('table');
       if (tableEl) {
@@ -694,9 +702,9 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
         /* Render Table Pixel-Perfect matching Image 2 */
         <div className="bg-white rounded-3xl p-3 sm:p-6 border border-slate-200/80 shadow-sm overflow-hidden space-y-4">
           <div ref={tableRef} className="bg-white rounded-2xl overflow-hidden">
-            <div className="overflow-x-auto w-full">
+            <div className="overflow-x-auto w-full mobile-table-scroll">
               <table
-                className="w-full border-collapse text-[11px] sm:text-[12.5px] md:text-[13.5px] font-sans"
+                className="w-full border-collapse text-[11px] sm:text-[12.5px] md:text-[13.5px] font-sans responsive-data-table"
                 style={{
                   tableLayout: 'fixed',
                   minWidth: '780px',
@@ -731,7 +739,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
                     {/* SIÊU THỊ */}
                     <th
                       rowSpan={2}
-                      className="px-3 py-3 text-center align-middle font-black uppercase tracking-wider border-r border-slate-200"
+                      className="sticky-col sticky-col-1 px-3 py-3 text-center align-middle font-black uppercase tracking-wider border-r border-slate-200"
                       style={{
                         backgroundColor: '#fff1f2',
                         color: '#9f1239',
@@ -867,10 +875,10 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
                     return (
                       <tr
                         key={idx}
-                        className="hover:bg-indigo-50/30 transition-colors"
+                        className="group hover:bg-indigo-50/30 transition-colors"
                       >
                         {/* SIÊU THỊ - full store name */}
-                        <td className="px-3.5 py-3 text-left font-black text-slate-900 border-r border-slate-100 whitespace-nowrap overflow-hidden text-ellipsis">
+                        <td className="sticky-col sticky-col-1 bg-white group-hover:bg-indigo-50/30 px-3.5 py-3 text-left font-black text-slate-900 border-r border-slate-100 whitespace-nowrap overflow-hidden text-ellipsis">
                           {row.storeName}
                         </td>
 

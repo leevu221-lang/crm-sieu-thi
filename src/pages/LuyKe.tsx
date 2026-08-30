@@ -1388,6 +1388,8 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     const targetValue = (dtDuKienQD > 0 && percentHT > 0) ? Math.round(dtDuKienQD / (percentHT / 100)) : ((targetData as any)?.stTargetSauHeSo || (targetData as any)?.stTargetQuyDoi || stTargetSauHeSo || stTargetQuyDoi || 0);
     const percentTargetVal = (targetData as any)?.stPercentTarget ?? stPercentTarget ?? 100;
     const targetSauHeSo = Math.round(targetValue * (percentTargetVal / 100));
+    // Use raw targetQD from parsed data; fallback to calculated targetSauHeSo
+    const displayTargetQD = dtDuKienQD > 0 ? dtDuKienQD : targetSauHeSo;
     const actualVirtual = market.actualVirtual || 0;
     const actualReal = market.actualReal || 0;
     const percentHTVal = targetSauHeSo > 0 ? Math.round((daysPassed > 0 && totalDays > 0 ? (((actualVirtual) / daysPassed) * totalDays) : actualVirtual) / targetSauHeSo * 100) : 0;
@@ -1445,7 +1447,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       }
     }
 
-    const targetQD = formatCurrencyUnit(targetSauHeSo || 0);
+    const targetQD = formatCurrencyUnit(displayTargetQD || 0);
     const actualVirtualStr = formatCurrencyUnit(actualVirtual || 0);
     const percentQdStr = `${percentQDVal >= 0 ? '+' : ''}${percentQDVal.toFixed(1)}%`;
 
@@ -1479,7 +1481,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     const staffAbove50 = staffRows.filter((s: any) => (s.percentHT || 0) >= 50).length;
 
     // MẪU 1: TOP/BOT NV (TOÀN DIỆN DOANH THU & NGÀNH HÀNG)
-    let t1 = `📊 TỔNG HỢP THI ĐUA SIÊU THỊ - ${nowHeader}\n`;
+    let t1 = `📊 TỔNG HỢP LŨY KẾ DOANH THU & NGÀNH HÀNG - ${nowHeader}\n`;
     t1 += `🏪 Siêu thị: ${marketName}\n`;
     t1 += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
     t1 += `📈 KẾT QUẢ TỔNG QUAN:\n`;
@@ -1827,6 +1829,15 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
         htmlTc.style.boxSizing = 'border-box';
       });
 
+      // Remove sticky-column positioning (causes rendering issues in capture,
+      // same as the .sticky strip used elsewhere for this reason)
+      clone.querySelectorAll('.sticky-col, [class*="sticky-col"]').forEach(el => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.position = 'static';
+        htmlEl.style.left = 'auto';
+        htmlEl.style.zIndex = 'auto';
+      });
+
       const tables = clone.querySelectorAll('table');
       tables.forEach(table => {
         const htmlTable = table as HTMLTableElement;
@@ -2138,6 +2149,8 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                     const targetValue = (dtDuKienQD > 0 && percentHT > 0) ? Math.round(dtDuKienQD / (percentHT / 100)) : ((targetData as any)?.stTargetSauHeSo || (targetData as any)?.stTargetQuyDoi || stTargetSauHeSo || stTargetQuyDoi || 0);
                     const percentTargetVal = (targetData as any)?.stPercentTarget ?? stPercentTarget ?? 100;
                     const targetSauHeSo = Math.round(targetValue * (percentTargetVal / 100));
+                    // Use raw targetQD from parsed data; fallback to calculated targetSauHeSo
+                    const displayTargetQD = dtDuKienQD > 0 ? dtDuKienQD : targetSauHeSo;
                     const actualVirtual = market.actualVirtual || 0;
                     const actualReal = market.actualReal || 0;
                     const percentHTVal = targetSauHeSo > 0 ? Math.round((daysPassed > 0 && totalDays > 0 ? (((actualVirtual) / daysPassed) * totalDays) : actualVirtual) / targetSauHeSo * 100) : 0;
@@ -2233,7 +2246,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
                           <StatCard
                             title="TAGET QĐ"
-                            value={formatCurrencyUnit(targetSauHeSo)}
+                            value={formatCurrencyUnit(displayTargetQD)}
                             icon={Target}
                             color="rose"
                           />
@@ -2395,11 +2408,11 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                           </div>
                         )}
 
-                        <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
-                          <table className="w-full border-separate border-spacing-0 table-fixed" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                        <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80 mobile-table-scroll" style={{ '--sticky-col-1-width': '44px' } as React.CSSProperties}>
+                          <table className="w-full border-separate border-spacing-0 table-fixed responsive-data-table" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                             <colgroup>
                               <col style={{ width: '44px' }} />
-                              <col style={{ width: 'auto' }} />
+                              <col style={{ width: 'auto' }} className="sticky-col-2-width" />
                               <col style={{ width: '68px' }} />
                               <col style={{ width: '68px' }} />
                               <col style={{ width: '62px' }} />
@@ -2407,11 +2420,11 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                             </colgroup>
                             <thead>
                               <tr className="text-white h-[46px]">
-                                <th className="px-1 py-0 text-[14.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">STT</th>
-                                <th className="px-2.5 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669]">NGÀNH HÀNG</th>
+                                <th className="sticky-col sticky-col-1 px-1 py-0 text-[14.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">STT</th>
+                                <th className="sticky-col sticky-col-2 px-2.5 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669]">NGÀNH HÀNG</th>
                                 <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">TARGET</th>
                                 <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">LUỸ KẾ</th>
-                                <th 
+                                <th
                                   onClick={() => setSortModeSL(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
                                   className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 cursor-pointer select-none transition-colors ${
                                     sortModeSL.startsWith('HT') ? 'bg-[#035940] hover:bg-[#024a35]' : 'bg-[#059669] hover:bg-[#047857]'
@@ -2423,7 +2436,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                     <span className="text-[10.5px] opacity-90">{sortModeSL === 'HT_DESC' ? '▼' : (sortModeSL === 'HT_ASC' ? '▲' : '⇅')}</span>
                                   </div>
                                 </th>
-                                <th 
+                                <th
                                   onClick={() => setSortModeSL(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
                                   className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-b border-emerald-600 cursor-pointer select-none transition-colors ${
                                     sortModeSL.startsWith('CONLAI') ? 'bg-amber-700 hover:bg-amber-800' : 'bg-[#047857] hover:bg-[#036348]'
@@ -2447,9 +2460,9 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                 const remaining = cat.target - cat.revenue;
                                 const isEven = idx % 2 === 0;
                                 return (
-                                  <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
-                                    <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
-                                    <td className="px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 truncate tracking-tight" title={cat.name}>{cat.name}</td>
+                                  <tr key={idx} className={`group ${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
+                                    <td className="sticky-col sticky-col-1 px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
+                                    <td className={`sticky-col sticky-col-2 px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 truncate tracking-tight ${isEven ? 'bg-white' : 'bg-emerald-50/20'} group-hover:bg-emerald-50/70 ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}><span className="sticky-col-cell-text">{cat.name}</span></td>
                                     <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
                                     <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
                                     <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
@@ -2516,11 +2529,11 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                           </div>
                         )}
 
-                        <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
-                          <table className="w-full border-separate border-spacing-0 table-fixed" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                        <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80 mobile-table-scroll" style={{ '--sticky-col-1-width': '44px' } as React.CSSProperties}>
+                          <table className="w-full border-separate border-spacing-0 table-fixed responsive-data-table" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                             <colgroup>
                               <col style={{ width: '44px' }} />
-                              <col style={{ width: 'auto' }} />
+                              <col style={{ width: 'auto' }} className="sticky-col-2-width" />
                               <col style={{ width: '68px' }} />
                               <col style={{ width: '68px' }} />
                               <col style={{ width: '62px' }} />
@@ -2528,11 +2541,11 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                             </colgroup>
                             <thead>
                               <tr className="text-white h-[46px]">
-                                <th className="px-1 py-0 text-[14.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">STT</th>
-                                <th className="px-2.5 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669]">NGÀNH HÀNG</th>
+                                <th className="sticky-col sticky-col-1 px-1 py-0 text-[14.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">STT</th>
+                                <th className="sticky-col sticky-col-2 px-2.5 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669]">NGÀNH HÀNG</th>
                                 <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">TARGET</th>
                                 <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">LUỸ KẾ</th>
-                                <th 
+                                <th
                                   onClick={() => setSortModeDT(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
                                   className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 cursor-pointer select-none transition-colors ${
                                     sortModeDT.startsWith('HT') ? 'bg-[#035940] hover:bg-[#024a35]' : 'bg-[#059669] hover:bg-[#047857]'
@@ -2568,9 +2581,9 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                 const remaining = cat.target - cat.revenue;
                                 const isEven = idx % 2 === 0;
                                 return (
-                                  <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
-                                    <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
-                                    <td className="px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 truncate tracking-tight" title={cat.name}>{cat.name}</td>
+                                  <tr key={idx} className={`group ${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
+                                    <td className="sticky-col sticky-col-1 px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
+                                    <td className={`sticky-col sticky-col-2 px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 truncate tracking-tight ${isEven ? 'bg-white' : 'bg-emerald-50/20'} group-hover:bg-emerald-50/70 ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}><span className="sticky-col-cell-text">{cat.name}</span></td>
                                     <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
                                     <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
                                     <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">

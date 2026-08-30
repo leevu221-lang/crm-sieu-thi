@@ -380,6 +380,14 @@ export const StaffComparisonModal: React.FC<StaffComparisonModalProps> = ({
         tableWrapper.style.borderRadius = '16px';
       }
 
+      // Remove sticky-column positioning (causes rendering issues in capture)
+      clone.querySelectorAll('.sticky-col, [class*="sticky-col"]').forEach(el => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.position = 'relative';
+        htmlEl.style.left = 'auto';
+        htmlEl.style.zIndex = 'auto';
+      });
+
       // 8. Add an explicit bottom spacer to clone to guarantee full visibility of the bottom table row
       const bottomSpacer = document.createElement('div');
       bottomSpacer.style.height = '60px';
@@ -813,20 +821,20 @@ export const StaffComparisonModal: React.FC<StaffComparisonModalProps> = ({
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-xs table-container-wrapper">
-                <table className="w-full text-xs font-sans border-collapse" style={{ tableLayout: 'fixed' }}>
+              <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-xs table-container-wrapper mobile-table-scroll">
+                <table className="w-full text-xs font-sans border-collapse responsive-data-table" style={{ tableLayout: 'fixed' }}>
                   <colgroup>
-                    <col style={{ width: '32%' }} />
-                    <col style={{ width: '13%' }} />
-                    <col style={{ width: '17%' }} />
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '17%' }} />
-                    <col style={{ width: '13%' }} />
+                    <col style={{ width: '32%' }} className="sticky-col-2-width" />
+                    <col style={{ width: '13%' }} className="rht-col-num" />
+                    <col style={{ width: '17%' }} className="rht-col-num" />
+                    <col style={{ width: '8%' }} className="rht-col-num" />
+                    <col style={{ width: '17%' }} className="rht-col-num" />
+                    <col style={{ width: '13%' }} className="rht-col-num" />
                   </colgroup>
 
                   <thead>
                     <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase text-[11px]">
-                      <th className="px-3 py-2.5 text-left border-r border-slate-200">NGÀNH HÀNG</th>
+                      <th className="sticky-col sticky-col-1 px-3 py-2.5 text-left border-r border-slate-200 bg-slate-100">NGÀNH HÀNG</th>
                       <th className="px-2 py-2.5 text-center border-r border-slate-200 bg-blue-50/70 text-blue-900">
                         {staffA?.cleanName?.split(' ').pop()} (THỰC ĐẠT)
                       </th>
@@ -851,9 +859,9 @@ export const StaffComparisonModal: React.FC<StaffComparisonModalProps> = ({
                       const isBWinner = row.winner === 'B';
 
                       return (
-                        <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                        <tr key={idx} className="group hover:bg-slate-50/80 transition-colors">
                           {/* Category Name */}
-                          <td className="px-3 py-2.5 text-left font-black text-slate-800 border-r border-slate-100 truncate">
+                          <td className="sticky-col sticky-col-1 bg-white group-hover:bg-slate-50/80 px-3 py-2.5 text-left font-black text-slate-800 border-r border-slate-100 truncate">
                             <span className="inline-block mr-1.5 text-[10px] px-1.5 py-0.5 rounded font-black text-slate-500 bg-slate-100">
                               {row.catType}
                             </span>

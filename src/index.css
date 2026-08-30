@@ -240,6 +240,152 @@ table td {
   }
 }
 
+/* ========================================
+   SHARED RESPONSIVE DATA TABLE UTILITY
+   Reusable across every long table in the app (NGÀNH HÀNG, Realtime,
+   Lũy kế, Sức khỏe nhân viên, BC tháng, Thi đua nhân viên, ...).
+
+   Usage:
+     <div className="mobile-table-scroll">
+       <table className="responsive-data-table">
+         <thead><tr>
+           <th className="sticky-col sticky-col-1">STT</th>
+           <th className="sticky-col sticky-col-2">NGÀNH HÀNG</th>
+           ...
+         </tr></thead>
+         <tbody><tr>
+           <td className="sticky-col sticky-col-1 bg-white">1</td>
+           <td className="sticky-col sticky-col-2 bg-white">...</td>
+           ...
+         </tr></tbody>
+       </table>
+     </div>
+
+   Class-based (not nth-child) on purpose: column order differs between
+   tables across the app, so sticky columns must be marked explicitly
+   per-cell rather than assumed by position (see project convention).
+
+   Each cell keeps whatever background class/inline style it already has
+   (e.g. bg-white, striped row colors) — this utility only controls
+   position/left/z-index, never background, so striped rows are preserved.
+   Set --sticky-col-1-width on the wrapper if column 1 isn't 42px wide,
+   e.g. style={{ '--sticky-col-1-width': '55px' }}.
+   ======================================== */
+
+.mobile-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  position: relative;
+}
+
+.responsive-data-table {
+  min-width: 100%;
+  width: max-content;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.responsive-data-table th,
+.responsive-data-table td {
+  box-sizing: border-box;
+}
+
+.responsive-data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.sticky-col {
+  position: sticky;
+  z-index: 12;
+}
+
+.sticky-col-1 {
+  left: 0;
+  z-index: 13;
+}
+
+.sticky-col-2 {
+  left: var(--sticky-col-1-width, 42px);
+  z-index: 12;
+}
+
+.responsive-data-table thead .sticky-col {
+  z-index: 30;
+}
+
+.sticky-col-2::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: -8px;
+  width: 8px;
+  height: 100%;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.10), rgba(15, 23, 42, 0));
+}
+
+@media (max-width: 768px) {
+  .responsive-data-table th,
+  .responsive-data-table td {
+    white-space: nowrap;
+  }
+
+  /* Opt-in per cell (wrap the cell's text node in a span with this class) —
+     mobile only, so desktop truncation/wrapping is never touched. */
+  .sticky-col-cell-text {
+    white-space: normal;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.2;
+  }
+
+  .sticky-col-2 {
+    width: 155px !important;
+    min-width: 155px !important;
+    max-width: 155px !important;
+  }
+
+  /* For table-fixed layouts, column width comes from <colgroup><col>, not
+     from th/td — mark the matching <col> with this class to cap it too. */
+  .responsive-data-table col.sticky-col-2-width {
+    width: 155px !important;
+  }
+
+  .responsive-data-table col.sticky-col-1-width {
+    width: 42px !important;
+  }
+
+  /* Generic comfortable min-width for a plain numeric <col> in a
+     table-fixed layout that used % widths on desktop (those only ever
+     fit their container, so they never trigger horizontal scroll on
+     mobile unless swapped for a fixed px width here). */
+  .responsive-data-table col.rht-col-num {
+    width: 76px !important;
+  }
+}
+
+/* Screenshot/export capture must render the table flat, un-scrolled and
+   un-stuck — same treatment already given to `.sticky` / `.overflow-x-auto`
+   below, extended to this utility's own class names. */
+body.capturing-screenshot .mobile-table-scroll,
+.export-short-mode .mobile-table-scroll {
+  overflow: visible !important;
+  display: block !important;
+}
+
+body.capturing-screenshot .sticky-col,
+.export-short-mode .sticky-col {
+  position: static !important;
+}
+
 /* Styles for capturing screenshots - hide scrollbars and ensure full width */
 body.capturing-screenshot {
   position: static !important;
