@@ -4,7 +4,7 @@ import {
   Wrench, Printer, Trash2, Info, Archive, ShieldAlert, FilePlus, 
   ChevronDown, CheckCircle2, Save, Loader2, Calendar, ArrowUpDown, 
   SortAsc, SortDesc, PieChart, Users, UploadCloud, Settings, 
-  ChevronRight, LayoutGrid, FileText, Star, Store, Clock, ChevronLeft
+  ChevronRight, LayoutGrid, FileText, Star, Store, Clock, ChevronLeft, User
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
