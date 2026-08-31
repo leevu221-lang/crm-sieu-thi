@@ -568,6 +568,8 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     if (!files || files.length === 0) return;
 
     setIsProcessingData(true);
+    // Yield to UI thread so the loading overlay renders before heavy CPU work
+    await new Promise(r => setTimeout(r, 50));
     try {
       if (files.length >= 2) {
         // User uploaded 2 files simultaneously:
@@ -1388,9 +1390,11 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     const targetValue = (dtDuKienQD > 0 && percentHT > 0) ? Math.round(dtDuKienQD / (percentHT / 100)) : ((targetData as any)?.stTargetSauHeSo || (targetData as any)?.stTargetQuyDoi || stTargetSauHeSo || stTargetQuyDoi || 0);
     const percentTargetVal = (targetData as any)?.stPercentTarget ?? stPercentTarget ?? 100;
     const targetSauHeSo = Math.round(targetValue * (percentTargetVal / 100));
+    // Use raw targetQD from parsed data; fallback to calculated targetSauHeSo
+    const displayTargetQD = dtDuKienQD > 0 ? dtDuKienQD : targetSauHeSo;
     const actualVirtual = market.actualVirtual || 0;
     const actualReal = market.actualReal || 0;
-    const percentHTVal = targetSauHeSo > 0 ? Math.round((daysPassed > 0 && totalDays > 0 ? (((actualVirtual) / daysPassed) * totalDays) : actualVirtual) / targetSauHeSo * 100) : 0;
+    const percentHTVal = displayTargetQD > 0 ? Math.round((daysPassed > 0 && totalDays > 0 ? (((actualVirtual) / daysPassed) * totalDays) : actualVirtual) / displayTargetQD * 100 * 10) / 10 : 0;
     const dtlkVal = targetData?.stDtlk || actualReal || 0;
     const dtqdVal = targetData?.stDtqd || actualVirtual || 0;
     const percentQDVal = dtlkVal > 0 ? ((dtqdVal - dtlkVal) / dtlkVal) * 100 : (market.percentQD || 0);
@@ -1445,7 +1449,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       }
     }
 
-    const targetQD = formatCurrencyUnit(targetSauHeSo || 0);
+    const targetQD = formatCurrencyUnit(displayTargetQD || 0);
     const actualVirtualStr = formatCurrencyUnit(actualVirtual || 0);
     const percentQdStr = `${percentQDVal >= 0 ? '+' : ''}${percentQDVal.toFixed(1)}%`;
 
@@ -1479,7 +1483,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     const staffAbove50 = staffRows.filter((s: any) => (s.percentHT || 0) >= 50).length;
 
     // MẪU 1: TOP/BOT NV (TOÀN DIỆN DOANH THU & NGÀNH HÀNG)
-    let t1 = `📊 TỔNG HỢP THI ĐUA SIÊU THỊ - ${nowHeader}\n`;
+    let t1 = `📊 TỔNG HỢP LŨY KẾ DOANH THU & NGÀNH HÀNG - ${nowHeader}\n`;
     t1 += `🏪 Siêu thị: ${marketName}\n`;
     t1 += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
     t1 += `📈 KẾT QUẢ TỔNG QUAN:\n`;
@@ -2138,9 +2142,11 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                     const targetValue = (dtDuKienQD > 0 && percentHT > 0) ? Math.round(dtDuKienQD / (percentHT / 100)) : ((targetData as any)?.stTargetSauHeSo || (targetData as any)?.stTargetQuyDoi || stTargetSauHeSo || stTargetQuyDoi || 0);
                     const percentTargetVal = (targetData as any)?.stPercentTarget ?? stPercentTarget ?? 100;
                     const targetSauHeSo = Math.round(targetValue * (percentTargetVal / 100));
+                    // Use raw targetQD from parsed data; fallback to calculated targetSauHeSo
+                    const displayTargetQD = dtDuKienQD > 0 ? dtDuKienQD : targetSauHeSo;
                     const actualVirtual = market.actualVirtual || 0;
                     const actualReal = market.actualReal || 0;
-                    const percentHTVal = targetSauHeSo > 0 ? Math.round((daysPassed > 0 && totalDays > 0 ? (((actualVirtual) / daysPassed) * totalDays) : actualVirtual) / targetSauHeSo * 100) : 0;
+                    const percentHTVal = displayTargetQD > 0 ? Math.round((daysPassed > 0 && totalDays > 0 ? (((actualVirtual) / daysPassed) * totalDays) : actualVirtual) / displayTargetQD * 100 * 10) / 10 : 0;
                     const dtlkVal = targetData?.stDtlk || actualReal || 0;
                     const dtqdVal = targetData?.stDtqd || actualVirtual || 0;
                     const percentQDVal = dtlkVal > 0 ? ((dtqdVal - dtlkVal) / dtlkVal) * 100 : (market.percentQD || 0);
@@ -2233,7 +2239,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
                           <StatCard
                             title="TAGET QĐ"
-                            value={formatCurrencyUnit(targetSauHeSo)}
+                            value={formatCurrencyUnit(displayTargetQD)}
                             icon={Target}
                             color="rose"
                           />
@@ -2449,7 +2455,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                 return (
                                   <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
                                     <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
-                                    <td className="px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 truncate tracking-tight" title={cat.name}>{cat.name}</td>
+                                    <td className={`px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 truncate tracking-tight ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>{cat.name}</td>
                                     <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
                                     <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
                                     <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
@@ -2570,7 +2576,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                 return (
                                   <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
                                     <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
-                                    <td className="px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 truncate tracking-tight" title={cat.name}>{cat.name}</td>
+                                    <td className={`px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 truncate tracking-tight ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>{cat.name}</td>
                                     <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
                                     <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
                                     <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">

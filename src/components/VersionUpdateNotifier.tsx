@@ -27,10 +27,14 @@ export default function VersionUpdateNotifier() {
       if (!pendingVersionRef.current) return false;
       if (userProfile?.username === '43751') return false;
 
+      // Dispatch force-save event to flush pending data to Firestore before reloading
+      window.dispatchEvent(new CustomEvent('force-save-before-reload'));
+
       // 1. If tab is hidden (user switched tabs or minimized window) -> 100% invisible reload
       if (document.visibilityState === 'hidden') {
         console.log('[VersionUpdateNotifier] Tab hidden. Performing 100% silent background reload to version:', pendingVersionRef.current);
-        window.location.reload();
+        // Give auto-save 2.5s to flush before reloading (async gzip + DB upsert)
+        setTimeout(() => window.location.reload(), 2500);
         return true;
       }
 
@@ -41,7 +45,8 @@ export default function VersionUpdateNotifier() {
 
       if (isIdle && !isTyping && !isModalOpen) {
         console.log('[VersionUpdateNotifier] User idle with no active input. Silently applying new version:', pendingVersionRef.current);
-        window.location.reload();
+        // Give auto-save 2.5s to flush before reloading (async gzip + DB upsert)
+        setTimeout(() => window.location.reload(), 2500);
         return true;
       }
 
@@ -97,7 +102,8 @@ export default function VersionUpdateNotifier() {
         // Perfect moment to reload without the user seeing any flicker!
         if (pendingVersionRef.current && userProfile?.username !== '43751') {
           console.log('[VersionUpdateNotifier] User switched away. Applying update silently.');
-          window.location.reload();
+          window.dispatchEvent(new CustomEvent('force-save-before-reload'));
+          setTimeout(() => window.location.reload(), 2500);
         }
       } else if (document.visibilityState === 'visible') {
         checkVersion();
@@ -118,8 +124,10 @@ export default function VersionUpdateNotifier() {
   }, [userProfile?.username]);
 
   const handleReload = () => {
-    // Force reload bypassing the cache
-    window.location.reload();
+    // Force save all pending data before reloading
+    window.dispatchEvent(new CustomEvent('force-save-before-reload'));
+    // Wait 2.5s for async saves (gzip + DB upsert) to flush, then reload
+    setTimeout(() => window.location.reload(), 2500);
   };
 
   return (

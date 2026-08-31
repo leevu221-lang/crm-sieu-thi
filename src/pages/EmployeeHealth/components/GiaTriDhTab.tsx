@@ -2764,7 +2764,7 @@ export const GiaTriDhTab: React.FC<GiaTriDhTabProps> = ({
 
     if (template === 1) {
       // MẪU 1: TOP/BOT NV
-      text = `📊 TỔNG HỢP THI ĐUA SIÊU THỊ - ${timeStr} NGÀY ${dateStr}\n`;
+      text = `📊 TỔNG HỢP GIÁ TRỊ ĐƠN HÀNG NHÂN VIÊN - ${timeStr} NGÀY ${dateStr}\n`;
       text += `━━━━━━━━━━━━━━━━━━\n\n`;
       text += `📈 KẾT QUẢ TỔNG QUAN:\n`;
       text += `🎯 Tổng NV: ${total} || ĐẠT trên 50%: ${goodStaffCount}/${total}\n\n`;
@@ -2787,7 +2787,7 @@ export const GiaTriDhTab: React.FC<GiaTriDhTabProps> = ({
         const rate = gc > 0 ? qd / gc : 0;
         return avgDtqdPerGc > 0 ? rate < avgDtqdPerGc : false;
       });
-      text = `⚠️ DANH SÁCH NHÂN VIÊN CẦN TĂNG TỐC - ${timeStr} NGÀY ${dateStr}\n`;
+      text = `⚠️ DS CẦN TĂNG TỐC GIÁ TRỊ ĐƠN HÀNG - ${timeStr} NGÀY ${dateStr}\n`;
       text += `━━━━━━━━━━━━━━━━━━\n\n`;
       text += `📊 Tổng NV dưới chuẩn trung bình: ${belowAvgList.length}/${total}\n\n`;
       text += `🚨 DANH SÁCH CẦN CẢI THIỆN TIẾN ĐỘ:\n`;
@@ -2798,7 +2798,7 @@ export const GiaTriDhTab: React.FC<GiaTriDhTabProps> = ({
       text += `\n💡 Cần hỗ trợ các NV trên đẩy mạnh bán hàng và tăng cường tư vấn!`;
     } else {
       // MẪU 3: TÓM TẮT
-      text = `📝 TÓM TẮT THI ĐUA KHAI THÁC NHÂN VIÊN - ${timeStr} NGÀY ${dateStr}\n`;
+      text = `📝 TÓM TẮT GIÁ TRỊ ĐƠN HÀNG NHÂN VIÊN - ${timeStr} NGÀY ${dateStr}\n`;
       text += `━━━━━━━━━━━━━━━━━━\n\n`;
       text += `🎯 Tổng NV: ${total}\n`;
       text += `⚡ Tổng DTQĐ: ${ctktnvTotals.sumDtQd ? fNum(ctktnvTotals.sumDtQd) : '0'} Tr\n`;
@@ -3322,13 +3322,13 @@ export const GiaTriDhTab: React.FC<GiaTriDhTabProps> = ({
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 mobile-table-scroll">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
               <table
                 style={{ fontFamily: "'UTM Avo Black', 'UTM Avo', var(--font-sans), Inter, sans-serif", tableLayout: 'fixed' }}
-                className="w-full border-collapse responsive-data-table"
+                className="w-full border-collapse"
               >
                 <colgroup>
-                  <col style={{ width: '380px', minWidth: '380px' }} className="sticky-col-2-width" />
+                  <col style={{ width: '380px', minWidth: '380px' }} />
                   <col style={{ width: '135px', minWidth: '135px' }} />
                   <col style={{ width: '135px', minWidth: '135px' }} />
                   <col style={{ width: '115px', minWidth: '115px' }} />
@@ -3336,7 +3336,7 @@ export const GiaTriDhTab: React.FC<GiaTriDhTabProps> = ({
                 </colgroup>
                 <thead>
                   <tr className="bg-[#059669] text-white text-[13.5px] font-black uppercase tracking-wider">
-                    <th style={{ width: '380px' }} className="sticky-col sticky-col-1 py-3 px-4 text-left font-black border-r border-emerald-600/50">
+                    <th style={{ width: '380px' }} className="py-3 px-4 text-left font-black border-r border-emerald-600/50">
                       NHÂN VIÊN / TÊN HÀNG HOÁ
                     </th>
                     <th style={{ width: '135px' }} className="py-3 px-3 text-center font-black border-r border-emerald-600/50">
@@ -3374,10 +3374,10 @@ export const GiaTriDhTab: React.FC<GiaTriDhTabProps> = ({
                     }
 
                     return (
-                      <tr key={row.originalIndex} className="group hover:bg-slate-50 transition-colors border-b border-slate-200 bg-white">
+                      <tr key={row.originalIndex} className="hover:bg-slate-50 transition-colors border-b border-slate-200 bg-white">
                         <td
                           style={{ paddingLeft: `${Math.max(0, row.level - 1) * 22 + 12}px` }}
-                          className="sticky-col sticky-col-1 bg-white group-hover:bg-slate-50 py-2.5 px-3.5 border-r border-slate-200 whitespace-nowrap align-middle text-left font-black"
+                          className="py-2.5 px-3.5 border-r border-slate-200 whitespace-nowrap align-middle text-left font-black"
                         >
                           <div className="flex items-center gap-2">
                             {row.hasChildren ? (

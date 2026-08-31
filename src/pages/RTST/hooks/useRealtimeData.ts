@@ -381,13 +381,24 @@ export const useRealtimeData = (maKho: string) => {
         updated_at: new Date().toISOString(),
         rt_bi_tong_quan: marketVal || '',
         rt_nh_cum: categoryVal || '',
-        lk_bi_tong_quan: categoryRevenueVal || '',
-        lk_nh_sieu_thi: categoryTargetVal || '',
         ycx_data: compressedYcx || '',
         ycx_data_moi: compressedYcxMoi || '',
         ycx_file_name: ycxFileNameVal,
         ycx_file_name_moi: ycxFileNameMoiVal
       };
+
+      // Only include LK fields if they actually have content, or if this save was explicitly triggered for that field
+      if (categoryRevenueVal) {
+        payload.lk_bi_tong_quan = categoryRevenueVal;
+      } else if (fieldName === 'LUỸ KẾ DT') {
+        payload.lk_bi_tong_quan = '';
+      }
+      
+      if (categoryTargetVal) {
+        payload.lk_nh_sieu_thi = categoryTargetVal;
+      } else if (fieldName === 'LUỸ KẾ TĐ') {
+        payload.lk_nh_sieu_thi = '';
+      }
 
       // Backup locally FIRST to prevent data loss on F5 if payload exceeds Supabase limit
       try {
@@ -481,6 +492,23 @@ export const useRealtimeData = (maKho: string) => {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
+  // Force-save listener: flush pending realtime data before version-update reload
+  useEffect(() => {
+    const handleForceSave = () => {
+      console.log('[RealtimeData] Force-save triggered before reload — flushing pending data');
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+        autoSaveTimeoutRef.current = null;
+      }
+      // Save immediately without debounce
+      if (saveRealtimeDataRef.current) {
+        saveRealtimeDataRef.current(true);
+      }
+    };
+    window.addEventListener('force-save-before-reload', handleForceSave);
+    return () => window.removeEventListener('force-save-before-reload', handleForceSave);
+  }, []);
+
   // Function to load data for a specific store name
   const loadDataForStore = useCallback(async (targetStore: string) => {
     if (!normalizedMaKho || !targetStore) return;
@@ -541,10 +569,11 @@ export const useRealtimeData = (maKho: string) => {
           const loadedCategory = await sanitizeField(record.rt_nh_cum);
           const loadedCategoryRevenue = await sanitizeField(record.lk_bi_tong_quan);
           const loadedCategoryTarget = await sanitizeField(record.lk_nh_sieu_thi);
-          setMarketInput(loadedMarket);
-          setCategoryInput(loadedCategory);
-          setCategoryRevenueInput(loadedCategoryRevenue);
-          setCategoryTargetInput(loadedCategoryTarget);
+          // Only overwrite local state if DB has non-empty values to prevent data loss
+          if (loadedMarket) setMarketInput(loadedMarket);
+          if (loadedCategory) setCategoryInput(loadedCategory);
+          if (loadedCategoryRevenue) setCategoryRevenueInput(loadedCategoryRevenue);
+          if (loadedCategoryTarget) setCategoryTargetInput(loadedCategoryTarget);
 
           let finalYcxData = await sanitizeField(record.ycx_data);
           let finalYcxDataMoi = await sanitizeField(record.ycx_data_moi);
@@ -692,22 +721,24 @@ export const useRealtimeData = (maKho: string) => {
             } else {
               if (record.rt_bi_tong_quan !== undefined) {
                 sanitizeField(record.rt_bi_tong_quan).then(val => {
-                  setMarketInput(prev => (prev !== val ? val : prev));
+                  if (val) setMarketInput(prev => (prev !== val ? val : prev));
                 });
               }
               if (record.rt_nh_cum !== undefined) {
                 sanitizeField(record.rt_nh_cum).then(val => {
-                  setCategoryInput(prev => (prev !== val ? val : prev));
+                  if (val) setCategoryInput(prev => (prev !== val ? val : prev));
                 });
               }
               if (record.lk_bi_tong_quan !== undefined) {
                 sanitizeField(record.lk_bi_tong_quan).then(val => {
-                  setCategoryRevenueInput(prev => (prev !== val ? val : prev));
+                  // Only overwrite if incoming value is non-empty to prevent data loss
+                  if (val) setCategoryRevenueInput(prev => (prev !== val ? val : prev));
                 });
               }
               if (record.lk_nh_sieu_thi !== undefined) {
                 sanitizeField(record.lk_nh_sieu_thi).then(val => {
-                  setCategoryTargetInput(prev => (prev !== val ? val : prev));
+                  // Only overwrite if incoming value is non-empty to prevent data loss
+                  if (val) setCategoryTargetInput(prev => (prev !== val ? val : prev));
                 });
               }
               if (record.ycx_data !== undefined) {

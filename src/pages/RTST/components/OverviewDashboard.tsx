@@ -169,17 +169,20 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                   const targetData: any = targetDataKey ? allStoreTargets[targetDataKey] : null;
                   const dtDuKienQD = market.targetQD || 0;
                   const percentHT = market.percentHT || 0;
+                  // Use raw targetQD from BI web data directly when available
                   const targetValue = (dtDuKienQD > 0 && percentHT > 0) ? Math.round(dtDuKienQD / (percentHT / 100)) : ((targetData as any)?.stTargetSauHeSo || (targetData as any)?.stTargetQuyDoi || stTargetSauHeSo || stTargetQuyDoi || 0);
                   const percentTargetVal = (targetData as any)?.stPercentTarget ?? stPercentTarget ?? 100;
                   const targetSauHeSo = Math.round(targetValue * (percentTargetVal / 100));
+                  // TARGET QĐ: Use raw targetQD from parsed data; fallback to calculated targetSauHeSo
+                  const displayTargetQD = dtDuKienQD > 0 ? dtDuKienQD : targetSauHeSo;
 
                   return [
-                    { label: 'TARGET QUY ĐỔI', value: formatCurrencyUnit(targetSauHeSo), color: 'bg-blue-900', icon: <Target size={20} /> },
+                    { label: 'TARGET QUY ĐỔI', value: formatCurrencyUnit(displayTargetQD), color: 'bg-blue-900', icon: <Target size={20} /> },
                     { label: 'DT QUY ĐỔI (DTQĐ)', value: formatCurrencyUnit(market.actualVirtual || 0), color: 'bg-emerald-600', icon: <TrendingUp size={20} /> },
                     { 
                       label: '% HT TARGET (QĐ)', 
                       value: title.toUpperCase().includes('LUỸ KẾ')
-                        ? `${targetSauHeSo > 0 ? Math.round((daysPassed > 0 && totalDays > 0 ? (((market.actualVirtual || 0) / daysPassed) * totalDays) : (market.actualVirtual || 0)) / targetSauHeSo * 100) : 0}%`
+                        ? `${displayTargetQD > 0 ? Math.round((daysPassed > 0 && totalDays > 0 ? (((market.actualVirtual || 0) / daysPassed) * totalDays) : (market.actualVirtual || 0)) / displayTargetQD * 100 * 10) / 10 : 0}%`
                         : `${Math.round(market.percentHT || 0)}%`, 
                       color: 'bg-amber-500', 
                       icon: <BarChart3 size={20} /> 

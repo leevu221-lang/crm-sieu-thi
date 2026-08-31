@@ -15,3 +15,7 @@ coverage/
 # Build version file
 public/version.json
 
+
+backups/
+*.zip
+

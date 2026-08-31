@@ -679,7 +679,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     });
 
     // Remove sticky positioning (causes rendering issues in capture)
-    const stickyEls = clone.querySelectorAll('.sticky, .sticky-col, [class*="sticky-col"], [style*="sticky"]');
+    const stickyEls = clone.querySelectorAll('.sticky, [style*="sticky"]');
     stickyEls.forEach(el => {
       (el as HTMLElement).style.position = 'relative';
       (el as HTMLElement).style.left = 'auto';
@@ -865,15 +865,6 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       htmlEl.style.maxHeight = 'none';
       htmlEl.style.boxSizing = 'border-box';
       el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
-    });
-
-    // Remove sticky-column positioning (causes rendering issues in capture,
-    // same reason the .sticky strip exists elsewhere in this file)
-    clone.querySelectorAll('.sticky-col, [class*="sticky-col"]').forEach(el => {
-      const htmlEl = el as HTMLElement;
-      htmlEl.style.position = 'relative';
-      htmlEl.style.left = 'auto';
-      htmlEl.style.zIndex = 'auto';
     });
 
     const tables = clone.querySelectorAll('table');
@@ -1365,6 +1356,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   const marketPercentQD = currentMarket?.actualReal 
     ? (((currentMarket.actualVirtual || 0) - currentMarket.actualReal) / currentMarket.actualReal) * 100 
     : 0;
+  // Use raw targetQD from BC THÁNG parsed data; fallback to stTargetSauHeSo
+  const displayTargetQD = currentMarket?.targetQD || stTargetSauHeSo;
 
   // Sync stName and target fields when marketFilter or data changes (consistent with Lũy Kế page)
   useEffect(() => {
@@ -3539,7 +3532,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const dateStr = now.toLocaleDateString('vi-VN');
     const nowHeader = `${timeStr} NGÀY ${dateStr}`;
 
-    const targetQdPerStaff = filteredBiData.length > 0 ? stTargetSauHeSo / filteredBiData.length : 0;
+    const targetQdPerStaff = filteredBiData.length > 0 ? displayTargetQD / filteredBiData.length : 0;
 
     const staffStats = filteredBiData.map(staff => {
       const actualTargetQdPerStaff = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
@@ -3564,7 +3557,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const staffAbove50 = sortedStaffs.filter(s => s.percentHT >= 50).length;
 
     if (tmpl === 1) {
-      let t1 = `📊 TỔNG HỢP THI ĐUA SIÊU THỊ - ${nowHeader}\n`;
+      let t1 = `📊 TỔNG HỢP DOANH THU NHÂN VIÊN - ${nowHeader}\n`;
       t1 += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
       t1 += `📈 KẾT QUẢ TỔNG QUAN:\n`;
       t1 += `🎯 Tổng NV: ${sortedStaffs.length} || ĐẠT trên 50%: ${staffAbove50}/${sortedStaffs.length}\n\n`;
@@ -3588,7 +3581,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       t1 += `💪 Toàn đội cùng nhau bứt phá về đích ngoạn mục nhé! 🔥`;
       return t1;
     } else if (tmpl === 2) {
-      let t2 = `⚠️ DANH SÁCH NHÂN SỰ CẦN TĂNG TỐC DOANH THU - ${nowHeader}\n`;
+      let t2 = `⚠️ DS CẦN TĂNG TỐC DOANH THU NHÂN VIÊN - ${nowHeader}\n`;
       t2 += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
       t2 += `📊 Tiến độ siêu thị (TGSD: ${daysPassed}/${totalDays} ngày)\n\n`;
       t2 += `🚨 NHÂN VIÊN CẦN BỨT PHÁ (%HT < 100%):\n`;
@@ -3603,7 +3596,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       t2 += `\n🔥 Cố gắng tăng tốc tư vấn và bứt phá doanh số nhé!`;
       return t2;
     } else {
-      let t3 = `⚡ TÓM TẮT XẾP HẠNG DOANH THU NHÂN VIÊN\n`;
+      let t3 = `⚡ TÓM TẮT DOANH THU NHÂN VIÊN - ${nowHeader}\n`;
       t3 += `📅 TGSD: ${daysPassed}/${totalDays} ngày || 👥 Tổng NV: ${sortedStaffs.length}\n`;
       t3 += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
       t3 += `🎯 Tỉ lệ hoàn thành trên 50%: ${staffAbove50}/${sortedStaffs.length} NV\n`;
@@ -3619,7 +3612,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       t3 += `🚀 Quyết tâm hoàn thành 100% mục tiêu!`;
       return t3;
     }
-  }, [filteredBiData, stTargetSauHeSo, daysPassed, totalDays]);
+  }, [filteredBiData, displayTargetQD, daysPassed, totalDays]);
 
   const handleOpenDoanhThuNvComment = useCallback(() => {
     const initialText = generateDoanhThuNvComment(1);
@@ -3640,7 +3633,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   const handleCopyTags = () => {
     if (filteredBiData.length === 0) return;
 
-    const targetQdPerStaff = filteredBiData.length > 0 ? stTargetSauHeSo / filteredBiData.length : 0;
+    const targetQdPerStaff = filteredBiData.length > 0 ? displayTargetQD / filteredBiData.length : 0;
 
     const staffStats = filteredBiData.map(staff => {
       const actualTargetQdPerStaff = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
@@ -3866,7 +3859,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const parsedNhcRows = parsedNhcStaffRows;
 
     const list: StaffComparisonData[] = biRevenueData.map((staff, idx) => {
-      const targetQdPerStaff = filteredBiData.length > 0 ? stTargetSauHeSo / filteredBiData.length : 0;
+      const targetQdPerStaff = filteredBiData.length > 0 ? displayTargetQD / filteredBiData.length : 0;
       const actualTargetQd = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
       const staffActualVal = staff.actualVal || 0;
       const actualDtqd = Math.abs(staffActualVal) > 1000000 ? staffActualVal : staffActualVal * 1000000;
@@ -3934,7 +3927,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     });
 
     return { comparisonStaffList: list, detailComparisonCategories: detailCategories };
-  }, [biRevenueData, filteredBiData, thiDuaNv, categoryTargets, processedData.categories, marketFilter, daysPassed, totalDays, stTargetSauHeSo, thuongData, parsedTraChamRows, nganhhangChinhNv]);
+  }, [biRevenueData, filteredBiData, thiDuaNv, categoryTargets, processedData.categories, marketFilter, daysPassed, totalDays, displayTargetQD, thuongData, parsedTraChamRows, nganhhangChinhNv]);
 
   return (
     <div className="w-full min-h-screen bg-slate-50 overflow-x-hidden font-sans" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
@@ -4114,7 +4107,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                     <RevenueRankingTableQd
                       data={filteredBiData}
                       onCapture={handleCapture}
-                      stTargetQuyDoi={stTargetSauHeSo}
+                      stTargetQuyDoi={displayTargetQD}
                       daysPassed={daysPassed}
                       totalDays={totalDays}
                       stPercentHTTargetDuKienQD={marketPercentQD}
@@ -4221,7 +4214,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                       {selectedStaffIds.map((id, idx) => {
                         const staff = biRevenueData.find(s => s.fullId === id);
                         if (!staff) return null;
-                        const targetQdPerStaff = filteredBiData.length > 0 ? stTargetSauHeSo / filteredBiData.length : 0;
+                        const targetQdPerStaff = filteredBiData.length > 0 ? displayTargetQD / filteredBiData.length : 0;
                         const actualTargetQd = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
                         const staffActualVal = staff.actualVal || 0;
                         const actualDtqd = Math.abs(staffActualVal) > 1000000 ? staffActualVal : staffActualVal * 1000000;
@@ -4579,11 +4572,11 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           </div>
 
                           {/* Table */}
-                          <div className="w-full overflow-x-auto mobile-table-scroll" style={{ '--sticky-col-1-width': '50px' } as React.CSSProperties}>
-                            <table className="w-full border-collapse table-fixed responsive-data-table" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
+                          <div className="w-full overflow-x-auto">
+                            <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
                               <colgroup>
                                 <col style={{ width: '50px' }} />
-                                <col style={{ width: '240px' }} className="sticky-col-2-width" />
+                                <col style={{ width: '240px' }} />
                                 {visibleIndices.slice(startIndex5Sao >= 0 ? startIndex5Sao : 2).map((idx, i) => {
                                   const h = (allHeaders[idx] || '').trim().toUpperCase();
                                   const isScore = h.includes('ĐIỂM') || h.includes('DIEM') || h.includes('HÀI LÒNG') || h.includes('HAI LONG');
@@ -4595,8 +4588,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                               </colgroup>
                               <thead>
                                 <tr className="min-h-[44px] h-auto">
-                                  <th className="sticky-col sticky-col-1 bg-[#047857] text-white px-1 py-1.5 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
-                                  <th className="sticky-col sticky-col-2 bg-[#047857] text-white px-2.5 py-1.5 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
+                                  <th className="bg-[#047857] text-white px-1 py-1.5 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
+                                  <th className="bg-[#047857] text-white px-2.5 py-1.5 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
                                   {visibleIndices.slice(startIndex5Sao >= 0 ? startIndex5Sao : 2).map((idx, i) => (
                                     <th key={idx} className="bg-[#047857] text-white px-1 py-1.5 text-center text-[10.5px] sm:text-[11.5px] font-black uppercase tracking-tight border-r border-emerald-600/50 break-words whitespace-normal leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                       {allHeaders[idx]}
@@ -4630,12 +4623,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                   const rowBg = rowIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50';
 
                                   return (
-                                    <tr key={rowIdx} className={`group ${rowBg} hover:bg-slate-50 transition-colors h-[44px] border-b border-slate-100`}>
-                                      <td className={`sticky-col sticky-col-1 ${rowBg} group-hover:bg-slate-50 px-2 py-0 text-center font-black text-slate-500 text-[12px] sm:text-[13px] border-r border-slate-100`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                    <tr key={rowIdx} className={`${rowBg} hover:bg-slate-50 transition-colors h-[44px] border-b border-slate-100`}>
+                                      <td className="px-2 py-0 text-center font-black text-slate-500 text-[12px] sm:text-[13px] border-r border-slate-100" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                         #{rowIdx + 1}
                                       </td>
-                                      <td className={`sticky-col sticky-col-2 ${rowBg} group-hover:bg-slate-50 px-3 py-0 text-left font-black text-[12px] sm:text-[13px] border-r border-slate-100 truncate ${nameColor}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
-                                        <span className="sticky-col-cell-text">{staffDisplay}</span>
+                                      <td className={`px-3 py-0 text-left font-black text-[12px] sm:text-[13px] border-r border-slate-100 truncate ${nameColor}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        {staffDisplay}
                                       </td>
                                       {visibleIndices.slice(startIndex5Sao >= 0 ? startIndex5Sao : 2).map((idx) => {
                                         const value = cells[idx] || '';
@@ -4820,11 +4813,11 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                         </div>
 
                         {/* Table */}
-                        <div className="w-full overflow-x-auto mobile-table-scroll" style={{ '--sticky-col-1-width': '50px' } as React.CSSProperties}>
-                          <table className="w-full border-collapse table-fixed responsive-data-table" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
+                        <div className="w-full overflow-x-auto">
+                          <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
                             <colgroup>
                               <col style={{ width: '50px' }} />
-                              <col style={{ width: '220px' }} className="sticky-col-2-width" />
+                              <col style={{ width: '220px' }} />
                               <col style={{ width: '100px' }} />
                               <col style={{ width: '110px' }} />
                               <col style={{ width: '100px' }} />
@@ -4833,8 +4826,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                             </colgroup>
                             <thead>
                               <tr className="h-[40px]">
-                                <th className="sticky-col sticky-col-1 bg-[#047857] text-white px-2 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
-                                <th className="sticky-col sticky-col-2 bg-[#047857] text-white px-3 py-0 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
+                                <th className="bg-[#047857] text-white px-2 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
+                                <th className="bg-[#047857] text-white px-3 py-0 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
                                 <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DTLK</th>
                                 <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Lượt Bill BK</th>
                                 <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>%Bill BK</th>
@@ -4851,12 +4844,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                 const nameColor = isTop ? 'text-emerald-700' : isBottom ? 'text-rose-600' : 'text-slate-800';
 
                                 return (
-                                  <tr key={i} className={`group ${rowBg} hover:bg-slate-50 transition-colors h-[44px] border-b border-slate-100`}>
-                                    <td className={`sticky-col sticky-col-1 ${rowBg} group-hover:bg-slate-50 px-2 py-0 text-center font-black text-slate-500 text-[12px] sm:text-[13px] border-r border-slate-100`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                  <tr key={i} className={`${rowBg} hover:bg-slate-50 transition-colors h-[44px] border-b border-slate-100`}>
+                                    <td className="px-2 py-0 text-center font-black text-slate-500 text-[12px] sm:text-[13px] border-r border-slate-100" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                       #{i + 1}
                                     </td>
-                                    <td className={`sticky-col sticky-col-2 ${rowBg} group-hover:bg-slate-50 px-3 py-0 text-left font-black text-[12px] sm:text-[13px] border-r border-slate-100 truncate ${nameColor}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
-                                      <span className="sticky-col-cell-text">{(row.nhanVien || '').toUpperCase()}</span>
+                                    <td className={`px-3 py-0 text-left font-black text-[12px] sm:text-[13px] border-r border-slate-100 truncate ${nameColor}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                      {(row.nhanVien || '').toUpperCase()}
                                     </td>
                                     <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 text-slate-700 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                       {row.dtlk || '0'}
@@ -4881,7 +4874,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                             </tbody>
                             <tfoot>
                               <tr className="h-[44px] bg-[#047857] text-white">
-                                <td colSpan={2} className="sticky-col sticky-col-1 bg-[#047857] px-3 py-0 text-center font-black text-[12px] sm:text-[13px] uppercase tracking-widest border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                <td colSpan={2} className="px-3 py-0 text-center font-black text-[12px] sm:text-[13px] uppercase tracking-widest border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                   Tổng
                                 </td>
                                 <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>—</td>
@@ -5106,12 +5099,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
                           return (
                             <>
-                              <div className="overflow-x-auto mobile-table-scroll" style={{ '--sticky-col-1-width': '40px' } as React.CSSProperties}>
-                              <table className="w-full border-collapse min-w-[1000px] responsive-data-table" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+                              <div className="overflow-x-auto">
+                              <table className="w-full border-collapse min-w-[1000px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                                 <thead>
                                   <tr className="bg-[#facc15] text-[14px] font-black text-slate-900 uppercase tracking-tight h-[45px] border-b border-slate-300">
-                                    <th rowSpan={2} style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="sticky-col sticky-col-1 bg-[#facc15] px-3 py-0 text-center w-10 border-r border-slate-300 font-sans font-black">STT</th>
-                                    <th rowSpan={2} style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="sticky-col sticky-col-2 bg-[#facc15] px-4 py-0 text-center border-r border-slate-300 min-w-[200px] font-sans font-black">Nhân viên</th>
+                                    <th rowSpan={2} style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="px-3 py-0 text-center w-10 border-r border-slate-300 font-sans font-black">STT</th>
+                                    <th rowSpan={2} style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="px-4 py-0 text-center border-r border-slate-300 min-w-[200px] font-sans font-black">Nhân viên</th>
                                     {BONUS_COLS.map((cat, idx) => (
                                       <th key={idx} colSpan={3} style={{ fontFamily: 'var(--font-sans)', fontWeight: '900' }} className="px-3 py-0 text-center border-r border-slate-300 text-[14px] font-black text-slate-900 uppercase font-sans font-black">
                                         {cat.name}
@@ -5142,12 +5135,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                     const tongDiff = valHientai - valTruoc;
 
                                     return (
-                                      <tr key={staff.fullId} className={cn("group hover:bg-slate-50 transition-colors h-[40px]", idx % 2 === 1 ? "bg-[#f8faff]" : "bg-white")}>
-                                        <td className={cn("sticky-col sticky-col-1 group-hover:bg-slate-50 px-2 py-0 text-center border-r border-slate-200 font-bold text-[13px] text-slate-800", idx % 2 === 1 ? "bg-[#f8faff]" : "bg-white")}>
+                                      <tr key={staff.fullId} className={cn("hover:bg-slate-50 transition-colors h-[40px]", idx % 2 === 1 ? "bg-[#f8faff]" : "bg-white")}>
+                                        <td className="px-2 py-0 text-center border-r border-slate-200 bg-white font-bold text-[13px] text-slate-800">
                                           {idx + 1}
                                         </td>
-                                        <td className={cn("sticky-col sticky-col-2 group-hover:bg-slate-50 px-4 py-0 border-r border-slate-200", idx % 2 === 1 ? "bg-[#f8faff]" : "bg-white")}>
-                                          <span className="text-[13px] font-bold text-slate-800 uppercase sticky-col-cell-text" title={staff.displayName}>{staff.displayName}</span>
+                                        <td className="px-4 py-0 border-r border-slate-200">
+                                          <span className="text-[13px] font-bold text-slate-800 uppercase" title={staff.displayName}>{staff.displayName}</span>
                                         </td>
                                         {BONUS_COLS.map((cat, idx) => {
                                           const valT = truocData.details[cat.index];
@@ -5349,11 +5342,11 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           </div>
 
                           {/* Table */}
-                          <div className="w-full overflow-x-auto mobile-table-scroll" style={{ '--sticky-col-1-width': '50px' } as React.CSSProperties}>
-                            <table className="w-full border-collapse table-fixed responsive-data-table" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
+                          <div className="w-full overflow-x-auto">
+                            <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
                               <colgroup>
                                 <col style={{ width: '50px' }} />
-                                <col style={{ width: '220px' }} className="sticky-col-2-width" />
+                                <col style={{ width: '220px' }} />
                                 <col style={{ width: '140px' }} />
                                 <col style={{ width: '140px' }} />
                                 <col style={{ width: '100px' }} />
@@ -5361,8 +5354,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                               </colgroup>
                               <thead>
                                 <tr className="h-[40px]">
-                                  <th className="sticky-col sticky-col-1 bg-[#047857] text-white px-2 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
-                                  <th className="sticky-col sticky-col-2 bg-[#047857] text-white px-3 py-0 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
+                                  <th className="bg-[#047857] text-white px-2 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
+                                  <th className="bg-[#047857] text-white px-3 py-0 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
                                   <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Thực</th>
                                   <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Trả Chậm</th>
                                   <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>% Trả Chậm</th>
@@ -5378,12 +5371,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                   const nameColor = isTop ? 'text-emerald-700' : isBottom ? 'text-rose-600' : 'text-slate-800';
 
                                   return (
-                                    <tr key={i} className={`group ${rowBg} hover:bg-slate-50 transition-colors h-[44px] border-b border-slate-100`}>
-                                      <td className={`sticky-col sticky-col-1 ${rowBg} group-hover:bg-slate-50 px-2 py-0 text-center font-black text-slate-500 text-[12px] sm:text-[13px] border-r border-slate-100`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                    <tr key={i} className={`${rowBg} hover:bg-slate-50 transition-colors h-[44px] border-b border-slate-100`}>
+                                      <td className="px-2 py-0 text-center font-black text-slate-500 text-[12px] sm:text-[13px] border-r border-slate-100" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                         #{i + 1}
                                       </td>
-                                      <td className={`sticky-col sticky-col-2 ${rowBg} group-hover:bg-slate-50 px-3 py-0 text-left font-black text-[12px] sm:text-[13px] border-r border-slate-100 truncate ${nameColor}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
-                                        <span className="sticky-col-cell-text">{(row.nhanVien || '').toUpperCase()}</span>
+                                      <td className={`px-3 py-0 text-left font-black text-[12px] sm:text-[13px] border-r border-slate-100 truncate ${nameColor}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        {(row.nhanVien || '').toUpperCase()}
                                       </td>
                                       <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 text-slate-700 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                         {Math.round(row.totalRevenue).toLocaleString('vi-VN')}
@@ -5405,7 +5398,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                               </tbody>
                               <tfoot>
                                 <tr className="h-[44px] bg-[#047857] text-white">
-                                  <td colSpan={2} className="sticky-col sticky-col-1 bg-[#047857] px-3 py-0 text-center font-black text-[12px] sm:text-[13px] uppercase tracking-widest border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                  <td colSpan={2} className="px-3 py-0 text-center font-black text-[12px] sm:text-[13px] uppercase tracking-widest border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                     Tổng
                                   </td>
                                   <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
@@ -5539,12 +5532,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                               </div>
 
                           <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-hidden shadow-lg shadow-slate-200/30">
-                            <div className="overflow-x-auto mobile-table-scroll" style={{ '--sticky-col-1-width': '60px' } as React.CSSProperties}>
-                              <table className="w-full text-left text-[#0f172a] border-collapse responsive-data-table" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left text-[#0f172a] border-collapse" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                                 <thead className="text-slate-900 uppercase border-b border-slate-200">
                                   <tr style={{ height: '50px' }}>
-                                    <th style={{ width: '60px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="sticky-col sticky-col-1 px-4 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">STT</th>
-                                    <th style={{ width: '250px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="sticky-col sticky-col-2 px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black">NHÂN VIÊN</th>
+                                    <th style={{ width: '60px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">STT</th>
+                                    <th style={{ width: '250px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black">NHÂN VIÊN</th>
                                     <th style={{ width: '220px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-6 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black text-center">NHÓM HÀNG</th>
                                     <th style={{ width: '100px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">SL</th>
                                     <th style={{ width: '180px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black">DTLK</th>
@@ -5555,9 +5548,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                   {parsedKhaiThacRows.map((row: any, i: number) => {
                                       const isStriped = i % 2 === 1;
                                       return (
-                                        <tr key={i} className={`group ${isStriped ? 'bg-[#f8faff]' : 'bg-white'} hover:bg-slate-50 h-[48px]`}>
-                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={`sticky-col sticky-col-1 group-hover:bg-slate-50 px-4 py-3 text-center border-r border-slate-200 text-[#0f172a] ${isStriped ? 'bg-[#f8faff]' : 'bg-white'}`}>{i + 1}</td>
-                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={`sticky-col sticky-col-2 group-hover:bg-slate-50 px-6 py-3 border-r border-slate-200 text-[#0f172a] uppercase ${isStriped ? 'bg-[#f8faff]' : 'bg-white'}`}><span className="sticky-col-cell-text">{row.nhanVien}</span></td>
+                                        <tr key={i} className={`${isStriped ? 'bg-[#f8faff]' : 'bg-white'} hover:bg-slate-50 h-[48px]`}>
+                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-3 text-center border-r border-slate-200 text-[#0f172a]">{i + 1}</td>
+                                          <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 border-r border-slate-200 text-[#0f172a] uppercase">{row.nhanVien}</td>
                                           <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 border-r border-slate-200 text-center text-[#0f172a]">{row.nhomHang}</td>
                                           <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-[#0f172a]">{row.soLuong}</td>
                                           <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-6 py-3 text-center border-r border-slate-200 font-mono text-[#0f172a]">{Math.round(row.dtlk).toLocaleString('vi-VN')} đ</td>
@@ -6441,11 +6434,11 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           </div>
 
                           <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-hidden shadow-lg shadow-slate-200/30">
-                            <div className="overflow-x-auto mobile-table-scroll" style={{ '--sticky-col-1-width': '55px' } as React.CSSProperties}>
-                              <table className="w-full text-left text-[#0f172a] border-collapse table-fixed responsive-data-table" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900, minWidth: '100%' }}>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left text-[#0f172a] border-collapse table-fixed" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900, minWidth: '100%' }}>
                                 <colgroup>
                                   <col style={{ width: '55px' }} />
-                                  <col style={{ width: '220px' }} className="sticky-col-2-width" />
+                                  <col style={{ width: '220px' }} />
                                   {showDtqdGroup && (
                                     <>
                                       {showMonthlyDtqd && (
@@ -6515,8 +6508,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                 </colgroup>
                                 <thead className="text-slate-900 uppercase border-b border-slate-200">
                                   <tr>
-                                    <th rowSpan={2} style={{ width: '55px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="sticky-col sticky-col-1 px-2 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black align-middle whitespace-nowrap">STT</th>
-                                    <th rowSpan={2} style={{ width: '220px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="sticky-col sticky-col-2 px-4 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black align-middle whitespace-nowrap">NHÂN VIÊN</th>
+                                    <th rowSpan={2} style={{ width: '55px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-2 py-3 text-center border-r border-white/20 text-[#0f172a] font-sans font-black align-middle whitespace-nowrap">STT</th>
+                                    <th rowSpan={2} style={{ width: '220px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#00965e' }} className="px-4 py-3 border-r border-white/20 text-[#0f172a] font-sans font-black align-middle whitespace-nowrap">NHÂN VIÊN</th>
                                     {showDtqdGroup && (
                                       <th colSpan={showMonthlyDtqd ? 5 : 2} style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-2.5 border-r border-b border-white/20 text-[#0f172a] bg-[#ffcb05] font-sans font-black text-center text-sm md:text-base tracking-wide uppercase whitespace-nowrap">
                                         DOANH THU QUY ĐỔI THÁNG {rankMonth1.replace(/tháng\s*/i, '')}, {rankMonth2.replace(/tháng\s*/i, '')}, {rankMonth3.replace(/tháng\s*/i, '')}
@@ -6629,9 +6622,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                     const tbTc = rank3TTraChamTopBotStats.stats[key] || { top: 0, bot: 0 };
 
                                     return (
-                                      <tr key={i} className="group bg-white hover:bg-slate-50 h-[48px]">
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="sticky-col sticky-col-1 px-2 py-3 text-center border-r border-slate-100 bg-[#fef08a] text-[#0f172a] font-black whitespace-nowrap">{i + 1}</td>
-                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="sticky-col sticky-col-2 group-hover:bg-slate-50 px-4 py-3 border-r border-slate-100 bg-white text-[#0f172a] uppercase font-black truncate max-w-[220px]" title={row.name}><span className="sticky-col-cell-text">{row.name}</span></td>
+                                      <tr key={i} className="bg-white hover:bg-slate-50 h-[48px]">
+                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-2 py-3 text-center border-r border-slate-100 bg-[#fef08a] text-[#0f172a] font-black whitespace-nowrap">{i + 1}</td>
+                                        <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-4 py-3 border-r border-slate-100 bg-white text-[#0f172a] uppercase font-black truncate max-w-[220px]" title={row.name}>{row.name}</td>
                                         {showDtqdGroup && (
                                           <>
                                             {showMonthlyDtqd && (

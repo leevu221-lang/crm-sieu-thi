@@ -25,8 +25,15 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
   onSelectStaff,
   stPercentHTTargetDuKienQD = 0
 }) => {
-  // Sort by actualVal (Doanh thu QĐ) descending
-  const sortedData = [...data].sort((a, b) => (b.actualVal || 0) - (a.actualVal || 0));
+  // Pre-compute %HT for sorting
+  const computePercentHT = (staff: StaffData) => {
+    const tgtPerStaff = data.length > 0 ? stTargetQuyDoi / data.length : 0;
+    const actualTgt = tgtPerStaff > 1000000 ? tgtPerStaff : tgtPerStaff * 1000000;
+    const actualVVal = Math.abs(staff.virtualVal || 0) > 1000000 ? (staff.virtualVal || 0) : (staff.virtualVal || 0) * 1000000;
+    return (actualTgt > 0 && daysPassed > 0) ? (((actualVVal / daysPassed) * totalDays) / actualTgt) * 100 : 0;
+  };
+  // Sort by %HT descending
+  const sortedData = [...data].sort((a, b) => computePercentHT(b) - computePercentHT(a));
 
   const formatName = (name: string) => {
     if (!name) return '';
@@ -48,8 +55,8 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
   const targetQdPerStaff = sortedData.length > 0 ? stTargetQuyDoi / sortedData.length : 0;
   const totalTargetQd = stTargetQuyDoi;
   const actualTotalTargetQd = totalTargetQd > 1000000 ? totalTargetQd : totalTargetQd * 1000000;
-  const actualTotalActual = Math.abs(totalActual) > 1000000 ? totalActual : totalActual * 1000000;
-  const totalPercentHT = (actualTotalTargetQd > 0 && daysPassed > 0) ? (((actualTotalActual / daysPassed) * totalDays) / actualTotalTargetQd) * 100 : 0;
+  const actualTotalVirtual = Math.abs(totalVirtual) > 1000000 ? totalVirtual : totalVirtual * 1000000;
+  const totalPercentHT = (actualTotalTargetQd > 0 && daysPassed > 0) ? (((actualTotalVirtual / daysPassed) * totalDays) / actualTotalTargetQd) * 100 : 0;
 
   return (
     <div className="w-full flex justify-center" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
@@ -71,11 +78,11 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
         </div>
 
         {/* Table Container */}
-        <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80 mobile-table-scroll" style={{ '--sticky-col-1-width': '50px' } as React.CSSProperties}>
-          <table className="w-full border-separate border-spacing-0 table-fixed bg-white text-[12px] sm:text-[14.5px] responsive-data-table" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900, minWidth: '820px' }}>
+        <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
+          <table className="w-full border-separate border-spacing-0 table-fixed bg-white text-[12px] sm:text-[14.5px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900, minWidth: '820px' }}>
             <colgroup>
               <col style={{ width: '50px' }} />
-              <col style={{ width: '310px' }} className="sticky-col-2-width" />
+              <col style={{ width: '310px' }} />
               <col style={{ width: '100px' }} />
               <col style={{ width: '100px' }} />
               <col style={{ width: '105px' }} />
@@ -84,28 +91,27 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
             </colgroup>
             <thead>
               <tr className="text-white font-black text-[12px] sm:text-[13.5px] uppercase tracking-tight h-[44px]">
-                <th style={{ fontWeight: 900 }} className="sticky-col sticky-col-1 px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">STT</th>
-                <th style={{ fontWeight: 900 }} className="sticky-col sticky-col-2 px-2.5 sm:px-3.5 py-0 text-left text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">NHÂN VIÊN</th>
+                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">STT</th>
+                <th style={{ fontWeight: 900 }} className="px-2.5 sm:px-3.5 py-0 text-left text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">NHÂN VIÊN</th>
                 <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">TARGET</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">REAL</th>
+                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">L.KẾ</th>
                 <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">%HT</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">HIỆU QUẢ</th>
+                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">HQ.QĐ</th>
                 <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">XH</th>
               </tr>
             </thead>
             <tbody>
               {sortedData.length > 0 ? (
                 sortedData.map((staff, index) => {
-                  const effQd = (staff.effVal !== 0 
-                    ? staff.effVal 
-                    : ((staff.actualVal || 0) > 0 
-                      ? ((staff.virtualVal - (staff.actualVal || 0)) / (staff.actualVal || 0)) * 100 
-                      : 0)) * 100;
+                  // HQ.QĐ = (DOANH THU QĐ - DOANH THU) / DOANH THU × 100
+                  const effQd = (staff.actualVal || 0) > 0 
+                    ? ((staff.virtualVal - (staff.actualVal || 0)) / (staff.actualVal || 0)) * 100 
+                    : 0;
                   const actualTargetQdPerStaff = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
-                  const actualActualVal = Math.abs(staff.actualVal || 0) > 1000000 ? (staff.actualVal || 0) : (staff.actualVal || 0) * 1000000;
+                  const actualVirtualVal = Math.abs(staff.virtualVal || 0) > 1000000 ? (staff.virtualVal || 0) : (staff.virtualVal || 0) * 1000000;
                   
                   const percentHT = (actualTargetQdPerStaff > 0 && daysPassed > 0) 
-                    ? (((actualActualVal / daysPassed) * totalDays) / actualTargetQdPerStaff) * 100 
+                    ? (((actualVirtualVal / daysPassed) * totalDays) / actualTargetQdPerStaff) * 100 
                     : 0;
                   
                   const topCount = Math.max(1, Math.round(sortedData.length * 0.2));
@@ -113,29 +119,23 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                   const isBottom = index >= sortedData.length - topCount;
                   const isEven = index % 2 === 0;
 
-                  const rowBgClass = isEven ? "bg-white" : "bg-emerald-50/20";
-                  const isSelected = selectedStaffId === staff.fullId;
-
                   return (
-                    <tr
+                    <tr 
                       key={staff.fullId}
                       onClick={() => onSelectStaff && onSelectStaff(staff.fullId)}
                       className={cn(
-                        "group transition-colors h-[40px] cursor-pointer border-b border-emerald-100/90",
-                        rowBgClass,
+                        "transition-colors h-[40px] cursor-pointer border-b border-emerald-100/90",
+                        isEven ? "bg-white" : "bg-emerald-50/20",
                         "hover:bg-emerald-50/70",
-                        isSelected && "!bg-emerald-100/60"
+                        selectedStaffId === staff.fullId && "!bg-emerald-100/60"
                       )}
                     >
-                      <td style={{ fontWeight: 900 }} className="sticky-col sticky-col-1 px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12px] sm:text-[14.5px] text-slate-700 bg-emerald-50/40 whitespace-nowrap">
+                      <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12px] sm:text-[14.5px] text-slate-700 bg-emerald-50/40 whitespace-nowrap">
                         #{index + 1}
                       </td>
-                      <td style={{ fontWeight: 900 }} className={cn(
-                        "sticky-col sticky-col-2 px-2.5 sm:px-3.5 py-0.5 border-r border-b border-emerald-100/90 whitespace-nowrap text-left group-hover:bg-emerald-50/70",
-                        isSelected ? "!bg-emerald-100/60" : rowBgClass
-                      )}>
+                      <td style={{ fontWeight: 900 }} className="px-2.5 sm:px-3.5 py-0.5 border-r border-b border-emerald-100/90 whitespace-nowrap text-left">
                         <span className={cn(
-                          "font-black uppercase tracking-tight text-[12.5px] sm:text-[14.5px] whitespace-nowrap inline-block sticky-col-cell-text",
+                          "font-black uppercase tracking-tight text-[12.5px] sm:text-[14.5px] whitespace-nowrap inline-block",
                           isBottom ? "text-rose-600" : "text-slate-900"
                         )}>
                           {formatName(staff.displayName)} - {staff.fullId}
@@ -145,14 +145,14 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                         {targetQdPerStaff > 0 ? formatCurrencyValue(targetQdPerStaff) : '0'}
                       </td>
                       <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12.5px] sm:text-[14.5px] text-rose-600 whitespace-nowrap">
-                        {staff.actualVal !== null ? formatCurrencyValue(staff.actualVal) : ''}
+                        {formatCurrencyValue(staff.virtualVal || 0)}
                       </td>
                       <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
                         <span className={cn(
                           "inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[13px] leading-none",
                           percentHT >= 100 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-600"
                         )}>
-                          {percentHT.toFixed(1)}%
+                          {Math.round(percentHT)}%
                         </span>
                       </td>
                       <td style={{ fontWeight: 900 }} className={cn(
@@ -184,17 +184,17 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
             {sortedData.length > 0 && (
               <tfoot>
                 <tr className="h-[44px] text-white">
-                  <td colSpan={2} style={{ fontWeight: 900 }} className="sticky-col sticky-col-1 px-2 sm:px-3 py-0 text-center border-r border-emerald-600/50 font-black text-[13px] sm:text-[15px] text-white uppercase tracking-widest whitespace-nowrap bg-[#047857]">
+                  <td colSpan={2} style={{ fontWeight: 900 }} className="px-2 sm:px-3 py-0 text-center border-r border-emerald-600/50 font-black text-[13px] sm:text-[15px] text-white uppercase tracking-widest whitespace-nowrap bg-[#047857]">
                     TỔNG
                   </td>
                   <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[13.5px] sm:text-[15px] whitespace-nowrap bg-[#047857]">
                     {totalTargetQd > 0 ? formatCurrencyValue(totalTargetQd) : '0'}
                   </td>
                   <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[13.5px] sm:text-[15px] whitespace-nowrap bg-[#047857]">
-                    {formatCurrencyValue(totalActual)}
+                    {formatCurrencyValue(totalVirtual)}
                   </td>
                   <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[13px] sm:text-[15px] whitespace-nowrap bg-[#047857]">
-                    {totalPercentHT.toFixed(1)}%
+                    {Math.round(totalPercentHT)}%
                   </td>
                   <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap bg-[#047857]">
                     {stPercentHTTargetDuKienQD > 0 ? `${stPercentHTTargetDuKienQD.toFixed(1)}%` : ''}

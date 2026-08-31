@@ -1217,7 +1217,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   const { marketFilter, setMarketFilter, availableMarkets: filteredMarkets } = useMarket();
   const { isStoreReady, activeRealtimeTab: activeTab, setActiveRealtimeTab: setActiveTab } = useStore();
   const [selectedStaffs, setSelectedStaffs] = useState<string[]>([]);
-  const [selectedMaKho, setSelectedMaKho] = useState(userProfile?.ma_kho || '');
+  const [selectedMaKho, setSelectedMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
   
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [customNhomSmallMap, setCustomNhomSmallMap] = useState<Record<string, { nganhHang?: string, large: string, small: string }>>({});
@@ -1627,7 +1627,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
   const {
     drillFilterStaff, setDrillFilterStaff,
-    categoryMappingInput, setCategoryMappingInput
+    categoryMappingInput, setCategoryMappingInput,
+    allStoreTargets, stTargetSauHeSo, stTargetQuyDoi, stPercentTarget
   } = useRTSTSharedData(selectedMaKho);
 
   const customCategoryMap = useMemo(() => {
@@ -4753,10 +4754,21 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const dateStr = now.toLocaleDateString('vi-VN');
     const nowHeader = `${timeStr} NGÀY ${dateStr}`;
+    // Use raw targetQD from BC THÁNG (lũy kế) directly - matching OverviewDashboard
+    const activeLkMarket = activeDeclared ? luykeProcessedData?.markets?.find(lm =>
+      normalize(lm.name).includes(normalize(activeDeclared.name)) ||
+      normalize(activeDeclared.name).includes(normalize(lm.name))
+    ) : null;
+    const monthTargetQD = activeLkMarket?.targetQD || parsedMarket.targetQD || 0;
+    const totalDaysInMonth = mucTieu100Info.totalDaysInMonth || new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const dailyTargetQD = totalDaysInMonth > 0 ? Math.round(monthTargetQD / totalDaysInMonth) : monthTargetQD;
+    const dailyPercentHT = dailyTargetQD > 0 
+      ? Math.round(((parsedMarket.actualVirtual || 0) / dailyTargetQD) * 100) 
+      : Math.round(parsedMarket.percentHT || 0);
 
-    const targetQD = formatCurrencyUnit(parsedMarket.targetQD || 0);
+    const targetQD = formatCurrencyUnit(dailyTargetQD);
     const actualVirtual = formatCurrencyUnit(parsedMarket.actualVirtual || 0);
-    const percentHT = Math.round(parsedMarket.percentHT || 0);
+    const percentHT = dailyPercentHT;
     const installmentRate = (parsedMarket.installmentRate || 0).toFixed(1);
     const luotBill = Math.round(parsedMarket.luotBillThuHo || 0);
 
@@ -4785,7 +4797,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const staffAbove50 = activeStaffs.filter(s => (s.percentHT || 0) >= 50).length;
 
     // MẪU 1: TOP/BOT NV (TOÀN DIỆN DOANH THU & NGÀNH HÀNG)
-    let t1 = `📊 TỔNG HỢP THI ĐUA SIÊU THỊ - ${nowHeader}\n`;
+    let t1 = `📊 TỔNG HỢP DOANH THU & NGÀNH HÀNG SIÊU THỊ - ${nowHeader}\n`;
     t1 += `🏪 Siêu thị: ${marketName}\n`;
     t1 += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
     t1 += `📈 KẾT QUẢ TỔNG QUAN:\n`;
@@ -5516,6 +5528,18 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           luotBillThuHo: 0
                         };
 
+                        // Use raw targetQD from BC THÁNG (lũy kế) directly
+                        const lkMarket = luykeProcessedData?.markets?.find(lm =>
+                          normalize(lm.name).includes(normalize(declaredMarket.name)) ||
+                          normalize(declaredMarket.name).includes(normalize(lm.name))
+                        );
+                        const monthTargetQD = lkMarket?.targetQD || parsedMarket.targetQD || 0;
+                        const totalDaysInMonth = mucTieu100Info.totalDaysInMonth || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+                        const dailyTargetQD = totalDaysInMonth > 0 ? Math.round(monthTargetQD / totalDaysInMonth) : monthTargetQD;
+                        const dailyPercentHT = dailyTargetQD > 0 
+                          ? Math.round(((parsedMarket.actualVirtual || 0) / dailyTargetQD) * 100) 
+                          : Math.round(parsedMarket.percentHT || 0);
+
                         return (
                           <div key={mIdx} className="relative overflow-hidden bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-indigo-100/90 shadow-[0_4px_25px_-4px_rgba(79,70,229,0.08)] space-y-4">
                             {/* Ambient background glow */}
@@ -5562,7 +5586,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
                               <StatCard
                                 title="TAGET QĐ"
-                                value={formatCurrencyUnit(parsedMarket.targetQD || 0)}
+                                value={formatCurrencyUnit(dailyTargetQD)}
                                 subValue=""
                                 icon={Target}
                                 color="rose"
@@ -5578,7 +5602,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               />
                               <StatCard
                                 title="%HT"
-                                value={`${Math.round(parsedMarket.percentHT || 0)}%`}
+                                value={`${dailyPercentHT}%`}
                                 subValue=""
                                 icon={Activity}
                                 color="emerald"
@@ -5704,11 +5728,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 </div>
                               )}
 
-                              <div className="overflow-x-auto w-full rounded-2xl border border-emerald-300/80 mobile-table-scroll" style={{ '--sticky-col-1-width': '40px' } as React.CSSProperties}>
-                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white responsive-data-table" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, minWidth: '600px' }}>
+                              <div className="overflow-x-auto w-full rounded-2xl border border-emerald-300/80">
+                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, minWidth: '600px' }}>
                                   <colgroup>
                                     <col style={{ width: '40px' }} />
-                                    <col style={{ width: 'auto' }} className="sticky-col-2-width" />
+                                    <col style={{ width: 'auto' }} />
                                     <col style={{ width: '68px' }} />
                                     <col style={{ width: '58px' }} />
                                     <col style={{ width: '58px' }} />
@@ -5718,8 +5742,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   </colgroup>
                                   <thead>
                                     <tr className="text-white h-[46px]">
-                                      <th className={`sticky-col sticky-col-1 px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>STT</th>
-                                      <th className={`sticky-col sticky-col-2 px-2.5 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>STT</th>
+                                      <th className={`px-2.5 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
                                       <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>TARGET</th>
                                       <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>REAL</th>
                                       <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden`}>%HT</th>
@@ -5738,9 +5762,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         const remaining = cat.target - cat.revenue;
                                         const isEven = idx % 2 === 0;
                                         return (
-                                          <tr key={idx} className={`group ${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
-                                            <td className={`sticky-col sticky-col-1 px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40`}>{idx + 1}</td>
-                                            <td className={`sticky-col sticky-col-2 px-2 py-0.5 ${isUser43751 ? 'text-[14px]' : 'text-[12.5px]'} font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 leading-snug tracking-tight ${isEven ? 'bg-white' : 'bg-emerald-50/20'} group-hover:bg-emerald-50/70`} title={cat.name}><span className="sticky-col-cell-text">{cat.name}</span></td>
+                                          <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40`}>{idx + 1}</td>
+                                            <td className={`px-2 py-0.5 ${isUser43751 ? 'text-[14px]' : 'text-[12.5px]'} font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 leading-snug tracking-tight`} title={cat.name}>{cat.name}</td>
                                             <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-slate-800`}>{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
                                             <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-r border-b border-emerald-100/90 text-emerald-700`}>{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
                                             <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
@@ -5806,11 +5830,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 </div>
                               )}
 
-                              <div className="overflow-x-auto w-full rounded-2xl border border-emerald-300/80 mobile-table-scroll" style={{ '--sticky-col-1-width': '40px' } as React.CSSProperties}>
-                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white responsive-data-table" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, minWidth: '600px' }}>
+                              <div className="overflow-x-auto w-full rounded-2xl border border-emerald-300/80">
+                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, minWidth: '600px' }}>
                                   <colgroup>
                                     <col style={{ width: '40px' }} />
-                                    <col style={{ width: 'auto' }} className="sticky-col-2-width" />
+                                    <col style={{ width: 'auto' }} />
                                     <col style={{ width: '68px' }} />
                                     <col style={{ width: '58px' }} />
                                     <col style={{ width: '58px' }} />
@@ -5820,8 +5844,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   </colgroup>
                                   <thead>
                                     <tr className="text-white h-[46px]">
-                                      <th className={`sticky-col sticky-col-1 px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>STT</th>
-                                      <th className={`sticky-col sticky-col-2 px-2.5 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>STT</th>
+                                      <th className={`px-2.5 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
                                       <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>TARGET</th>
                                       <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>REAL</th>
                                       <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden`}>%HT</th>
@@ -5840,9 +5864,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         const remaining = cat.target - cat.revenue;
                                         const isEven = idx % 2 === 0;
                                         return (
-                                          <tr key={idx} className={`group ${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
-                                            <td className={`sticky-col sticky-col-1 px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40`}>{idx + 1}</td>
-                                            <td className={`sticky-col sticky-col-2 px-2 py-0.5 ${isUser43751 ? 'text-[14px]' : 'text-[12.5px]'} font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 leading-snug tracking-tight ${isEven ? 'bg-white' : 'bg-emerald-50/20'} group-hover:bg-emerald-50/70`} title={cat.name}><span className="sticky-col-cell-text">{cat.name}</span></td>
+                                          <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40`}>{idx + 1}</td>
+                                            <td className={`px-2 py-0.5 ${isUser43751 ? 'text-[14px]' : 'text-[12.5px]'} font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 leading-snug tracking-tight`} title={cat.name}>{cat.name}</td>
                                             <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-slate-800`}>{Math.round(cat.target).toLocaleString()}</td>
                                             <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-r border-b border-emerald-100/90 text-emerald-700`}>{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
                                             <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
@@ -5946,12 +5970,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   </div>
                                 )}
 
-                                <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-sm mobile-table-scroll" style={{ '--sticky-col-1-width': '40px' } as React.CSSProperties}>
-                                  <table className="w-full border-separate border-spacing-0 responsive-data-table" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+                                <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-sm">
+                                  <table className="w-full border-separate border-spacing-0" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                                     <thead>
                                       <tr className="text-white h-[52px]">
-                                        <th className="sticky-col sticky-col-1 px-2 py-0 text-[14.5px] font-black uppercase text-center border-r border-b border-slate-800 bg-[#0F172A] w-10">STT</th>
-                                        <th className="sticky-col sticky-col-2 px-3 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-slate-800 bg-[#0F172A]">NGÀNH HÀNG</th>
+                                        <th className="px-2 py-0 text-[14.5px] font-black uppercase text-center border-r border-b border-slate-800 bg-[#0F172A] w-10">STT</th>
+                                        <th className="px-3 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-slate-800 bg-[#0F172A]">NGÀNH HÀNG</th>
                                         {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">TARGET</th>}
                                         {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">REAL</th>}
                                         {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">%HT</th>}
@@ -5969,9 +5993,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                           const lkRemaining = luykeRemainingMap.get(lkKey);
                                           const remaining = cat.target - cat.revenue;
                                           return (
-                                            <tr key={idx} className="group hover:bg-indigo-50/50 transition-colors h-[40px]">
-                                              <td className="sticky-col sticky-col-1 px-2 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-slate-200 bg-slate-50">{idx + 1}</td>
-                                              <td className="sticky-col sticky-col-2 px-3 py-0 text-[14px] font-black uppercase border-r border-b border-slate-200 text-slate-900 truncate tracking-tight bg-white group-hover:bg-indigo-50/50"><span className="sticky-col-cell-text">{cat.name}</span></td>
+                                            <tr key={idx} className="hover:bg-indigo-50/50 transition-colors h-[40px]">
+                                              <td className="px-2 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-slate-200 bg-slate-50">{idx + 1}</td>
+                                              <td className="px-3 py-0 text-[14px] font-black uppercase border-r border-b border-slate-200 text-slate-900 truncate tracking-tight">{cat.name}</td>
                                               {showTargetCols && <td className="px-2 py-0 text-[14.5px] font-bold text-center border-r border-b border-slate-200 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
                                               {showTargetCols && <td className="px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 text-emerald-600">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
                                               {showTargetCols && <td className={`px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-700 bg-emerald-50/80' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
@@ -6030,12 +6054,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   </div>
                                 )}
 
-                                <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-sm mobile-table-scroll" style={{ '--sticky-col-1-width': '40px' } as React.CSSProperties}>
-                                  <table className="w-full border-separate border-spacing-0 responsive-data-table" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+                                <div className="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-sm">
+                                  <table className="w-full border-separate border-spacing-0" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                                     <thead>
                                       <tr className="text-white h-[52px]">
-                                        <th className="sticky-col sticky-col-1 px-2 py-0 text-[14.5px] font-black uppercase text-center border-r border-b border-slate-800 bg-[#0F172A] w-10">STT</th>
-                                        <th className="sticky-col sticky-col-2 px-3 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-slate-800 bg-[#0F172A]">NGÀNH HÀNG</th>
+                                        <th className="px-2 py-0 text-[14.5px] font-black uppercase text-center border-r border-b border-slate-800 bg-[#0F172A] w-10">STT</th>
+                                        <th className="px-3 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-slate-800 bg-[#0F172A]">NGÀNH HÀNG</th>
                                         {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">TARGET</th>}
                                         {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">REAL</th>}
                                         {showTargetCols && <th className="px-2 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-slate-700 bg-[#1E293B] w-[65px]">%HT</th>}
@@ -6053,9 +6077,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                           const lkRemaining = luykeRemainingMap.get(lkKey) || luykeRemainingMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
                                           const remaining = cat.target - cat.revenue;
                                           return (
-                                            <tr key={idx} className="group hover:bg-indigo-50/50 transition-colors h-[40px]">
-                                              <td className="sticky-col sticky-col-1 px-2 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-slate-200 bg-slate-50">{idx + 1}</td>
-                                              <td className="sticky-col sticky-col-2 px-3 py-0 text-[14px] font-black uppercase border-r border-b border-slate-200 text-slate-900 truncate tracking-tight bg-white group-hover:bg-indigo-50/50"><span className="sticky-col-cell-text">{cat.name}</span></td>
+                                            <tr key={idx} className="hover:bg-indigo-50/50 transition-colors h-[40px]">
+                                              <td className="px-2 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-slate-200 bg-slate-50">{idx + 1}</td>
+                                              <td className="px-3 py-0 text-[14px] font-black uppercase border-r border-b border-slate-200 text-slate-900 truncate tracking-tight">{cat.name}</td>
                                               {showTargetCols && <td className="px-2 py-0 text-[14.5px] font-bold text-center border-r border-b border-slate-200 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
                                               {showTargetCols && <td className="px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 text-emerald-600">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
                                               {showTargetCols && <td className={`px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-700 bg-emerald-50/80' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
@@ -6661,13 +6685,13 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                     </div>
 
                     {/* Table */}
-                    <div className={`overflow-x-auto bg-white mobile-table-scroll ${isDrillFullscreen ? 'flex-1 mt-4' : ''}`} id="chi-tiet-nganh-hang-table-container">
-                      <table className="w-full border-collapse border border-slate-200/50 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-200/50 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap responsive-data-table" style={{ borderSpacing: 0 }}>
+                    <div className={`overflow-x-auto bg-white ${isDrillFullscreen ? 'flex-1 mt-4' : ''}`} id="chi-tiet-nganh-hang-table-container">
+                      <table className="w-full border-collapse border border-slate-200/50 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-200/50 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap" style={{ borderSpacing: 0 }}>
                         <thead>
                           {compareMode === 'none' ? (
                             <>
                               <tr className={`bg-slate-50 border-b border-slate-200/50 text-slate-800 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase`}>
-                                <th rowSpan={2} className="sticky-col sticky-col-1 py-2.5 px-4 text-left bg-slate-50 min-w-[240px] border-r border-slate-200/50 font-black align-middle">CHI TIẾT NGÀNH HÀNG</th>
+                                <th rowSpan={2} className="py-2.5 px-4 text-left bg-slate-50 min-w-[240px] border-r border-slate-200/50 font-black align-middle">CHI TIẾT NGÀNH HÀNG</th>
                                 <th colSpan={2} className={`py-1 px-4 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} border-b border-emerald-100`}>SỐ LƯỢNG</th>
                                 <th colSpan={2} className={`py-1 px-4 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 font-black ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} border-b border-blue-100`}>DOANH THU</th>
                                 <th rowSpan={2} className="py-2.5 px-4 text-center text-[#b45309] bg-[#fef3c7] border-r border-slate-200/50 w-28 font-black align-middle">DTQĐ</th>
@@ -6684,7 +6708,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           ) : (
                             <>
                               <tr className={`bg-slate-50 border-b border-slate-200/50 text-slate-800 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase`}>
-                                <th rowSpan={2} className="sticky-col sticky-col-1 py-2.5 px-4 text-left bg-slate-50 min-w-[240px] border-r border-slate-200/50 font-black align-middle">CHI TIẾT NGÀNH HÀNG</th>
+                                <th rowSpan={2} className="py-2.5 px-4 text-left bg-slate-50 min-w-[240px] border-r border-slate-200/50 font-black align-middle">CHI TIẾT NGÀNH HÀNG</th>
                                 <th colSpan={3} className="py-1 px-4 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black border-b border-emerald-100">SỐ LƯỢNG</th>
                                 <th colSpan={3} className="py-1 px-4 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 font-black border-b border-blue-100">DOANH THU</th>
                                 <th colSpan={3} className="py-1 px-4 text-center text-[#b45309] bg-[#fef3c7] border-r border-slate-200/50 font-black border-b border-amber-100">DTQĐ</th>
@@ -6756,9 +6780,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               const prevTcPct = nodePrev && nodePrev.dt > 0 ? (nodePrev.tc_dt / nodePrev.dt) * 100 : 0;
 
                               return (
-                                <tr key={row.key} className="group border-b border-slate-100/70 hover:bg-slate-50/80 transition-colors h-10">
+                                <tr key={row.key} className="border-b border-slate-100/70 hover:bg-slate-50/80 transition-colors h-10">
                                   {/* Danh mục / Indented */}
-                                  <td className="sticky-col sticky-col-1 bg-white group-hover:bg-slate-50/80 py-2 px-4 text-left border-r border-slate-200/50" style={{ paddingLeft: `${16 + row.depth * 20}px` }}>
+                                  <td className="py-2 px-4 text-left border-r border-slate-200/50" style={{ paddingLeft: `${16 + row.depth * 20}px` }}>
                                     <div className="flex items-center">
                                       {hasChildren ? (
                                         <button
@@ -7153,14 +7177,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                     </div>
 
                     {/* Table */}
-                    <div className="overflow-x-auto bg-white mobile-table-scroll" id="phan-tich-khai-thac-table-container">
-                      <table className="w-full border-collapse border border-slate-200/50 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-200/50 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap [&_tr>th:last-child]:border-r-0 [&_tr>td:last-child]:border-r-0 responsive-data-table" style={{ borderSpacing: 0 }}>
+                    <div className="overflow-x-auto bg-white" id="phan-tich-khai-thac-table-container">
+                      <table className="w-full border-collapse border border-slate-200/50 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-200/50 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap [&_tr>th:last-child]:border-r-0 [&_tr>td:last-child]:border-r-0" style={{ borderSpacing: 0 }}>
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[13px] font-black uppercase">
                             <th
                               rowSpan={2}
                               onClick={() => handleKhaiThacSort('staffName')}
-                              className="sticky-col sticky-col-1 py-2.5 px-4 text-left bg-slate-50 min-w-[200px] border-r border-slate-200/50 font-black align-middle cursor-pointer select-none hover:bg-slate-100 transition-colors"
+                              className="py-2.5 px-4 text-left bg-slate-50 min-w-[200px] border-r border-slate-200/50 font-black align-middle cursor-pointer select-none hover:bg-slate-100 transition-colors"
                             >
                               <div className="flex items-center gap-0.5">
                                 <span>NHÂN VIÊN</span>
@@ -7370,8 +7394,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               const visibleSpChinhTotalQty = getVisibleSpChinhQty(item);
 
                               return (
-                                <tr key={item.staffName} className="group border-b border-slate-100/70 hover:bg-slate-50/80 transition-colors h-10">
-                                  <td className="sticky-col sticky-col-1 bg-white group-hover:bg-slate-50/80 py-2 px-4 text-left font-black text-slate-800 border-r border-slate-200/50">
+                                <tr key={item.staffName} className="border-b border-slate-100/70 hover:bg-slate-50/80 transition-colors h-10">
+                                  <td className="py-2 px-4 text-left font-black text-slate-800 border-r border-slate-200/50">
                                     <div className="flex items-center gap-2">
                                       <span className={`inline-flex items-center justify-center w-6 h-6 rounded-lg font-black ${idx < 3 ? 'text-[18px]' : 'text-[13px]'}`}>
                                         {getStaffIcon(idx)}
@@ -7722,12 +7746,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                       </div>
                     </div>
 
-                    <div className="overflow-x-auto mobile-table-scroll" style={{ '--sticky-col-1-width': '200px' } as React.CSSProperties}>
-                      <table className="w-full border-collapse text-center responsive-data-table" style={{ borderSpacing: 0 }}>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse text-center" style={{ borderSpacing: 0 }}>
                         <thead>
                           <tr>
-                            <th rowSpan={2} className="sticky-col sticky-col-1 py-2.5 px-4 text-center bg-[#fed7aa] text-[#9a3412] font-black border-r border-[#fdba74] border-b align-middle min-w-[200px]">NHÂN VIÊN</th>
-                            <th rowSpan={2} className="sticky-col sticky-col-2 py-2.5 px-4 text-center bg-[#bbf7d0] text-[#166534] font-black border-r border-[#86efac] border-b align-middle min-w-[120px]">BỘ PHẬN</th>
+                            <th rowSpan={2} className="py-2.5 px-4 text-center bg-[#fed7aa] text-[#9a3412] font-black border-r border-[#fdba74] border-b align-middle min-w-[200px]">NHÂN VIÊN</th>
+                            <th rowSpan={2} className="py-2.5 px-4 text-center bg-[#bbf7d0] text-[#166534] font-black border-r border-[#86efac] border-b align-middle min-w-[120px]">BỘ PHẬN</th>
                             <th colSpan={5} className="py-2.5 px-4 text-center bg-[#fef08a] text-[#854d0e] font-black border-r border-[#fde047] border-b">SỐ LƯỢNG BILL</th>
                             <th colSpan={2} className="py-2.5 px-4 text-center bg-[#fde047] text-[#a16207] font-black border-b border-[#facc15]">H.QUẢ SL</th>
                           </tr>
@@ -7752,7 +7776,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
                             return (
                               <tr className="bg-[#fef9c3] border-b border-slate-200">
-                                <td colSpan={2} className="sticky-col sticky-col-1 bg-[#fef9c3] py-2.5 px-4 text-center text-[14px] text-slate-900 font-black border-r border-slate-200">TỔNG</td>
+                                <td colSpan={2} className="py-2.5 px-4 text-center text-[14px] text-slate-900 font-black border-r border-slate-200">TỔNG</td>
                                 <td className="py-2.5 px-2 text-center text-[14px] text-slate-900 font-black border-r border-slate-200">{totalBills || ''}</td>
                                 <td className="py-2.5 px-2 text-center text-[14px] text-slate-900 font-black border-r border-slate-200">{totalKem || ''}</td>
                                 <td className="py-2.5 px-2 text-center text-[14px] text-slate-900 font-black border-r border-slate-200">{totalNoKem || ''}</td>
@@ -7766,9 +7790,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
                           {crossSellingStats.map((item, idx) => (
                             <React.Fragment key={idx}>
-                              <tr className="group border-b border-slate-200 hover:bg-slate-50 transition-colors bg-white">
-                                <td
-                                  className="sticky-col sticky-col-1 bg-white group-hover:bg-slate-50 py-2 px-4 text-left text-[13px] text-slate-900 font-bold border-r border-slate-200 cursor-pointer hover:text-[#2563eb] whitespace-nowrap"
+                              <tr className="border-b border-slate-200 hover:bg-slate-50 transition-colors bg-white">
+                                <td 
+                                  className="py-2 px-4 text-left text-[13px] text-slate-900 font-bold border-r border-slate-200 cursor-pointer hover:text-[#2563eb] whitespace-nowrap"
                                   onClick={() => setExpandedCrossSellingStaff(prev => ({ ...prev, [item.staffName]: !prev[item.staffName] }))}
                                 >
                                   <div className="flex items-center gap-1.5">
@@ -7776,7 +7800,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                     <span>{item.staffName}</span>
                                   </div>
                                 </td>
-                                <td className="sticky-col sticky-col-2 bg-white group-hover:bg-slate-50 py-2 px-4 text-center text-[12px] text-slate-700 font-bold border-r border-slate-200">{item.boPhan}</td>
+                                <td className="py-2 px-4 text-center text-[12px] text-slate-700 font-bold border-r border-slate-200">{item.boPhan}</td>
                                 <td className="py-2 px-2 text-center text-[13px] text-slate-900 font-bold border-r border-slate-200">{item.totalBills || ''}</td>
                                 <td className="py-2 px-2 text-center text-[13px] text-[#ef4444] font-black border-r border-slate-200">{item.kemBills || ''}</td>
                                 <td className="py-2 px-2 text-center text-[13px] text-slate-900 font-bold border-r border-slate-200">{item.noKemBills || ''}</td>

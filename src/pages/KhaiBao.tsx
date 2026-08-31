@@ -83,6 +83,24 @@ const KhaiBao: React.FC = () => {
     clearLuykeField(setter);
   };
 
+  // Two-way synchronization between useRealtimeData and useLuykeData for LUỸ KẾ DT
+  React.useEffect(() => {
+    if (clusterSummaryInput && clusterSummaryInput !== categoryRevenueInput) {
+      setCategoryRevenueInput(clusterSummaryInput);
+    } else if (categoryRevenueInput && categoryRevenueInput !== clusterSummaryInput) {
+      setClusterSummaryInput(categoryRevenueInput);
+    }
+  }, [clusterSummaryInput, categoryRevenueInput, setCategoryRevenueInput, setClusterSummaryInput]);
+
+  // Two-way synchronization between useRealtimeData and useLuykeData for LUỸ KẾ TĐ
+  React.useEffect(() => {
+    if (clusterCategoryInput && clusterCategoryInput !== categoryTargetInput) {
+      setCategoryTargetInput(clusterCategoryInput);
+    } else if (categoryTargetInput && categoryTargetInput !== clusterCategoryInput) {
+      setClusterCategoryInput(categoryTargetInput);
+    }
+  }, [clusterCategoryInput, categoryTargetInput, setCategoryTargetInput, setClusterCategoryInput]);
+
   const {
     manualAdjustment, setManualAdjustment,
     linkBcTongHop, setLinkBcTongHop,

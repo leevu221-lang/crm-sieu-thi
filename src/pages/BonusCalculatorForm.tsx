@@ -58,6 +58,48 @@ const getRegionMultiplier = (region: string): number => {
   }
 };
 
+// K2 - Hệ số số lượng siêu thị trong cụm (theo SL ST + Doanh thu cụm)
+const K2_TABLE: number[][] = [
+  // Dưới 3 tỷ, Từ 3-5 tỷ, Từ 5-12 tỷ, Từ 12-16 tỷ, Trên 16 tỷ
+  [1.0,  1.0,  1.0,  1.0,  1.0 ],  // 1 ST
+  [1.1,  1.08, 1.05, 1.03, 1.0 ],  // 2 ST
+  [1.4,  1.3,  1.15, 1.1,  1.03],  // 3 ST
+  [1.6,  1.4,  1.2,  1.15, 1.05],  // 4 ST
+  [1.6,  1.5,  1.3,  1.2,  1.1 ],  // 5+ ST
+];
+
+const getK2Multiplier = (soLuongSt: number, doanhThuCum: number): number => {
+  const row = Math.min(Math.max(soLuongSt, 1), 5) - 1;
+  let col: number;
+  if (doanhThuCum < 3_000_000_000) col = 0;
+  else if (doanhThuCum < 5_000_000_000) col = 1;
+  else if (doanhThuCum < 12_000_000_000) col = 2;
+  else if (doanhThuCum < 16_000_000_000) col = 3;
+  else col = 4;
+  return K2_TABLE[row][col];
+};
+
+const getK2ColIndex = (doanhThuCum: number): number => {
+  if (doanhThuCum < 3_000_000_000) return 0;
+  if (doanhThuCum < 5_000_000_000) return 1;
+  if (doanhThuCum < 12_000_000_000) return 2;
+  if (doanhThuCum < 16_000_000_000) return 3;
+  return 4;
+};
+
+// Compute Thưởng chuẩn from formula (Excel: VÍ DỤ sheet)
+// QL: ((10^7 + DT^0.65 × 5.5) × K1) × K2
+// TC: (DT^0.9 × 0.016 × K1) × K2
+const computeThuongChuanFormula = (doanhThuCum: number, k1: number, k2: number, isQL: boolean): number => {
+  const safeDt = Math.max(0, doanhThuCum);
+  if (isQL) {
+    // K1 multiplies the entire (10M + DT^0.65 * 5.5) sum
+    return Math.floor(((10_000_000 + Math.pow(safeDt, 0.65) * 5.5) * k1) * k2);
+  } else {
+    return Math.floor((Math.pow(safeDt, 0.9) * 0.016 * k1) * k2);
+  }
+};
+
 // Normalize and match store prefixes starting with ĐML, ĐMM, ĐMS, TGD, AAR
 const matchPrefix = (name: string): boolean => {
   if (!name) return false;
@@ -66,20 +108,10 @@ const matchPrefix = (name: string): boolean => {
   return prefixes.some(pref => normName.startsWith(pref));
 };
 
-// Formats cluster revenue for display: e.g. 6190 -> 6,190 tỷ, 950 -> 950 triệu
+// Formats cluster revenue for display: e.g. 6977000000 -> 6,977,000,000
 const formatRevenueDisplay = (val: number): string => {
   if (!val) return '-';
-  let baseVal = val;
-  if (val >= 1000000) {
-    baseVal = val / 1000000;
-  }
-  if (baseVal >= 1000) {
-    const scaled = baseVal / 1000;
-    return `${scaled.toFixed(3).replace('.', ',')} tỷ`;
-  } else if (baseVal > 0) {
-    return `${baseVal.toString().replace('.', ',')} triệu`;
-  }
-  return val.toLocaleString('en-US');
+  return Math.round(val).toLocaleString('en-US');
 };
 
 export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ activeStore, filteredMarkets, clusterMarkets }) => {
@@ -95,7 +127,7 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
       vungSieuThiBase: region,
       soLuongStTrongCum: 1,
       soLuongStHtTargetLntt: 1,
-      thuongChuan: Math.floor(23793562 * mult),
+      thuongChuan: computeThuongChuanFormula(defaultRevenue, mult, getK2Multiplier(1, defaultRevenue), true),
       htTargetCumDt: 120.0,
       htTargetCumLn: 110.0,
       thuongQyMoLntt: 0,
@@ -116,7 +148,7 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
       vungSieuThiBase: region,
       soLuongStTrongCum: 1,
       soLuongStHtTargetLntt: 1,
-      thuongChuan: Math.floor(11606686 * mult),
+      thuongChuan: computeThuongChuanFormula(defaultRevenue, mult, getK2Multiplier(1, defaultRevenue), false),
       htTargetCumDt: 120.0,
       htTargetCumLn: 110.0,
       thuongQyMoLntt: 0,
@@ -168,14 +200,20 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
   useEffect(() => {
     if (!clusterMarkets || clusterMarkets.length === 0) return;
 
-    // 1. Fetch Cluster Total Revenue from the summary row (TỔNG) column (DT Dự Kiến (QĐ) which is mapped to targetQD)
+    // 1. Fetch Cluster Total Revenue from the summary row (TỔNG)
+    // Use "DOANH THU QĐ" (actualVirtual - cột thứ 3 từ trái) or fallback to targetQD
+    // BI data is in triệu đồng → multiply by 1,000,000 to convert to đồng (internal unit)
     const totalRow = clusterMarkets.find(m => m.name === 'TỔNG' || m.isSummary);
-    const clusterRevenue = totalRow?.targetQD || 0;
+    const rawRevenue = totalRow?.actualVirtual || totalRow?.targetQD || 0;
+    const clusterRevenue = rawRevenue > 0 && rawRevenue < 1_000_000 ? rawRevenue * 1_000_000 : rawRevenue;
 
     // 2. Count parsed store counts matching ĐML, ĐMM, ĐMS, TGD, AAR
     const validStores = clusterMarkets.filter(m => !m.isSummary && m.name !== 'TỔNG' && matchPrefix(m.name));
     const storeCount = validStores.length;
     const completedLnttCount = validStores.filter(m => m.percentHT !== undefined && m.percentHT >= 100).length;
+
+    // 3. Get %HT TARGET from TỔNG row (percentHT)
+    const htTargetDt = totalRow?.percentHT || 0;
 
     // Update Quản Lý State
     setQlState(prev => {
@@ -188,6 +226,9 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
       }
       if (prev.overrides.soLuongStHtTargetLntt === undefined && prev.soLuongStHtTargetLntt !== completedLnttCount) {
         updates.soLuongStHtTargetLntt = completedLnttCount;
+      }
+      if (htTargetDt > 0 && prev.overrides.htTargetCumDt === undefined && prev.htTargetCumDt !== htTargetDt) {
+        updates.htTargetCumDt = htTargetDt;
       }
       
       if (Object.keys(updates).length > 0) {
@@ -212,7 +253,9 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
       if (prev.overrides.soLuongStHtTargetLntt === undefined && prev.soLuongStHtTargetLntt !== completedLnttCount) {
         updates.soLuongStHtTargetLntt = completedLnttCount;
       }
-      
+      if (htTargetDt > 0 && prev.overrides.htTargetCumDt === undefined && prev.htTargetCumDt !== htTargetDt) {
+        updates.htTargetCumDt = htTargetDt;
+      }
       if (Object.keys(updates).length > 0) {
         const next = { ...prev, ...updates };
         if (activeStore) {
@@ -350,15 +393,25 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
     }
   };
 
-  // Core Math Calculation Engine
+  // Core Math Calculation Engine (with K1, K2, auto-computed thưởng chuẩn & thưởng quy mô)
   const calculateSectionValues = (state: SectionState, isTC: boolean) => {
     const {
-      thuongChuan,
+      tongDoanhThuCum,
+      vungSieuThiBase,
+      soLuongStTrongCum,
+      soLuongStHtTargetLntt,
       htTargetCumDt,
       htTargetCumLn,
-      thuongQyMoLntt,
       overrides
     } = state;
+
+    // K1 (Hệ số Vùng) & K2 (Hệ số SL siêu thị)
+    const k1 = getRegionMultiplier(vungSieuThiBase);
+    const k2 = getK2Multiplier(soLuongStTrongCum, tongDoanhThuCum);
+
+    // Thưởng chuẩn (auto-computed from formula unless overridden)
+    const computedThuongChuan = computeThuongChuanFormula(tongDoanhThuCum, k1, k2, !isTC);
+    const thuongChuan = overrides.thuongChuan !== undefined ? overrides.thuongChuan : computedThuongChuan;
 
     // 1. Thưởng chuẩn Doanh thu & LNTT (60% and 40%)
     const defaultThuongChuanDt = Math.floor(thuongChuan * 0.6);
@@ -378,21 +431,27 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
     const thuongDt = overrides.thuongDt !== undefined ? overrides.thuongDt : defaultThuongDt;
     const thuongLntt = overrides.thuongLntt !== undefined ? overrides.thuongLntt : defaultThuongLntt;
 
-    // 4. Quỹ thưởng Final
-    const unflooredSum = (thuongChuanDt * (tyLeThuongDt / 100)) + (thuongChuanLntt * (tyLeThuongLntt / 100)) + thuongQyMoLntt;
-    const defaultQuyThuongFinal = isTC && Math.abs(unflooredSum - 13059842.6) < 1 
-      ? 13059843 
-      : Math.floor(thuongDt + thuongLntt + thuongQyMoLntt);
+    // 4. Thưởng quy mô LNTT: (SL ST đạt target - 1) × 5%, min=0
+    const tyLeThuongQuyMo = Math.max(0, (soLuongStHtTargetLntt - 1) * 5); // in %
+    const computedThuongQyMoLntt = Math.floor(thuongChuan * 0.4 * (tyLeThuongQuyMo / 100));
+    const thuongQyMoLntt = overrides.thuongQyMoLntt !== undefined ? overrides.thuongQyMoLntt : computedThuongQyMoLntt;
 
+    // 5. Quỹ thưởng Final = Thưởng DT + Thưởng LNTT + Thưởng quy mô LNTT
+    const defaultQuyThuongFinal = Math.floor(thuongDt + thuongLntt + thuongQyMoLntt);
     const quyThuongFinal = overrides.quyThuongFinal !== undefined ? overrides.quyThuongFinal : defaultQuyThuongFinal;
 
     return {
+      k1,
+      k2,
+      thuongChuan,
       thuongChuanDt,
       thuongChuanLntt,
       tyLeThuongDt,
       tyLeThuongLntt,
       thuongDt,
       thuongLntt,
+      thuongQyMoLntt,
+      tyLeThuongQuyMo,
       quyThuongFinal,
       isOverridden: (key: string) => overrides[key] !== undefined
     };
@@ -401,7 +460,14 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
   const qlCalc = calculateSectionValues(qlState, false);
   const tcCalc = calculateSectionValues(tcState, true);
 
+  // Shared fields that should sync between QL and TC
+  const SHARED_FIELDS: (keyof SectionState)[] = [
+    'tongDoanhThuCum', 'vungSieuThiBase', 'soLuongStTrongCum',
+    'soLuongStHtTargetLntt', 'htTargetCumDt', 'htTargetCumLn'
+  ];
+
   // Field edit handler for standard inputs (marks standard inputs as overridden)
+  // Syncs shared fields bidirectionally between QL ↔ TC
   const handleInputChange = (
     section: 'QL' | 'TC',
     field: keyof SectionState,
@@ -419,6 +485,20 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
         [field as string]: value
       }
     });
+
+    // Sync shared fields to the other section
+    if (SHARED_FIELDS.includes(field)) {
+      const otherState = isQL ? tcState : qlState;
+      const otherSave = isQL ? saveTCState : saveQLState;
+      otherSave({
+        ...otherState,
+        [field]: value,
+        overrides: {
+          ...otherState.overrides,
+          [field as string]: value
+        }
+      });
+    }
   };
 
   // Edit handler for override values
@@ -496,6 +576,7 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
   }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [tempValue, setTempValue] = useState('');
+    const [inputFocused, setInputFocused] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
     const formattedDisplay = () => {
@@ -533,6 +614,28 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
     const alignClass = align === 'left' ? 'text-left' : align === 'center' ? 'text-center' : 'text-right';
     const weightClass = isBold ? 'font-bold' : 'font-medium';
 
+    // isInput mode: always render a visible input (no click-to-edit needed)
+    // Format number with commas when displaying, show raw when editing
+    if (isInput && onChange) {
+      const displayVal = inputFocused
+        ? value.toString()
+        : (typeof value === 'number' ? value.toLocaleString('en-US') : (value || placeholder || '-'));
+      return (
+        <td className={`p-0 border border-slate-300 ${bgColor}`}>
+          <input
+            type="text"
+            inputMode="numeric"
+            className={`w-full h-full px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-[#ffffcc] ${alignClass} font-bold text-xs sm:text-sm ${textColor} ${bgColor} transition-colors`}
+            value={displayVal}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder || '-'}
+          />
+        </td>
+      );
+    }
+
     if (isEditing) {
       return (
         <td className={`p-0 border border-slate-300 ${bgColor}`}>
@@ -563,7 +666,7 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
             <Edit size={10} />
           </div>
         )}
-        {isOverridden && onResetOverride && (
+        {false && isOverridden && onResetOverride && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -602,19 +705,7 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
             <div className={`w-3 h-8 rounded-full ${isQL ? 'bg-indigo-500' : 'bg-emerald-500'}`} />
             <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">{title}</h3>
           </div>
-          {Object.keys(state.overrides).length > 0 && (
-            <button
-              onClick={() => {
-                if (window.confirm('Khôi phục công thức cho mục này?')) {
-                  saveState({ ...state, overrides: {} });
-                }
-              }}
-              className="flex items-center gap-1 text-[11px] font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 px-3 py-1 rounded-lg transition-colors no-capture"
-            >
-              <RotateCcw size={12} />
-              <span>KHÔI PHỤC CÔNG THỨC</span>
-            </button>
-          )}
+          {/* KHÔI PHỤC CÔNG THỨC button hidden */}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -637,30 +728,25 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
                   <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50 w-2/3">
                     Tổng doanh thu cụm
                   </td>
-                  <ExcelCell
-                    value={state.tongDoanhThuCum}
-                    displayValue={formatRevenueDisplay(state.tongDoanhThuCum)}
-                    textColor="text-[#ff0000]"
-                    isBold
-                    onChange={(val) => {
-                      const num = parseFloat(val.replace(/,/g, '')) || 0;
-                      handleInputChange(sectionKey, 'tongDoanhThuCum', num);
-                    }}
-                    onResetOverride={() => {
-                      const newOverrides = { ...state.overrides };
-                      delete newOverrides.tongDoanhThuCum;
-                      
-                      const totalRow = clusterMarkets?.find(m => m.name === 'TỔNG' || m.isSummary);
-                      const clusterRevenue = totalRow?.targetQD || 7000000000;
-                      
-                      saveState({
-                        ...state,
-                        tongDoanhThuCum: clusterRevenue,
-                        overrides: newOverrides
-                      });
-                    }}
-                    isOverridden={state.overrides.tongDoanhThuCum !== undefined}
-                  />
+                  <td className="p-0 border border-slate-300 bg-white relative group">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      className="w-full h-full px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-[#ffffcc] text-right font-bold text-xs sm:text-sm text-[#ff0000] bg-white transition-colors"
+                      value={formatRevenueDisplay(state.tongDoanhThuCum)}
+                      onChange={(e) => {
+                        const num = parseFloat(e.target.value.replace(/,/g, '')) || 0;
+                        // Update without marking as override → auto-sync from BI still works
+                        saveState({ ...state, tongDoanhThuCum: num });
+                        // Sync to the other section
+                        const otherState = isQL ? tcState : qlState;
+                        const otherSave = isQL ? saveTCState : saveQLState;
+                        otherSave({ ...otherState, tongDoanhThuCum: num });
+                      }}
+                      placeholder="-"
+                    />
+                    {/* Reset button hidden */}
+                  </td>
                 </tr>
 
                 {/* 2. Vùng siêu thị Base (Render select dropdown with multipliers) */}
@@ -673,19 +759,23 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
                       value={state.vungSieuThiBase}
                       onChange={(e) => {
                         const region = e.target.value;
-                        const mult = getRegionMultiplier(region);
-                        const baseVal = isQL ? 23793562 : 11606686;
-                        const nextTC = Math.floor(baseVal * mult);
-                        
+                        // Let thuongChuan be auto-recomputed via formula with new K1
+                        const newOverrides = { ...state.overrides };
+                        delete newOverrides.thuongChuan;
                         saveState({
                           ...state,
                           vungSieuThiBase: region,
-                          thuongChuan: nextTC,
-                          overrides: {
-                            ...state.overrides,
-                            vungSieuThiBase: 1,
-                            thuongChuan: nextTC
-                          }
+                          overrides: newOverrides
+                        });
+                        // Sync to the other section (QL ↔ TC)
+                        const otherState = isQL ? tcState : qlState;
+                        const otherSave = isQL ? saveTCState : saveQLState;
+                        const otherOverrides = { ...otherState.overrides };
+                        delete otherOverrides.thuongChuan;
+                        otherSave({
+                          ...otherState,
+                          vungSieuThiBase: region,
+                          overrides: otherOverrides
                         });
                       }}
                       className="w-full text-center font-black text-[#ff0000] bg-transparent border-0 focus:outline-none focus:ring-0 text-xs sm:text-sm cursor-pointer appearance-none"
@@ -732,6 +822,16 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
                   />
                 </tr>
 
+                {/* 3b. K2 - Hệ số SL siêu thị (auto-computed) */}
+                <tr>
+                  <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
+                    K2 - Hệ số SL siêu thị
+                  </td>
+                  <td className="px-3 py-1.5 border border-slate-300 text-center text-xs sm:text-sm font-black text-indigo-700 bg-indigo-50">
+                    {(calc.k2 * 100).toFixed(0)}%
+                  </td>
+                </tr>
+
                 {/* 4. Số lượng siêu thị HT target LNTT */}
                 <tr>
                   <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
@@ -769,9 +869,12 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
                 <tr>
                   <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
                     Thưởng chuẩn
+                    <span className="block text-[9px] text-slate-400 font-medium mt-0.5">
+                      {isQL ? '(10tr + DT^0.65 × 5.5 × K1) × K2' : '(DT^0.9 × 0.016 × K1) × K2'}
+                    </span>
                   </td>
                   <ExcelCell
-                    value={state.thuongChuan}
+                    value={calc.thuongChuan}
                     textColor="text-slate-900"
                     bgColor="bg-[#e2efda]"
                     isBold
@@ -783,17 +886,12 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
                     onResetOverride={() => {
                       const newOverrides = { ...state.overrides };
                       delete newOverrides.thuongChuan;
-                      const mult = getRegionMultiplier(state.vungSieuThiBase);
-                      const baseVal = isQL ? 23793562 : 11606686;
-                      const defaultTC = Math.floor(baseVal * mult);
-                      
                       saveState({
                         ...state,
-                        thuongChuan: defaultTC,
                         overrides: newOverrides
                       });
                     }}
-                    isOverridden={state.overrides.thuongChuan !== undefined}
+                    isOverridden={calc.isOverridden('thuongChuan')}
                   />
                 </tr>
 
@@ -901,15 +999,24 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
                 <tr>
                   <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-white">
                     Thưởng quy mô LNTT
+                    <span className="block text-[9px] text-slate-400 font-medium mt-0.5">
+                      Tỷ lệ QM: {calc.tyLeThuongQuyMo}% = ({state.soLuongStHtTargetLntt} ST đạt − 1) × 5%
+                    </span>
                   </td>
                   <ExcelCell
-                    value={state.thuongQyMoLntt === 0 ? '-' : state.thuongQyMoLntt}
+                    value={calc.thuongQyMoLntt === 0 ? '-' : calc.thuongQyMoLntt}
                     textColor="text-slate-800"
                     isBold
                     onChange={(val) => {
                       const cleanVal = val.trim() === '-' ? 0 : parseFloat(val.replace(/,/g, '')) || 0;
-                      handleInputChange(sectionKey, 'thuongQyMoLntt', cleanVal);
+                      handleOverrideChange(sectionKey, 'thuongQyMoLntt', cleanVal.toString());
                     }}
+                    onResetOverride={() => {
+                      const newOverrides = { ...state.overrides };
+                      delete newOverrides.thuongQyMoLntt;
+                      saveState({ ...state, overrides: newOverrides });
+                    }}
+                    isOverridden={calc.isOverridden('thuongQyMoLntt')}
                   />
                 </tr>
 
@@ -962,36 +1069,100 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
                       <td className="px-2 py-1.5 border border-slate-300 text-[11px] font-black text-slate-800 text-center">
                         %HT target cụm
                       </td>
-                      <ExcelCell
-                        value={`${state.htTargetCumDt.toFixed(1)}%`}
-                        textColor="text-[#c00000]"
-                        bgColor="bg-[#e2efda]"
-                        align="center"
-                        isBold
-                        isInput
-                        onChange={(val) => {
-                          const num = parseFloat(val.replace(/%/g, '')) || 0;
-                          handleInputChange(sectionKey, 'htTargetCumDt', num);
-                        }}
-                      />
-                      <ExcelCell
-                        value={`${state.htTargetCumLn.toFixed(1)}%`}
-                        textColor="text-[#c00000]"
-                        bgColor="bg-[#e2efda]"
-                        align="center"
-                        isBold
-                        isInput
-                        onChange={(val) => {
-                          const num = parseFloat(val.replace(/%/g, '')) || 0;
-                          handleInputChange(sectionKey, 'htTargetCumLn', num);
-                        }}
-                      />
+                      <td className="p-0 border border-slate-300 bg-[#e2efda]">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          className="w-full h-full px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-[#ffffcc] text-center font-bold text-xs sm:text-sm text-[#c00000] bg-[#e2efda] transition-colors"
+                          value={`${state.htTargetCumDt.toFixed(1)}%`}
+                          onChange={(e) => {
+                            const num = parseFloat(e.target.value.replace(/%/g, '')) || 0;
+                            handleInputChange(sectionKey, 'htTargetCumDt', num);
+                          }}
+                          onFocus={(e) => { e.target.value = state.htTargetCumDt.toString(); }}
+                          onBlur={(e) => { e.target.value = `${state.htTargetCumDt.toFixed(1)}%`; }}
+                          placeholder="-"
+                        />
+                      </td>
+                      <td className="p-0 border border-slate-300 bg-[#e2efda]">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          className="w-full h-full px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-[#ffffcc] text-center font-bold text-xs sm:text-sm text-[#c00000] bg-[#e2efda] transition-colors"
+                          value={`${state.htTargetCumLn.toFixed(1)}%`}
+                          onChange={(e) => {
+                            const num = parseFloat(e.target.value.replace(/%/g, '')) || 0;
+                            handleInputChange(sectionKey, 'htTargetCumLn', num);
+                          }}
+                          onFocus={(e) => { e.target.value = state.htTargetCumLn.toString(); }}
+                          onBlur={(e) => { e.target.value = `${state.htTargetCumLn.toFixed(1)}%`; }}
+                          placeholder="-"
+                        />
+                      </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
               <div className="text-[10px] font-semibold text-slate-500 italic text-right px-1">
                 Tổng thực hiện / tổng target cụm lũy kế
+              </div>
+            </div>
+
+            {/* K2 Reference Table */}
+            <div className="space-y-1">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse border border-slate-300 text-[10px]">
+                  <thead>
+                    <tr className="bg-[#dce6f1]">
+                      <th colSpan={6} className="px-2 py-1.5 border border-slate-300 text-center font-black text-[11px] text-slate-700 uppercase tracking-tight">
+                        K2 - Hệ số SL siêu thị trong cụm
+                      </th>
+                    </tr>
+                    <tr className="bg-[#dce6f1] text-[10px] font-bold text-slate-600 text-center">
+                      <th className="px-1 py-1 border border-slate-300 w-[40px]">SL ST</th>
+                      <th className="px-1 py-1 border border-slate-300">{'<'}3 tỷ</th>
+                      <th className="px-1 py-1 border border-slate-300">3-5 tỷ</th>
+                      <th className="px-1 py-1 border border-slate-300">5-12 tỷ</th>
+                      <th className="px-1 py-1 border border-slate-300">12-16 tỷ</th>
+                      <th className="px-1 py-1 border border-slate-300">{'>'}16 tỷ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {K2_TABLE.map((row, rowIdx) => {
+                      const stCount = rowIdx + 1;
+                      const currentRow = Math.min(Math.max(state.soLuongStTrongCum, 1), 5) - 1;
+                      const currentCol = getK2ColIndex(state.tongDoanhThuCum);
+                      const isActiveRow = rowIdx === currentRow;
+                      return (
+                        <tr key={rowIdx} className={isActiveRow ? 'font-black' : ''}>
+                          <td className={`px-1 py-0.5 border border-slate-300 text-center font-bold ${isActiveRow ? 'bg-amber-100' : 'bg-slate-50'}`}>
+                            {stCount >= 5 ? '5+' : stCount}
+                          </td>
+                          {row.map((val, colIdx) => {
+                            const isActive = isActiveRow && colIdx === currentCol;
+                            return (
+                              <td
+                                key={colIdx}
+                                className={`px-1 py-0.5 border border-slate-300 text-center ${
+                                  isActive
+                                    ? 'bg-amber-300 font-black text-slate-900'
+                                    : isActiveRow
+                                    ? 'bg-amber-50'
+                                    : ''
+                                }`}
+                              >
+                                {(val * 100).toFixed(0)}%
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="text-[10px] font-semibold text-slate-500 italic text-right px-1">
+                K1: {state.vungSieuThiBase} = {(calc.k1 * 100).toFixed(0)}% · K2 = {(calc.k2 * 100).toFixed(0)}%
               </div>
             </div>
 
@@ -1007,11 +1178,19 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
                     </tr>
                   </thead>
                   <tbody>
-                    {state.departments.map((row, idx) => {
-                      const hours = parseFloat(row.gioCong);
-                      const finalReward = isNaN(hours)
-                        ? '-'
-                        : Math.round(calc.quyThuongFinal * (hours / 200));
+                    {(() => {
+                      // Calculate total hours across all departments for ratio-based allocation
+                      const totalHours = state.departments.reduce((sum, r) => {
+                        const h = parseFloat(r.gioCong);
+                        return sum + (isNaN(h) ? 0 : h);
+                      }, 0);
+
+                      return state.departments.map((row, idx) => {
+                        const hours = parseFloat(row.gioCong);
+                        // Thưởng = (Giờ công / Tổng giờ công) × Quỹ thưởng Final
+                        const finalReward = isNaN(hours) || totalHours === 0
+                          ? '-'
+                          : Math.round(calc.quyThuongFinal * (hours / totalHours));
 
                       return (
                         <tr key={idx}>
@@ -1021,24 +1200,25 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
                             align="left"
                             onChange={(val) => handleDeptChange(sectionKey, idx, 'boPhan', val)}
                           />
-                          {/* Hours Input (Editable, styled green with red text) */}
-                          <ExcelCell
-                            value={row.gioCong}
-                            textColor="text-[#c00000]"
-                            bgColor="bg-[#e2efda]"
-                            align="center"
-                            isBold
-                            isInput
-                            onChange={(val) => handleDeptChange(sectionKey, idx, 'gioCong', val)}
-                            placeholder="-"
-                          />
+                          {/* Hours Input (Direct inline input - no ExcelCell to avoid focus loss) */}
+                          <td className="p-0 border border-slate-300 bg-[#e2efda]">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              className="w-full h-full px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-[#ffffcc] text-center font-bold text-xs sm:text-sm text-[#c00000] bg-[#e2efda] transition-colors"
+                              value={row.gioCong}
+                              onChange={(e) => handleDeptChange(sectionKey, idx, 'gioCong', e.target.value)}
+                              placeholder="-"
+                            />
+                          </td>
                           {/* Allocated Reward (Read-only, calculated or can be overridden) */}
                           <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm text-right font-black text-slate-900 bg-white">
                             {formatCurrency(finalReward)}
                           </td>
                         </tr>
                       );
-                    })}
+                    });
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -1069,13 +1249,7 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm"
-          >
-            <RotateCcw size={14} />
-            <span>KHÔI PHỤC</span>
-          </button>
+          {/* KHÔI PHỤC button hidden */}
           <button
             onClick={handleCapture}
             disabled={isCapturing}

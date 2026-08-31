@@ -526,6 +526,8 @@ const InputSection: React.FC<InputSectionProps> = ({
                 badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
                 headerDot: 'bg-emerald-600',
                 activeColor: 'emerald',
+                reportUrl: 'https://baocao.dienmayxanh.com/dashboard/revenue-consolidated',
+                reportLabel: 'LINK REPORT DT',
                 items: [
                   { id: 'rt_market', label: 'REALTIME DT', value: marketInput, onChange: setMarketInput, onBlur: () => onSaveRealtime(false, 'REALTIME DT'), hasData: !!marketInput },
                   { id: 'rt_catrev', label: 'LUỸ KẾ DT', value: clusterSummaryInput || categoryRevenueInput, onChange: (val: string) => { setCategoryRevenueInput(val); setClusterSummaryInput(val); }, onBlur: () => { onSaveRealtime(false, 'LUỸ KẾ DT'); onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ DT'); }, hasData: !!(clusterSummaryInput || categoryRevenueInput), isLuyke: true },
@@ -537,7 +539,9 @@ const InputSection: React.FC<InputSectionProps> = ({
                 badgeBg: 'bg-amber-50 text-amber-700 border-amber-200',
                 headerDot: 'bg-amber-500',
                 activeColor: 'amber',
-                hasYcx: false, 
+                hasYcx: false,
+                reportUrl: 'https://baocao.dienmayxanh.com/dashboard/thi-dua',
+                reportLabel: 'LINK REPORT TĐ',
                 items: [
                   { id: 'rt_cat', label: 'REALTIME TĐ', value: categoryInput, onChange: setCategoryInput, onBlur: () => onSaveRealtime(false, 'REALTIME TĐ'), hasData: !!categoryInput },
                   { id: 'rt_catlk', label: 'LUỸ KẾ TĐ', value: categoryTargetInput || clusterCategoryInput, onChange: (val: string) => { setCategoryTargetInput(val); setClusterCategoryInput && setClusterCategoryInput(val); }, onBlur: () => { onSaveRealtime(false, 'LUỸ KẾ TĐ'); onSaveLuyke && onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ TĐ'); }, hasData: !!(categoryTargetInput || clusterCategoryInput) },
@@ -557,9 +561,15 @@ const InputSection: React.FC<InputSectionProps> = ({
                       </p>
                     </div>
                   </div>
-                  <span className={cn("px-2.5 py-1 rounded-xl text-[10px] font-black uppercase border", group.badgeBg)}>
-                    BI NGUỒN
-                  </span>
+                  <a 
+                    href={group.reportUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className={cn("px-2.5 py-1 rounded-xl text-[11px] font-black uppercase border cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1.5", group.badgeBg)}
+                  >
+                    <ExternalLink size={12} />
+                    {group.reportLabel}
+                  </a>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

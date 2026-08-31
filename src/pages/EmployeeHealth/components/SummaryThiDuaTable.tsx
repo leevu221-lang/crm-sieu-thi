@@ -747,7 +747,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
 
     const now = new Date();
     const dateStr = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()}`;
-    let text = `🌟 TỔNG HỢP THI ĐUA SIÊU THỊ (${dateStr}):\n\n`;
+    let text = `🌟 TỔNG HỢP THI ĐUA NHÂN VIÊN (${dateStr}):\n\n`;
     
     filteredStaffMatrix.forEach((staff, sIdx) => {
       const ratePercent = (staff.rate * 100).toFixed(0);
@@ -782,7 +782,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
 
     if (template === 1) {
       // MẪU 1: TOP/BOT ST
-      text = `📊 TỔNG HỢP THI ĐUA SIÊU THỊ - ${timeStr} NGÀY ${dateStr}\n`;
+      text = `📊 TỔNG HỢP THI ĐUA NHÂN VIÊN - ${timeStr} NGÀY ${dateStr}\n`;
       text += `━━━━━━━━━━━━━━━━━━\n\n`;
       text += `📈 KẾT QUẢ TỔNG QUAN:\n`;
       text += `🎯 Tổng NV: ${total} || ĐẠT trên 50%: ${filteredStaffMatrix.filter(s => s.rate >= 0.5).length}/${total}\n\n`;
@@ -800,7 +800,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
     } else if (template === 2) {
       // MẪU 2: DS Cần tăng tốc
       const below50 = filteredStaffMatrix.filter(s => s.rate < 0.5);
-      text = `⚠️ DANH SÁCH NHÂN VIÊN CẦN TĂNG TỐC - ${timeStr} NGÀY ${dateStr}\n`;
+      text = `⚠️ DS CẦN TĂNG TỐC THI ĐUA NHÂN VIÊN - ${timeStr} NGÀY ${dateStr}\n`;
       text += `━━━━━━━━━━━━━━━━━━\n\n`;
       text += `📊 Tổng NV dưới 50%: ${below50.length}/${total}\n\n`;
       text += `🚨 DANH SÁCH CẦN CẢI THIỆN TIẾN ĐỘ:\n`;
@@ -812,7 +812,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       text += `\n💡 Cần hỗ trợ các NV trên đẩy mạnh bán hàng và tăng cường tư vấn!`;
     } else {
       // MẪU 3: Tóm tắt toàn bộ
-      text = `📝 TÓM TẮT THI ĐUA SIÊU THỊ - ${timeStr} NGÀY ${dateStr}\n`;
+      text = `📝 TÓM TẮT THI ĐUA NHÂN VIÊN - ${timeStr} NGÀY ${dateStr}\n`;
       text += `━━━━━━━━━━━━━━━━━━\n\n`;
       text += `🎯 Tổng NV: ${total}\n`;
       text += `✅ ĐẠT (>=100%): ${filteredStaffMatrix.filter(s => s.rate >= 1).length}/${total}\n`;
@@ -879,14 +879,6 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
         htmlEl.style.height = 'auto';
         htmlEl.style.maxWidth = 'none';
         htmlEl.style.maxHeight = 'none';
-      });
-
-      // Remove sticky-column positioning (causes rendering issues in capture)
-      clone.querySelectorAll('.sticky-col, [class*="sticky-col"]').forEach(el => {
-        const htmlEl = el as HTMLElement;
-        htmlEl.style.position = 'relative';
-        htmlEl.style.left = 'auto';
-        htmlEl.style.zIndex = 'auto';
       });
 
       // Clear any other inline overflow restrictions
@@ -1060,19 +1052,19 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       </div>
 
       {/* ═══ Table ═══ */}
-      <div className="overflow-x-auto mobile-table-scroll" style={{ '--sticky-col-1-width': '50px' } as React.CSSProperties}>
-        <table className="w-full border-collapse table-fixed responsive-data-table" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
           <thead>
             <tr className="text-slate-900 h-[85px]">
-              <th
-                className="sticky-col sticky-col-1 px-1 py-1 text-[13px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none cursor-pointer"
+              <th 
+                className="px-1 py-1 text-[13px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none cursor-pointer"
                 style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}
                 onClick={() => handleHeaderClick('default')}
               >
                 STT{renderSortIcon('default')}
               </th>
-              <th
-                className="sticky-col sticky-col-2 px-3 py-1 text-[13px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none cursor-pointer"
+              <th 
+                className="px-3 py-1 text-[13px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none cursor-pointer"
                 style={{ width: '320px', minWidth: '320px', maxWidth: '320px' }}
                 onClick={() => handleHeaderClick('name')}
               >
@@ -1154,13 +1146,13 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
               const ratePercentStr = `${(visibleRate * 100).toFixed(1)}%`;
 
               return (
-                <tr key={staff.fullId} className={cn("group/row hover:bg-slate-50/70 transition-colors h-[40px]", staff.displayName.includes('30016') ? 'border-b border-slate-200' : '')}>
-                  <td className="sticky-col sticky-col-1 px-2 py-0 text-center border border-slate-200 bg-[#d1fae5] text-slate-900 font-black text-[13px] truncate">
+                <tr key={staff.fullId} className={cn("hover:bg-slate-50/70 transition-colors h-[40px]", staff.displayName.includes('30016') ? 'border-b border-slate-200' : '')}>
+                  <td className="px-2 py-0 text-center border border-slate-200 bg-[#d1fae5] text-slate-900 font-black text-[13px] truncate">
                     {index + 1}
                   </td>
-                  <td className="sticky-col sticky-col-2 bg-white group-hover/row:bg-slate-50/70 px-3 py-0 border border-slate-200 text-[13px] font-black uppercase tracking-tight text-slate-700">
+                  <td className="px-3 py-0 border border-slate-200 text-[13px] font-black uppercase tracking-tight text-slate-700">
                     <div className="flex items-center justify-between group h-full">
-                      <span className="sticky-col-cell-text">{staff.displayName}</span>
+                      <span>{staff.displayName}</span>
                       <button 
                         onClick={() => handleCopyStaff(staff)}
                         className={cn(

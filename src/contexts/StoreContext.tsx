@@ -94,7 +94,7 @@ export function removeStoreItem(baseKey: string, storeId: string): void {
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { userProfile } = useAuth();
-  const warehouseCode = userProfile?.ma_kho || '';
+  const warehouseCode = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '';
 
   const [currentStoreId, setCurrentStoreIdRaw] = useState(() =>
     localStorage.getItem('currentStoreId') || 'ALL'

@@ -238,10 +238,19 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updated_at: new Date().toISOString()
       };
 
-      // Always include ALL fields — use empty string when cleared
-      // This ensures upsert clears deleted data on Firebase
-      payload.lk_bi_tong_quan = summaryVal || '';
-      payload.lk_nh_sieu_thi = categoryVal || '';
+      // Only include LK fields if they actually have content, or if this save was explicitly triggered for that field
+      if (summaryVal) {
+        payload.lk_bi_tong_quan = summaryVal;
+      } else if (fieldName === 'LUỸ KẾ DT') {
+        payload.lk_bi_tong_quan = '';
+      }
+
+      if (categoryVal) {
+        payload.lk_nh_sieu_thi = categoryVal;
+      } else if (fieldName === 'LUỸ KẾ TĐ') {
+        payload.lk_nh_sieu_thi = '';
+      }
+
       payload.category_targets = categoryTargetsVal;
       payload.lk_dt_nv = staffVal || '';
       payload.lk_td_nv = staffCategoryVal || '';
@@ -673,6 +682,21 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
   }, [clusterSummaryInput, clusterCategoryInput, staffInput, staffCategoryInput, staffListInput, dataPhanCa, dtGioCong, tragopMatran, tragopNv, categoryTargets, rawMaKho, activeStore, hasLoadedFromDB, isLoading, saveLuykeData]);
 
+  // Force-save listener: flush pending data before version-update reload
+  useEffect(() => {
+    const handleForceSave = () => {
+      console.log('[LuykeData] Force-save triggered before reload — flushing pending data to Firestore');
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+        autoSaveTimeoutRef.current = null;
+      }
+      // Save immediately without debounce
+      saveLuykeData(true, 'force-before-reload');
+    };
+    window.addEventListener('force-save-before-reload', handleForceSave);
+    return () => window.removeEventListener('force-save-before-reload', handleForceSave);
+  }, [saveLuykeData]);
+
   // Synchronize component state to global cache immediately when user types
   // This prevents data loss (e.g. pasted text disappearing) if they switch tabs before the 2s auto-save
   useEffect(() => {
@@ -864,15 +888,15 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (globalPendingSaves.has(targetStore)) {
           console.log(`[LuykeData] Save in progress for "${targetStore}", skipping DB overwrite for input fields`);
         } else {
-          setClusterSummaryInput(clusterSummary);
-          setClusterCategoryInput(clusterCategory);
+          if (clusterSummary) setClusterSummaryInput(clusterSummary);
+          if (clusterCategory) setClusterCategoryInput(clusterCategory);
           
           // Process synchronously to instantly display DB data without 300ms wait
-          handleProcess(loadedTargets, clusterSummary, clusterCategory, data.lk_dt_nv || '');
+          handleProcess(loadedTargets, clusterSummary || clusterSummaryInputRef.current, clusterCategory || clusterCategoryInputRef.current, data.lk_dt_nv || staffInputRef.current || '');
         }
         
-        setStaffInput(data.lk_dt_nv || '');
-        setStaffCategoryInput(data.lk_td_nv || '');
+        if (data.lk_dt_nv) setStaffInput(data.lk_dt_nv);
+        if (data.lk_td_nv) setStaffCategoryInput(data.lk_td_nv);
         setStaffListInput(data.ds_nhan_vien || '');
         setDtGioCong(data.dt_gio_cong || '');
         setDataPhanCa(data.data_phan_ca || null);

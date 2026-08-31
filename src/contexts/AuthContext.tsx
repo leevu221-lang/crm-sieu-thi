@@ -4,6 +4,7 @@ import { UserProfile } from '../types';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { trackUserPing } from '../services/accessTracker';
+import { localYcxDb } from '../pages/RTST/utils';
 
 interface AuthContextType {
   userProfile: UserProfile | null;
@@ -425,11 +426,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   function logout() {
     setUserProfile(null);
-    localStorage.removeItem('userProfile');
-    localStorage.removeItem('currentStoreId');
-    localStorage.removeItem('rtst_global_market_filter');
-    localStorage.removeItem('ST_NAME_V1');
-    sessionStorage.removeItem('justLoggedIn');
+    // Preserve non-account-specific settings before clearing
+    const theme = localStorage.getItem('theme');
+    // Clear ALL localStorage to prevent data leaking between accounts
+    localStorage.clear();
+    // Restore non-account-specific settings
+    if (theme) localStorage.setItem('theme', theme);
+    // Clear ALL sessionStorage
+    sessionStorage.clear();
+    // Clear IndexedDB cached data
+    localYcxDb.clear().catch(() => {});
   }
 
   function updateStoreName(newStoreName: string, newStatus?: string) {

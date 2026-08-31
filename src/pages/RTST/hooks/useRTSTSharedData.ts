@@ -732,6 +732,38 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     isStoreReady
   ]);
 
+  // Force-save listener: flush pending store revenue data before version-update reload
+  useEffect(() => {
+    const handleForceSave = () => {
+      console.log('[RTSTSharedData] Force-save triggered before reload — flushing pending store revenue data');
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+      if (localStorageTimerRef.current) {
+        clearTimeout(localStorageTimerRef.current);
+        localStorageTimerRef.current = null;
+      }
+      // Save immediately without debounce
+      if (saveStoreRevenueRef.current && maKho && stNameRef.current) {
+        saveStoreRevenueRef.current(maKho, stNameRef.current, true);
+      }
+    };
+    window.addEventListener('force-save-before-reload', handleForceSave);
+    return () => window.removeEventListener('force-save-before-reload', handleForceSave);
+  }, [maKho]);
+
+  // Force-save dirty data before page refresh (F5) or close
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (saveStoreRevenueRef.current && maKho && stNameRef.current) {
+        saveStoreRevenueRef.current(maKho, stNameRef.current, true);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [maKho]);
+
   return {
     categoryMappingInput, setCategoryMappingInput,
     manualAdjustment, setManualAdjustment,

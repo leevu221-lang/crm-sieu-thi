@@ -507,7 +507,29 @@ export const parseStaffRankData = (input: string): StaffData[] => {
 
   const cleanNum = (s: string) => {
     if (!s) return 0;
-    return parseFloat(s.replace(/[^\d,.-]/g, '').replace(/,/g, '')) || 0;
+    let str = String(s).trim();
+    if (!str) return 0;
+    if (str.includes('%')) {
+      str = str.replace(/%/g, '').replace(/,/g, '.').trim();
+      const n = parseFloat(str);
+      return isNaN(n) ? 0 : n;
+    }
+    let cleaned = str.replace(/[^\d,.-]/g, '');
+    const lastComma = cleaned.lastIndexOf(',');
+    const lastDot = cleaned.lastIndexOf('.');
+    if (lastComma !== -1 && lastDot !== -1) {
+      if (lastComma > lastDot) cleaned = cleaned.replace(/\./g, '').replace(/,/g, '.');
+      else cleaned = cleaned.replace(/,/g, '');
+    } else if (lastComma !== -1) {
+      const parts = cleaned.split(',');
+      if (parts.length > 1 && parts.slice(1).every(p => p.length === 3)) cleaned = cleaned.replace(/,/g, '');
+      else cleaned = cleaned.replace(/,/g, '.');
+    } else if (lastDot !== -1) {
+      const parts = cleaned.split('.');
+      if (parts.length > 1 && parts.slice(1).every(p => p.length === 3)) cleaned = cleaned.replace(/\./g, '');
+    }
+    const result = parseFloat(cleaned);
+    return isNaN(result) ? 0 : result;
   };
 
   lines.forEach(line => {
