@@ -274,8 +274,8 @@ function computeDiff(
   });
 
   const origIctOrderStr = orig.ictRoster.map(r => r.id).join(',');
-  const curIctOrder = current.ictRoster.map(r => r.id);
-  const curIctOrderStr = curIctOrder.join(',');
+  const currentIctOrder = current.ictRoster.map(r => r.id);
+  const curIctOrderStr = currentIctOrder.join(',');
   const isIctOrderChanged = origIctOrderStr !== curIctOrderStr;
   if (isIctOrderChanged && addedIctPgs.length === 0 && removedIctPgIds.size === 0) {
     changes.push({
@@ -362,8 +362,8 @@ function computeDiff(
   });
 
   const origDtdlgdOrderStr = orig.dtdlgdRoster.map(r => r.id).join(',');
-  const curDtdlgdOrder = current.dtdlgdRoster.map(r => r.id);
-  const curDtdlgdOrderStr = curDtdlgdOrder.join(',');
+  const currentDtdlgdOrder = current.dtdlgdRoster.map(r => r.id);
+  const curDtdlgdOrderStr = currentDtdlgdOrder.join(',');
   const isDtdlgdOrderChanged = origDtdlgdOrderStr !== curDtdlgdOrderStr;
   if (isDtdlgdOrderChanged && addedDtdlgdPgs.length === 0 && removedDtdlgdPgIds.size === 0) {
     changes.push({
