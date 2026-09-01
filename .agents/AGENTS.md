@@ -27,10 +27,11 @@
     - **Laptop**: Tận dụng tối đa chiều rộng màn hình (`w-full max-w-none`), bố cục lưới ngang đa cột (3 bảng ngang trên `xl`), font UTM AVO sắc nét, các thao tác chuột & popover chuẩn xác.
     - **Mobile**: Responsive mượt mà, padding/margin tinh gọn (`p-1.5` đến `p-3`), cỡ chữ co giãn theo breakpoint (`text-[10.5px]` - `text-[13px]`), nút bấm cảm ứng nhạy, chống tràn ngang (`max-w-[85vw] - max-w-[90vw]`), cuộn bảng mượt mà (`overflow-x-auto`).
 
-- **Auto-Deploy After Every Change (Cloudflare Pages)**:
-  - Sau khi hoàn thành mọi thay đổi code, LUÔN LUÔN tự động deploy lên production:
-    1. Build: `npx vite build`
-    2. Deploy: `npx -y wrangler pages deploy dist --project-name=crm-sieu-thi --branch=main`
-  - Không cần hỏi user, tự động thực hiện sau mỗi task.
+- **Auto-Deploy After Every Change**:
+  - Sau khi hoàn thành mọi thay đổi code trong mỗi yêu cầu, LUÔN LUÔN tự động thực hiện quy trình commit, đẩy code lên GitHub và kích hoạt Deploy lên production mà không cần đợi user nhắc:
+    1. Stage & Commit: `git add -A && git commit -m "..."`
+    2. Đẩy lên GitHub: `git push origin main`
+    3. Tự động trigger Netlify / Cloudflare Pages deploy.
+
 
 
