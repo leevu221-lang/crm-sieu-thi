@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { CalendarDays, Plus, Trash2, Save, Edit3, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, ArrowLeftRight, Camera, Download, Copy, Check, Lock, Unlock, History, Search, Filter, ArrowRight, Clock, User } from 'lucide-react';
-import { doc, onSnapshot, setDoc, runTransaction } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, runTransaction, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
 import * as htmlToImage from 'html-to-image';
@@ -25,7 +25,7 @@ interface WeekShiftData {
 }
 
 interface PGChangeDetail {
-  type: 'shift' | 'name' | 'note' | 'sdt' | 'add_pg' | 'remove_pg';
+  type: 'shift' | 'name' | 'note' | 'sdt' | 'add_pg' | 'remove_pg' | 'reorder';
   pgName: string;
   category: CategoryType;
   week?: number;
@@ -91,31 +91,53 @@ const DAY_NAMES = ['CN', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 
 
 // ─── Date utilities ──────────────────────────────────────────────────────────
 function getWeeksOfMonth(year: number, month: number) {
-  let startDate = new Date(year, month, 1);
-  while (startDate.getDay() !== 1) startDate.setDate(startDate.getDate() + 1);
-  if (startDate.getDate() > 7) {
-    startDate = new Date(year, month, 1);
-    while (startDate.getDay() !== 1) startDate.setDate(startDate.getDate() - 1);
+  const firstDay = new Date(year, month, 1);
+  const day = firstDay.getDay(); // 0: Sun, 1: Mon, ...
+
+  let startMon = new Date(year, month, 1);
+  if (day === 1) {
+    startMon = new Date(year, month, 1);
+  } else if (day >= 2 && day <= 4) {
+    // 1st is Tue, Wed, Thu -> start on previous Monday
+    startMon.setDate(firstDay.getDate() - (day - 1));
+  } else {
+    // 1st is Fri, Sat, Sun (day === 5, 6, 0) -> start on next Monday
+    const daysToAdd = day === 0 ? 1 : (8 - day);
+    startMon.setDate(firstDay.getDate() + daysToAdd);
   }
 
-  const lastDay = new Date(year, month + 1, 0);
   const weeks: { dates: Date[] }[] = [];
-  let cur = new Date(startDate);
-
-  for (let w = 0; w < 6; w++) {
+  let cur = new Date(startMon);
+  for (let w = 0; w < 5; w++) {
     const dates: Date[] = [];
     for (let d = 0; d < 7; d++) {
       dates.push(new Date(cur));
       cur.setDate(cur.getDate() + 1);
     }
-    if (dates.some(d => d.getMonth() === month)) weeks.push({ dates });
-    if (weeks.length >= 4 && cur > lastDay) break;
+    weeks.push({ dates });
   }
-  return weeks.slice(0, 5);
+  return weeks;
 }
 
 function fmtDate(d: Date) { return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; }
 function dayName(d: Date) { return DAY_NAMES[d.getDay()]; }
+
+function getPrevMonthInfo(year: number, month: number) {
+  const prevM = month === 0 ? 11 : month - 1;
+  const prevY = month === 0 ? year - 1 : year;
+  return { year: prevY, month: prevM, monthKey: `${prevY}-${String(prevM + 1).padStart(2, '0')}` };
+}
+
+function getNextMonthInfo(year: number, month: number) {
+  const nextM = month === 11 ? 0 : month + 1;
+  const nextY = month === 11 ? year + 1 : year;
+  return { year: nextY, month: nextM, monthKey: `${nextY}-${String(nextM + 1).padStart(2, '0')}` };
+}
+
+function areWeeksMatching(datesA?: Date[], datesB?: Date[]) {
+  if (!datesA || !datesB || datesA.length !== 7 || datesB.length !== 7) return false;
+  return fmtDate(datesA[0]) === fmtDate(datesB[0]) && fmtDate(datesA[6]) === fmtDate(datesB[6]);
+}
 
 const emptyShifts = (): WeekShiftData => ({ shifts: ['', '', '', '', '', '', ''] });
 
@@ -132,9 +154,13 @@ interface DiffResult {
   addedIctPgs: PGInfo[];
   updatedIctPgs: PGInfo[];
   removedIctPgIds: Set<string>;
+  isIctOrderChanged: boolean;
+  currentIctOrder: string[];
   addedDtdlgdPgs: PGInfo[];
   updatedDtdlgdPgs: PGInfo[];
   removedDtdlgdPgIds: Set<string>;
+  isDtdlgdOrderChanged: boolean;
+  currentDtdlgdOrder: string[];
   addedCustomShifts: string[];
   removedCustomShifts: Set<string>;
 }
@@ -230,6 +256,21 @@ function computeDiff(
     }
   });
 
+  const origIctOrderStr = orig.ictRoster.map(r => r.id).join(',');
+  const curIctOrder = current.ictRoster.map(r => r.id);
+  const curIctOrderStr = curIctOrder.join(',');
+  const isIctOrderChanged = origIctOrderStr !== curIctOrderStr;
+  if (isIctOrderChanged && addedIctPgs.length === 0 && removedIctPgIds.size === 0) {
+    changes.push({
+      type: 'reorder',
+      pgName: 'Danh sách PG ICT',
+      category: 'ICT',
+      oldValue: '',
+      newValue: '',
+      description: 'Thay đổi thứ tự hiển thị PG (ICT)'
+    });
+  }
+
   // 2. Compare DTDLGD Roster
   const origDtdlgdMap = new Map(orig.dtdlgdRoster.map(r => [r.id, r]));
   const curDtdlgdMap = new Map(current.dtdlgdRoster.map(r => [r.id, r]));
@@ -302,6 +343,21 @@ function computeDiff(
       });
     }
   });
+
+  const origDtdlgdOrderStr = orig.dtdlgdRoster.map(r => r.id).join(',');
+  const curDtdlgdOrder = current.dtdlgdRoster.map(r => r.id);
+  const curDtdlgdOrderStr = curDtdlgdOrder.join(',');
+  const isDtdlgdOrderChanged = origDtdlgdOrderStr !== curDtdlgdOrderStr;
+  if (isDtdlgdOrderChanged && addedDtdlgdPgs.length === 0 && removedDtdlgdPgIds.size === 0) {
+    changes.push({
+      type: 'reorder',
+      pgName: 'Danh sách PG ĐT-ĐL-GD',
+      category: 'DTDLGD',
+      oldValue: '',
+      newValue: '',
+      description: 'Thay đổi thứ tự hiển thị PG (ĐT-ĐL-GD)'
+    });
+  }
 
   // 3. Compare Shifts across all weeks
   weeks.forEach((w, wIdx) => {
@@ -390,9 +446,13 @@ function computeDiff(
     addedIctPgs,
     updatedIctPgs,
     removedIctPgIds,
+    isIctOrderChanged,
+    currentIctOrder,
     addedDtdlgdPgs,
     updatedDtdlgdPgs,
     removedDtdlgdPgIds,
+    isDtdlgdOrderChanged,
+    currentDtdlgdOrder,
     addedCustomShifts,
     removedCustomShifts,
   };
@@ -418,6 +478,16 @@ function applyDiffToServerData(serverData: any, diff: DiffResult) {
     }
   });
 
+  // Reorder ICT roster if client changed order
+  if (diff.isIctOrderChanged && diff.currentIctOrder.length > 0) {
+    const orderMap = new Map(diff.currentIctOrder.map((id, idx) => [id, idx]));
+    serverIct.sort((a, b) => {
+      const idxA = orderMap.has(a.id) ? orderMap.get(a.id)! : 999999;
+      const idxB = orderMap.has(b.id) ? orderMap.get(b.id)! : 999999;
+      return idxA - idxB;
+    });
+  }
+
   // 2. Merge DTDLGD Roster
   let serverDtdlgd: PGInfo[] = Array.isArray(serverData.dtdlgdRoster) ? [...serverData.dtdlgdRoster] : [];
   if (diff.removedDtdlgdPgIds.size > 0) {
@@ -436,6 +506,16 @@ function applyDiffToServerData(serverData: any, diff: DiffResult) {
       serverDtdlgd.push(add);
     }
   });
+
+  // Reorder DTDLGD roster if client changed order
+  if (diff.isDtdlgdOrderChanged && diff.currentDtdlgdOrder.length > 0) {
+    const orderMap = new Map(diff.currentDtdlgdOrder.map((id, idx) => [id, idx]));
+    serverDtdlgd.sort((a, b) => {
+      const idxA = orderMap.has(a.id) ? orderMap.get(a.id)! : 999999;
+      const idxB = orderMap.has(b.id) ? orderMap.get(b.id)! : 999999;
+      return idxA - idxB;
+    });
+  }
 
   // 3. Merge Week Shifts
   const serverWeekData = JSON.parse(JSON.stringify(serverData.weekData || {}));
@@ -472,14 +552,13 @@ function applyDiffToServerData(serverData: any, diff: DiffResult) {
 
 // ─── Shift cell ────────────────────────────────────────────────────────────────
 const ShiftCell: React.FC<{
-  value: ShiftType; onChange: (v: ShiftType) => void; editable: boolean; dim: boolean;
+  value: ShiftType; onChange: (v: ShiftType) => void; editable: boolean;
   options: string[]; customShifts: string[];
-}> = ({ value, onChange, editable, dim, options, customShifts }) => {
+}> = ({ value, onChange, editable, options, customShifts }) => {
   const s = getShiftStyle(value, customShifts);
-  const op = dim ? { opacity: 0.35 } : {};
   if (!editable) {
     return (
-      <td className="px-1 py-2.5 text-center border" style={{ borderColor: '#e2e8f0', height: '46px', ...op }}>
+      <td className="px-1 py-2.5 text-center border" style={{ borderColor: '#e2e8f0', height: '46px' }}>
         {value ? (
           <span style={{ backgroundColor: s.bg, color: s.text, borderRadius: '6px', padding: '4px 8.5px', fontSize: '12px', fontWeight: 800, display: 'inline-block', letterSpacing: '0.3px', textShadow: '0 1px 1px rgba(0,0,0,0.1)' }}>
             {value}
@@ -491,8 +570,9 @@ const ShiftCell: React.FC<{
     );
   }
   return (
-    <td className="p-0 border" style={{ borderColor: '#e2e8f0', height: '46px', ...op }}>
+    <td className="p-0 border" style={{ borderColor: '#e2e8f0', height: '46px' }}>
       <select value={value} onChange={e => onChange(e.target.value as ShiftType)}
+        onDragStart={e => e.stopPropagation()}
         className="w-full h-full px-0.5 py-2.5 text-[12px] font-bold text-center border-0 outline-none cursor-pointer"
         style={{ backgroundColor: s.bg, color: s.text, minWidth: 90, minHeight: '46px' }}>
         {options.map(o => <option key={o} value={o}>{o || '(trống)'}</option>)}
@@ -519,6 +599,7 @@ const ScheduleTable: React.FC<{
   onMoveToOtherCategory?: (pg: PGInfo) => void;
 }> = ({ title, roster, weekShifts, onRosterChange, onShiftsChange, editing, weekDates, currentMonth, category, shiftOpts, customShifts, is43751Admin, onViewPgHistory, onMoveToOtherCategory }) => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const movePG = (fromIndex: number, toIndex: number) => {
     if (toIndex < 0 || toIndex >= roster.length || fromIndex === toIndex) return;
@@ -577,7 +658,7 @@ const ScheduleTable: React.FC<{
               <th className="px-2 py-2 border text-[12px] font-bold text-white text-left uppercase tracking-wider" style={{ borderColor: '#475569', minWidth: 160 }}>TÊN PG HÃNG</th>
               {weekDates.map((d, i) => (
                 <th key={i} className="px-1 py-1.5 border text-center"
-                  style={{ borderColor: '#475569', minWidth: 90, opacity: d.getMonth() === currentMonth ? 1 : 0.4, background: d.getDay() === 0 ? '#7c2d12' : 'transparent' }}>
+                  style={{ borderColor: '#475569', minWidth: 90, background: d.getDay() === 0 ? '#7c2d12' : 'transparent' }}>
                   <div className="text-[12px] font-bold" style={{ color: d.getDay() === 0 ? '#fdba74' : '#93c5fd' }}>{dayName(d)}</div>
                   <div className="text-[11px] font-bold text-white">{fmtDate(d)}</div>
                   {dayNotes[i] && <div className="text-[10px] font-normal text-amber-300 whitespace-pre-line leading-tight mt-0.5">{dayNotes[i]}</div>}
@@ -603,6 +684,7 @@ const ScheduleTable: React.FC<{
             ) : roster.map((pg, idx) => {
               const ws = weekShifts[pg.id] || emptyShifts();
               const isDragging = draggedIndex === idx;
+              const isDragOver = dragOverIndex === idx && draggedIndex !== null && draggedIndex !== idx;
               return (
                 <tr
                   key={pg.id}
@@ -614,7 +696,13 @@ const ScheduleTable: React.FC<{
                     e.dataTransfer.effectAllowed = 'move';
                   }}
                   onDragOver={(e) => {
-                    if (editing) e.preventDefault();
+                    if (!editing) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (dragOverIndex !== idx) setDragOverIndex(idx);
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverIndex === idx) setDragOverIndex(null);
                   }}
                   onDrop={(e) => {
                     if (!editing) return;
@@ -624,14 +712,18 @@ const ScheduleTable: React.FC<{
                       movePG(fromIdx, idx);
                     }
                     setDraggedIndex(null);
+                    setDragOverIndex(null);
                   }}
-                  onDragEnd={() => setDraggedIndex(null)}
+                  onDragEnd={() => {
+                    setDraggedIndex(null);
+                    setDragOverIndex(null);
+                  }}
                   style={{
-                    backgroundColor: isDragging ? '#fef3c7' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc'),
-                    borderBottom: '1px solid #e2e8f0',
-                    opacity: isDragging ? 0.6 : 1,
+                    backgroundColor: isDragging ? '#fef3c7' : (isDragOver ? '#ecfdf5' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc')),
+                    borderBottom: isDragOver ? '2px solid #10b981' : '1px solid #e2e8f0',
+                    opacity: isDragging ? 0.4 : 1,
                     minHeight: '46px',
-                    transition: 'background-color 0.15s ease'
+                    transition: 'background-color 0.15s ease, border-color 0.15s ease'
                   }}
                 >
                   {editing && (
@@ -668,6 +760,7 @@ const ScheduleTable: React.FC<{
                   <td className="px-2 py-2.5 border text-[13px] font-bold text-slate-800" style={{ borderColor: '#e2e8f0', height: '46px' }}>
                     {editing ? (
                       <input value={pg.tenPgHang} onChange={e => updateName(pg.id, e.target.value)}
+                        onDragStart={e => e.stopPropagation()}
                         className="w-full px-1.5 py-1.5 border border-slate-300 rounded text-[13px] focus:ring-1 focus:ring-green-400 outline-none font-bold"
                         placeholder="VD: Ngọc Trâm - Realme" />
                     ) : (
@@ -686,17 +779,19 @@ const ScheduleTable: React.FC<{
                     )}
                   </td>
                   {ws.shifts.map((shift, di) => (
-                    <ShiftCell key={di} value={shift} onChange={v => updateShift(pg.id, di, v)} editable={editing} dim={weekDates[di]?.getMonth() !== currentMonth} options={shiftOpts} customShifts={customShifts} />
+                    <ShiftCell key={di} value={shift} onChange={v => updateShift(pg.id, di, v)} editable={editing} options={shiftOpts} customShifts={customShifts} />
                   ))}
                   <td className="px-1.5 py-2.5 border text-[13px] text-slate-600" style={{ borderColor: '#e2e8f0', height: '46px' }}>
                     {editing ? (
                       <textarea value={pg.note} onChange={e => updateNote(pg.id, e.target.value)}
+                        onDragStart={e => e.stopPropagation()}
                         className="w-full px-1.5 py-1 border border-slate-300 rounded text-[13px] focus:ring-1 focus:ring-green-400 outline-none resize-none" rows={2} placeholder="Ca sáng 9h-15h..." />
                     ) : <span className="whitespace-pre-wrap text-[13px] leading-relaxed">{pg.note || '—'}</span>}
                   </td>
                   <td className="px-1.5 py-2.5 border text-[13px] text-slate-600" style={{ borderColor: '#e2e8f0', height: '46px' }}>
                     {editing ? (
                       <input value={pg.sdtSup} onChange={e => updateSdt(pg.id, e.target.value)}
+                        onDragStart={e => e.stopPropagation()}
                         className="w-full px-1.5 py-1 border border-slate-300 rounded text-[13px] focus:ring-1 focus:ring-green-400 outline-none" placeholder="0901234567 (Tên)" />
                     ) : <span className="text-[13px] leading-relaxed">{pg.sdtSup || '—'}</span>}
                   </td>
@@ -1122,15 +1217,16 @@ const LichLamViecPG: React.FC = () => {
   useEffect(() => {
     setLoaded(false);
     const docRef = doc(db, 'lichLamViecPG', `GLOBAL_${monthKey}`);
+
     const unsub = onSnapshot(docRef, snap => {
       if (snap.exists()) {
         const d = snap.data() as any;
         // If this device is NOT actively editing, sync everything in real-time from Firestore
         if (!editingRef.current) {
-          setIctRoster(d.ictRoster || []);
-          setDtdlgdRoster(d.dtdlgdRoster || []);
+          setIctRoster(Array.isArray(d.ictRoster) ? d.ictRoster : []);
+          setDtdlgdRoster(Array.isArray(d.dtdlgdRoster) ? d.dtdlgdRoster : []);
           setAllWeekData(d.weekData || {});
-          if (d.customShifts) setCustomShifts(d.customShifts);
+          if (Array.isArray(d.customShifts)) setCustomShifts(d.customShifts);
         }
         if (d.allowUserEdit !== undefined && typeof d.allowUserEdit === 'object') setAllowUserEdit(d.allowUserEdit);
         else setAllowUserEdit({});
@@ -1138,7 +1234,7 @@ const LichLamViecPG: React.FC = () => {
         else setHistoryLogs([]);
       } else {
         if (!editingRef.current) {
-          // Initialize with sample data from reference
+          // Default initial sample data
           setIctRoster([
             { id: genId(), tenPgHang: 'Ngọc Trâm - Realme', sdtSup: 'Lý Tấn Được 0946676440', note: 'Ca gãy (9h-12/13h-18h), t6-17-cn (9h-12h/14h-19h) sáng 9h-16h', category: 'ICT' },
             { id: genId(), tenPgHang: 'Thanh - Xiaomiii', sdtSup: 'Gia Khang 0824013017', note: 'Ca sáng: 9h-17h/8h-16h ca chiều 12h-20h/ 13h-21h', category: 'ICT' },
@@ -1159,7 +1255,11 @@ const LichLamViecPG: React.FC = () => {
         }
       }
       setLoaded(true);
+    }, err => {
+      console.error('Firestore snapshot error:', err);
+      setLoaded(true);
     });
+
     return unsub;
   }, [monthKey]);
 
@@ -1184,12 +1284,20 @@ const LichLamViecPG: React.FC = () => {
     setEditing(false);
   };
 
-  // ─── Save with Multi-Device Differential 3-Way Merge ─────────────────────
+  // ─── Save with Multi-Device Differential 3-Way Merge & Bridging Sync ──────
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
       const orig = originalDataRef.current;
       const docRef = doc(db, 'lichLamViecPG', `GLOBAL_${monthKey}`);
+
+      const prevInfo = getPrevMonthInfo(selectedYear, selectedMonth);
+      const prevWeeks = getWeeksOfMonth(prevInfo.year, prevInfo.month);
+      const isWeek1BridgingWithPrevWeek5 = areWeeksMatching(weeks[0]?.dates, prevWeeks[4]?.dates);
+
+      const nextInfo = getNextMonthInfo(selectedYear, selectedMonth);
+      const nextWeeks = getWeeksOfMonth(nextInfo.year, nextInfo.month);
+      const isWeek5BridgingWithNextWeek1 = areWeeksMatching(weeks[4]?.dates, nextWeeks[0]?.dates);
 
       if (!orig) {
         await setDoc(docRef, {
@@ -1203,6 +1311,35 @@ const LichLamViecPG: React.FC = () => {
           updatedBy: userProfile?.username || '',
           monthKey,
         }, { merge: true });
+
+        // Sync bridging week to previous month if applicable
+        if (isWeek1BridgingWithPrevWeek5 && allWeekData.week1) {
+          try {
+            const prevDocRef = doc(db, 'lichLamViecPG', `GLOBAL_${prevInfo.monthKey}`);
+            await setDoc(prevDocRef, {
+              weekData: { week5: allWeekData.week1 },
+              updatedAt: new Date().toISOString(),
+              updatedBy: userProfile?.username || '',
+            }, { merge: true });
+          } catch (e) {
+            console.warn('Sync to prev month bridging error:', e);
+          }
+        }
+
+        // Sync bridging week to next month if applicable
+        if (isWeek5BridgingWithNextWeek1 && allWeekData.week5) {
+          try {
+            const nextDocRef = doc(db, 'lichLamViecPG', `GLOBAL_${nextInfo.monthKey}`);
+            await setDoc(nextDocRef, {
+              weekData: { week1: allWeekData.week5 },
+              updatedAt: new Date().toISOString(),
+              updatedBy: userProfile?.username || '',
+            }, { merge: true });
+          } catch (e) {
+            console.warn('Sync to next month bridging error:', e);
+          }
+        }
+
         setEditing(false);
         return;
       }
@@ -1251,6 +1388,33 @@ const LichLamViecPG: React.FC = () => {
         }, { merge: true });
       });
 
+      // Also sync bridging weeks to adjacent months
+      if (isWeek1BridgingWithPrevWeek5 && allWeekData.week1) {
+        try {
+          const prevDocRef = doc(db, 'lichLamViecPG', `GLOBAL_${prevInfo.monthKey}`);
+          await setDoc(prevDocRef, {
+            weekData: { week5: allWeekData.week1 },
+            updatedAt: new Date().toISOString(),
+            updatedBy: userProfile?.username || '',
+          }, { merge: true });
+        } catch (e) {
+          console.warn('Sync to prev month bridging error:', e);
+        }
+      }
+
+      if (isWeek5BridgingWithNextWeek1 && allWeekData.week5) {
+        try {
+          const nextDocRef = doc(db, 'lichLamViecPG', `GLOBAL_${nextInfo.monthKey}`);
+          await setDoc(nextDocRef, {
+            weekData: { week1: allWeekData.week5 },
+            updatedAt: new Date().toISOString(),
+            updatedBy: userProfile?.username || '',
+          }, { merge: true });
+        } catch (e) {
+          console.warn('Sync to next month bridging error:', e);
+        }
+      }
+
       originalDataRef.current = null;
       setEditing(false);
     } catch (err) {
@@ -1258,7 +1422,7 @@ const LichLamViecPG: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  }, [ictRoster, dtdlgdRoster, allWeekData, customShifts, allowUserEdit, historyLogs, userProfile, monthKey, weeks]);
+  }, [ictRoster, dtdlgdRoster, allWeekData, customShifts, allowUserEdit, historyLogs, userProfile, monthKey, weeks, selectedYear, selectedMonth]);
 
   // ─── Admin Toggle Permission ───────────────────────────────────────────
   const is43751Admin = userProfile?.username === '43751' || userProfile?.ma_nhan_vien === '43751';

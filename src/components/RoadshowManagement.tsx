@@ -587,27 +587,30 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
 
   // Calculate weeks of month matching LichLamViecPG exactly
   const getWeeksOfMonth = (year: number, month: number) => {
-    let startDate = new Date(year, month, 1);
-    while (startDate.getDay() !== 1) startDate.setDate(startDate.getDate() + 1);
-    if (startDate.getDate() > 7) {
-      startDate = new Date(year, month, 1);
-      while (startDate.getDay() !== 1) startDate.setDate(startDate.getDate() - 1);
+    const firstDay = new Date(year, month, 1);
+    const day = firstDay.getDay(); // 0: Sun, 1: Mon, ...
+
+    let startMon = new Date(year, month, 1);
+    if (day === 1) {
+      startMon = new Date(year, month, 1);
+    } else if (day >= 2 && day <= 4) {
+      startMon.setDate(firstDay.getDate() - (day - 1));
+    } else {
+      const daysToAdd = day === 0 ? 1 : (8 - day);
+      startMon.setDate(firstDay.getDate() + daysToAdd);
     }
 
-    const lastDay = new Date(year, month + 1, 0);
     const weeks: { dates: Date[] }[] = [];
-    let cur = new Date(startDate);
-
-    for (let w = 0; w < 6; w++) {
+    let cur = new Date(startMon);
+    for (let w = 0; w < 5; w++) {
       const dates: Date[] = [];
       for (let dt = 0; dt < 7; dt++) {
         dates.push(new Date(cur));
         cur.setDate(cur.getDate() + 1);
       }
-      if (dates.some(dt => dt.getMonth() === month)) weeks.push({ dates });
-      if (weeks.length >= 4 && cur > lastDay) break;
+      weeks.push({ dates });
     }
-    return weeks.slice(0, 5);
+    return weeks;
   };
 
   // Locate weekKey & dayIndex in Lich PG across current/prev/next months
