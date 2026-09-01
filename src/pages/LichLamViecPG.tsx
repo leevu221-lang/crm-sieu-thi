@@ -141,6 +141,23 @@ function areWeeksMatching(datesA?: Date[], datesB?: Date[]) {
 
 const emptyShifts = (): WeekShiftData => ({ shifts: ['', '', '', '', '', '', ''] });
 
+function sanitizeForFirestore(data: any): any {
+  if (data === null || data === undefined) return null;
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizeForFirestore(item));
+  }
+  if (typeof data === 'object' && !(data instanceof Date)) {
+    const cleaned: Record<string, any> = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (v !== undefined) {
+        cleaned[k] = sanitizeForFirestore(v);
+      }
+    }
+    return cleaned;
+  }
+  return data;
+}
+
 // ─── Multi-Device Differential 3-Way Merge Utilities ────────────────────────
 interface DiffResult {
   changes: PGChangeDetail[];
@@ -1284,7 +1301,7 @@ const LichLamViecPG: React.FC = () => {
     setEditing(false);
   };
 
-  // ─── Save with Multi-Device Differential 3-Way Merge & Bridging Sync ──────
+  // ─── Save with Differential Sync, Bridging Sync & Clean Payload ──────
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
@@ -1299,101 +1316,58 @@ const LichLamViecPG: React.FC = () => {
       const nextWeeks = getWeeksOfMonth(nextInfo.year, nextInfo.month);
       const isWeek5BridgingWithNextWeek1 = areWeeksMatching(weeks[4]?.dates, nextWeeks[0]?.dates);
 
-      if (!orig) {
-        await setDoc(docRef, {
+      let updatedHistory = [...historyLogs];
+
+      if (orig) {
+        const diff = computeDiff(orig, {
           ictRoster,
           dtdlgdRoster,
           weekData: allWeekData,
           customShifts,
-          historyLogs,
-          allowUserEdit,
-          updatedAt: new Date().toISOString(),
-          updatedBy: userProfile?.username || '',
-          monthKey,
-        }, { merge: true });
+        }, weeks);
 
-        // Sync bridging week to previous month if applicable
-        if (isWeek1BridgingWithPrevWeek5 && allWeekData.week1) {
-          try {
-            const prevDocRef = doc(db, 'lichLamViecPG', `GLOBAL_${prevInfo.monthKey}`);
-            await setDoc(prevDocRef, {
-              weekData: { week5: allWeekData.week1 },
-              updatedAt: new Date().toISOString(),
-              updatedBy: userProfile?.username || '',
-            }, { merge: true });
-          } catch (e) {
-            console.warn('Sync to prev month bridging error:', e);
-          }
-        }
-
-        // Sync bridging week to next month if applicable
-        if (isWeek5BridgingWithNextWeek1 && allWeekData.week5) {
-          try {
-            const nextDocRef = doc(db, 'lichLamViecPG', `GLOBAL_${nextInfo.monthKey}`);
-            await setDoc(nextDocRef, {
-              weekData: { week1: allWeekData.week5 },
-              updatedAt: new Date().toISOString(),
-              updatedBy: userProfile?.username || '',
-            }, { merge: true });
-          } catch (e) {
-            console.warn('Sync to next month bridging error:', e);
-          }
-        }
-
-        setEditing(false);
-        return;
-      }
-
-      // Compute exact granular diff of changes made on THIS device
-      const diff = computeDiff(orig, {
-        ictRoster,
-        dtdlgdRoster,
-        weekData: allWeekData,
-        customShifts,
-      }, weeks);
-
-      // Perform atomic transaction: Read fresh server state, merge ONLY this device's changes
-      await runTransaction(db, async (transaction) => {
-        const snap = await transaction.get(docRef);
-        const serverData = snap.exists() ? (snap.data() as any) : {
-          ictRoster: [],
-          dtdlgdRoster: [],
-          weekData: {},
-          customShifts: [],
-          historyLogs: [],
-          allowUserEdit: {},
-        };
-
-        const merged = applyDiffToServerData(serverData, diff);
-
-        let updatedHistory = Array.isArray(serverData.historyLogs) ? [...serverData.historyLogs] : [];
         if (diff.changes.length > 0) {
           const newRecord: PGHistoryRecord = {
             id: genId(),
             timestamp: new Date().toISOString(),
             userName: userProfile?.username || 'Ẩn danh',
-            changes: diff.changes,
+            changes: diff.changes.map(c => ({
+              type: c.type,
+              pgName: c.pgName || '',
+              category: c.category || 'ICT',
+              ...(c.week !== undefined ? { week: c.week } : {}),
+              ...(c.dayIndex !== undefined ? { dayIndex: c.dayIndex } : {}),
+              ...(c.dayLabel ? { dayLabel: c.dayLabel } : {}),
+              oldValue: c.oldValue || '',
+              newValue: c.newValue || '',
+              description: c.description || '',
+            })),
           };
           updatedHistory = [newRecord, ...updatedHistory].slice(0, 150);
+          setHistoryLogs(updatedHistory);
         }
+      }
 
-        transaction.set(docRef, {
-          ...serverData,
-          ...merged,
-          historyLogs: updatedHistory,
-          allowUserEdit: serverData.allowUserEdit || allowUserEdit || {},
-          updatedAt: new Date().toISOString(),
-          updatedBy: userProfile?.username || '',
-          monthKey,
-        }, { merge: true });
+      const payload = sanitizeForFirestore({
+        ictRoster,
+        dtdlgdRoster,
+        weekData: allWeekData,
+        customShifts: customShifts || [],
+        historyLogs: updatedHistory,
+        allowUserEdit: allowUserEdit || {},
+        updatedAt: new Date().toISOString(),
+        updatedBy: userProfile?.username || '',
+        monthKey,
       });
 
-      // Also sync bridging weeks to adjacent months
+      await setDoc(docRef, payload, { merge: true });
+
+      // Sync bridging week to previous month if applicable
       if (isWeek1BridgingWithPrevWeek5 && allWeekData.week1) {
         try {
           const prevDocRef = doc(db, 'lichLamViecPG', `GLOBAL_${prevInfo.monthKey}`);
           await setDoc(prevDocRef, {
-            weekData: { week5: allWeekData.week1 },
+            weekData: { week5: sanitizeForFirestore(allWeekData.week1) },
             updatedAt: new Date().toISOString(),
             updatedBy: userProfile?.username || '',
           }, { merge: true });
@@ -1402,11 +1376,12 @@ const LichLamViecPG: React.FC = () => {
         }
       }
 
+      // Sync bridging week to next month if applicable
       if (isWeek5BridgingWithNextWeek1 && allWeekData.week5) {
         try {
           const nextDocRef = doc(db, 'lichLamViecPG', `GLOBAL_${nextInfo.monthKey}`);
           await setDoc(nextDocRef, {
-            weekData: { week1: allWeekData.week5 },
+            weekData: { week1: sanitizeForFirestore(allWeekData.week5) },
             updatedAt: new Date().toISOString(),
             updatedBy: userProfile?.username || '',
           }, { merge: true });
@@ -1417,8 +1392,9 @@ const LichLamViecPG: React.FC = () => {
 
       originalDataRef.current = null;
       setEditing(false);
-    } catch (err) {
-      console.error('Multi-device differential save error:', err);
+    } catch (err: any) {
+      console.error('Lỗi khi lưu Lịch PG:', err);
+      alert('Không thể lưu Lịch PG: ' + (err?.message || 'Vui lòng thử lại'));
     } finally {
       setSaving(false);
     }
@@ -1647,17 +1623,15 @@ const LichLamViecPG: React.FC = () => {
             )}
           </>
         ) : (
-          canEdit && (
-            <div className="flex items-center gap-2">
-              <button onClick={handleCancelEdit} className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-slate-700 bg-slate-100 border border-slate-300 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer">
-                <X size={15} /> Hủy
-              </button>
-              <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-5 py-2 text-[13px] font-black text-white bg-gradient-to-r from-green-600 to-emerald-700 rounded-xl hover:from-green-700 hover:to-emerald-800 shadow-md disabled:opacity-50 transition-all cursor-pointer">
-                {saving ? <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" /> : <Save size={15} />}
-                {saving ? 'Đang lưu...' : 'Lưu tất cả'}
-              </button>
-            </div>
-          )
+          <div className="flex items-center gap-2">
+            <button onClick={handleCancelEdit} className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-slate-700 bg-slate-100 border border-slate-300 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer">
+              <X size={15} /> Hủy
+            </button>
+            <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-5 py-2 text-[13px] font-black text-white bg-gradient-to-r from-green-600 to-emerald-700 rounded-xl hover:from-green-700 hover:to-emerald-800 shadow-md disabled:opacity-50 transition-all cursor-pointer">
+              {saving ? <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" /> : <Save size={15} />}
+              {saving ? 'Đang lưu...' : 'Lưu tất cả'}
+            </button>
+          </div>
         )}
         {capturing && <span className="flex items-center text-[12px] font-medium text-slate-500"><div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-emerald-500 mr-1.5" /> Đang chụp...</span>}
       </div>
