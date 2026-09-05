@@ -24,8 +24,24 @@ if (!fs.existsSync(backupsDir)) {
   fs.mkdirSync(backupsDir, { recursive: true });
 }
 
+// Tự động tìm số VERSION cao nhất hiện có trong thư mục backups để tăng lên 1
+function getNextVersion() {
+  if (!fs.existsSync(backupsDir)) return 1;
+  const files = fs.readdirSync(backupsDir);
+  let maxVer = 0;
+  for (const file of files) {
+    const match = file.match(/VERSION\s*(\d+)/i);
+    if (match) {
+      const ver = parseInt(match[1], 10);
+      if (ver > maxVer) maxVer = ver;
+    }
+  }
+  return maxVer + 1;
+}
+
+const nextVersion = getNextVersion();
 const timestamp = getTimestampString();
-const zipFilename = `crm-sieu-thi_${timestamp}.zip`;
+const zipFilename = `crm-sieu-thi_${timestamp}_VERSION ${nextVersion}.zip`;
 const zipPath = path.join(backupsDir, zipFilename);
 
 console.log(`🚀 Đang tạo bản sao lưu dự án: ${zipFilename}...`);
@@ -57,9 +73,12 @@ try {
   const stats = fs.statSync(zipPath);
   const sizeMb = (stats.size / (1024 * 1024)).toFixed(2);
 
-  console.log(`✅ Đã tạo bản backup thành công!`);
-  console.log(`📁 Đường dẫn: ${zipPath}`);
+  console.log(`==========================================`);
+  console.log(`✅ Đã tạo bản backup thành công: VERSION ${nextVersion}`);
+  console.log(`📁 Tên file:   ${zipFilename}`);
+  console.log(`📍 Vị trí:     ${zipPath}`);
   console.log(`📦 Dung lượng: ${sizeMb} MB`);
+  console.log(`==========================================`);
 } catch (err) {
   console.error(`❌ Backup thất bại:`, err.message);
   process.exit(1);
