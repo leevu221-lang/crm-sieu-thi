@@ -15,6 +15,7 @@ import React, { createContext, useContext, useState, useCallback, useRef, useEff
 import { useAuth } from './AuthContext';
 import { supabase } from '../supabaseClient';
 import { isValidStoreName } from '../pages/RTST/utils';
+import { URL_PAGE_MAP } from '../constants/routes';
 
 export interface StoreInfo {
   name: string;
@@ -35,8 +36,8 @@ interface StoreContextType {
   setMarketFilter: (filter: string) => void;
   availableMarkets: StoreInfo[];
   setAvailableMarkets: (markets: StoreInfo[]) => void;
-  activeRealtimeTab: 'summary' | 'khai_thac' | 'khai_thac_moi' | 'muc_tieu_ngay';
-  setActiveRealtimeTab: (tab: 'summary' | 'khai_thac' | 'khai_thac_moi' | 'muc_tieu_ngay') => void;
+  activeRealtimeTab: 'summary' | 'khai_thac' | 'khai_thac_moi' | 'muc_tieu_ngay' | 'real_dthu_nv';
+  setActiveRealtimeTab: (tab: 'summary' | 'khai_thac' | 'khai_thac_moi' | 'muc_tieu_ngay' | 'real_dthu_nv') => void;
   activeToolHoTroTab: string;
   setActiveToolHoTroTab: (tab: string) => void;
   activeTienIchTab: string;
@@ -102,14 +103,170 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [isStoreReady, setStoreReady] = useState(true);
   const [availableStores, setAvailableStoresRaw] = useState<StoreInfo[]>([]);
   const [storeVersion, setStoreVersion] = useState(0);
-  const [activeRealtimeTab, setActiveRealtimeTab] = useState<'summary' | 'khai_thac' | 'khai_thac_moi' | 'muc_tieu_ngay'>('summary');
-  const [activeToolHoTroTab, setActiveToolHoTroTab] = useState<string>('all-sticker');
-  const [activeTienIchTab, setActiveTienIchTab] = useState<string>('phan-ca-thang');
-  const [activeLuyKeTab, setActiveLuyKeTab] = useState<'summary' | 'cum' | 'efficiency' | 'thuong_st' | 'bcdtnh' | 'ssg_boss'>('summary');
-  const [activeHealthTab, setActiveHealthTab] = useState<'DOANH_THU' | 'TONG_HOP_NV' | 'CHI_TIET' | 'THI_DUA' | 'NGANH_HANG' | 'PHUC_VU' | 'BAN_KEM_NV' | 'THUONG_NV' | 'TRA_CHAM_NV' | 'KHAI_THAC_NV' | 'RANK_3T_NV' | 'GIA_TRI_DH'>('DOANH_THU');
+  // Helper to determine if the current URL or saved page belongs to pageKey
+  const isCurrentUrlForPage = (pageKey: string): boolean => {
+    try {
+      const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+      const mappedPage = URL_PAGE_MAP[path];
+      if (mappedPage === pageKey) return true;
+      
+      const params = new URLSearchParams(window.location.search);
+      const pageParam = params.get('page');
+      if (pageParam === pageKey) return true;
+      
+      if (window.location.hash.startsWith('#sync_thuong=') && pageKey === 'health') return true;
+
+      if (!path || path === '/' || path === '/index.html') {
+        const savedPage = localStorage.getItem('crm_active_page') || 'realtime';
+        return savedPage === pageKey;
+      }
+    } catch {}
+    return false;
+  };
+
+  // Helper to read initial tab from URL (if on this page) or localStorage with fallback
+  const getInitialTab = <T extends string>(pageKey: string, allowedTabs: T[], defaultTab: T): T => {
+    try {
+      if (isCurrentUrlForPage(pageKey)) {
+        const params = new URLSearchParams(window.location.search);
+        const urlTab = params.get('tab');
+        if (urlTab && allowedTabs.includes(urlTab as T)) {
+          return urlTab as T;
+        }
+      }
+      const saved = localStorage.getItem(`crm_active_${pageKey}_tab`);
+      if (saved && allowedTabs.includes(saved as T)) {
+        return saved as T;
+      }
+    } catch {}
+    return defaultTab;
+  };
+
+  const [activeRealtimeTab, setActiveRealtimeTabRaw] = useState<'summary' | 'khai_thac' | 'khai_thac_moi' | 'muc_tieu_ngay' | 'real_dthu_nv'>(() =>
+    getInitialTab('realtime', ['summary', 'khai_thac', 'khai_thac_moi', 'muc_tieu_ngay', 'real_dthu_nv'], 'summary')
+  );
+  const [activeToolHoTroTab, setActiveToolHoTroTabRaw] = useState<string>(() => {
+    try {
+      if (isCurrentUrlForPage('toolhotro')) {
+        const params = new URLSearchParams(window.location.search);
+        const urlTab = params.get('tab');
+        if (urlTab) return urlTab;
+      }
+      return localStorage.getItem('crm_active_toolhotro_tab') || 'all-sticker';
+    } catch {
+      return 'all-sticker';
+    }
+  });
+  const [activeTienIchTab, setActiveTienIchTabRaw] = useState<string>(() => {
+    try {
+      if (isCurrentUrlForPage('tienich')) {
+        const params = new URLSearchParams(window.location.search);
+        const urlTab = params.get('tab');
+        if (urlTab) return urlTab;
+      }
+      return localStorage.getItem('crm_active_tienich_tab') || 'phan-ca-thang';
+    } catch {
+      return 'phan-ca-thang';
+    }
+  });
+  const [activeLuyKeTab, setActiveLuyKeTabRaw] = useState<'summary' | 'cum' | 'efficiency' | 'thuong_st' | 'bcdtnh' | 'ssg_boss'>(() =>
+    getInitialTab('luyke', ['summary', 'cum', 'efficiency', 'thuong_st', 'bcdtnh', 'ssg_boss'], 'summary')
+  );
+  const [activeHealthTab, setActiveHealthTabRaw] = useState<'DOANH_THU' | 'TONG_HOP_NV' | 'CHI_TIET' | 'THI_DUA' | 'NGANH_HANG' | 'PHUC_VU' | 'BAN_KEM_NV' | 'THUONG_NV' | 'TRA_CHAM_NV' | 'KHAI_THAC_NV' | 'RANK_3T_NV' | 'GIA_TRI_DH'>(() =>
+    getInitialTab('health', ['DOANH_THU', 'TONG_HOP_NV', 'CHI_TIET', 'THI_DUA', 'NGANH_HANG', 'PHUC_VU', 'BAN_KEM_NV', 'THUONG_NV', 'TRA_CHAM_NV', 'KHAI_THAC_NV', 'RANK_3T_NV', 'GIA_TRI_DH'], 'DOANH_THU')
+  );
+
+  const updateUrlTab = (tab: string) => {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      window.history.replaceState(null, '', url.toString());
+    } catch {}
+  };
+
+  const setActiveRealtimeTab = useCallback((tab: 'summary' | 'khai_thac' | 'khai_thac_moi' | 'muc_tieu_ngay' | 'real_dthu_nv') => {
+    setActiveRealtimeTabRaw(tab);
+    try {
+      localStorage.setItem('crm_active_realtime_tab', tab);
+      updateUrlTab(tab);
+    } catch {}
+  }, []);
+
+  const setActiveToolHoTroTab = useCallback((tab: string) => {
+    setActiveToolHoTroTabRaw(tab);
+    try {
+      localStorage.setItem('crm_active_toolhotro_tab', tab);
+      updateUrlTab(tab);
+    } catch {}
+  }, []);
+
+  const setActiveTienIchTab = useCallback((tab: string) => {
+    setActiveTienIchTabRaw(tab);
+    try {
+      localStorage.setItem('crm_active_tienich_tab', tab);
+      updateUrlTab(tab);
+    } catch {}
+  }, []);
+
+  const setActiveLuyKeTab = useCallback((tab: 'summary' | 'cum' | 'efficiency' | 'thuong_st' | 'bcdtnh' | 'ssg_boss') => {
+    setActiveLuyKeTabRaw(tab);
+    try {
+      localStorage.setItem('crm_active_luyke_tab', tab);
+      updateUrlTab(tab);
+    } catch {}
+  }, []);
+
+  const setActiveHealthTab = useCallback((tab: 'DOANH_THU' | 'TONG_HOP_NV' | 'CHI_TIET' | 'THI_DUA' | 'NGANH_HANG' | 'PHUC_VU' | 'BAN_KEM_NV' | 'THUONG_NV' | 'TRA_CHAM_NV' | 'KHAI_THAC_NV' | 'RANK_3T_NV' | 'GIA_TRI_DH') => {
+    setActiveHealthTabRaw(tab);
+    try {
+      localStorage.setItem('crm_active_health_tab', tab);
+      updateUrlTab(tab);
+    } catch {}
+  }, []);
+
+  // Lắng nghe popstate để cập nhật active tab khi bấm nút Back/Forward của trình duyệt
+  useEffect(() => {
+    const handlePopState = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const urlTab = params.get('tab');
+        if (!urlTab) return;
+        
+        const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+        const page = URL_PAGE_MAP[path] || params.get('page');
+        
+        if (page === 'realtime') {
+          setActiveRealtimeTabRaw(urlTab as any);
+        } else if (page === 'luyke') {
+          setActiveLuyKeTabRaw(urlTab as any);
+        } else if (page === 'health') {
+          setActiveHealthTabRaw(urlTab as any);
+        } else if (page === 'toolhotro') {
+          setActiveToolHoTroTabRaw(urlTab);
+        } else if (page === 'tienich') {
+          setActiveTienIchTabRaw(urlTab);
+        }
+      } catch {}
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Keep a mutable ref to track currently loaded store names to skip redundant state changes
   const currentStoresRef = useRef<string[]>([]);
+
+  // Reset store selection whenever warehouseCode changes to avoid carrying over another warehouse's store
+  const prevWarehouseRef = useRef(warehouseCode);
+  useEffect(() => {
+    if (prevWarehouseRef.current && prevWarehouseRef.current !== warehouseCode) {
+      prevWarehouseRef.current = warehouseCode;
+      setCurrentStoreIdRaw('ALL');
+      currentStoresRef.current = [];
+      setAvailableStoresRaw([]);
+    } else {
+      prevWarehouseRef.current = warehouseCode;
+    }
+  }, [warehouseCode]);
 
   // Load declared stores from database based on warehouseCode
   useEffect(() => {

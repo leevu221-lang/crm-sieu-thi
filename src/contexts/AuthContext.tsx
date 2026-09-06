@@ -5,6 +5,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { trackUserPing } from '../services/accessTracker';
 import { localYcxDb } from '../pages/RTST/utils';
+import { URL_PAGE_MAP, isGuestShareLink } from '../constants/routes';
 
 interface AuthContextType {
   userProfile: UserProfile | null;
@@ -79,13 +80,96 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    // Check localStorage on mount
+    const params = new URLSearchParams(window.location.search);
+    const khoParam = params.get('kho') || params.get('makho') || params.get('store');
+    if (khoParam) {
+      localStorage.setItem('rtst_ma_kho', khoParam);
+    }
+
+    const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+    const pageParam = params.get('page')?.toLowerCase() || URL_PAGE_MAP[path] || '';
+    const isShare = isGuestShareLink(window.location.search);
+
     const storedUser = localStorage.getItem('userProfile');
+
+    const ALL_SHARED_PAGES = ['realtime', 'luyke', 'health', 'lichpg', 'diemdanhhop', 'bangiasoc', 'toolhotro', 'tienich', 'birthday', 'khaibao', 'feedback', 'excelviewer'];
+
+    // 1. Mở từ link chia sẻ khách (?view=guest hoặc ?share=true):
+    // Luôn khởi tạo tài khoản Khách xem trang độc lập không cần đăng nhập dưới mã kho được chia sẻ
+    if (isShare) {
+      const kho = khoParam || localStorage.getItem('rtst_ma_kho') || '1841';
+      localStorage.setItem('rtst_ma_kho', kho);
+      const guestUser: any = {
+        username: `Khách (${kho})`,
+        role: 'guest',
+        isGuest: true,
+        ma_kho: kho,
+        storeCode: kho,
+        declarationCompleted: true,
+        paymentConfirmed: true,
+        status: 'active',
+        packageDays: 9999,
+        expiredAt: '2099-12-31T23:59:59.000Z',
+        permissions: ['lkst', 'rtst', 'sknv', 'updata'],
+        userPermissions: {
+          allowedPages: ALL_SHARED_PAGES,
+          canEditUser: false
+        }
+      };
+      setUserProfile(guestUser);
+      setLoading(false);
+      return;
+    }
+
+    // 2. Nếu người dùng chưa đăng nhập, nhưng truy cập qua link có mã kho hoặc trang cụ thể:
+    // Tự động cấp quyền khách cho mã kho đó để không bị chặn bởi màn hình đăng nhập
+    if (!storedUser && (khoParam || (path && path !== '/' && URL_PAGE_MAP[path]))) {
+      const kho = khoParam || localStorage.getItem('rtst_ma_kho') || '1841';
+      localStorage.setItem('rtst_ma_kho', kho);
+      const guestUser: any = {
+        username: `Khách (${kho})`,
+        role: 'guest',
+        isGuest: true,
+        ma_kho: kho,
+        storeCode: kho,
+        declarationCompleted: true,
+        paymentConfirmed: true,
+        status: 'active',
+        packageDays: 9999,
+        expiredAt: '2099-12-31T23:59:59.000Z',
+        permissions: ['lkst', 'rtst', 'sknv', 'updata'],
+        userPermissions: {
+          allowedPages: ALL_SHARED_PAGES,
+          canEditUser: false
+        }
+      };
+      setUserProfile(guestUser);
+      setLoading(false);
+      return;
+    }
+
+    // 3. Với phiên làm việc đã đăng nhập trong CRM Quản Trị:
     if (storedUser) {
       try {
-        setUserProfile(JSON.parse(storedUser));
+        const parsed = JSON.parse(storedUser);
+        // Nếu storedUser trước đó bị dính role guest mà hiện tại không có link share thì xóa đi
+        if (parsed.role === 'guest' && !isShare && !khoParam) {
+          localStorage.removeItem('userProfile');
+          setUserProfile(null);
+        } else {
+          if (khoParam && parsed.role === 'guest') {
+            parsed.ma_kho = khoParam;
+            parsed.storeCode = khoParam;
+            parsed.username = `Khách (${khoParam})`;
+          }
+          if (parsed.ma_kho) {
+            localStorage.setItem('rtst_ma_kho', parsed.ma_kho);
+          }
+          setUserProfile(parsed);
+        }
       } catch (e) {
         console.error('Failed to parse stored user profile');
+        setUserProfile(null);
       }
     }
     setLoading(false);
@@ -94,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Real-time Listeners (Firestore for subscription and permissions)
   useEffect(() => {
-    if (!userProfile?.username || userProfile.username === 'ADMIN') return;
+    if (!userProfile?.username || userProfile.username === 'ADMIN' || userProfile.role === 'guest' || userProfile.isGuest) return;
 
     // 1. Firestore Listener for Subscription (ql_nguoi_dung)
     const qUser = query(
@@ -245,16 +329,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         declarationCompleted: data.declarationCompleted
       };
 
+      const cleanStorageForNewUser = () => {
+        const theme = localStorage.getItem('theme');
+        try { localStorage.clear(); } catch {}
+        try { sessionStorage.clear(); } catch {}
+        if (theme) {
+          try { localStorage.setItem('theme', theme); } catch {}
+        }
+      };
+
+      cleanStorageForNewUser();
       localStorage.setItem('userProfile', JSON.stringify(profile));
+      localStorage.setItem('rtst_ma_kho', profile.ma_kho);
       sessionStorage.setItem('justLoggedIn', 'true');
       
       // Record access login event
       trackUserPing(data.username, data.storeCode, 'realtime', 'LOGIN');
 
-      // Delay setting user profile to allow success message to be shown
+      // Hard redirect to load all contexts & RAM 100% fresh for the new user
       setTimeout(() => {
-        setUserProfile(profile);
-      }, 1500);
+        window.location.replace(window.location.origin);
+      }, 800);
       
       return { success: true, message: 'Đăng nhập thành công.' };
     } catch (err: any) {
@@ -276,11 +371,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           status: 'active',
           paymentConfirmed: true
         };
+        const theme = localStorage.getItem('theme');
+        try { localStorage.clear(); } catch {}
+        try { sessionStorage.clear(); } catch {}
+        if (theme) {
+          try { localStorage.setItem('theme', theme); } catch {}
+        }
         localStorage.setItem('userProfile', JSON.stringify(profile));
+        localStorage.setItem('rtst_ma_kho', profile.ma_kho);
         sessionStorage.setItem('justLoggedIn', 'true');
         setTimeout(() => {
-          setUserProfile(profile);
-        }, 1500);
+          window.location.replace(window.location.origin);
+        }, 800);
         return { success: true, message: 'Đăng nhập thành công (Offline Mode).' };
       }
 
@@ -316,7 +418,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (existingUser) {
         return { success: false, message: 'Tên đăng nhập (Username) này đã tồn tại. Vui lòng chọn tên khác.' };
       }
-
 
       // Ensure warehouse exists
       const { data: warehouse } = await supabase
@@ -403,15 +504,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         declarationCompleted: newUser.declarationCompleted
       };
       
+      const theme = localStorage.getItem('theme');
+      try { localStorage.clear(); } catch {}
+      try { sessionStorage.clear(); } catch {}
+      if (theme) {
+        try { localStorage.setItem('theme', theme); } catch {}
+      }
+
       localStorage.setItem('userProfile', JSON.stringify(profile));
+      localStorage.setItem('rtst_ma_kho', profile.ma_kho);
       sessionStorage.setItem('justLoggedIn', 'true');
 
       // Record access login event
       trackUserPing(newUser.username, newUser.storeCode, 'realtime', 'REGISTER');
       
       setTimeout(() => {
-        setUserProfile(profile);
-      }, 1500);
+        window.location.replace(window.location.origin);
+      }, 800);
       
       return { success: true, message: 'Đăng ký thành công và đang chuyển hướng...' };
     } catch (err: any) {
@@ -425,17 +534,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   function logout() {
-    setUserProfile(null);
-    // Preserve non-account-specific settings before clearing
+    // 1. Preserve theme if set
     const theme = localStorage.getItem('theme');
-    // Clear ALL localStorage to prevent data leaking between accounts
-    localStorage.clear();
-    // Restore non-account-specific settings
-    if (theme) localStorage.setItem('theme', theme);
-    // Clear ALL sessionStorage
-    sessionStorage.clear();
-    // Clear IndexedDB cached data
-    localYcxDb.clear().catch(() => {});
+
+    // 2. Clear all storage to eliminate data leakage between accounts
+    try { localStorage.clear(); } catch {}
+    try { sessionStorage.clear(); } catch {}
+    if (theme) {
+      try { localStorage.setItem('theme', theme); } catch {}
+    }
+
+    // 3. Clear IndexedDB cached data
+    try { localYcxDb.clear().catch(() => {}); } catch {}
+
+    // 4. Hard redirect immediately to origin root.
+    // This stops all running timers, clears all module-level caches in RAM,
+    // closes all active Firestore/Supabase socket connections, and guarantees 
+    // that the browser starts 100% fresh for the next user.
+    window.location.replace(window.location.origin);
   }
 
   function updateStoreName(newStoreName: string, newStatus?: string) {

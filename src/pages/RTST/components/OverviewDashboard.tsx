@@ -168,13 +168,12 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                   });
                   const targetData: any = targetDataKey ? allStoreTargets[targetDataKey] : null;
                   const dtDuKienQD = market.targetQD || 0;
-                  const percentHT = market.percentHT || 0;
-                  // Use raw targetQD from BI web data directly when available
-                  const targetValue = (dtDuKienQD > 0 && percentHT > 0) ? Math.round(dtDuKienQD / (percentHT / 100)) : ((targetData as any)?.stTargetSauHeSo || (targetData as any)?.stTargetQuyDoi || stTargetSauHeSo || stTargetQuyDoi || 0);
-                  const percentTargetVal = (targetData as any)?.stPercentTarget ?? stPercentTarget ?? 100;
-                  const targetSauHeSo = Math.round(targetValue * (percentTargetVal / 100));
-                  // TARGET QĐ: Use raw targetQD from parsed data; fallback to calculated targetSauHeSo
-                  const displayTargetQD = dtDuKienQD > 0 ? dtDuKienQD : targetSauHeSo;
+                  const percentTargetVal = Number((targetData as any)?.stPercentTarget) || Number(stPercentTarget) || 100;
+                  const rawTargetQD = dtDuKienQD > 0 ? dtDuKienQD : ((targetData as any)?.stTargetQuyDoi || stTargetQuyDoi || 0);
+                  // TARGET QĐ: Nhân với % TARGET từ trang Cập Nhật
+                  const displayTargetQD = rawTargetQD > 0 
+                    ? Math.round(rawTargetQD * (percentTargetVal / 100)) 
+                    : ((targetData as any)?.stTargetSauHeSo || stTargetSauHeSo || 0);
 
                   return [
                     { label: 'TARGET QUY ĐỔI', value: formatCurrencyUnit(displayTargetQD), color: 'bg-blue-900', icon: <Target size={20} /> },

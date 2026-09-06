@@ -5,7 +5,8 @@
 
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import type { MarketInfo, CategoryData, StaffData, StaffMatrixData, YcxStaffData, YcxItemDetail, YcxRankData } from './types';
+import type { MarketInfo, CategoryData, StaffData, StaffMatrixData, YcxStaffData, YcxItemDetail, YcxRankData, MwgBiStaffRow, MwgBiSummaryKpi, MwgBiStaffTotals, MwgBiStaffReportData } from './types';
+
 
 export const removeAccents = (str: string): string => {
   return str
@@ -25,6 +26,9 @@ export const cleanCategoryName = (name: string): string => {
   }
   let clean = removeAccents(namePart).trim();
   
+  // Strip leading numbering like "1. ", "01. ", "1 - ", "01 - "
+  clean = clean.replace(/^(\d+[\s.-]+)/, '');
+
   // Strip prefixes like "nnh " or "nh " at the start
   clean = clean.replace(/^(nnh|nh)\s+/, '');
   
@@ -445,7 +449,20 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
 
   // 2a. Detect BI web line-separated table format (each cell on its own line)
   // Known table header names that appear as separate lines in BI web copy
-  const biWebKnownHeaders = ["siêu thị", "số lượng", "doanh thu qđ", "% tỉ trọng", "doanh thu", "target", "% ht target", "tb 3 tháng", "% tt"];
+  const biWebKnownHeaders = [
+    "siêu thị", "tên siêu thị", "stt",
+    "số lượng", "so luong", "sl",
+    "doanh thu qđ", "doanh thu qd", "dt quy đổi", "dtqđ", "dt qđ",
+    "% tỉ trọng", "% ti trong", "% tỷ trọng", "% ty trong", "tỉ trọng", "ti trong", "tỷ trọng", "ty trong",
+    "doanh thu", "dtlk", "doanh thu lũy kế",
+    "target", "mục tiêu", "target qđ", "target (qđ)",
+    "% ht target", "% ht", "tiến độ", "% tiến độ", "%ht target",
+    "tb 3 tháng", "tb3t", "tb 3t", "tb 3 thang",
+    "% tt", "% tăng trưởng", "tăng trưởng", "% tang truong", "tang truong", "tt vs tb 3 tháng",
+    "dt dự kiến", "doanh thu dự kiến", "dự kiến", "du kien",
+    "dt trả góp", "doanh thu trả góp", "dt trả chậm", "doanh thu trả chậm", "dt tg", "dt tc",
+    "% trả góp", "% tra gop", "tỉ trọng trả góp", "tỷ trọng trả góp", "% trả chậm", "% tra cham", "tỉ trọng trả chậm", "tỷ trọng trả chậm", "% tg", "% tc"
+  ];
   const biWebKnownHeadersSet = new Set(biWebKnownHeaders);
   
   let biWebHeaderStartIdx = -1;
@@ -491,9 +508,9 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
         const values: string[] = [];
         for (let j = 1; j <= dataColCount && (i + j) < rawLines.length; j++) {
           const valLine = rawLines[i + j].trim();
-          // Must be a single numeric value, percentage, or +/- value
-          if (/^[+-]?[\d,.]+%?$/.test(valLine)) {
-            values.push(valLine);
+          // Must be a single numeric value, percentage, or +/- value (allowing spaces e.g. "+ 24.7%")
+          if (/^[+-]?\s*[\d,.]+%?$/.test(valLine)) {
+            values.push(valLine.replace(/\s+/g, ''));
           } else {
             allSingleValues = false;
             break;
@@ -569,6 +586,10 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
   let percentHTTargetDuKienLNTTIdx = -1;
   let luotBillBanHangIdx = -1;
   let luotBillThuHoIdx = -1;
+  let tb3ThangIdx = -1;
+  let percentTTIdx = -1;
+  let dtTraGopIdx = -1;
+  let percentTraGopIdx = -1;
 
   for (const line of lines) {
     cleanLine = line.trim();
@@ -602,7 +623,11 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
                lower.includes("tỷ trọng tc") || 
                lower.includes("tt tg") || 
                lower.includes("tt tc") ||
-               (lower.includes("trả chậm") && !lower.includes("tlpvtc"));
+               (lower.includes("trả chậm") && !lower.includes("tlpvtc")) ||
+               lower.includes("% trả góp") ||
+               lower.includes("% tra gop") ||
+               lower.includes("% tg") ||
+               lower.includes("% tc");
       });
       targetQDIdx = cols.findIndex(c => {
         const lower = c.toLowerCase();
@@ -640,6 +665,25 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
         const lower = c.toLowerCase();
         return lower.includes("thu hộ") || lower.includes("thu ho");
       });
+      tb3ThangIdx = cols.findIndex(c => {
+        const lower = c.toLowerCase();
+        return lower.includes("tb 3") || lower.includes("tb3t") || lower.includes("tb 3t");
+      });
+      percentTTIdx = cols.findIndex(c => {
+        const lower = c.toLowerCase();
+        return lower === "% tt" || lower.includes("tt vs tb 3") || lower.includes("% tăng trưởng") || lower.includes("% tt");
+      });
+      dtTraGopIdx = cols.findIndex(c => {
+        const lower = c.toLowerCase();
+        return (lower.includes("dt") || lower.includes("doanh thu")) && (lower.includes("trả góp") || lower.includes("trả chậm") || lower.includes("tg") || lower.includes("tc"));
+      });
+      percentTraGopIdx = cols.findIndex(c => {
+        const lower = c.toLowerCase();
+        return (lower.includes("%") || lower.includes("tỉ trọng") || lower.includes("tỷ trọng")) && (lower.includes("trả góp") || lower.includes("trả chậm") || lower.includes("tg") || lower.includes("tc"));
+      });
+      if (percentTraGopIdx !== -1 && tyTrongTraGopIdx === -1) {
+        tyTrongTraGopIdx = percentTraGopIdx;
+      }
       continue;
     }
 
@@ -727,6 +771,30 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
           }
         }
 
+        let tb3ThangVal = tb3ThangIdx !== -1 && tb3ThangIdx < cols.length ? cleanNum(cols[tb3ThangIdx]) : 0;
+        let percentTTVal = percentTTIdx !== -1 && percentTTIdx < cols.length ? cleanNum(cols[percentTTIdx]) : 0;
+        let dtTraGopVal = dtTraGopIdx !== -1 && dtTraGopIdx < cols.length ? cleanNum(cols[dtTraGopIdx]) : 0;
+        let percentTraGopVal = percentTraGopIdx !== -1 && percentTraGopIdx < cols.length ? cleanNum(cols[percentTraGopIdx]) : (installmentRateVal || 0);
+
+        // Explicit user rule: DT TRẢ GÓP = CỘT THỨ 2 BÊN PHẢI SANG
+        if (dataCols.length >= 8) {
+          const lastIdx = dataCols.length - 1;
+          if (!percentTraGopVal) percentTraGopVal = cleanNum(dataCols[lastIdx]);
+          if (!dtTraGopVal) dtTraGopVal = cleanNum(dataCols[lastIdx - 1]);
+          if (!percentTTVal) percentTTVal = cleanNum(dataCols[lastIdx - 2]);
+          if (!tb3ThangVal) tb3ThangVal = cleanNum(dataCols[lastIdx - 3]);
+        } else if (dataCols.length >= 4) {
+          const lastIdx = dataCols.length - 1;
+          if (!percentTraGopVal) percentTraGopVal = cleanNum(dataCols[lastIdx]);
+          if (!dtTraGopVal) dtTraGopVal = cleanNum(dataCols[lastIdx - 1]);
+        }
+        if (!dtTraGopVal && cols.length >= 4) {
+          dtTraGopVal = cleanNum(cols[cols.length - 2]);
+        }
+        if (!percentTraGopVal && cols.length >= 4) {
+          percentTraGopVal = cleanNum(cols[cols.length - 1]);
+        }
+
         if (!results.some(m => m.name === marketName)) {
           results.push({ 
             name: marketName, 
@@ -742,6 +810,10 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
             luotBillThuHo: luotBillThuHoVal,
             dtckThang: 0,
             luotBill: luotBillBanHangVal,
+            tb3Thang: tb3ThangVal,
+            percentTT: percentTTVal,
+            dtTraGop: dtTraGopVal,
+            percentTraGop: percentTraGopVal,
             isExplicitTarget: true,
             isSummary: marketName.toUpperCase().includes('TỔNG')
           });
@@ -764,6 +836,30 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
           let installmentRateVal = topInstallmentRate;
           if (tyTrongTraGopIdx !== -1 && tyTrongTraGopIdx < cols.length) {
             installmentRateVal = cleanNum(cols[tyTrongTraGopIdx]);
+          }
+
+          let tb3ThangVal = tb3ThangIdx !== -1 && tb3ThangIdx < cols.length ? cleanNum(cols[tb3ThangIdx]) : 0;
+          let percentTTVal = percentTTIdx !== -1 && percentTTIdx < cols.length ? cleanNum(cols[percentTTIdx]) : 0;
+          let dtTraGopVal = dtTraGopIdx !== -1 && dtTraGopIdx < cols.length ? cleanNum(cols[dtTraGopIdx]) : 0;
+          let percentTraGopVal = percentTraGopIdx !== -1 && percentTraGopIdx < cols.length ? cleanNum(cols[percentTraGopIdx]) : (installmentRateVal || 0);
+
+          // Explicit user rule: DT TRẢ GÓP = CỘT THỨ 2 BÊN PHẢI SANG
+          if (dataCols.length >= 8) {
+            const lastIdx = dataCols.length - 1;
+            if (!percentTraGopVal) percentTraGopVal = cleanNum(dataCols[lastIdx]);
+            if (!dtTraGopVal) dtTraGopVal = cleanNum(dataCols[lastIdx - 1]);
+            if (!percentTTVal) percentTTVal = cleanNum(dataCols[lastIdx - 2]);
+            if (!tb3ThangVal) tb3ThangVal = cleanNum(dataCols[lastIdx - 3]);
+          } else if (dataCols.length >= 4) {
+            const lastIdx = dataCols.length - 1;
+            if (!percentTraGopVal) percentTraGopVal = cleanNum(dataCols[lastIdx]);
+            if (!dtTraGopVal) dtTraGopVal = cleanNum(dataCols[lastIdx - 1]);
+          }
+          if (!dtTraGopVal && cols.length >= 4) {
+            dtTraGopVal = cleanNum(cols[cols.length - 2]);
+          }
+          if (!percentTraGopVal && cols.length >= 4) {
+            percentTraGopVal = cleanNum(cols[cols.length - 1]);
           }
 
           const percentHTTargetDuKienLNTTVal = percentHTTargetDuKienLNTTIdx !== -1 && percentHTTargetDuKienLNTTIdx < cols.length
@@ -789,6 +885,10 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
               dtckThang: 0,
               luotBillBanHang: luotBillBanHangVal,
               luotBillThuHo: luotBillThuHoVal,
+              tb3Thang: tb3ThangVal,
+              percentTT: percentTTVal,
+              dtTraGop: dtTraGopVal,
+              percentTraGop: percentTraGopVal,
               isExplicitTarget: true,
               isSummary: marketName.toUpperCase().includes('TỔNG')
             });
@@ -828,6 +928,30 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
             installmentRateVal = cleanNum(cols[cols.length - 1]) || installmentRateVal;
           }
 
+          let tb3ThangVal = tb3ThangIdx !== -1 && tb3ThangIdx < cols.length ? cleanNum(cols[tb3ThangIdx]) : 0;
+          let percentTTVal = percentTTIdx !== -1 && percentTTIdx < cols.length ? cleanNum(cols[percentTTIdx]) : 0;
+          let dtTraGopVal = dtTraGopIdx !== -1 && dtTraGopIdx < cols.length ? cleanNum(cols[dtTraGopIdx]) : 0;
+          let percentTraGopVal = percentTraGopIdx !== -1 && percentTraGopIdx < cols.length ? cleanNum(cols[percentTraGopIdx]) : (installmentRateVal || 0);
+
+          // Explicit user rule: DT TRẢ GÓP = CỘT THỨ 2 BÊN PHẢI SANG
+          if (dataCols.length >= 8) {
+            const lastIdx = dataCols.length - 1;
+            if (!percentTraGopVal) percentTraGopVal = cleanNum(dataCols[lastIdx]);
+            if (!dtTraGopVal) dtTraGopVal = cleanNum(dataCols[lastIdx - 1]);
+            if (!percentTTVal) percentTTVal = cleanNum(dataCols[lastIdx - 2]);
+            if (!tb3ThangVal) tb3ThangVal = cleanNum(dataCols[lastIdx - 3]);
+          } else if (dataCols.length >= 4) {
+            const lastIdx = dataCols.length - 1;
+            if (!percentTraGopVal) percentTraGopVal = cleanNum(dataCols[lastIdx]);
+            if (!dtTraGopVal) dtTraGopVal = cleanNum(dataCols[lastIdx - 1]);
+          }
+          if (!dtTraGopVal && cols.length >= 4) {
+            dtTraGopVal = cleanNum(cols[cols.length - 2]);
+          }
+          if (!percentTraGopVal && cols.length >= 4) {
+            percentTraGopVal = cleanNum(cols[cols.length - 1]);
+          }
+
           if (!results.some(m => m.name === marketName)) {
             let ma_kho = "";
             const codeMatch = marketName.match(/^([^-]+)/);
@@ -841,12 +965,16 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
               targetST, 
               targetQD: targetQDVal,
               actualReal, 
-              actualVirtual,
-              dtHomQua,
-              percentHT,
+              actualVirtual, 
+              dtHomQua, 
+              percentHT, 
               percentHTTargetDuKienLNTT: percentHTTargetDuKienLNTTVal,
               installmentRate: installmentRateVal,
               dtckThang: dtckThangVal,
+              tb3Thang: tb3ThangVal,
+              percentTT: percentTTVal,
+              dtTraGop: dtTraGopVal,
+              percentTraGop: percentTraGopVal,
               isExplicitTarget: true,
               isSummary: marketName.toUpperCase().includes('TỔNG')
             });
@@ -1267,7 +1395,21 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
 
         const isMarket = isSupermarketLine(catName);
         
-        if (!isMarket && catName.length > 0 && !isHeaderKeyword) {
+        // Ensure catName is a valid category name:
+        // - Must contain at least one letter
+        // - Must not be pure numbers/symbols/percentages
+        // - Must not be an employee name / ID line
+        // - Must not be system messages or timestamps
+        const isEmpOrNumber = /^\d{4,8}\s*[-–—]/.test(catName) || 
+                              /[-–—]\s*\d{4,8}/.test(catName) || 
+                              /^[\d\s,.\-+/%:()]+$/.test(catName) || 
+                              !/[a-zA-Zà-ỹÀ-Ỹ]/.test(catName) ||
+                              lowerCat.includes('cập nhật lúc') ||
+                              lowerCat.includes('cap nhat luc') ||
+                              lowerCat.includes('đã copy') ||
+                              lowerCat.includes('da copy');
+
+        if (!isMarket && catName.length > 0 && !isHeaderKeyword && !isEmpOrNumber) {
           currentCatName = catName.replace(/^\d+[-_.\s]+\s*/, '').trim();
           currentCatType = catType;
         }
@@ -2906,3 +3048,246 @@ export const parseStaffValueList = (text: string, targetHeaderKeyword?: string):
 
   return results;
 };
+
+/**
+ * Parses raw text copied from MWG BI Report "Doanh thu hợp nhất > Realtime > Nhân viên"
+ * Supports both vertical 12-lines copy and tab-delimited clipboard text.
+ */
+export const parseMwgBiStaffRevenue = (text: string): MwgBiStaffReportData => {
+  const parseNum = (val: any): number => {
+    if (!val || val === '—' || val === '-' || String(val).trim() === '') return 0;
+    const clean = String(val).replace(/,/g, '').replace(/%/g, '').replace(/\+/g, '').trim();
+    const n = parseFloat(clean);
+    return isNaN(n) ? 0 : n;
+  };
+
+  const parsePercent = (val: any): number => {
+    if (!val || val === '—' || val === '-' || String(val).trim() === '') return 0;
+    const clean = String(val).replace(/,/g, '').replace(/%/g, '').replace(/\+/g, '').trim();
+    const n = parseFloat(clean);
+    return isNaN(n) ? 0 : n;
+  };
+
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+  const summaryKpi: MwgBiSummaryKpi = {
+    dtQd: 0,
+    percentHtTarget: 0,
+    targetTronKy: 0,
+    dtDuKien: 0,
+    tiTrongTraGop: 0,
+    dtTraGop: 0,
+    dtThuc: 0,
+    tlpvtc: 0,
+    ttVsTb3t: '',
+    updateTime: '',
+    storeName: ''
+  };
+
+  // 1. Extract Summary KPIs from header metadata
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+
+    // Store Name
+    if (l.startsWith('Siêu thị') && !l.includes('Chọn')) {
+      summaryKpi.storeName = l.replace(/^Siêu thị\s*/, '').replace(/×$/, '').trim();
+    }
+
+    // Update Time
+    if (l.includes('Cập nhật lúc:')) {
+      const match = l.match(/Cập nhật lúc:\s*([^·\n]+)/i);
+      if (match) summaryKpi.updateTime = match[1].trim();
+    }
+
+    // DT quy đổi
+    if ((l === 'DT quy đổi' || l.startsWith('DT quy đổi')) && lines[i + 1] && /^\d+/.test(lines[i + 1])) {
+      summaryKpi.dtQd = parseNum(lines[i + 1]);
+    }
+
+    // % HT target (LK)
+    if (l.includes('% HT target') && lines[i + 1]) {
+      summaryKpi.percentHtTarget = parsePercent(lines[i + 1]);
+    }
+
+    // Target trọn kỳ
+    if (l.includes('Target trọn kỳ')) {
+      const m = l.match(/Target trọn kỳ\s+([\d,.]+)/i);
+      if (m) summaryKpi.targetTronKy = parseNum(m[1]);
+    }
+
+    // TT vs TB 3 tháng
+    if (l.includes('TT vs TB 3 tháng') && lines[i + 1]) {
+      summaryKpi.ttVsTb3t = lines[i + 1];
+    }
+
+    // DT dự kiến
+    if (l.includes('DT dự kiến') && lines[i + 1] && /^\d+/.test(lines[i + 1])) {
+      summaryKpi.dtDuKien = parseNum(lines[i + 1]);
+    }
+
+    // TLPVTC hôm nay
+    if (l.includes('TLPVTC') && lines[i + 1]) {
+      summaryKpi.tlpvtc = parsePercent(lines[i + 1]);
+    }
+
+    // Tỉ trọng trả góp
+    if (l.includes('Tỉ trọng trả góp') && lines[i + 1] && /^\d+/.test(lines[i + 1])) {
+      summaryKpi.tiTrongTraGop = parsePercent(lines[i + 1]);
+    }
+
+    // DT trả góp X / Y
+    if (l.includes('DT trả góp') && l.includes('/')) {
+      const m = l.match(/DT trả góp\s+([\d,.]+)\s*\/\s*([\d,.]+)/i);
+      if (m) {
+        summaryKpi.dtTraGop = parseNum(m[1]);
+        summaryKpi.dtThuc = parseNum(m[2]);
+      }
+    }
+  }
+
+  // 2. Locate Employee Table Header
+  let headerIndex = -1;
+  for (let i = 0; i < lines.length - 1; i++) {
+    if (lines[i] === 'NHÂN VIÊN' && (lines[i + 1] === 'SỐ LƯỢNG' || lines[i + 1].includes('SỐ LƯỢNG'))) {
+      headerIndex = i;
+      break;
+    }
+  }
+
+  const staffRows: MwgBiStaffRow[] = [];
+  let totals: MwgBiStaffTotals | null = null;
+
+  if (headerIndex !== -1) {
+    // 12 headers in report:
+    // NHÂN VIÊN, SỐ LƯỢNG, DOANH THU QĐ, % TỈ TRỌNG, DOANH THU, TARGET, % HT TARGET (LK), TB 3 THÁNG, % TT, DT DỰ KIẾN, DT TRẢ GÓP, % TRẢ GÓP
+    let cursor = headerIndex + 12;
+
+    while (cursor < lines.length) {
+      const line = lines[cursor];
+
+      // End of table marker
+      if ((line.includes('1-') && line.includes('/ Tổng')) || line.includes('Đơn vị:')) {
+        break;
+      }
+
+      // Check if this is the "Tổng" summary row
+      if (line.startsWith('Tổng (') || line === 'Tổng' || line.startsWith('Tổng ')) {
+        totals = {
+          title: line,
+          quantity: parseNum(lines[cursor + 1]),
+          convertedRevenue: parseNum(lines[cursor + 2]),
+          shareRate: parsePercent(lines[cursor + 3]),
+          actualRevenue: parseNum(lines[cursor + 4]),
+          target: parseNum(lines[cursor + 5]),
+          targetRate: parsePercent(lines[cursor + 6]),
+          avg3Months: parseNum(lines[cursor + 7]),
+          growthRate: lines[cursor + 8] || '—',
+          expectedRevenue: parseNum(lines[cursor + 9]),
+          installmentRevenue: parseNum(lines[cursor + 10]),
+          installmentRate: parsePercent(lines[cursor + 11])
+        };
+        cursor += 12;
+        continue;
+      }
+
+      // Tab-separated row format (if copied from table / Excel)
+      if (line.includes('\t')) {
+        const cols = line.split('\t').map(c => c.trim());
+        if (cols.length >= 4) {
+          const name = cols[0];
+          let staffId = '';
+          let fullName = name;
+          if (name.includes(' - ')) {
+            const parts = name.split(' - ');
+            staffId = parts[0].trim();
+            fullName = parts.slice(1).join(' - ').trim();
+          } else if (/^\d+/.test(name)) {
+            const m = name.match(/^(\d+)\s*(.*)$/);
+            if (m) {
+              staffId = m[1];
+              fullName = m[2].trim() || name;
+            }
+          }
+
+          staffRows.push({
+            staffName: name,
+            staffId: staffId || name,
+            fullName: fullName || name,
+            quantity: parseNum(cols[1]),
+            convertedRevenue: parseNum(cols[2]),
+            shareRate: parsePercent(cols[3]),
+            actualRevenue: parseNum(cols[4]),
+            target: parseNum(cols[5]),
+            targetRate: parsePercent(cols[6]),
+            avg3Months: parseNum(cols[7]),
+            growthRate: cols[8] || '—',
+            expectedRevenue: parseNum(cols[9]),
+            installmentRevenue: parseNum(cols[10]),
+            installmentRate: parsePercent(cols[11])
+          });
+        }
+        cursor++;
+      } else {
+        // Standard 12-line vertical copy format
+        const name = line;
+        let staffId = '';
+        let fullName = name;
+        if (name.includes(' - ')) {
+          const parts = name.split(' - ');
+          staffId = parts[0].trim();
+          fullName = parts.slice(1).join(' - ').trim();
+        } else if (/^\d+/.test(name)) {
+          const m = name.match(/^(\d+)\s*(.*)$/);
+          if (m) {
+            staffId = m[1];
+            fullName = m[2].trim() || name;
+          }
+        }
+
+        staffRows.push({
+          staffName: name,
+          staffId: staffId || name,
+          fullName: fullName || name,
+          quantity: parseNum(lines[cursor + 1]),
+          convertedRevenue: parseNum(lines[cursor + 2]),
+          shareRate: parsePercent(lines[cursor + 3]),
+          actualRevenue: parseNum(lines[cursor + 4]),
+          target: parseNum(lines[cursor + 5]),
+          targetRate: parsePercent(lines[cursor + 6]),
+          avg3Months: parseNum(lines[cursor + 7]),
+          growthRate: lines[cursor + 8] || '—',
+          expectedRevenue: parseNum(lines[cursor + 9]),
+          installmentRevenue: parseNum(lines[cursor + 10]),
+          installmentRate: parsePercent(lines[cursor + 11])
+        });
+
+        cursor += 12;
+      }
+    }
+  }
+
+  // Auto-fill fallback totals if not present in text
+  if (!totals && staffRows.length > 0) {
+    const totalQty = staffRows.reduce((acc, r) => acc + r.quantity, 0);
+    const totalConv = staffRows.reduce((acc, r) => acc + r.convertedRevenue, 0);
+    const totalAct = staffRows.reduce((acc, r) => acc + r.actualRevenue, 0);
+    const totalInst = staffRows.reduce((acc, r) => acc + r.installmentRevenue, 0);
+    totals = {
+      title: `Tổng (${staffRows.length} dòng)`,
+      quantity: totalQty,
+      convertedRevenue: totalConv,
+      shareRate: 100,
+      actualRevenue: totalAct,
+      target: summaryKpi.targetTronKy || 0,
+      targetRate: summaryKpi.percentHtTarget || 0,
+      avg3Months: 0,
+      growthRate: summaryKpi.ttVsTb3t || '—',
+      expectedRevenue: summaryKpi.dtDuKien || 0,
+      installmentRevenue: totalInst,
+      installmentRate: totalAct > 0 ? Math.round((totalInst / totalAct) * 1000) / 10 : 0
+    };
+  }
+
+  return { summaryKpi, staffRows, totals };
+};
+

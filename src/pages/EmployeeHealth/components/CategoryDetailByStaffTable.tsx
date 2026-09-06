@@ -11,9 +11,9 @@ import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
 import { StaffMatrixData, CategoryData } from '../../RTST/types';
 import { cleanCategoryName } from './EmployeeDetailTable';
+import { extractStaffNameAndId } from '../utils/staffParserHelper';
 import { useLuykeData } from '../../RTST/hooks/useLuykeData';
-import { getCategoryGroupSortOrder, getCustomCategoryIndex } from './SummaryThiDuaTable';
-
+import { getCategoryGroupSortOrder, getCustomCategoryIndex, parseStaffMatrixDataRefined } from './SummaryThiDuaTable';
 import { CategoryConfigItem } from '../../../hooks/useCategoryConfig';
 
 interface CategoryDetailByStaffTableProps {
@@ -28,165 +28,6 @@ interface CategoryDetailByStaffTableProps {
   categoryConfig?: CategoryConfigItem[];
 }
 
-const parseStaffMatrixDataRefined = (input: string, staffCount: number, categoryTargets: any[], luykeCategories: CategoryData[], daysPassed: number, totalDays: number, categoryConfig?: CategoryConfigItem[]): { results: StaffMatrixData[], categories: string[] } => {
-  const raw = input.trim();
-  if (!raw) return { results: [], categories: [] };
-  const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
-  let inputCategories: string[] = [];
-  let allColumnHeaders: string[] = [];
-  const categoryToColIdx: Map<string, number> = new Map();
-  let headerStartIdx = -1;
-  let dataStartIdx = -1;
-  let colPosition = 0;
-
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i] === 'Phòng ban') {
-      headerStartIdx = i;
-      continue;
-    }
-    const isEmployeeLine = /[-–—]\s*\d{5,8}\b/.test(lines[i]) || /\b\d{5,8}\s*[-–—]/.test(lines[i]);
-    if (headerStartIdx !== -1 && isEmployeeLine) {
-      dataStartIdx = i;
-      break;
-    }
-    if (headerStartIdx !== -1) {
-      let catName = lines[i].trim();
-      
-      const isColumnTypesLine = /^(DTLK|SLLK|SL|DT|Realtime|REALTIME|\s)+$/i.test(catName);
-      const isOnlyNumbers = /^[\d\s,.-]+$/.test(catName);
-      const lowerCatName = catName.toLowerCase();
-      const isExcluded = [
-        'bp all in one',
-        'bp trưởng ca', 'bp truong ca',
-        'hỗ trợ bi', 'ho tro bi',
-        'copyright',
-        'dashboard',
-        'bc ',
-        'hd sử dụng', 'hd su dung',
-        'trang chủ', 'trang chu',
-        'báo cáo', 'bao cao',
-        'khối kinh doanh', 'khoi kinh doanh',
-        'logo bi',
-        'avatar'
-      ].some(ex => lowerCatName.includes(ex)) ||
-      ((lowerCatName.includes('tổng') || lowerCatName.includes('tong')) && cleanCategoryName(catName) !== 'simtong');
-
-      allColumnHeaders.push(catName);
-
-      if (isColumnTypesLine || isOnlyNumbers || isExcluded) {
-        colPosition++;
-        continue;
-      }
-
-      const targetMatch = catName.match(/(.+?)\bTARGET\b/i);
-      if (targetMatch) {
-        catName = targetMatch[1].trim();
-      }
-      
-      const cleanName = cleanCategoryName(catName);
-      if (!categoryToColIdx.has(cleanName)) {
-        categoryToColIdx.set(cleanName, colPosition);
-      }
-      
-      inputCategories.push(catName);
-      colPosition++;
-    }
-  }
-
-  let displayCategories: string[] = [];
-  const seen = new Set<string>();
-  inputCategories.forEach(catName => {
-    const clean = cleanCategoryName(catName);
-    if (clean && !seen.has(clean)) {
-      seen.add(clean);
-      displayCategories.push(catName);
-    }
-  });
-
-  displayCategories.sort((a, b) => getCustomCategoryIndex(a, categoryConfig) - getCustomCategoryIndex(b, categoryConfig));
-
-  const results: StaffMatrixData[] = [];
-  const excludedKeywords = ['Tổng', 'BP All In One', 'BP Trưởng Ca', 'Hỗ trợ BI', 'Copyright', 'Dashboard', 'BC ', 'HD sử dụng', 'Trang chủ', 'Báo cáo', 'Khối kinh doanh', 'Logo BI', 'avatar'];
-  const dataLines = lines.slice(dataStartIdx);
-
-  const targetPerStaffPerCat: Record<string, number> = {};
-  if (luykeCategories && luykeCategories.length > 0) {
-    luykeCategories.forEach((cat: any) => {
-      const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCategoryName(cat.name));
-      const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
-        ? matchingTarget.adjustedTarget
-        : cat.target;
-      targetPerStaffPerCat[cleanCategoryName(cat.name)] = baseTarget / staffCount;
-    });
-  } else {
-    categoryTargets.forEach((cat: any) => {
-      const baseTarget = (typeof cat.adjustedTarget === 'number')
-        ? cat.adjustedTarget
-        : (cat.target || 0);
-      targetPerStaffPerCat[cleanCategoryName(cat.name)] = baseTarget / staffCount;
-    });
-  }
-
-  for (const line of dataLines) {
-    let parts = line.split('\t').map(p => p.trim());
-    if (parts.length < 3) {
-      parts = line.split(/ {2,}/).map(p => p.trim()).filter(p => p.length > 0);
-    }
-    
-    const namePart = parts[0];
-
-    if (!namePart) continue;
-    if (excludedKeywords.some(ex => namePart.includes(ex))) continue;
-
-    const nameIdParts = namePart.split(' - ').map(s => s.trim());
-    if (nameIdParts.length < 2) continue;
-
-    const name = nameIdParts[0];
-    const id = nameIdParts[1];
-    const dataStartIndex = 1;
-
-    const rawInputValues = parts.slice(dataStartIndex).map(v => {
-      if (!v || v.trim() === '') return 0;
-      const clean = v.replace(/,/g, '');
-      const num = parseFloat(clean);
-      return isNaN(num) ? 0 : num;
-    });
-
-    const values: number[] = [];
-    const projectedRates: number[] = [];
-    let achieved = 0;
-
-    displayCategories.forEach((catName) => {
-      const cleanName = cleanCategoryName(catName);
-      const colIdx = categoryToColIdx.get(cleanName);
-      const val = (colIdx !== undefined && colIdx < rawInputValues.length) ? (rawInputValues[colIdx] || 0) : 0;
-      values.push(val);
-
-      const target = targetPerStaffPerCat[cleanName] || 0;
-      let projectedRate = 0;
-
-      if (target > 0 && daysPassed > 0) {
-        projectedRate = ((val / daysPassed) * totalDays) / target * 100;
-      }
-
-      projectedRates.push(projectedRate);
-      if (Math.round(projectedRate) >= 100) achieved++;
-    });
-
-    results.push({
-      displayName: `${id} - ${name.toUpperCase()}`,
-      fullId: id,
-      achieved,
-      totalCats: displayCategories.length,
-      rate: displayCategories.length > 0 ? achieved / displayCategories.length : 0,
-      rawValues: values,
-      projectedRates
-    });
-  }
-  return { results, categories: displayCategories };
-};
-
 const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   luyKeNganhHang,
   thiDuaNv,
@@ -198,7 +39,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   luykeCategories,
   categoryConfig
 }) => {
-  const { results: allStaffMatrix, categories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, luykeCategories || [], daysPassed, totalDays, categoryConfig);
+  const { results: allStaffMatrix, categories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, luykeCategories || [], daysPassed, totalDays, false, categoryConfig);
 
   const dropdownCategories = React.useMemo(() => {
     if (luykeCategories && luykeCategories.length > 0) {

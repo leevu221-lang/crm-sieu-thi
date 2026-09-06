@@ -580,32 +580,17 @@ export default function BbkqTab() {
                       </span>
                     </td>
 
-                    {/* 2. Số lượng tờ (Buttons & Big Input) */}
+                    {/* 2. Số lượng tờ (Chỉ ô nhập thủ công) */}
                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
-                        <button
-                          onClick={() => handleCountChange(denom.value, -1)}
-                          className="w-10 h-10 rounded-xl bg-white hover:bg-slate-200 text-slate-800 font-black flex items-center justify-center transition-all active:scale-90 text-lg cursor-pointer shadow-xs"
-                          title="Giảm 1 tờ"
-                        >
-                          -
-                        </button>
-                        <input
-                          type="number"
-                          min="0"
-                          value={count === 0 ? '' : count}
-                          placeholder="0"
-                          onChange={e => handleSetCount(denom.value, parseInt(e.target.value, 10))}
-                          className="w-20 sm:w-28 text-center bg-white font-black text-slate-900 text-base sm:text-lg py-1.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none"
-                        />
-                        <button
-                          onClick={() => handleCountChange(denom.value, 1)}
-                          className="w-10 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black flex items-center justify-center transition-all active:scale-90 text-lg cursor-pointer shadow-xs"
-                          title="Tăng 1 tờ"
-                        >
-                          +
-                        </button>
-                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        value={count === 0 ? '' : count}
+                        placeholder="0"
+                        onFocus={e => e.target.select()}
+                        onChange={e => handleSetCount(denom.value, parseInt(e.target.value, 10))}
+                        className="w-28 sm:w-36 text-center bg-white font-black text-slate-900 text-base sm:text-lg py-2 rounded-2xl border-2 border-slate-200 hover:border-slate-300 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all shadow-xs"
+                      />
                     </td>
 
                     {/* 3. Thành tiền */}

@@ -18,6 +18,17 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
   const { showNotification } = useNotification();
   const { currentStoreId, isStoreReady } = useStore();
 
+  // Reset global cache when warehouse/account changes
+  const prevMaKhoSharedRef = useRef(maKho);
+  useEffect(() => {
+    if (prevMaKhoSharedRef.current && prevMaKhoSharedRef.current !== maKho) {
+      prevMaKhoSharedRef.current = maKho;
+      Object.keys(globalAllStoreTargets).forEach(k => delete globalAllStoreTargets[k]);
+    } else {
+      prevMaKhoSharedRef.current = maKho;
+    }
+  }, [maKho]);
+
   const [manualAdjustment, setManualAdjustment] = useState(() => Number(localStorage.getItem('BI_REAL_ADJUST_V1')) || 0);
   const [linkBcTongHop, setLinkBcTongHop] = useState(() => localStorage.getItem(STORAGE_KEYS.LINK_BC_TONG_HOP) || '');
   const [linkNganhHangTongHop, setLinkNganhHangTongHop] = useState(() => localStorage.getItem(STORAGE_KEYS.LINK_NGANH_HANG_TONG_HOP) || '');
@@ -82,11 +93,11 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     return saved !== null ? Number(saved) : 100;
   });
   const [stTargetSauHeSo, setStTargetSauHeSo] = useState(() => cachedStore.stTargetSauHeSo !== undefined ? cachedStore.stTargetSauHeSo : (Number(getStoreItem('ST_TARGET_SAU_HE_SO_V1', currentStoreId)) || 0));
-  const [excelFileName, setExcelFileName] = useState(() => cachedStore.excelFileName || getStoreItem('ST_EXCEL_FILE_NAME_V1', currentStoreId) || '');
+  const [excelFileName, setExcelFileName] = useState(() => cachedStore.excelFileName || getStoreItem('ST_EXCEL_FILE_NAME_V1', currentStoreId) || localStorage.getItem('ST_EXCEL_FILE_NAME_V1') || '');
   const [thuongStRows, setThuongStRows] = useState<any[]>(() => {
-    if (cachedStore.thuongStRows !== undefined) return cachedStore.thuongStRows;
+    if (cachedStore.thuongStRows !== undefined && cachedStore.thuongStRows.length > 0) return cachedStore.thuongStRows;
     try {
-      const saved = getStoreItem('ST_THUONG_ST_ROWS_V1', currentStoreId);
+      const saved = getStoreItem('ST_THUONG_ST_ROWS_V1', currentStoreId) || localStorage.getItem('ST_THUONG_ST_ROWS_V1');
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -94,15 +105,15 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
   });
   const [topPercentRankLimit, setTopPercentRankLimit] = useState<number>(() => {
     if (cachedStore.topPercentRankLimit !== undefined) return cachedStore.topPercentRankLimit;
-    const saved = getStoreItem('ST_TOP_PERCENT_LIMIT_V1', currentStoreId);
+    const saved = getStoreItem('ST_TOP_PERCENT_LIMIT_V1', currentStoreId) || localStorage.getItem('ST_TOP_PERCENT_LIMIT_V1');
     return saved !== null ? Number(saved) : 7;
   });
 
-  const [excelOldFileName, setExcelOldFileName] = useState(() => cachedStore.excelOldFileName || getStoreItem('ST_EXCEL_OLD_FILE_NAME_V1', currentStoreId) || '');
+  const [excelOldFileName, setExcelOldFileName] = useState(() => cachedStore.excelOldFileName || getStoreItem('ST_EXCEL_OLD_FILE_NAME_V1', currentStoreId) || localStorage.getItem('ST_EXCEL_OLD_FILE_NAME_V1') || '');
   const [thuongStOldRows, setThuongStOldRows] = useState<any[]>(() => {
-    if (cachedStore.thuongStOldRows !== undefined) return cachedStore.thuongStOldRows;
+    if (cachedStore.thuongStOldRows !== undefined && cachedStore.thuongStOldRows.length > 0) return cachedStore.thuongStOldRows;
     try {
-      const saved = getStoreItem('ST_THUONG_ST_OLD_ROWS_V1', currentStoreId);
+      const saved = getStoreItem('ST_THUONG_ST_OLD_ROWS_V1', currentStoreId) || localStorage.getItem('ST_THUONG_ST_OLD_ROWS_V1');
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -110,10 +121,21 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
   });
   const [topPercentRankLimitOld, setTopPercentRankLimitOld] = useState<number>(() => {
     if (cachedStore.topPercentRankLimitOld !== undefined) return cachedStore.topPercentRankLimitOld;
-    const saved = getStoreItem('ST_TOP_PERCENT_LIMIT_OLD_V1', currentStoreId);
+    const saved = getStoreItem('ST_TOP_PERCENT_LIMIT_OLD_V1', currentStoreId) || localStorage.getItem('ST_TOP_PERCENT_LIMIT_OLD_V1');
     return saved !== null ? Number(saved) : 7;
   });
-  const [allStoreTargets, setAllStoreTargets] = useState<Record<string, any>>(() => globalAllStoreTargets);
+  const [allStoreTargets, setAllStoreTargets] = useState<Record<string, any>>(() => {
+    if (Object.keys(globalAllStoreTargets).length > 0) return globalAllStoreTargets;
+    try {
+      const saved = localStorage.getItem('ST_THUONG_ST_ALL_STORES_V1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        Object.assign(globalAllStoreTargets, parsed);
+        return parsed;
+      }
+    } catch {}
+    return globalAllStoreTargets;
+  });
 
   const updateAllStoreTargets = useCallback((updater: any) => {
     setAllStoreTargets(prev => {
@@ -218,33 +240,107 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       const unsub = onSnapshot(docRef, (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data();
-          if (data && data.stores) {
-            updateAllStoreTargets((prev: any) => {
-              const next = { ...prev };
-              for (const [key, sData] of Object.entries(data.stores as Record<string, any>)) {
-                next[key] = {
-                  ...(next[key] || {}),
-                  excelFileName: sData.excelFileName || '',
-                  thuongStRows: sData.thuongStRows || [],
-                  topPercentRankLimit: sData.topPercentRankLimit ?? 7,
-                  excelOldFileName: sData.excelOldFileName || '',
-                  thuongStOldRows: sData.thuongStOldRows || [],
-                  topPercentRankLimitOld: sData.topPercentRankLimitOld ?? 7,
-                };
-              }
-              return next;
-            });
+          if (data) {
+            // Update root file names directly so global competition file name is never blank
+            if (data.excelFileName) {
+              setExcelFileName(prev => prev !== data.excelFileName ? data.excelFileName : prev);
+              try { safeSetItem('ST_EXCEL_FILE_NAME_V1', data.excelFileName); } catch {}
+            }
+            if (data.excelOldFileName !== undefined) {
+              setExcelOldFileName(prev => prev !== data.excelOldFileName ? data.excelOldFileName : prev);
+              try { safeSetItem('ST_EXCEL_OLD_FILE_NAME_V1', data.excelOldFileName); } catch {}
+            }
+            if (data.topPercentRankLimit !== undefined) {
+              setTopPercentRankLimit(prev => prev !== data.topPercentRankLimit ? data.topPercentRankLimit : prev);
+            }
+            if (data.topPercentRankLimitOld !== undefined) {
+              setTopPercentRankLimitOld(prev => prev !== data.topPercentRankLimitOld ? data.topPercentRankLimitOld : prev);
+            }
 
-            const activeName = stNameRef.current || localStorage.getItem('currentStoreId') || '';
-            const normActive = activeName.toUpperCase();
-            const activeStoreData = (data.stores && (data.stores[normActive] || Object.values(data.stores)[0])) as any;
-            if (activeStoreData) {
-              if (activeStoreData.excelFileName !== undefined) setExcelFileName(prev => prev !== (activeStoreData.excelFileName || '') ? (activeStoreData.excelFileName || '') : prev);
-              if (activeStoreData.thuongStRows !== undefined) setThuongStRows(prev => prev.length !== (activeStoreData.thuongStRows || []).length || JSON.stringify(prev) !== JSON.stringify(activeStoreData.thuongStRows) ? (activeStoreData.thuongStRows || []) : prev);
-              if (activeStoreData.topPercentRankLimit !== undefined) setTopPercentRankLimit(prev => prev !== activeStoreData.topPercentRankLimit ? activeStoreData.topPercentRankLimit : prev);
-              if (activeStoreData.excelOldFileName !== undefined) setExcelOldFileName(prev => prev !== (activeStoreData.excelOldFileName || '') ? (activeStoreData.excelOldFileName || '') : prev);
-              if (activeStoreData.thuongStOldRows !== undefined) setThuongStOldRows(prev => prev.length !== (activeStoreData.thuongStOldRows || []).length || JSON.stringify(prev) !== JSON.stringify(activeStoreData.thuongStOldRows) ? (activeStoreData.thuongStOldRows || []) : prev);
-              if (activeStoreData.topPercentRankLimitOld !== undefined) setTopPercentRankLimitOld(prev => prev !== (activeStoreData.topPercentRankLimitOld ?? 7) ? (activeStoreData.topPercentRankLimitOld ?? 7) : prev);
+            if (data.stores) {
+              try { safeSetItem('ST_THUONG_ST_ALL_STORES_V1', JSON.stringify(data.stores)); } catch {}
+              updateAllStoreTargets((prev: any) => {
+                const next = { ...prev };
+                for (const [key, sData] of Object.entries(data.stores as Record<string, any>)) {
+                  next[key] = {
+                    ...(next[key] || {}),
+                    excelFileName: sData.excelFileName || data.excelFileName || '',
+                    thuongStRows: sData.thuongStRows || [],
+                    topPercentRankLimit: sData.topPercentRankLimit ?? data.topPercentRankLimit ?? 7,
+                    excelOldFileName: sData.excelOldFileName || data.excelOldFileName || '',
+                    thuongStOldRows: sData.thuongStOldRows || [],
+                    topPercentRankLimitOld: sData.topPercentRankLimitOld ?? data.topPercentRankLimitOld ?? 7,
+                  };
+                }
+                return next;
+              });
+
+              const activeCandidates = [
+                localStorage.getItem('rtst_selected_store_filter'),
+                currentStoreId,
+                stNameRef.current,
+                'ĐML_CMA_CMA - 155A Nguyễn Tất Thành'
+              ].filter(Boolean) as string[];
+
+              let activeStoreData: any = null;
+              for (const cand of activeCandidates) {
+                const normCand = normalize(cand);
+                for (const [k, sData] of Object.entries(data.stores as Record<string, any>)) {
+                  const normK = normalize(k);
+                  if (normK === normCand || normK.includes(normCand) || normCand.includes(normK)) {
+                    activeStoreData = sData;
+                    break;
+                  }
+                  const codeCand = cand.match(/\b\d{3,5}\b/);
+                  const codeK = k.match(/\b\d{3,5}\b/);
+                  if (codeCand && codeK && codeCand[0] === codeK[0]) {
+                    activeStoreData = sData;
+                    break;
+                  }
+                }
+                if (activeStoreData) break;
+              }
+
+              if (!activeStoreData) {
+                // Find CMA / cluster store with rows first
+                activeStoreData = Object.values(data.stores as Record<string, any>).find((s: any) => {
+                  const norm = normalize(s.storeName || '');
+                  return (norm.includes('cma') || norm.includes('ca mau') || norm.includes('1841')) && s.thuongStRows?.length > 0;
+                }) || Object.values(data.stores as Record<string, any>).find((s: any) => s.thuongStRows?.length > 0);
+              }
+
+              const areRowsEqual = (a: any[], b: any[]) => {
+                if (a === b) return true;
+                if (!a || !b || a.length !== b.length) return false;
+                if (a.length === 0) return true;
+                return a[0]?.categoryName === b[0]?.categoryName && a[0]?.bonus === b[0]?.bonus && a[a.length - 1]?.categoryName === b[b.length - 1]?.categoryName;
+              };
+
+              if (activeStoreData) {
+                const effectiveNewFile = activeStoreData.excelFileName || data.excelFileName || '';
+                const effectiveOldFile = activeStoreData.excelOldFileName || data.excelOldFileName || '';
+
+                if (effectiveNewFile) {
+                  setExcelFileName(effectiveNewFile);
+                  try { safeSetItem('ST_EXCEL_FILE_NAME_V1', effectiveNewFile); } catch {}
+                }
+                if (effectiveOldFile !== undefined) {
+                  setExcelOldFileName(effectiveOldFile);
+                  try { safeSetItem('ST_EXCEL_OLD_FILE_NAME_V1', effectiveOldFile); } catch {}
+                }
+                if (activeStoreData.thuongStRows && activeStoreData.thuongStRows.length > 0) {
+                  const incoming = activeStoreData.thuongStRows || [];
+                  setThuongStRows(prev => !areRowsEqual(prev, incoming) ? incoming : prev);
+                  try { safeSetItem('ST_THUONG_ST_ROWS_V1', JSON.stringify(incoming)); } catch {}
+                }
+                if (activeStoreData.topPercentRankLimit !== undefined) setTopPercentRankLimit(activeStoreData.topPercentRankLimit);
+                if (activeStoreData.thuongStOldRows && activeStoreData.thuongStOldRows.length > 0) {
+                  const incomingOld = activeStoreData.thuongStOldRows || [];
+                  setThuongStOldRows(prev => !areRowsEqual(prev, incomingOld) ? incomingOld : prev);
+                  try { safeSetItem('ST_THUONG_ST_OLD_ROWS_V1', JSON.stringify(incomingOld)); } catch {}
+                }
+                if (activeStoreData.topPercentRankLimitOld !== undefined) setTopPercentRankLimitOld(activeStoreData.topPercentRankLimitOld);
+              }
             }
           }
         }
@@ -665,14 +761,14 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     setStTargetQuyDoi(cached?.stTargetQuyDoi ?? 0);
     setStPercentTarget(cached?.stPercentTarget ?? 100);
     setStTargetSauHeSo(cached?.stTargetSauHeSo ?? 0);
-    setExcelFileName(cached?.excelFileName || '');
-    setThuongStRows(cached?.thuongStRows || []);
-    setTopPercentRankLimit(cached?.topPercentRankLimit ?? 7);
-    setExcelOldFileName(cached?.excelOldFileName || '');
-    setThuongStOldRows(cached?.thuongStOldRows || []);
-    setTopPercentRankLimitOld(cached?.topPercentRankLimitOld ?? 7);
-    setDrillFilterStaff(cached?.drillFilterStaff || []);
-    setCategoryMappingInput(cached?.categoryMappingInput || '');
+    if (cached?.excelFileName) setExcelFileName(cached.excelFileName);
+    if (cached?.thuongStRows && cached.thuongStRows.length > 0) setThuongStRows(cached.thuongStRows);
+    if (cached?.topPercentRankLimit !== undefined) setTopPercentRankLimit(cached.topPercentRankLimit);
+    if (cached?.excelOldFileName) setExcelOldFileName(cached.excelOldFileName);
+    if (cached?.thuongStOldRows && cached.thuongStOldRows.length > 0) setThuongStOldRows(cached.thuongStOldRows);
+    if (cached?.topPercentRankLimitOld !== undefined) setTopPercentRankLimitOld(cached.topPercentRankLimitOld);
+    if (cached?.drillFilterStaff) setDrillFilterStaff(cached.drillFilterStaff);
+    if (cached?.categoryMappingInput) setCategoryMappingInput(cached.categoryMappingInput);
     
     // Reload from DB for the new store (sets hasLoadedFromDB = true on completion)
     loadStoreRevenue(maKho, currentStoreId);
@@ -863,15 +959,133 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       const effectiveMaKho = (maKho || localStorage.getItem('rtst_ma_kho') || '').trim();
       const shortMaKho = effectiveMaKho.replace(/^0+/, '');
 
-      // Robust Store List Resolution: Extract all stores found in Excel + cluster + current store
+      // ⚡ FAST O(N) PRE-GROUPING: Group rows by normalized store name once
+      const newRowsByNormStore = new Map<string, any[]>();
+      let hasStoreInNew = false;
+      const noStoreNewRows: any[] = [];
+      for (const row of (parsedRows || [])) {
+        if (row.storeName) {
+          hasStoreInNew = true;
+          const k = normalize(row.storeName);
+          let arr = newRowsByNormStore.get(k);
+          if (!arr) {
+            arr = [];
+            newRowsByNormStore.set(k, arr);
+          }
+          arr.push(row);
+        } else {
+          noStoreNewRows.push(row);
+        }
+      }
+
+      const oldRowsByNormStore = new Map<string, any[]>();
+      let hasStoreInOld = false;
+      const noStoreOldRows: any[] = [];
+      for (const row of (parsedOldRows || [])) {
+        if (row.storeName) {
+          hasStoreInOld = true;
+          const k = normalize(row.storeName);
+          let arr = oldRowsByNormStore.get(k);
+          if (!arr) {
+            arr = [];
+            oldRowsByNormStore.set(k, arr);
+          }
+          arr.push(row);
+        } else {
+          noStoreOldRows.push(row);
+        }
+      }
+
+      // Fast O(1) store rows lookup with fallback to intelligent multi-pass matching
+      const getRowsForStore = (
+        rawStoreName: string,
+        rowsMap: Map<string, any[]>,
+        hasStoreCol: boolean,
+        defaultRows: any[]
+      ): any[] => {
+        if (!hasStoreCol) return defaultRows;
+        const norm = normalize(rawStoreName);
+        if (!norm) return [];
+
+        // Pass 1: Exact normalized match
+        const exact = rowsMap.get(norm);
+        if (exact && exact.length > 0) return exact;
+
+        // Pass 2: Substring inclusion match
+        for (const [k, v] of rowsMap.entries()) {
+          if (k === norm || k.includes(norm) || norm.includes(k)) {
+            return v;
+          }
+        }
+
+        // Pass 3: 3-5 digit store code match (e.g. 1841)
+        const codeMatch = rawStoreName.match(/\b\d{3,5}\b/);
+        if (codeMatch) {
+          const code = codeMatch[0];
+          for (const [k, v] of rowsMap.entries()) {
+            if (k.includes(code)) {
+              return v;
+            }
+          }
+        }
+
+        // Pass 4: Multi-token identifier match (e.g. dml, cma, cma)
+        const tokens1 = norm.split(/[\s\-_]+/).filter(t => t.length >= 3);
+        let bestMatch: any[] | null = null;
+        let maxCommon = 1;
+        for (const [k, v] of rowsMap.entries()) {
+          const tokens2 = k.split(/[\s\-_]+/).filter(t => t.length >= 3);
+          const common = tokens1.filter(t => tokens2.includes(t)).length;
+          if (common > maxCommon) {
+            maxCommon = common;
+            bestMatch = v;
+          }
+        }
+        if (bestMatch) return bestMatch;
+
+        return [];
+      };
+
+      // Robust Store List Resolution: Prioritize cluster stores first
+      const clusterStoresSet = new Set(
+        [
+          ...(clusterStoreNames || []).map(s => s.toUpperCase()),
+          (stName || '').toUpperCase(),
+          (currentStoreId || '').toUpperCase(),
+          'ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH'
+        ].filter(Boolean)
+      );
+
       const storesFromNew = (parsedRows || []).map(r => r.storeName).filter(Boolean);
       const storesFromOld = (parsedOldRows || []).map(r => r.storeName).filter(Boolean);
-      const allUniqueStores = Array.from(new Set([
-        ...storesFromNew,
-        ...storesFromOld,
-        ...(clusterStoreNames || []).filter(Boolean),
+
+      const isClusterStoreCheck = (name: string): boolean => {
+        if (!name) return false;
+        const norm = normalize(name);
+        if (norm.includes('cma') || norm.includes('ca mau') || norm.includes('1841')) return true;
+        for (const cs of clusterStoresSet) {
+          const normCs = normalize(cs);
+          if (normCs && (norm === normCs || norm.includes(normCs) || normCs.includes(norm))) return true;
+          const codeCs = cs.match(/\b\d{3,5}\b/);
+          const codeName = name.match(/\b\d{3,5}\b/);
+          if (codeCs && codeName && codeCs[0] === codeName[0]) return true;
+        }
+        return false;
+      };
+
+      const prioritizedClusterStores = [
+        ...(clusterStoreNames || []),
         stName,
-        currentStoreId
+        currentStoreId,
+        'ĐML_CMA_CMA - 155A Nguyễn Tất Thành',
+        ...storesFromNew.filter(isClusterStoreCheck),
+        ...storesFromOld.filter(isClusterStoreCheck)
+      ].filter(Boolean);
+
+      const allUniqueStores = Array.from(new Set([
+        ...prioritizedClusterStores,
+        ...storesFromNew,
+        ...storesFromOld
       ].filter(Boolean)));
 
       const storesToProcess = allUniqueStores.length > 0
@@ -883,36 +1097,48 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         const updatedCache: Record<string, any> = {};
         const storeDataMap: Record<string, any> = {};
 
+        // Helper to strip redundant storeName property on each row to optimize payload size
+        const compactRows = (rows: any[]) => {
+          return (rows || []).map(r => ({
+            categoryName: r.categoryName || '',
+            completion: Number(r.completion) || 0,
+            completionRank: Number(r.completionRank) || 0,
+            exceededRank: Number(r.exceededRank) || 0,
+            bonus: Number(r.bonus) || 0,
+            limit: Number(r.limit) || 7
+          }));
+        };
+
         for (const storeName of storesToProcess) {
           const normalizedStoreName = storeName.toUpperCase();
-          
-          const storeRows = fileName
-            ? (parsedRows || []).filter(row => {
-                if (!row.storeName) return true; // If file has single store without column, match it
-                const normRowStore = normalize(row.storeName);
-                const normStoreName = normalize(storeName);
-                return normRowStore === normStoreName || normRowStore.includes(normStoreName) || normStoreName.includes(normRowStore);
-              })
-            : [];
 
-          const storeOldRows = oldFileName && parsedOldRows
-            ? parsedOldRows.filter(row => {
-                if (!row.storeName) return true;
-                const normRowStore = normalize(row.storeName);
-                const normStoreName = normalize(storeName);
-                return normRowStore === normStoreName || normRowStore.includes(normStoreName) || normStoreName.includes(normRowStore);
-              })
-            : (oldFileName === undefined ? (globalAllStoreTargets[normalizedStoreName]?.thuongStOldRows || []) : []);
+          const rawStoreRows = fileName
+            ? getRowsForStore(storeName, newRowsByNormStore, hasStoreInNew, parsedRows || [])
+            : [];
+          const storeRows = compactRows(rawStoreRows);
+
+          let rawStoreOldRows: any[] = [];
+          if (oldFileName && parsedOldRows && parsedOldRows.length > 0) {
+            rawStoreOldRows = getRowsForStore(storeName, oldRowsByNormStore, hasStoreInOld, parsedOldRows);
+            if (rawStoreOldRows.length === 0 && globalAllStoreTargets[normalizedStoreName]?.thuongStRows?.length > 0) {
+              rawStoreOldRows = globalAllStoreTargets[normalizedStoreName].thuongStRows;
+            }
+          } else if (oldFileName === undefined) {
+            rawStoreOldRows = globalAllStoreTargets[normalizedStoreName]?.thuongStOldRows || [];
+          }
+          const storeOldRows = compactRows(rawStoreOldRows);
 
           const finalOldFileName = oldFileName !== undefined ? oldFileName : (globalAllStoreTargets[normalizedStoreName]?.excelOldFileName || '');
-          const finalOldLimit = detectedOldLimit !== undefined ? detectedOldLimit : (globalAllStoreTargets[normalizedStoreName]?.topPercentRankLimitOld ?? 7);
+          const storeLimit = rawStoreRows[0]?.limit ?? detectedLimit ?? 7;
+          const finalOldLimit = detectedOldLimit !== undefined ? detectedOldLimit : (rawStoreOldRows[0]?.limit ?? globalAllStoreTargets[normalizedStoreName]?.topPercentRankLimitOld ?? 7);
 
           const existingTargetData = globalAllStoreTargets[normalizedStoreName] || {};
           const newTargetData = {
             ...existingTargetData,
+            storeName,
             excelFileName: fileName || '',
             thuongStRows: storeRows,
-            topPercentRankLimit: detectedLimit ?? 7,
+            topPercentRankLimit: storeLimit,
             excelOldFileName: finalOldFileName,
             thuongStOldRows: storeOldRows,
             topPercentRankLimitOld: finalOldLimit,
@@ -920,16 +1146,29 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           };
 
           updatedCache[normalizedStoreName] = newTargetData;
-          storeDataMap[normalizedStoreName] = {
-            storeName,
-            excelFileName: fileName || '',
-            thuongStRows: storeRows,
-            topPercentRankLimit: detectedLimit ?? 7,
-            excelOldFileName: finalOldFileName,
-            thuongStOldRows: storeOldRows,
-            topPercentRankLimitOld: finalOldLimit,
-            updatedAt: new Date().toISOString()
-          };
+
+          const isCluster = isClusterStoreCheck(storeName);
+
+          if (isCluster || Object.keys(storeDataMap).length < 40) {
+            const entry = {
+              storeName,
+              excelFileName: fileName || '',
+              thuongStRows: storeRows,
+              topPercentRankLimit: storeLimit,
+              excelOldFileName: finalOldFileName,
+              thuongStOldRows: storeOldRows,
+              topPercentRankLimitOld: finalOldLimit,
+              updatedAt: new Date().toISOString()
+            };
+            storeDataMap[normalizedStoreName] = entry;
+
+            // Also add alias without numeric warehouse prefix for instant exact match
+            const stripped = storeName.replace(/^\d+[\s\-_]+/, '');
+            if (stripped !== storeName) {
+              storeDataMap[stripped.toUpperCase()] = { ...entry, storeName: stripped };
+              updatedCache[stripped.toUpperCase()] = { ...newTargetData, storeName: stripped };
+            }
+          }
 
           payloads.push({
             id: normalizeStoreId(storeName),
@@ -987,10 +1226,10 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           }
         } catch (batchErr) {
           console.warn('[useRTSTSharedData] Batch write store collection failed, fallback to upsert:', batchErr);
-          await supabase.from('store').upsert(payloads, { onConflict: 'id' });
+          try { await supabase.from('store').upsert(payloads, { onConflict: 'id' }); } catch {}
         }
 
-        // 🔥 3. Save LocalStorage Backup for Offline Resiliency
+        // 🔥 3. Save LocalStorage Backup for Offline Resiliency & Instant F5 Persistence
         try {
           safeSetItem('ST_EXCEL_FILE_NAME_V1', fileName || '');
           safeSetItem('ST_TOP_PERCENT_LIMIT_V1', String(detectedLimit ?? 7));
@@ -998,6 +1237,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
             safeSetItem('ST_EXCEL_OLD_FILE_NAME_V1', oldFileName || '');
             safeSetItem('ST_TOP_PERCENT_LIMIT_OLD_V1', String(detectedOldLimit ?? 7));
           }
+          safeSetItem('ST_THUONG_ST_ALL_STORES_V1', JSON.stringify(storeDataMap));
         } catch (lsErr) {
           console.warn('LocalStorage save warning:', lsErr);
         }
@@ -1023,6 +1263,12 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           setExcelOldFileName(activeData.excelOldFileName || '');
           setThuongStOldRows(activeData.thuongStOldRows || []);
           setTopPercentRankLimitOld(activeData.topPercentRankLimitOld ?? 7);
+          try {
+            safeSetItem('ST_THUONG_ST_ROWS_V1', JSON.stringify(activeData.thuongStRows || []));
+            safeSetItem('ST_THUONG_ST_OLD_ROWS_V1', JSON.stringify(activeData.thuongStOldRows || []));
+            setStoreItem('ST_THUONG_ST_ROWS_V1', JSON.stringify(activeData.thuongStRows || []), currentStoreId);
+            setStoreItem('ST_THUONG_ST_OLD_ROWS_V1', JSON.stringify(activeData.thuongStOldRows || []), currentStoreId);
+          } catch {}
         } else {
           setExcelFileName(fileName);
           setThuongStRows(parsedRows || []);
@@ -1030,6 +1276,12 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           setExcelOldFileName(oldFileName || '');
           setThuongStOldRows(parsedOldRows || []);
           setTopPercentRankLimitOld(detectedOldLimit ?? 7);
+          try {
+            safeSetItem('ST_THUONG_ST_ROWS_V1', JSON.stringify(parsedRows || []));
+            safeSetItem('ST_THUONG_ST_OLD_ROWS_V1', JSON.stringify(parsedOldRows || []));
+            setStoreItem('ST_THUONG_ST_ROWS_V1', JSON.stringify(parsedRows || []), currentStoreId);
+            setStoreItem('ST_THUONG_ST_OLD_ROWS_V1', JSON.stringify(parsedOldRows || []), currentStoreId);
+          } catch {}
         }
 
         updateAllStoreTargets((prev: any) => ({

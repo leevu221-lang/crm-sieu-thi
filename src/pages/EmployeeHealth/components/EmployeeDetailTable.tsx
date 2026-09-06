@@ -9,6 +9,8 @@ import { ensureFontsReady, EXPORT_FONT_STYLE } from '../../../utils/fontExportUt
 import { parseCategoryData } from '../../RTST/utils';
 import { cn } from '../../RTST/utils';
 import { CategoryData, StaffMatrixData } from '../../RTST/types';
+import { parseStaffMatrixDataRefined } from './SummaryThiDuaTable';
+import { extractStaffNameAndId } from '../utils/staffParserHelper';
 
 export const removeAccents = (str: string): string => {
   return str
@@ -28,6 +30,9 @@ export const cleanCategoryName = (name: string): string => {
   }
   let clean = removeAccents(namePart).trim();
   
+  // Strip leading numbering like "1. ", "01. ", "1 - ", "01 - "
+  clean = clean.replace(/^(\d+[\s.-]+)/, '');
+
   // Strip prefixes like "nnh " or "nh " at the start
   clean = clean.replace(/^(nnh|nh)\s+/, '');
   
@@ -68,176 +73,7 @@ interface EmployeeDetailTableProps {
   onOpenCompare?: (staffId: string) => void;
 }
 
-// Parse all staff matrix data (same as before - one unified parse)
-const parseStaffMatrixDataRefined = (input: string, staffCount: number, categoryTargets: any[], luykeCategories: CategoryData[], daysPassed: number, totalDays: number): { results: StaffMatrixData[], categories: string[] } => {
-  const raw = input.trim();
-  if (!raw) return { results: [], categories: [] };
-  const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
-  // 1. Quét tên các ngành hàng có trong dữ liệu dán (thiDuaNv) - dùng để mapping cột
-  // CRITICAL: Track ALL column positions including filtered ones, so data column indices stay aligned.
-  let inputCategories: string[] = [];           // Filtered list for display
-  let allColumnHeaders: string[] = [];          // ALL headers including filtered, to maintain column position
-  const categoryToColIdx: Map<string, number> = new Map(); // cleanName → original column index
-  let headerStartIdx = -1;
-  let dataStartIdx = -1;
-  let colPosition = 0; // Tracks the original column position
-
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i] === 'Phòng ban') {
-      headerStartIdx = i;
-      continue;
-    }
-    const isEmployeeLine = /[-–—]\s*\d{5,8}\b/.test(lines[i]) || /\b\d{5,8}\s*[-–—]/.test(lines[i]);
-    if (headerStartIdx !== -1 && isEmployeeLine) {
-      dataStartIdx = i;
-      break;
-    }
-    if (headerStartIdx !== -1) {
-      let catName = lines[i].trim();
-      
-      // Loại bỏ dòng rác (không phải tên ngành hàng)
-      const isColumnTypesLine = /^(DTLK|SLLK|SL|DT|Realtime|REALTIME|\s)+$/i.test(catName);
-      const isOnlyNumbers = /^[\d\s,.-]+$/.test(catName);
-      const lowerCatName = catName.toLowerCase();
-      const isExcluded = [
-        'bp all in one',
-        'bp trưởng ca', 'bp truong ca',
-        'hỗ trợ bi', 'ho tro bi',
-        'copyright',
-        'dashboard',
-        'bc ',
-        'hd sử dụng', 'hd su dung',
-        'trang chủ', 'trang chu',
-        'báo cáo', 'bao cao',
-        'khối kinh doanh', 'khoi kinh doanh',
-        'logo bi',
-        'avatar'
-      ].some(ex => lowerCatName.includes(ex)) ||
-      ((lowerCatName.includes('tổng') || lowerCatName.includes('tong')) && cleanCategoryName(catName) !== 'simtong');
-
-      // Always track this column position regardless of filtering
-      allColumnHeaders.push(catName);
-
-      if (isColumnTypesLine || isOnlyNumbers || isExcluded) {
-        // This header is filtered but its data column still exists
-        colPosition++;
-        continue;
-      }
-
-      const targetMatch = catName.match(/(.+?)\bTARGET\b/i);
-      if (targetMatch) {
-        catName = targetMatch[1].trim();
-      }
-      
-      // Map this category name to its ORIGINAL column position
-      const cleanName = cleanCategoryName(catName);
-      if (!categoryToColIdx.has(cleanName)) {
-        categoryToColIdx.set(cleanName, colPosition);
-      }
-      
-      inputCategories.push(catName);
-      colPosition++;
-    }
-  }
-
-  // 2. Xác định danh sách ngành hàng hiển thị (lấy trực tiếp từ dữ liệu dán thiDuaNv)
-  // để đảm bảo các cột hiển thị trùng khớp hoàn toàn với dữ liệu người dùng dán vào.
-  let displayCategories: string[] = [];
-  const seen = new Set<string>();
-  inputCategories.forEach(catName => {
-    const clean = cleanCategoryName(catName);
-    if (clean && !seen.has(clean)) {
-      seen.add(clean);
-      displayCategories.push(catName);
-    }
-  });
-
-  const results: StaffMatrixData[] = [];
-  const excludedKeywords = ['Tổng', 'BP All In One', 'BP Trưởng Ca', 'Hỗ trợ BI', 'Copyright', 'Dashboard', 'BC ', 'HD sử dụng', 'Trang chủ', 'Báo cáo', 'Khối kinh doanh', 'Logo BI', 'avatar'];
-  const dataLines = lines.slice(dataStartIdx);
-
-  const targetPerStaffPerCat: Record<string, number> = {};
-  if (luykeCategories && luykeCategories.length > 0) {
-    luykeCategories.forEach((cat: any) => {
-      const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCategoryName(cat.name));
-      const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
-        ? matchingTarget.adjustedTarget
-        : cat.target;
-      targetPerStaffPerCat[cleanCategoryName(cat.name)] = baseTarget / staffCount;
-    });
-  } else {
-    categoryTargets.forEach((cat: any) => {
-      const baseTarget = (typeof cat.adjustedTarget === 'number')
-        ? cat.adjustedTarget
-        : (cat.target || 0);
-      targetPerStaffPerCat[cleanCategoryName(cat.name)] = baseTarget / staffCount;
-    });
-  }
-
-  for (const line of dataLines) {
-    // Split by tab ONLY and preserve empty columns to maintain alignment with category headers.
-    let parts = line.split('\t').map(p => p.trim());
-    
-    // Fallback: if no tabs found (single column), try splitting by multiple spaces
-    if (parts.length < 3) {
-      parts = line.split(/ {2,}/).map(p => p.trim()).filter(p => p.length > 0);
-    }
-    
-    const namePart = parts[0];
-    
-    if (!namePart) continue;
-    if (excludedKeywords.some(ex => namePart.includes(ex))) continue;
-
-    const nameIdParts = namePart.split(' - ').map(s => s.trim());
-    if (nameIdParts.length < 2) continue;
-    
-    const name = nameIdParts[0];
-    const id = nameIdParts[1];
-    
-    // Cột 1 là Tên - Mã nhân viên, số liệu ngành hàng bắt đầu ngay từ Cột 2 (index 1).
-    const dataStartIndex = 1;
-    
-    const rawInputValues = parts.slice(dataStartIndex).map(v => {
-      if (!v || v.trim() === '') return 0; // Preserve empty columns as 0
-      const clean = v.replace(/,/g, '');
-      const num = parseFloat(clean);
-      return isNaN(num) ? 0 : num;
-    });
-
-    const values: number[] = [];
-    const projectedRates: number[] = [];
-    let achieved = 0;
-
-    displayCategories.forEach((catName) => {
-      // Use the ORIGINAL column position from categoryToColIdx instead of filtered index
-      const cleanName = cleanCategoryName(catName);
-      const colIdx = categoryToColIdx.get(cleanName);
-      const val = (colIdx !== undefined && colIdx < rawInputValues.length) ? (rawInputValues[colIdx] || 0) : 0;
-      values.push(val);
-
-      const target = targetPerStaffPerCat[cleanName] || 0;
-      let projectedRate = 0;
-      if (target > 0 && daysPassed > 0) {
-        projectedRate = ((val / daysPassed) * totalDays) / target * 100;
-      }
-      projectedRates.push(projectedRate);
-      if (Math.round(projectedRate) >= 100) achieved++;
-    });
-
-    results.push({
-      displayName: `${id} - ${name.toUpperCase()}`,
-      fullId: id,
-      achieved,
-      totalCats: displayCategories.length,
-      rate: displayCategories.length > 0 ? achieved / displayCategories.length : 0,
-      rawValues: values,
-      projectedRates
-    });
-  }
-
-  return { results, categories: displayCategories };
-};
+// parseStaffMatrixDataRefined is imported from SummaryThiDuaTable
 
 // ─── Generate sales coaching comment ────────────────────────────────────────
 const generateComment = (catName: string, remaining: number, percentHT: number): string => {
@@ -454,12 +290,30 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
   onPreviewImage,
   onOpenCompare,
 }) => {
-  // Parse staff matrix using original unified parser
-  const { results: staffMatrix, categories: detailCategories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays);
+  // Parse staff matrix using refined unified parser
+  const { staffMatrix, categories: detailCategories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays);
   
-  // Extract staff ID from staffName (format: "NAME - ID")
-  const staffId = staffName.split('-').pop()?.trim() || '';
-  const staffData = staffMatrix.find(s => s.fullId === staffId);
+  // Extract staff ID from staffName (format: "NAME - ID" or "ID - NAME")
+  const { id: extractedStaffId, name: extractedStaffName } = extractStaffNameAndId(staffName);
+  const staffId = extractedStaffId || staffName.match(/\b\d{4,8}\b/)?.[0] || staffName.split(/[-–—]/).pop()?.trim() || '';
+  
+  const staffData = staffMatrix.find(s => {
+    if (!s) return false;
+    if (staffId && s.fullId && s.fullId.toLowerCase().trim() === staffId.toLowerCase().trim()) return true;
+    if (staffId && s.fullId && s.fullId.includes(staffId)) return true;
+    if (staffId && s.displayName && s.displayName.includes(staffId)) return true;
+
+    // Match by name
+    const cleanExtracted = removeAccents(extractedStaffName).toLowerCase();
+    const cleanStaffName = removeAccents(staffName).toLowerCase();
+    const sName = removeAccents((s as any).name || '').toLowerCase();
+    const sDisplayName = removeAccents(s.displayName || '').toLowerCase();
+
+    if (cleanExtracted && sName && (cleanExtracted === sName || sName.includes(cleanExtracted) || cleanExtracted.includes(sName))) return true;
+    if (cleanExtracted && sDisplayName.includes(cleanExtracted)) return true;
+    if (sName && cleanStaffName.includes(sName)) return true;
+    return false;
+  });
 
   if (!staffData || detailCategories.length === 0) {
     return (
@@ -480,25 +334,75 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
     catTypeLookup[cleanCategoryName(cat.name)] = cat.type || 'ALL';
   });
 
-  // Prepare all row data
+  // Prepare base categories
   const categoriesToMap = (luykeCategories && luykeCategories.length > 0)
     ? luykeCategories
     : detailCategories.map(name => ({ name, type: catTypeLookup[cleanCategoryName(name)] || 'ALL', target: 0 }));
 
-  const allRowData = categoriesToMap.map((cat: any) => {
+  // Ensure all categories (from both luykeCategories and thiDuaNv) are present
+  const seenMapCats = new Set<string>();
+  const mergedCategories: { name: string; type: 'SL' | 'DT' | 'ALL'; target: number }[] = [];
+
+  categoriesToMap.forEach((cat: any) => {
+    const clean = cleanCategoryName(cat.name);
+    if (clean && !seenMapCats.has(clean)) {
+      seenMapCats.add(clean);
+      mergedCategories.push(cat);
+    }
+  });
+
+  detailCategories.forEach((dcName: string) => {
+    const clean = cleanCategoryName(dcName);
+    if (clean && !seenMapCats.has(clean)) {
+      seenMapCats.add(clean);
+      const matchingTarget = categoryTargets?.find((t: any) => cleanCategoryName(t.name) === clean);
+      const isSl = dcName.toUpperCase().includes('SIM') || 
+                   dcName.toUpperCase().includes('VAS') || 
+                   dcName.toUpperCase().includes('OTT') || 
+                   dcName.toUpperCase().includes('NẠP RÚT');
+      const type = catTypeLookup[clean] || (isSl ? 'SL' : 'DT');
+      mergedCategories.push({
+        name: dcName,
+        type,
+        target: matchingTarget?.adjustedTarget ?? matchingTarget?.target ?? 0
+      });
+    }
+  });
+
+  const allRowData = mergedCategories.map((cat: any) => {
     const cleanCatName = cleanCategoryName(cat.name);
     
     // Find target
     let target = 0;
-    const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCatName);
+    const matchingTarget = categoryTargets?.find((t: any) => cleanCategoryName(t.name) === cleanCatName);
     const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
       ? matchingTarget.adjustedTarget
       : (cat.target || 0);
-    target = baseTarget / staffCount;
+    target = staffCount > 0 ? baseTarget / staffCount : baseTarget;
     
     // Find accumulated value from staff data
-    const detailIdx = detailCategories.findIndex(dc => cleanCategoryName(dc) === cleanCatName);
-    const accumulated = detailIdx !== -1 ? (staffData.rawValues[detailIdx] || 0) : 0;
+    // 1. Direct lookup from valuesMap (populated by parseStaffMatrixDataRefined)
+    let accumulated = 0;
+    const valuesMap = staffData.valuesMap;
+    if (valuesMap && valuesMap[cleanCatName] !== undefined) {
+      accumulated = valuesMap[cleanCatName];
+    } else if (valuesMap) {
+      // 2. Exact clean key match in valuesMap
+      for (const [k, v] of Object.entries(valuesMap)) {
+        if (k === cleanCatName) {
+          accumulated = v;
+          break;
+        }
+      }
+    }
+
+    // 3. Fallback: match via detailCategories and rawValues
+    if (accumulated === 0 && staffData.rawValues && staffData.rawValues.length > 0) {
+      const detailIdx = detailCategories.findIndex(dc => cleanCategoryName(dc) === cleanCatName);
+      if (detailIdx !== -1 && staffData.rawValues[detailIdx] !== undefined) {
+        accumulated = staffData.rawValues[detailIdx] || 0;
+      }
+    }
 
     const percentHT = (target > 0 && daysPassed > 0) 
       ? (((accumulated / daysPassed) * totalDays) / target) * 100 

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useDeferredValue, useTransition, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseClient';
-import { birthdayService } from '../services/birthdayService';
+import { birthdayService, isStoreMatch } from '../services/birthdayService';
 import {
   BarChart,
   Bar,
@@ -100,6 +100,7 @@ import { YcxStaffData } from './RTST/types';
 import { UnexportedOrdersTable } from './RTST/components/UnexportedOrdersTable';
 import { BanGiaSocTab } from './RTST/components/BanGiaSocTab';
 import { MucTieuNgayTab } from './RTST/components/MucTieuNgayTab';
+import { RealDoanhThuNvTab } from './RTST/components/RealDoanhThuNvTab';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
@@ -1554,9 +1555,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const tomorrowDay = tomorrow.getDate();
 
     birthdaysList.forEach(b => {
-      const matchesWarehouse = 
-        marketFilter === 'ALL' || 
-        b.warehouse_code === marketFilter;
+      const matchesWarehouse = isStoreMatch(b, marketFilter);
 
       if (!matchesWarehouse) {
         return;
@@ -5047,6 +5046,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
             {[
               { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, grad: 'from-indigo-600 to-purple-600', activeBg: 'bg-indigo-50 text-indigo-600' },
               { id: 'muc_tieu_ngay', label: 'MỤC TIÊU NGÀY', icon: Target, grad: 'from-emerald-600 via-teal-600 to-emerald-700', activeBg: 'bg-emerald-50 text-emerald-600' },
+              { id: 'real_dthu_nv', label: 'REAL D.THU NV', icon: TrendingUp, grad: 'from-amber-500 via-orange-500 to-rose-500', activeBg: 'bg-amber-50 text-amber-600' },
               { id: 'khai_thac', label: 'DATA YCX', icon: Activity, grad: 'from-emerald-600 to-teal-600', activeBg: 'bg-emerald-50 text-emerald-600' },
               ...(isUser43751 ? [{ id: 'khai_thac_moi', label: 'DATA YCX MỚI', icon: Activity, grad: 'from-teal-600 to-cyan-600', activeBg: 'bg-teal-50 text-teal-600' }] : [])
             ].map((item) => {
@@ -6126,6 +6126,29 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                     captureElementDirect={captureElementDirect}
                     userProfile={userProfile}
                     luykeProcessedData={luykeProcessedData}
+                  />
+                </motion.div>
+              )}
+
+              {activeTab === 'real_dthu_nv' && (
+                <motion.div
+                  key="real_dthu_nv"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <RealDoanhThuNvTab
+                    processedData={processedData}
+                    luykeProcessedData={luykeProcessedData}
+                    marketFilter={marketFilter}
+                    captureElement={captureElement}
+                    handleExcelUpload={handleExcelUpload}
+                    currentYcxFileName={currentYcxFileName}
+                    setActiveTab={setActiveTab}
+                    userProfile={userProfile}
+                    lastUpdated={lastUpdated}
+                    isUser43751={isUser43751}
+                    selectedMaKho={selectedMaKho}
                   />
                 </motion.div>
               )}

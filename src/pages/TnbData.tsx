@@ -160,7 +160,27 @@ export default function TnbData() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
-  const [activeTab, setActiveTab] = useState<'TNB_DATA' | 'TNB_LEADER' | 'RT_ST_EXCEL'>('TNB_DATA');
+  const [activeTab, setActiveTabRaw] = useState<'TNB_DATA' | 'TNB_LEADER' | 'RT_ST_EXCEL'>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlTab = params.get('tab');
+      const valid = ['TNB_DATA', 'TNB_LEADER', 'RT_ST_EXCEL'];
+      if (urlTab && valid.includes(urlTab)) return urlTab as any;
+      const saved = localStorage.getItem('crm_active_tnbdata_tab');
+      if (saved && valid.includes(saved)) return saved as any;
+    } catch {}
+    return 'TNB_DATA';
+  });
+
+  const setActiveTab = (tab: 'TNB_DATA' | 'TNB_LEADER' | 'RT_ST_EXCEL') => {
+    setActiveTabRaw(tab);
+    try {
+      localStorage.setItem('crm_active_tnbdata_tab', tab);
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      window.history.replaceState(null, '', url.toString());
+    } catch {}
+  };
 
   // RT SIÊU THỊ Excel upload state
   interface SheetData {

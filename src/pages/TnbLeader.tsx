@@ -13,7 +13,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ImagePreviewModal } from '../components/ImagePreviewModal';
 import { CaptureLoadingOverlay } from '../components/CaptureLoadingOverlay';
 import { LineExportPanel } from '../components/LineExportPanel';
-import { cn } from './RTST/utils';
+import { cn, cleanCategoryName } from './RTST/utils';
+import { DEFAULT_TNB_LEADER_CATEGORIES } from '../hooks/useCategoryConfig';
 
 // Helper function to linearly interpolate between two hex colors
 function interpolateColor(color1: string, color2: string, factor: number): string {
@@ -528,44 +529,305 @@ const formatLuyKeValue = (val: number, rawStr?: string, isBillionScale?: boolean
   return rounded.toLocaleString('en-US');
 };
 
-const DEFAULT_CATEGORIES = [
-  { name: 'ĐIỆN THOẠI & TABLET ANDROID', group: 'ICT' },
-  { name: 'Điện thoại Realme', group: 'ICT' },
-  { name: 'Điện thoại Vivo', group: 'ICT' },
-  { name: 'Đồng hồ - Phụ kiện', group: 'ICT' },
-  { name: 'DOANH THU ĐỒNG HỒ', group: 'ICT' },
-  { name: 'Loa', group: 'ICT' },
-  { name: 'Laptop', group: 'ICT' },
-  { name: 'Camera', group: 'ICT' },
-  { name: 'Sim Tổng', group: 'DỊCH VỤ' },
-  { name: 'SIM MOBIFONE&VINAPHONE&SIM DMX', group: 'DỊCH VỤ' },
-  { name: 'BẢO HIỂM', group: 'DỊCH VỤ' },
-  { name: 'BẢO HIỂM THỢ ĐIỆN MÁY XANH', group: 'DỊCH VỤ' },
-  { name: 'TRẢ CHẬM HOMECREDIT', group: 'DỊCH VỤ' },
-  { name: 'FECREDIT, SHINHAN, SAMSUNG FINANCE+', group: 'DỊCH VỤ' },
-  { name: 'TRẢ CHẬM ĐIỆN MÁY VÀ GIA DỤNG', group: 'DỊCH VỤ' },
-  { name: 'Ví trả sau', group: 'DỊCH VỤ' },
-  { name: 'Cho vay tiền mặt', group: 'DỊCH VỤ' },
-  { name: 'Dịch vụ VAS', group: 'DỊCH VỤ' },
-  { name: 'NẠP RÚT TIỀN TÀI KHOẢN NGÂN HÀNG THÁNG 07/2026', group: 'DỊCH VỤ' },
-  { name: 'MANGO PLUS + ICALLME', group: 'DỊCH VỤ' },
-  { name: 'MỞ THẺ TÍN DỤNG TPBANK EVO VÀ VPBANK MWG', group: 'DỊCH VỤ' },
-  { name: 'HISENSE', group: 'CE' },
-  { name: 'Điện tử', group: 'CE' },
-  { name: 'Điện tử Samsung', group: 'CE' },
-  { name: 'MÁY GIẶT', group: 'CE' },
-  { name: 'MÁY SẤY & MÁY RỬA CHÉN', group: 'CE' },
-  { name: 'CE HÃNG HAIER + MÁY LẠNH AQUA', group: 'CE' },
-  { name: 'Máy lạnh Casper', group: 'CE' },
-  { name: 'Máy Lạnh NAGAKAWA', group: 'CE' },
-  { name: 'ĐIỆN TỬ & ĐIỆN LẠNH, ĐIỆN GIA DỤNG HÃNG LG', group: 'CE' },
-  { name: 'ĐẶC QUYỀN MÁY GIẶT -TỦ LẠNH -MÁY LẠNH SAMSUNG', group: 'CE' },
-  { name: 'TỦ LẠNH, TỦ ĐÔNG, TỦ MÁT', group: 'CE' },
-  { name: 'Máy Lọc Nước', group: 'CE' },
-  { name: 'Nồi cơm', group: 'CE' },
-  { name: 'Quạt gió', group: 'CE' },
-  { name: 'MÁY LỌC KHÔNG KHÍ - HÚT ẨM - HÚT BỤI', group: 'CE' }
-];
+const DEFAULT_CATEGORIES = DEFAULT_TNB_LEADER_CATEGORIES;
+
+export function detectCategoryGroup(name: string, existingList?: { name: string, group: string }[]): 'ICT' | 'DỊCH VỤ' | 'CE' {
+  if (!name) return 'CE';
+  
+  // 1. First check against known list / defaults
+  const listToCheck = existingList && existingList.length > 0 ? existingList : DEFAULT_TNB_LEADER_CATEGORIES;
+  const cleanName = cleanCategoryName(name);
+  const found = listToCheck.find(c => cleanCategoryName(c.name) === cleanName);
+  if (found) {
+    const g = (found.group || '').toUpperCase();
+    if (g.includes('ICT')) return 'ICT';
+    if (g.includes('DỊCH VỤ') || g.includes('DICH VU') || g === 'DV') return 'DỊCH VỤ';
+    return 'CE';
+  }
+  
+  // 2. Fuzzy match against known list
+  const fuzzy = listToCheck.find(c => {
+    const cleanCfg = cleanCategoryName(c.name);
+    return (cleanCfg.length > 3 && cleanName.includes(cleanCfg)) || (cleanName.length > 3 && cleanCfg.includes(cleanName));
+  });
+  if (fuzzy) {
+    const g = (fuzzy.group || '').toUpperCase();
+    if (g.includes('ICT')) return 'ICT';
+    if (g.includes('DỊCH VỤ') || g.includes('DICH VU') || g === 'DV') return 'DỊCH VỤ';
+    return 'CE';
+  }
+
+  // 3. Keyword-based matching
+  const clean = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').trim();
+  if (
+    clean.includes('credit') || clean.includes('shinhan') || clean.includes('finance') ||
+    clean.includes('vi tra sau') || clean.includes('cake') || clean.includes('ngan hang') ||
+    clean.includes('vpbank') || clean.includes('tpbank') || clean.includes('the tin dung') ||
+    clean.includes('bao hiem') || clean.includes('sim') || clean.includes('vas') ||
+    clean.includes('tra cham') || clean.includes('vay tien') || clean.includes('nap rut') ||
+    clean.includes('dich vu') || clean.includes('mango') || clean.includes('icallme') ||
+    clean.includes('icall')
+  ) {
+    return 'DỊCH VỤ';
+  }
+
+  if (
+    clean.includes('dien thoai') || clean.includes('smartphone') || clean.includes('tablet') ||
+    clean.includes('vivo') || clean.includes('realme') || clean.includes('phu kien') ||
+    clean.includes('dong ho') || clean.includes('camera') || clean.includes('pin du phong') ||
+    clean.includes('pin sac') || clean.includes('sac du phong') || clean.includes('cap - sac') ||
+    clean.includes('cap sac') || clean.includes('tai nghe') || clean.includes('bluetooth') ||
+    clean.includes('laptop') || clean.includes('macbook') || clean === 'loa' || clean.startsWith('loa ') ||
+    clean.includes('am thanh') || clean.includes('audio')
+  ) {
+    return 'ICT';
+  }
+
+  return 'CE';
+}
+
+export function extractCategoriesFromRawInput(raw: string): string[] {
+  if (!raw) return [];
+
+  // 1. Normalize string for marker detection (remove tone marks, uppercase, convert đ/Đ to d)
+  const norm = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toUpperCase();
+
+  // Find "DON VI"
+  let startPos = -1;
+  const donViRegex = /\bDON\s*VI\b/g;
+  let match: RegExpExecArray | null;
+  while ((match = donViRegex.exec(norm)) !== null) {
+    startPos = match.index + match[0].length;
+  }
+  if (startPos === -1) {
+    const idx = norm.indexOf('DON VI');
+    if (idx !== -1) startPos = idx + 6;
+  }
+
+  if (startPos !== -1) {
+    const subNorm = norm.substring(startPos);
+    let endPosInSub = -1;
+    const endMarkers = [
+      /\bMIEN\s+NAM\b/,
+      /\bMIEN\s+BAC\b/,
+      /\bMIEN\s+TRUNG\b/,
+      /\bMIEN\s+TAY\b/,
+      /\bMIEN\s+DONG\b/,
+      /\bTOAN\s+CONG\s+TY\b/
+    ];
+    for (const regex of endMarkers) {
+      const endMatch = regex.exec(subNorm);
+      if (endMatch) {
+        if (endPosInSub === -1 || endMatch.index < endPosInSub) {
+          endPosInSub = endMatch.index;
+        }
+      }
+    }
+
+    let chunk = '';
+    if (endPosInSub !== -1) {
+      chunk = raw.substring(startPos, startPos + endPosInSub);
+    } else {
+      const percentMatch = /[\r\n]\s*[\d,.-]+%/.exec(subNorm);
+      if (percentMatch) {
+        chunk = raw.substring(startPos, startPos + percentMatch.index);
+      } else {
+        chunk = raw.substring(startPos);
+      }
+    }
+
+    const rawTokens = chunk.split(/[\r\n\t]+/).map(t => t.trim()).filter(Boolean);
+    const junkPatterns = [
+      /^[\d\s,.\-+/%:()]+$/,
+      /^(Tải lại|Xuất Excel|Xuất theo mẫu|Chép link|Chép bảng|Toàn công ty|Danh sách|Ma trận|Lũy kế|Realtime|Toggle theme|employee|Dashboards|Miền|Vùng|Khu vực|Siêu thị|Ngành hàng|Chọn)$/i
+    ];
+
+    const extracted = rawTokens.filter(token => {
+      if (token.length <= 1) return false;
+      for (const pat of junkPatterns) {
+        if (pat.test(token)) return false;
+      }
+      const tokenNorm = token.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toUpperCase();
+      if (tokenNorm === 'DON VI' || tokenNorm === 'MIEN NAM' || tokenNorm === 'MIEN BAC') return false;
+      return true;
+    });
+
+    if (extracted.length > 0) return extracted;
+  }
+
+  // 2. Fallback: line-by-line scanning
+  const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  let startIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const clean = lines[i].normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toUpperCase();
+    if (clean === 'DON VI' || clean.endsWith('DON VI') || clean.startsWith('DON VI\t')) {
+      startIdx = i + 1;
+      break;
+    }
+  }
+
+  if (startIdx !== -1) {
+    let endIdx = lines.length;
+    for (let i = startIdx; i < lines.length; i++) {
+      const l = lines[i];
+      const clean = l.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toUpperCase();
+      if (
+        clean.startsWith('MIEN ') || clean === 'MIEN' || clean === 'MIEN NAM' || clean === 'MIEN BAC' ||
+        clean === 'MIEN TRUNG' || clean === 'MIEN TAY' || clean === 'MIEN DONG' || clean === 'TOAN CONG TY' ||
+        /^[\d,.-]+%$/.test(l) || /^[\d,.-]+$/.test(l)
+      ) {
+        endIdx = i;
+        break;
+      }
+    }
+    const extracted = lines.slice(startIdx, endIdx).filter(l => {
+      if (/^[\d\s,.\-+/%:()]+$/.test(l)) return false;
+      if (/^(Tải lại|Xuất Excel|Xuất theo mẫu|Chép link|Chép bảng|Toàn công ty|Danh sách|Ma trận|Lũy kế|Realtime)$/i.test(l)) return false;
+      return true;
+    });
+    if (extracted.length > 0) return extracted;
+  }
+
+  return [];
+}
+
+export function isKnownGroupKeyword(g: string): boolean {
+  if (!g) return false;
+  const upper = g.trim().toUpperCase();
+  return upper === 'ICT' || upper === 'CE' || upper === 'DV' || upper === 'DỊCH VỤ' || upper === 'DICH VU';
+}
+
+export function parseGroupKeyword(g: string): 'ICT' | 'DỊCH VỤ' | 'CE' {
+  if (!g) return 'CE';
+  const upper = g.trim().toUpperCase();
+  if (upper.includes('ICT')) return 'ICT';
+  if (upper.includes('DỊCH VỤ') || upper.includes('DICH VU') || upper === 'DV') return 'DỊCH VỤ';
+  return 'CE';
+}
+
+export function parseCategoryInput(raw: string, existingList?: { name: string, group: string }[]): { name: string, group: 'ICT' | 'DỊCH VỤ' | 'CE' }[] {
+  if (!raw || !raw.trim()) return [];
+
+  // 1. Check if raw BI dashboard report (containing "ĐƠN VỊ" / "DON VI" ... "MIỀN NAM" / "MIEN")
+  const biCategories = extractCategoriesFromRawInput(raw);
+  if (biCategories.length > 0) {
+    return biCategories.map(name => ({
+      name,
+      group: detectCategoryGroup(name, existingList)
+    }));
+  }
+
+  // 2. Check if 2-column Excel vertical format (line-by-line where line has tab and 2nd column is known group)
+  const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  if (lines.length > 1) {
+    const tabLines = lines.filter(l => l.includes('\t'));
+    if (tabLines.length > 0 && tabLines.every(l => {
+      const parts = l.split('\t').map(p => p.trim());
+      return parts.length === 2 && isKnownGroupKeyword(parts[1]);
+    })) {
+      return lines.map(l => {
+        const parts = l.split('\t').map(p => p.trim());
+        return {
+          name: parts[0],
+          group: parseGroupKeyword(parts[1])
+        };
+      }).filter(c => c.name.length > 0);
+    }
+  }
+
+  // 3. Horizontal tab separated or multi-line tab separated (e.g. copied horizontal table headers or row of categories)
+  if (raw.includes('\t')) {
+    const tokens = raw.split(/[\t\r\n]+/).map(t => t.trim()).filter(t => t.length > 0);
+    const valid = tokens.filter(t => 
+      !isKnownGroupKeyword(t) && 
+      !['#', 'STT', 'NGÀNH HÀNG', 'NHÓM', 'TÊN NGÀNH HÀNG'].includes(t.toUpperCase())
+    );
+    if (valid.length > 0) {
+      return valid.map(name => ({
+        name,
+        group: detectCategoryGroup(name, existingList)
+      }));
+    }
+  }
+
+  // 4. Separated by 2 or more spaces or other delimiters (; or |)
+  if (/\s{2,}/.test(raw) || raw.includes(';') || raw.includes('|')) {
+    const tokens = raw.split(/[\n\r]+|\s{2,}|[;|]/).map(t => t.trim()).filter(t => t.length > 0);
+    const valid = tokens.filter(t => 
+      !isKnownGroupKeyword(t) && 
+      !['#', 'STT', 'NGÀNH HÀNG', 'NHÓM', 'TÊN NGÀNH HÀNG'].includes(t.toUpperCase())
+    );
+    if (valid.length > 1) {
+      return valid.map(name => ({
+        name,
+        group: detectCategoryGroup(name, existingList)
+      }));
+    }
+  }
+
+  // 5. Multi-line vertical text (each line is a category name, possibly with group suffix like "Máy giặt CE")
+  if (lines.length > 1) {
+    return lines.map(line => {
+      const upper = line.toUpperCase();
+      let group: 'ICT' | 'DỊCH VỤ' | 'CE' = 'CE';
+      let name = line;
+      if (upper.endsWith(' ICT')) {
+        group = 'ICT';
+        name = line.substring(0, line.length - 4).trim();
+      } else if (upper.endsWith(' DỊCH VỤ') || upper.endsWith(' DICH VU')) {
+        group = 'DỊCH VỤ';
+        name = line.substring(0, line.length - 8).trim();
+      } else if (upper.endsWith(' DV')) {
+        group = 'DỊCH VỤ';
+        name = line.substring(0, line.length - 3).trim();
+      } else if (upper.endsWith(' CE')) {
+        group = 'CE';
+        name = line.substring(0, line.length - 3).trim();
+      } else {
+        group = detectCategoryGroup(line, existingList);
+      }
+      return { name, group };
+    }).filter(c => c.name.length > 0);
+  }
+
+  // 6. Single-line space-delimited fallback matching against dictionary (DEFAULT_TNB_LEADER_CATEGORIES)
+  const singleLine = raw.trim();
+  const listToCheck = existingList && existingList.length > 0 ? existingList : DEFAULT_TNB_LEADER_CATEGORIES;
+  const foundOccurrences: { index: number; length: number; name: string; group: 'ICT' | 'DỊCH VỤ' | 'CE' }[] = [];
+  const lowerInput = singleLine.toLowerCase();
+
+  for (const cat of listToCheck) {
+    const lowerName = cat.name.toLowerCase();
+    let idx = 0;
+    while ((idx = lowerInput.indexOf(lowerName, idx)) !== -1) {
+      foundOccurrences.push({
+        index: idx,
+        length: cat.name.length,
+        name: cat.name,
+        group: detectCategoryGroup(cat.name, existingList)
+      });
+      idx += lowerName.length;
+    }
+  }
+
+  if (foundOccurrences.length >= 3) {
+    foundOccurrences.sort((a, b) => a.index - b.index);
+    const nonOverlapping: { name: string; group: 'ICT' | 'DỊCH VỤ' | 'CE' }[] = [];
+    let lastEnd = -1;
+    for (const occ of foundOccurrences) {
+      if (occ.index >= lastEnd) {
+        nonOverlapping.push({ name: occ.name, group: occ.group });
+        lastEnd = occ.index + occ.length;
+      }
+    }
+    if (nonOverlapping.length > 0) {
+      return nonOverlapping;
+    }
+  }
+
+  // Single item fallback
+  return [{ name: singleLine, group: detectCategoryGroup(singleLine, existingList) }];
+}
 
 export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local = false }: { pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean }) {
   const { userProfile } = useAuth();
@@ -876,7 +1138,27 @@ export default function TnbLeader({ pageMaintenanceState = {}, isUser43751Local 
   const [dataLkSieuThi, setDataLkSieuThi] = useState<any[]>([]);
   const [headersLkSieuThi, setHeadersLkSieuThi] = useState<string[]>(DEFAULT_10_HEADERS);
 
-  const [activeTab, setActiveTab] = useState<'TONG' | 'VUNG' | 'NHOM_HANG' | 'SIEU_THI' | 'RT_SIEU_THI' | 'LK_SIEU_THI' | 'CAU_HINH' | 'CAP_NHAT_DATA'>('TONG');
+  const [activeTab, setActiveTabRaw] = useState<'TONG' | 'VUNG' | 'NHOM_HANG' | 'SIEU_THI' | 'RT_SIEU_THI' | 'LK_SIEU_THI' | 'CAU_HINH' | 'CAP_NHAT_DATA'>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlTab = params.get('tab');
+      const valid = ['TONG', 'VUNG', 'NHOM_HANG', 'SIEU_THI', 'RT_SIEU_THI', 'LK_SIEU_THI', 'CAU_HINH', 'CAP_NHAT_DATA'];
+      if (urlTab && valid.includes(urlTab)) return urlTab as any;
+      const saved = localStorage.getItem('crm_active_tnbleader_tab');
+      if (saved && valid.includes(saved)) return saved as any;
+    } catch {}
+    return 'TONG';
+  });
+
+  const setActiveTab = (tab: 'TONG' | 'VUNG' | 'NHOM_HANG' | 'SIEU_THI' | 'RT_SIEU_THI' | 'LK_SIEU_THI' | 'CAU_HINH' | 'CAP_NHAT_DATA') => {
+    setActiveTabRaw(tab);
+    try {
+      localStorage.setItem('crm_active_tnbleader_tab', tab);
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      window.history.replaceState(null, '', url.toString());
+    } catch {}
+  };
   const [lastSync, setLastSync] = useState<string | null>(() => {
     try { return localStorage.getItem('TNB_LEADER_LAST_SYNC') || null; } catch { return null; }
   });
@@ -1819,59 +2101,96 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
 
 
 
-  const handleViewAndGroup = () => {
-    const lines = categoryConfigText.split('\n').filter(line => line.trim());
-    const newConfig: {name: string, group: string}[] = [];
-    lines.forEach(line => {
-      // First try to split by tab
-      if (line.includes('\t')) {
-        const parts = line.split('\t');
-        if (parts.length >= 2) {
-          const name = parts[0].trim();
-          let groupRaw = parts[1].trim().toUpperCase();
-          let group = 'CE';
-          if (groupRaw.includes('ICT')) group = 'ICT';
-          else if (groupRaw.includes('DỊCH VỤ') || groupRaw.includes('DICH VU') || groupRaw === 'DV') group = 'DỊCH VỤ';
-          else group = 'CE';
-          if (name) newConfig.push({ name, group });
-          return;
+  const handleCategoryTextChange = (val: string) => {
+    setCategoryConfigText(val);
+    if (val && val.trim().length > 0) {
+      const parsed = parseCategoryInput(val, categoryConfig);
+      if (parsed && parsed.length > 0) {
+        setPreviewConfig(parsed);
+      }
+    }
+  };
+
+  const handleCategoryPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const text = e.clipboardData.getData('text');
+    if (text && text.trim()) {
+      const isBiReport = extractCategoriesFromRawInput(text).length > 0;
+      const parsed = parseCategoryInput(text, categoryConfig);
+      if (parsed && parsed.length > 0) {
+        setPreviewConfig(parsed);
+        if (isBiReport) {
+          showNotification(`Đã tự động trích xuất ${parsed.length} ngành hàng nằm dưới ĐƠN VỊ và trên MIỀN NAM!`, 'success');
+        } else {
+          showNotification(`Bảng bên phải đã tự động nhận diện ${parsed.length} ngành hàng!`, 'info');
         }
       }
-      
-      // If no tab, parse by trailing keyword separated by space
-      const upperLine = line.toUpperCase();
-      let group = 'CE';
-      let name = line.trim();
-      
-      if (upperLine.endsWith(' ICT')) {
-        group = 'ICT';
-        name = line.substring(0, line.length - 4).trim();
-      } else if (upperLine.endsWith(' DỊCH VỤ')) {
-        group = 'DỊCH VỤ';
-        name = line.substring(0, line.length - 8).trim();
-      } else if (upperLine.endsWith(' DICH VU')) {
-        group = 'DỊCH VỤ';
-        name = line.substring(0, line.length - 8).trim();
-      } else if (upperLine.endsWith(' DV')) {
-        group = 'DỊCH VỤ';
-        name = line.substring(0, line.length - 3).trim();
-      } else if (upperLine.endsWith(' CE')) {
-        group = 'CE';
-        name = line.substring(0, line.length - 3).trim();
-      } else {
-        const existing = categoryConfig.find(c => c.name === line.trim());
-        group = existing ? existing.group : 'CE';
+    }
+  };
+
+  const handleViewAndGroup = () => {
+    if (!categoryConfigText || !categoryConfigText.trim()) {
+      showNotification('Vui lòng dán dữ liệu vào ô bên trái!', 'error');
+      return;
+    }
+
+    const parsed = parseCategoryInput(categoryConfigText, categoryConfig);
+    if (parsed.length === 0) {
+      showNotification('Không tìm thấy ngành hàng hợp lệ trong dữ liệu!', 'error');
+      return;
+    }
+
+    // Gom nhóm theo thứ tự ICT -> DỊCH VỤ -> CE
+    const ict = parsed.filter(c => c.group === 'ICT');
+    const dv = parsed.filter(c => c.group === 'DỊCH VỤ');
+    const ce = parsed.filter(c => c.group === 'CE');
+    const grouped = [...ict, ...dv, ...ce];
+
+    setPreviewConfig(grouped);
+    showNotification(`Đã gom nhóm thành công ${grouped.length} ngành hàng (ICT ➔ DỊCH VỤ ➔ CE)!`, 'success');
+  };
+
+  const handleUpdateItemName = (index: number, newName: string) => {
+    setPreviewConfig(prev => {
+      const copy = [...prev];
+      if (copy[index]) {
+        copy[index] = { ...copy[index], name: newName };
       }
-      
-      if (name) newConfig.push({ name, group });
+      return copy;
     });
-    
-    // Grouping
-    const ict = newConfig.filter(c => c.group === 'ICT');
-    const dv = newConfig.filter(c => c.group === 'DỊCH VỤ');
-    const ce = newConfig.filter(c => c.group === 'CE');
-    
+  };
+
+  const handleUpdateItemGroup = (index: number, newGroup: string) => {
+    setPreviewConfig(prev => {
+      const copy = [...prev];
+      if (copy[index]) {
+        copy[index] = { ...copy[index], group: newGroup };
+      }
+      return copy;
+    });
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setPreviewConfig(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddNewItem = () => {
+    setPreviewConfig(prev => [...prev, { name: 'Ngành hàng mới', group: 'CE' }]);
+  };
+
+  const handleSortByGroup = () => {
+    const ict = previewConfig.filter(c => c.group === 'ICT');
+    const dv = previewConfig.filter(c => c.group === 'DỊCH VỤ');
+    const ce = previewConfig.filter(c => c.group === 'CE');
     setPreviewConfig([...ict, ...dv, ...ce]);
+    showNotification('Đã sắp xếp thứ tự gom nhóm: ICT ➔ DỊCH VỤ ➔ CE!', 'info');
+  };
+
+  const handleResetDefaultCategories = () => {
+    if (window.confirm('Khôi phục danh mục 35 ngành hàng mặc định theo chuẩn TNB Leader?')) {
+      setPreviewConfig(DEFAULT_CATEGORIES);
+      setCategoryConfigText(DEFAULT_CATEGORIES.map(c => `${c.name}\t${c.group}`).join('\n'));
+      showNotification('Đã khôi phục 35 ngành hàng mặc định!', 'info');
+    }
   };
 
   const handleSort = () => {
@@ -1904,11 +2223,16 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
   };
 
   const handleSaveCategoryConfig = async () => {
+    if (previewConfig.length === 0) {
+      showNotification('Danh sách ngành hàng trống, không thể lưu!', 'error');
+      return;
+    }
     setIsSavingConfig(true);
     try {
       await setDoc(doc(db, 'app_settings', 'TNB_LEADER_DATA'), { categories: previewConfig }, { merge: true });
       loadTnbLeaderConfig(true);
-      showNotification('Lưu cấu hình ngành hàng thành công!', 'success');
+      setCategoryConfigText(previewConfig.map(c => `${c.name}\t${c.group}`).join('\n'));
+      showNotification('Lưu cấu hình ngành hàng thành công vào toàn bộ hệ thống!', 'success');
     } catch (error) {
       console.error('Error saving config:', error);
       showNotification('Lỗi khi lưu cấu hình. Vui lòng thử lại!', 'error');
@@ -3026,29 +3350,60 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
               </div>
               <div>
                 <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Cấu hình thứ tự Ngành hàng</h2>
-                <p className="text-slate-500 text-[15px] mt-1">Dán (Paste) dữ liệu từ Excel để cài đặt nhóm cho các ngành hàng. Dữ liệu sẽ được lưu chung cho toàn bộ hệ thống (Firebase).</p>
+                <p className="text-slate-500 text-[15px] mt-1">Dán dữ liệu từ Báo cáo BI Thi Đua hoặc Excel để cài đặt thứ tự và nhóm cho các ngành hàng. Dữ liệu sẽ lưu chung toàn hệ thống (Firebase).</p>
               </div>
             </div>
 
             <div className="flex flex-col xl:flex-row gap-8">
+              {/* Left Column: Paste Input */}
               <div className="flex-1 flex flex-col gap-4">
-                <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200 text-amber-800 text-[15px]">
-                  <strong>💡 Hướng dẫn:</strong> Copy 2 cột từ Excel <strong>(Cột 1: Tên ngành hàng, Cột 2: Tên Nhóm)</strong> rồi dán thẳng vào ô bên dưới. <br/>
-                  - Tên nhóm hợp lệ: <code className="bg-white px-2 py-0.5 rounded shadow-sm text-amber-700">ICT</code>, <code className="bg-white px-2 py-0.5 rounded shadow-sm text-amber-700">DỊCH VỤ</code>, <code className="bg-white px-2 py-0.5 rounded shadow-sm text-amber-700">CE</code>
+                <div className="bg-amber-50/90 p-4 rounded-2xl border border-amber-200 text-amber-900 text-[13px] leading-relaxed shadow-xs">
+                  <div className="font-bold flex items-center gap-2 mb-2 text-amber-950 text-sm">
+                    <Sparkles size={16} className="text-amber-600" />
+                    <span>💡 Hướng dẫn dán dữ liệu:</span>
+                  </div>
+                  <ul className="space-y-1.5 list-disc list-inside">
+                    <li>
+                      <strong>Cách 1 (Dán hàng ngang hoặc danh sách):</strong> Dán danh sách tên các ngành hàng (cách nhau bởi <strong>khoảng trắng, Tab, hoặc xuống dòng</strong>). Bảng bên phải sẽ <strong>TỰ ĐỘNG HIỂU và nhận diện từng ngành hàng</strong> ngay khi bạn dán!
+                    </li>
+                    <li>
+                      <strong>Cách 2 (Từ Báo cáo BI Thi đua):</strong> Copy toàn bộ trang/bảng thi đua BI (chứa từ dòng <code className="bg-white px-1.5 py-0.5 rounded font-bold text-amber-800">ĐƠN VỊ</code> đến <code className="bg-white px-1.5 py-0.5 rounded font-bold text-amber-800">MIỀN NAM</code>). Hệ thống sẽ tự động lọc ra đúng 35 ngành hàng.
+                    </li>
+                    <li>
+                      <strong>Cách 3 (Từ Excel):</strong> Copy 2 cột: <strong>Cột 1: Tên ngành hàng, Cột 2: Tên Nhóm</strong> (<code className="bg-white px-1.5 py-0.5 rounded text-amber-700 font-bold">ICT</code>, <code className="bg-white px-1.5 py-0.5 rounded text-amber-700 font-bold">DỊCH VỤ</code>, <code className="bg-white px-1.5 py-0.5 rounded text-amber-700 font-bold">CE</code>).
+                    </li>
+                  </ul>
+                  <p className="mt-2 text-xs font-semibold text-amber-800 border-t border-amber-200/60 pt-2">
+                    ✨ Bảng bên phải tự động cập nhật ngay lập tức. Bạn chỉ cần <strong>chọn lại loại nhóm (ICT / DỊCH VỤ / CE) và sắp xếp vị trí</strong> (kéo thả hoặc bấm nút Gom nhóm) rồi bấm <strong>"ÁP DỤNG VÀ LƯU"</strong>.
+                  </p>
                 </div>
                 
-                <textarea
-                  className="w-full h-[400px] p-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none font-mono text-[13px] leading-relaxed resize-none bg-slate-50 shadow-inner"
-                  placeholder="Ví dụ:&#10;ĐIỆN THOẠI & TABLET ANDROID&#9;ICT&#10;Sim Tổng&#9;DỊCH VỤ&#10;MÁY GIẶT&#9;CE"
-                  value={categoryConfigText}
-                  onChange={e => setCategoryConfigText(e.target.value)}
-                  spellCheck={false}
-                />
+                <div className="relative">
+                  <textarea
+                    className="w-full h-[420px] p-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none font-mono text-[13px] leading-relaxed resize-none bg-slate-50 shadow-inner"
+                    placeholder={"Dán dữ liệu ngành hàng tại đây (hàng ngang cách nhau bởi tab hoặc khoảng trắng, hoặc hàng dọc, hoặc báo cáo BI)...\n\nBảng bên phải sẽ TỰ ĐỘNG HIỂU và trích xuất từng ngành hàng ngay khi bạn dán!\n\nVí dụ dán hàng ngang:\nBảo hiểm tổng\tBảo hiểm Thợ ĐMX\tSIM MOBIFONE/VINAPHONE/SIM DMX\tSIM tổng...\n\nVí dụ báo cáo BI:\nĐƠN VỊ\nBảo hiểm tổng\n...\nĐIỆN TỬ\nMiền Nam"}
+                    value={categoryConfigText}
+                    onChange={e => handleCategoryTextChange(e.target.value)}
+                    onPaste={handleCategoryPaste}
+                    spellCheck={false}
+                  />
+                  {categoryConfigText && (
+                    <button
+                      onClick={() => {
+                        setCategoryConfigText('');
+                      }}
+                      className="absolute top-3 right-3 px-2 py-1 bg-white/80 hover:bg-white text-slate-400 hover:text-rose-600 rounded-lg text-xs font-bold border border-slate-200 shadow-xs cursor-pointer transition-colors"
+                      title="Xóa trắng ô dán"
+                    >
+                      Xóa nội dung
+                    </button>
+                  )}
+                </div>
 
                 <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     onClick={handleViewAndGroup}
-                    className="flex-1 px-8 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-lg shadow-amber-200 transition-all flex items-center justify-center gap-2"
+                    className="flex-1 px-8 py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-black rounded-xl shadow-lg shadow-amber-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <Search size={20} />
                     <span>XEM TRƯỚC & GOM NHÓM</span>
@@ -3057,7 +3412,7 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
                   <button
                     onClick={handleSaveCategoryConfig}
                     disabled={isSavingConfig || previewConfig.length === 0}
-                    className="flex-1 px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2"
+                    className="flex-1 px-8 py-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
                     {isSavingConfig ? <RefreshCw className="animate-spin" size={20} /> : <Save size={20} />}
                     <span>ÁP DỤNG VÀ LƯU</span>
@@ -3065,55 +3420,121 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
                 </div>
               </div>
 
-              <div className="flex-1 bg-slate-50 rounded-2xl border border-slate-200 p-1 flex flex-col h-[520px] overflow-hidden">
-                <div className="p-4 border-b border-slate-200 bg-white rounded-t-xl flex items-center justify-between">
-                  <h3 className="font-bold text-slate-700">Bảng xem trước hiện tại</h3>
-                  <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-500 rounded-full">{previewConfig.length} ngành hàng</span>
+              {/* Right Column: Editable Preview Table */}
+              <div className="flex-1 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col h-[600px] overflow-hidden shadow-xs">
+                {/* Header */}
+                <div className="p-4 border-b border-slate-200 bg-white rounded-t-xl flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <h3 className="font-black text-slate-800 text-sm sm:text-base uppercase tracking-tight">Bảng xem trước hiện tại</h3>
+                    <span className="text-xs font-black px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full">
+                      {previewConfig.length} ngành hàng
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={handleSortByGroup}
+                      title="Sắp xếp gom nhóm ICT ➔ DỊCH VỤ ➔ CE"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Layers size={13} />
+                      <span className="hidden sm:inline">Gom nhóm</span>
+                    </button>
+                    <button
+                      onClick={handleResetDefaultCategories}
+                      title="Khôi phục 35 ngành hàng chuẩn mặc định"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <RefreshCw size={13} />
+                      <span className="hidden sm:inline">Mặc định</span>
+                    </button>
+                  </div>
                 </div>
+
+                {/* Table Body */}
                 <div className="flex-1 overflow-auto p-1">
                   <table className="w-full text-left border-collapse text-[13px]">
-                    <thead className="sticky top-0 bg-slate-100 z-10 shadow-sm">
+                    <thead className="sticky top-0 bg-slate-100 z-10 shadow-xs">
                       <tr>
-                        <th className="px-4 py-2 font-black text-slate-600 uppercase border-b border-slate-200">#</th>
-                        <th className="px-4 py-2 font-black text-slate-600 uppercase border-b border-slate-200">Ngành hàng</th>
-                        <th className="px-4 py-2 font-black text-slate-600 uppercase border-b border-slate-200 text-center">Nhóm</th>
-                        <th className="px-4 py-2 font-black text-slate-600 uppercase border-b border-slate-200 text-center">Di chuyển</th>
+                        <th className="px-3 py-2.5 font-black text-slate-600 uppercase border-b border-slate-200 text-center w-12">#</th>
+                        <th className="px-3 py-2.5 font-black text-slate-600 uppercase border-b border-slate-200">Ngành hàng (Chỉnh sửa trực tiếp)</th>
+                        <th className="px-3 py-2.5 font-black text-slate-600 uppercase border-b border-slate-200 text-center w-36">Nhóm</th>
+                        <th className="px-3 py-2.5 font-black text-slate-600 uppercase border-b border-slate-200 text-center w-24">Thao tác</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {previewConfig.map((c, i) => (
                         <tr 
                           key={i} 
-                          className="hover:bg-indigo-50/50 group cursor-grab active:cursor-grabbing transition-colors"
+                          className="hover:bg-indigo-50/40 group transition-colors"
                           draggable
                           onDragStart={() => (dragItem.current = i)}
                           onDragEnter={() => (dragOverItem.current = i)}
                           onDragEnd={handleSort}
                           onDragOver={(e) => e.preventDefault()}
                         >
-                          <td className="px-4 py-2 text-slate-400 w-10">
-                            <div className="flex items-center gap-2">
-                              <GripVertical size={14} className="opacity-30 group-hover:opacity-100" />
-                              <span>{i + 1}</span>
+                          {/* Row Number & Grip */}
+                          <td className="px-2 py-1.5 text-slate-400 text-center w-12 select-none">
+                            <div className="flex items-center justify-center gap-1">
+                              <GripVertical size={13} className="opacity-30 group-hover:opacity-100 cursor-grab active:cursor-grabbing text-slate-500" />
+                              <span className="font-bold text-xs text-slate-500">{i + 1}</span>
                             </div>
                           </td>
-                          <td className="px-4 py-2 font-medium text-slate-700">{c.name}</td>
-                          <td className="px-4 py-2 text-center w-28">
-                            <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                              c.group === 'ICT' ? 'bg-amber-100 text-amber-700' : 
-                              c.group === 'DỊCH VỤ' ? 'bg-emerald-100 text-emerald-700' : 
-                              'bg-blue-100 text-blue-700'
-                            }`}>
-                              {c.group}
-                            </span>
+
+                          {/* Editable Category Name */}
+                          <td className="px-3 py-1.5">
+                            <input
+                              type="text"
+                              value={c.name}
+                              onChange={(e) => handleUpdateItemName(i, e.target.value)}
+                              placeholder="Nhập tên ngành hàng..."
+                              className="w-full px-2.5 py-1 text-[13px] font-bold text-slate-800 bg-transparent hover:bg-slate-50 focus:bg-white border border-transparent hover:border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg outline-none transition-all"
+                            />
                           </td>
-                          <td className="px-4 py-2 text-center w-24">
-                            <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button onClick={() => moveItemUp(i)} disabled={i === 0} className="p-1.5 hover:bg-slate-200 rounded text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed">
-                                <ArrowUp size={14} />
+
+                          {/* Editable Group Dropdown */}
+                          <td className="px-3 py-1.5 text-center w-36">
+                            <select
+                              value={c.group}
+                              onChange={(e) => handleUpdateItemGroup(i, e.target.value)}
+                              className={`w-full px-2.5 py-1 text-xs font-black rounded-lg border shadow-xs transition-all cursor-pointer outline-none ${
+                                c.group === 'ICT'
+                                  ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                                  : c.group === 'DỊCH VỤ'
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                                    : 'bg-blue-50 text-blue-800 border-blue-300 hover:bg-blue-100'
+                              }`}
+                            >
+                              <option value="ICT" className="bg-white text-amber-800 font-bold">ICT</option>
+                              <option value="DỊCH VỤ" className="bg-white text-emerald-800 font-bold">DỊCH VỤ</option>
+                              <option value="CE" className="bg-white text-blue-800 font-bold">CE</option>
+                            </select>
+                          </td>
+
+                          {/* Actions: Up, Down, Delete */}
+                          <td className="px-2 py-1.5 text-center w-24">
+                            <div className="flex items-center justify-center gap-1">
+                              <button 
+                                onClick={() => moveItemUp(i)} 
+                                disabled={i === 0} 
+                                title="Di chuyển lên"
+                                className="p-1 hover:bg-slate-200 rounded text-slate-500 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                              >
+                                <ArrowUp size={13} />
                               </button>
-                              <button onClick={() => moveItemDown(i)} disabled={i === previewConfig.length - 1} className="p-1.5 hover:bg-slate-200 rounded text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed">
-                                <ArrowDown size={14} />
+                              <button 
+                                onClick={() => moveItemDown(i)} 
+                                disabled={i === previewConfig.length - 1} 
+                                title="Di chuyển xuống"
+                                className="p-1 hover:bg-slate-200 rounded text-slate-500 disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                              >
+                                <ArrowDown size={13} />
+                              </button>
+                              <button 
+                                onClick={() => handleRemoveItem(i)} 
+                                title="Xóa ngành hàng này"
+                                className="p-1 hover:bg-rose-100 text-slate-400 hover:text-rose-600 rounded cursor-pointer transition-colors"
+                              >
+                                <Trash2 size={13} />
                               </button>
                             </div>
                           </td>
@@ -3121,11 +3542,36 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
                       ))}
                       {previewConfig.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="px-4 py-8 text-center text-slate-400">Chưa có dữ liệu. Hãy dán dữ liệu và nhấn Xem Trước.</td>
+                          <td colSpan={4} className="px-4 py-12 text-center text-slate-400">
+                            Chưa có dữ liệu. Hãy dán dữ liệu báo cáo BI hoặc Excel và nhấn "XEM TRƯỚC & GOM NHÓM".
+                          </td>
                         </tr>
                       )}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Table Footer Actions & Group Stats */}
+                <div className="p-3 border-t border-slate-200 bg-white rounded-b-xl flex flex-wrap items-center justify-between gap-2">
+                  <button
+                    onClick={handleAddNewItem}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-black text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl border border-indigo-200 cursor-pointer transition-all shadow-xs"
+                  >
+                    <Plus size={14} />
+                    <span>Thêm ngành hàng mới</span>
+                  </button>
+
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                    <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-md">
+                      ICT: {previewConfig.filter(c => c.group === 'ICT').length}
+                    </span>
+                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md">
+                      DỊCH VỤ: {previewConfig.filter(c => c.group === 'DỊCH VỤ').length}
+                    </span>
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-md">
+                      CE: {previewConfig.filter(c => c.group === 'CE').length}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

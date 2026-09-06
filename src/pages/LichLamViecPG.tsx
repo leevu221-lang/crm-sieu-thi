@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { CalendarDays, Plus, Trash2, Save, Edit3, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, ArrowLeftRight, Camera, Download, Copy, Check, Lock, Unlock, History, Search, Filter, ArrowRight, Clock, User } from 'lucide-react';
+import { CalendarDays, Plus, Trash2, Save, Edit3, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, ArrowLeftRight, Camera, Download, Copy, Check, Lock, Unlock, History, Search, Filter, ArrowRight, Clock, User, Share2, Store } from 'lucide-react';
 import { doc, onSnapshot, setDoc, runTransaction, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
+import { useStore } from '../contexts/StoreContext';
 import * as htmlToImage from 'html-to-image';
 import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
+import { buildGuestShareUrl } from '../constants/routes';
 
 
 
@@ -601,6 +603,7 @@ const ShiftCell: React.FC<{
 // ─── Table component ─────────────────────────────────────────────────────────
 const ScheduleTable: React.FC<{
   title: string;
+  storeName?: string;
   roster: PGInfo[];
   weekShifts: Record<string, WeekShiftData>;
   onRosterChange: (roster: PGInfo[]) => void;
@@ -614,7 +617,7 @@ const ScheduleTable: React.FC<{
   is43751Admin?: boolean;
   onViewPgHistory?: (pgName: string) => void;
   onMoveToOtherCategory?: (pg: PGInfo) => void;
-}> = ({ title, roster, weekShifts, onRosterChange, onShiftsChange, editing, weekDates, currentMonth, category, shiftOpts, customShifts, is43751Admin, onViewPgHistory, onMoveToOtherCategory }) => {
+}> = ({ title, storeName, roster, weekShifts, onRosterChange, onShiftsChange, editing, weekDates, currentMonth, category, shiftOpts, customShifts, is43751Admin, onViewPgHistory, onMoveToOtherCategory }) => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
@@ -660,7 +663,12 @@ const ScheduleTable: React.FC<{
       <div style={{ minWidth: 1400, width: 'max-content' }} className="pb-2">
         <div className="text-center py-4 font-utm-avo font-black text-2xl sm:text-[25px] tracking-wider uppercase w-full"
           style={{ fontFamily: 'var(--font-utm-avo), "UTM Avo", sans-serif', background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #fbbf24 100%)', color: '#1a1a1a', borderBottom: '3px solid #fde047', borderRadius: '10px 10px 0 0', letterSpacing: '2px', textShadow: '0 1px 0 rgba(255,255,255,0.4)', boxSizing: 'border-box' }}>
-          {title}
+          <div>{title}</div>
+          {storeName && (
+            <div className="text-sm font-bold tracking-normal normal-case mt-1 text-slate-800 opacity-90">
+              Siêu thị: <span className="font-extrabold uppercase">{storeName}</span>
+            </div>
+          )}
         </div>
         <div className="border border-slate-300 w-full" style={{ borderRadius: '0 0 10px 10px', boxSizing: 'border-box' }}>
           <table className="w-full border-collapse" style={{ width: '100%', minWidth: '100%' }}>
@@ -1053,7 +1061,41 @@ const PGHistoryModal: React.FC<{
 // ─── Main page ───────────────────────────────────────────────────────────────
 const LichLamViecPG: React.FC = () => {
   const { userProfile } = useAuth();
+  const { currentStoreId, setCurrentStoreId, availableStores } = useStore();
   const maKho = userProfile?.ma_kho || '';
+
+  // Handle URL store parameter if opening via link
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const stParam = params.get('st') || params.get('store') || params.get('sieuthi');
+      if (stParam && stParam.trim() && stParam.trim() !== currentStoreId) {
+        setCurrentStoreId(stParam.trim());
+      }
+    }
+  }, [currentStoreId, setCurrentStoreId]);
+
+  // Determine active supermarket name
+  const activeStoreName = useMemo(() => {
+    if (currentStoreId && currentStoreId !== 'ALL') return currentStoreId.trim();
+    if (userProfile?.ten_sieu_thi) return userProfile.ten_sieu_thi.trim();
+    if (availableStores && availableStores.length > 0 && availableStores[0]?.name) {
+      return availableStores[0].name.trim();
+    }
+    return userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '1841';
+  }, [currentStoreId, userProfile, availableStores]);
+
+  // Safe key for Firestore document ID (replaces / with _ so firestore doesn't treat as path segment)
+  const safeStoreKey = useMemo(() => {
+    if (!activeStoreName || activeStoreName.trim() === '' || activeStoreName.trim().toUpperCase() === 'ALL') {
+      return 'GLOBAL';
+    }
+    return activeStoreName.trim().normalize('NFC').replace(/[\/\\]/g, '_').toUpperCase();
+  }, [activeStoreName]);
+
+  const getDocIdForMonth = useCallback((mKey: string) => {
+    return `${safeStoreKey}_${mKey}`;
+  }, [safeStoreKey]);
 
   // Refs for image export
   const ictRef = useRef<HTMLDivElement>(null);
@@ -1203,9 +1245,36 @@ const LichLamViecPG: React.FC = () => {
   const [historyLogs, setHistoryLogs] = useState<PGHistoryRecord[]>([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyFilterPg, setHistoryFilterPg] = useState<string>('ALL');
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleShareLink = () => {
+    const currentKho = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '1841';
+    let shareUrl = buildGuestShareUrl('lichpg', currentKho);
+    if (activeStoreName && activeStoreName !== 'ALL') {
+      shareUrl += `&st=${encodeURIComponent(activeStoreName)}`;
+    }
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2500);
+      }).catch(() => {});
+    }
+  };
   const originalDataRef = useRef<{ ictRoster: PGInfo[]; dtdlgdRoster: PGInfo[]; weekData: any; customShifts: string[] } | null>(null);
   const editingRef = useRef(editing);
   editingRef.current = editing;
+
+  // Cancel edit mode if user changes the selected store to prevent cross-store overwrite
+  const prevStoreKeyRef = useRef(safeStoreKey);
+  useEffect(() => {
+    if (prevStoreKeyRef.current !== safeStoreKey) {
+      prevStoreKeyRef.current = safeStoreKey;
+      if (editing) {
+        setEditing(false);
+        originalDataRef.current = null;
+      }
+    }
+  }, [safeStoreKey, editing]);
 
   const allShiftOptions = useMemo(() => {
     return [...BASE_SHIFTS, ...customShifts, ''];
@@ -1230,12 +1299,13 @@ const LichLamViecPG: React.FC = () => {
     }
   }, [weeks, selectedYear, selectedMonth]);
 
-  // ─── Load from Firestore with Multi-Device Safety ────────────────────────
+  // ─── Load from Firestore with Multi-Device & Per-Store Safety ─────────────
   useEffect(() => {
     setLoaded(false);
-    const docRef = doc(db, 'lichLamViecPG', `GLOBAL_${monthKey}`);
+    const storeDocId = getDocIdForMonth(monthKey);
+    const docRef = doc(db, 'lichLamViecPG', storeDocId);
 
-    const unsub = onSnapshot(docRef, snap => {
+    const unsub = onSnapshot(docRef, async snap => {
       if (snap.exists()) {
         const d = snap.data() as any;
         // If this device is NOT actively editing, sync everything in real-time from Firestore
@@ -1249,36 +1319,63 @@ const LichLamViecPG: React.FC = () => {
         else setAllowUserEdit({});
         if (d.historyLogs) setHistoryLogs(d.historyLogs);
         else setHistoryLogs([]);
+        setLoaded(true);
       } else {
+        // Store doc does not exist yet. Check if legacy GLOBAL doc exists as starting point
         if (!editingRef.current) {
-          // Default initial sample data
-          setIctRoster([
-            { id: genId(), tenPgHang: 'Ngọc Trâm - Realme', sdtSup: 'Lý Tấn Được 0946676440', note: 'Ca gãy (9h-12/13h-18h), t6-17-cn (9h-12h/14h-19h) sáng 9h-16h', category: 'ICT' },
-            { id: genId(), tenPgHang: 'Thanh - Xiaomiii', sdtSup: 'Gia Khang 0824013017', note: 'Ca sáng: 9h-17h/8h-16h ca chiều 12h-20h/ 13h-21h', category: 'ICT' },
-            { id: genId(), tenPgHang: 'Anh Thư - Oppo', sdtSup: 'Phạm Thiên Tâm 0354827949', note: 'Ca sáng: 8h-16h. Ca chiều: 12h-20h', category: 'ICT' },
-          ]);
-          setDtdlgdRoster([
-            { id: genId(), tenPgHang: 'Trung Tín - TCL', sdtSup: 'Sơn: 0939292323', note: 'Ca sáng từ 9h-15h, ca chiều từ 14h-20h, ngày cuối tuần 8h-18h', category: 'DTDLGD' },
-            { id: genId(), tenPgHang: 'Oanh - LG', sdtSup: '0904955285 (A Tùng)', note: 'Ca sáng (08h-16h)(9h-17h), ca chiều (12h-20h)(13h-21h)', category: 'DTDLGD' },
-            { id: genId(), tenPgHang: 'Trang - Toshiba', sdtSup: '0939095555 (Anh Trung)', note: 'Ca sáng(9h-15h), ca chiều(14h-20h), T7 CN(9h-20h)', category: 'DTDLGD' },
-            { id: genId(), tenPgHang: 'Tuấn Aqua', sdtSup: '', note: '', category: 'DTDLGD' },
-            { id: genId(), tenPgHang: 'Khang Hi - Mutosi', sdtSup: '0898815291 (Nhi)', note: 'Ca sáng từ 9h-17h/8h-16h. Ca chiều 12h-20h', category: 'DTDLGD' },
-            { id: genId(), tenPgHang: 'Trúc - Bluestone', sdtSup: '', note: 'Ca sáng (09-16h), ca chiều (13h-20h)', category: 'DTDLGD' },
-            { id: genId(), tenPgHang: 'Trinh - Sunhouse', sdtSup: '', note: 'Ca sáng(9h-16h), Ca Gãy 16h-20h', category: 'DTDLGD' },
-            { id: genId(), tenPgHang: 'Lam - Karofi', sdtSup: 'Tiến(0356784511)', note: 'Ca sáng(8-16h), ca chiều (12-20h), full(8h-20h)', category: 'DTDLGD' },
-          ]);
-          setAllWeekData({});
-          setHistoryLogs([]);
+          let loadedFromGlobal = false;
+          if (safeStoreKey !== 'GLOBAL') {
+            try {
+              const globalSnap = await getDoc(doc(db, 'lichLamViecPG', `GLOBAL_${monthKey}`));
+              if (globalSnap.exists()) {
+                const gd = globalSnap.data() as any;
+                if (!editingRef.current) {
+                  setIctRoster(Array.isArray(gd.ictRoster) ? gd.ictRoster : []);
+                  setDtdlgdRoster(Array.isArray(gd.dtdlgdRoster) ? gd.dtdlgdRoster : []);
+                  setAllWeekData(gd.weekData || {});
+                  if (Array.isArray(gd.customShifts)) setCustomShifts(gd.customShifts);
+                }
+                if (gd.allowUserEdit !== undefined && typeof gd.allowUserEdit === 'object') setAllowUserEdit(gd.allowUserEdit);
+                else setAllowUserEdit({});
+                if (gd.historyLogs) setHistoryLogs(gd.historyLogs);
+                else setHistoryLogs([]);
+                loadedFromGlobal = true;
+              }
+            } catch (e) {
+              console.warn('Fallback check GLOBAL doc error:', e);
+            }
+          }
+
+          if (!loadedFromGlobal && !editingRef.current) {
+            // Default initial sample data
+            setIctRoster([
+              { id: genId(), tenPgHang: 'Ngọc Trâm - Realme', sdtSup: 'Lý Tấn Được 0946676440', note: 'Ca gãy (9h-12/13h-18h), t6-17-cn (9h-12h/14h-19h) sáng 9h-16h', category: 'ICT' },
+              { id: genId(), tenPgHang: 'Thanh - Xiaomiii', sdtSup: 'Gia Khang 0824013017', note: 'Ca sáng: 9h-17h/8h-16h ca chiều 12h-20h/ 13h-21h', category: 'ICT' },
+              { id: genId(), tenPgHang: 'Anh Thư - Oppo', sdtSup: 'Phạm Thiên Tâm 0354827949', note: 'Ca sáng: 8h-16h. Ca chiều: 12h-20h', category: 'ICT' },
+            ]);
+            setDtdlgdRoster([
+              { id: genId(), tenPgHang: 'Trung Tín - TCL', sdtSup: 'Sơn: 0939292323', note: 'Ca sáng từ 9h-15h, ca chiều từ 14h-20h, ngày cuối tuần 8h-18h', category: 'DTDLGD' },
+              { id: genId(), tenPgHang: 'Oanh - LG', sdtSup: '0904955285 (A Tùng)', note: 'Ca sáng (08h-16h)(9h-17h), ca chiều (12h-20h)(13h-21h)', category: 'DTDLGD' },
+              { id: genId(), tenPgHang: 'Trang - Toshiba', sdtSup: '0939095555 (Anh Trung)', note: 'Ca sáng(9h-15h), ca chiều(14h-20h), T7 CN(9h-20h)', category: 'DTDLGD' },
+              { id: genId(), tenPgHang: 'Tuấn Aqua', sdtSup: '', note: '', category: 'DTDLGD' },
+              { id: genId(), tenPgHang: 'Khang Hi - Mutosi', sdtSup: '0898815291 (Nhi)', note: 'Ca sáng từ 9h-17h/8h-16h. Ca chiều 12h-20h', category: 'DTDLGD' },
+              { id: genId(), tenPgHang: 'Trúc - Bluestone', sdtSup: '', note: 'Ca sáng (09-16h), ca chiều (13h-20h)', category: 'DTDLGD' },
+              { id: genId(), tenPgHang: 'Trinh - Sunhouse', sdtSup: '', note: 'Ca sáng(9h-16h), Ca Gãy 16h-20h', category: 'DTDLGD' },
+              { id: genId(), tenPgHang: 'Lam - Karofi', sdtSup: 'Tiến(0356784511)', note: 'Ca sáng(8-16h), ca chiều (12-20h), full(8h-20h)', category: 'DTDLGD' },
+            ]);
+            setAllWeekData({});
+            setHistoryLogs([]);
+          }
         }
+        setLoaded(true);
       }
-      setLoaded(true);
     }, err => {
       console.error('Firestore snapshot error:', err);
       setLoaded(true);
     });
 
     return unsub;
-  }, [monthKey]);
+  }, [monthKey, safeStoreKey, getDocIdForMonth]);
 
   const handleStartEdit = () => {
     originalDataRef.current = {
@@ -1306,7 +1403,7 @@ const LichLamViecPG: React.FC = () => {
     setSaving(true);
     try {
       const orig = originalDataRef.current;
-      const docRef = doc(db, 'lichLamViecPG', `GLOBAL_${monthKey}`);
+      const docRef = doc(db, 'lichLamViecPG', getDocIdForMonth(monthKey));
 
       const prevInfo = getPrevMonthInfo(selectedYear, selectedMonth);
       const prevWeeks = getWeeksOfMonth(prevInfo.year, prevInfo.month);
@@ -1349,6 +1446,9 @@ const LichLamViecPG: React.FC = () => {
       }
 
       const payload = sanitizeForFirestore({
+        storeName: activeStoreName,
+        storeKey: safeStoreKey,
+        maKho: maKho || '',
         ictRoster,
         dtdlgdRoster,
         weekData: allWeekData,
@@ -1365,8 +1465,11 @@ const LichLamViecPG: React.FC = () => {
       // Sync bridging week to previous month if applicable
       if (isWeek1BridgingWithPrevWeek5 && allWeekData.week1) {
         try {
-          const prevDocRef = doc(db, 'lichLamViecPG', `GLOBAL_${prevInfo.monthKey}`);
+          const prevDocRef = doc(db, 'lichLamViecPG', getDocIdForMonth(prevInfo.monthKey));
           await setDoc(prevDocRef, {
+            storeName: activeStoreName,
+            storeKey: safeStoreKey,
+            maKho: maKho || '',
             weekData: { week5: sanitizeForFirestore(allWeekData.week1) },
             updatedAt: new Date().toISOString(),
             updatedBy: userProfile?.username || '',
@@ -1379,8 +1482,11 @@ const LichLamViecPG: React.FC = () => {
       // Sync bridging week to next month if applicable
       if (isWeek5BridgingWithNextWeek1 && allWeekData.week5) {
         try {
-          const nextDocRef = doc(db, 'lichLamViecPG', `GLOBAL_${nextInfo.monthKey}`);
+          const nextDocRef = doc(db, 'lichLamViecPG', getDocIdForMonth(nextInfo.monthKey));
           await setDoc(nextDocRef, {
+            storeName: activeStoreName,
+            storeKey: safeStoreKey,
+            maKho: maKho || '',
             weekData: { week1: sanitizeForFirestore(allWeekData.week5) },
             updatedAt: new Date().toISOString(),
             updatedBy: userProfile?.username || '',
@@ -1398,7 +1504,7 @@ const LichLamViecPG: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  }, [ictRoster, dtdlgdRoster, allWeekData, customShifts, allowUserEdit, historyLogs, userProfile, monthKey, weeks, selectedYear, selectedMonth]);
+  }, [ictRoster, dtdlgdRoster, allWeekData, customShifts, allowUserEdit, historyLogs, userProfile, monthKey, weeks, selectedYear, selectedMonth, safeStoreKey, activeStoreName, maKho, getDocIdForMonth]);
 
   // ─── Admin Toggle Permission ───────────────────────────────────────────
   const is43751Admin = userProfile?.username === '43751' || userProfile?.ma_nhan_vien === '43751';
@@ -1421,7 +1527,10 @@ const LichLamViecPG: React.FC = () => {
     const updated = { ...allowUserEdit, [weekKeyStr]: nextVal };
     setAllowUserEdit(updated);
     try {
-      await setDoc(doc(db, 'lichLamViecPG', `GLOBAL_${monthKey}`), {
+      await setDoc(doc(db, 'lichLamViecPG', getDocIdForMonth(monthKey)), {
+        storeName: activeStoreName,
+        storeKey: safeStoreKey,
+        maKho: maKho || '',
         allowUserEdit: updated,
         updatedAt: new Date().toISOString(),
         updatedBy: userProfile?.username || '',
@@ -1502,7 +1611,31 @@ const LichLamViecPG: React.FC = () => {
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg"><CalendarDays size={22} className="text-white" /></div>
           <div>
-            <h1 className="text-lg font-bold text-slate-800">Lịch Làm Việc PG</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg font-bold text-slate-800">Lịch Làm Việc PG</h1>
+              {availableStores && availableStores.length > 1 ? (
+                <div className="relative inline-block">
+                  <select
+                    value={activeStoreName}
+                    onChange={e => setCurrentStoreId(e.target.value)}
+                    className="appearance-none bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white font-black text-xs px-3 py-1 pr-7 rounded-xl shadow-sm border border-emerald-400 cursor-pointer outline-none uppercase tracking-wide"
+                    title="Chọn siêu thị để xem và lưu lịch PG"
+                  >
+                    {availableStores.map(s => (
+                      <option key={s.name} value={s.name} className="bg-white text-slate-800 font-bold normal-case">
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} className="text-emerald-100 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white shadow-xs border border-emerald-400">
+                  <Store size={14} className="text-emerald-100" />
+                  <span className="uppercase tracking-wide">{activeStoreName}</span>
+                </span>
+              )}
+            </div>
             <p className="text-[12px] text-slate-500">Quản lý lịch Promoter — Tên PG dùng chung cho tất cả tuần</p>
           </div>
         </div>
@@ -1568,17 +1701,36 @@ const LichLamViecPG: React.FC = () => {
       <div className="flex flex-wrap items-center gap-2 mb-4">
         {!editing ? (
           <>
-            <button onClick={() => handleExport(ictRef, `Lich_PG_ICT_Tuan${activeWeek+1}_${monthKey}`)} disabled={capturing}
+            <button onClick={() => handleExport(ictRef, `Lich_PG_ICT_${safeStoreKey}_Tuan${activeWeek+1}_${monthKey}`)} disabled={capturing}
               className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-blue-700 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-all shadow-sm disabled:opacity-50 cursor-pointer">
               <Camera size={15} /> Xuất ảnh ICT
             </button>
-            <button onClick={() => handleExport(dtdlgdRef, `Lich_PG_DTDLGD_Tuan${activeWeek+1}_${monthKey}`)} disabled={capturing}
+            <button onClick={() => handleExport(dtdlgdRef, `Lich_PG_DTDLGD_${safeStoreKey}_Tuan${activeWeek+1}_${monthKey}`)} disabled={capturing}
               className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-orange-700 bg-orange-50 border border-orange-200 rounded-xl hover:bg-orange-100 transition-all shadow-sm disabled:opacity-50 cursor-pointer">
               <Camera size={15} /> Xuất ảnh ĐT-ĐL-GD
             </button>
-            <button onClick={() => handleExport(allRef, `Lich_PG_ALL_Tuan${activeWeek+1}_${monthKey}`)} disabled={capturing}
+            <button onClick={() => handleExport(allRef, `Lich_PG_ALL_${safeStoreKey}_Tuan${activeWeek+1}_${monthKey}`)} disabled={capturing}
               className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-white bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl hover:from-emerald-600 hover:to-teal-700 shadow-md transition-all disabled:opacity-50 cursor-pointer">
               <Camera size={15} /> Xuất ảnh ALL
+            </button>
+            <button
+              onClick={handleShareLink}
+              className={`flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black rounded-xl border shadow-sm transition-all cursor-pointer ${
+                copiedLink
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-200'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+              }`}
+              title="Chia sẻ link Lịch PG cho khách xem trực tiếp"
+            >
+              {copiedLink ? (
+                <>
+                  <Check size={15} className="text-emerald-600" /> Đã chép link {activeStoreName ? `ST ${activeStoreName}` : `Kho ${userProfile?.ma_kho || '1841'}`}!
+                </>
+              ) : (
+                <>
+                  <Share2 size={15} className="text-emerald-600" /> Chia sẻ link
+                </>
+              )}
             </button>
             {canEdit && (
               <button onClick={handleStartEdit}
@@ -1642,6 +1794,7 @@ const LichLamViecPG: React.FC = () => {
           <div ref={ictRef} style={{ marginBottom: '24px' }}>
             <ScheduleTable
               title="LỊCH LÀM VIỆC  ( ICT )"
+              storeName={activeStoreName}
               roster={ictRoster}
               weekShifts={curWeek.ict}
               onRosterChange={setIctRoster}
@@ -1660,6 +1813,7 @@ const LichLamViecPG: React.FC = () => {
           <div ref={dtdlgdRef}>
             <ScheduleTable
               title="LỊCH LÀM VIỆC  ( ĐIỆN TỬ - ĐIỆN LẠNH - GIA DỤNG )"
+              storeName={activeStoreName}
               roster={dtdlgdRoster}
               weekShifts={curWeek.dtdlgd}
               onRosterChange={setDtdlgdRoster}

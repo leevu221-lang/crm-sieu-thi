@@ -13,7 +13,8 @@ import {
   limit, 
   onSnapshot,
   writeBatch,
-  serverTimestamp
+  serverTimestamp,
+  documentId
 } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 
@@ -74,7 +75,11 @@ class FirebaseQueryBuilder {
       }
     });
     const unique = [...new Set(expanded)];
-    this.constraints.push(where(column, 'in', unique.slice(0, 30)));
+    if (column === 'id') {
+      this.constraints.push(where(documentId(), 'in', unique.map(String).slice(0, 30)));
+    } else {
+      this.constraints.push(where(column, 'in', unique.slice(0, 30)));
+    }
     return this;
   }
 

@@ -5,14 +5,44 @@ export interface EmployeeBirthday {
   employee_name: string;
   birthday: string; // Định dạng YYYY-MM-DD
   warehouse_code: string;
+  store_code?: string;
   created_at?: any;
   updated_at?: any;
 }
 
-const normalizeStoreId = (name: string) => {
+export const normalizeStoreId = (name: string) => {
   if (!name) return '';
   return name.trim().normalize('NFC').toUpperCase();
 };
+
+export function isStoreMatch(item: { warehouse_code?: string; store_code?: string }, filter: string): boolean {
+  if (!filter || filter === 'ALL') return true;
+  const cleanFilter = filter.trim().normalize('NFC').toUpperCase();
+  
+  // Check store code e.g. "1841"
+  if (item.store_code && (
+    cleanFilter === item.store_code ||
+    cleanFilter.startsWith(item.store_code + ' ') ||
+    cleanFilter.startsWith(item.store_code + ' -') ||
+    cleanFilter.includes(item.store_code)
+  )) {
+    return true;
+  }
+  
+  const cleanStore = (item.warehouse_code || '').trim().normalize('NFC').toUpperCase();
+  if (cleanStore === cleanFilter) return true;
+  if (cleanStore.includes(cleanFilter) || cleanFilter.includes(cleanStore)) return true;
+  
+  const extractWords = (s: string) => 
+    s.replace(/[^a-zA-Z0-9\u00C0-\u1EF9]/g, ' ')
+     .split(/\s+/)
+     .filter(w => w.length > 2 && !['ĐML', 'TGD', 'ĐMS', 'DMX', 'CMA'].includes(w));
+     
+  const wordsStore = extractWords(cleanStore);
+  const wordsFilter = extractWords(cleanFilter);
+  const common = wordsStore.filter(w => wordsFilter.includes(w));
+  return common.length >= 2;
+}
 
 // getBirthdays() has no per-store filter available (birthdays live inside each store's
 // document, keyed by store name/id rather than a queryable birthday collection), so
@@ -91,7 +121,8 @@ export const birthdayService = {
                         id: b.id,
                         employee_name: b.employee_name,
                         birthday: b.birthday,
-                        warehouse_code: store.ten_sieu_thi || store.id
+                        warehouse_code: store.ten_sieu_thi || store.id,
+                        store_code: store.warehouse_code ? String(store.warehouse_code).trim() : ''
                       });
                     });
                   }
@@ -124,14 +155,53 @@ export const birthdayService = {
     return allBirthdays;
   },
 
+  async resolveStoreInfo(rawStore: string): Promise<{ docId: string; storeName: string; warehouse_code: string }> {
+    const clean = (rawStore || '').trim().normalize('NFC').toUpperCase();
+    if (!clean) {
+      return { docId: '', storeName: '', warehouse_code: '' };
+    }
+
+    try {
+      const { data: stores } = await supabase
+        .from('store')
+        .select('id, ten_sieu_thi, warehouse_code');
+
+      if (stores && stores.length > 0) {
+        // 1. Exact ID match (normalized NFC)
+        let match = stores.find(s => s.id.trim().normalize('NFC').toUpperCase() === clean);
+        if (match) return { docId: match.id, storeName: match.ten_sieu_thi || match.id, warehouse_code: match.warehouse_code || '' };
+
+        // 2. Exact ten_sieu_thi match
+        match = stores.find(s => (s.ten_sieu_thi || '').trim().normalize('NFC').toUpperCase() === clean);
+        if (match) return { docId: match.id, storeName: match.ten_sieu_thi || match.id, warehouse_code: match.warehouse_code || '' };
+
+        // 3. Warehouse code match (e.g., "1841")
+        match = stores.find(s => String(s.warehouse_code).trim() === clean);
+        if (match) return { docId: match.id, storeName: match.ten_sieu_thi || match.id, warehouse_code: match.warehouse_code || '' };
+
+        // 4. Substring inclusion
+        match = stores.find(s => {
+          const sClean = s.id.trim().normalize('NFC').toUpperCase();
+          return sClean.includes(clean) || clean.includes(sClean);
+        });
+        if (match) return { docId: match.id, storeName: match.ten_sieu_thi || match.id, warehouse_code: match.warehouse_code || '' };
+      }
+    } catch (e) {
+      console.warn('[BirthdayService] resolveStoreInfo fetch error:', e);
+    }
+
+    return { docId: normalizeStoreId(rawStore), storeName: rawStore.trim(), warehouse_code: '' };
+  },
+
   /**
    * Thêm mới hoặc cập nhật sinh nhật nhân viên vào document tương ứng với tên siêu thị
    */
   async addBirthday(payload: Omit<EmployeeBirthday, 'id'>): Promise<any> {
     if (!isSupabaseConfigured) throw new Error('Firebase chưa được cấu hình');
 
-    const storeName = payload.warehouse_code;
-    const docId = normalizeStoreId(storeName);
+    const resolved = await this.resolveStoreInfo(payload.warehouse_code);
+    const docId = resolved.docId;
+    const storeName = resolved.storeName;
 
     const { data: storeDoc } = await supabase
       .from('store')
@@ -173,7 +243,7 @@ export const birthdayService = {
       .upsert({
         id: docId,
         ten_sieu_thi: storeName,
-        warehouse_code: storeDoc?.warehouse_code || '',
+        warehouse_code: storeDoc?.warehouse_code || resolved.warehouse_code || '',
         birthday_data: JSON.stringify(list),
         updated_at: new Date().toISOString()
       }, { onConflict: 'id' });
@@ -192,51 +262,62 @@ export const birthdayService = {
    */
   async addBirthdays(payloads: Omit<EmployeeBirthday, 'id'>[]): Promise<any> {
     if (!isSupabaseConfigured) throw new Error('Firebase chưa được cấu hình');
+    if (!payloads || payloads.length === 0) return { success: true };
 
-    const groups: { [key: string]: Omit<EmployeeBirthday, 'id'>[] } = {};
-    const uniqueStoreIds = new Set<string>();
+    // Fetch all stores once for fast matching
+    let storesList: any[] = [];
+    try {
+      const { data: stores } = await supabase
+        .from('store')
+        .select('id, ten_sieu_thi, warehouse_code');
+      storesList = stores || [];
+    } catch (e) {
+      console.warn('[BirthdayService] addBirthdays store list fetch failed:', e);
+    }
+
+    const resolveFromList = (rawStore: string) => {
+      const clean = (rawStore || '').trim().normalize('NFC').toUpperCase();
+      if (!clean) return { docId: 'DEFAULT_STORE', storeName: 'DEFAULT', warehouse_code: '' };
+
+      let match = storesList.find(s => s.id.trim().normalize('NFC').toUpperCase() === clean);
+      if (match) return { docId: match.id, storeName: match.ten_sieu_thi || match.id, warehouse_code: match.warehouse_code || '' };
+
+      match = storesList.find(s => (s.ten_sieu_thi || '').trim().normalize('NFC').toUpperCase() === clean);
+      if (match) return { docId: match.id, storeName: match.ten_sieu_thi || match.id, warehouse_code: match.warehouse_code || '' };
+
+      match = storesList.find(s => String(s.warehouse_code).trim() === clean);
+      if (match) return { docId: match.id, storeName: match.ten_sieu_thi || match.id, warehouse_code: match.warehouse_code || '' };
+
+      match = storesList.find(s => {
+        const sClean = s.id.trim().normalize('NFC').toUpperCase();
+        return sClean.includes(clean) || clean.includes(sClean);
+      });
+      if (match) return { docId: match.id, storeName: match.ten_sieu_thi || match.id, warehouse_code: match.warehouse_code || '' };
+
+      return { docId: normalizeStoreId(rawStore), storeName: rawStore.trim(), warehouse_code: '' };
+    };
+
+    // Group items by resolved docId
+    const groups: { [docId: string]: { storeName: string; warehouse_code: string; items: Omit<EmployeeBirthday, 'id'>[] } } = {};
     
     payloads.forEach(p => {
-      const store = p.warehouse_code;
-      if (!groups[store]) groups[store] = [];
-      groups[store].push(p);
-      uniqueStoreIds.add(normalizeStoreId(store));
+      const resolved = resolveFromList(p.warehouse_code);
+      if (!groups[resolved.docId]) {
+        groups[resolved.docId] = {
+          storeName: resolved.storeName,
+          warehouse_code: resolved.warehouse_code,
+          items: []
+        };
+      }
+      groups[resolved.docId].items.push(p);
     });
 
-    // --- Validate Store Names against Firebase ---
-    if (uniqueStoreIds.size > 0) {
-      const { data: existingStores, error: checkError } = await supabase
-        .from('store')
-        .select('id, ten_sieu_thi')
-        .in('id', Array.from(uniqueStoreIds));
-        
-      if (checkError) {
-        throw new Error('Lỗi khi kiểm tra siêu thị trên Firebase: ' + checkError.message);
-      }
-      
-      const foundIds = new Set(existingStores?.map((s: any) => s.id) || []);
-      const invalidStoreNames: string[] = [];
-      
-      Object.keys(groups).forEach(storeName => {
-        const id = normalizeStoreId(storeName);
-        if (!foundIds.has(id)) {
-          invalidStoreNames.push(storeName);
-        }
-      });
-      
-      if (invalidStoreNames.length > 0) {
-        throw new Error(`SAI_TEN_SIEU_THI:Lỗi: Có ${invalidStoreNames.length} siêu thị sai tên (${invalidStoreNames.slice(0, 3).join(', ')}${invalidStoreNames.length > 3 ? '...' : ''}). Hãy copy đúng tên trên Bi!`);
-      }
-    }
-    // ---------------------------------------------
-
-    for (const storeName of Object.keys(groups)) {
-      const docId = normalizeStoreId(storeName);
-      const items = groups[storeName];
+    for (const docId of Object.keys(groups)) {
+      const { storeName, warehouse_code, items } = groups[docId];
 
       const { data: storeDoc } = await supabase
         .from('store')
-        .select('birthday_data, warehouse_code')
+        .select('birthday_data, warehouse_code, ten_sieu_thi')
         .eq('id', docId)
         .maybeSingle();
 
@@ -254,17 +335,17 @@ export const birthdayService = {
 
       items.forEach(item => {
         const newId = Math.random().toString(36).substring(2, 9);
-        const existingIdx = list.findIndex(e => e.employee_name.toLowerCase() === item.employee_name.toLowerCase());
+        const existingIdx = list.findIndex(e => e.employee_name.toLowerCase().trim() === item.employee_name.toLowerCase().trim());
         if (existingIdx >= 0) {
           list[existingIdx] = {
             id: list[existingIdx].id || newId,
-            employee_name: item.employee_name,
+            employee_name: item.employee_name.trim(),
             birthday: item.birthday
           };
         } else {
           list.push({
             id: newId,
-            employee_name: item.employee_name,
+            employee_name: item.employee_name.trim(),
             birthday: item.birthday
           });
         }
@@ -274,8 +355,8 @@ export const birthdayService = {
         .from('store')
         .upsert({
           id: docId,
-          ten_sieu_thi: storeName,
-          warehouse_code: storeDoc?.warehouse_code || '',
+          ten_sieu_thi: storeDoc?.ten_sieu_thi || storeName,
+          warehouse_code: storeDoc?.warehouse_code || warehouse_code || '',
           birthday_data: JSON.stringify(list),
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
@@ -294,11 +375,12 @@ export const birthdayService = {
     const storeName = payload.warehouse_code;
     if (!storeName) throw new Error('Yêu cầu cung cấp tên siêu thị (warehouse_code) để cập nhật');
 
-    const docId = normalizeStoreId(storeName);
+    const resolved = await this.resolveStoreInfo(storeName);
+    const docId = resolved.docId;
 
     const { data: storeDoc } = await supabase
       .from('store')
-      .select('birthday_data, warehouse_code')
+      .select('birthday_data, warehouse_code, ten_sieu_thi')
       .eq('id', docId)
       .maybeSingle();
 
@@ -327,8 +409,8 @@ export const birthdayService = {
       .from('store')
       .upsert({
         id: docId,
-        ten_sieu_thi: storeName,
-        warehouse_code: storeDoc?.warehouse_code || '',
+        ten_sieu_thi: storeDoc?.ten_sieu_thi || resolved.storeName,
+        warehouse_code: storeDoc?.warehouse_code || resolved.warehouse_code || '',
         birthday_data: JSON.stringify(list),
         updated_at: new Date().toISOString()
       }, { onConflict: 'id' });
@@ -393,10 +475,11 @@ export const birthdayService = {
     if (!isSupabaseConfigured) throw new Error('Firebase chưa được cấu hình');
     if (!warehouseCode || warehouseCode === 'ALL') throw new Error('Mã siêu thị không hợp lệ');
 
-    const docId = normalizeStoreId(warehouseCode);
+    const resolved = await this.resolveStoreInfo(warehouseCode);
+    const docId = resolved.docId;
     const { data: storeDoc } = await supabase
       .from('store')
-      .select('warehouse_code')
+      .select('warehouse_code, ten_sieu_thi')
       .eq('id', docId)
       .maybeSingle();
 
@@ -404,8 +487,8 @@ export const birthdayService = {
       .from('store')
       .upsert({
         id: docId,
-        ten_sieu_thi: warehouseCode,
-        warehouse_code: storeDoc?.warehouse_code || '',
+        ten_sieu_thi: storeDoc?.ten_sieu_thi || resolved.storeName,
+        warehouse_code: storeDoc?.warehouse_code || resolved.warehouse_code || '',
         birthday_data: '[]',
         updated_at: new Date().toISOString()
       }, { onConflict: 'id' });

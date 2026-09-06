@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GradientV2Header } from './components/GradientV2Header';
 import { GradientV2Sidebar } from './components/GradientV2Sidebar';
 import { X, LogOut } from 'lucide-react';
+import { isGuestShareLink } from '../../constants/routes';
 
 /* Simple hook to track if we're at md+ breakpoint */
 function useIsDesktop() {
@@ -36,6 +37,7 @@ interface GradientV2LayoutProps {
   setShowDeclarationForce: (show: boolean) => void;
   logout: () => void;
   supabaseError?: string | null;
+  isDirectRealtimeMode?: boolean;
 }
 
 export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
@@ -54,8 +56,15 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
   setShowSettings,
   setShowDeclarationForce,
   logout,
-  supabaseError
+  supabaseError,
+  isDirectRealtimeMode = false,
 }) => {
+  /* ── Detect Share / Guest Mode (Ẩn toàn bộ header, sidebar, navigation) ── */
+  const isShareOrGuest = isDirectRealtimeMode || 
+    userProfile?.role === 'guest' || 
+    userProfile?.isGuest === true || 
+    (typeof window !== 'undefined' && isGuestShareLink());
+
   /* ── Sidebar state ── */
   const [sidebarExpanded, setSidebarExpanded] = useState(() => {
     try {
@@ -123,129 +132,135 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
   return (
     <div className="min-h-screen min-h-[100dvh] w-full flex items-stretch bg-[#F8FAFC] font-sans relative overflow-x-hidden text-[#0F172A] selection:bg-[#7C3AED] selection:text-white">
 
-      {/* ── Desktop Sidebar ── */}
-      <GradientV2Sidebar
-        navItems={navItems}
-        currentPage={currentPage}
-        setCurrentPage={setCurrentPage}
-        expanded={sidebarExpanded}
-        onToggle={toggleSidebar}
-        userProfile={userProfile}
-        canEditUser={canEditUser}
-        pageMaintenanceState={pageMaintenanceState}
-        effectivePageKey={effectivePageKey}
-        setShowMaintenanceConfirm={setShowMaintenanceConfirm}
-        setShowSettings={setShowSettings}
-        setShowDeclarationForce={setShowDeclarationForce}
-        logout={logout}
-      />
+      {/* ── Desktop Sidebar (Ẩn trong chế độ Link Chia Sẻ / Khách) ── */}
+      {!isShareOrGuest && (
+        <GradientV2Sidebar
+          navItems={navItems}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          expanded={sidebarExpanded}
+          onToggle={toggleSidebar}
+          userProfile={userProfile}
+          canEditUser={canEditUser}
+          pageMaintenanceState={pageMaintenanceState}
+          effectivePageKey={effectivePageKey}
+          setShowMaintenanceConfirm={setShowMaintenanceConfirm}
+          setShowSettings={setShowSettings}
+          setShowDeclarationForce={setShowDeclarationForce}
+          logout={logout}
+        />
+      )}
 
-      {/* ── Mobile Sidebar Drawer ── */}
-      <AnimatePresence>
-        {mobileDrawerOpen && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setMobileDrawerOpen(false)}
-              className="md:hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[70]"
-            />
-            {/* Drawer with drag-to-close */}
-            <motion.aside
-              initial={{ x: -300 }}
-              animate={{ x: 0 }}
-              exit={{ x: -300 }}
-              transition={{ type: 'spring', stiffness: 350, damping: 35 }}
-              drag="x"
-              dragConstraints={{ left: -300, right: 0 }}
-              dragElastic={0.1}
-              onDragEnd={(_e, info) => {
-                // If dragged left more than 80px or velocity > 300 → close
-                if (info.offset.x < -80 || info.velocity.x < -300) {
-                  setMobileDrawerOpen(false);
-                }
-              }}
-              className="md:hidden fixed left-0 top-0 bottom-0 w-[300px] z-[80] flex flex-col print:hidden touch-pan-y"
-              style={{ borderRadius: '0 18px 18px 0', overflow: 'hidden' }}
-            >
-              {/* Background */}
-              <div className="absolute inset-0" style={{ backgroundColor: '#FAFBFF', borderRadius: '0 18px 18px 0', boxShadow: '4px 0 24px rgba(0,0,0,0.06)' }} />
-              <div className="relative z-10 flex flex-col h-full">
-                {/* Header */}
-                <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #E8ECF4' }}>
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-[42px] h-[42px] rounded-[12px] flex items-center justify-center shrink-0"
-                      style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)', boxShadow: '0 2px 8px rgba(79,70,229,0.25)' }}
-                    >
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="white" fillOpacity="0.95" stroke="white" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="text-[17px] font-extrabold uppercase tracking-[-0.01em]" style={{ color: '#172033' }}>CRM Siêu Thị</div>
-                      <div className="flex items-center gap-[6px] mt-[3px]">
-                        <span className="w-[6px] h-[6px] rounded-full" style={{ backgroundColor: '#10B981' }} />
-                        <span className="text-[12px] font-medium" style={{ color: '#A3B1C6' }}>Online</span>
+      {/* ── Mobile Sidebar Drawer (Ẩn trong chế độ Link Chia Sẻ / Khách) ── */}
+      {!isShareOrGuest && (
+        <AnimatePresence>
+          {mobileDrawerOpen && (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setMobileDrawerOpen(false)}
+                className="md:hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[70]"
+              />
+              {/* Drawer with drag-to-close */}
+              <motion.aside
+                initial={{ x: -300 }}
+                animate={{ x: 0 }}
+                exit={{ x: -300 }}
+                transition={{ type: 'spring', stiffness: 350, damping: 35 }}
+                drag="x"
+                dragConstraints={{ left: -300, right: 0 }}
+                dragElastic={0.1}
+                onDragEnd={(_e, info) => {
+                  // If dragged left more than 80px or velocity > 300 → close
+                  if (info.offset.x < -80 || info.velocity.x < -300) {
+                    setMobileDrawerOpen(false);
+                  }
+                }}
+                className="md:hidden fixed left-0 top-0 bottom-0 w-[300px] z-[80] flex flex-col print:hidden touch-pan-y"
+                style={{ borderRadius: '0 18px 18px 0', overflow: 'hidden' }}
+              >
+                {/* Background */}
+                <div className="absolute inset-0" style={{ backgroundColor: '#FAFBFF', borderRadius: '0 18px 18px 0', boxShadow: '4px 0 24px rgba(0,0,0,0.06)' }} />
+                <div className="relative z-10 flex flex-col h-full">
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #E8ECF4' }}>
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-[42px] h-[42px] rounded-[12px] flex items-center justify-center shrink-0"
+                        style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)', boxShadow: '0 2px 8px rgba(79,70,229,0.25)' }}
+                      >
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="white" fillOpacity="0.95" stroke="white" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="text-[17px] font-extrabold uppercase tracking-[-0.01em]" style={{ color: '#172033' }}>CRM Siêu Thị</div>
+                        <div className="flex items-center gap-[6px] mt-[3px]">
+                          <span className="w-[6px] h-[6px] rounded-full" style={{ backgroundColor: '#10B981' }} />
+                          <span className="text-[12px] font-medium" style={{ color: '#A3B1C6' }}>Online</span>
+                        </div>
                       </div>
                     </div>
+                    <button
+                      onClick={() => setMobileDrawerOpen(false)}
+                      className="w-8 h-8 rounded-[10px] flex items-center justify-center transition-all cursor-pointer"
+                      style={{ color: '#A3B1C6' }}
+                    >
+                      <X size={18} />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setMobileDrawerOpen(false)}
-                    className="w-8 h-8 rounded-[10px] flex items-center justify-center transition-all cursor-pointer"
-                    style={{ color: '#A3B1C6' }}
-                  >
-                    <X size={18} />
-                  </button>
+                  {/* Drag handle indicator */}
+                  <div className="flex justify-center py-1.5 md:hidden">
+                    <div className="w-8 h-1 rounded-full" style={{ backgroundColor: '#E8ECF4' }} />
+                  </div>
+                  {/* Reuse sidebar nav inline for mobile */}
+                  <MobileSidebarContent
+                    navItems={navItems}
+                    currentPage={currentPage}
+                    setCurrentPage={(page) => { setCurrentPage(page); setMobileDrawerOpen(false); }}
+                    userProfile={userProfile}
+                    canEditUser={canEditUser}
+                    pageMaintenanceState={pageMaintenanceState}
+                    effectivePageKey={effectivePageKey}
+                    setShowMaintenanceConfirm={setShowMaintenanceConfirm}
+                    setShowSettings={setShowSettings}
+                    setShowDeclarationForce={setShowDeclarationForce}
+                    logout={logout}
+                  />
                 </div>
-                {/* Drag handle indicator */}
-                <div className="flex justify-center py-1.5 md:hidden">
-                  <div className="w-8 h-1 rounded-full" style={{ backgroundColor: '#E8ECF4' }} />
-                </div>
-                {/* Reuse sidebar nav inline for mobile */}
-                <MobileSidebarContent
-                  navItems={navItems}
-                  currentPage={currentPage}
-                  setCurrentPage={(page) => { setCurrentPage(page); setMobileDrawerOpen(false); }}
-                  userProfile={userProfile}
-                  canEditUser={canEditUser}
-                  pageMaintenanceState={pageMaintenanceState}
-                  effectivePageKey={effectivePageKey}
-                  setShowMaintenanceConfirm={setShowMaintenanceConfirm}
-                  setShowSettings={setShowSettings}
-                  setShowDeclarationForce={setShowDeclarationForce}
-                  logout={logout}
-                />
-              </div>
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
+              </motion.aside>
+            </>
+          )}
+        </AnimatePresence>
+      )}
 
       {/* ── Main Content Area ── */}
       <div className="flex flex-col flex-1 min-w-0">
-        {/* Sticky Top Bar */}
-        <div className="sticky top-0 z-50 print:hidden" style={{ willChange: 'transform', transform: 'translateZ(0)' }}>
-          <GradientV2Header
-            userProfile={userProfile}
-            marketFilter={marketFilter}
-            setMarketFilter={setMarketFilter}
-            availableMarkets={availableMarkets}
-            currentPage={currentPage}
-            setCurrentPage={setCurrentPage}
-            canEditUser={canEditUser}
-            pageMaintenanceState={pageMaintenanceState}
-            effectivePageKey={effectivePageKey}
-            setShowMaintenanceConfirm={setShowMaintenanceConfirm}
-            setShowSettings={setShowSettings}
-            setShowDeclarationForce={setShowDeclarationForce}
-            logout={logout}
-            onToggleSidebar={toggleMobileDrawer}
-            sidebarExpanded={sidebarExpanded}
-          />
-        </div>
+        {/* Sticky Top Bar (Ẩn hoàn toàn khi mở từ link chia sẻ / chế độ khách) */}
+        {!isShareOrGuest && (
+          <div className="sticky top-0 z-50 print:hidden" style={{ willChange: 'transform', transform: 'translateZ(0)' }}>
+            <GradientV2Header
+              userProfile={userProfile}
+              marketFilter={marketFilter}
+              setMarketFilter={setMarketFilter}
+              availableMarkets={availableMarkets}
+              currentPage={currentPage}
+              setCurrentPage={setCurrentPage}
+              canEditUser={canEditUser}
+              pageMaintenanceState={pageMaintenanceState}
+              effectivePageKey={effectivePageKey}
+              setShowMaintenanceConfirm={setShowMaintenanceConfirm}
+              setShowSettings={setShowSettings}
+              setShowDeclarationForce={setShowDeclarationForce}
+              logout={logout}
+              onToggleSidebar={toggleMobileDrawer}
+              sidebarExpanded={sidebarExpanded}
+            />
+          </div>
+        )}
 
         {/* Page Content */}
         <main className="flex-1 relative z-10 w-full py-1.5 sm:py-2 pb-20 md:pb-6 px-1 sm:px-1.5 md:px-2">
@@ -254,25 +269,28 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
           </div>
         </main>
 
-        {/* Footer */}
-        <footer className="relative z-10 w-full border-t border-slate-200/80 bg-white/90 backdrop-blur-md px-2 sm:px-3 md:px-[15px] py-4 sm:py-5 pb-24 md:pb-5 print:hidden">
-          <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
-              <span className="bg-gradient-to-r from-[#6366F1] to-[#7C3AED] bg-clip-text text-transparent font-black">CRM SIÊU THỊ</span>
-              <span className="text-slate-300">•</span>
-              <span className="bg-gradient-to-r from-[#6366F1] to-[#7C3AED] text-white text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider shadow-sm">
-                V2 Enterprise
-              </span>
+        {/* Footer (Ẩn khi mở từ link chia sẻ) */}
+        {!isShareOrGuest && (
+          <footer className="relative z-10 w-full border-t border-slate-200/80 bg-white/90 backdrop-blur-md px-2 sm:px-3 md:px-[15px] py-4 sm:py-5 pb-24 md:pb-5 print:hidden">
+            <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                <span className="bg-gradient-to-r from-[#6366F1] to-[#7C3AED] bg-clip-text text-transparent font-black">CRM SIÊU THỊ</span>
+                <span className="text-slate-300">•</span>
+                <span className="bg-gradient-to-r from-[#6366F1] to-[#7C3AED] text-white text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider shadow-sm">
+                  V2 Enterprise
+                </span>
+              </div>
+              <div className="text-xs text-slate-500 font-semibold">
+                Độc quyền Quản trị viên <span className="font-black text-[#6366F1]">{userProfile?.username || '43751'}</span> — Thiết kế bởi <span className="font-black text-[#0F172A]">Linh Vũ</span>
+              </div>
             </div>
-            <div className="text-xs text-slate-500 font-semibold">
-              Độc quyền Quản trị viên <span className="font-black text-[#6366F1]">{userProfile?.username || '43751'}</span> — Thiết kế bởi <span className="font-black text-[#0F172A]">Linh Vũ</span>
-            </div>
-          </div>
-        </footer>
+          </footer>
+        )}
       </div>
 
-      {/* ── Mobile Bottom Floating Navigation ── */}
-      <nav className="md:hidden fixed bottom-4 left-3 right-3 bg-white/95 backdrop-blur-2xl border border-slate-200/90 z-[100] px-2 py-2 rounded-3xl shadow-2xl ring-1 ring-slate-900/5 print:hidden">
+      {/* ── Mobile Bottom Floating Navigation (Ẩn khi mở từ link chia sẻ) ── */}
+      {!isShareOrGuest && navItems.length > 0 && (
+        <nav className="md:hidden fixed bottom-4 left-3 right-3 bg-white/95 backdrop-blur-2xl border border-slate-200/90 z-[100] px-2 py-2 rounded-3xl shadow-2xl ring-1 ring-slate-900/5 print:hidden">
         <div className="flex items-center justify-around relative overflow-x-auto no-scrollbar py-1">
           {navItems.map((item) => {
             const isActive = currentPage === item.id;
@@ -305,6 +323,7 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
           })}
         </div>
       </nav>
+      )}
     </div>
   );
 };
@@ -312,7 +331,7 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
 /* ── Mobile Sidebar Content (premium theme) ── */
 const MOBILE_SECTION_MAP = [
   { title: 'MENU QUẢN LÝ', ids: ['realtime', 'luyke', 'khaibao', 'health', 'tnbleader'] },
-  { title: 'DỮ LIỆU & TIỆN ÍCH', ids: ['toolhotro', 'tienich', 'birthday', 'excelviewer', 'feedback', 'bangiasoc', 'lichpg'] },
+  { title: 'DỮ LIỆU & TIỆN ÍCH', ids: ['toolhotro', 'bbkq', 'tienich', 'birthday', 'excelviewer', 'feedback', 'bangiasoc', 'lichpg'] },
 ];
 
 const MOBILE_ITEM_META: Record<string, { subtitle: string; badge?: string; badgeType?: 'hot' | 'moi' }> = {
@@ -320,7 +339,8 @@ const MOBILE_ITEM_META: Record<string, { subtitle: string; badge?: string; badge
   luyke:       { subtitle: 'Luỹ kế & tổng hợp tháng',     badge: 'MỚI',  badgeType: 'moi' },
   khaibao:     { subtitle: 'Dán Realtime & Luỹ kế',        badge: 'MỚI',  badgeType: 'moi' },
   health:      { subtitle: 'Theo dõi sức khoẻ nhân viên' },
-  toolhotro:   { subtitle: 'Công cụ in ấn & kiểm quỹ' },
+  toolhotro:   { subtitle: 'Công cụ in ấn & sticker' },
+  bbkq:        { subtitle: 'Biên bản kiểm quỹ tiền mặt',   badge: 'MỚI',  badgeType: 'moi' },
   tienich:     { subtitle: 'Phân ca, biên bản & kiểm kê' },
   tnbleader:   { subtitle: 'Thi đua & Bảng xếp hạng',     badge: 'HOT',  badgeType: 'hot' },
   birthday:    { subtitle: 'Danh sách sinh nhật NV' },

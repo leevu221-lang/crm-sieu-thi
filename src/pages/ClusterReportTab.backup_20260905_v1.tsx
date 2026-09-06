@@ -70,8 +70,6 @@ interface ClusterReportTabProps {
   categoryRevenueInput?: string;
   clusterMarkets?: any[];
   userProfile?: any;
-  daysPassed?: number;
-  totalDays?: number;
   onNavigateToKhaiBao?: () => void;
   onSaveClusterData?: (val: string) => void;
 }
@@ -97,12 +95,12 @@ function formatPct(val: number | string | undefined | null): string {
   if (val === undefined || val === null || val === '') return '0%';
   if (typeof val === 'string' && val.includes('%')) {
     const raw = parseFloat(val.replace(/%/g, '').replace(/,/g, '').trim());
-    if (!isNaN(raw)) return (raw % 1 !== 0 ? (Math.round(raw * 10) / 10).toString() : Math.round(raw).toString()) + '%';
+    if (!isNaN(raw)) return Math.round(raw) + '%';
     return val.trim();
   }
   const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/,/g, '').trim());
   if (isNaN(num)) return '0%';
-  return (num % 1 !== 0 ? (Math.round(num * 10) / 10).toString() : Math.round(num).toString()) + '%';
+  return Math.round(num) + '%';
 }
 
 /**
@@ -216,13 +214,6 @@ export const DEFAULT_CONSOLIDATED_DATA: Array<{
   percentTraGop: number;
 }> = [
   {
-    rawName: '1841 - ĐML_CMA_CMA - 155A Nguyễn Tất Thành',
-    tb3Thang: 1219,
-    percentTT: 24.7,
-    dtTraGop: 546,
-    percentTraGop: 52.5,
-  },
-  {
     rawName: '10528 - ĐMM_BLI_GRA - Phường 1',
     tb3Thang: 579,
     percentTT: 115.9,
@@ -260,12 +251,7 @@ export function matchStoreNames(a: string, b: string): boolean {
   const cleanB = b.toUpperCase().trim();
   if (cleanA === cleanB) return true;
 
-  // Match summary row names (e.g. "TỔNG CỤM", "Tổng (1 dòng)", "Tổng cộng")
-  if ((cleanA.startsWith('TỔNG') || cleanA.includes('TỔNG CỤM')) && (cleanB.startsWith('TỔNG') || cleanB.includes('TỔNG CỤM'))) {
-    return true;
-  }
-
-  // 1. Code match (e.g. 10528, 10496, 7676, 1841)
+  // 1. Code match (e.g. 10528, 10496, 7676)
   const codeA = cleanA.match(/\b(\d{3,6})\b/)?.[1];
   const codeB = cleanB.match(/\b(\d{3,6})\b/)?.[1];
   if (codeA && codeB) return codeA === codeB;
@@ -280,13 +266,8 @@ export function matchStoreNames(a: string, b: string): boolean {
       .replace(/\s+/g, ' ')
       .trim();
 
-  // Strip leading numeric code (e.g. "1841 - ĐML_CMA_CMA..." vs "ĐML_CMA_CMA...")
-  const stripLeadingCode = (s: string) => s.replace(/^\d+\s*[-–—]\s*/, '').trim();
-  if (strip(stripLeadingCode(cleanA)) === strip(stripLeadingCode(cleanB))) return true;
-
   const normA = strip(cleanA);
   const normB = strip(cleanB);
-  if (normA === normB) return true;
 
   // If both have sub-parts after dash, check the specific location
   const getSubLocation = (s: string) => {
@@ -320,40 +301,10 @@ export function matchStoreNames(a: string, b: string): boolean {
   return false;
 }
 
-function getColumnIndices(headers: string[]) {
-  const normHeaders = headers.map(h => h.toLowerCase().normalize('NFC').trim());
-  const findIdx = (predicate: (h: string) => boolean) => normHeaders.findIndex(predicate);
-
-  const soLuongIdx = findIdx(h => h.includes('số lượng') || h.includes('so luong') || h === 'sl');
-  const doanhThuQDIdx = findIdx(h => h.includes('qđ') || h.includes('quy đổi') || h.includes('qd'));
-  const tiTrongIdx = findIdx(h => (h.includes('tỉ trọng') || h.includes('tỷ trọng') || h.includes('%')) && !h.includes('trả') && !h.includes('tg') && !h.includes('tc') && !h.includes('ht') && !h.includes('tt') && !h.includes('tiến độ'));
-  const doanhThuIdx = findIdx(h => (h === 'doanh thu' || h.includes('dtlk') || h.includes('lũy kế') || h.includes('doanh thu lũy kế')) && !h.includes('qđ') && !h.includes('quy đổi') && !h.includes('trả') && !h.includes('dự kiến') && !h.includes('target'));
-  const targetIdx = findIdx(h => (h.includes('target') || h.includes('mục tiêu')) && !h.includes('qđ') && !h.includes('%'));
-  const percentHtTargetIdx = findIdx(h => (h.includes('% ht') || h.includes('%ht') || h.includes('tiến độ') || h.includes('v.trội')) && !h.includes('lntt'));
-  const tb3ThangIdx = findIdx(h => h.includes('tb 3') || h.includes('tb3t') || h.includes('tb 3t') || h.includes('tb 3 thang'));
-  const percentTTIdx = findIdx(h => h === '% tt' || h.includes('% tăng trưởng') || h.includes('tăng trưởng') || h.includes('tt vs tb 3') || h.includes('% tt'));
-  const dtTraGopIdx = findIdx(h => (h.includes('dt') || h.includes('doanh thu')) && (h.includes('trả góp') || h.includes('trả chậm') || h.includes('tg') || h.includes('tc')) && !h.includes('%') && !h.includes('tỉ trọng') && !h.includes('tỷ trọng'));
-  const percentTraGopIdx = findIdx(h => (h.includes('%') || h.includes('tỉ trọng') || h.includes('tỷ trọng')) && (h.includes('trả góp') || h.includes('trả chậm') || h.includes('tg') || h.includes('tc')));
-
-  return {
-    soLuongIdx,
-    doanhThuQDIdx,
-    tiTrongIdx,
-    doanhThuIdx,
-    targetIdx,
-    percentHtTargetIdx,
-    tb3ThangIdx,
-    percentTTIdx,
-    dtTraGopIdx,
-    percentTraGopIdx,
-  };
-}
-
-function parseConsolidatedFormat(
-  rawText: string,
-  daysPassed?: number,
-  totalDays?: number
-): { 
+/**
+ * Parser for the 11-column format from "Doanh thu hợp nhất"
+ */
+function parseConsolidatedFormat(rawText: string): { 
   rows: ClusterStoreRow[]; 
   summaryRow: ClusterStoreRow | null; 
   kpiHeader: ClusterKpiHeader | null; 
@@ -371,22 +322,19 @@ function parseConsolidatedFormat(
     const l = lines[i];
     if (l.startsWith('[') || l.includes('https://')) continue;
 
-    if (l.toLowerCase() === 'siêu thị' || l.toLowerCase().startsWith('siêu thị') || l.toLowerCase() === 'tên siêu thị') {
+    if (l.toLowerCase() === 'siêu thị') {
       if (i + 2 < lines.length && (
         lines[i + 1].toUpperCase().includes('SỐ LƯỢNG') ||
         lines[i + 2].toUpperCase().includes('DOANH THU') ||
-        lines[i + 1].toUpperCase().includes('DOANH THU') ||
-        lines[i + 1].toUpperCase().includes('QĐ')
+        lines[i + 1].toUpperCase().includes('DOANH THU')
       )) {
         headerIdx = i;
         isTabbed = false;
         break;
       }
-    }
-    
-    if (l.includes('\t') && (l.toLowerCase().includes('siêu thị') || l.toLowerCase().includes('sieu thi') || l.toLowerCase().includes('stt') || l.toLowerCase().includes('tên miền'))) {
-      const cols = l.split('\t').map(c => c.normalize('NFC').trim().toUpperCase());
-      if (cols.some(c => c.includes('DOANH THU') || c.includes('SỐ LƯỢNG') || c.includes('SO LUONG') || c.includes('TARGET') || c.includes('MỤC TIÊU') || c.includes('QĐ'))) {
+    } else if (l.includes('\t') && l.toLowerCase().startsWith('siêu thị')) {
+      const cols = l.split('\t').map(c => c.trim().toUpperCase());
+      if (cols.includes('DOANH THU') || cols.includes('SỐ LƯỢNG') || cols.includes('TARGET')) {
         headerIdx = i;
         isTabbed = true;
         break;
@@ -403,32 +351,29 @@ function parseConsolidatedFormat(
 
   if (isTabbed) {
     const headerLineCols = lines[headerIdx].split('\t').map(c => c.toLowerCase().trim());
-    const colMap = getColumnIndices(headerLineCols);
+    const isCol2Qd = headerLineCols.length > 2 && (headerLineCols[2].includes('qđ') || headerLineCols[2].includes('quy đổi'));
 
     for (let i = headerIdx + 1; i < lines.length; i++) {
       const line = lines[i];
       if (line.startsWith('Đơn vị:') || line.includes('Tỉ trọng tính trong nhóm')) break;
       const cols = line.split('\t').map(c => c.trim());
-      if (cols.length < 4) continue;
+      if (cols.length < 5) continue;
       const rawName = cols[0];
       const isSum = rawName.toLowerCase().startsWith('tổng');
 
-      const soLuong = colMap.soLuongIdx !== -1 && colMap.soLuongIdx < cols.length ? cleanRawNum(cols[colMap.soLuongIdx]) : cleanRawNum(cols[1]);
-      const doanhThuQD = colMap.doanhThuQDIdx !== -1 && colMap.doanhThuQDIdx < cols.length ? cleanRawNum(cols[colMap.doanhThuQDIdx]) : 0;
-      const tiTrong = colMap.tiTrongIdx !== -1 && colMap.tiTrongIdx < cols.length ? cleanRawNum(cols[colMap.tiTrongIdx]) : 0;
-      const doanhThu = colMap.doanhThuIdx !== -1 && colMap.doanhThuIdx < cols.length ? cleanRawNum(cols[colMap.doanhThuIdx]) : 0;
-      const target = colMap.targetIdx !== -1 && colMap.targetIdx < cols.length ? cleanRawNum(cols[colMap.targetIdx]) : 0;
-      const rawPercentHtTarget = colMap.percentHtTargetIdx !== -1 && colMap.percentHtTargetIdx < cols.length ? cleanRawNum(cols[colMap.percentHtTargetIdx]) : 0;
-      const tb3Thang = colMap.tb3ThangIdx !== -1 && colMap.tb3ThangIdx < cols.length ? cleanRawNum(cols[colMap.tb3ThangIdx]) : (cols.length >= 8 ? cleanRawNum(cols[cols.length - 4]) : 0);
-      const percentTT = colMap.percentTTIdx !== -1 && colMap.percentTTIdx < cols.length ? cleanRawNum(cols[colMap.percentTTIdx]) : (cols.length >= 8 ? cleanRawNum(cols[cols.length - 3]) : 0);
-      const dtTraGop = colMap.dtTraGopIdx !== -1 && colMap.dtTraGopIdx < cols.length ? cleanRawNum(cols[colMap.dtTraGopIdx]) : (cols.length >= 4 ? cleanRawNum(cols[cols.length - 2]) : 0);
-      const percentTraGop = colMap.percentTraGopIdx !== -1 && colMap.percentTraGopIdx < cols.length ? cleanRawNum(cols[colMap.percentTraGopIdx]) : (cols.length >= 4 ? cleanRawNum(cols[cols.length - 1]) : 0);
+      const rowValues = cols.slice(1);
+      // User explicit rule: DT TRẢ GÓP = CỘT THỨ 2 BÊN PHẢI SANG
+      const percentTraGop = cleanRawNum(rowValues[rowValues.length - 1]);
+      const dtTraGop = cleanRawNum(rowValues[rowValues.length - 2]);
+      const percentTT = cleanRawNum(rowValues[rowValues.length - 3]);
+      const tb3Thang = cleanRawNum(rowValues[rowValues.length - 4]);
 
-      // %HT V.TRỘI tính dự kiến của cột L.KẾ QĐ: (L.KẾ QĐ / daysPassed * totalDays) / TARGET
-      const dtDuKienQD = (daysPassed && daysPassed > 0 && totalDays && totalDays > 0)
-        ? (doanhThuQD / daysPassed) * totalDays
-        : doanhThuQD;
-      const percentHtTarget = target > 0 ? (dtDuKienQD / target) * 100 : rawPercentHtTarget;
+      const soLuong = cleanRawNum(rowValues[0]);
+      const doanhThuQD = isCol2Qd ? cleanRawNum(rowValues[1]) : cleanRawNum(rowValues[3]);
+      const doanhThu = isCol2Qd ? cleanRawNum(rowValues[3]) : cleanRawNum(rowValues[1]);
+      const tiTrong = cleanRawNum(rowValues[2]);
+      const target = cleanRawNum(rowValues[4]);
+      const percentHtTarget = cleanRawNum(rowValues[5]);
 
       const r: ClusterStoreRow = {
         rawName,
@@ -472,8 +417,7 @@ function parseConsolidatedFormat(
       for (let i = headerIdx; i < dataStartIdx; i++) {
         detectedHeaderList.push(lines[i].toLowerCase().trim());
       }
-      const dataColCount = Math.max(1, detectedHeaderList.length - 1);
-      const colMap = getColumnIndices(detectedHeaderList);
+      const isCol2Qd = detectedHeaderList.length > 2 && (detectedHeaderList[2].includes('qđ') || detectedHeaderList[2].includes('quy đổi'));
 
       let curr = dataStartIdx;
       while (curr < lines.length) {
@@ -486,49 +430,24 @@ function parseConsolidatedFormat(
           continue;
         }
 
-        let rawName = line;
-        let rowValues: string[] = [];
-        let nextAdvance = 1;
-
-        if (line.includes('\t')) {
-          const parts = line.split('\t').map(c => c.trim());
-          rawName = parts[0];
-          rowValues = parts.slice(1);
-          nextAdvance = 1;
-        } else if (curr + 1 < lines.length && lines[curr + 1].includes('\t')) {
-          rowValues = lines[curr + 1].split('\t').map(c => c.trim());
-          nextAdvance = 2;
-        } else {
-          for (let k = 1; k <= dataColCount && (curr + k) < lines.length; k++) {
-            rowValues.push(lines[curr + k]);
-          }
-          nextAdvance = dataColCount + 1;
+        const rawName = line;
+        const rowValues: string[] = [];
+        for (let k = 1; k <= 10 && (curr + k) < lines.length; k++) {
+          rowValues.push(lines[curr + k]);
         }
 
-        const getVal = (colIdx: number, fallback: number) => {
-          if (colIdx > 0 && (colIdx - 1) < rowValues.length) {
-            return cleanRawNum(rowValues[colIdx - 1]);
-          }
-          return fallback;
-        };
+        // User explicit rule: DT TRẢ GÓP = CỘT THỨ 2 BÊN PHẢI SANG
+        const percentTraGop = cleanRawNum(rowValues[rowValues.length - 1]);
+        const dtTraGop = cleanRawNum(rowValues[rowValues.length - 2]);
+        const percentTT = cleanRawNum(rowValues[rowValues.length - 3]);
+        const tb3Thang = cleanRawNum(rowValues[rowValues.length - 4]);
 
-        const soLuong = getVal(colMap.soLuongIdx, cleanRawNum(rowValues[0]));
-        const doanhThuQD = getVal(colMap.doanhThuQDIdx, cleanRawNum(rowValues[1]));
-        const tiTrong = getVal(colMap.tiTrongIdx, cleanRawNum(rowValues[2]));
-        const doanhThu = getVal(colMap.doanhThuIdx, cleanRawNum(rowValues[3]));
-        const target = getVal(colMap.targetIdx, cleanRawNum(rowValues[4]));
-        const rawPercentHtTarget = getVal(colMap.percentHtTargetIdx, cleanRawNum(rowValues[5]));
-
-        const tb3Thang = getVal(colMap.tb3ThangIdx, rowValues.length >= 8 ? cleanRawNum(rowValues[rowValues.length - 4]) : 0);
-        const percentTT = getVal(colMap.percentTTIdx, rowValues.length >= 8 ? cleanRawNum(rowValues[rowValues.length - 3]) : 0);
-        const dtTraGop = getVal(colMap.dtTraGopIdx, rowValues.length >= 4 ? cleanRawNum(rowValues[rowValues.length - 2]) : 0);
-        const percentTraGop = getVal(colMap.percentTraGopIdx, rowValues.length >= 4 ? cleanRawNum(rowValues[rowValues.length - 1]) : 0);
-
-        // %HT V.TRỘI tính dự kiến của cột L.KẾ QĐ: (L.KẾ QĐ / daysPassed * totalDays) / TARGET
-        const dtDuKienQD = (daysPassed && daysPassed > 0 && totalDays && totalDays > 0)
-          ? (doanhThuQD / daysPassed) * totalDays
-          : doanhThuQD;
-        const percentHtTarget = target > 0 ? (dtDuKienQD / target) * 100 : rawPercentHtTarget;
+        const soLuong = cleanRawNum(rowValues[0]);
+        const doanhThuQD = isCol2Qd ? cleanRawNum(rowValues[1]) : cleanRawNum(rowValues[3]);
+        const doanhThu = isCol2Qd ? cleanRawNum(rowValues[3]) : cleanRawNum(rowValues[1]);
+        const tiTrong = cleanRawNum(rowValues[2]);
+        const target = cleanRawNum(rowValues[4]);
+        const percentHtTarget = cleanRawNum(rowValues[5]);
 
         const r: ClusterStoreRow = {
           rawName,
@@ -537,7 +456,7 @@ function parseConsolidatedFormat(
           luyKeQD: doanhThuQD,
           tarVuotTroi: target,
           percentHtVuotTroi: percentHtTarget,
-          percentQD: doanhThu > 0 ? ((doanhThuQD - doanhThu) / doanhThu) * 100 : percentTT,
+          percentQD: percentTT,
           percentTC: percentTraGop,
           tangGiamCK: percentTT,
           percentDuyet: 0,
@@ -557,7 +476,7 @@ function parseConsolidatedFormat(
         if (isSum) summaryRow = r;
         else rows.push(r);
 
-        curr += nextAdvance;
+        curr += 11;
       }
     }
   }
@@ -568,10 +487,7 @@ function parseConsolidatedFormat(
     const sumLuyKe = rows.reduce((acc, r) => acc + r.luyKe, 0);
     const sumLuyKeQD = rows.reduce((acc, r) => acc + r.luyKeQD, 0);
     const sumTar = rows.reduce((acc, r) => acc + r.tarVuotTroi, 0);
-    const sumDtDuKienQD = (daysPassed && daysPassed > 0 && totalDays && totalDays > 0)
-      ? (sumLuyKeQD / daysPassed) * totalDays
-      : sumLuyKeQD;
-    const sumPercentHt = sumTar > 0 ? (sumDtDuKienQD / sumTar) * 100 : 0;
+    const sumPercentHt = sumTar > 0 ? (sumLuyKeQD / sumTar) * 100 : 0;
     const sumPercentQD = rows.length > 0 ? rows.reduce((a, b) => a + b.percentQD, 0) / rows.length : 0;
     const sumPercentTC = rows.length > 0 ? rows.reduce((a, b) => a + b.percentTC, 0) / rows.length : 0;
     const sumTangGiamCK = rows.length > 0 ? rows.reduce((a, b) => a + b.tangGiamCK, 0) / rows.length : 0;
@@ -608,11 +524,7 @@ function parseConsolidatedFormat(
  * Classic parser for older/standard BI report formats (9 columns)
  * EXACTLY preserves every row including kho bán hàng lưu động as shown in image!
  */
-function parseClassicClusterSummaryData(
-  rawText: string,
-  daysPassed?: number,
-  totalDays?: number
-): { rows: ClusterStoreRow[]; summaryRow: ClusterStoreRow | null } {
+function parseClassicClusterSummaryData(rawText: string): { rows: ClusterStoreRow[]; summaryRow: ClusterStoreRow | null } {
   const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
   const rawRows: ClusterStoreRow[] = [];
   let summaryRow: ClusterStoreRow | null = null;
@@ -642,7 +554,7 @@ function parseClassicClusterSummaryData(
       lowerLine.includes('tên miền') ||
       lowerLine.includes('tên siêu thị') ||
       lowerLine.includes('dt hôm qua') ||
-      (lowerLine.includes('siêu thị') && (lowerLine.includes('dtlk') || lowerLine.includes('doanh thu') || lowerLine.includes('số lượng') || lowerLine.includes('target')))
+      (lowerLine.includes('siêu thị') && lowerLine.includes('dtlk'))
     ) {
       nameIdx = cols.findIndex(c => {
         const l = c.toLowerCase();
@@ -686,42 +598,24 @@ function parseClassicClusterSummaryData(
       });
       percentTTIdx = cols.findIndex(c => {
         const l = c.toLowerCase();
-        return l.includes('% tt') || l.includes('% tăng trưởng') || l.includes('tăng trưởng') || l.includes('% tt vs tb');
+        return l.includes('% tt') || l.includes('%tt') || l.includes('tăng trưởng') || l.includes('% tăng trưởng');
       });
       dtTraGopIdx = cols.findIndex(c => {
         const l = c.toLowerCase();
-        return (l.includes('dt trả góp') || l.includes('doanh thu trả góp') || l.includes('dt trả chậm') || l.includes('doanh thu trả chậm')) && !l.includes('%');
+        return l.includes('dt trả góp') || l.includes('dt trả chậm') || l.includes('dt tc') || l.includes('dt tg');
       });
       percentTraGopIdx = cols.findIndex(c => {
         const l = c.toLowerCase();
-        return l.includes('% trả góp') || l.includes('% trả chậm') || l.includes('tỷ trọng trả góp') || l.includes('tỉ trọng trả góp');
+        return l.includes('% trả góp') || l.includes('% trả chậm') || l.includes('% tc') || l.includes('%tc') || l.includes('%tg');
       });
       continue;
     }
 
-    let detectedNameIdx = -1;
-    let rawStoreName = '';
-    let isSummary = false;
+    const { isStore, isSummary, nameColIdx: detectedNameIdx } = detectStoreCol(cols);
+    if (!isStore || detectedNameIdx === -1) continue;
 
-    if (nameIdx !== -1 && nameIdx < cols.length) {
-      const storeDet = detectStoreCol([cols[nameIdx]]);
-      if (storeDet.isStore) {
-        detectedNameIdx = nameIdx;
-        rawStoreName = cols[nameIdx];
-        isSummary = storeDet.isSummary;
-      }
-    }
-
-    if (detectedNameIdx === -1) {
-      const storeDet = detectStoreCol(cols);
-      if (storeDet.isStore) {
-        detectedNameIdx = storeDet.nameColIdx;
-        rawStoreName = cols[storeDet.nameColIdx];
-        isSummary = storeDet.isSummary;
-      }
-    }
-
-    if (detectedNameIdx === -1) continue;
+    const rawStoreName = cols[detectedNameIdx].trim();
+    if (!rawStoreName) continue;
 
     let luyKe = 0;
     let luyKeQD = 0;
@@ -737,25 +631,18 @@ function parseClassicClusterSummaryData(
     let percentTraGop = 0;
 
     if (luyKeIdx !== -1 && luyKeIdx < cols.length) luyKe = cleanRawNum(cols[luyKeIdx]);
+    else if (detectedNameIdx + 2 < cols.length) luyKe = cleanRawNum(cols[detectedNameIdx + 2]);
     else if (detectedNameIdx + 1 < cols.length) luyKe = cleanRawNum(cols[detectedNameIdx + 1]);
 
     if (luyKeQDIdx !== -1 && luyKeQDIdx < cols.length) luyKeQD = cleanRawNum(cols[luyKeQDIdx]);
+    else if (detectedNameIdx + 4 < cols.length) luyKeQD = cleanRawNum(cols[detectedNameIdx + 4]);
     else if (detectedNameIdx + 2 < cols.length) luyKeQD = cleanRawNum(cols[detectedNameIdx + 2]);
 
     if (tarVuotTroiIdx !== -1 && tarVuotTroiIdx < cols.length) tarVuotTroi = cleanRawNum(cols[tarVuotTroiIdx]);
     else if (detectedNameIdx + 7 < cols.length) tarVuotTroi = cleanRawNum(cols[detectedNameIdx + 7]);
 
-    // %HT V.TRỘI tính dự kiến của cột L.KẾ QĐ: (L.KẾ QĐ / daysPassed * totalDays) / TAR V.TRỘI
-    const dtDuKienQD = (daysPassed && daysPassed > 0 && totalDays && totalDays > 0)
-      ? (luyKeQD / daysPassed) * totalDays
-      : luyKeQD;
-    if (tarVuotTroi > 0) {
-      percentHtVuotTroi = (dtDuKienQD / tarVuotTroi) * 100;
-    } else if (percentHtTargetIdx !== -1 && percentHtTargetIdx < cols.length) {
-      percentHtVuotTroi = cleanRawNum(cols[percentHtTargetIdx]);
-    } else if (detectedNameIdx + 8 < cols.length) {
-      percentHtVuotTroi = cleanRawNum(cols[detectedNameIdx + 8]);
-    }
+    if (percentHtTargetIdx !== -1 && percentHtTargetIdx < cols.length) percentHtVuotTroi = cleanRawNum(cols[percentHtTargetIdx]);
+    else if (detectedNameIdx + 8 < cols.length) percentHtVuotTroi = cleanRawNum(cols[detectedNameIdx + 8]);
 
     if (percentQDIdx !== -1 && percentQDIdx < cols.length) percentQD = cleanRawNum(cols[percentQDIdx]);
     else if (detectedNameIdx + 10 < cols.length) percentQD = cleanRawNum(cols[detectedNameIdx + 10]);
@@ -806,10 +693,7 @@ function parseClassicClusterSummaryData(
     const sumLuyKe = rows.reduce((acc, r) => acc + r.luyKe, 0);
     const sumLuyKeQD = rows.reduce((acc, r) => acc + r.luyKeQD, 0);
     const sumTar = rows.reduce((acc, r) => acc + r.tarVuotTroi, 0);
-    const sumDtDuKienQD = (daysPassed && daysPassed > 0 && totalDays && totalDays > 0)
-      ? (sumLuyKeQD / daysPassed) * totalDays
-      : sumLuyKeQD;
-    const sumPercentHt = sumTar > 0 ? (sumDtDuKienQD / sumTar) * 100 : 0;
+    const sumPercentHt = sumTar > 0 ? (sumLuyKeQD / sumTar) * 100 : 0;
     const sumPercentQD = rows.length > 0 ? rows.reduce((a, b) => a + b.percentQD, 0) / rows.length : 0;
     const sumPercentTC = rows.length > 0 ? rows.reduce((a, b) => a + b.percentTC, 0) / rows.length : 0;
     const sumTangGiamCK = rows.length > 0 ? rows.reduce((a, b) => a + b.tangGiamCK, 0) / rows.length : 0;
@@ -841,11 +725,7 @@ function parseClassicClusterSummaryData(
   return { rows, summaryRow };
 }
 
-function parseClusterSummaryData(
-  rawText: string,
-  daysPassed?: number,
-  totalDays?: number
-): { 
+function parseClusterSummaryData(rawText: string): { 
   rows: ClusterStoreRow[]; 
   summaryRow: ClusterStoreRow | null; 
   kpiHeader: ClusterKpiHeader | null; 
@@ -855,12 +735,12 @@ function parseClusterSummaryData(
     return { rows: [], summaryRow: null, kpiHeader: null, has11Cols: false };
   }
 
-  const newResult = parseConsolidatedFormat(rawText, daysPassed, totalDays);
+  const newResult = parseConsolidatedFormat(rawText);
   if (newResult && (newResult.rows.length > 0 || newResult.summaryRow)) {
     return newResult;
   }
 
-  const classicResult = parseClassicClusterSummaryData(rawText, daysPassed, totalDays);
+  const classicResult = parseClassicClusterSummaryData(rawText);
   return { ...classicResult, kpiHeader: null, has11Cols: false };
 }
 
@@ -869,8 +749,6 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
   categoryRevenueInput,
   clusterMarkets,
   userProfile,
-  daysPassed,
-  totalDays,
   onNavigateToKhaiBao,
   onSaveClusterData,
 }) => {
@@ -888,15 +766,6 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
   const [showFull11Cols, setShowFull11Cols] = useState(false);
 
   const tableRef = useRef<HTMLDivElement>(null);
-
-  // Auto-detect daysPassed and totalDays from props, localStorage or current date
-  const effectiveDaysPassed = (daysPassed && daysPassed > 0)
-    ? daysPassed
-    : (Number(localStorage.getItem('BI_REAL_DAYS_PASSED_V1')) || Math.max(1, new Date().getDate() - 1));
-
-  const effectiveTotalDays = (totalDays && totalDays > 0)
-    ? totalDays
-    : (Number(localStorage.getItem('BI_REAL_TOTAL_DAYS_V1')) || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate());
 
   // Priority 1: Multi-source raw string from CẬP NHẬT > LUỸ KẾ DT
   const rawInput = useMemo(() => {
@@ -939,7 +808,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
 
     let consolidatedParsed: { rows: ClusterStoreRow[]; summaryRow: ClusterStoreRow | null; kpiHeader: ClusterKpiHeader | null; has11Cols: boolean } | null = null;
     for (const src of consolidatedSources) {
-      const c = parseConsolidatedFormat(src, effectiveDaysPassed, effectiveTotalDays);
+      const c = parseConsolidatedFormat(src);
       if (c && c.rows.length > 0) {
         consolidatedParsed = c;
         break;
@@ -952,7 +821,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
     const activeConsolidatedSummary = consolidatedParsed?.summaryRow || DEFAULT_CONSOLIDATED_SUMMARY;
 
     // 2. First attempt: Parse raw text from LUỸ KẾ DT
-    let parsed = rawInput ? parseClusterSummaryData(rawInput, effectiveDaysPassed, effectiveTotalDays) : { rows: [], summaryRow: null, kpiHeader: null, has11Cols: false };
+    let parsed = rawInput ? parseClusterSummaryData(rawInput) : { rows: [], summaryRow: null, kpiHeader: null, has11Cols: false };
     const parsedValid = parsed.rows.length > 0 && !isAllZeroDummy(parsed.rows);
 
     // 3. Second attempt: Build from clusterMarkets (parsed by LuykeDataContext from LUỸ KẾ DT / lk_bi_tong_quan)
@@ -971,13 +840,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
         const luyKe = m.actualReal || 0;
         const luyKeQD = m.actualVirtual || m.actualReal || 0;
         const tarVuotTroi = m.targetQD || m.targetST || 0;
-        // %HT V.TRỘI tính dự kiến của cột L.KẾ QĐ: (L.KẾ QĐ / daysPassed * totalDays) / TAR V.TRỘI
-        const dtDuKienQD = (effectiveDaysPassed > 0 && effectiveTotalDays > 0)
-          ? (luyKeQD / effectiveDaysPassed) * effectiveTotalDays
-          : luyKeQD;
-        const percentHtVuotTroi = tarVuotTroi > 0
-          ? (dtDuKienQD / tarVuotTroi) * 100
-          : (m.percentHT || 0);
+        const percentHtVuotTroi = m.percentHT || (tarVuotTroi > 0 ? (luyKeQD / tarVuotTroi) * 100 : 0);
         const percentQD = m.percentQD || m.dtckThang || 0;
         const percentTC = m.installmentRate || 0;
         const tangGiamCK = m.dtckThang || 0;
@@ -1018,10 +881,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
           const sumLuyKe = summaryMarket.actualReal || mappedRows.reduce((a, b) => a + b.luyKe, 0);
           const sumLuyKeQD = summaryMarket.actualVirtual || mappedRows.reduce((a, b) => a + b.luyKeQD, 0);
           const sumTar = summaryMarket.targetQD || summaryMarket.targetST || mappedRows.reduce((a, b) => a + b.tarVuotTroi, 0);
-          const sumDtDuKienQD = (effectiveDaysPassed > 0 && effectiveTotalDays > 0)
-            ? (sumLuyKeQD / effectiveDaysPassed) * effectiveTotalDays
-            : sumLuyKeQD;
-          const sumHt = sumTar > 0 ? (sumDtDuKienQD / sumTar) * 100 : 0;
+          const sumHt = summaryMarket.percentHT || (sumTar > 0 ? (sumLuyKeQD / sumTar) * 100 : 0);
           const sumTC = summaryMarket.installmentRate || (mappedRows.length > 0 ? mappedRows.reduce((a, b) => a + b.percentTC, 0) / mappedRows.length : 0);
           const sumCK = summaryMarket.dtckThang || (mappedRows.length > 0 ? mappedRows.reduce((a, b) => a + b.tangGiamCK, 0) / mappedRows.length : 0);
           const sumTb3T = summaryMarket.tb3Thang || mappedRows.reduce((a, b) => a + (b.tb3Thang || 0), 0);
@@ -1054,10 +914,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
           const sumLuyKe = mappedRows.reduce((a, b) => a + b.luyKe, 0);
           const sumLuyKeQD = mappedRows.reduce((a, b) => a + b.luyKeQD, 0);
           const sumTar = mappedRows.reduce((a, b) => a + b.tarVuotTroi, 0);
-          const sumDtDuKienQD = (effectiveDaysPassed > 0 && effectiveTotalDays > 0)
-            ? (sumLuyKeQD / effectiveDaysPassed) * effectiveTotalDays
-            : sumLuyKeQD;
-          const sumHt = sumTar > 0 ? (sumDtDuKienQD / sumTar) * 100 : 0;
+          const sumHt = sumTar > 0 ? (sumLuyKeQD / sumTar) * 100 : 0;
           const sumTC = mappedRows.length > 0 ? mappedRows.reduce((a, b) => a + b.percentTC, 0) / mappedRows.length : 0;
           const sumCK = mappedRows.length > 0 ? mappedRows.reduce((a, b) => a + b.tangGiamCK, 0) / mappedRows.length : 0;
           const sumTb3T = mappedRows.reduce((a, b) => a + (b.tb3Thang || 0), 0);
@@ -1100,14 +957,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
     // 4. Decide base result
     let finalResult: { rows: ClusterStoreRow[]; summaryRow: ClusterStoreRow | null; kpiHeader: ClusterKpiHeader | null; has11Cols: boolean };
 
-    if (parsedValid && parsed.has11Cols) {
-      finalResult = {
-        rows: [...parsed.rows],
-        summaryRow: parsed.summaryRow ? { ...parsed.summaryRow } : null,
-        kpiHeader: parsed.kpiHeader || consolidatedParsed?.kpiHeader || null,
-        has11Cols: true,
-      };
-    } else if (marketResult && marketResult.rows.length > 0) {
+    if (marketResult && marketResult.rows.length > 0) {
       finalResult = {
         rows: [...marketResult.rows],
         summaryRow: marketResult.summaryRow ? { ...marketResult.summaryRow } : null,
@@ -1173,9 +1023,9 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
           return {
             ...row,
             tb3Thang: (matched.tb3Thang !== undefined && matched.tb3Thang !== 0) ? matched.tb3Thang : (row.tb3Thang || 0),
-            percentTT: (matched.percentTT !== undefined && !isNaN(matched.percentTT)) ? matched.percentTT : (row.percentTT || 0),
+            percentTT: matched.percentTT !== undefined ? matched.percentTT : (row.percentTT || 0),
             dtTraGop: (matched.dtTraGop !== undefined && matched.dtTraGop !== 0) ? matched.dtTraGop : (row.dtTraGop || 0),
-            percentTraGop: (matched.percentTraGop !== undefined && !isNaN(matched.percentTraGop)) ? matched.percentTraGop : (row.percentTraGop ?? row.percentTC ?? 0),
+            percentTraGop: matched.percentTraGop !== undefined ? matched.percentTraGop : (row.percentTraGop ?? row.percentTC ?? 0),
           };
         }
         return row;
@@ -1183,38 +1033,18 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
 
       // Enrich summaryRow
       if (finalResult.summaryRow) {
-        const sumTb3T = (activeConsolidatedSummary?.tb3Thang !== undefined && activeConsolidatedSummary.tb3Thang !== 0)
-          ? activeConsolidatedSummary.tb3Thang
-          : (finalResult.summaryRow.tb3Thang || finalResult.rows.reduce((a, b) => a + (b.tb3Thang || 0), 0));
-
-        const sumPctTT = (activeConsolidatedSummary?.percentTT !== undefined && !isNaN(activeConsolidatedSummary.percentTT))
-          ? activeConsolidatedSummary.percentTT
-          : (finalResult.summaryRow.percentTT !== undefined && !isNaN(finalResult.summaryRow.percentTT)
-              ? finalResult.summaryRow.percentTT
-              : (finalResult.rows.length > 0 ? finalResult.rows.reduce((a, b) => a + (b.percentTT || 0), 0) / finalResult.rows.length : 0));
-
-        const sumDtTG = (activeConsolidatedSummary?.dtTraGop !== undefined && activeConsolidatedSummary.dtTraGop !== 0)
-          ? activeConsolidatedSummary.dtTraGop
-          : (finalResult.summaryRow.dtTraGop || finalResult.rows.reduce((a, b) => a + (b.dtTraGop || 0), 0));
-
-        const sumPctTG = (activeConsolidatedSummary?.percentTraGop !== undefined && !isNaN(activeConsolidatedSummary.percentTraGop))
-          ? activeConsolidatedSummary.percentTraGop
-          : ((activeConsolidatedSummary as any)?.percentTC !== undefined && !isNaN((activeConsolidatedSummary as any)?.percentTC)
-              ? (activeConsolidatedSummary as any).percentTC
-              : (finalResult.summaryRow.percentTraGop ?? finalResult.summaryRow.percentTC ?? 0));
-
         finalResult.summaryRow = {
           ...finalResult.summaryRow,
-          tb3Thang: sumTb3T,
-          percentTT: sumPctTT,
-          dtTraGop: sumDtTG,
-          percentTraGop: sumPctTG,
+          tb3Thang: activeConsolidatedSummary?.tb3Thang || finalResult.summaryRow.tb3Thang || finalResult.rows.reduce((a, b) => a + (b.tb3Thang || 0), 0),
+          percentTT: activeConsolidatedSummary?.percentTT !== undefined ? activeConsolidatedSummary.percentTT : finalResult.summaryRow.percentTT,
+          dtTraGop: activeConsolidatedSummary?.dtTraGop || finalResult.summaryRow.dtTraGop || finalResult.rows.reduce((a, b) => a + (b.dtTraGop || 0), 0),
+          percentTraGop: activeConsolidatedSummary?.percentTraGop || activeConsolidatedSummary?.percentTC || finalResult.summaryRow.percentTraGop || finalResult.summaryRow.percentTC || 0,
         };
       }
     }
 
     return finalResult;
-  }, [rawInput, clusterMarkets, effectiveDaysPassed, effectiveTotalDays]);
+  }, [rawInput, clusterMarkets]);
 
   // Generate smart comments
   const commentTemplates = useMemo(() => {
@@ -1366,29 +1196,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
         tableEl.style.tableLayout = 'fixed';
       }
 
-      // Đảm bảo tuyệt đối không che khuất hay cắt ngắn tên siêu thị trong ảnh xuất ra
-      const storeNameSpans = clone.querySelectorAll('td span');
-      storeNameSpans.forEach(el => {
-        const htmlEl = el as HTMLElement;
-        if (htmlEl.classList.contains('truncate')) {
-          htmlEl.classList.remove('truncate');
-        }
-        htmlEl.style.whiteSpace = 'normal';
-        htmlEl.style.overflow = 'visible';
-        htmlEl.style.textOverflow = 'clip';
-        htmlEl.style.wordBreak = 'break-word';
-      });
-
-      const tableCells = clone.querySelectorAll('td, th');
-      tableCells.forEach(el => {
-        const htmlEl = el as HTMLElement;
-        htmlEl.style.overflow = 'visible';
-        if (htmlEl.style.maxWidth === '0px' || htmlEl.style.maxWidth === '0') {
-          htmlEl.style.maxWidth = 'none';
-        }
-      });
-
-      const targetWidthPx = 1200;
+      const targetWidthPx = 1100;
       const tempContainer = document.createElement('div');
       tempContainer.style.position = 'fixed';
       tempContainer.style.left = '-9999px';
@@ -1560,26 +1368,26 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
                   }}
                 >
                   <colgroup>
-                    {/* SIÊU THỊ: 33% */}
-                    <col style={{ width: '33%' }} />
-                    {/* L. KẾ: 7% */}
-                    <col style={{ width: '7%' }} />
-                    {/* L. KẾ QĐ: 7% */}
-                    <col style={{ width: '7%' }} />
-                    {/* TAR V.TRỘI: 7.5% */}
+                    {/* SIÊU THỊ: 27% */}
+                    <col style={{ width: '27%' }} />
+                    {/* L. KẾ: 7.5% */}
                     <col style={{ width: '7.5%' }} />
+                    {/* L. KẾ QĐ: 7.5% */}
+                    <col style={{ width: '7.5%' }} />
+                    {/* TAR V.TRỘI: 8% */}
+                    <col style={{ width: '8%' }} />
                     {/* %HT V.TRỘI: 7.5% */}
                     <col style={{ width: '7.5%' }} />
-                    {/* %QĐ: 7% */}
-                    <col style={{ width: '7%' }} />
-                    {/* TB 3 THÁNG: 8% */}
-                    <col style={{ width: '8%' }} />
-                    {/* % TT: 7.5% */}
+                    {/* %QĐ: 7.5% */}
                     <col style={{ width: '7.5%' }} />
-                    {/* DT TRẢ GÓP: 7.5% */}
-                    <col style={{ width: '7.5%' }} />
-                    {/* % TRẢ GÓP: 8% */}
+                    {/* TB 3 THÁNG: 9% */}
+                    <col style={{ width: '9%' }} />
+                    {/* % TT: 8% */}
                     <col style={{ width: '8%' }} />
+                    {/* DT TRẢ GÓP: 9% */}
+                    <col style={{ width: '9%' }} />
+                    {/* % TRẢ GÓP: 9% */}
+                    <col style={{ width: '9%' }} />
                   </colgroup>
 
                   <thead>
@@ -1767,12 +1575,13 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
                           key={idx}
                           className="hover:bg-slate-50/60 transition-colors bg-white"
                         >
-                          {/* SIÊU THỊ: Left-aligned, Bold Uppercase with rank badge - Hiển thị đầy đủ không bị che khuất */}
+                          {/* SIÊU THỊ: Left-aligned, Bold Uppercase with rank badge - Strict Overflow Prevention */}
                           <td
                             title={row.storeName}
-                            className="px-3 py-2.5 text-left font-black text-slate-900 border-r border-slate-200 text-[11px] sm:text-[12.5px] uppercase tracking-wide"
+                            className="px-3 py-2.5 text-left font-black text-slate-900 border-r border-slate-200 text-[11px] sm:text-[12.5px] uppercase tracking-wide overflow-hidden"
+                            style={{ maxWidth: 0 }}
                           >
-                            <div className="flex items-center gap-1.5 sm:gap-2 w-full min-w-0">
+                            <div className="flex items-center gap-1.5 sm:gap-2 w-full min-w-0 overflow-hidden">
                               <span
                                 className="inline-flex items-center justify-center w-5 h-5 min-w-[20px] rounded text-[11px] font-black shrink-0 shadow-xs"
                                 style={{
@@ -1782,7 +1591,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
                               >
                                 {idx + 1}
                               </span>
-                              <span className="min-w-0 flex-1 block whitespace-normal break-words leading-snug" title={row.storeName}>
+                              <span className="truncate min-w-0 flex-1 block" title={row.storeName}>
                                 {row.storeName}
                               </span>
                             </div>
@@ -1857,7 +1666,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
                         ? summaryRow.tb3Thang
                         : rows.reduce((a, b) => a + (b.tb3Thang || 0), 0);
 
-                      const summaryPercentTT = summaryRow.percentTT !== undefined && !isNaN(summaryRow.percentTT)
+                      const summaryPercentTT = summaryRow.percentTT !== undefined && summaryRow.percentTT !== 0
                         ? summaryRow.percentTT
                         : (summaryTb3Thang > 0 ? ((summaryRow.luyKe - summaryTb3Thang) / summaryTb3Thang) * 100 : 0);
 
@@ -1865,7 +1674,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
                         ? summaryRow.dtTraGop
                         : rows.reduce((a, b) => a + (b.dtTraGop || 0), 0);
 
-                      const summaryPercentTraGop = (summaryRow.percentTraGop !== undefined && !isNaN(summaryRow.percentTraGop) && summaryRow.percentTraGop > 0)
+                      const summaryPercentTraGop = (summaryRow.percentTraGop && summaryRow.percentTraGop > 0)
                         ? summaryRow.percentTraGop
                         : (summaryRow.percentTC || (summaryRow.luyKe > 0 ? (summaryDtTraGop / summaryRow.luyKe) * 100 : 0));
 
@@ -2008,15 +1817,15 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
                   }}
                 >
                   <colgroup>
-                    <col style={{ width: '28%' }} />
-                    <col style={{ width: '7%' }} />
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '7%' }} />
+                    <col style={{ width: '25%' }} />
+                    <col style={{ width: '7.5%' }} />
+                    <col style={{ width: '8.5%' }} />
+                    <col style={{ width: '7.5%' }} />
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '8.5%' }} />
+                    <col style={{ width: '8.5%' }} />
                     <col style={{ width: '8.5%' }} />
                     <col style={{ width: '8%' }} />
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '7.5%' }} />
                     <col style={{ width: '9%' }} />
                     <col style={{ width: '9%' }} />
                   </colgroup>
@@ -2067,9 +1876,10 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
                       <tr key={idx} className="hover:bg-indigo-50/30 transition-colors">
                         <td 
                           title={row.storeName}
-                          className="px-3 py-2.5 text-left font-black text-slate-900 border-r border-slate-100 uppercase tracking-wide text-[11px] sm:text-[12.5px]"
+                          className="px-3 py-2.5 text-left font-black text-slate-900 border-r border-slate-100 uppercase tracking-wide overflow-hidden text-[11px] sm:text-[12.5px]"
+                          style={{ maxWidth: 0 }}
                         >
-                          <div className="flex items-center gap-1.5 sm:gap-2 w-full min-w-0">
+                          <div className="flex items-center gap-1.5 sm:gap-2 w-full min-w-0 overflow-hidden">
                             <span
                               className="inline-flex items-center justify-center w-5 h-5 min-w-[20px] rounded text-[11px] font-black shrink-0 shadow-xs"
                               style={{
@@ -2079,7 +1889,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
                             >
                               {idx + 1}
                             </span>
-                            <span className="min-w-0 flex-1 block whitespace-normal break-words leading-tight" title={row.storeName}>{row.storeName}</span>
+                            <span className="truncate min-w-0 flex-1 block" title={row.storeName}>{row.storeName}</span>
                           </div>
                         </td>
                         <td className="px-2 py-3 text-center font-bold text-slate-700 border-r border-slate-100">{formatVnNum(row.soLuong)}</td>

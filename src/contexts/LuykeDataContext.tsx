@@ -52,7 +52,13 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const maKho = warehouseCode;
 
   // Global cluster-level BI strings
-  const [clusterSummaryInput, setClusterSummaryInput] = useState('');
+  const [clusterSummaryInput, setClusterSummaryInput] = useState(() => {
+    try {
+      return localStorage.getItem('rt_catrev') || localStorage.getItem('rtst_cluster_summary') || localStorage.getItem('rtst_catrev') || '';
+    } catch {
+      return '';
+    }
+  });
   const [clusterCategoryInput, setClusterCategoryInput] = useState('');
   
   // Per-store inputs
@@ -155,6 +161,19 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
 
 
+  // Guard against cross-warehouse contamination
+  const prevWarehouseCodeRef = useRef(rawMaKho);
+  useEffect(() => {
+    if (prevWarehouseCodeRef.current && prevWarehouseCodeRef.current !== rawMaKho) {
+      Object.keys(globalAllStoresCache).forEach(k => delete globalAllStoresCache[k]);
+      globalPendingSaves.clear();
+      prevStoreIdRef.current = '';
+      prevWarehouseCodeRef.current = rawMaKho;
+      setAllStoresCache({});
+      setHasLoadedFromDB(false);
+    }
+  }, [rawMaKho]);
+
   // AUTO-REACT: When global currentStoreId changes, auto-load data for new store
   // This centralizes store switching logic — pages no longer need manual setActiveStore + loadData calls
   const prevStoreIdRef = useRef(currentStoreId);
@@ -166,7 +185,9 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     
     // FORCE SAVE the old store's data before we switch away from it
     // This prevents losing data that was typed but not yet auto-saved
-    if (prevStoreIdRef.current && prevStoreIdRef.current !== 'ALL' && hasLoadedFromDB) {
+    // Guard: NEVER save if warehouse changed!
+    const isSameWarehouse = prevWarehouseCodeRef.current === rawMaKho;
+    if (prevStoreIdRef.current && prevStoreIdRef.current !== 'ALL' && hasLoadedFromDB && isSameWarehouse) {
       if (saveLuykeDataRef.current) {
         console.log(`[LuykeData] AUTO-REACT: Force saving OLD store before switch → "${prevStoreIdRef.current}"`);
         saveLuykeDataRef.current(true, 'auto', prevStoreIdRef.current);
@@ -1224,7 +1245,15 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Synchronous setters to prevent stale closures during rapid paste/blur events
   const setClusterSummaryInputSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(clusterSummaryInputRef.current) : val;
-    clusterSummaryInputRef.current = newVal; setClusterSummaryInput(newVal);
+    clusterSummaryInputRef.current = newVal; 
+    setClusterSummaryInput(newVal);
+    try {
+      if (newVal) {
+        localStorage.setItem('rt_catrev', newVal);
+        localStorage.setItem('rtst_cluster_summary', newVal);
+        localStorage.setItem('rtst_catrev', newVal);
+      }
+    } catch {}
   }, []);
   const setClusterCategoryInputSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(clusterCategoryInputRef.current) : val;

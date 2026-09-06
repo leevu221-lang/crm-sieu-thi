@@ -1,12 +1,124 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../contexts/StoreContext';
-import { birthdayService, EmployeeBirthday } from '../services/birthdayService';
+import { birthdayService, EmployeeBirthday, isStoreMatch } from '../services/birthdayService';
 import { 
   Cake, Gift, Plus, Edit2, Trash2, Search, Calendar, 
-  AlertCircle, Loader2, Sparkles, Check, X, Store, Trash, Link2, DownloadCloud
+  AlertCircle, Loader2, Sparkles, Check, X, Store, Trash, Link2, DownloadCloud,
+  ClipboardPaste, FileSpreadsheet, FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// CSV and Date parsing helpers
+const parseCsvLine = (line: string): string[] => {
+  const result: string[] = [];
+  let cur = '';
+  let inQuotes = false;
+  const delimiter = line.includes('\t') && !line.includes(',') ? '\t' : ',';
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === delimiter && !inQuotes) {
+      result.push(cur.trim());
+      cur = '';
+    } else {
+      cur += char;
+    }
+  }
+  result.push(cur.trim());
+  return result;
+};
+
+const parseBirthdayDate = (raw: string): string | null => {
+  if (!raw) return null;
+  const str = raw.trim().replace(/^"|"$/g, '');
+  if (!str) return null;
+
+  // YYYY-MM-DD or YYYY/MM/DD
+  if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(str)) {
+    const [y, m, d] = str.split(/[-/]/);
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  // DD-MM-YYYY or DD/MM/YYYY
+  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(str)) {
+    const [d, m, y] = str.split(/[-/]/);
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  // DD/MM/YY
+  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{2}$/.test(str)) {
+    const [d, m, shortY] = str.split(/[-/]/);
+    const y = Number(shortY) > 50 ? `19${shortY}` : `20${shortY}`;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  // DD/MM (assume year 2000)
+  if (/^\d{1,2}[-/]\d{1,2}$/.test(str)) {
+    const [d, m] = str.split(/[-/]/);
+    return `2000-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  return null;
+};
+
+const parseRow = (parts: string[], defaultStore: string) => {
+  if (!parts || parts.length < 2) return null;
+
+  // Find date column
+  let dateIdx = -1;
+  let parsedDate: string | null = null;
+  for (let i = 0; i < parts.length; i++) {
+    const d = parseBirthdayDate(parts[i]);
+    if (d) {
+      dateIdx = i;
+      parsedDate = d;
+      break;
+    }
+  }
+
+  if (dateIdx === -1 || !parsedDate) return null;
+
+  let name = '';
+  let store = '';
+
+  if (dateIdx === 2) {
+    // Typical 4-col: [STT, Name, Date, Store?]
+    name = parts[1];
+    store = parts[3] || defaultStore;
+  } else if (dateIdx === 1) {
+    // Typical: [Name, Date, Store?]
+    name = parts[0];
+    store = parts[2] || defaultStore;
+  } else {
+    // Fallback search
+    for (let i = 0; i < parts.length; i++) {
+      if (i !== dateIdx && parts[i] && isNaN(Number(parts[i]))) {
+        if (!name) name = parts[i];
+        else if (!store) store = parts[i];
+      }
+    }
+  }
+
+  if (!name) return null;
+  const cleanName = name.toLowerCase().trim();
+  if (['stt', 'họ tên', 'họ và tên', 'họ tên nhân viên', 'tên nhân viên', 'nhân viên'].includes(cleanName)) {
+    return null;
+  }
+
+  return {
+    employee_name: name.trim(),
+    birthday: parsedDate,
+    warehouse_code: (store || defaultStore).trim()
+  };
+};
 
 const SinhNhatNv: React.FC = () => {
   const { userProfile } = useAuth();
@@ -29,6 +141,10 @@ const SinhNhatNv: React.FC = () => {
   // Google Sheets sync states
   const [sheetUrl, setSheetUrl] = useState('');
   const [syncing, setSyncing] = useState(false);
+  const [showPasteModal, setShowPasteModal] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [pasting, setPasting] = useState(false);
+
   // Dialog/Alert states
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState<string | null>(null);
@@ -65,10 +181,10 @@ const SinhNhatNv: React.FC = () => {
   }, []);
 
   // Load birthdays
-  const loadBirthdays = async () => {
+  const loadBirthdays = async (force = false) => {
     try {
       setLoading(true);
-      const data = await birthdayService.getBirthdays();
+      const data = await birthdayService.getBirthdays(undefined, force);
       setBirthdays(data);
       setErrorMessage(null);
     } catch (err: any) {
@@ -152,95 +268,155 @@ const SinhNhatNv: React.FC = () => {
     }
   };
 
+  // Helper to fetch CSV from Google Sheet with fallback strategies
+  const fetchGoogleSheetCsvText = async (url: string): Promise<string> => {
+    const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    if (!match || !match[1]) {
+      throw new Error('Link Google Sheets không hợp lệ. Vui lòng kiểm tra lại định dạng link.');
+    }
+    const sheetId = match[1];
+
+    // Extract gid if present
+    const gidMatch = url.match(/[?&#]gid=([0-9]+)/);
+    const gid = gidMatch ? gidMatch[1] : null;
+
+    // Build list of candidate URLs
+    const candidates: string[] = [];
+    if (gid) {
+      candidates.push(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`);
+      candidates.push(`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`);
+    }
+    // Default first sheet (most reliable when users do not name the tab specifically)
+    candidates.push(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`);
+    candidates.push(`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`);
+    // Specific named tabs
+    candidates.push(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('NHÂN VIÊN')}`);
+    candidates.push(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('SINH NHẬT NHÂN VIÊN')}`);
+    candidates.push(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Sheet1')}`);
+    candidates.push(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('Trang tính1')}`);
+
+    let isPermissionError = false;
+
+    for (const candidateUrl of candidates) {
+      try {
+        const res = await fetch(candidateUrl);
+        if (!res.ok) continue;
+        const text = await res.text();
+
+        // Detect HTML login / private redirect
+        if (text.includes('<!DOCTYPE html>') || text.includes('<html') || text.includes('accounts.google.com') || text.includes('ServiceLogin')) {
+          isPermissionError = true;
+          continue;
+        }
+
+        // Detect GViz error response
+        if (text.includes('"status":"error"') || text.includes('invalid_query')) {
+          continue;
+        }
+
+        // Validate that it has at least some content
+        const rows = text.split(/\r?\n/).filter(r => r.trim());
+        if (rows.length > 0) {
+          return text;
+        }
+      } catch (err: any) {
+        // try next candidate
+      }
+    }
+
+    if (isPermissionError) {
+      throw new Error('PERMISSION_DENIED: Trang tính chưa được mở quyền chia sẻ "Bất kỳ ai có đường liên kết". Hãy bật quyền công khai hoặc bấm "Dán dữ liệu trực tiếp" bên dưới.');
+    }
+
+    throw new Error('Không thể tải dữ liệu từ Google Sheets. Vui lòng kiểm tra lại link hoặc sử dụng tính năng "Dán dữ liệu trực tiếp".');
+  };
+
   // Google Sheets Sync
   const handleSheetSync = async () => {
-    if (!sheetUrl) {
+    if (!sheetUrl.trim()) {
       showToast('Vui lòng nhập link Google Sheets', false);
       return;
     }
-    
-    // Extract ID
-    const match = sheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
-    if (!match || !match[1]) {
-      showToast('Link Google Sheets không hợp lệ', false);
-      return;
-    }
-    const sheetId = match[1];
-    const fetchUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=NHÂN VIÊN`;
 
     try {
       setSyncing(true);
-      const res = await fetch(fetchUrl);
-      if (!res.ok) throw new Error('Network error');
-      const text = await res.text();
+      const csvText = await fetchGoogleSheetCsvText(sheetUrl.trim());
+      const lines = csvText.split(/\r?\n/);
       
-      const lines = text.split('\n');
-      if (lines.length <= 1) {
-        showToast('Không tìm thấy dữ liệu trong Sheet "NHÂN VIÊN"', false);
-        return;
-      }
-      const payloads = [];
+      const defaultStore = formWarehouse || (selectedWarehouseFilter !== 'ALL' ? selectedWarehouseFilter : '') || userProfile?.ten_sieu_thi || userProfile?.ma_kho || 'ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH';
+      const payloads: Omit<EmployeeBirthday, 'id'>[] = [];
 
-      for (let i = 1; i < lines.length; i++) {
+      for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (!line.trim()) continue;
-        
-        // Match CSV elements considering quotes and commas
-        const regex = /(".*?"|[^",\s]+)(?=\s*,|\s*$)/g;
-        let parts = [];
-        let m;
-        while ((m = regex.exec(line)) !== null) {
-            parts.push(m[1].replace(/^"|"$/g, '').trim());
-        }
-        
-        if (parts.length < 3) {
-           parts = line.split(',').map(s => s.replace(/^"|"$/g, '').trim());
-        }
-        
-        if (parts.length >= 4) {
-          const name = parts[1];
-          const dateStr = parts[2];
-          const storeName = parts[3]; // Cột D: TÊN SIÊU THỊ
-          
-          if (!name || !dateStr || !storeName) continue;
-          if (name.toLowerCase() === 'họ tên nhân viên' || name.toLowerCase() === 'họ và tên') continue;
-          
-          let formattedDate = dateStr;
-          if (dateStr.includes('/')) {
-            const dparts = dateStr.split('/');
-            if (dparts.length === 3) {
-              formattedDate = `${dparts[2]}-${dparts[1].padStart(2, '0')}-${dparts[0].padStart(2, '0')}`;
-            }
-          }
-          
-          payloads.push({
-            employee_name: name,
-            birthday: formattedDate,
-            warehouse_code: storeName
-          });
+
+        const parts = parseCsvLine(line);
+        const row = parseRow(parts, defaultStore);
+        if (row) {
+          payloads.push(row);
         }
       }
-      
+
       if (payloads.length > 0) {
         await birthdayService.addBirthdays(payloads);
         showToast(`Đã đồng bộ thành công ${payloads.length} nhân viên từ Google Sheets!`, true);
-        
-        // Lưu lại link Google Sheets vào local storage (GLOBAL)
-        localStorage.setItem('sheetUrl_GLOBAL', sheetUrl);
-        
-        await loadBirthdays();
+        localStorage.setItem('sheetUrl_GLOBAL', sheetUrl.trim());
+        await loadBirthdays(true);
       } else {
-        showToast('Không tìm thấy dòng dữ liệu nào hợp lệ (yêu cầu đầy đủ STT, Họ tên, Ngày sinh, Tên siêu thị).', false);
+        showToast('Không tìm thấy dòng dữ liệu ngày sinh nào hợp lệ (cần Họ tên và Ngày sinh DD/MM/YYYY).', false);
       }
     } catch (e: any) {
       console.error(e);
-      if (e.message && e.message.includes('SAI_TEN_SIEU_THI')) {
-        showToast(e.message.replace('SAI_TEN_SIEU_THI:', ''), false);
+      if (e.message && e.message.startsWith('PERMISSION_DENIED:')) {
+        showToast(e.message.replace('PERMISSION_DENIED:', '').trim(), false);
+      } else if (e.message) {
+        showToast(e.message, false);
       } else {
-        showToast('Lỗi khi tải dữ liệu từ Google Sheets. Hãy đảm bảo Link đã được chia sẻ công khai.', false);
+        showToast('Lỗi khi tải dữ liệu từ Google Sheets. Vui lòng thử dùng "Dán dữ liệu trực tiếp".', false);
       }
     } finally {
       setSyncing(false);
+    }
+  };
+
+  // Direct Paste handler
+  const handleDirectPasteSave = async () => {
+    if (!pasteText.trim()) {
+      showToast('Vui lòng dán dữ liệu bảng tính vào ô trước khi lưu.', false);
+      return;
+    }
+
+    try {
+      setPasting(true);
+      const lines = pasteText.split(/\r?\n/);
+      const defaultStore = formWarehouse || (selectedWarehouseFilter !== 'ALL' ? selectedWarehouseFilter : '') || userProfile?.ten_sieu_thi || userProfile?.ma_kho || 'ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH';
+      const payloads: Omit<EmployeeBirthday, 'id'>[] = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line.trim()) continue;
+
+        const parts = parseCsvLine(line);
+        const row = parseRow(parts, defaultStore);
+        if (row) {
+          payloads.push(row);
+        }
+      }
+
+      if (payloads.length > 0) {
+        await birthdayService.addBirthdays(payloads);
+        showToast(`Đã lưu thành công ${payloads.length} nhân viên vào hệ thống!`, true);
+        setPasteText('');
+        setShowPasteModal(false);
+        await loadBirthdays(true);
+      } else {
+        showToast('Không tìm thấy dòng dữ liệu nào hợp lệ. Vui lòng kiểm tra lại định dạng Họ tên và Ngày sinh.', false);
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast('Đã xảy ra lỗi khi lưu dữ liệu đã dán.', false);
+    } finally {
+      setPasting(false);
     }
   };
 
@@ -367,12 +543,28 @@ const SinhNhatNv: React.FC = () => {
     }
   };
 
+  // Compute combined store options for dropdowns
+  const allStoreOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    availableMarkets.forEach(m => {
+      if (m.name) map.set(m.name.trim(), m.name.trim());
+    });
+    birthdays.forEach(b => {
+      if (b.warehouse_code) map.set(b.warehouse_code.trim(), b.warehouse_code.trim());
+    });
+    if (marketFilter && marketFilter !== 'ALL') {
+      map.set(marketFilter.trim(), marketFilter.trim());
+    }
+    if (userProfile?.ten_sieu_thi) {
+      map.set(userProfile.ten_sieu_thi.trim(), userProfile.ten_sieu_thi.trim());
+    }
+    return Array.from(map.values());
+  }, [availableMarkets, birthdays, marketFilter, userProfile]);
+
   // Filter list and sort by closest birthday next
   const filteredBirthdays = birthdays.filter(b => {
-    const matchesSearch = b.employee_name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesWarehouse = 
-      selectedWarehouseFilter === 'ALL' || 
-      b.warehouse_code === selectedWarehouseFilter;
+    const matchesSearch = searchQuery.trim() === '' || b.employee_name.toLowerCase().includes(searchQuery.toLowerCase().trim());
+    const matchesWarehouse = isStoreMatch(b, selectedWarehouseFilter);
     return matchesSearch && matchesWarehouse;
   }).sort((a, b) => {
     return getDaysUntilNextBirthday(a.birthday) - getDaysUntilNextBirthday(b.birthday);
@@ -479,19 +671,10 @@ const SinhNhatNv: React.FC = () => {
                   required
                 >
                   <option value="" disabled>-- Chọn siêu thị --</option>
-                  {availableMarkets.map(m => (
-                    <option key={m.name} value={m.name}>{m.name}</option>
+                  {allStoreOptions.map(storeName => (
+                    <option key={storeName} value={storeName}>{storeName}</option>
                   ))}
-                  {userProfile?.ten_sieu_thi && !availableMarkets.some(m => m.name === userProfile.ten_sieu_thi) && (
-                    <option value={userProfile.ten_sieu_thi}>{userProfile.ten_sieu_thi}</option>
-                  )}
-                  {availableMarkets.length === 0 && !userProfile?.ten_sieu_thi && userProfile?.ma_kho && (
-                    <option value={userProfile.ma_kho}>{userProfile.ma_kho}</option>
-                  )}
-                  {formWarehouse && 
-                   !availableMarkets.some(m => m.name === formWarehouse) && 
-                   formWarehouse !== userProfile?.ten_sieu_thi && 
-                   formWarehouse !== userProfile?.ma_kho && (
+                  {formWarehouse && !allStoreOptions.includes(formWarehouse) && (
                     <option value={formWarehouse}>{formWarehouse}</option>
                   )}
                 </select>
@@ -611,6 +794,21 @@ const SinhNhatNv: React.FC = () => {
                   </>
                 )}
               </button>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-slate-200"></div>
+                <span className="flex-shrink mx-3 text-xs text-slate-400 font-bold uppercase">Hoặc</span>
+                <div className="flex-grow border-t border-slate-200"></div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowPasteModal(true)}
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-xs border border-slate-200 hover:border-slate-300 active:scale-95"
+              >
+                <ClipboardPaste size={16} className="text-emerald-600" />
+                <span>Dán bảng trực tiếp từ Excel / Sheet</span>
+              </button>
             </div>
           </div>
         </div>
@@ -637,12 +835,15 @@ const SinhNhatNv: React.FC = () => {
                 <select
                   value={selectedWarehouseFilter}
                   onChange={(e) => setSelectedWarehouseFilter(e.target.value)}
-                  className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all"
+                  className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all max-w-[260px] truncate"
                 >
                   <option value="ALL">Tất cả siêu thị</option>
-                  {availableMarkets.map(m => (
-                    <option key={m.name} value={m.name}>{m.name}</option>
+                  {allStoreOptions.map(storeName => (
+                    <option key={storeName} value={storeName}>{storeName}</option>
                   ))}
+                  {selectedWarehouseFilter !== 'ALL' && !allStoreOptions.includes(selectedWarehouseFilter) && (
+                    <option value={selectedWarehouseFilter}>{selectedWarehouseFilter}</option>
+                  )}
                 </select>
 
                 {/* Delete All Data for Selected Warehouse */}
@@ -822,6 +1023,80 @@ const SinhNhatNv: React.FC = () => {
                 className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-red-100 hover:shadow-red-200"
               >
                 Xác nhận xoá sạch
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Direct Paste Modal */}
+      {showPasteModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-3xl p-6 max-w-lg w-full border border-slate-100 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+                  <ClipboardPaste size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-800 font-poppins">Dán dữ liệu trực tiếp</h3>
+                  <p className="text-slate-400 text-xs">Copy các dòng từ Google Sheets hoặc Excel rồi dán vào đây</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPasteModal(false)}
+                className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-xl transition-all"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs text-slate-600 space-y-1">
+              <div className="font-bold text-slate-700 flex items-center gap-1.5">
+                <Sparkles size={13} className="text-emerald-500" />
+                Hỗ trợ các cấu trúc cột linh hoạt:
+              </div>
+              <p className="text-[11px] text-slate-500">
+                • <strong>4 cột:</strong> STT | Họ tên nhân viên | Ngày sinh (DD/MM/YYYY) | Tên siêu thị<br/>
+                • <strong>3 cột:</strong> Họ tên | Ngày sinh | Tên siêu thị (hoặc STT | Họ tên | Ngày sinh)<br/>
+                • <strong>2 cột:</strong> Họ tên | Ngày sinh (tự động gán cho siêu thị đang chọn)
+              </p>
+            </div>
+
+            <textarea
+              rows={8}
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              placeholder={"Ví dụ:\n1\tNguyễn Văn A\t25/09/1995\tĐML_CMA_CMA - 155A Nguyễn Tất Thành\n2\tLê Thị B\t14/09/2001\tĐML_CMA_CMA - 155A Nguyễn Tất Thành"}
+              className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all placeholder:text-slate-400 resize-none"
+            />
+
+            <div className="flex gap-3 pt-2">
+              <button 
+                type="button"
+                onClick={() => setShowPasteModal(false)}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-2xl transition-all text-xs"
+              >
+                Đóng
+              </button>
+              <button 
+                type="button"
+                onClick={handleDirectPasteSave}
+                disabled={pasting || !pasteText.trim()}
+                className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold rounded-2xl transition-all shadow-lg shadow-emerald-100 hover:shadow-emerald-200 text-xs flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-not-allowed"
+              >
+                {pasting ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <>
+                    <Check size={16} />
+                    <span>Lưu danh sách ngay</span>
+                  </>
+                )}
               </button>
             </div>
           </motion.div>

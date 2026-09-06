@@ -53,6 +53,10 @@ export interface MarketInfo {
   luotBill?: number;
   luotBillBanHang?: number;
   luotBillThuHo?: number;
+  tb3Thang?: number;
+  percentTT?: number;
+  dtTraGop?: number;
+  percentTraGop?: number;
 }
 
 export interface CategoryData {
@@ -94,6 +98,7 @@ export interface StaffMatrixData {
   totalCats: number;
   rate: number;
   rawValues: number[];
+  valuesMap?: Record<string, number>;
   projectedRates: number[];
   actualPercentHTs?: number[];
 }
@@ -168,3 +173,56 @@ export interface YcxStaffData {
   mayLanhHaierQty?: number;
   mayLanhHisenseQty?: number;
 }
+
+export interface MwgBiStaffRow {
+  staffName: string;
+  staffId: string;
+  fullName: string;
+  quantity: number;
+  convertedRevenue: number;
+  shareRate: number;
+  actualRevenue: number;
+  target: number;
+  targetRate: number;
+  avg3Months: number;
+  growthRate: string;
+  expectedRevenue: number;
+  installmentRevenue: number;
+  installmentRate: number;
+}
+
+export interface MwgBiSummaryKpi {
+  dtQd: number;
+  percentHtTarget: number;
+  targetTronKy: number;
+  dtDuKien: number;
+  tiTrongTraGop: number;
+  dtTraGop: number;
+  dtThuc: number;
+  tlpvtc?: number;
+  ttVsTb3t?: string;
+  updateTime?: string;
+  storeName?: string;
+}
+
+export interface MwgBiStaffTotals {
+  title: string;
+  quantity: number;
+  convertedRevenue: number;
+  shareRate: number;
+  actualRevenue: number;
+  target: number;
+  targetRate: number;
+  avg3Months: number;
+  growthRate: string;
+  expectedRevenue: number;
+  installmentRevenue: number;
+  installmentRate: number;
+}
+
+export interface MwgBiStaffReportData {
+  summaryKpi: MwgBiSummaryKpi;
+  staffRows: MwgBiStaffRow[];
+  totals: MwgBiStaffTotals | null;
+}
+

@@ -98,7 +98,13 @@ export const useRealtimeData = (maKho: string) => {
   const [ycxDataMoi, setYcxDataMoi] = useState('');
   const [ycxFileName, setYcxFileNameState] = useState('');
   const [ycxFileNameMoi, setYcxFileNameMoiState] = useState('');
-  const [categoryRevenueInput, setCategoryRevenueInput] = useState('');
+  const [categoryRevenueInput, setCategoryRevenueInput] = useState(() => {
+    try {
+      return localStorage.getItem('rt_catrev') || localStorage.getItem('rtst_cluster_summary') || localStorage.getItem('rtst_catrev') || '';
+    } catch {
+      return '';
+    }
+  });
   const [categoryTargetInput, setCategoryTargetInput] = useState('');
   // NOTE: must start empty, NOT maKho — activeStore holds a STORE NAME (matches Firestore doc id
   // via normalizeStoreId), while maKho is the warehouse code. Seeding it with maKho let the
@@ -817,6 +823,13 @@ export const useRealtimeData = (maKho: string) => {
     categoryRevenueInputRef.current = newVal;
     isDirtyRef.current = true;
     setCategoryRevenueInput(newVal);
+    try {
+      if (newVal) {
+        localStorage.setItem('rt_catrev', newVal);
+        localStorage.setItem('rtst_cluster_summary', newVal);
+        localStorage.setItem('rtst_catrev', newVal);
+      }
+    } catch {}
   }, []);
   const setCategoryTargetInputSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(categoryTargetInputRef.current) : val;

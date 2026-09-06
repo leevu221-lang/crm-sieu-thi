@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { useStore } from '../../../contexts/StoreContext';
-import { parseYcxData, parseStaffRankData, normalizeStoreId } from '../../RTST/utils';
+import { parseYcxData, parseStaffRankData, normalizeStoreId, normalize } from '../../RTST/utils';
 import { cleanBiReportText } from '../../../utils/rtstHelpers';
 import { StaffData } from '../../RTST/types';
 
@@ -14,6 +14,18 @@ const globalHealthCache: Record<string, any> = {};
 
 export const useEmployeeHealth = (maKho: string, storeName?: string) => {
   const { isStoreReady } = useStore();
+
+  // Reset global cache when warehouse/account changes
+  const prevMaKhoHealthRef = useRef(maKho);
+  useEffect(() => {
+    if (prevMaKhoHealthRef.current && prevMaKhoHealthRef.current !== maKho) {
+      prevMaKhoHealthRef.current = maKho;
+      Object.keys(globalHealthCache).forEach(k => delete globalHealthCache[k]);
+    } else {
+      prevMaKhoHealthRef.current = maKho;
+    }
+  }, [maKho]);
+
   const targetKey = storeName || maKho;
   const initialCache = globalHealthCache[targetKey];
 
@@ -342,7 +354,20 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       let rtData: any = null;
 
       if (lkDataArr && lkDataArr.length > 0) {
-        lkData = lkDataArr[0];
+        if (storeName && storeName !== 'ALL') {
+          const cleanStore = storeName.trim().toUpperCase();
+          const cleanStoreNorm = normalize(storeName);
+          const found = lkDataArr.find((r: any) => {
+            const rTen = (r.ten_sieu_thi || '').trim().toUpperCase();
+            const rId = (r.id || '').trim().toUpperCase();
+            return rTen === cleanStore || rId === cleanStore ||
+                   normalize(rTen) === cleanStoreNorm || normalize(rId) === cleanStoreNorm ||
+                   (cleanStoreNorm && (normalize(rTen).includes(cleanStoreNorm) || cleanStoreNorm.includes(normalize(rTen))));
+          });
+          lkData = found || lkDataArr[0];
+        } else {
+          lkData = lkDataArr[0];
+        }
         globalLuyKe = lkData;
       }
 
@@ -371,7 +396,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
 
       const lkTdRaw = isAllMode
         ? (lkDataArr || []).map(r => r.lk_td_nv || '').filter(Boolean).join('\n')
-        : (lkData?.lk_td_nv || '');
+        : (lkData?.lk_td_nv || lkDataArr?.find((r: any) => r.lk_td_nv)?.lk_td_nv || '');
 
       const phucVuRaw = isAllMode
         ? (lkDataArr || []).map(r => r.phuc_vu || '').filter(Boolean).join('\n')

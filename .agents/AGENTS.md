@@ -33,15 +33,5 @@
     2. Đẩy lên GitHub: `git push origin main`
     3. Tự động trigger Netlify / Cloudflare Pages deploy.
 
-- **Quy Chuẩn Tạo Bản Sao Lưu Dự Án (Standard Project Backup)**:
-  - Khi người dùng đưa ra các câu lệnh/yêu cầu có chứa từ khóa sao lưu (ví dụ: *"HÃY TẠO BACKUP"*, *"TẠO BACKUP"*, *"BACKUP ZIP"*, *"SAO LƯU DỰ ÁN"*):
-    1. **BẮT BUỘC** chạy lệnh chuẩn của dự án: `npm run backup` (hoặc `node scripts/backup.cjs`).
-    2. Tuyệt đối **KHÔNG** dùng lệnh zip thủ công với tên tự chế hoặc tự đặt số phiên bản tùy tiện.
-    3. Script `npm run backup` sẽ tự động phát hiện số `VERSION` cao nhất trong thư mục `backups/` (ví dụ `VERSION 15`) và tự động nâng lên phiên bản kế tiếp (`VERSION 16`), nén gọn gàng (`~1.7 MB`) vào thư mục `backups/crm-sieu-thi_YYYY-MM-DD_HH-mm-ss_VERSION X.zip`.
-    4. Sau khi backup xong, chủ động copy thêm 1 bản ra Desktop để người dùng dễ nhìn thấy:
-       `cp "backups/crm-sieu-thi_..._VERSION X.zip" "/Users/linhvu/Desktop/"`
-    5. Báo cáo rõ ràng số `VERSION`, dung lượng MB và 2 đường dẫn lưu file (trong thư mục `backups/` và trên Desktop).
-
-
 
 

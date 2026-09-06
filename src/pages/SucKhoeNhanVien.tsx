@@ -31,6 +31,7 @@ import CategoryDetailByStaffTable from './EmployeeHealth/components/CategoryDeta
 import TongHopNvTable from './EmployeeHealth/components/TongHopNvTable';
 import StaffComparisonModal, { StaffComparisonData } from './EmployeeHealth/components/StaffComparisonModal';
 import { GiaTriDhTab } from './EmployeeHealth/components/GiaTriDhTab';
+import { extractStaffNameAndId } from './EmployeeHealth/utils/staffParserHelper';
 import { cn, parseStaffRankData, parseYcxData, normalizeStoreId, parseStaffValueList, normalize, parseCategoryData, cleanCategoryName, isKhoLuuDong, formatCurrencyValue } from './RTST/utils';
 import { useCategoryConfig } from '../hooks/useCategoryConfig';
 
@@ -1322,7 +1323,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     stPercentHTTargetDuKienQD, setStPercentHTTargetDuKienQD,
     allStoreTargets
   } = useRTSTSharedData(maKho);
-  const { tragopMatran, categoryTargets, processedData, staffInput, staffCategoryInput, loadData: loadLuykeData, isLoading: isLuykeLoading, storeData } = useLuykeData(maKho);
+  const { tragopMatran, tragopNv: luykeTragopNv, categoryTargets, processedData, staffInput, staffCategoryInput, loadData: loadLuykeData, isLoading: isLuykeLoading, allStoresCache } = useLuykeData(maKho);
 
   const isDataLoading = isHealthLoading || isLuykeLoading;
 
@@ -1351,13 +1352,41 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   }, [processedData.markets]);
 
   const currentMarket = useMemo(() => {
-    return allowedMarkets.find((m: any) => removeAccents(m.name) === removeAccents(marketFilter));
+    if (!marketFilter || marketFilter === 'ALL') {
+      return allowedMarkets[0] || null;
+    }
+    const norm = (s: string) => removeAccents(s || '').toLowerCase().replace(/^\d+\s*[-_]\s*/, '').trim();
+    const filterClean = norm(marketFilter);
+    return allowedMarkets.find((m: any) => {
+      const mClean = norm(m.name);
+      return mClean === filterClean || mClean.includes(filterClean) || filterClean.includes(mClean);
+    }) || null;
   }, [allowedMarkets, marketFilter]);
+
+  const targetData = useMemo(() => {
+    if (!marketFilter || marketFilter === 'ALL') return null;
+    const norm = (s: string) => removeAccents(s || '').toLowerCase().replace(/^\d+\s*[-_]\s*/, '').trim();
+    const filterClean = norm(marketFilter);
+    const targetDataKey = Object.keys(allStoreTargets || {}).find((k: string) => {
+      const kClean = norm(k);
+      return kClean === filterClean || kClean.includes(filterClean) || filterClean.includes(kClean);
+    });
+    return targetDataKey ? allStoreTargets[targetDataKey] : null;
+  }, [allStoreTargets, marketFilter]);
+
   const marketPercentQD = currentMarket?.actualReal 
     ? (((currentMarket.actualVirtual || 0) - currentMarket.actualReal) / currentMarket.actualReal) * 100 
     : 0;
-  // Use raw targetQD from BC THÁNG parsed data; fallback to stTargetSauHeSo
-  const displayTargetQD = currentMarket?.targetQD || stTargetSauHeSo;
+
+  // Exact same calculation as BC THÁNG (LuyKe.tsx line 1391-1394 & 2143-2146)
+  const dtDuKienQD = currentMarket?.targetQD || 0;
+  const percentTargetVal = Number((targetData as any)?.stPercentTarget) || Number(stPercentTarget) || 100;
+  const rawTargetQD = dtDuKienQD > 0 
+    ? dtDuKienQD 
+    : ((targetData as any)?.stTargetQuyDoi || stTargetQuyDoi || 0);
+  const displayTargetQD = rawTargetQD > 0 
+    ? Math.round(rawTargetQD * (percentTargetVal / 100)) 
+    : ((targetData as any)?.stTargetSauHeSo || stTargetSauHeSo || 0);
 
   // Sync stName and target fields when marketFilter or data changes (consistent with Lũy Kế page)
   useEffect(() => {
@@ -1395,7 +1424,41 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     return dbBiRevenueData;
   }, [staffInput, dbBiRevenueData]);
 
-  const thiDuaNv = staffCategoryInput || dbThiDuaNv;
+  const thiDuaNv = React.useMemo(() => {
+    if (staffCategoryInput && staffCategoryInput.trim()) return staffCategoryInput;
+    if (dbThiDuaNv && dbThiDuaNv.trim()) return dbThiDuaNv;
+    if (marketFilter && marketFilter !== 'ALL' && allStoresCache?.[marketFilter]?.staffCategoryInput) {
+      return allStoresCache[marketFilter].staffCategoryInput;
+    }
+    const anyCached = Object.values(allStoresCache || {}).find((s: any) => s?.staffCategoryInput?.trim()) as any;
+    if (anyCached?.staffCategoryInput) return anyCached.staffCategoryInput;
+    return '';
+  }, [staffCategoryInput, dbThiDuaNv, marketFilter, allStoresCache]);
+
+  const effectiveTragopNv = React.useMemo(() => {
+    if (luykeTragopNv && luykeTragopNv.trim()) return luykeTragopNv;
+    if (tragopNv && tragopNv.trim()) return tragopNv;
+    if (marketFilter && marketFilter !== 'ALL' && allStoresCache?.[marketFilter]?.tragopNv) {
+      return allStoresCache[marketFilter].tragopNv;
+    }
+    const storeKey = marketFilter !== 'ALL' ? marketFilter : (tenSieuThi || stName || '');
+    if (storeKey) {
+      const cleanStoreKey = storeKey.replace(/^(\d+\s*[-–—]\s*)/, '').trim().toLowerCase();
+      const found = Object.entries(allStoresCache || {}).find(([k, v]: [string, any]) => {
+        const cleanK = k.replace(/^(\d+\s*[-–—]\s*)/, '').trim().toLowerCase();
+        return (cleanK === cleanStoreKey || k.toLowerCase().includes(cleanStoreKey) || cleanStoreKey.includes(cleanK)) && v?.tragopNv?.trim();
+      });
+      if (found && (found[1] as any)?.tragopNv) return (found[1] as any).tragopNv;
+
+      const local = localStorage.getItem(`cauhinh_${storeKey}_tragop_nv`);
+      if (local && local.trim()) return local;
+      const localClean = localStorage.getItem(`cauhinh_${cleanStoreKey}_tragop_nv`);
+      if (localClean && localClean.trim()) return localClean;
+    }
+    const anyCached = Object.values(allStoresCache || {}).find((s: any) => s?.tragopNv?.trim()) as any;
+    if (anyCached?.tragopNv) return anyCached.tragopNv;
+    return '';
+  }, [luykeTragopNv, tragopNv, marketFilter, tenSieuThi, stName, allStoresCache]);
 
   // Sync available markets to global context if on this page
   useEffect(() => {
@@ -1419,6 +1482,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   const [showEffGroup, setShowEffGroup] = useState(true);
   const [showThuNhapGroup, setShowThuNhapGroup] = useState(false);
   const [showTraChamGroup, setShowTraChamGroup] = useState(true);
+  const [showFullTraChamPartners, setShowFullTraChamPartners] = useState(true);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const [autoExpand, setAutoExpand] = useState(false);
   const [isProjectedMonth1, setIsProjectedMonth1] = useState(false);
@@ -1897,12 +1961,13 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     return parsedRows;
   }, [biRevenueData]);
 
-  const parseTraChamData = useCallback((text: string) => {
-    if (!text) return [];
-    const lines = text.split('\n').map(l => l.replace(/[\r\n]/g, '')).filter(l => l.trim().length > 0);
-    if (lines.length === 0) return [];
+  const parseTraChamData = useCallback((text: string): { rows: any[]; partners: string[] } => {
+    if (!text) return { rows: [], partners: [] };
+    const rawLines = text.split('\n').map(l => l.replace(/[\r\n]/g, '')).filter(l => l.trim().length > 0);
+    if (rawLines.length === 0) return { rows: [], partners: [] };
 
     const parsedRows: any[] = [];
+    let extractedPartners: string[] = [];
 
     const cleanNumber = (val: string): number => {
       if (!val) return 0;
@@ -1931,71 +1996,68 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       'logobi', 'trangchu', 'baocao', 'khoikinhdoanh', 'hdsudung', 'avatar',
       'vungtay', 'dashboard', 'hotrobi', 'chientranh', 'lichsu', 'quanly',
       'danhsach', 'saovang', 'chupanh', 'xuatpdf', 'xuatexcel', 'hotline',
-      'tiendo', 'rank', 'tongcong', 'tong', 'phankhuc', 'nganhhang', 'thang', 'nam'
+      'tiendo', 'rank', 'tongcong', 'tong', 'phankhuc', 'nganhhang', 'thang', 'nam',
+      'tgdd', 'tileduyet', 'realtime', 'tatcavung', 'xuattheomau', 'capnhatluc',
+      'toggletheme', 'timbaocao', 'employee', 'guest', 'admin', 'xem', 'khuvuc', 'sieuthi', 'vung',
+      'smartpos', 'payoo', 'kredivo', 'tpbank', 'paylater'
     ];
 
-    const isDetailed = text.toLowerCase().includes('homecredit') || 
-                       text.toLowerCase().includes('fecredit') || 
-                       text.toLowerCase().includes('shinhan');
+    const isHeaderString = (str: string) => {
+      const clean = removeAccents(str || '').toLowerCase().replace(/[\s_*()-]+/g, '');
+      if (!clean) return true;
+      if (clean === 'dt' || clean === '%' || (clean.startsWith('dt') && (clean.includes('sieuthi') || clean.includes('tragop') || clean.includes('tracham')))) return true;
+      if (ignoredKeywords.some(k => clean === k || clean.includes(k))) return true;
+      return false;
+    };
 
-    lines.forEach(line => {
+    const isNoiseLine = (line: string) => {
+      const clean = removeAccents(line || '').toLowerCase().replace(/[\s_*()-]+/g, '');
+      if (!clean) return true;
+      if (isHeaderString(clean)) return true;
+      if (/^\d+([-\/]\d+)*$/.test(clean)) return true;
+      if (clean.includes('tong') && clean.includes('dong')) return true;
+      if (clean.includes('dacopyxong')) return true;
+      if (clean.includes('trang')) return true;
+      return false;
+    };
+
+    const isEmployeeNameLine = (line: string) => {
+      if (isNoiseLine(line)) return false;
       const parts = splitLine(line);
-      if (parts.length < 2) return;
+      if (parts.length > 1) return false;
+      const val = parts[0];
+      const hasLetters = /[a-zA-ZÀ-ỹ]/.test(val);
+      const hasDigitsOnly = /^[\d.,\s-]+$/.test(val);
+      if (!hasLetters || hasDigitsOnly) return false;
+      if (isHeaderString(val)) return false;
+      return true;
+    };
 
-      const firstColClean = removeAccents(parts[0]).toLowerCase().replace(/[\s_*()-]+/g, '');
-      if (!firstColClean || ignoredKeywords.some(k => firstColClean.includes(k) || k.includes(firstColClean))) {
-        return; // skip headers
-      }
-
-      // Skip lines that don't start with a name or id
-      const nameStartCheck = /^[a-zA-Z\dÀ-ỹ]/.test(parts[0]);
-      if (!nameStartCheck) return;
-
-      const staffVal = parts[0];
-
-      // Remove trailing empty elements from parts
-      while (parts.length > 0 && parts[parts.length - 1] === '') {
-        parts.pop();
-      }
-
-      if (isDetailed) {
-        if (parts.length >= 3) {
-          const totalRevRaw = cleanNumber(parts[parts.length - 2]);
-          const percentRaw = cleanNumber(parts[parts.length - 1]);
-          
-          let totalRevenue = totalRevRaw;
-          // Scale to absolute VND if it's in millions (e.g. 107.33 -> 107,330,000)
-          if (Math.abs(totalRevenue) > 0 && Math.abs(totalRevenue) < 1000000) {
-            totalRevenue = totalRevenue * 1000000;
-          }
-
-          let percent = percentRaw;
-          const lastPart = parts[parts.length - 1];
-          if (percent > 0 && percent <= 1 && lastPart && !lastPart.includes('%')) {
-            percent = percent * 100;
-          }
-
-          const installmentRevenue = totalRevenue * (percent / 100);
-
-          parsedRows.push({
-            nhanVien: staffVal,
-            totalRevenue,
-            installmentRevenue,
-            billCount: 0,
-            percent
-          });
+    // Extract partner columns from header line
+    for (const line of rawLines) {
+      if (line.includes('\t') && /HomeCredit|FECredit|Shinhan|SMARTPOS|KREDIVO|Payoo|TPBANK|PAYLATER/i.test(line)) {
+        const parts = splitLine(line);
+        const startIdx = parts.findIndex(p => /HomeCredit|FECredit|Shinhan|SMARTPOS|KREDIVO|Payoo|TPBANK|PAYLATER/i.test(p));
+        if (startIdx !== -1) {
+          extractedPartners = parts.slice(startIdx).filter(p => p && !/DT|%|Tổng|Siêu thị/i.test(p));
+          break;
         }
-      } else {
-        // Format A: Standard report (usually 4-5 columns)
-        if (parts.length >= 3) {
-          const totalRevRaw = cleanNumber(parts[1]);
-          const installRevRaw = cleanNumber(parts[2]);
-          const billCount = parts.length > 3 ? cleanNumber(parts[3]) : 0;
-          
-          let percent = parts.length > 4 ? cleanNumber(parts[4]) : 0;
-          if (percent > 0 && percent <= 1 && parts[4] && !parts[4].includes('%')) {
-            percent = percent * 100;
-          }
+      }
+    }
+
+    for (let i = 0; i < rawLines.length; i++) {
+      const line = rawLines[i];
+      const parts = splitLine(line);
+
+      // Case 1: Pure employee name line followed by numbers on next line (Web BI format)
+      if (isEmployeeNameLine(line) && i + 1 < rawLines.length) {
+        const nextLine = rawLines[i + 1];
+        const nextParts = splitLine(nextLine);
+        if (nextParts.length >= 2 && /^[-]?\d/.test(nextParts[0])) {
+          const staffVal = parts[0];
+          const installRevRaw = cleanNumber(nextParts[0]);
+          const totalRevRaw = cleanNumber(nextParts[1]);
+          let percent = nextParts.length > 2 ? cleanNumber(nextParts[2]) : 0;
 
           let totalRevenue = totalRevRaw;
           if (Math.abs(totalRevenue) > 0 && Math.abs(totalRevenue) < 1000000) {
@@ -2011,18 +2073,117 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
             percent = (installmentRevenue / totalRevenue) * 100;
           }
 
+          const partnerData: Record<string, { dt: number; percent: number }> = {};
+          extractedPartners.forEach((pName, pIdx) => {
+            const dtCol = 3 + pIdx * 2;
+            const pctCol = 3 + pIdx * 2 + 1;
+            let pDt = dtCol < nextParts.length ? cleanNumber(nextParts[dtCol]) : 0;
+            if (Math.abs(pDt) > 0 && Math.abs(pDt) < 1000000) pDt *= 1000000;
+            const pPct = pctCol < nextParts.length ? cleanNumber(nextParts[pctCol]) : 0;
+            partnerData[pName] = { dt: pDt, percent: pPct };
+          });
+
           parsedRows.push({
             nhanVien: staffVal,
             totalRevenue,
             installmentRevenue,
-            billCount,
-            percent
+            billCount: 0,
+            percent,
+            partnerData
           });
+          i++;
+          continue;
         }
       }
-    });
 
-    return parsedRows;
+      // Case 2: Single-line format (parts.length >= 2)
+      if (parts.length < 2) continue;
+      if (isHeaderString(parts[0])) continue;
+
+      const nameStartCheck = /^[a-zA-Z\dÀ-ỹ]/.test(parts[0]);
+      if (!nameStartCheck) continue;
+
+      const staffVal = parts[0];
+      while (parts.length > 0 && parts[parts.length - 1] === '') {
+        parts.pop();
+      }
+
+      const isDetailed = text.toLowerCase().includes('homecredit') || 
+                         text.toLowerCase().includes('fecredit') || 
+                         text.toLowerCase().includes('shinhan');
+
+      if (isDetailed && parts.length >= 3) {
+        const totalRevRaw = cleanNumber(parts[parts.length - 2]);
+        const percentRaw = cleanNumber(parts[parts.length - 1]);
+        
+        let totalRevenue = totalRevRaw;
+        // Scale to absolute VND if it's in millions (e.g. 107.33 -> 107,330,000)
+        if (Math.abs(totalRevenue) > 0 && Math.abs(totalRevenue) < 1000000) {
+          totalRevenue = totalRevenue * 1000000;
+        }
+
+        let percent = percentRaw;
+        const lastPart = parts[parts.length - 1];
+        if (percent > 0 && percent <= 1 && lastPart && !lastPart.includes('%')) {
+          percent = percent * 100;
+        }
+
+        const installmentRevenue = totalRevenue * (percent / 100);
+
+        const partnerData: Record<string, { dt: number; percent: number }> = {};
+        extractedPartners.forEach((pName, pIdx) => {
+          const dtCol = 1 + pIdx * 2;
+          const pctCol = 1 + pIdx * 2 + 1;
+          let pDt = dtCol < parts.length ? cleanNumber(parts[dtCol]) : 0;
+          if (Math.abs(pDt) > 0 && Math.abs(pDt) < 1000000) pDt *= 1000000;
+          const pPct = pctCol < parts.length ? cleanNumber(parts[pctCol]) : 0;
+          partnerData[pName] = { dt: pDt, percent: pPct };
+        });
+
+        parsedRows.push({
+          nhanVien: staffVal,
+          totalRevenue,
+          installmentRevenue,
+          billCount: 0,
+          percent,
+          partnerData
+        });
+      } else if (parts.length >= 3) {
+        const totalRevRaw = cleanNumber(parts[1]);
+        const installRevRaw = cleanNumber(parts[2]);
+        const billCount = parts.length > 3 ? cleanNumber(parts[3]) : 0;
+        
+        let percent = parts.length > 4 ? cleanNumber(parts[4]) : 0;
+        if (percent > 0 && percent <= 1 && parts[4] && !parts[4].includes('%')) {
+          percent = percent * 100;
+        }
+
+        let totalRevenue = totalRevRaw;
+        if (Math.abs(totalRevenue) > 0 && Math.abs(totalRevenue) < 1000000) {
+          totalRevenue = totalRevenue * 1000000;
+        }
+
+        let installmentRevenue = installRevRaw;
+        if (Math.abs(installmentRevenue) > 0 && Math.abs(installmentRevenue) < 1000000) {
+          installmentRevenue = installmentRevenue * 1000000;
+        }
+
+        if (percent === 0 && totalRevenue > 0) {
+          percent = (installmentRevenue / totalRevenue) * 100;
+        }
+
+        parsedRows.push({
+          nhanVien: staffVal,
+          totalRevenue,
+          installmentRevenue,
+          billCount,
+          percent,
+          partnerData: {}
+        });
+      }
+    }
+
+    return { rows: parsedRows, partners: extractedPartners };
   }, []);
 
   const parseBanKemData = useCallback((text: string) => {
@@ -2382,26 +2543,48 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     return matchesSearch && matchesSelection;
   }), [biRevenueData, searchTerm, selectedStaffIds]);
 
+  const { traChamRows, traChamPartners } = useMemo(() => {
+    const res = parseTraChamData(effectiveTragopNv);
+    return {
+      traChamRows: res.rows || [],
+      traChamPartners: res.partners || []
+    };
+  }, [effectiveTragopNv, parseTraChamData]);
+
   const parsedTraChamRows = useMemo(() => {
-    const parsed = parseTraChamData(tragopNv);
-    return parsed
-      .filter((row: any) => {
+    return traChamRows
+      .map((row: any) => {
         // Find if this row matches any staff in the store's biRevenueData list
         const matchingStaff = biRevenueData.find(staff => {
           const staffId = staff.fullId.toLowerCase().trim();
-          const staffName = (staff.displayName.split('-').pop() || '').trim();
-          const staffNameClean = removeAccents(staffName);
-          const rowValClean = removeAccents(row.nhanVien);
-          return rowValClean.includes(staffId) || 
+          const staffName = (staff.displayName.split(/[-–—]/).pop() || '').trim();
+          const staffNameClean = removeAccents(staffName).toLowerCase();
+          const rowValClean = removeAccents(row.nhanVien).toLowerCase();
+          const rowIdMatch = (row.nhanVien || '').match(/\b\d{4,8}\b/);
+          const rowId = rowIdMatch ? rowIdMatch[0] : '';
+          return (rowId && rowId === staffId) ||
+                 rowValClean.includes(staffId) || 
                  rowValClean === staffNameClean ||
                  rowValClean.includes(staffNameClean) ||
                  staffNameClean.includes(rowValClean);
         });
-        if (!matchingStaff) return false;
-        return selectedStaffIds.includes(matchingStaff.fullId);
+
+        if (matchingStaff) {
+          return {
+            ...row,
+            nhanVien: matchingStaff.displayName,
+            staffId: matchingStaff.fullId
+          };
+        }
+        return row;
       })
-      .sort((a, b) => b.percent - a.percent);
-  }, [tragopNv, selectedStaffIds, biRevenueData, parseTraChamData]);
+      .filter((row: any) => {
+        if (!searchTerm) return true;
+        const q = searchTerm.toLowerCase();
+        return (row.nhanVien || '').toLowerCase().includes(q) || (row.staffId || '').toLowerCase().includes(q);
+      })
+      .sort((a, b) => b.percent - a.percent || b.installmentRevenue - a.installmentRevenue);
+  }, [traChamRows, biRevenueData, searchTerm]);
 
   const parsedBanKemRows = useMemo(() => {
     return banKemNv ? parseBanKemData(banKemNv)
@@ -4130,12 +4313,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                     biRevenueData={biRevenueData}
                     filteredBiData={filteredBiData}
                     thiDuaNv={thiDuaNv}
-                    tragopNv={tragopNv}
+                    tragopNv={effectiveTragopNv}
                     selectedStaffIds={selectedStaffIds}
                     staffCount={selectedStaffIds.length}
                     daysPassed={daysPassed}
                     totalDays={totalDays}
-                    stTargetSauHeSo={stTargetSauHeSo}
+                    stTargetSauHeSo={displayTargetQD}
                     categoryTargets={categoryTargets}
                     luykeCategories={processedData.categories.filter((c: any) => isCategoryForMarket(c, marketFilter))}
                     marketFilter={marketFilter}
@@ -4227,9 +4410,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                            return res.tong;
                          })();
 
+                        const { name: pureStaffName } = extractStaffNameAndId(staff.displayName);
+                        const formattedStaffName = `${pureStaffName || staff.displayName} - ${staff.fullId}`;
+
                         const staffTraChamRow = parsedTraChamRows.find(row => {
                           const staffId = staff.fullId.toLowerCase().trim();
-                          const staffName = (staff.displayName.split('-').pop() || '').trim();
+                          const staffName = pureStaffName || (staff.displayName.split('-').pop() || '').trim();
                           const staffNameClean = removeAccents(staffName);
                           const rowValClean = removeAccents(row.nhanVien);
                           return rowValClean.includes(staffId) || 
@@ -4241,7 +4427,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
                         const staffNhcRow = parsedNhcStaffRows.find(row => {
                           const staffId = staff.fullId.toLowerCase().trim();
-                          const staffName = (staff.displayName.split('-').pop() || '').trim();
+                          const staffName = pureStaffName || (staff.displayName.split('-').pop() || '').trim();
                           const staffNameClean = removeAccents(staffName);
                           const rowValClean = removeAccents(row.name);
                           return rowValClean.includes(staffId) || 
@@ -4269,7 +4455,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                             transition={{ delay: 0.1 + (idx * 0.05) }}
                           >
                             <EmployeeDetailTable
-                              staffName={`${staff.displayName.split(' - ').pop()} - ${staff.fullId}`}
+                              staffName={formattedStaffName}
                               luyKeNganhHang={luyKeNganhHang}
                               thiDuaNv={thiDuaNv}
                               staffCount={selectedStaffIds.length}
@@ -5292,7 +5478,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-[1260px] mx-auto w-full relative overflow-hidden"
+                  className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-full mx-auto w-full relative overflow-hidden"
                 >
                   {renderLoadingOverlay()}
                   
@@ -5302,9 +5488,25 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                         <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
                           <Clock size={20} />
                         </div>
-                        <h3 style={{ fontFamily: 'var(--font-sans)', fontSize: '24px', fontWeight: '900' }} className="text-slate-800 uppercase tracking-widest font-sans font-black">LK TRẢ CHẬM NHÂN VIÊN</h3>
+                        <div>
+                          <h3 style={{ fontFamily: 'var(--font-sans)', fontSize: '24px', fontWeight: '900' }} className="text-slate-800 uppercase tracking-widest font-sans font-black">LK TRẢ CHẬM NHÂN VIÊN</h3>
+                          <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">Dữ liệu hiệu quả trả góp từ Web BI ({parsedTraChamRows.length} nhân viên)</p>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        {traChamPartners.length > 0 && (
+                          <button
+                            onClick={() => setShowFullTraChamPartners(p => !p)}
+                            className={`no-capture flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer ${
+                              showFullTraChamPartners
+                                ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300'
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                            }`}
+                          >
+                            <LayoutGrid size={14} />
+                            <span>{showFullTraChamPartners ? 'Thu Gọn Đối Tác' : 'Full Data Đối Tác'}</span>
+                          </button>
+                        )}
                         {parsedTraChamRows.length > 0 && (
                           <button
                             onClick={handleOpenTraChamComment}
@@ -5337,31 +5539,49 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                               TRẢ CHẬM NHÂN VIÊN
                             </h2>
                             <p className="text-[11px] sm:text-[12px] text-white/80 font-bold mt-1" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
-                              ⚡ Luỹ kế tháng &nbsp;||&nbsp; TGSD: {daysPassed}/{totalDays}
+                              ⚡ Luỹ kế tháng &nbsp;||&nbsp; TGSD: {daysPassed}/{totalDays} &nbsp;||&nbsp; {parsedTraChamRows.length} Nhân viên
                             </p>
                           </div>
 
                           {/* Table */}
                           <div className="w-full overflow-x-auto">
-                            <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
-                              <colgroup>
-                                <col style={{ width: '50px' }} />
-                                <col style={{ width: '220px' }} />
-                                <col style={{ width: '140px' }} />
-                                <col style={{ width: '140px' }} />
-                                <col style={{ width: '100px' }} />
-                                <col style={{ width: '70px' }} />
-                              </colgroup>
-                              <thead>
-                                <tr className="h-[40px]">
-                                  <th className="bg-[#047857] text-white px-2 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
-                                  <th className="bg-[#047857] text-white px-3 py-0 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
-                                  <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Thực</th>
-                                  <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Trả Chậm</th>
-                                  <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>% Trả Chậm</th>
-                                  <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>XH</th>
-                                </tr>
-                              </thead>
+                            <table className="w-full border-collapse" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
+                              {showFullTraChamPartners && traChamPartners.length > 0 ? (
+                                <thead>
+                                  <tr className="h-[36px]">
+                                    <th rowSpan={2} className="bg-[#047857] text-white px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 w-[48px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
+                                    <th rowSpan={2} className="bg-[#047857] text-white px-3 py-1 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 min-w-[200px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
+                                    <th rowSpan={2} className="bg-[#047857] text-white px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 min-w-[110px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Thực</th>
+                                    <th rowSpan={2} className="bg-[#047857] text-white px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 min-w-[110px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Trả Chậm</th>
+                                    <th rowSpan={2} className="bg-[#047857] text-white px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 min-w-[85px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>% Trả Chậm</th>
+                                    {traChamPartners.map((p, pIdx) => (
+                                      <th key={pIdx} colSpan={2} className="bg-[#065f46] text-amber-200 px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        {p}
+                                      </th>
+                                    ))}
+                                    <th rowSpan={2} className="bg-[#047857] text-white px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider w-[65px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>XH</th>
+                                  </tr>
+                                  <tr className="h-[28px]">
+                                    {traChamPartners.map((p, pIdx) => (
+                                      <React.Fragment key={pIdx}>
+                                        <th className="bg-[#047857] text-white/90 px-1 py-0.5 text-center text-[10px] font-black uppercase tracking-wider border-r border-emerald-600/50 min-w-[80px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT</th>
+                                        <th className="bg-[#047857] text-white/90 px-1 py-0.5 text-center text-[10px] font-black uppercase tracking-wider border-r border-emerald-600/50 min-w-[60px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>%</th>
+                                      </React.Fragment>
+                                    ))}
+                                  </tr>
+                                </thead>
+                              ) : (
+                                <thead>
+                                  <tr className="h-[40px]">
+                                    <th className="bg-[#047857] text-white px-2 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 w-[50px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
+                                    <th className="bg-[#047857] text-white px-3 py-0 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 min-w-[220px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
+                                    <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 w-[140px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Thực</th>
+                                    <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 w-[140px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Trả Chậm</th>
+                                    <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 w-[100px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>% Trả Chậm</th>
+                                    <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider w-[70px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>XH</th>
+                                  </tr>
+                                </thead>
+                              )}
                               <tbody>
                                 {parsedTraChamRows.map((row: any, i: number, arr: any[]) => {
                                   const threshold = Math.max(1, Math.ceil(arr.length * 0.2));
@@ -5387,6 +5607,21 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                       <td className={`px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 whitespace-nowrap ${isTop ? 'text-emerald-600' : isBottom ? 'text-rose-600' : 'text-slate-700'}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                         {row.percent.toFixed(1)}%
                                       </td>
+                                      {showFullTraChamPartners && traChamPartners.map((p, pIdx) => {
+                                        const pd = row.partnerData?.[p];
+                                        const dt = pd?.dt || 0;
+                                        const pct = pd?.percent || 0;
+                                        return (
+                                          <React.Fragment key={pIdx}>
+                                            <td className="px-1 py-0 text-center font-bold text-[11px] sm:text-[12px] border-r border-slate-100 text-slate-700 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                              {dt > 0 ? Math.round(dt).toLocaleString('vi-VN') : <span className="text-slate-300 font-normal">—</span>}
+                                            </td>
+                                            <td className={`px-1 py-0 text-center font-bold text-[11px] sm:text-[12px] border-r border-slate-100 whitespace-nowrap ${pct > 0 ? 'text-slate-700' : 'text-slate-300 font-normal'}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                              {pct > 0 ? `${pct.toFixed(1)}%` : '—'}
+                                            </td>
+                                          </React.Fragment>
+                                        );
+                                      })}
                                       <td className="px-1 py-0 text-center text-[11px] sm:text-[12px] font-black whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                         {isTop && <span className="text-emerald-700">Top</span>}
                                         {isBottom && <span className="text-rose-600">Bot</span>}
@@ -5414,6 +5649,21 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                       return totalRev > 0 ? ((totalInst / totalRev) * 100).toFixed(1) + '%' : '—';
                                     })()}
                                   </td>
+                                  {showFullTraChamPartners && traChamPartners.map((p, pIdx) => {
+                                    const totalPartnerDt = parsedTraChamRows.reduce((s: number, r: any) => s + (r.partnerData?.[p]?.dt || 0), 0);
+                                    const totalInst = parsedTraChamRows.reduce((s: number, r: any) => s + r.installmentRevenue, 0);
+                                    const pctOfInst = totalInst > 0 ? ((totalPartnerDt / totalInst) * 100).toFixed(1) + '%' : '—';
+                                    return (
+                                      <React.Fragment key={pIdx}>
+                                        <td className="px-1 py-0 text-center font-black text-[11px] sm:text-[12px] border-r border-emerald-600/50 whitespace-nowrap text-amber-200" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                          {totalPartnerDt > 0 ? Math.round(totalPartnerDt).toLocaleString('vi-VN') : '—'}
+                                        </td>
+                                        <td className="px-1 py-0 text-center font-black text-[11px] sm:text-[12px] border-r border-emerald-600/50 whitespace-nowrap text-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                          {pctOfInst}
+                                        </td>
+                                      </React.Fragment>
+                                    );
+                                  })}
                                   <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>—</td>
                                 </tr>
                               </tfoot>
@@ -5425,10 +5675,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           <Clock size={48} className="mx-auto text-slate-300 mb-4 animate-pulse" />
                           <h3 className="text-lg font-black text-slate-400 uppercase tracking-widest">CHƯA CÓ DỮ LIỆU TRẢ CHẬM HỢP LỆ</h3>
                           <p className="text-slate-400 text-sm font-medium mb-4">Vui lòng dán dữ liệu hiệu quả trả chậm của nhân viên tại trang <b>Khai Báo &gt; Cấu Hình Siêu Thị &gt; TRẢ GÓP NV</b>.</p>
-                          {tragopNv && tragopNv.trim().length > 0 && (
+                          {effectiveTragopNv && effectiveTragopNv.trim().length > 0 && (
                             <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-left text-xs max-w-lg mx-auto">
                               <p className="font-bold text-red-800 mb-1">Dữ liệu thô đang có trong cấu hình (không phân tích được):</p>
-                              <pre className="whitespace-pre-wrap font-mono text-[10px] text-red-700 max-h-32 overflow-y-auto bg-white p-2 rounded border border-red-100">{tragopNv}</pre>
+                              <pre className="whitespace-pre-wrap font-mono text-[10px] text-red-700 max-h-32 overflow-y-auto bg-white p-2 rounded border border-red-100">{effectiveTragopNv}</pre>
                             </div>
                           )}
                         </div>
@@ -6110,7 +6360,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                               <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">Trả Chậm ({rankMonth3})</label>
                               <div className="flex items-center gap-1.5">
                                 <button
-                                  onClick={() => setConfirmModal({ title: 'Đồng bộ Trả Chậm', message: 'Đồng bộ dữ liệu từ CẬP NHẬT > CẤU HÌNH SIÊU THỊ > TRẢ GÓP NV vào cột ' + rankMonth3 + '?\nDữ liệu cũ sẽ bị ghi đè.', variant: 'info', onConfirm: () => { if (tragopNv) setTracham3t3(tragopNv); else alert('Chưa có dữ liệu Trả Góp NV từ CẤU HÌNH SIÊU THỊ'); } })}
+                                  onClick={() => setConfirmModal({ title: 'Đồng bộ Trả Chậm', message: 'Đồng bộ dữ liệu từ CẬP NHẬT > CẤU HÌNH SIÊU THỊ > TRẢ GÓP NV vào cột ' + rankMonth3 + '?\nDữ liệu cũ sẽ bị ghi đè.', variant: 'info', onConfirm: () => { if (effectiveTragopNv) setTracham3t3(effectiveTragopNv); else alert('Chưa có dữ liệu Trả Góp NV từ CẤU HÌNH SIÊU THỊ'); } })}
                                   className="flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95"
                                   title="Đồng bộ từ CẤU HÌNH SIÊU THỊ > TRẢ GÓP NV"
                                 >
@@ -6992,7 +7242,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                   selectedStaffIds={selectedStaffIds}
                   biRevenueData={biRevenueData}
                   parsedTraChamRows={parsedTraChamRows}
-                  tragopNv={tragopNv}
+                  tragopNv={effectiveTragopNv}
                   onPreviewImage={setPreviewImage}
                 />
               )}

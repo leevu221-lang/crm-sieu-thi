@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { motion } from 'framer-motion';
 import { parseCategoryData, cn, cleanCategoryName } from '../../RTST/utils';
 import { StaffMatrixData, CategoryData } from '../../RTST/types';
+import { extractStaffNameAndId, isEmpNameStr } from '../utils/staffParserHelper';
 import { Download, Copy, Check, MessageSquare, MessageCircle, ChevronDown, Search, X, Sparkles } from 'lucide-react';
 import { domToPng } from 'modern-screenshot';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -24,11 +25,17 @@ export const getCategoryGroupType = (catName: string, categoryConfig?: CategoryC
   if (!catName) return 'DMX';
   
   if (categoryConfig && categoryConfig.length > 0) {
-    const normName = catName.trim().toLowerCase();
-    const match = categoryConfig.find(c => c.name.toLowerCase().trim() === normName);
+    const cleanCat = cleanCategoryName(catName);
+    let match = categoryConfig.find(c => cleanCategoryName(c.name) === cleanCat);
+    if (!match) {
+      match = categoryConfig.find(c => {
+        const cleanCfg = cleanCategoryName(c.name);
+        return (cleanCfg.length > 3 && cleanCat.includes(cleanCfg)) || (cleanCat.length > 3 && cleanCfg.includes(cleanCat));
+      });
+    }
     if (match) {
       if (match.group === 'ICT') return 'ICT';
-      if (match.group === 'DỊCH VỤ') return 'DICH_VU';
+      if (match.group === 'DỊCH VỤ' || match.group === 'DICH_VU') return 'DICH_VU';
       return 'DMX';
     }
   }
@@ -107,6 +114,7 @@ export const EXACT_CATEGORY_ORDER: string[] = [
   "chovaytienmat",
   "dichvuvas",
   "napruttientaikhoannganhang",
+  "ottmangoicallme",
   "mangoplusicallme",
   "mothetindungtpbankevovavpbankmwg",
   "hisense",
@@ -130,9 +138,15 @@ export const getCustomCategoryIndex = (catName: string, categoryConfig?: Categor
   if (!catName) return 999;
   
   if (categoryConfig && categoryConfig.length > 0) {
-    const normName = catName.trim().toLowerCase();
-    const idx = categoryConfig.findIndex(c => c.name.toLowerCase().trim() === normName);
+    const cleanCat = cleanCategoryName(catName);
+    const idx = categoryConfig.findIndex(c => cleanCategoryName(c.name) === cleanCat);
     if (idx !== -1) return idx;
+
+    const fuzzyIdx = categoryConfig.findIndex(c => {
+      const cleanCfg = cleanCategoryName(c.name);
+      return (cleanCfg.length > 3 && cleanCat.includes(cleanCfg)) || (cleanCat.length > 3 && cleanCfg.includes(cleanCat));
+    });
+    if (fuzzyIdx !== -1) return fuzzyIdx;
   }
   
   const clean = removeAccentsLocal(catName).toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -173,12 +187,12 @@ export const parseStaffMatrixDataRefined = (
   totalDays: number,
   sortAlpha: boolean = false,
   categoryConfig?: CategoryConfigItem[]
-): { staffMatrix: StaffMatrixData[], categories: string[] } => {
-  const raw = input.trim();
-  if (!raw) return { staffMatrix: [], categories: [] };
+): { staffMatrix: StaffMatrixData[], categories: string[], results: StaffMatrixData[] } => {
+  const raw = (input || '').trim();
+  if (!raw) return { staffMatrix: [], categories: [], results: [] };
 
   const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  if (lines.length === 0) return { staffMatrix: [], categories: [] };
+  if (lines.length === 0) return { staffMatrix: [], categories: [], results: [] };
 
   const excludedKeywords = [
     'bp all in one', 'bp trưởng ca', 'bp truong ca', 'hỗ trợ bi', 'ho tro bi',
@@ -194,7 +208,218 @@ export const parseStaffMatrixDataRefined = (
     return /[-–—]\s*\d{4,8}\b/.test(str) || /\b\d{4,8}\s*[-–—]/.test(str) || (str.includes(' - ') && /\d/.test(str));
   };
 
-  // 1. Detect if input is 2D Tab-delimited Table (Horizontal category headers)
+  // ========================================================
+  // FORMAT 1: Section-by-Section Vertical BI Report (e.g. 18/19 stores from BI MWG)
+  // Structure:
+  // [Category Name]
+  // (DOANH THU|SỐ LƯỢNG)\tHẠNG TRONG ST...
+  // TỔNG
+  // [Total values]
+  // [Staff Name - ID]
+  // [Staff values (val \t rank ...)]
+  // ========================================================
+  const sectionIndices: { lineIdx: number; catName: string; type: 'SL' | 'DT' }[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    const isTabHeader = /^(DOANH THU|SỐ LƯỢNG|DOANH THU THỰC|DT|SL)\t(HẠNG|TARGET|THỰC HIỆN|TOP)/i.test(l) ||
+      /^DOANH THU\tHẠNG/i.test(l) || /^SỐ LƯỢNG\tHẠNG/i.test(l);
+    const isLineHeader = (l.toUpperCase() === 'DOANH THU' || l.toUpperCase() === 'SỐ LƯỢNG' || l.toUpperCase() === 'DT' || l.toUpperCase() === 'SL') &&
+      i + 1 < lines.length && (lines[i + 1].toUpperCase().includes('HẠNG') || lines[i + 1].toUpperCase().includes('TARGET'));
+    const isSectionHeader = isTabHeader || isLineHeader;
+    if (isSectionHeader && i > 0) {
+      const catName = lines[i - 1];
+      const type = /^(SỐ LƯỢNG|SL)\b/i.test(l) ? 'SL' : 'DT';
+      sectionIndices.push({ lineIdx: i, catName, type });
+    }
+  }
+
+  if (sectionIndices.length > 0) {
+    const inputCategories: string[] = [];
+    const categoryTypes: Record<string, 'SL' | 'DT'> = {};
+    const staffMap = new Map<string, { id: string; name: string; shortName: string; displayName: string; values: Record<string, number> }>();
+
+    for (let s = 0; s < sectionIndices.length; s++) {
+      const sec = sectionIndices[s];
+      const catName = sec.catName;
+      const cleanCat = cleanCategoryName(catName);
+      if (!inputCategories.includes(catName)) {
+        inputCategories.push(catName);
+        categoryTypes[cleanCat] = sec.type;
+      }
+
+      const startLine = sec.lineIdx + 1;
+      const endLine = s + 1 < sectionIndices.length ? sectionIndices[s + 1].lineIdx - 1 : lines.length;
+
+      for (let i = startLine; i < endLine; i++) {
+        const line = lines[i];
+        if (line.toUpperCase() === 'TỔNG' || line.toUpperCase().startsWith('TỔNG\t')) {
+          if (i + 1 < endLine && /^[\d\s,.-]+/.test(lines[i + 1])) {
+            i++;
+          }
+          continue;
+        }
+
+        const parts = line.split('\t').map(p => p.trim());
+        let nameStr = '';
+        let val = 0;
+
+        if (parts.length >= 2 && isEmpNameStr(parts[0])) {
+          nameStr = parts[0];
+          val = parseFloat(parts[1].replace(/,/g, '')) || 0;
+        } else if (isEmpNameStr(line)) {
+          nameStr = line;
+          if (i + 1 < endLine) {
+            const nextParts = lines[i + 1].split('\t').map(p => p.trim());
+            val = parseFloat(nextParts[0].replace(/,/g, '')) || 0;
+            i++;
+          }
+        }
+
+        if (nameStr) {
+          const { id, name, shortName } = extractStaffNameAndId(nameStr);
+          if (!id && !name) continue;
+          const key = id || name;
+          if (!staffMap.has(key)) {
+            staffMap.set(key, { id, name, shortName, displayName: `${id} - ${name.toUpperCase()}`, values: {} });
+          }
+          const staffObj = staffMap.get(key)!;
+          staffObj.values[cleanCat] = val;
+        }
+      }
+    }
+
+    // Resolve categories
+    let resolvedCategories: string[] = [];
+    const seenCat = new Set<string>();
+    if (luykeCategories && luykeCategories.length > 0) {
+      luykeCategories.forEach(c => {
+        const clean = cleanCategoryName(c.name);
+        if (clean && !seenCat.has(clean)) {
+          seenCat.add(clean);
+          resolvedCategories.push(c.name);
+        }
+      });
+      inputCategories.forEach(catName => {
+        const clean = cleanCategoryName(catName);
+        if (clean && !seenCat.has(clean)) {
+          seenCat.add(clean);
+          resolvedCategories.push(catName);
+        }
+      });
+    } else if (categoryTargets && categoryTargets.length > 0) {
+      categoryTargets.forEach(t => {
+        const clean = cleanCategoryName(t.name);
+        if (clean && !seenCat.has(clean)) {
+          seenCat.add(clean);
+          resolvedCategories.push(t.name);
+        }
+      });
+      inputCategories.forEach(catName => {
+        const clean = cleanCategoryName(catName);
+        if (clean && !seenCat.has(clean)) {
+          seenCat.add(clean);
+          resolvedCategories.push(catName);
+        }
+      });
+    } else {
+      inputCategories.forEach(catName => {
+        const clean = cleanCategoryName(catName);
+        if (clean && !seenCat.has(clean)) {
+          seenCat.add(clean);
+          resolvedCategories.push(catName);
+        }
+      });
+    }
+
+    if (categoryConfig && categoryConfig.length > 0) {
+      // Chỉ giữ lại các ngành hàng thuộc nhóm hàng khai báo (categoryConfig)
+      resolvedCategories = resolvedCategories.filter(catName => {
+        const clean = cleanCategoryName(catName);
+        return categoryConfig.some(c => {
+          const cleanCfg = cleanCategoryName(c.name);
+          return cleanCfg === clean || (cleanCfg.length > 3 && clean.includes(cleanCfg)) || (clean.length > 3 && cleanCfg.includes(clean));
+        });
+      });
+    } else {
+      // Loại bỏ các ngành hàng rác, chuỗi thuần số hoặc không chứa chữ cái
+      resolvedCategories = resolvedCategories.filter(catName => {
+        if (!catName || !/[a-zA-Zà-ỹÀ-Ỹ]/.test(catName)) return false;
+        if (/^[\d\s,.\-+/%:()]+$/.test(catName)) return false;
+        return true;
+      });
+    }
+
+    if (sortAlpha) {
+      resolvedCategories.sort((a, b) => a.localeCompare(b, 'vi'));
+    } else {
+      resolvedCategories.sort((a, b) => getCustomCategoryIndex(a, categoryConfig) - getCustomCategoryIndex(b, categoryConfig));
+    }
+
+    const targetPerStaffPerCat: Record<string, number> = {};
+    resolvedCategories.forEach(catName => {
+      const clean = cleanCategoryName(catName);
+      const matchingTarget = categoryTargets?.find(t => cleanCategoryName(t.name) === clean);
+      const lkCat = luykeCategories?.find(c => cleanCategoryName(c.name) === clean);
+      const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
+        ? matchingTarget.adjustedTarget
+        : (matchingTarget?.target || lkCat?.target || 0);
+      targetPerStaffPerCat[clean] = staffCount > 0 ? baseTarget / staffCount : baseTarget;
+    });
+
+    const staffMatrixResults: StaffMatrixData[] = Array.from(staffMap.values()).map(staff => {
+      const values: number[] = [];
+      const projectedRates: number[] = [];
+      const actualPercentHTs: number[] = [];
+      let achievedCount = 0;
+
+      resolvedCategories.forEach(catName => {
+        const cleanName = cleanCategoryName(catName);
+        const accumulated = staff.values[cleanName] ?? 0;
+        values.push(accumulated);
+
+        const target = targetPerStaffPerCat[cleanName] || 0;
+        let actualRate = 0;
+        if (target > 0) {
+          actualRate = (accumulated / target) * 100;
+        } else if (accumulated > 0) {
+          actualRate = 100;
+        }
+        actualPercentHTs.push(actualRate);
+
+        let projectedRate = 0;
+        if (target > 0 && daysPassed > 0) {
+          projectedRate = ((accumulated / daysPassed) * totalDays) / target * 100;
+        } else {
+          projectedRate = actualRate;
+        }
+        projectedRates.push(projectedRate);
+
+        const effectiveRate = daysPassed > 0 ? projectedRate : actualRate;
+        if (Math.round(effectiveRate) >= 100) achievedCount++;
+      });
+
+      return {
+        displayName: staff.displayName,
+        fullId: staff.id,
+        shortName: `${staff.id} - ${staff.shortName}`,
+        name: staff.name,
+        achieved: achievedCount,
+        achievedCount,
+        totalCats: resolvedCategories.length,
+        rate: resolvedCategories.length > 0 ? achievedCount / resolvedCategories.length : 0,
+        rawValues: values,
+        valuesMap: staff.values,
+        projectedRates,
+        actualPercentHTs
+      } as any;
+    });
+
+    return { staffMatrix: staffMatrixResults, categories: resolvedCategories, results: staffMatrixResults };
+  }
+
+  // ========================================================
+  // FORMAT 2 & 3: 2D Matrix Table or "Phòng ban" 1D Table
+  // ========================================================
   let is2DTable = false;
   let headerLineIdx = -1;
   let firstEmpLineIdx = -1;
@@ -223,7 +448,7 @@ export const parseStaffMatrixDataRefined = (
 
   let inputCategories: string[] = [];
   const categoryToColIdx: Map<string, number> = new Map();
-  const staffMatrixResults: any[] = [];
+  const rawStaffResults: { id: string; name: string; shortName: string; parts: number[] }[] = [];
 
   if (is2DTable && headerLineIdx !== -1) {
     const headerParts = lines[headerLineIdx].split('\t').map(p => p.trim());
@@ -268,12 +493,7 @@ export const parseStaffMatrixDataRefined = (
       if (nameIdx === -1) continue;
 
       const namePart = parts[nameIdx];
-      const nameIdParts = namePart.split(' - ').map(s => s.trim());
-      const name = nameIdParts[0] || namePart;
-      const id = nameIdParts[1] || '';
-
-      const nameWords = name.trim().split(' ');
-      const shortName = nameWords[nameWords.length - 1].toUpperCase();
+      const { name, id, shortName } = extractStaffNameAndId(namePart);
 
       const rawInputValues = parts.slice(nameIdx + 1).map(v => {
         if (!v || v.trim() === '') return 0;
@@ -282,8 +502,7 @@ export const parseStaffMatrixDataRefined = (
         return isNaN(num) ? 0 : num;
       });
 
-      staffMatrixResults.push({
-        rawLine: lines[i],
+      rawStaffResults.push({
         id,
         name,
         shortName,
@@ -291,12 +510,14 @@ export const parseStaffMatrixDataRefined = (
       });
     }
   } else {
+    // Format 3: "Phòng ban" single column header
     let headerStartIdx = -1;
     let dataStartIdx = -1;
     let colPosition = 0;
 
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i] === 'Phòng ban') {
+      const lineTrim = lines[i].toLowerCase().trim();
+      if (lineTrim === 'phòng ban' || lineTrim === 'phong ban' || lineTrim.startsWith('phòng ban') || lineTrim.startsWith('phong ban')) {
         headerStartIdx = i;
         continue;
       }
@@ -340,12 +561,7 @@ export const parseStaffMatrixDataRefined = (
       if (nameIdx === -1) continue;
 
       const namePart = parts[nameIdx];
-      const nameIdParts = namePart.split(' - ').map(s => s.trim());
-      const name = nameIdParts[0] || namePart;
-      const id = nameIdParts[1] || '';
-
-      const nameWords = name.trim().split(' ');
-      const shortName = nameWords[nameWords.length - 1].toUpperCase();
+      const { name, id, shortName } = extractStaffNameAndId(namePart);
 
       const rawInputValues = parts.slice(nameIdx + 1).map(v => {
         if (!v || v.trim() === '') return 0;
@@ -354,8 +570,7 @@ export const parseStaffMatrixDataRefined = (
         return isNaN(num) ? 0 : num;
       });
 
-      staffMatrixResults.push({
-        rawLine: line,
+      rawStaffResults.push({
         id,
         name,
         shortName,
@@ -365,42 +580,75 @@ export const parseStaffMatrixDataRefined = (
   }
 
   let resolvedCategories: string[] = [];
+  const seenCat = new Set<string>();
   if (luykeCategories && luykeCategories.length > 0) {
-    const seen = new Set<string>();
     luykeCategories.forEach(c => {
       const clean = cleanCategoryName(c.name);
-      if (clean && !seen.has(clean)) {
-        seen.add(clean);
+      if (clean && !seenCat.has(clean)) {
+        seenCat.add(clean);
         resolvedCategories.push(c.name);
       }
     });
+    inputCategories.forEach(catName => {
+      const clean = cleanCategoryName(catName);
+      if (clean && !seenCat.has(clean)) {
+        seenCat.add(clean);
+        resolvedCategories.push(catName);
+      }
+    });
   } else if (categoryTargets && categoryTargets.length > 0) {
-    const seen = new Set<string>();
     categoryTargets.forEach(t => {
       const clean = cleanCategoryName(t.name);
-      if (clean && !seen.has(clean)) {
-        seen.add(clean);
+      if (clean && !seenCat.has(clean)) {
+        seenCat.add(clean);
         resolvedCategories.push(t.name);
       }
     });
-  } else {
-    const seen = new Set<string>();
     inputCategories.forEach(catName => {
       const clean = cleanCategoryName(catName);
-      if (clean && !seen.has(clean)) {
-        seen.add(clean);
+      if (clean && !seenCat.has(clean)) {
+        seenCat.add(clean);
+        resolvedCategories.push(catName);
+      }
+    });
+  } else {
+    inputCategories.forEach(catName => {
+      const clean = cleanCategoryName(catName);
+      if (clean && !seenCat.has(clean)) {
+        seenCat.add(clean);
         resolvedCategories.push(catName);
       }
     });
   }
 
-  // Sort categories by exact custom order specified by user
-  resolvedCategories.sort((a, b) => getCustomCategoryIndex(a, categoryConfig) - getCustomCategoryIndex(b, categoryConfig));
+  if (categoryConfig && categoryConfig.length > 0) {
+    // Chỉ giữ lại các ngành hàng thuộc nhóm hàng khai báo (categoryConfig)
+    resolvedCategories = resolvedCategories.filter(catName => {
+      const clean = cleanCategoryName(catName);
+      return categoryConfig.some(c => {
+        const cleanCfg = cleanCategoryName(c.name);
+        return cleanCfg === clean || (cleanCfg.length > 3 && clean.includes(cleanCfg)) || (clean.length > 3 && cleanCfg.includes(clean));
+      });
+    });
+  } else {
+    // Loại bỏ các ngành hàng rác, chuỗi thuần số hoặc không chứa chữ cái
+    resolvedCategories = resolvedCategories.filter(catName => {
+      if (!catName || !/[a-zA-Zà-ỹÀ-Ỹ]/.test(catName)) return false;
+      if (/^[\d\s,.\-+/%:()]+$/.test(catName)) return false;
+      return true;
+    });
+  }
+
+  if (sortAlpha) {
+    resolvedCategories.sort((a, b) => a.localeCompare(b, 'vi'));
+  } else {
+    resolvedCategories.sort((a, b) => getCustomCategoryIndex(a, categoryConfig) - getCustomCategoryIndex(b, categoryConfig));
+  }
 
   const targetPerStaffPerCat: Record<string, number> = {};
   if (luykeCategories && luykeCategories.length > 0) {
     luykeCategories.forEach((cat: any) => {
-      const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCategoryName(cat.name));
+      const matchingTarget = categoryTargets?.find((t: any) => cleanCategoryName(t.name) === cleanCategoryName(cat.name));
       const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
         ? matchingTarget.adjustedTarget
         : (matchingTarget?.target || cat.target || 0);
@@ -417,9 +665,10 @@ export const parseStaffMatrixDataRefined = (
 
   const results: StaffMatrixData[] = [];
 
-  for (const staffRow of staffMatrixResults) {
+  for (const staffRow of rawStaffResults) {
     const rawInputValues = staffRow.parts || [];
     const values: number[] = [];
+    const valuesMap: Record<string, number> = {};
     const projectedRates: number[] = [];
     const actualPercentHTs: number[] = [];
     let achievedCount = 0;
@@ -429,6 +678,7 @@ export const parseStaffMatrixDataRefined = (
       const colIdx = categoryToColIdx.get(cleanName);
       const accumulated = (colIdx !== undefined && colIdx < rawInputValues.length) ? (rawInputValues[colIdx] || 0) : 0;
       values.push(accumulated);
+      valuesMap[cleanName] = accumulated;
 
       const target = targetPerStaffPerCat[cleanName] || 0;
       
@@ -456,18 +706,21 @@ export const parseStaffMatrixDataRefined = (
       displayName: `${staffRow.id} - ${staffRow.name.toUpperCase()}`,
       fullId: staffRow.id,
       shortName: `${staffRow.id} - ${staffRow.shortName}`,
+      name: staffRow.name,
       achieved: achievedCount,
       achievedCount: achievedCount,
       totalCats: resolvedCategories.length,
       rate: resolvedCategories.length > 0 ? achievedCount / resolvedCategories.length : 0, 
       rawValues: values,
+      valuesMap,
       projectedRates,
       actualPercentHTs
     } as any);
   }
 
-  return { staffMatrix: results, categories: resolvedCategories };
+  return { staffMatrix: results, categories: resolvedCategories, results };
 };
+
 
 interface SummaryThiDuaTableProps {
   luyKeNganhHang: string;
@@ -666,8 +919,11 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
           if (Array.isArray(parsed)) {
             // Filter to ensure only categories currently available are visible
             const validSaved = parsed.filter((c: string) => categories.includes(c));
-            if (validSaved.length > 0) {
-              setVisibleCategories(validSaved);
+            // Add any newly configured categories that weren't in parsed previously so they're not hidden
+            const newCats = categories.filter((c: string) => !parsed.includes(c));
+            const combined = [...validSaved, ...newCats];
+            if (combined.length > 0) {
+              setVisibleCategories(combined);
               return;
             }
           }
@@ -910,6 +1166,13 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
         }
       }
 
+      const banner = clone.querySelector('.relative.bg-gradient-to-r') as HTMLElement;
+      if (banner) {
+        banner.style.width = '100%';
+        banner.style.marginBottom = '20px';
+        banner.style.borderRadius = '16px';
+      }
+
       container.appendChild(clone);
       document.body.appendChild(container);
 
@@ -934,14 +1197,14 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   };
 
   return (
-    <div ref={tableRef} className="card-thi-dua bg-white rounded-2xl border border-slate-200/80 overflow-hidden" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
+    <div ref={tableRef} className="card-thi-dua bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
       {/* ═══ Premium Gradient Banner Header (like BẢNG XẾP HẠNG DOANH THU) ═══ */}
-      <div className="relative bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] px-5 md:px-8 py-5 md:py-6">
+      <div className="relative bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] px-5 md:px-8 py-5 md:py-6 rounded-2xl mb-4 sm:mb-5 shadow-xs">
         <div className="flex flex-col items-center justify-center text-center">
-          <h2 className="text-[26px] sm:text-[32px] md:text-[36px] font-black text-[#FEF08A] uppercase tracking-wide leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, textShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+          <h2 className="text-[26px] sm:text-[32px] md:text-[36px] font-black text-[#FEF08A] uppercase tracking-wide leading-tight mb-2.5 sm:mb-3.5" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, textShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
             TỔNG HỢP THI ĐUA
           </h2>
-          <div className="flex items-center justify-center flex-wrap gap-2 sm:gap-3 mt-2 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+          <div className="flex items-center justify-center flex-wrap gap-2 sm:gap-3 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
             <span className="flex items-center gap-1.5 whitespace-nowrap">
               ✨ Luỹ kế dự kiến đến ngày: {yesterdayStr}
             </span>
@@ -1052,7 +1315,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       </div>
 
       {/* ═══ Table ═══ */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200/80 shadow-xs">
         <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
           <thead>
             <tr className="text-slate-900 h-[85px]">

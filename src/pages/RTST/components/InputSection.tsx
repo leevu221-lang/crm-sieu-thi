@@ -344,9 +344,9 @@ const InputSection: React.FC<InputSectionProps> = ({
     const localFields = ['bc_dt_nh_rt', 'bc_dt_nh_lk', 'bc_dt_nv_dt', 'bc_dt_nv_td', 'bc_dt_nv_hq'];
     const loaded: Record<string, string> = {};
     localFields.forEach(f => { loaded[f] = localStorage.getItem(storeConfigKey(f)) || ''; });
-    // tragop_matran and tragop_nv come from Firebase props
+    // tragop_matran and tragop_nv come from Firebase props with localStorage fallback
     loaded['tragop_matran'] = tragopMatran || '';
-    loaded['tragop_nv'] = tragopNv || '';
+    loaded['tragop_nv'] = tragopNv || localStorage.getItem(storeConfigKey('tragop_nv')) || '';
     setStoreConfig(loaded);
   }, [activeStore, tragopMatran, tragopNv]);
 
@@ -357,6 +357,7 @@ const InputSection: React.FC<InputSectionProps> = ({
       setTragopMatran(value);
     } else if (field === 'tragop_nv' && setTragopNv) {
       setTragopNv(value);
+      localStorage.setItem(storeConfigKey(field), value);
     } else {
       localStorage.setItem(storeConfigKey(field), value);
     }
@@ -368,6 +369,7 @@ const InputSection: React.FC<InputSectionProps> = ({
       setTragopMatran('');
     } else if (field === 'tragop_nv' && setTragopNv) {
       setTragopNv('');
+      localStorage.removeItem(storeConfigKey(field));
     } else {
       localStorage.removeItem(storeConfigKey(field));
     }
@@ -530,7 +532,34 @@ const InputSection: React.FC<InputSectionProps> = ({
                 reportLabel: 'LINK REPORT DT',
                 items: [
                   { id: 'rt_market', label: 'REALTIME DT', value: marketInput, onChange: setMarketInput, onBlur: () => onSaveRealtime(false, 'REALTIME DT'), hasData: !!marketInput },
-                  { id: 'rt_catrev', label: 'LUỸ KẾ DT', value: clusterSummaryInput || categoryRevenueInput, onChange: (val: string) => { setCategoryRevenueInput(val); setClusterSummaryInput(val); }, onBlur: () => { onSaveRealtime(false, 'LUỸ KẾ DT'); onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ DT'); }, hasData: !!(clusterSummaryInput || categoryRevenueInput), isLuyke: true },
+                  { 
+                    id: 'rt_catrev', 
+                    label: 'LUỸ KẾ DT', 
+                    value: clusterSummaryInput || categoryRevenueInput, 
+                    onChange: (val: string) => { 
+                      setCategoryRevenueInput(val); 
+                      setClusterSummaryInput(val); 
+                      try {
+                        localStorage.setItem('rt_catrev', val);
+                        localStorage.setItem('rtst_cluster_summary', val);
+                        localStorage.setItem('rtst_catrev', val);
+                      } catch {}
+                    }, 
+                    onBlur: () => { 
+                      try {
+                        const v = clusterSummaryInput || categoryRevenueInput || '';
+                        if (v) {
+                          localStorage.setItem('rt_catrev', v);
+                          localStorage.setItem('rtst_cluster_summary', v);
+                          localStorage.setItem('rtst_catrev', v);
+                        }
+                      } catch {}
+                      onSaveRealtime(false, 'LUỸ KẾ DT'); 
+                      onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ DT'); 
+                    }, 
+                    hasData: !!(clusterSummaryInput || categoryRevenueInput), 
+                    isLuyke: true 
+                  },
                 ]
               },
               { 
@@ -784,7 +813,7 @@ const InputSection: React.FC<InputSectionProps> = ({
               const cardStaffCategoryInput = isActiveCard ? staffCategoryInput : (cachedData?.staffCategoryInput || '');
               const cardBanKemNv = isActiveCard ? (banKemNv || '') : (cachedData?.banKemNv || '');
               const cardTragopMatran = isActiveCard ? (storeConfig['tragop_matran'] || '') : (cachedData?.tragopMatran || '');
-              const cardTragopNv = isActiveCard ? (storeConfig['tragop_nv'] || '') : (cachedData?.tragopNv || '');
+              const cardTragopNv = isActiveCard ? (storeConfig['tragop_nv'] || tragopNv || localStorage.getItem(storeConfigKey('tragop_nv')) || '') : (cachedData?.tragopNv || localStorage.getItem(`cauhinh_${storeName}_tragop_nv`) || '');
               const cardPhucVu = isActiveCard ? (phucVu || '') : (cachedData?.phucVu || '');
               const cardPercentTarget = isActiveCard ? stPercentTarget : (cachedData?.stPercentTarget || 0);
               const cardCategoryTargets = isActiveCard ? categoryTargets : (cachedData?.categoryTargets || []);

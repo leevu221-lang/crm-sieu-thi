@@ -2690,32 +2690,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
               >
                 <ClusterReportTab
                   clusterSummaryInput={clusterSummaryInput}
-                  categoryRevenueInput={
-                    clusterSummaryInput ||
-                    localStorage.getItem('rt_catrev') ||
-                    localStorage.getItem('rtst_cluster_summary') ||
-                    localStorage.getItem('rtst_catrev') ||
-                    ''
-                  }
-                  clusterMarkets={displayData.markets}
                   userProfile={userProfile}
-                  daysPassed={daysPassed}
-                  totalDays={totalDays}
-                  onNavigateToKhaiBao={() => {
-                    try {
-                      localStorage.setItem('crm_active_page', 'khaibao');
-                    } catch {}
-                    window.location.search = '?page=khaibao';
-                  }}
-                  onSaveClusterData={(val: string) => {
-                    setClusterSummaryInput(val);
-                    try {
-                      localStorage.setItem('rt_catrev', val);
-                      localStorage.setItem('rtst_cluster_summary', val);
-                      localStorage.setItem('rtst_catrev', val);
-                    } catch {}
-                    saveLuykeData(false, 'auto', undefined, undefined, 'LUỸ KẾ DT');
-                  }}
                 />
               </motion.div>
             )}

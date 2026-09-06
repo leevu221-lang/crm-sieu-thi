@@ -71,7 +71,8 @@ const ITEM_META: Record<string, { subtitle: string; badge?: string; badgeType?: 
   luyke:       { subtitle: 'Luỹ kế & tổng hợp tháng',     badge: 'MỚI',  badgeType: 'moi' },
   khaibao:     { subtitle: 'Dán Realtime & Luỹ kế',        badge: 'MỚI',  badgeType: 'moi' },
   health:      { subtitle: 'Theo dõi sức khoẻ nhân viên' },
-  toolhotro:   { subtitle: 'Công cụ in ấn & kiểm quỹ' },
+  toolhotro:   { subtitle: 'Công cụ in ấn & sticker' },
+  bbkq:        { subtitle: 'Biên bản kiểm quỹ tiền mặt', badge: 'MỚI', badgeType: 'moi' },
   tienich:     { subtitle: 'Phân ca, biên bản & kiểm kê' },
   tnbleader:   { subtitle: 'Thi đua & Bảng xếp hạng',     badge: 'HOT',  badgeType: 'hot' },
   birthday:    { subtitle: 'Danh sách sinh nhật NV' },
@@ -84,13 +85,14 @@ const ITEM_META: Record<string, { subtitle: string; badge?: string; badgeType?: 
 /* ── Section grouping ── */
 const SECTION_MAP: { title: string; ids: string[] }[] = [
   { title: 'MENU QUẢN LÝ', ids: ['realtime', 'luyke', 'khaibao', 'health', 'tnbleader'] },
-  { title: 'DỮ LIỆU & TIỆN ÍCH', ids: ['toolhotro', 'tienich', 'birthday', 'excelviewer', 'feedback', 'bangiasoc', 'lichpg'] },
+  { title: 'DỮ LIỆU & TIỆN ÍCH', ids: ['toolhotro', 'bbkq', 'tienich', 'birthday', 'excelviewer', 'feedback', 'bangiasoc', 'lichpg'] },
 ];
 
 /* ── Submenu definitions ── */
 const REALTIME_SUBS = [
   { id: 'summary' as const, label: 'Tổng quan', icon: LayoutGrid },
   { id: 'muc_tieu_ngay' as const, label: 'Mục tiêu ngày', icon: Target },
+  { id: 'real_dthu_nv' as const, label: 'Real D.Thu NV', icon: TrendingUp },
   { id: 'khai_thac' as const, label: 'Data YCX', icon: Activity },
 ];
 const REALTIME_SUBS_ADMIN = [
@@ -122,7 +124,6 @@ const HEALTH_SUBS = [
 
 const TOOLHOTRO_SUBS = [
   { id: 'all-sticker', label: 'All Sticker', icon: LayoutGrid },
-  { id: 'bbkq', label: 'BBKQ (Kiểm Quỹ)', icon: Banknote },
   { id: 'in-dia-chi', label: 'In Địa Chỉ', icon: MapPin },
   { id: 'in-phieu-bh', label: 'In Phiếu BH', icon: FileText },
 ];
@@ -542,7 +543,11 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                                   icon={sub.icon}
                                   label={sub.label}
                                   isActive={activeRealtimeTab === sub.id}
-                                  onClick={(e) => { e.stopPropagation(); setActiveRealtimeTab(sub.id); }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (currentPage !== 'realtime') setCurrentPage('realtime');
+                                    setActiveRealtimeTab(sub.id);
+                                  }}
                                 />
                               ))}
                             </SubMenuContainer>
@@ -557,7 +562,11 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                                   icon={sub.icon}
                                   label={sub.label}
                                   isActive={activeLuyKeTab === sub.id}
-                                  onClick={(e) => { e.stopPropagation(); setActiveLuyKeTab(sub.id); }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (currentPage !== 'luyke') setCurrentPage('luyke');
+                                    setActiveLuyKeTab(sub.id);
+                                  }}
                                 />
                               ))}
                             </SubMenuContainer>
@@ -572,7 +581,11 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                                   icon={sub.icon}
                                   label={sub.label}
                                   isActive={activeHealthTab === sub.id}
-                                  onClick={(e) => { e.stopPropagation(); setActiveHealthTab(sub.id); }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (currentPage !== 'health') setCurrentPage('health');
+                                    setActiveHealthTab(sub.id);
+                                  }}
                                 />
                               ))}
                             </SubMenuContainer>
@@ -590,7 +603,11 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                                     icon={sub.icon}
                                     label={sub.label}
                                     isActive={isSubActive}
-                                    onClick={(e) => { e.stopPropagation(); setActiveToolHoTroTab(sub.id); }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (currentPage !== 'toolhotro') setCurrentPage('toolhotro');
+                                      setActiveToolHoTroTab(sub.id);
+                                    }}
                                   />
                                 );
                               })}
@@ -612,7 +629,11 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                                     icon={sub.icon}
                                     label={sub.label}
                                     isActive={isSubActive}
-                                    onClick={(e) => { e.stopPropagation(); setActiveTienIchTab(sub.id); }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (currentPage !== 'tienich') setCurrentPage('tienich');
+                                      setActiveTienIchTab(sub.id);
+                                    }}
                                   />
                                 );
                               })}

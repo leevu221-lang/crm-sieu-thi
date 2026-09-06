@@ -2699,8 +2699,6 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                   }
                   clusterMarkets={displayData.markets}
                   userProfile={userProfile}
-                  daysPassed={daysPassed}
-                  totalDays={totalDays}
                   onNavigateToKhaiBao={() => {
                     try {
                       localStorage.setItem('crm_active_page', 'khaibao');

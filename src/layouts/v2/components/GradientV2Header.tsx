@@ -13,8 +13,11 @@ import {
   LogOut,
   Shield,
   Settings,
+  Share2,
+  Check,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { buildGuestShareUrl } from '../../../constants/routes';
 
 interface GradientV2HeaderProps {
   userProfile: any;
@@ -55,8 +58,20 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
   const [liveClockStr, setLiveClockStr] = useState<string>('');
   const [storeDropdownOpen, setStoreDropdownOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
+
+  const handleShareLink = () => {
+    const currentKho = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '1841';
+    const shareUrl = buildGuestShareUrl(currentPage, currentKho);
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2500);
+      }).catch(() => {});
+    }
+  };
 
   useEffect(() => {
     const updateTime = () => {
@@ -200,8 +215,31 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
             )}
           </div>
 
-          {/* ─── Right: Clock + User Profile (moved from sidebar footer) ─── */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          {/* ─── Right: Share Button + Clock + User Profile ─── */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            {/* Share Guest Link Button */}
+            <button
+              onClick={handleShareLink}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer border ${
+                copiedLink 
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-200 font-extrabold' 
+                  : 'bg-gradient-to-r from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 text-emerald-700 border-emerald-200'
+              }`}
+              title={`Chia sẻ link trực tiếp trang này cho Khách xem dữ liệu Kho ${userProfile?.ma_kho || '1841'}`}
+            >
+              {copiedLink ? (
+                <>
+                  <Check size={14} className="text-emerald-600 shrink-0" />
+                  <span className="text-[11px] font-black">Đã chép link Kho {userProfile?.ma_kho || '1841'}!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 size={14} className="text-emerald-600 shrink-0" />
+                  <span className="hidden sm:inline text-[11px] font-black tracking-wide">CHIA SẺ LINK</span>
+                </>
+              )}
+            </button>
+
             {/* Live Clock */}
             <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-full text-[11px] font-bold tracking-tight whitespace-nowrap">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />

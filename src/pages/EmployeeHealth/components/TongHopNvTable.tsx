@@ -70,9 +70,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
   // Parse trả chậm data
   const traChamMap = useMemo(() => {
     const map: Record<string, number> = {};
-    if (!tragopNv) return map;
-
-    const lines = tragopNv.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    if (!tragopNv || !tragopNv.trim()) return map;
 
     const cleanNumber = (val: string): number => {
       if (!val) return 0;
@@ -93,103 +91,234 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
       return isNaN(num) ? 0 : num;
     };
 
-    const isDetailed = tragopNv.toLowerCase().includes('homecredit') ||
-                       tragopNv.toLowerCase().includes('fecredit') ||
-                       tragopNv.toLowerCase().includes('shinhan');
-
-    const splitLine = (l: string): string[] => {
-      if (l.includes('\t')) return l.split('\t').map(p => p.trim());
-      return l.split(/\t|\s{2,}/).map(p => p.trim());
+    const norm = (str: string): string => {
+      return removeAccents(str || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
     };
 
+    // Gather all known staff to match against (biRevenueData, filteredBiData, staffMatrix)
+    const allKnownStaff: { fullId: string; displayName: string }[] = [];
+    const seenStaffIds = new Set<string>();
+    const addStaff = (s: any) => {
+      const id = (s?.fullId || '').trim();
+      if (id && !seenStaffIds.has(id)) {
+        seenStaffIds.add(id);
+        allKnownStaff.push({ fullId: id, displayName: s.displayName || id });
+      }
+    };
+    (biRevenueData || []).forEach(addStaff);
+    (filteredBiData || []).forEach(addStaff);
+    (staffMatrix || []).forEach(addStaff);
+
+    const matchStaff = (rawStaffStr: string, percent: number) => {
+      if (!rawStaffStr) return;
+      const rowNorm = norm(rawStaffStr);
+      const rowIdMatch = rawStaffStr.match(/\b\d{4,8}\b/);
+      const rowId = rowIdMatch ? rowIdMatch[0] : '';
+
+      for (const staff of allKnownStaff) {
+        const staffId = staff.fullId.toLowerCase().trim();
+        // 1. Direct ID match
+        if (rowId && staffId && rowId === staffId) {
+          map[staff.fullId] = percent;
+          return;
+        }
+        // 2. Staff ID contained in raw string
+        if (staffId && rowNorm.includes(staffId)) {
+          map[staff.fullId] = percent;
+          return;
+        }
+        // 3. Name comparison (case-insensitive & accent-insensitive)
+        const staffName = (staff.displayName.split(/[-–—]/).pop() || '').trim();
+        const staffNorm = norm(staffName);
+        if (rowNorm === staffNorm) {
+          map[staff.fullId] = percent;
+          return;
+        }
+        if (staffNorm.length >= 4 && rowNorm.length >= 4) {
+          if (rowNorm.includes(staffNorm) || staffNorm.includes(rowNorm)) {
+            map[staff.fullId] = percent;
+            return;
+          }
+        }
+      }
+    };
+
+    const lines = tragopNv.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     const ignoredKeywords = [
       'nhanvien', 'homecredit', 'fecredit', 'shinhan', 'dmsieuthi', 'tytrong',
       'logobi', 'trangchu', 'baocao', 'khoikinhdoanh', 'hdsudung', 'avatar',
       'vungtay', 'dashboard', 'hotrobi', 'chientranh', 'lichsu', 'quanly',
       'danhsach', 'saovang', 'chupanh', 'xuatpdf', 'xuatexcel', 'hotline',
-      'tiendo', 'rank', 'tongcong', 'tong', 'phankhuc', 'nganhhang', 'thang', 'nam'
+      'tiendo', 'rank', 'tongcong', 'tong', 'phankhuc', 'nganhhang', 'thang', 'nam',
+      'tgdd', 'tileduyet', 'realtime', 'tatcavung', 'xuattheomau', 'capnhatluc',
+      'toggletheme', 'timbaocao', 'employee', 'guest', 'admin', 'xem', 'khuvuc', 'sieuthi', 'vung',
+      'smartpos', 'payoo', 'kredivo', 'tpbank', 'paylater'
     ];
 
-    lines.forEach(line => {
-      const parts = splitLine(line);
-      if (parts.length < 2) return;
-      const firstColClean = removeAccents(parts[0]).toLowerCase().replace(/[\s_*()-]+/g, '');
-      if (!firstColClean || ignoredKeywords.some(k => firstColClean.includes(k) || k.includes(firstColClean))) return;
+    const isHeaderString = (str: string) => {
+      const clean = norm(str);
+      if (!clean) return true;
+      if (clean === 'dt' || clean === 'dttragop' || clean === 'dtsieuthi' || clean === 'tytrongtracham') return true;
+      if (ignoredKeywords.some(k => clean === k || clean.includes(k))) return true;
+      return false;
+    };
 
-      const nameStartCheck = /^[a-zA-Z\dÀ-ỹ]/.test(parts[0]);
-      if (!nameStartCheck) return;
+    // Check if there are alternating 2-line Web BI entries (Name on line i, numbers on line i+1)
+    let parsedAnyTwoLine = false;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const parts = line.includes('\t')
+        ? line.split('\t').map(p => p.trim())
+        : line.split(/\t| {2,}/).map(p => p.trim());
 
-      while (parts.length > 0 && parts[parts.length - 1] === '') parts.pop();
+      if (parts.length === 1 && /[a-zA-ZÀ-ỹ]/.test(line) && !isHeaderString(line) && i + 1 < lines.length) {
+        const nextParts = lines[i + 1].includes('\t')
+          ? lines[i + 1].split('\t').map(p => p.trim())
+          : lines[i + 1].split(/\t| {2,}/).map(p => p.trim());
 
-      if (isDetailed) {
-        if (parts.length >= 3) {
-          const percentRaw = cleanNumber(parts[parts.length - 1]);
-          let percent = percentRaw;
-          const lastPart = parts[parts.length - 1];
-          if (percent > 0 && percent <= 1 && lastPart && !lastPart.includes('%')) {
-            percent = percent * 100;
+        if (nextParts.length >= 2 && /^[-]?\d/.test(nextParts[0])) {
+          let percent = nextParts.length > 2 ? cleanNumber(nextParts[2]) : 0;
+          if (percent === 0) {
+            const installRev = cleanNumber(nextParts[0]);
+            const totalRev = cleanNumber(nextParts[1]);
+            if (totalRev > 0) percent = (installRev / totalRev) * 100;
           }
-          // Map by staff name
-          biRevenueData.forEach(staff => {
-            const staffName = (staff.displayName.split('-').pop() || '').trim();
-            const staffNameClean = removeAccents(staffName);
-            const rowValClean = removeAccents(parts[0]);
-            if (rowValClean.includes(staff.fullId.toLowerCase()) ||
-                rowValClean.includes(staffNameClean) ||
-                staffNameClean.includes(rowValClean)) {
-              map[staff.fullId] = percent;
-            }
-          });
-        }
-      } else {
-        if (parts.length >= 3) {
-          let percent = parts.length > 4 ? cleanNumber(parts[4]) : 0;
-          if (percent > 0 && percent <= 1 && parts[4] && !parts[4].includes('%')) {
-            percent = percent * 100;
-          }
-          let totalRevRaw = cleanNumber(parts[1]);
-          let installRevRaw = cleanNumber(parts[2]);
-          if (Math.abs(totalRevRaw) > 0 && Math.abs(totalRevRaw) < 1000000) totalRevRaw *= 1000000;
-          if (Math.abs(installRevRaw) > 0 && Math.abs(installRevRaw) < 1000000) installRevRaw *= 1000000;
-          if (percent === 0 && totalRevRaw > 0) {
-            percent = (installRevRaw / totalRevRaw) * 100;
-          }
-
-          biRevenueData.forEach(staff => {
-            const staffName = (staff.displayName.split('-').pop() || '').trim();
-            const staffNameClean = removeAccents(staffName);
-            const rowValClean = removeAccents(parts[0]);
-            if (rowValClean.includes(staff.fullId.toLowerCase()) ||
-                rowValClean.includes(staffNameClean) ||
-                staffNameClean.includes(rowValClean)) {
-              map[staff.fullId] = percent;
-            }
-          });
+          matchStaff(line, percent);
+          parsedAnyTwoLine = true;
+          i++;
+          continue;
         }
       }
-    });
+    }
+
+    if (parsedAnyTwoLine) {
+      return map;
+    }
+
+    const hasTabs = lines.some(l => l.includes('\t'));
+    const isDetailed = tragopNv.toLowerCase().includes('homecredit') ||
+                       tragopNv.toLowerCase().includes('fecredit') ||
+                       tragopNv.toLowerCase().includes('shinhan');
+
+    if (hasTabs || lines.some(l => l.split(/ {2,}/).length >= 2)) {
+      lines.forEach(line => {
+        let parts = line.includes('\t')
+          ? line.split('\t').map(p => p.trim())
+          : line.split(/\t| {2,}/).map(p => p.trim());
+        if (parts.length < 2) return;
+        const firstColClean = norm(parts[0]);
+        if (!firstColClean || ignoredKeywords.some(k => firstColClean === k || (k.length > 4 && firstColClean.includes(k)))) return;
+
+        while (parts.length > 0 && parts[parts.length - 1] === '') parts.pop();
+        if (parts.length < 2) return;
+
+        if (isDetailed) {
+          if (parts.length >= 3) {
+            let percent = cleanNumber(parts[parts.length - 1]);
+            const lastPart = parts[parts.length - 1];
+            if (percent > 0 && percent <= 1 && lastPart && !lastPart.includes('%')) {
+              percent = percent * 100;
+            }
+            matchStaff(parts[0], percent);
+          }
+        } else {
+          if (parts.length >= 3) {
+            let percent = parts.length > 4 ? cleanNumber(parts[4]) : 0;
+            if (percent > 0 && percent <= 1 && parts[4] && !parts[4].includes('%')) {
+              percent = percent * 100;
+            }
+            let totalRevRaw = cleanNumber(parts[1]);
+            let installRevRaw = cleanNumber(parts[2]);
+            if (Math.abs(totalRevRaw) > 0 && Math.abs(totalRevRaw) < 1000000) totalRevRaw *= 1000000;
+            if (Math.abs(installRevRaw) > 0 && Math.abs(installRevRaw) < 1000000) installRevRaw *= 1000000;
+            if (percent === 0 && totalRevRaw > 0) {
+              percent = (installRevRaw / totalRevRaw) * 100;
+            }
+            matchStaff(parts[0], percent);
+          }
+        }
+      });
+    } else {
+      // Newline-separated format: lines with Name followed by numbers
+      const isNum = (str: string) => /^-?[\d,.]+%?$/.test(str.trim());
+      let currentStaff = '';
+      let currentNums: string[] = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const clean = norm(line);
+        if (ignoredKeywords.some(k => clean === k || (k.length > 4 && clean.includes(k)))) {
+          continue;
+        }
+        if (isNum(line)) {
+          if (currentStaff) currentNums.push(line);
+        } else if (/[a-zA-ZÀ-ỹ]/.test(line)) {
+          if (currentStaff && currentNums.length > 0) {
+            const lastNum = currentNums[currentNums.length - 1];
+            let percent = cleanNumber(lastNum);
+            if (percent > 0 && percent <= 1 && !lastNum.includes('%')) percent *= 100;
+            matchStaff(currentStaff, percent);
+          }
+          currentStaff = line;
+          currentNums = [];
+        }
+      }
+      if (currentStaff && currentNums.length > 0) {
+        const lastNum = currentNums[currentNums.length - 1];
+        let percent = cleanNumber(lastNum);
+        if (percent > 0 && percent <= 1 && !lastNum.includes('%')) percent *= 100;
+        matchStaff(currentStaff, percent);
+      }
+    }
+
     return map;
-  }, [tragopNv, biRevenueData]);
+  }, [tragopNv, biRevenueData, filteredBiData, staffMatrix]);
 
   // Build combined data sorted by virtualVal (DT Quy Đổi) descending
   const combinedData = useMemo(() => {
-    const targetQdPerStaff = filteredBiData.length > 0 ? stTargetSauHeSo / filteredBiData.length : 0;
+    // CỘT MỤC TIÊU THÁNG = SỐ HIỂN THỊ Ở BC THÁNG > TARGET QĐ CHIA SỐ LƯỢNG NHÂN VIÊN HIỂN THỊ TRONG BẢNG
+    const targetQdTotal = stTargetSauHeSo || 0;
+    const displayedStaffCount = filteredBiData.length;
+    const targetQdPerStaff = displayedStaffCount > 0 ? targetQdTotal / displayedStaffCount : 0;
     const actualTargetQdPerStaff = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
 
     return filteredBiData
       .map(staff => {
-        // Revenue data
-        const actualActualVal = Math.abs(staff.actualVal || 0) > 1000000 ? (staff.actualVal || 0) : (staff.actualVal || 0) * 1000000;
+        // Doanh thu thực (actual revenue, not converted)
+        const dtThuc = staff.actualVal || 0;
+
+        // Lũy kế quy đổi (converted revenue)
+        const lkQuyDoi = staff.virtualVal || 0;
+
+        // Scaled to match target unit (triệu or đồng)
+        const dtThucAbsolute = Math.abs(dtThuc) > 1000000 ? dtThuc : dtThuc * 1000000;
+        const lkQuyDoiAbsolute = Math.abs(lkQuyDoi) > 1000000 ? lkQuyDoi : lkQuyDoi * 1000000;
+
+        // Target per staff in display unit
+        const targetDisplay = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
+
+        // Progress percent for bar (lkQuyDoi / target)
+        const progressPercent = targetDisplay > 0 ? (lkQuyDoiAbsolute / targetDisplay) * 100 : 0;
+
+        // Percent hoàn thành target (Projected) against Target Quy Đổi
         const percentHT = (actualTargetQdPerStaff > 0 && daysPassed > 0)
-          ? (((actualActualVal / daysPassed) * totalDays) / actualTargetQdPerStaff) * 100
+          ? (((lkQuyDoiAbsolute / daysPassed) * totalDays) / actualTargetQdPerStaff) * 100
           : 0;
 
+        // Remaining against Target Quy Đổi
+        const remaining = actualTargetQdPerStaff - lkQuyDoiAbsolute;
+
+        // Projected % (Dự kiến)
+        const projected = percentHT;
+
         // Same formula as RevenueRankingTableQd (DOANH THU NV > HIỆU QUẢ QĐ)
-        const effQd = (staff.effVal !== 0 
-          ? staff.effVal 
-          : ((staff.actualVal || 0) > 0 
-            ? ((staff.virtualVal - (staff.actualVal || 0)) / (staff.actualVal || 0)) * 100 
-            : 0)) * 100;
+        const effQd = staff.effVal !== 0 
+          ? (staff.effVal > 5 ? staff.effVal : staff.effVal * 100)
+          : (dtThuc > 0 
+            ? (((lkQuyDoi - dtThuc) / dtThuc) * 100) 
+            : 0);
 
         // Thi đua (categories achieved)
         const matrixStaff = staffMatrix.find(m => m.fullId === staff.fullId);
@@ -197,33 +326,17 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
         const totalCats = matrixStaff ? matrixStaff.totalCats : (categories.length || 0);
 
         // Trả chậm
-        const traChamPercent = traChamMap[staff.fullId] || 0;
-
-        // Doanh thu thực (actual revenue, not converted)
-        const dtThuc = staff.virtualVal || 0;
-
-        // Lũy kế quy đổi
-        const lkQuyDoi = staff.actualVal || 0;
-
-        // Remaining
-        const remaining = actualTargetQdPerStaff - actualActualVal;
-
-        // Projected % (Dự kiến)
-        const projected = percentHT;
-
-        // Target per staff in display unit
-        const targetDisplay = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
-
-        // Progress percent for bar (lkQuyDoi / target)
-        const lkQuyDoiAbsolute = Math.abs(lkQuyDoi) > 1000000 ? lkQuyDoi : lkQuyDoi * 1000000;
-        const progressPercent = targetDisplay > 0 ? (lkQuyDoiAbsolute / targetDisplay) * 100 : 0;
+        const hasTraCham = staff.fullId in traChamMap;
+        const traChamPercent = hasTraCham ? (traChamMap[staff.fullId] ?? 0) : 0;
 
         return {
           staff,
           dtThuc,
+          dtThucAbsolute,
           lkQuyDoi,
           lkQuyDoiAbsolute,
           effQd,
+          hasTraCham,
           traChamPercent,
           achieved,
           totalCats,
@@ -249,13 +362,15 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
         case 'achieved':
           valA = a.achieved; valB = b.achieved; break;
         case 'dtThuc':
-          valA = a.dtThuc; valB = b.dtThuc; break;
+          valA = a.dtThucAbsolute; valB = b.dtThucAbsolute; break;
         case 'lkQuyDoi':
           valA = a.lkQuyDoiAbsolute; valB = b.lkQuyDoiAbsolute; break;
         case 'effQd':
           valA = a.effQd; valB = b.effQd; break;
         case 'traCham':
-          valA = a.traChamPercent; valB = b.traChamPercent; break;
+          valA = a.hasTraCham ? a.traChamPercent : -999999;
+          valB = b.hasTraCham ? b.traChamPercent : -999999;
+          break;
         case 'target':
           valA = a.targetDisplay; valB = b.targetDisplay; break;
         case 'remaining':
@@ -280,9 +395,9 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
   const renderSortArrows = (key: string) => {
     const isActive = sortColumn.key === key;
     return (
-      <span className="inline-flex flex-col ml-1 leading-none -space-y-0.5 align-middle">
-        <span className={cn("text-[8px]", isActive && sortColumn.ascending ? "text-white" : "text-white/40")}>▲</span>
-        <span className={cn("text-[8px]", isActive && !sortColumn.ascending ? "text-white" : "text-white/40")}>▼</span>
+      <span className="inline-flex flex-col ml-1 text-[9px] leading-[7px] align-middle opacity-80">
+        <span className={cn(isActive && sortColumn.ascending ? "text-amber-300 font-bold" : "text-white/40")}>▲</span>
+        <span className={cn(isActive && !sortColumn.ascending ? "text-amber-300 font-bold" : "text-white/40")}>▼</span>
       </span>
     );
   };
@@ -290,7 +405,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
   // Light background tint for the active sort column
   const sortBg = (key: string) => sortColumn.key === key ? 'bg-blue-50/60' : '';
 
-  // Totals
+  // Calculations for totals
   const totals = useMemo(() => {
     let totalAchieved = 0;
     let totalCats = 0;
@@ -302,26 +417,31 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
     combinedData.forEach(row => {
       totalAchieved += row.achieved;
       totalCats = row.totalCats; // same for all
-      totalDtThuc += row.dtThuc;
+      totalDtThuc += row.dtThucAbsolute;
       totalLkQuyDoi += row.lkQuyDoiAbsolute;
       totalTarget += row.targetDisplay;
       totalRemaining += row.remaining;
     });
 
-    const totalProgress = totalTarget > 0 ? (totalLkQuyDoi / totalTarget) * 100 : 0;
-    const totalProjected = (totalTarget > 0 && daysPassed > 0)
-      ? (((totalLkQuyDoi / daysPassed) * totalDays) / totalTarget) * 100
+    const targetQdTotal = stTargetSauHeSo || 0;
+    const targetQdTotalScaled = targetQdTotal > 1000000 ? targetQdTotal : targetQdTotal * 1000000;
+    const finalTotalTarget = targetQdTotalScaled > 0 ? targetQdTotalScaled : totalTarget;
+    const finalTotalRemaining = Math.max(0, finalTotalTarget - totalLkQuyDoi);
+
+    const totalProgress = finalTotalTarget > 0 ? (totalLkQuyDoi / finalTotalTarget) * 100 : 0;
+    const totalProjected = (finalTotalTarget > 0 && daysPassed > 0)
+      ? (((totalLkQuyDoi / daysPassed) * totalDays) / finalTotalTarget) * 100
       : 0;
 
     // Average trả chậm
-    const traChamValues = combinedData.filter(r => r.traChamPercent > 0);
+    const traChamValues = combinedData.filter(r => (r as any).hasTraCham || r.traChamPercent !== 0);
     const avgTraCham = traChamValues.length > 0
       ? traChamValues.reduce((s, r) => s + r.traChamPercent, 0) / traChamValues.length
       : 0;
+    const hasAnyTraCham = traChamValues.length > 0;
 
     // Total achieved across all staff
     const sumAchieved = combinedData.reduce((s, r) => s + r.achieved, 0);
-    const avgAchievedDisplay = `${sumAchieved}`;
 
     return {
       totalAchieved: `${Math.round(sumAchieved / Math.max(combinedData.length, 1))}/${totalCats}`,
@@ -329,8 +449,9 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
       totalLkQuyDoi,
       totalProgress,
       avgTraCham,
-      totalTarget,
-      totalRemaining,
+      hasAnyTraCham,
+      totalTarget: finalTotalTarget,
+      totalRemaining: finalTotalRemaining,
       totalProjected,
     };
   }, [combinedData, daysPassed, totalDays]);
@@ -642,7 +763,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
                           "font-black",
                           row.traChamPercent >= 50 ? "text-emerald-700 font-black" : "text-rose-600 font-bold"
                         )}>
-                          {row.traChamPercent > 0 ? `${row.traChamPercent.toFixed(2)}%` : ''}
+                          {(row as any).hasTraCham || row.traChamPercent !== 0 ? `${row.traChamPercent.toFixed(1)}%` : ''}
                         </span>
                       </td>
 
@@ -728,7 +849,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
                   <td style={{ fontWeight: 900 }} className={cn(
                     "px-1 py-0 text-center border-r border-emerald-600/50 text-[13px] sm:text-[14.5px] font-black text-white bg-[#047857]"
                   )}>
-                    {totals.avgTraCham > 0 ? `${totals.avgTraCham.toFixed(2)}%` : ''}
+                    {(totals as any).hasAnyTraCham ? `${totals.avgTraCham.toFixed(1)}%` : ''}
                   </td>
                   <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-[13px] sm:text-[15px] font-black text-white bg-[#047857]">
                     {formatRevenue(totals.totalTarget)}
