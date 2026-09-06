@@ -930,14 +930,17 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
         if (!name || seenNames.has(name)) return;
         seenNames.add(name);
 
-        const saved = targetConfigs[name] ||
+        const savedEntry = Object.entries(targetConfigs).find(([storeKey]) => 
+          matchStoreNames(storeKey, name) || (r.rawName && matchStoreNames(storeKey, r.rawName))
+        );
+        const saved = savedEntry ? savedEntry[1] : (targetConfigs[name] ||
                       targetConfigs[cleanStoreNameForClusterTable(name)] ||
-                      (r.rawName ? targetConfigs[r.rawName] : undefined);
+                      (r.rawName ? targetConfigs[r.rawName] : undefined));
 
         list.push({
           id: `store_${idx}_${name}`,
           storeName: name,
-          targetCungKyNam: saved?.targetCungKyNam ?? (r.tarVuotTroi || r.target || 0),
+          targetCungKyNam: saved?.targetCungKyNam ?? (r.targetCungKyNam || r.tarVuotTroi || r.target || 0),
           mucTieuPercent: saved?.mucTieuPercent ?? 100,
         });
       });
@@ -945,7 +948,8 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
 
     // Include any previously saved stores not in current rows
     Object.entries(targetConfigs).forEach(([savedName, cfg], idx) => {
-      if (!seenNames.has(savedName)) {
+      const alreadyInList = Array.from(seenNames).some(sn => matchStoreNames(sn, savedName));
+      if (!alreadyInList) {
         seenNames.add(savedName);
         list.push({
           id: `saved_${idx}_${savedName}`,
@@ -1344,13 +1348,32 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
       };
     }
 
-    // 5. SMART ENRICH: Merge TB 3 THÁNG, % TT, DT TRẢ GÓP, % TRẢ GÓP from consolidated data into each row
+    // 5. SMART ENRICH: Merge TB 3 THÁNG, % TT, DT TRẢ GÓP, % TRẢ GÓP & CẤU HÌNH TARGET into each row
     if (finalResult.rows.length > 0) {
       finalResult.rows = finalResult.rows.map(row => {
         const matched = activeConsolidatedRows.find(c => matchStoreNames(row.rawName || row.storeName, c.rawName || (c as any).storeName));
-        const cfg = targetConfigs[row.storeName] || 
-                    targetConfigs[cleanStoreNameForClusterTable(row.storeName)] || 
-                    (row.rawName ? targetConfigs[row.rawName] : undefined);
+        
+        // Find matching target config by store name or code
+        const cfgEntry = Object.entries(targetConfigs).find(([storeKey]) => 
+          matchStoreNames(storeKey, row.storeName) || (row.rawName && matchStoreNames(storeKey, row.rawName))
+        );
+        const cfg = cfgEntry ? cfgEntry[1] : (targetConfigs[row.storeName] || targetConfigs[cleanStoreNameForClusterTable(row.storeName)] || (row.rawName ? targetConfigs[row.rawName] : undefined));
+
+        let currentTarVuotTroi = row.tarVuotTroi;
+        let currentPercentHt = row.percentHtVuotTroi;
+        const targetCungKy = cfg && cfg.targetCungKyNam > 0 ? cfg.targetCungKyNam : (row.targetCungKyNam || row.tarVuotTroi || 0);
+        const mucTieu = cfg && cfg.mucTieuPercent !== undefined ? cfg.mucTieuPercent : 100;
+
+        // Nếu đã có cấu hình target cùng kỳ > 0 thì đồng bộ CỘT TAR V.TRỘI = Target Cùng Kỳ × (Mục Tiêu % / 100)
+        if (cfg && cfg.targetCungKyNam > 0) {
+          currentTarVuotTroi = Math.round(cfg.targetCungKyNam * (mucTieu / 100));
+
+          const dtDuKienQD = (effectiveDaysPassed > 0 && effectiveTotalDays > 0)
+            ? (row.luyKeQD / effectiveDaysPassed) * effectiveTotalDays
+            : row.luyKeQD;
+          currentPercentHt = currentTarVuotTroi > 0 ? (dtDuKienQD / currentTarVuotTroi) * 100 : row.percentHtVuotTroi;
+        }
+
         return {
           ...row,
           ...(matched ? {
@@ -1359,13 +1382,28 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
             dtTraGop: (matched.dtTraGop !== undefined && matched.dtTraGop !== 0) ? matched.dtTraGop : (row.dtTraGop || 0),
             percentTraGop: (matched.percentTraGop !== undefined && !isNaN(matched.percentTraGop)) ? matched.percentTraGop : (row.percentTraGop ?? row.percentTC ?? 0),
           } : {}),
-          targetCungKyNam: cfg?.targetCungKyNam ?? 0,
-          mucTieuPercent: cfg?.mucTieuPercent ?? 100,
+          tarVuotTroi: currentTarVuotTroi,
+          target: currentTarVuotTroi,
+          percentHtVuotTroi: currentPercentHt,
+          percentHtTarget: currentPercentHt,
+          targetCungKyNam: targetCungKy,
+          mucTieuPercent: mucTieu,
         };
       });
 
       // Enrich summaryRow
       if (finalResult.summaryRow) {
+        const hasConfiguredTarget = finalResult.rows.some(r => (r.targetCungKyNam || 0) > 0);
+        const sumTar = hasConfiguredTarget
+          ? finalResult.rows.reduce((a, b) => a + (b.tarVuotTroi || 0), 0)
+          : finalResult.summaryRow.tarVuotTroi;
+
+        const sumLuyKeQD = finalResult.summaryRow.luyKeQD;
+        const sumDtDuKienQD = (effectiveDaysPassed > 0 && effectiveTotalDays > 0)
+          ? (sumLuyKeQD / effectiveDaysPassed) * effectiveTotalDays
+          : sumLuyKeQD;
+        const sumHt = sumTar > 0 ? (sumDtDuKienQD / sumTar) * 100 : finalResult.summaryRow.percentHtVuotTroi;
+
         const sumTb3T = (activeConsolidatedSummary?.tb3Thang !== undefined && activeConsolidatedSummary.tb3Thang !== 0)
           ? activeConsolidatedSummary.tb3Thang
           : (finalResult.summaryRow.tb3Thang || finalResult.rows.reduce((a, b) => a + (b.tb3Thang || 0), 0));
@@ -1388,6 +1426,10 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
 
         finalResult.summaryRow = {
           ...finalResult.summaryRow,
+          tarVuotTroi: sumTar,
+          target: sumTar,
+          percentHtVuotTroi: sumHt,
+          percentHtTarget: sumHt,
           tb3Thang: sumTb3T,
           percentTT: sumPctTT,
           dtTraGop: sumDtTG,
