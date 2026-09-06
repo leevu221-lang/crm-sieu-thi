@@ -310,8 +310,48 @@ export const isValidStoreName = (name: string): boolean => {
   if (!name || typeof name !== 'string') return false;
   const trimmed = name.trim();
   if (trimmed.length === 0) return false;
+
+  // Reject code syntax, arrow functions, operators, braces, quotes, control characters
+  if (/(=>|!==|===|!=|==|[{}()<>[\];$\\/`"'])/.test(trimmed)) return false;
+  if (/[\r\n\t]/.test(trimmed)) return false;
+
   const upper = trimmed.toUpperCase();
-  if (upper === 'ALL' || upper === 'TẤT CẢ' || upper === 'TỔNG' || upper === 'TONG' || upper.includes('TỔNG HỢP') || upper.includes('TỔNG CỘNG') || upper.includes('TONG HOP') || upper.includes('GRAND TOTAL')) return false;
+  if (
+    upper === 'ALL' ||
+    upper === 'TẤT CẢ' ||
+    upper === 'TỔNG' ||
+    upper === 'TONG' ||
+    upper.includes('TỔNG HỢP') ||
+    upper.includes('TỔNG CỘNG') ||
+    upper.includes('TONG HOP') ||
+    upper.includes('GRAND TOTAL')
+  ) return false;
+
+  // Reject BI report headers / metadata lines unless having explicit store prefix
+  if (
+    upper.includes('BI TỔNG QUAN') || 
+    upper.includes('BI TONG QUAN') ||
+    upper.includes('BÁO CÁO') ||
+    upper.includes('BAO CAO') ||
+    upper.includes('DASHBOARD') ||
+    upper.includes('DANH MỤC') ||
+    upper.includes('DANH MUC') ||
+    upper.includes('LUỸ KẾ') ||
+    upper.includes('LUY KE') ||
+    upper.includes('REALTIME') ||
+    upper.includes('TIẾN ĐỘ') ||
+    upper.includes('TIEN DO') ||
+    upper.includes('DOANH THU') ||
+    upper.includes('MỤC TIÊU') ||
+    upper.includes('MUC TIEU') ||
+    upper.includes('ĐƠN VỊ:') ||
+    upper.includes('DON VI:') ||
+    upper.includes('COPY XONG')
+  ) {
+    const hasStorePrefix = /^(ĐML|ĐMM|ĐMS|ĐMS3|TGD|AAR|BHX|MWG)[_\s-]|^\d+\s*[-–—]\s*/i.test(upper);
+    if (!hasStorePrefix) return false;
+  }
+
   return true;
 };
 
@@ -321,8 +361,13 @@ export const isValidStoreName = (name: string): boolean => {
  * always map to the same row, preventing duplicate documents.
  */
 export const normalizeStoreId = (name: string): string => {
-  if (!name) return '';
-  return name.trim().normalize('NFC').toUpperCase();
+  if (!name || typeof name !== 'string') return '';
+  const trimmed = name.trim();
+  if (!isValidStoreName(trimmed)) {
+    console.warn(`[normalizeStoreId] Rejected invalid store name: "${trimmed}"`);
+    return '';
+  }
+  return trimmed.normalize('NFC').toUpperCase();
 };
 
 export const normalize = (s: string) => {
@@ -713,11 +758,11 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
     }
     
     if (foundIdx === -1 && cols.length >= 2) {
-      if (cols[0] && isNaN(Number(cols[0].replace(/,/g, ''))) && cols[0].length > 3) {
+      if (cols[0] && isNaN(Number(cols[0].replace(/,/g, ''))) && cols[0].length > 3 && isValidStoreName(cols[0])) {
         foundIdx = 0;
-      } else if (cols[1] && isNaN(Number(cols[1].replace(/,/g, ''))) && cols[1].length > 3) {
+      } else if (cols[1] && isNaN(Number(cols[1].replace(/,/g, ''))) && cols[1].length > 3 && isValidStoreName(cols[1])) {
         foundIdx = 1;
-      } else if (cols[2] && isNaN(Number(cols[2].replace(/,/g, ''))) && cols[2].length > 3) {
+      } else if (cols[2] && isNaN(Number(cols[2].replace(/,/g, ''))) && cols[2].length > 3 && isValidStoreName(cols[2])) {
         foundIdx = 2;
       }
     }
@@ -729,7 +774,7 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
       continue;
     }
 
-    if (marketName) {
+    if (marketName && isValidStoreName(marketName)) {
       const dataCols = cols.slice(nameColIdx + 1);
 
       if (pageType === 'RTST' || !pageType) {

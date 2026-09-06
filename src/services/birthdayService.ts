@@ -10,10 +10,8 @@ export interface EmployeeBirthday {
   updated_at?: any;
 }
 
-export const normalizeStoreId = (name: string) => {
-  if (!name) return '';
-  return name.trim().normalize('NFC').toUpperCase();
-};
+import { normalizeStoreId } from '../pages/RTST/utils';
+export { normalizeStoreId };
 
 export function isStoreMatch(item: { warehouse_code?: string; store_code?: string }, filter: string): boolean {
   if (!filter || filter === 'ALL') return true;

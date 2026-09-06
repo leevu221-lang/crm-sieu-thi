@@ -172,6 +172,14 @@ class FirebaseQueryBuilder {
           docId = String(item.username).trim();
         }
         
+        if (this.tableName === 'store' && docId) {
+          const strId = String(docId).trim();
+          if (/(=>|!==|===|!=|==|[{}()<>[\];$\\/`"'])/.test(strId) || /[\r\n\t]/.test(strId) || strId.toUpperCase() === 'ALL' || strId.toUpperCase() === 'TỔNG') {
+            console.error(`[FirebaseAdapter.insert] REJECTED INVALID STORE ID: "${strId}"`);
+            continue;
+          }
+        }
+        
         let docRef;
         if (docId) {
           docRef = doc(db, this.tableName, String(docId));
@@ -244,6 +252,14 @@ class FirebaseQueryBuilder {
           }
         }
         
+        if (this.tableName === 'store' && id) {
+          const strId = String(id).trim();
+          if (/(=>|!==|===|!=|==|[{}()<>[\];$\\/`"'])/.test(strId) || /[\r\n\t]/.test(strId) || strId.toUpperCase() === 'ALL' || strId.toUpperCase() === 'TỔNG') {
+            console.error(`[FirebaseAdapter.upsert] REJECTED INVALID STORE ID: "${strId}"`);
+            continue;
+          }
+        }
+
         const docRef = id ? doc(db, this.tableName, String(id)) : doc(collection(db, this.tableName));
         await setDoc(docRef, {
           ...item,
