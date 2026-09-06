@@ -48,7 +48,7 @@ export const LuykeDataContext = createContext<any>(null);
 
 export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { showNotification } = useNotification();
-  const { currentStoreId, warehouseCode, isStoreReady, setStoreReady, setCurrentStoreId } = useStore();
+  const { currentStoreId, warehouseCode, isStoreReady, setStoreReady, setCurrentStoreId, availableStores } = useStore();
   const maKho = warehouseCode;
 
   // Global cluster-level BI strings
@@ -440,7 +440,11 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const detectedStore = markets[0].name.trim();
         const currentIsFullStore = isValidStoreName(activeStore);
         
-        if (isValidStoreName(detectedStore)) {
+        // STRICT GUARD: ONLY switch if detectedStore matches one of the user's declared availableStores in their warehouse!
+        const availableNames = (availableStores || []).map((s: any) => s.name);
+        const isStoreInWarehouse = availableNames.includes(detectedStore);
+
+        if (isValidStoreName(detectedStore) && isStoreInWarehouse) {
           if (!currentIsFullStore || activeStore.match(/^\d+$/)) {
             if (detectedStore !== activeStore) {
               setActiveStore(detectedStore);

@@ -4,7 +4,7 @@ import { UserProfile } from '../types';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { trackUserPing } from '../services/accessTracker';
-import { localYcxDb } from '../pages/RTST/utils';
+import { localYcxDb, isValidStoreName } from '../pages/RTST/utils';
 import { URL_PAGE_MAP, isGuestShareLink } from '../constants/routes';
 
 interface AuthContextType {
@@ -28,7 +28,20 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
+    try {
+      const isShare = isGuestShareLink(window.location.search);
+      if (isShare) return null;
+      const stored = localStorage.getItem('userProfile');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && parsed.role !== 'guest' && parsed.ma_kho) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return null;
+  });
   const [loading, setLoading] = useState(true);
 
   const refreshProfile = async () => {
@@ -58,6 +71,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!prev) return null;
           const updated = {
             ...prev,
+            ma_kho: userData.storeCode || prev.ma_kho,
+            ten_sieu_thi: userData.ten_sieu_thi || prev.ten_sieu_thi,
+            selected_store: userData.selected_store || prev.selected_store,
             expiredAt: userData.expiredAt,
             status: userData.status,
             packageDays: userData.packageDays,
@@ -82,22 +98,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const khoParam = params.get('kho') || params.get('makho') || params.get('store');
-    if (khoParam) {
+    const isShare = isGuestShareLink(window.location.search);
+    
+    // Only persist rtst_ma_kho from URL parameter if accessing via an explicit guest share link
+    if (khoParam && isShare) {
       localStorage.setItem('rtst_ma_kho', khoParam);
     }
 
     const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
-    const pageParam = params.get('page')?.toLowerCase() || URL_PAGE_MAP[path] || '';
-    const isShare = isGuestShareLink(window.location.search);
-
     const storedUser = localStorage.getItem('userProfile');
 
     const ALL_SHARED_PAGES = ['realtime', 'luyke', 'health', 'lichpg', 'diemdanhhop', 'bangiasoc', 'toolhotro', 'tienich', 'birthday', 'khaibao', 'feedback', 'excelviewer'];
 
     // 1. Mở từ link chia sẻ khách (?view=guest hoặc ?share=true):
-    // Luôn khởi tạo tài khoản Khách xem trang độc lập không cần đăng nhập dưới mã kho được chia sẻ
+    // Khởi tạo tài khoản Khách xem trang độc lập không cần đăng nhập dưới mã kho được chia sẻ
     if (isShare) {
-      const kho = khoParam || localStorage.getItem('rtst_ma_kho') || '1841';
+      const kho = khoParam || localStorage.getItem('rtst_ma_kho') || '';
+      if (!kho) {
+        setUserProfile(null);
+        setLoading(false);
+        return;
+      }
       localStorage.setItem('rtst_ma_kho', kho);
       const guestUser: any = {
         username: `Khách (${kho})`,
@@ -121,48 +142,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // 2. Nếu người dùng chưa đăng nhập, nhưng truy cập qua link có mã kho hoặc trang cụ thể:
-    // Tự động cấp quyền khách cho mã kho đó để không bị chặn bởi màn hình đăng nhập
-    if (!storedUser && (khoParam || (path && path !== '/' && URL_PAGE_MAP[path]))) {
-      const kho = khoParam || localStorage.getItem('rtst_ma_kho') || '1841';
-      localStorage.setItem('rtst_ma_kho', kho);
-      const guestUser: any = {
-        username: `Khách (${kho})`,
-        role: 'guest',
-        isGuest: true,
-        ma_kho: kho,
-        storeCode: kho,
-        declarationCompleted: true,
-        paymentConfirmed: true,
-        status: 'active',
-        packageDays: 9999,
-        expiredAt: '2099-12-31T23:59:59.000Z',
-        permissions: ['lkst', 'rtst', 'sknv', 'updata'],
-        userPermissions: {
-          allowedPages: ALL_SHARED_PAGES,
-          canEditUser: false
-        }
-      };
-      setUserProfile(guestUser);
-      setLoading(false);
-      return;
-    }
-
-    // 3. Với phiên làm việc đã đăng nhập trong CRM Quản Trị:
+    // 2. Với phiên làm việc đã đăng nhập:
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
-        // Nếu storedUser trước đó bị dính role guest mà hiện tại không có link share thì xóa đi
-        if (parsed.role === 'guest' && !isShare && !khoParam) {
+        // Nếu storedUser trước đó bị dính role guest mà hiện tại không có link share thì xóa đi để bắt đăng nhập
+        if (parsed.role === 'guest' && !isShare) {
           localStorage.removeItem('userProfile');
           setUserProfile(null);
         } else {
-          if (khoParam && parsed.role === 'guest') {
-            parsed.ma_kho = khoParam;
-            parsed.storeCode = khoParam;
-            parsed.username = `Khách (${khoParam})`;
-          }
-          if (parsed.ma_kho) {
+          if (parsed.ma_kho && parsed.role !== 'guest') {
             localStorage.setItem('rtst_ma_kho', parsed.ma_kho);
           }
           setUserProfile(parsed);
@@ -171,6 +160,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Failed to parse stored user profile');
         setUserProfile(null);
       }
+    } else if (!isShare) {
+      setUserProfile(null);
     }
     setLoading(false);
   }, []);
@@ -194,6 +185,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!prev) return null;
           const updated = {
             ...prev,
+            ma_kho: userData.storeCode || prev.ma_kho,
+            ten_sieu_thi: userData.ten_sieu_thi || prev.ten_sieu_thi,
+            selected_store: userData.selected_store || prev.selected_store,
             expiredAt: userData.expiredAt,
             status: userData.status,
             packageDays: userData.packageDays,
@@ -292,12 +286,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, message: 'Tài khoản không tồn tại hoặc sai mật khẩu.' };
       }
 
-      // Fetch store name from warehouses
+      // Fetch store name from warehouses or declared stores
+      let storeName = '';
       const { data: storeData } = await supabase
         .from('warehouses')
         .select('ten_kho')
         .eq('ma_kho', maKho)
         .maybeSingle();
+
+      if (data.selected_store && isValidStoreName(data.selected_store)) {
+        storeName = data.selected_store;
+      } else if (data.ten_sieu_thi && isValidStoreName(data.ten_sieu_thi)) {
+        storeName = data.ten_sieu_thi;
+      } else if (storeData?.ten_kho && isValidStoreName(storeData.ten_kho)) {
+        storeName = storeData.ten_kho;
+      } else {
+        // Fallback: look up declared stores in store table
+        const { data: storeRecords } = await supabase
+          .from('store')
+          .select('id, ten_sieu_thi, declared_stores')
+          .eq('warehouse_code', maKho);
+
+        if (storeRecords && storeRecords.length > 0) {
+          const recWithDeclared = storeRecords.find((r: any) => Array.isArray(r.declared_stores) && r.declared_stores.length > 0);
+          if (recWithDeclared && recWithDeclared.declared_stores[0] && isValidStoreName(recWithDeclared.declared_stores[0])) {
+            storeName = recWithDeclared.declared_stores[0];
+          } else {
+            const firstValid = storeRecords.find((r: any) => isValidStoreName(r.ten_sieu_thi || r.id));
+            if (firstValid) storeName = firstValid.ten_sieu_thi || firstValid.id;
+          }
+        }
+      }
+
+      // If warehouse didn't exist in warehouses table and we found a valid storeName, auto-save to warehouses
+      if ((!storeData || !storeData.ten_kho) && storeName && isValidStoreName(storeName)) {
+        supabase.from('warehouses').upsert({
+          ma_kho: String(maKho).trim(),
+          ten_kho: storeName
+        }, { onConflict: 'ma_kho' }).then().catch(() => {});
+      }
 
       // Fetch user permissions
       const { data: permData } = await supabase
@@ -309,6 +336,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const isSuperAdmin = username === '43751';
       const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'tnbleader', 'birthday', 'bangiasoc'];
 
+      const resolvedStoreName = storeName || (isValidStoreName(storeData?.ten_kho) ? storeData.ten_kho : `Siêu thị ${data.storeCode}`);
+
       const profile: UserProfile = {
         username: data.username,
         ma_kho: data.storeCode,
@@ -319,7 +348,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           canEditUser: isSuperAdmin,
           allowedPages: isSuperAdmin ? ALL_PAGES : (permData?.allowed_pages || [])
         },
-        ten_sieu_thi: storeData?.ten_kho || data.storeCode,
+        ten_sieu_thi: resolvedStoreName,
+        selected_store: data.selected_store || resolvedStoreName,
         expiredAt: data.expiredAt,
         status: data.status,
         packageDays: data.packageDays,
@@ -559,11 +589,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const updatedProfile = { 
         ...userProfile, 
         ten_sieu_thi: newStoreName,
+        selected_store: newStoreName,
         status: newStatus ? newStatus as any : userProfile.status,
         declarationCompleted: true
       };
       setUserProfile(updatedProfile);
       localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
+
+      // Persist to ql_nguoi_dung in Firebase so any other browser device stays synchronized
+      if (userProfile.username && userProfile.username !== 'ADMIN' && userProfile.role !== 'guest') {
+        supabase
+          .from('ql_nguoi_dung')
+          .update({
+            ten_sieu_thi: newStoreName,
+            selected_store: newStoreName,
+            declarationCompleted: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('username', userProfile.username)
+          .then(() => {})
+          .catch((err) => console.warn('[AuthContext] Error syncing store name to ql_nguoi_dung:', err));
+      }
     }
   }
 

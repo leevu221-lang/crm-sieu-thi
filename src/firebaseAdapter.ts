@@ -19,6 +19,14 @@ import {
 import { db } from "./firebaseConfig";
 
 /**
+ * Safely format doc ID for Firestore path. Replaces forward slashes '/' with '-'
+ * so that Firestore does not interpret slashes as collection/subcollection path separators.
+ */
+const safeDocId = (id: any): string => {
+  return String(id ?? '').trim().replace(/\//g, '-');
+};
+
+/**
  * A lightweight adapter that mimics the Supabase fluent API
  * to minimize refactoring effort during migration.
  */
@@ -76,7 +84,7 @@ class FirebaseQueryBuilder {
     });
     const unique = [...new Set(expanded)];
     if (column === 'id') {
-      this.constraints.push(where(documentId(), 'in', unique.map(String).slice(0, 30)));
+      this.constraints.push(where(documentId(), 'in', unique.map(safeDocId).slice(0, 30)));
     } else {
       this.constraints.push(where(column, 'in', unique.slice(0, 30)));
     }
@@ -122,7 +130,7 @@ class FirebaseQueryBuilder {
   async single() {
     if (this.idValue) {
       try {
-        const docRef = doc(db, this.tableName, String(this.idValue));
+        const docRef = doc(db, this.tableName, safeDocId(this.idValue));
         const docSnap = await getDoc(docRef);
         if (!docSnap.exists()) {
           return { data: null, error: { code: 'PGRST116', message: 'Not found' } };
@@ -143,7 +151,7 @@ class FirebaseQueryBuilder {
   async maybeSingle() {
     if (this.idValue) {
       try {
-        const docRef = doc(db, this.tableName, String(this.idValue));
+        const docRef = doc(db, this.tableName, safeDocId(this.idValue));
         const docSnap = await getDoc(docRef);
         if (!docSnap.exists()) {
           return { data: null, error: null };
@@ -174,15 +182,15 @@ class FirebaseQueryBuilder {
         
         if (this.tableName === 'store' && docId) {
           const strId = String(docId).trim();
-          if (/(=>|!==|===|!=|==|[{}()<>[\];$\\/`"'])/.test(strId) || /[\r\n\t]/.test(strId) || strId.toUpperCase() === 'ALL' || strId.toUpperCase() === 'TỔNG') {
-            console.error(`[FirebaseAdapter.insert] REJECTED INVALID STORE ID: "${strId}"`);
+          if (/^\d+$/.test(strId) || !/[a-zA-ZÀ-ỹ]/.test(strId) || /(=>|!==|===|!=|==|[{}[\];$\\`"']|<[^>]*>)/.test(strId) || /[\r\n\t]/.test(strId) || strId.toUpperCase() === 'ALL' || strId.toUpperCase() === 'TỔNG') {
+            console.error(`[FirebaseAdapter.insert] REJECTED INVALID/NUMERIC STORE ID: "${strId}"`);
             continue;
           }
         }
         
         let docRef;
         if (docId) {
-          docRef = doc(db, this.tableName, String(docId));
+          docRef = doc(db, this.tableName, safeDocId(docId));
           await setDoc(docRef, {
             ...item,
             created_at: serverTimestamp(),
@@ -254,13 +262,13 @@ class FirebaseQueryBuilder {
         
         if (this.tableName === 'store' && id) {
           const strId = String(id).trim();
-          if (/(=>|!==|===|!=|==|[{}()<>[\];$\\/`"'])/.test(strId) || /[\r\n\t]/.test(strId) || strId.toUpperCase() === 'ALL' || strId.toUpperCase() === 'TỔNG') {
-            console.error(`[FirebaseAdapter.upsert] REJECTED INVALID STORE ID: "${strId}"`);
+          if (/^\d+$/.test(strId) || !/[a-zA-ZÀ-ỹ]/.test(strId) || /(=>|!==|===|!=|==|[{}[\];$\\`"']|<[^>]*>)/.test(strId) || /[\r\n\t]/.test(strId) || strId.toUpperCase() === 'ALL' || strId.toUpperCase() === 'TỔNG') {
+            console.error(`[FirebaseAdapter.upsert] REJECTED INVALID/NUMERIC STORE ID: "${strId}"`);
             continue;
           }
         }
 
-        const docRef = id ? doc(db, this.tableName, String(id)) : doc(collection(db, this.tableName));
+        const docRef = id ? doc(db, this.tableName, safeDocId(id)) : doc(collection(db, this.tableName));
         await setDoc(docRef, {
           ...item,
           updated_at: serverTimestamp()
@@ -292,7 +300,7 @@ class FirebaseQueryBuilder {
   private async executeUpdate() {
     try {
       if (this.idValue) {
-        const docRef = doc(db, this.tableName, String(this.idValue));
+        const docRef = doc(db, this.tableName, safeDocId(this.idValue));
         await updateDoc(docRef, {
           ...this.pendingUpdate,
           updated_at: serverTimestamp()
@@ -320,7 +328,7 @@ class FirebaseQueryBuilder {
   private async executeDelete() {
     try {
       if (this.idValue) {
-        await deleteDoc(doc(db, this.tableName, String(this.idValue)));
+        await deleteDoc(doc(db, this.tableName, safeDocId(this.idValue)));
         return { error: null };
       }
       const q = this.buildQuery();
@@ -346,7 +354,7 @@ class FirebaseQueryBuilder {
         result = await this.executeDelete();
       } else {
         if (this.idValue) {
-          const docRef = doc(db, this.tableName, String(this.idValue));
+          const docRef = doc(db, this.tableName, safeDocId(this.idValue));
           const docSnap = await getDoc(docRef);
           const data = docSnap.exists() ? [{ id: docSnap.id, ...docSnap.data() }] : [];
           result = { data, error: null };

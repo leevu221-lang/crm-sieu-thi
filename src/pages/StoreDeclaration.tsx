@@ -194,7 +194,9 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
       // 4. Update the user's status to 'pending' and declarationCompleted to true in ql_nguoi_dung to wait for admin approval
       const isNewUser = userProfile?.declarationCompleted === false;
       const updatePayload: any = {
-        declarationCompleted: true
+        declarationCompleted: true,
+        ten_sieu_thi: store1.trim(),
+        selected_store: store1.trim()
       };
 
       if (isNewUser) {

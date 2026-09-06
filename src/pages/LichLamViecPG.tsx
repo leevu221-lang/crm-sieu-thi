@@ -7,6 +7,7 @@ import { useStore } from '../contexts/StoreContext';
 import * as htmlToImage from 'html-to-image';
 import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
 import { buildGuestShareUrl } from '../constants/routes';
+import { normalizeStoreId, isValidStoreName } from './RTST/utils';
 
 
 
@@ -1077,25 +1078,40 @@ const LichLamViecPG: React.FC = () => {
 
   // Determine active supermarket name
   const activeStoreName = useMemo(() => {
-    if (currentStoreId && currentStoreId !== 'ALL') return currentStoreId.trim();
-    if (userProfile?.ten_sieu_thi) return userProfile.ten_sieu_thi.trim();
-    if (availableStores && availableStores.length > 0 && availableStores[0]?.name) {
-      return availableStores[0].name.trim();
+    // 1. If currentStoreId is already a valid supermarket name
+    if (currentStoreId && currentStoreId !== 'ALL' && isValidStoreName(currentStoreId)) {
+      return currentStoreId.trim();
     }
-    return userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '1841';
+    // 2. Try to match currentStoreId in availableStores (by id or name)
+    if (currentStoreId && availableStores && availableStores.length > 0) {
+      const found = availableStores.find(s => s.name === currentStoreId || (s as any).id === currentStoreId);
+      if (found && isValidStoreName(found.name)) return found.name.trim();
+    }
+    // 3. User profile supermarket name
+    if (userProfile?.ten_sieu_thi && isValidStoreName(userProfile.ten_sieu_thi)) {
+      return userProfile.ten_sieu_thi.trim();
+    }
+    // 4. First valid store in availableStores
+    if (availableStores && availableStores.length > 0) {
+      const firstValid = availableStores.find(s => isValidStoreName(s.name));
+      if (firstValid) return firstValid.name.trim();
+    }
+    // 5. If currentStoreId is not ALL and has content
+    if (currentStoreId && currentStoreId !== 'ALL' && currentStoreId.trim()) {
+      return currentStoreId.trim();
+    }
+    return '';
   }, [currentStoreId, userProfile, availableStores]);
 
-  // Safe key for Firestore document ID (replaces / with _ so firestore doesn't treat as path segment)
-  const safeStoreKey = useMemo(() => {
-    if (!activeStoreName || activeStoreName.trim() === '' || activeStoreName.trim().toUpperCase() === 'ALL') {
-      return 'GLOBAL';
-    }
-    return activeStoreName.trim().normalize('NFC').replace(/[\/\\]/g, '_').toUpperCase();
+  // Target Firestore document ID in collection 'store' (STRICTLY normalized supermarket name)
+  const targetStoreDocId = useMemo(() => {
+    return normalizeStoreId(activeStoreName);
   }, [activeStoreName]);
 
-  const getDocIdForMonth = useCallback((mKey: string) => {
-    return `${safeStoreKey}_${mKey}`;
-  }, [safeStoreKey]);
+  // Safe key for image export and labels
+  const safeStoreKey = useMemo(() => {
+    return targetStoreDocId || 'STORE';
+  }, [targetStoreDocId]);
 
   // Refs for image export
   const ictRef = useRef<HTMLDivElement>(null);
@@ -1248,7 +1264,8 @@ const LichLamViecPG: React.FC = () => {
   const [copiedLink, setCopiedLink] = useState(false);
 
   const handleShareLink = () => {
-    const currentKho = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '1841';
+    const currentKho = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '';
+    if (!currentKho) return;
     let shareUrl = buildGuestShareUrl('lichpg', currentKho);
     if (activeStoreName && activeStoreName !== 'ALL') {
       shareUrl += `&st=${encodeURIComponent(activeStoreName)}`;
@@ -1265,16 +1282,16 @@ const LichLamViecPG: React.FC = () => {
   editingRef.current = editing;
 
   // Cancel edit mode if user changes the selected store to prevent cross-store overwrite
-  const prevStoreKeyRef = useRef(safeStoreKey);
+  const prevStoreKeyRef = useRef(targetStoreDocId);
   useEffect(() => {
-    if (prevStoreKeyRef.current !== safeStoreKey) {
-      prevStoreKeyRef.current = safeStoreKey;
+    if (prevStoreKeyRef.current !== targetStoreDocId) {
+      prevStoreKeyRef.current = targetStoreDocId;
       if (editing) {
         setEditing(false);
         originalDataRef.current = null;
       }
     }
-  }, [safeStoreKey, editing]);
+  }, [targetStoreDocId, editing]);
 
   const allShiftOptions = useMemo(() => {
     return [...BASE_SHIFTS, ...customShifts, ''];
@@ -1299,83 +1316,69 @@ const LichLamViecPG: React.FC = () => {
     }
   }, [weeks, selectedYear, selectedMonth]);
 
-  // ─── Load from Firestore with Multi-Device & Per-Store Safety ─────────────
+  // ─── Load from Firestore strictly from collection 'store' > [TÊN SIÊU THỊ] ──
   useEffect(() => {
     setLoaded(false);
-    const storeDocId = getDocIdForMonth(monthKey);
-    const docRef = doc(db, 'lichLamViecPG', storeDocId);
+    if (!targetStoreDocId) {
+      setLoaded(true);
+      return;
+    }
+
+    const docRef = doc(db, 'store', targetStoreDocId);
 
     const unsub = onSnapshot(docRef, async snap => {
       if (snap.exists()) {
         const d = snap.data() as any;
-        // If this device is NOT actively editing, sync everything in real-time from Firestore
-        if (!editingRef.current) {
-          setIctRoster(Array.isArray(d.ictRoster) ? d.ictRoster : []);
-          setDtdlgdRoster(Array.isArray(d.dtdlgdRoster) ? d.dtdlgdRoster : []);
-          setAllWeekData(d.weekData || {});
-          if (Array.isArray(d.customShifts)) setCustomShifts(d.customShifts);
-        }
-        if (d.allowUserEdit !== undefined && typeof d.allowUserEdit === 'object') setAllowUserEdit(d.allowUserEdit);
-        else setAllowUserEdit({});
-        if (d.historyLogs) setHistoryLogs(d.historyLogs);
-        else setHistoryLogs([]);
-        setLoaded(true);
-      } else {
-        // Store doc does not exist yet. Check if legacy GLOBAL doc exists as starting point
-        if (!editingRef.current) {
-          let loadedFromGlobal = false;
-          if (safeStoreKey !== 'GLOBAL') {
-            try {
-              const globalSnap = await getDoc(doc(db, 'lichLamViecPG', `GLOBAL_${monthKey}`));
-              if (globalSnap.exists()) {
-                const gd = globalSnap.data() as any;
-                if (!editingRef.current) {
-                  setIctRoster(Array.isArray(gd.ictRoster) ? gd.ictRoster : []);
-                  setDtdlgdRoster(Array.isArray(gd.dtdlgdRoster) ? gd.dtdlgdRoster : []);
-                  setAllWeekData(gd.weekData || {});
-                  if (Array.isArray(gd.customShifts)) setCustomShifts(gd.customShifts);
-                }
-                if (gd.allowUserEdit !== undefined && typeof gd.allowUserEdit === 'object') setAllowUserEdit(gd.allowUserEdit);
-                else setAllowUserEdit({});
-                if (gd.historyLogs) setHistoryLogs(gd.historyLogs);
-                else setHistoryLogs([]);
-                loadedFromGlobal = true;
-              }
-            } catch (e) {
-              console.warn('Fallback check GLOBAL doc error:', e);
-            }
+        const monthData = d.lich_pg?.[monthKey] || d.data_phan_ca_pg?.[monthKey];
+        if (monthData) {
+          // If this device is NOT actively editing, sync everything in real-time from Firestore
+          if (!editingRef.current) {
+            setIctRoster(Array.isArray(monthData.ictRoster) ? monthData.ictRoster : []);
+            setDtdlgdRoster(Array.isArray(monthData.dtdlgdRoster) ? monthData.dtdlgdRoster : []);
+            setAllWeekData(monthData.weekData || {});
+            if (Array.isArray(monthData.customShifts)) setCustomShifts(monthData.customShifts);
           }
-
-          if (!loadedFromGlobal && !editingRef.current) {
-            // Default initial sample data
-            setIctRoster([
-              { id: genId(), tenPgHang: 'Ngọc Trâm - Realme', sdtSup: 'Lý Tấn Được 0946676440', note: 'Ca gãy (9h-12/13h-18h), t6-17-cn (9h-12h/14h-19h) sáng 9h-16h', category: 'ICT' },
-              { id: genId(), tenPgHang: 'Thanh - Xiaomiii', sdtSup: 'Gia Khang 0824013017', note: 'Ca sáng: 9h-17h/8h-16h ca chiều 12h-20h/ 13h-21h', category: 'ICT' },
-              { id: genId(), tenPgHang: 'Anh Thư - Oppo', sdtSup: 'Phạm Thiên Tâm 0354827949', note: 'Ca sáng: 8h-16h. Ca chiều: 12h-20h', category: 'ICT' },
-            ]);
-            setDtdlgdRoster([
-              { id: genId(), tenPgHang: 'Trung Tín - TCL', sdtSup: 'Sơn: 0939292323', note: 'Ca sáng từ 9h-15h, ca chiều từ 14h-20h, ngày cuối tuần 8h-18h', category: 'DTDLGD' },
-              { id: genId(), tenPgHang: 'Oanh - LG', sdtSup: '0904955285 (A Tùng)', note: 'Ca sáng (08h-16h)(9h-17h), ca chiều (12h-20h)(13h-21h)', category: 'DTDLGD' },
-              { id: genId(), tenPgHang: 'Trang - Toshiba', sdtSup: '0939095555 (Anh Trung)', note: 'Ca sáng(9h-15h), ca chiều(14h-20h), T7 CN(9h-20h)', category: 'DTDLGD' },
-              { id: genId(), tenPgHang: 'Tuấn Aqua', sdtSup: '', note: '', category: 'DTDLGD' },
-              { id: genId(), tenPgHang: 'Khang Hi - Mutosi', sdtSup: '0898815291 (Nhi)', note: 'Ca sáng từ 9h-17h/8h-16h. Ca chiều 12h-20h', category: 'DTDLGD' },
-              { id: genId(), tenPgHang: 'Trúc - Bluestone', sdtSup: '', note: 'Ca sáng (09-16h), ca chiều (13h-20h)', category: 'DTDLGD' },
-              { id: genId(), tenPgHang: 'Trinh - Sunhouse', sdtSup: '', note: 'Ca sáng(9h-16h), Ca Gãy 16h-20h', category: 'DTDLGD' },
-              { id: genId(), tenPgHang: 'Lam - Karofi', sdtSup: 'Tiến(0356784511)', note: 'Ca sáng(8-16h), ca chiều (12-20h), full(8h-20h)', category: 'DTDLGD' },
-            ]);
-            setAllWeekData({});
-            setHistoryLogs([]);
+          if (monthData.allowUserEdit !== undefined && typeof monthData.allowUserEdit === 'object') {
+            setAllowUserEdit(monthData.allowUserEdit);
+          } else {
+            setAllowUserEdit({});
           }
+          if (monthData.historyLogs) setHistoryLogs(monthData.historyLogs);
+          else setHistoryLogs([]);
+          setLoaded(true);
+          return;
         }
-        setLoaded(true);
       }
+
+      // If store doc has no PG data for this month yet, use default sample data
+      if (!editingRef.current) {
+          // Default initial sample data
+          setIctRoster([
+            { id: genId(), tenPgHang: 'Ngọc Trâm - Realme', sdtSup: 'Lý Tấn Được 0946676440', note: 'Ca gãy (9h-12/13h-18h), t6-17-cn (9h-12h/14h-19h) sáng 9h-16h', category: 'ICT' },
+            { id: genId(), tenPgHang: 'Thanh - Xiaomiii', sdtSup: 'Gia Khang 0824013017', note: 'Ca sáng: 9h-17h/8h-16h ca chiều 12h-20h/ 13h-21h', category: 'ICT' },
+            { id: genId(), tenPgHang: 'Anh Thư - Oppo', sdtSup: 'Phạm Thiên Tâm 0354827949', note: 'Ca sáng: 8h-16h. Ca chiều: 12h-20h', category: 'ICT' },
+          ]);
+          setDtdlgdRoster([
+            { id: genId(), tenPgHang: 'Trung Tín - TCL', sdtSup: 'Sơn: 0939292323', note: 'Ca sáng từ 9h-15h, ca chiều từ 14h-20h, ngày cuối tuần 8h-18h', category: 'DTDLGD' },
+            { id: genId(), tenPgHang: 'Oanh - LG', sdtSup: '0904955285 (A Tùng)', note: 'Ca sáng (08h-16h)(9h-17h), ca chiều (12h-20h)(13h-21h)', category: 'DTDLGD' },
+            { id: genId(), tenPgHang: 'Trang - Toshiba', sdtSup: '0939095555 (Anh Trung)', note: 'Ca sáng(9h-15h), ca chiều(14h-20h), T7 CN(9h-20h)', category: 'DTDLGD' },
+            { id: genId(), tenPgHang: 'Tuấn Aqua', sdtSup: '', note: '', category: 'DTDLGD' },
+            { id: genId(), tenPgHang: 'Khang Hi - Mutosi', sdtSup: '0898815291 (Nhi)', note: 'Ca sáng từ 9h-17h/8h-16h. Ca chiều 12h-20h', category: 'DTDLGD' },
+            { id: genId(), tenPgHang: 'Trúc - Bluestone', sdtSup: '', note: 'Ca sáng (09-16h), ca chiều (13h-20h)', category: 'DTDLGD' },
+            { id: genId(), tenPgHang: 'Trinh - Sunhouse', sdtSup: '', note: 'Ca sáng(9h-16h), Ca Gãy 16h-20h', category: 'DTDLGD' },
+            { id: genId(), tenPgHang: 'Lam - Karofi', sdtSup: 'Tiến(0356784511)', note: 'Ca sáng(8-16h), ca chiều (12-20h), full(8h-20h)', category: 'DTDLGD' },
+          ]);
+        setAllWeekData({});
+        setHistoryLogs([]);
+      }
+      setLoaded(true);
     }, err => {
-      console.error('Firestore snapshot error:', err);
+      console.error('Firestore snapshot error on store doc:', err);
       setLoaded(true);
     });
 
     return unsub;
-  }, [monthKey, safeStoreKey, getDocIdForMonth]);
+  }, [monthKey, targetStoreDocId]);
 
   const handleStartEdit = () => {
     originalDataRef.current = {
@@ -1398,12 +1401,17 @@ const LichLamViecPG: React.FC = () => {
     setEditing(false);
   };
 
-  // ─── Save with Differential Sync, Bridging Sync & Clean Payload ──────
+  // ─── Save strictly into collection 'store' > [TÊN SIÊU THỊ] ───────────────
   const handleSave = useCallback(async () => {
+    if (!targetStoreDocId || !isValidStoreName(targetStoreDocId)) {
+      alert('Tên siêu thị không hợp lệ hoặc chưa chọn siêu thị. Vui lòng chọn siêu thị hợp lệ để lưu Lịch PG.');
+      return;
+    }
+
     setSaving(true);
     try {
       const orig = originalDataRef.current;
-      const docRef = doc(db, 'lichLamViecPG', getDocIdForMonth(monthKey));
+      const docRef = doc(db, 'store', targetStoreDocId);
 
       const prevInfo = getPrevMonthInfo(selectedYear, selectedMonth);
       const prevWeeks = getWeeksOfMonth(prevInfo.year, prevInfo.month);
@@ -1445,10 +1453,7 @@ const LichLamViecPG: React.FC = () => {
         }
       }
 
-      const payload = sanitizeForFirestore({
-        storeName: activeStoreName,
-        storeKey: safeStoreKey,
-        maKho: maKho || '',
+      const monthPayload = sanitizeForFirestore({
         ictRoster,
         dtdlgdRoster,
         weekData: allWeekData,
@@ -1460,51 +1465,46 @@ const LichLamViecPG: React.FC = () => {
         monthKey,
       });
 
-      await setDoc(docRef, payload, { merge: true });
+      const storePayload: any = {
+        id: targetStoreDocId,
+        ten_sieu_thi: activeStoreName,
+        warehouse_code: maKho || '',
+        updated_at: new Date().toISOString(),
+        lich_pg: {
+          [monthKey]: monthPayload
+        }
+      };
 
       // Sync bridging week to previous month if applicable
       if (isWeek1BridgingWithPrevWeek5 && allWeekData.week1) {
-        try {
-          const prevDocRef = doc(db, 'lichLamViecPG', getDocIdForMonth(prevInfo.monthKey));
-          await setDoc(prevDocRef, {
-            storeName: activeStoreName,
-            storeKey: safeStoreKey,
-            maKho: maKho || '',
-            weekData: { week5: sanitizeForFirestore(allWeekData.week1) },
-            updatedAt: new Date().toISOString(),
-            updatedBy: userProfile?.username || '',
-          }, { merge: true });
-        } catch (e) {
-          console.warn('Sync to prev month bridging error:', e);
-        }
+        storePayload.lich_pg[prevInfo.monthKey] = {
+          weekData: { week5: sanitizeForFirestore(allWeekData.week1) },
+          updatedAt: new Date().toISOString(),
+          updatedBy: userProfile?.username || '',
+        };
       }
 
       // Sync bridging week to next month if applicable
       if (isWeek5BridgingWithNextWeek1 && allWeekData.week5) {
-        try {
-          const nextDocRef = doc(db, 'lichLamViecPG', getDocIdForMonth(nextInfo.monthKey));
-          await setDoc(nextDocRef, {
-            storeName: activeStoreName,
-            storeKey: safeStoreKey,
-            maKho: maKho || '',
-            weekData: { week1: sanitizeForFirestore(allWeekData.week5) },
-            updatedAt: new Date().toISOString(),
-            updatedBy: userProfile?.username || '',
-          }, { merge: true });
-        } catch (e) {
-          console.warn('Sync to next month bridging error:', e);
-        }
+        storePayload.lich_pg[nextInfo.monthKey] = {
+          weekData: { week1: sanitizeForFirestore(allWeekData.week5) },
+          updatedAt: new Date().toISOString(),
+          updatedBy: userProfile?.username || '',
+        };
       }
+
+      // Strictly save into collection 'store', doc: targetStoreDocId (TÊN SIÊU THỊ)
+      await setDoc(docRef, storePayload, { merge: true });
 
       originalDataRef.current = null;
       setEditing(false);
     } catch (err: any) {
-      console.error('Lỗi khi lưu Lịch PG:', err);
+      console.error('Lỗi khi lưu Lịch PG vào store:', err);
       alert('Không thể lưu Lịch PG: ' + (err?.message || 'Vui lòng thử lại'));
     } finally {
       setSaving(false);
     }
-  }, [ictRoster, dtdlgdRoster, allWeekData, customShifts, allowUserEdit, historyLogs, userProfile, monthKey, weeks, selectedYear, selectedMonth, safeStoreKey, activeStoreName, maKho, getDocIdForMonth]);
+  }, [ictRoster, dtdlgdRoster, allWeekData, customShifts, allowUserEdit, historyLogs, userProfile, monthKey, weeks, selectedYear, selectedMonth, targetStoreDocId, activeStoreName, maKho]);
 
   // ─── Admin Toggle Permission ───────────────────────────────────────────
   const is43751Admin = userProfile?.username === '43751' || userProfile?.ma_nhan_vien === '43751';
@@ -1522,18 +1522,22 @@ const LichLamViecPG: React.FC = () => {
   const canEdit = effectiveUserEditAllowed;
 
   const handleToggleUserEdit = async () => {
-    if (!is43751Admin) return;
+    if (!is43751Admin || !targetStoreDocId) return;
     const nextVal = !effectiveUserEditAllowed;
     const updated = { ...allowUserEdit, [weekKeyStr]: nextVal };
     setAllowUserEdit(updated);
     try {
-      await setDoc(doc(db, 'lichLamViecPG', getDocIdForMonth(monthKey)), {
-        storeName: activeStoreName,
-        storeKey: safeStoreKey,
-        maKho: maKho || '',
-        allowUserEdit: updated,
-        updatedAt: new Date().toISOString(),
-        updatedBy: userProfile?.username || '',
+      await setDoc(doc(db, 'store', targetStoreDocId), {
+        ten_sieu_thi: activeStoreName,
+        warehouse_code: maKho || '',
+        updated_at: new Date().toISOString(),
+        lich_pg: {
+          [monthKey]: {
+            allowUserEdit: updated,
+            updatedAt: new Date().toISOString(),
+            updatedBy: userProfile?.username || '',
+          }
+        }
       }, { merge: true });
     } catch (err) {
       console.error('Toggle user edit permission error:', err);
@@ -1724,7 +1728,7 @@ const LichLamViecPG: React.FC = () => {
             >
               {copiedLink ? (
                 <>
-                  <Check size={15} className="text-emerald-600" /> Đã chép link {activeStoreName ? `ST ${activeStoreName}` : `Kho ${userProfile?.ma_kho || '1841'}`}!
+                  <Check size={15} className="text-emerald-600" /> Đã chép link {activeStoreName ? `ST ${activeStoreName}` : `Kho ${userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}`}!
                 </>
               ) : (
                 <>

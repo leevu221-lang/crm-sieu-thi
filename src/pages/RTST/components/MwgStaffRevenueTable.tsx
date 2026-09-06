@@ -222,7 +222,7 @@ export const MwgStaffRevenueTable: React.FC<MwgStaffRevenueTableProps> = ({
             </button>
 
             <button
-              onClick={() => captureElement(tableCaptureRef, `Realtime_DoanhThu_NV_${selectedMaKho || '1841'}`)}
+              onClick={() => captureElement(tableCaptureRef, `Realtime_DoanhThu_NV_${selectedMaKho || 'Kho'}`)}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-black uppercase tracking-wider shadow-2xs hover:border-slate-300 active:scale-95 transition-all cursor-pointer"
               title="Chụp ảnh toàn bộ bảng để gửi nhóm"
             >
@@ -230,7 +230,7 @@ export const MwgStaffRevenueTable: React.FC<MwgStaffRevenueTableProps> = ({
               <span>Xuất Ảnh</span>
             </button>
 
-            {onResetDefault && (
+            {onResetDefault && selectedMaKho === '1841' && (
               <button
                 onClick={onResetDefault}
                 className="inline-flex items-center gap-1 px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all cursor-pointer"

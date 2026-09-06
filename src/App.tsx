@@ -106,7 +106,7 @@ export default function App() {
 
     return 'realtime';
   });
-  const { userProfile, logout, refreshProfile, updateStoreName } = useAuth();
+  const { userProfile, loading, logout, refreshProfile, updateStoreName } = useAuth();
   const [showDeclarationForce, setShowDeclarationForce] = useState(false);
   const isDeclarationRequired = useMemo(() => {
     if (!userProfile) return false;
@@ -132,8 +132,9 @@ export default function App() {
                            currentPage === 'health' ? `health_${activeHealthTab}` :
                            currentPage;
 
-  // Đồng bộ URL trình duyệt (https://crm-sieu-thi.pages.dev/tentrang?kho=1841&tab=...) và lưu localStorage
+  // Đồng bộ URL trình duyệt (https://crm-sieu-thi.pages.dev/tentrang?kho=...&tab=...) và lưu localStorage
   useEffect(() => {
+    if (loading) return; // Wait until authentication state is fully settled to avoid race conditions or jumping kho
     if (currentPage) {
       try {
         if (!isDirectDedicatedMode && userProfile?.role !== 'guest') {
@@ -141,8 +142,14 @@ export default function App() {
         }
         const basePath = PAGE_URL_MAP[currentPage] || `/${currentPage}`;
         const params = new URLSearchParams(window.location.search);
-        const kho = params.get('kho') || params.get('makho') || params.get('store') || userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '1841';
         const isShare = isDirectDedicatedMode || isGuestShareLink(window.location.search);
+        const isGuest = isShare || userProfile?.role === 'guest';
+        
+        // Logged-in accounts have absolute priority on their own registered warehouse (userProfile.ma_kho).
+        // External URLs (?kho=...) CANNOT override or jump warehouse for an authenticated user.
+        const kho = (userProfile && !isGuest && userProfile.ma_kho)
+          ? userProfile.ma_kho
+          : (params.get('kho') || params.get('makho') || params.get('store') || localStorage.getItem('rtst_ma_kho') || userProfile?.ma_kho || '');
         
         const currentTab = currentPage === 'realtime' ? activeRealtimeTab :
                            currentPage === 'luyke' ? activeLuyKeTab :
@@ -150,7 +157,8 @@ export default function App() {
                            currentPage === 'toolhotro' ? activeToolHoTroTab :
                            currentPage === 'tienich' ? activeTienIchTab : (params.get('tab') || '');
         const tabParam = currentTab ? `&tab=${currentTab}` : '';
-        const targetPath = `${basePath}?kho=${kho}${tabParam}${isShare ? '&view=guest' : ''}`;
+        const khoParam = kho ? `?kho=${kho}` : '';
+        const targetPath = `${basePath}${khoParam}${tabParam}${isShare ? '&view=guest' : ''}`;
         const currentFull = window.location.pathname + window.location.search;
         if (currentFull !== targetPath) {
           window.history.replaceState({ page: currentPage, tab: currentTab }, '', targetPath);
@@ -158,6 +166,7 @@ export default function App() {
       } catch {}
     }
   }, [
+    loading,
     currentPage, 
     isDirectDedicatedMode, 
     userProfile?.ma_kho, 

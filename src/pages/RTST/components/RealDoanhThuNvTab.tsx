@@ -307,7 +307,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       }
     } catch (e) {}
 
-    return '1841';
+    return userProfile?.ma_kho || '';
   }, [selectedMaKho, userProfile?.ma_kho, marketFilter]);
 
   const storageKey = `real_dthu_nv_raw_${cleanStore}`;
@@ -322,7 +322,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       const legacy = localStorage.getItem(`mwg_rt_staff_raw_${cleanStore}`);
       if (legacy && legacy.trim()) return legacy;
     } catch (e) {}
-    return DEFAULT_RAW_MWG_DATA_1841;
+    return cleanStore === '1841' ? DEFAULT_RAW_MWG_DATA_1841 : '';
   });
 
   // Filter Staff State (Excluded staff IDs) with Persistence
@@ -941,15 +941,17 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                   <span>Dán Từ Clipboard</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleResetDefault}
-                  className="inline-flex items-center gap-1 px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all active:scale-95"
-                  title="Nạp lại data mẫu siêu thị 1841"
-                >
-                  <RotateCcw size={13} />
-                  <span>Nạp Lại Mẫu 1841</span>
-                </button>
+                {cleanStore === '1841' && (
+                  <button
+                    type="button"
+                    onClick={handleResetDefault}
+                    className="inline-flex items-center gap-1 px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all active:scale-95"
+                    title="Nạp lại data mẫu siêu thị 1841"
+                  >
+                    <RotateCcw size={13} />
+                    <span>Nạp Lại Mẫu 1841</span>
+                  </button>
+                )}
 
                 <button
                   type="button"

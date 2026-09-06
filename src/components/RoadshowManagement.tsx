@@ -9,7 +9,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebaseConfig';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { cn } from '../pages/RTST/utils';
+import { cn, normalizeStoreId } from '../pages/RTST/utils';
 import { domToPng } from 'modern-screenshot';
 import * as htmlToImage from 'html-to-image';
 import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
@@ -685,15 +685,22 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
 
     setIsSyncingPg(true);
     try {
-      const docRef = doc(db, 'lichLamViecPG', `GLOBAL_${weekInfo.monthKey}`);
-      const docSnap = await getDoc(docRef);
+      let data: any = null;
+      const storeDocId = normalizeStoreId(currentStoreId || '');
+      if (storeDocId) {
+        const storeSnap = await getDoc(doc(db, 'store', storeDocId));
+        if (storeSnap.exists()) {
+          const sData = storeSnap.data();
+          data = sData.lich_pg?.[weekInfo.monthKey] || sData.data_phan_ca_pg?.[weekInfo.monthKey];
+        }
+      }
 
-      if (!docSnap.exists()) {
+
+
+      if (!data) {
         if (!silent) showToast(`Không tìm thấy dữ liệu Lịch PG cho tháng ${weekInfo.monthKey}`, false);
         return;
       }
-
-      const data = docSnap.data();
       const ictRoster = data.ictRoster || [];
       const dtdlgdRoster = data.dtdlgdRoster || [];
       const weekDataDoc = data.weekData?.[weekInfo.weekKey] || { ict: {}, dtdlgd: {} };

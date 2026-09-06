@@ -311,8 +311,15 @@ export const isValidStoreName = (name: string): boolean => {
   const trimmed = name.trim();
   if (trimmed.length === 0) return false;
 
+  // Reject pure numbers (e.g. "7981", "1841", "001") - these are warehouse codes (mã kho), NEVER supermarket names!
+  if (/^\d+$/.test(trimmed)) return false;
+
+  // Supermarket names must contain at least one Vietnamese or Latin letter
+  if (!/[a-zA-ZÀ-ỹ]/.test(trimmed)) return false;
+
   // Reject code syntax, arrow functions, operators, braces, quotes, control characters
-  if (/(=>|!==|===|!=|==|[{}()<>[\];$\\/`"'])/.test(trimmed)) return false;
+  // NOTE: Parentheses '()' and forward slashes '/' are valid in Vietnamese addresses/store names (e.g. "ĐMM_BLI_DHA - 25 Đường 19/5 (Gành Hào)")
+  if (/(=>|!==|===|!=|==|[{}[\];$\\`"']|<[^>]*>)/.test(trimmed)) return false;
   if (/[\r\n\t]/.test(trimmed)) return false;
 
   const upper = trimmed.toUpperCase();
@@ -356,9 +363,10 @@ export const isValidStoreName = (name: string): boolean => {
 };
 
 /**
- * Normalize a store name for use as a Supabase document ID (primary key).
+ * Normalize a store name for use as a Supabase/Firestore document ID (primary key).
  * Converts to UPPERCASE and trims whitespace so that "Láng Tròn" and "LÁNG TRÒN"
  * always map to the same row, preventing duplicate documents.
+ * Slashes '/' are replaced with '-' so Firestore document paths remain valid.
  */
 export const normalizeStoreId = (name: string): string => {
   if (!name || typeof name !== 'string') return '';
@@ -367,7 +375,7 @@ export const normalizeStoreId = (name: string): string => {
     console.warn(`[normalizeStoreId] Rejected invalid store name: "${trimmed}"`);
     return '';
   }
-  return trimmed.normalize('NFC').toUpperCase();
+  return trimmed.normalize('NFC').toUpperCase().replace(/\//g, '-');
 };
 
 export const normalize = (s: string) => {

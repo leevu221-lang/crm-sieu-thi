@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import * as htmlToImage from 'html-to-image';
 import { domToPng } from 'modern-screenshot';
@@ -141,9 +141,9 @@ const StatCard: React.FC<{
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.4 }}
+      transition={{ delay, duration: 0.15 }}
       className={`p-3.5 sm:p-5 rounded-2xl md:rounded-3xl border shadow-lg relative overflow-hidden flex flex-col justify-between ${gradientMap[color]} ${isLarge ? 'md:col-span-2' : ''}`}
       style={{ fontFamily: "'UTM Avo', sans-serif" }}
     >
@@ -766,22 +766,13 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       }
     }
 
-    // Fallback: ONLY look among cluster stores in filteredMarkets or CMA stores, NEVER an unrelated province store!
+    // Fallback: ONLY look among cluster stores in filteredMarkets, NEVER an unrelated province or warehouse!
     if (!storeTarget || !storeTarget.thuongStRows || storeTarget.thuongStRows.length === 0) {
       for (const m of filteredMarkets) {
         const cTarget = allStoreTargets[m.name.toUpperCase()];
         if (cTarget?.thuongStRows && cTarget.thuongStRows.length > 0) {
           storeTarget = cTarget;
           break;
-        }
-      }
-      if (!storeTarget) {
-        for (const [k, val] of Object.entries(allStoreTargets || {})) {
-          const normK = normalize(k);
-          if ((normK.includes('cma') || normK.includes('ca mau') || normK.includes('1841')) && (val as any)?.thuongStRows?.length > 0) {
-            storeTarget = val;
-            break;
-          }
         }
       }
     }
@@ -1294,50 +1285,6 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     }
   }, [filteredMarkets, maKho]);
 
-  // PERF: Sync stName and revenue fields when marketFilter or data changes
-  // PERF: Sync stName and revenue fields when marketFilter or data changes
-  // Only trigger on external changes (marketFilter, filteredMarkets, allStoreTargets)
-  // NOT on the values we set — avoids re-render cascade
-  useEffect(() => {
-    if (marketFilter === 'ALL') return;
-    const market = filteredMarkets.find(m => m.name === marketFilter);
-    if (!market) return;
-
-    if (stName !== market.name) setStName(market.name);
-    if (stDtlk !== (market.actualReal || 0)) setStDtlk(market.actualReal || 0);
-    if (stDtqd !== (market.actualVirtual || 0)) setStDtqd(market.actualVirtual || 0);
-
-    const dtDuKienQD = market.targetQD || 0;
-    const percentHT = market.percentHT || 0;
-    if (stDtDuKienQD !== dtDuKienQD) setStDtDuKienQD(dtDuKienQD);
-    if (stPercentHTTargetDuKienQD !== percentHT) setStPercentHTTargetDuKienQD(percentHT);
-
-    // Sync from DB cache (allStoreTargets) using normalized keys to prevent spacing/underscore mismatches
-    const targetDataKey = Object.keys(allStoreTargets || {}).find(k => normalize(k) === normalize(market.name));
-    const targetData = targetDataKey ? allStoreTargets[targetDataKey] : null;
-    if (targetData) {
-      if (targetData.stPercentTarget !== undefined && stPercentTarget !== targetData.stPercentTarget) {
-        setStPercentTarget(targetData.stPercentTarget);
-      }
-    }
-  }, [marketFilter, filteredMarkets, allStoreTargets, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stPercentTarget, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD, setStPercentTarget]);
-
-  // Sync marketFilter when filteredMarkets changes
-  useEffect(() => {
-    // Ensure the current marketFilter is valid within filteredMarkets,
-    // otherwise auto-select the first available one.
-    if (filteredMarkets.length > 0 && (marketFilter === 'ALL' || !filteredMarkets.some(m => m.name === marketFilter))) {
-      setMarketFilter(filteredMarkets[0].name);
-    }
-  }, [filteredMarkets, marketFilter]);
-
-  // NOTE: Luyke data auto-loads when currentStoreId changes (centralized in useLuykeData)
-
-  // stTargetSauHeSo is synced from DB (KHAI BÁO > TARGET DOANH THU > TAGET SAU X HỆ SỐ)
-  // — no local recalculation needed here
-
-  // FastSync removed — allStoreTargets sync is handled in the unified effect above
-
   // Filter out any supermarkets containing (KHO BÁN HÀNG LƯU ĐỘNG)
   const filteredDisplayData = React.useMemo(() => {
     return {
@@ -1361,6 +1308,56 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       return normName.includes(normFilter) || normFilter.includes(normName);
     });
   }, [filteredDisplayData.markets, marketFilter]);
+
+  // PERF: Sync stName and revenue fields when marketFilter or data changes
+  // Only trigger on external changes (marketFilter, filteredDisplayData.markets, allStoreTargets)
+  // NOT on the values we set — avoids re-render cascade
+  useEffect(() => {
+    if (marketFilter === 'ALL') return;
+    const normFilter = normalize(marketFilter);
+    // Find matching market in filteredDisplayData.markets (which has targetQD, actualReal, actualVirtual, percentHT)
+    const market = (filteredDisplayData.markets || []).find(
+      (m: any) => {
+        const nm = normalize(m.name);
+        return nm === normFilter || nm.includes(normFilter) || normFilter.includes(nm);
+      }
+    ) || filteredMarkets.find(m => normalize(m.name) === normFilter);
+    if (!market) return;
+
+    if (stName !== market.name) setStName(market.name);
+    if (market.actualReal !== undefined && stDtlk !== market.actualReal) setStDtlk(market.actualReal);
+    if (market.actualVirtual !== undefined && stDtqd !== market.actualVirtual) setStDtqd(market.actualVirtual);
+
+    const dtDuKienQD = market.targetQD || 0;
+    const percentHT = market.percentHT || 0;
+    if (dtDuKienQD > 0 && stDtDuKienQD !== dtDuKienQD) setStDtDuKienQD(dtDuKienQD);
+    if (percentHT > 0 && stPercentHTTargetDuKienQD !== percentHT) setStPercentHTTargetDuKienQD(percentHT);
+
+    // Sync from DB cache (allStoreTargets) using normalized keys to prevent spacing/underscore mismatches
+    const targetDataKey = Object.keys(allStoreTargets || {}).find(k => normalize(k) === normFilter);
+    const targetData = targetDataKey ? allStoreTargets[targetDataKey] : null;
+    if (targetData) {
+      if (targetData.stPercentTarget !== undefined && stPercentTarget !== targetData.stPercentTarget) {
+        setStPercentTarget(targetData.stPercentTarget);
+      }
+    }
+  }, [marketFilter, filteredDisplayData.markets, filteredMarkets, allStoreTargets, stName, stDtlk, stDtqd, stDtDuKienQD, stPercentHTTargetDuKienQD, stPercentTarget, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD, setStPercentTarget]);
+
+  // Sync marketFilter when filteredMarkets changes
+  useEffect(() => {
+    // Ensure the current marketFilter is valid within filteredMarkets,
+    // otherwise auto-select the first available one.
+    if (filteredMarkets.length > 0 && (marketFilter === 'ALL' || !filteredMarkets.some(m => m.name === marketFilter))) {
+      setMarketFilter(filteredMarkets[0].name);
+    }
+  }, [filteredMarkets, marketFilter]);
+
+  // NOTE: Luyke data auto-loads when currentStoreId changes (centralized in useLuykeData)
+
+  // stTargetSauHeSo is synced from DB (KHAI BÁO > TARGET DOANH THU > TAGET SAU X HỆ SỐ)
+  // — no local recalculation needed here
+
+  // FastSync removed — allStoreTargets sync is handled in the unified effect above
 
   // Categories from LUỸ KẾ TĐ already have correct data:
   // cat.target = Column 3 (TARGET) and cat.revenue = Column 2 (LUỸ KẾ)
@@ -1446,6 +1443,61 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     return '0';
   };
 
+  // Helper to resolve store target without flickering or cross-store fallback leakage
+  const resolveMarketTarget = useCallback((market: any) => {
+    if (!market) return { displayTargetQD: 0, percentTargetVal: 100, targetData: null };
+    const normMarket = normalize(market.name);
+
+    // 1. Match in allStoreTargets: prioritize exact match first, then substring
+    const targetDataKey = Object.keys(allStoreTargets || {}).find(k => normalize(k) === normMarket)
+      || Object.keys(allStoreTargets || {}).find(k => {
+        const normK = normalize(k);
+        return normK.includes(normMarket) || normMarket.includes(normK);
+      });
+    const targetData: any = targetDataKey ? allStoreTargets[targetDataKey] : null;
+
+    // 2. Check popup "CẤU HÌNH TARGET" from localStorage (crm_cluster_store_target_config)
+    let clusterTargetConfig: any = null;
+    try {
+      const rawClusterCfg = localStorage.getItem('crm_cluster_store_target_config');
+      if (rawClusterCfg) {
+        const parsedCfg = JSON.parse(rawClusterCfg);
+        const cfgKey = Object.keys(parsedCfg).find(k => normalize(k) === normMarket)
+          || Object.keys(parsedCfg).find(k => {
+            const nk = normalize(k);
+            return nk.includes(normMarket) || normMarket.includes(nk);
+          });
+        if (cfgKey) clusterTargetConfig = parsedCfg[cfgKey];
+      }
+    } catch {}
+
+    const isCurrentActive = normalize(currentStoreId) === normMarket || normalize(stName) === normMarket;
+
+    const percentTargetVal = clusterTargetConfig?.mucTieuPercent !== undefined
+      ? Number(clusterTargetConfig.mucTieuPercent)
+      : (Number((targetData as any)?.stPercentTarget) || (isCurrentActive ? Number(stPercentTarget) : 100) || 100);
+
+    let displayTargetQD = 0;
+    if (clusterTargetConfig && Number(clusterTargetConfig.targetCungKyNam) > 0) {
+      displayTargetQD = Math.round(Number(clusterTargetConfig.targetCungKyNam) * (percentTargetVal / 100));
+    } else {
+      const dtDuKienQD = market.targetQD || 0;
+      const rawTargetQD = dtDuKienQD > 0
+        ? dtDuKienQD
+        : (Number((targetData as any)?.stTargetQuyDoi) || (isCurrentActive ? stTargetQuyDoi : 0) || 0);
+
+      displayTargetQD = rawTargetQD > 0
+        ? Math.round(rawTargetQD * (percentTargetVal / 100))
+        : (Number((targetData as any)?.stTargetSauHeSo) || (isCurrentActive ? stTargetSauHeSo : 0) || 0);
+    }
+
+    return {
+      displayTargetQD,
+      percentTargetVal,
+      targetData
+    };
+  }, [allStoreTargets, currentStoreId, stName, stPercentTarget, stTargetQuyDoi, stTargetSauHeSo]);
+
   // Helper to build 3 comment templates for LuyKe Doanh thu & Ngành hàng
   const luykeCategoryCommentTemplates = React.useMemo(() => {
     const market = marketsForDashboard[0] || {
@@ -1458,19 +1510,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       billCount: 0
     };
 
-    const targetDataKey = Object.keys(allStoreTargets || {}).find(k => {
-      const normK = normalize(k);
-      const normMarket = normalize(market.name);
-      return normK === normMarket || normK.includes(normMarket) || normMarket.includes(normK);
-    });
-    const targetData: any = targetDataKey ? allStoreTargets[targetDataKey] : null;
-    const dtDuKienQD = market.targetQD || 0;
-    const percentTargetVal = Number((targetData as any)?.stPercentTarget) || Number(stPercentTarget) || 100;
-    const rawTargetQD = dtDuKienQD > 0 ? dtDuKienQD : ((targetData as any)?.stTargetQuyDoi || stTargetQuyDoi || 0);
-    // Nhân TARGET QĐ với % TARGET từ trang Cập Nhật
-    const displayTargetQD = rawTargetQD > 0 
-      ? Math.round(rawTargetQD * (percentTargetVal / 100)) 
-      : ((targetData as any)?.stTargetSauHeSo || stTargetSauHeSo || 0);
+    const { displayTargetQD, targetData } = resolveMarketTarget(market);
     const actualVirtual = market.actualVirtual || 0;
     const actualReal = market.actualReal || 0;
     const percentHTVal = displayTargetQD > 0 ? Math.round((daysPassed > 0 && totalDays > 0 ? (((actualVirtual) / daysPassed) * totalDays) : actualVirtual) / displayTargetQD * 100 * 10) / 10 : 0;
@@ -2210,19 +2250,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                 <div ref={captureRefs.fullDashboard} className="space-y-6">
                   {/* Top Dashboard for each market */}
                   {marketsForDashboard.map((market: any, mIdx: number) => {
-                    const targetDataKey = Object.keys(allStoreTargets || {}).find(k => {
-                      const normK = normalize(k);
-                      const normMarket = normalize(market.name);
-                      return normK === normMarket || normK.includes(normMarket) || normMarket.includes(normK);
-                    });
-                    const targetData: any = targetDataKey ? allStoreTargets[targetDataKey] : null;
-                    const dtDuKienQD = market.targetQD || 0;
-                    const percentTargetVal = Number((targetData as any)?.stPercentTarget) || Number(stPercentTarget) || 100;
-                    const rawTargetQD = dtDuKienQD > 0 ? dtDuKienQD : ((targetData as any)?.stTargetQuyDoi || stTargetQuyDoi || 0);
-                    // Nhân TARGET QĐ với % TARGET từ trang Cập Nhật
-                    const displayTargetQD = rawTargetQD > 0 
-                      ? Math.round(rawTargetQD * (percentTargetVal / 100)) 
-                      : ((targetData as any)?.stTargetSauHeSo || stTargetSauHeSo || 0);
+                    const { displayTargetQD, targetData } = resolveMarketTarget(market);
                     const actualVirtual = market.actualVirtual || 0;
                     const actualReal = market.actualReal || 0;
                     const percentHTVal = displayTargetQD > 0 ? Math.round((daysPassed > 0 && totalDays > 0 ? (((actualVirtual) / daysPassed) * totalDays) : actualVirtual) / displayTargetQD * 100 * 10) / 10 : 0;
@@ -2276,7 +2304,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                     }
 
                     return (
-                      <div key={mIdx} className="relative overflow-hidden bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-indigo-100/90 shadow-[0_4px_25px_-4px_rgba(79,70,229,0.08)] space-y-4">
+                      <div key={market.name || mIdx} className="relative overflow-hidden bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-indigo-100/90 shadow-[0_4px_25px_-4px_rgba(79,70,229,0.08)] space-y-4">
                         {/* Ambient background glow */}
                         <div className="absolute -top-10 -right-10 w-44 h-44 bg-gradient-to-br from-indigo-200/30 to-transparent rounded-full blur-2xl pointer-events-none" />
                         <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-gradient-to-tr from-emerald-100/30 to-transparent rounded-full blur-2xl pointer-events-none" />

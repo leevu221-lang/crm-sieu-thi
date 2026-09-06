@@ -29,6 +29,7 @@ export interface UserProfile {
   current_page?: string;
   device_info?: string;
   declarationCompleted?: boolean;
+  selected_store?: string;
 }
 
 export interface UserData {

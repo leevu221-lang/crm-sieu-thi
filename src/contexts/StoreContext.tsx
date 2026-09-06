@@ -97,9 +97,15 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const { userProfile } = useAuth();
   const warehouseCode = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '';
 
-  const [currentStoreId, setCurrentStoreIdRaw] = useState(() =>
-    localStorage.getItem('currentStoreId') || 'ALL'
-  );
+  const [currentStoreId, setCurrentStoreIdRaw] = useState(() => {
+    if (userProfile && userProfile.role !== 'guest') {
+      const preferred = (userProfile as any)?.selected_store || userProfile.ten_sieu_thi;
+      if (preferred && isValidStoreName(preferred)) {
+        return preferred;
+      }
+    }
+    return localStorage.getItem('currentStoreId') || 'ALL';
+  });
   const [isStoreReady, setStoreReady] = useState(true);
   const [availableStores, setAvailableStoresRaw] = useState<StoreInfo[]>([]);
   const [storeVersion, setStoreVersion] = useState(0);
@@ -400,8 +406,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (availableNames.length > 0) {
       const isCurrentValid = availableNames.includes(currentStoreId);
       if (!isCurrentValid || isUserChanged) {
-        const userPreferred = userProfile.ten_sieu_thi && availableNames.includes(userProfile.ten_sieu_thi)
-          ? userProfile.ten_sieu_thi
+        const savedStore = (userProfile as any)?.selected_store || userProfile.ten_sieu_thi;
+        const userPreferred = savedStore && availableNames.includes(savedStore)
+          ? savedStore
           : availableNames[0];
 
         if (userPreferred && userPreferred !== currentStoreId) {
@@ -411,12 +418,15 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           setStoreVersion(v => v + 1);
         }
       }
-    } else if (userProfile.ten_sieu_thi && (currentStoreId === 'ALL' || !currentStoreId || isUserChanged)) {
-      if (currentStoreId !== userProfile.ten_sieu_thi) {
-        console.log(`[StoreContext] Fallback syncing currentStoreId to userProfile.ten_sieu_thi: "${userProfile.ten_sieu_thi}"`);
-        setCurrentStoreIdRaw(userProfile.ten_sieu_thi);
-        setStoreReady(false);
-        setStoreVersion(v => v + 1);
+    } else {
+      const fallbackStore = (userProfile as any)?.selected_store || userProfile.ten_sieu_thi;
+      if (fallbackStore && isValidStoreName(fallbackStore)) {
+        if (currentStoreId !== fallbackStore) {
+          console.log(`[StoreContext] Fallback syncing currentStoreId to preferred store: "${fallbackStore}"`);
+          setCurrentStoreIdRaw(fallbackStore);
+          setStoreReady(false);
+          setStoreVersion(v => v + 1);
+        }
       }
     }
   }, [userProfile, availableStores, currentStoreId]);
@@ -428,9 +438,23 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       console.log(`[StoreContext] Switching store: "${prev}" → "${id}"`);
       setStoreReady(false);
       setStoreVersion(v => v + 1);
+
+      // Persist active store selection to ql_nguoi_dung in Firebase so any other browser device stays synchronized
+      if (userProfile?.username && userProfile.username !== 'ADMIN' && userProfile.role !== 'guest' && isValidStoreName(id)) {
+        supabase
+          .from('ql_nguoi_dung')
+          .update({
+            selected_store: id,
+            updated_at: new Date().toISOString()
+          })
+          .eq('username', userProfile.username)
+          .then(() => {})
+          .catch((err) => console.warn('[StoreContext] Error syncing selected_store to ql_nguoi_dung:', err));
+      }
+
       return id;
     });
-  }, []);
+  }, [userProfile?.username, userProfile?.role]);
 
   // No-op functions to preserve the database as the strict single source of truth for declared stores
   const setAvailableStores = useCallback((stores: StoreInfo[]) => {

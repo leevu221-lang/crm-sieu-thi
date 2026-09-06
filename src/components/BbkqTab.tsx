@@ -70,8 +70,8 @@ export default function BbkqTab() {
   const { showNotification } = useNotification();
 
   // Store information
-  const storeName = currentStoreId || 'ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH';
-  const storeCode = userProfile?.ma_kho || '43751';
+  const storeName = currentStoreId !== 'ALL' && currentStoreId ? currentStoreId : (userProfile?.ten_sieu_thi || userProfile?.ma_kho || '');
+  const storeCode = userProfile?.ma_kho || '';
 
   // Denominations counts
   const [counts, setCounts] = useState<Record<number, number>>(() => {

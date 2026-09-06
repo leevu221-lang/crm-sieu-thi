@@ -278,8 +278,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
               const activeCandidates = [
                 localStorage.getItem('rtst_selected_store_filter'),
                 currentStoreId,
-                stNameRef.current,
-                'ĐML_CMA_CMA - 155A Nguyễn Tất Thành'
+                stNameRef.current
               ].filter(Boolean) as string[];
 
               let activeStoreData: any = null;
@@ -301,12 +300,16 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
                 if (activeStoreData) break;
               }
 
-              if (!activeStoreData) {
-                // Find CMA / cluster store with rows first
+              if (!activeStoreData && clusterStoreNames && clusterStoreNames.length > 0) {
+                // Only fall back within user's own cluster/declared stores, never jump into another warehouse
                 activeStoreData = Object.values(data.stores as Record<string, any>).find((s: any) => {
-                  const norm = normalize(s.storeName || '');
-                  return (norm.includes('cma') || norm.includes('ca mau') || norm.includes('1841')) && s.thuongStRows?.length > 0;
-                }) || Object.values(data.stores as Record<string, any>).find((s: any) => s.thuongStRows?.length > 0);
+                  const sName = s.storeName || '';
+                  return clusterStoreNames.some(cs => {
+                    const normCs = normalize(cs);
+                    const normS = normalize(sName);
+                    return normCs && normS && (normS === normCs || normS.includes(normCs) || normCs.includes(normS));
+                  }) && s.thuongStRows?.length > 0;
+                });
               }
 
               const areRowsEqual = (a: any[], b: any[]) => {
@@ -556,11 +559,14 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         // Map all store targets
         const targetMap: Record<string, any> = {};
         records.forEach((r: any) => {
-          if (r.ten_sieu_thi && r.taget_doanh_thu) {
-            targetMap[r.ten_sieu_thi.toUpperCase()] = {
+          const storeName = (r.ten_sieu_thi || r.id || '').trim();
+          if (storeName && r.taget_doanh_thu) {
+            const entry = {
               ...r.taget_doanh_thu,
               warehouse_code: r.warehouse_code
             };
+            targetMap[storeName.toUpperCase()] = entry;
+            targetMap[normalize(storeName)] = entry;
           }
         });
         updateAllStoreTargets(targetMap);
@@ -665,21 +671,21 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     }
   }, [maKho, lastLoadedMaKho, loadStoreRevenue, stName]);
 
-  // AUTO-CALCULATION: Target Quy Đổi
+  // AUTO-CALCULATION: Target Quy Đổi (Only calculate when positive values available, do not wipe valid target to 0)
   useEffect(() => {
-    if (stPercentHTTargetDuKienQD > 0) {
+    if (stPercentHTTargetDuKienQD > 0 && stDtDuKienQD > 0) {
       const calculated = Math.round(stDtDuKienQD / (stPercentHTTargetDuKienQD / 100));
       if (stTargetQuyDoi !== calculated) setStTargetQuyDoi(calculated);
-    } else {
-      if (stTargetQuyDoi !== 0) setStTargetQuyDoi(0);
     }
-  }, [stDtDuKienQD, stPercentHTTargetDuKienQD, stTargetQuyDoi]);
+  }, [stDtDuKienQD, stPercentHTTargetDuKienQD]);
 
   // AUTO-CALCULATION: Target Sau Hệ Số (TARGET THỰC TẾ)
   useEffect(() => {
-    const calculated = Math.round(stTargetQuyDoi * (stPercentTarget / 100));
-    if (stTargetSauHeSo !== calculated) setStTargetSauHeSo(calculated);
-  }, [stTargetQuyDoi, stPercentTarget, stTargetSauHeSo]);
+    if (stTargetQuyDoi > 0) {
+      const calculated = Math.round(stTargetQuyDoi * (stPercentTarget / 100));
+      if (stTargetSauHeSo !== calculated) setStTargetSauHeSo(calculated);
+    }
+  }, [stTargetQuyDoi, stPercentTarget]);
 
   // Ref to access latest allStoreTargets in AUTO-REACT without stale closure
   const allStoreTargetsRef = useRef(allStoreTargets);
@@ -750,17 +756,40 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     
     // Use cached per-store values from allStoreTargets (populated on initial load)
     // This avoids resetting to 0/100 and then flashing to DB values
-    const cachedKey = Object.keys(allStoreTargetsRef.current || {}).find(k => normalize(k) === normalize(currentStoreId));
+    const normCurrent = normalize(currentStoreId);
+    const cachedKey = Object.keys(allStoreTargetsRef.current || {}).find(k => normalize(k) === normCurrent);
     const cached = cachedKey ? allStoreTargetsRef.current[cachedKey] : null;
+
+    // Check popup target config from localStorage as another immediate cache
+    let clusterCfg: any = null;
+    try {
+      const savedClusterCfg = localStorage.getItem('crm_cluster_store_target_config');
+      if (savedClusterCfg) {
+        const parsed = JSON.parse(savedClusterCfg);
+        const matchK = Object.keys(parsed).find(k => normalize(k) === normCurrent);
+        if (matchK) clusterCfg = parsed[matchK];
+      }
+    } catch {}
     
     setStName(cached?.stName || currentStoreId);
     setStDtlk(cached?.stDtlk ?? 0);
     setStDtqd(cached?.stDtqd ?? 0);
     setStDtDuKienQD(cached?.stDtDuKienQD ?? 0);
     setStPercentHTTargetDuKienQD(cached?.stPercentHTTargetDuKienQD ?? 0);
-    setStTargetQuyDoi(cached?.stTargetQuyDoi ?? 0);
-    setStPercentTarget(cached?.stPercentTarget ?? 100);
-    setStTargetSauHeSo(cached?.stTargetSauHeSo ?? 0);
+
+    const percentTargetVal = clusterCfg?.mucTieuPercent !== undefined
+      ? Number(clusterCfg.mucTieuPercent)
+      : (cached?.stPercentTarget ?? 100);
+    setStPercentTarget(percentTargetVal);
+
+    if (clusterCfg && Number(clusterCfg.targetCungKyNam) > 0) {
+      const tgt = Number(clusterCfg.targetCungKyNam);
+      setStTargetQuyDoi(tgt);
+      setStTargetSauHeSo(Math.round(tgt * (percentTargetVal / 100)));
+    } else {
+      setStTargetQuyDoi(cached?.stTargetQuyDoi ?? 0);
+      setStTargetSauHeSo(cached?.stTargetSauHeSo ?? 0);
+    }
     if (cached?.excelFileName) setExcelFileName(cached.excelFileName);
     if (cached?.thuongStRows && cached.thuongStRows.length > 0) setThuongStRows(cached.thuongStRows);
     if (cached?.topPercentRankLimit !== undefined) setTopPercentRankLimit(cached.topPercentRankLimit);
@@ -1051,8 +1080,7 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         [
           ...(clusterStoreNames || []).map(s => s.toUpperCase()),
           (stName || '').toUpperCase(),
-          (currentStoreId || '').toUpperCase(),
-          'ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH'
+          (currentStoreId || '').toUpperCase()
         ].filter(Boolean)
       );
 
@@ -1062,7 +1090,6 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
       const isClusterStoreCheck = (name: string): boolean => {
         if (!name) return false;
         const norm = normalize(name);
-        if (norm.includes('cma') || norm.includes('ca mau') || norm.includes('1841')) return true;
         for (const cs of clusterStoresSet) {
           const normCs = normalize(cs);
           if (normCs && (norm === normCs || norm.includes(normCs) || normCs.includes(norm))) return true;
@@ -1077,7 +1104,6 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
         ...(clusterStoreNames || []),
         stName,
         currentStoreId,
-        'ĐML_CMA_CMA - 155A Nguyễn Tất Thành',
         ...storesFromNew.filter(isClusterStoreCheck),
         ...storesFromOld.filter(isClusterStoreCheck)
       ].filter(Boolean);

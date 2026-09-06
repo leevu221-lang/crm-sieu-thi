@@ -63,7 +63,8 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
   const userDropdownRef = useRef<HTMLDivElement>(null);
 
   const handleShareLink = () => {
-    const currentKho = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '1841';
+    const currentKho = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '';
+    if (!currentKho) return;
     const shareUrl = buildGuestShareUrl(currentPage, currentKho);
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(shareUrl).then(() => {
@@ -225,12 +226,12 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-200 font-extrabold' 
                   : 'bg-gradient-to-r from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 text-emerald-700 border-emerald-200'
               }`}
-              title={`Chia sẻ link trực tiếp trang này cho Khách xem dữ liệu Kho ${userProfile?.ma_kho || '1841'}`}
+              title={`Chia sẻ link trực tiếp trang này cho Khách xem dữ liệu Kho ${userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}`}
             >
               {copiedLink ? (
                 <>
                   <Check size={14} className="text-emerald-600 shrink-0" />
-                  <span className="text-[11px] font-black">Đã chép link Kho {userProfile?.ma_kho || '1841'}!</span>
+                  <span className="text-[11px] font-black">Đã chép link Kho {userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}!</span>
                 </>
               ) : (
                 <>

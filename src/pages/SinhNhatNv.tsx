@@ -343,7 +343,7 @@ const SinhNhatNv: React.FC = () => {
       const csvText = await fetchGoogleSheetCsvText(sheetUrl.trim());
       const lines = csvText.split(/\r?\n/);
       
-      const defaultStore = formWarehouse || (selectedWarehouseFilter !== 'ALL' ? selectedWarehouseFilter : '') || userProfile?.ten_sieu_thi || userProfile?.ma_kho || 'ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH';
+      const defaultStore = formWarehouse || (selectedWarehouseFilter !== 'ALL' ? selectedWarehouseFilter : '') || userProfile?.ten_sieu_thi || userProfile?.ma_kho || '';
       const payloads: Omit<EmployeeBirthday, 'id'>[] = [];
 
       for (let i = 0; i < lines.length; i++) {
@@ -389,7 +389,7 @@ const SinhNhatNv: React.FC = () => {
     try {
       setPasting(true);
       const lines = pasteText.split(/\r?\n/);
-      const defaultStore = formWarehouse || (selectedWarehouseFilter !== 'ALL' ? selectedWarehouseFilter : '') || userProfile?.ten_sieu_thi || userProfile?.ma_kho || 'ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH';
+      const defaultStore = formWarehouse || (selectedWarehouseFilter !== 'ALL' ? selectedWarehouseFilter : '') || userProfile?.ten_sieu_thi || userProfile?.ma_kho || '';
       const payloads: Omit<EmployeeBirthday, 'id'>[] = [];
 
       for (let i = 0; i < lines.length; i++) {
