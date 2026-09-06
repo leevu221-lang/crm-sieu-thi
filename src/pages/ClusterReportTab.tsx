@@ -15,10 +15,22 @@ import {
   BarChart3,
   Layers,
   LayoutGrid,
+  Plus,
+  Trash2,
+  Save,
+  RotateCcw,
+  Sliders,
 } from 'lucide-react';
 import { domToPng } from 'modern-screenshot';
 import { ensureFontsReady } from '../utils/fontExportUtil';
 import { ImagePreviewModal } from '../components/ImagePreviewModal';
+
+export interface StoreTargetConfigItem {
+  id: string;
+  storeName: string;
+  targetCungKyNam: number; // Target Cùng Kỳ Năm (triệu đồng)
+  mucTieuPercent: number;  // Mục Tiêu % (ví dụ: 100%, 110%)
+}
 
 export interface ClusterStoreRow {
   stt?: number;
@@ -46,6 +58,10 @@ export interface ClusterStoreRow {
   percentTT?: number;
   dtTraGop?: number;
   percentTraGop?: number;
+
+  // Cấu hình Target siêu thị
+  targetCungKyNam?: number;
+  mucTieuPercent?: number;
 
   isSummary?: boolean;
 }
@@ -887,7 +903,170 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
   // Table display mode: default is false (9-Column Table 100% Matching Image)
   const [showFull11Cols, setShowFull11Cols] = useState(false);
 
+  // Target Configuration Modal States
+  const [isTargetConfigModalOpen, setIsTargetConfigModalOpen] = useState(false);
+  const [targetConfigs, setTargetConfigs] = useState<Record<string, { targetCungKyNam: number; mucTieuPercent: number }>>(() => {
+    try {
+      const saved = localStorage.getItem('crm_cluster_store_target_config');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to load target config:', e);
+    }
+    return {};
+  });
+  const [modalTargetList, setModalTargetList] = useState<StoreTargetConfigItem[]>([]);
+  const [isSavedToast, setIsSavedToast] = useState(false);
+  const [quickPercentInput, setQuickPercentInput] = useState<number>(100);
+
   const tableRef = useRef<HTMLDivElement>(null);
+
+  const handleOpenTargetConfig = () => {
+    const list: StoreTargetConfigItem[] = [];
+    const seenNames = new Set<string>();
+
+    if (rows.length > 0) {
+      rows.forEach((r, idx) => {
+        const name = r.storeName || r.rawName;
+        if (!name || seenNames.has(name)) return;
+        seenNames.add(name);
+
+        const saved = targetConfigs[name] ||
+                      targetConfigs[cleanStoreNameForClusterTable(name)] ||
+                      (r.rawName ? targetConfigs[r.rawName] : undefined);
+
+        list.push({
+          id: `store_${idx}_${name}`,
+          storeName: name,
+          targetCungKyNam: saved?.targetCungKyNam ?? (r.tarVuotTroi || r.target || 0),
+          mucTieuPercent: saved?.mucTieuPercent ?? 100,
+        });
+      });
+    }
+
+    // Include any previously saved stores not in current rows
+    Object.entries(targetConfigs).forEach(([savedName, cfg], idx) => {
+      if (!seenNames.has(savedName)) {
+        seenNames.add(savedName);
+        list.push({
+          id: `saved_${idx}_${savedName}`,
+          storeName: savedName,
+          targetCungKyNam: cfg.targetCungKyNam || 0,
+          mucTieuPercent: cfg.mucTieuPercent || 100,
+        });
+      }
+    });
+
+    // Fallback if empty
+    if (list.length === 0) {
+      const defaultNames = clusterMarkets && clusterMarkets.length > 0
+        ? clusterMarkets.map((m: any) => cleanStoreNameForClusterTable(m.name || m.storeName || ''))
+        : [
+            '10528 - ĐMM_BLI_GRA - PHƯỜNG 1',
+            '10496 - ĐMS3_BLI_HBI - VĨNH BÌNH',
+            '7676 - ĐMS_BLI_GRA - TÂN PHONG',
+          ];
+
+      defaultNames.filter(Boolean).forEach((name, idx) => {
+        list.push({
+          id: `default_${idx}_${name}`,
+          storeName: name,
+          targetCungKyNam: 0,
+          mucTieuPercent: 100,
+        });
+      });
+    }
+
+    setModalTargetList(list);
+    setIsTargetConfigModalOpen(true);
+  };
+
+  const handleUpdateTargetItem = (id: string, field: 'storeName' | 'targetCungKyNam' | 'mucTieuPercent', value: any) => {
+    setModalTargetList(prev => prev.map(item => {
+      if (item.id !== id) return item;
+      return { ...item, [field]: value };
+    }));
+  };
+
+  const handleApplyQuickPercent = (pct: number) => {
+    if (isNaN(pct)) return;
+    setModalTargetList(prev => prev.map(item => ({
+      ...item,
+      mucTieuPercent: pct,
+    })));
+  };
+
+  const handleAddStoreToConfig = () => {
+    const newId = `new_store_${Date.now()}`;
+    setModalTargetList(prev => [
+      ...prev,
+      {
+        id: newId,
+        storeName: `Siêu thị mới ${prev.length + 1}`,
+        targetCungKyNam: 0,
+        mucTieuPercent: 100,
+      }
+    ]);
+  };
+
+  const handleRemoveStoreFromConfig = (id: string) => {
+    setModalTargetList(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleResetTargetDefaults = () => {
+    if (window.confirm('Bạn có chắc chắn muốn đặt lại toàn bộ Mục tiêu % về 100% không?')) {
+      setModalTargetList(prev => prev.map(item => ({
+        ...item,
+        mucTieuPercent: 100,
+      })));
+    }
+  };
+
+  const handleSaveTargetConfig = () => {
+    const newConfig: Record<string, { targetCungKyNam: number; mucTieuPercent: number }> = {};
+    modalTargetList.forEach(item => {
+      const trimmed = item.storeName.trim();
+      if (trimmed) {
+        newConfig[trimmed] = {
+          targetCungKyNam: Number(item.targetCungKyNam) || 0,
+          mucTieuPercent: Number(item.mucTieuPercent) || 0,
+        };
+        const clean = cleanStoreNameForClusterTable(trimmed);
+        if (clean && clean !== trimmed) {
+          newConfig[clean] = {
+            targetCungKyNam: Number(item.targetCungKyNam) || 0,
+            mucTieuPercent: Number(item.mucTieuPercent) || 0,
+          };
+        }
+      }
+    });
+
+    setTargetConfigs(newConfig);
+    try {
+      localStorage.setItem('crm_cluster_store_target_config', JSON.stringify(newConfig));
+    } catch (e) {
+      console.error('Failed to save to localStorage:', e);
+    }
+
+    setIsSavedToast(true);
+    setTimeout(() => {
+      setIsSavedToast(false);
+      setIsTargetConfigModalOpen(false);
+    }, 900);
+  };
+
+  const totalCungKy = useMemo(() => {
+    return modalTargetList.reduce((acc, item) => acc + (Number(item.targetCungKyNam) || 0), 0);
+  }, [modalTargetList]);
+
+  const totalTargetDuKien = useMemo(() => {
+    return modalTargetList.reduce((acc, item) => {
+      const ck = Number(item.targetCungKyNam) || 0;
+      const pct = Number(item.mucTieuPercent) || 0;
+      return acc + Math.round(ck * (pct / 100));
+    }, 0);
+  }, [modalTargetList]);
+
+  const avgMucTieu = totalCungKy > 0 ? Math.round((totalTargetDuKien / totalCungKy) * 1000) / 10 : 100;
 
   // Auto-detect daysPassed and totalDays from props, localStorage or current date
   const effectiveDaysPassed = (daysPassed && daysPassed > 0)
@@ -1169,16 +1348,20 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
     if (finalResult.rows.length > 0) {
       finalResult.rows = finalResult.rows.map(row => {
         const matched = activeConsolidatedRows.find(c => matchStoreNames(row.rawName || row.storeName, c.rawName || (c as any).storeName));
-        if (matched) {
-          return {
-            ...row,
+        const cfg = targetConfigs[row.storeName] || 
+                    targetConfigs[cleanStoreNameForClusterTable(row.storeName)] || 
+                    (row.rawName ? targetConfigs[row.rawName] : undefined);
+        return {
+          ...row,
+          ...(matched ? {
             tb3Thang: (matched.tb3Thang !== undefined && matched.tb3Thang !== 0) ? matched.tb3Thang : (row.tb3Thang || 0),
             percentTT: (matched.percentTT !== undefined && !isNaN(matched.percentTT)) ? matched.percentTT : (row.percentTT || 0),
             dtTraGop: (matched.dtTraGop !== undefined && matched.dtTraGop !== 0) ? matched.dtTraGop : (row.dtTraGop || 0),
             percentTraGop: (matched.percentTraGop !== undefined && !isNaN(matched.percentTraGop)) ? matched.percentTraGop : (row.percentTraGop ?? row.percentTC ?? 0),
-          };
-        }
-        return row;
+          } : {}),
+          targetCungKyNam: cfg?.targetCungKyNam ?? 0,
+          mucTieuPercent: cfg?.mucTieuPercent ?? 100,
+        };
       });
 
       // Enrich summaryRow
@@ -1214,7 +1397,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
     }
 
     return finalResult;
-  }, [rawInput, clusterMarkets, effectiveDaysPassed, effectiveTotalDays]);
+  }, [rawInput, clusterMarkets, effectiveDaysPassed, effectiveTotalDays, targetConfigs]);
 
   // Generate smart comments
   const commentTemplates = useMemo(() => {
@@ -1461,6 +1644,16 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Nút CẤU HÌNH TARGET */}
+          <button
+            onClick={handleOpenTargetConfig}
+            className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-2xl font-black text-xs uppercase tracking-wider transition-all active:scale-95 cursor-pointer border border-amber-200/80 shadow-xs"
+            title="Cấu hình Target cùng kỳ năm & mục tiêu % từng siêu thị"
+          >
+            <Target size={16} className="text-amber-600" />
+            <span>CẤU HÌNH TARGET</span>
+          </button>
+
           <button
             onClick={() => {
               if (commentTemplates[selectedTemplate]) {
@@ -2214,6 +2407,262 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
                     <>
                       <Copy size={16} />
                       <span>Sao chép nhận xét</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Popup Cấu hình Target Siêu Thị (Cụm) */}
+      {isTargetConfigModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4">
+          <div
+            onClick={() => setIsTargetConfigModalOpen(false)}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+          />
+          <div
+            className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 z-10 animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-white shrink-0 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-2xl bg-white/20 flex items-center justify-center backdrop-blur-xs shadow-inner">
+                  <Target size={20} className="text-white" />
+                </div>
+                <div>
+                  <h3
+                    className="text-[14px] sm:text-[16px] font-black uppercase tracking-wide leading-tight"
+                    style={{ fontFamily: "'UTM Avo', sans-serif" }}
+                  >
+                    Cấu hình Target Siêu Thị (Cụm)
+                  </h3>
+                  <p className="text-[11px] sm:text-[12px] text-amber-100 font-medium leading-none mt-1">
+                    Cài đặt Target Cùng Kỳ Năm &amp; Mục Tiêu % cho từng siêu thị trong cụm
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsTargetConfigModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-white/20 text-white transition-colors cursor-pointer"
+                title="Đóng popup"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Quick Fill Toolbar */}
+            <div className="px-6 py-3 bg-amber-50/80 border-b border-amber-200/60 flex flex-wrap items-center justify-between gap-3 shrink-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] sm:text-[12px] font-black text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sliders size={14} className="text-amber-700" />
+                  <span>Áp dụng nhanh % mục tiêu:</span>
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {[100, 105, 110, 115, 120].map(pct => (
+                    <button
+                      key={pct}
+                      onClick={() => handleApplyQuickPercent(pct)}
+                      className="px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-800 border border-amber-300/80 rounded-lg text-xs font-black transition-all active:scale-95 cursor-pointer shadow-2xs"
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="relative flex items-center">
+                  <input
+                    type="number"
+                    value={quickPercentInput}
+                    onChange={e => setQuickPercentInput(Number(e.target.value))}
+                    className="w-20 pr-6 pl-2.5 py-1 bg-white border border-amber-300 rounded-lg text-xs font-black text-right text-slate-800 outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs"
+                    placeholder="100"
+                  />
+                  <span className="absolute right-2 text-xs font-bold text-slate-400 pointer-events-none">%</span>
+                </div>
+                <button
+                  onClick={() => handleApplyQuickPercent(quickPercentInput)}
+                  className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-black transition-all active:scale-95 cursor-pointer shadow-xs whitespace-nowrap"
+                >
+                  Áp dụng tất cả
+                </button>
+              </div>
+            </div>
+
+            {/* Store Target Table */}
+            <div className="px-6 py-4 overflow-y-auto max-h-[56vh] space-y-3">
+              <div className="overflow-x-auto w-full border border-slate-200 rounded-2xl shadow-2xs">
+                <table className="w-full border-collapse font-sans text-left">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-600">
+                      <th className="py-3 px-3 text-center w-12 border-r border-slate-200">STT</th>
+                      <th className="py-3 px-3.5 border-r border-slate-200">Tên Siêu Thị</th>
+                      <th className="py-3 px-3 text-right w-44 border-r border-slate-200">
+                        Target Cùng Kỳ Năm <span className="text-[10px] text-slate-400 lowercase">(tr)</span>
+                      </th>
+                      <th className="py-3 px-3 text-right w-36 border-r border-slate-200">Mục Tiêu %</th>
+                      <th className="py-3 px-3 text-right w-44 border-r border-slate-200">
+                        Target Mục Tiêu <span className="text-[10px] text-slate-400 lowercase">(tr)</span>
+                      </th>
+                      <th className="py-3 px-2 text-center w-10"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {modalTargetList.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-xs font-medium text-slate-400">
+                          Chưa có siêu thị nào trong danh sách. Hãy nhấn "Thêm siêu thị cấu hình" bên dưới.
+                        </td>
+                      </tr>
+                    ) : (
+                      modalTargetList.map((item, idx) => {
+                        const targetDuKien = Math.round((Number(item.targetCungKyNam) || 0) * ((Number(item.mucTieuPercent) || 0) / 100));
+                        return (
+                          <tr key={item.id} className="hover:bg-amber-50/30 transition-colors bg-white">
+                            <td className="py-2.5 px-3 text-center font-black text-xs text-slate-500 border-r border-slate-100">
+                              <span
+                                className="inline-flex items-center justify-center w-5 h-5 rounded text-[11px] font-black"
+                                style={{
+                                  backgroundColor: idx === 0 ? '#fef08a' : idx === 1 ? '#e2e8f0' : idx === 2 ? '#fed7aa' : '#f1f5f9',
+                                  color: '#0f172a',
+                                }}
+                              >
+                                {idx + 1}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 border-r border-slate-100">
+                              <input
+                                type="text"
+                                value={item.storeName}
+                                onChange={e => handleUpdateTargetItem(item.id, 'storeName', e.target.value)}
+                                className="w-full bg-transparent font-black text-slate-800 text-xs sm:text-[13px] border-b border-transparent focus:border-amber-400 focus:bg-amber-50/50 px-1 py-0.5 rounded outline-none uppercase transition-all"
+                                placeholder="Nhập tên siêu thị..."
+                              />
+                            </td>
+                            <td className="py-2.5 px-3 text-right border-r border-slate-100">
+                              <input
+                                type="number"
+                                value={item.targetCungKyNam || ''}
+                                placeholder="0"
+                                onChange={e => handleUpdateTargetItem(item.id, 'targetCungKyNam', Math.max(0, Number(e.target.value)))}
+                                className="w-full text-right font-black text-slate-900 text-xs sm:text-[13px] border border-slate-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200/50 px-2.5 py-1.5 rounded-xl outline-none bg-slate-50/70 focus:bg-white transition-all"
+                              />
+                            </td>
+                            <td className="py-2.5 px-3 text-right border-r border-slate-100">
+                              <div className="relative flex items-center">
+                                <input
+                                  type="number"
+                                  value={item.mucTieuPercent || ''}
+                                  placeholder="100"
+                                  onChange={e => handleUpdateTargetItem(item.id, 'mucTieuPercent', Number(e.target.value))}
+                                  className="w-full text-right font-black text-xs sm:text-[13px] border border-slate-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200/50 pr-6 pl-2 py-1.5 rounded-xl outline-none bg-slate-50/70 focus:bg-white transition-all"
+                                  style={{ color: item.mucTieuPercent >= 100 ? '#16a34a' : '#dc2626' }}
+                                />
+                                <span className="absolute right-2 text-xs font-black text-slate-400 pointer-events-none">%</span>
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-black text-xs sm:text-[13px] text-amber-800 border-r border-slate-100">
+                              {formatVnNum(targetDuKien)}
+                            </td>
+                            <td className="py-2.5 px-2 text-center">
+                              <button
+                                onClick={() => handleRemoveStoreFromConfig(item.id)}
+                                className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                                title="Xóa dòng siêu thị này"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                  {modalTargetList.length > 0 && (
+                    <tfoot>
+                      <tr className="border-t-2 border-slate-300 bg-amber-50/80 font-black text-xs sm:text-[13px]">
+                        <td colSpan={2} className="py-3 px-3.5 text-center uppercase tracking-wider text-amber-950 font-black border-r border-amber-200/70">
+                          TỔNG CỤM ({modalTargetList.length} SIÊU THỊ)
+                        </td>
+                        <td className="py-3 px-3 text-right text-slate-900 font-black border-r border-amber-200/70">
+                          {formatVnNum(totalCungKy)}
+                        </td>
+                        <td
+                          className="py-3 px-3 text-right font-black border-r border-amber-200/70"
+                          style={{ color: avgMucTieu >= 100 ? '#16a34a' : '#dc2626' }}
+                        >
+                          {avgMucTieu > 0 ? `${avgMucTieu}%` : '-'}
+                        </td>
+                        <td className="py-3 px-3 text-right text-amber-900 font-black border-r border-amber-200/70">
+                          {formatVnNum(totalTargetDuKien)}
+                        </td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+
+              <div className="pt-1 flex items-center justify-between">
+                <button
+                  onClick={handleAddStoreToConfig}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-dashed border-amber-400 text-amber-800 hover:bg-amber-50 text-xs font-black transition-all cursor-pointer shadow-2xs"
+                >
+                  <Plus size={15} />
+                  <span>Thêm siêu thị cấu hình</span>
+                </button>
+                <span className="text-[11px] text-slate-400 italic">
+                  * Target Mục Tiêu = Target Cùng Kỳ Năm × (Mục Tiêu % / 100)
+                </span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleResetTargetDefaults}
+                  className="flex items-center gap-1.5 px-3 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  title="Đặt lại toàn bộ Mục tiêu % về 100%"
+                >
+                  <RotateCcw size={14} />
+                  <span>Đặt lại 100%</span>
+                </button>
+                <span className="text-[11.5px] text-slate-400 italic hidden sm:inline">
+                  • Cấu hình được lưu an toàn trên máy của bạn
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => setIsTargetConfigModalOpen(false)}
+                  className="px-4 py-2.5 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-2xl text-xs font-black transition-all cursor-pointer"
+                >
+                  Đóng
+                </button>
+                <button
+                  onClick={handleSaveTargetConfig}
+                  className={
+                    'flex items-center gap-2 px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider text-white transition-all cursor-pointer shadow-md active:scale-95 ' +
+                    (isSavedToast
+                      ? 'bg-emerald-600 shadow-emerald-500/20'
+                      : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-amber-500/25')
+                  }
+                >
+                  {isSavedToast ? (
+                    <>
+                      <Check size={16} />
+                      <span>Đã lưu thành công!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} />
+                      <span>Lưu Cấu Hình</span>
                     </>
                   )}
                 </button>
