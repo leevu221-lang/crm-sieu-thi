@@ -1362,11 +1362,12 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
         let currentTarVuotTroi = row.tarVuotTroi;
         let currentPercentHt = row.percentHtVuotTroi;
         const targetCungKy = cfg && cfg.targetCungKyNam > 0 ? cfg.targetCungKyNam : (row.targetCungKyNam || row.tarVuotTroi || 0);
-        const mucTieu = cfg && cfg.mucTieuPercent !== undefined ? cfg.mucTieuPercent : 100;
+        const mucTieu = cfg && cfg.mucTieuPercent !== undefined ? cfg.mucTieuPercent : undefined;
 
         // Nếu đã có cấu hình target cùng kỳ > 0 thì đồng bộ CỘT TAR V.TRỘI = Target Cùng Kỳ × (Mục Tiêu % / 100)
         if (cfg && cfg.targetCungKyNam > 0) {
-          currentTarVuotTroi = Math.round(cfg.targetCungKyNam * (mucTieu / 100));
+          const effectiveMucTieu = mucTieu !== undefined ? mucTieu : 100;
+          currentTarVuotTroi = Math.round(cfg.targetCungKyNam * (effectiveMucTieu / 100));
 
           const dtDuKienQD = (effectiveDaysPassed > 0 && effectiveTotalDays > 0)
             ? (row.luyKeQD / effectiveDaysPassed) * effectiveTotalDays
@@ -1393,10 +1394,13 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
 
       // Enrich summaryRow
       if (finalResult.summaryRow) {
-        const hasConfiguredTarget = finalResult.rows.some(r => (r.targetCungKyNam || 0) > 0);
+        const hasConfiguredTarget = finalResult.rows.some(r => (r.targetCungKyNam || 0) > 0 && r.mucTieuPercent !== undefined);
         const sumTar = hasConfiguredTarget
           ? finalResult.rows.reduce((a, b) => a + (b.tarVuotTroi || 0), 0)
           : finalResult.summaryRow.tarVuotTroi;
+
+        const sumTarCungKy = finalResult.rows.reduce((a, b) => a + (b.targetCungKyNam || 0), 0);
+        const summaryMucTieu = (hasConfiguredTarget && sumTarCungKy > 0) ? Math.round((sumTar / sumTarCungKy) * 100) : undefined;
 
         const sumLuyKeQD = finalResult.summaryRow.luyKeQD;
         const sumDtDuKienQD = (effectiveDaysPassed > 0 && effectiveTotalDays > 0)
@@ -1434,6 +1438,7 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
           percentTT: sumPctTT,
           dtTraGop: sumDtTG,
           percentTraGop: sumPctTG,
+          mucTieuPercent: summaryMucTieu,
         };
       }
     }
@@ -2019,6 +2024,13 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
                               </span>
                               <span className="min-w-0 flex-1 block whitespace-normal break-words leading-snug" title={row.storeName}>
                                 {row.storeName}
+                                {row.mucTieuPercent !== undefined && (
+                                  <span
+                                    className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded font-black text-[9.5px] sm:text-[10px] tracking-tight bg-amber-100 text-amber-900 border border-amber-300 shrink-0 whitespace-nowrap shadow-2xs align-middle"
+                                  >
+                                    MT.{row.mucTieuPercent}%
+                                  </span>
+                                )}
                               </span>
                             </div>
                           </td>
@@ -2119,7 +2131,12 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
                               borderRight: '1px solid #cbd5e1',
                             }}
                           >
-                            {summaryRow.storeName}
+                            <span>{summaryRow.storeName}</span>
+                            {summaryRow.mucTieuPercent !== undefined && (
+                              <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-md font-black text-[10px] sm:text-[11px] tracking-tight bg-emerald-100 text-emerald-900 border border-emerald-300/80 whitespace-nowrap align-middle">
+                                MT.{summaryRow.mucTieuPercent}%
+                              </span>
+                            )}
                           </td>
 
                           {/* L. KẾ: XANH DƯƠNG PASTEL */}
@@ -2314,7 +2331,16 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
                             >
                               {idx + 1}
                             </span>
-                            <span className="min-w-0 flex-1 block whitespace-normal break-words leading-tight" title={row.storeName}>{row.storeName}</span>
+                            <span className="min-w-0 flex-1 block whitespace-normal break-words leading-tight" title={row.storeName}>
+                              {row.storeName}
+                              {row.mucTieuPercent !== undefined && (
+                                <span
+                                  className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded font-black text-[9.5px] sm:text-[10px] tracking-tight bg-amber-100 text-amber-900 border border-amber-300 shrink-0 whitespace-nowrap shadow-2xs align-middle"
+                                >
+                                  MT.{row.mucTieuPercent}%
+                                </span>
+                              )}
+                            </span>
                           </div>
                         </td>
                         <td className="px-2 py-3 text-center font-bold text-slate-700 border-r border-slate-100">{formatVnNum(row.soLuong)}</td>
@@ -2331,7 +2357,14 @@ export const ClusterReportTab: React.FC<ClusterReportTabProps> = ({
                     ))}
                     {summaryRow && (
                       <tr className="border-t-2 border-slate-300 font-black">
-                        <td className="px-3.5 py-3.5 text-center font-black uppercase tracking-wide border-r border-slate-200" style={{ backgroundColor: '#bbf7d0', color: '#065f46' }}>{summaryRow.storeName}</td>
+                        <td className="px-3.5 py-3.5 text-center font-black uppercase tracking-wide border-r border-slate-200" style={{ backgroundColor: '#bbf7d0', color: '#065f46' }}>
+                          <span>{summaryRow.storeName}</span>
+                          {summaryRow.mucTieuPercent !== undefined && (
+                            <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-md font-black text-[10px] sm:text-[11px] tracking-tight bg-emerald-100 text-emerald-900 border border-emerald-300/80 whitespace-nowrap align-middle">
+                              MT.{summaryRow.mucTieuPercent}%
+                            </span>
+                          )}
+                        </td>
                         <td className="px-2 py-3.5 text-center font-black border-r border-slate-200" style={{ backgroundColor: '#fed7aa', color: '#9a3412' }}>{formatVnNum(summaryRow.soLuong)}</td>
                         <td className="px-2 py-3.5 text-center font-black border-r border-slate-200" style={{ backgroundColor: '#bfdbfe', color: '#1e40af' }}>{formatVnNum(summaryRow.doanhThu ?? summaryRow.luyKe)}</td>
                         <td className="px-2 py-3.5 text-center font-black border-r border-slate-200" style={{ backgroundColor: '#fed7aa', color: '#9a3412' }}>100%</td>
