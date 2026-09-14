@@ -16,9 +16,26 @@ export const excludedKeywords = [
  */
 export const isEmpNameStr = (str: string): boolean => {
   if (!str) return false;
-  const lower = str.toLowerCase();
+  const s = str.trim();
+  if (!s) return false;
+  const lower = s.toLowerCase();
   if (excludedKeywords.some(ex => lower.includes(ex))) return false;
-  return /[-–—]\s*\d{4,8}\b/.test(str) || /\b\d{4,8}\s*[-–—]/.test(str) || (str.includes(' - ') && /\d/.test(str));
+  if (/[-–—]\s*\d{4,8}\b/.test(s) || /\b\d{4,8}\s*[-–—]/.test(s) || (s.includes(' - ') && /\d/.test(s))) return true;
+
+  // Header and non-employee keywords
+  const headerWords = [
+    'stt', 'nhan vien', 'nhân viên', 'ho ten', 'họ tên', 'msnv', 'ma nv', 'mã nv',
+    'doanh thu', 'so luong', 'số lượng', 'hang', 'hạng', 'target', 'chi tieu', 'chỉ tiêu',
+    'tong', 'tổng', 'tong cong', 'tổng cộng', 'ty le', 'tỷ lệ', 'ngay', 'ngày',
+    'thang', 'tháng', 'quy doi', 'quy đổi', 'dtqd', 'dtlk', 'sllk', 'tra cham', 'trả chậm',
+    'ti le', 'tỉ lệ', 'du kien', 'dự kiến', 'thuc hien', 'thực hiện', 'sieu thi', 'siêu thị'
+  ];
+  if (headerWords.some(hw => lower === hw || lower.startsWith(hw + ':') || lower.startsWith(hw + ' '))) return false;
+  if (/^[\d\s,.\-+/%:()]+$/.test(s)) return false;
+
+  // Must contain letters and look like a person name
+  const letters = s.match(/[a-zA-ZÀ-ỹ]/g);
+  return !!letters && letters.length >= 2;
 };
 
 /**

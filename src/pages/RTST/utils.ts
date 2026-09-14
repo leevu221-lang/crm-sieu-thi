@@ -1287,6 +1287,7 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
     const line = lines[i];
     
     // Split by tabs or double spaces
+    const rawCols = line.includes('\t') ? line.split('\t').map(c => c.trim()) : line.split(/ {2,}/).map(c => c.trim()).filter(Boolean);
     const cols = line.split(/\t|\s{2,}/).map(c => c.trim()).filter(Boolean);
     if (cols.length === 0) continue;
 
@@ -1342,7 +1343,7 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
     }
 
     const isHeaderLine = normFirstCol.includes('target') || normFirstCol.includes('tháng') || normFirstCol.includes('đự kiến') || normFirstCol.includes('rank') || normFirstCol.includes('dự kiến') || normFirstCol.includes('hạng vùng');
-    const isDataLine = (dataNumbers.length >= 2) && 
+    const isDataLine = (dataNumbers.length >= 2 || (rawCols.length >= 3 && (/^-?[\d,.]+(%?)$/.test(rawCols[1]) || /^-?[\d,.]+(%?)$/.test(rawCols[2])))) && 
                        !isHeaderLine && 
                        (storeColIdx !== -1 || firstCol.toLowerCase().startsWith('tổng') || isSupermarketLine(firstCol));
 
@@ -1366,7 +1367,12 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
       let actual = 0;
       let target = 0;
       
-      if (mode === 'LUYKE') {
+      // User requirement: Thi đua siêu thị cột "target" = cột 3 từ trái sang (rawCols[2])
+      // Cột 2 từ trái sang (rawCols[1]) = Doanh thu thực hiện
+      if (rawCols.length >= 3 && (/^-?[\d,.]+(%?)$/.test(rawCols[2]) || /^-?[\d,.]+(%?)$/.test(rawCols[1]))) {
+        target = cleanNum(rawCols[2]);
+        actual = cleanNum(rawCols[1]);
+      } else if (mode === 'LUYKE') {
         if (dataNumbers.length >= 2) {
           actual = cleanNum(dataNumbers[0]);
           target = cleanNum(dataNumbers[1]);
@@ -1382,7 +1388,9 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
       target = Math.round(target * 10) / 10;
       
       let rate = 0;
-      if (dataNumbers.length >= 3 && dataNumbers[2].includes('%')) {
+      if (rawCols.length >= 4 && rawCols[3].includes('%')) {
+        rate = cleanNum(rawCols[3]);
+      } else if (dataNumbers.length >= 3 && dataNumbers[2].includes('%')) {
         rate = cleanNum(dataNumbers[2]);
       } else if (target > 0) {
         rate = (actual / target) * 100;
@@ -1446,7 +1454,8 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
           'dtlk', 'sllk', 'target', '% ht', 'du kien', 'dự kiến', 'xep hang', 'xếp hạng',
           'top/bottom', 'miền của tôi', 'mien cua toi', 'tháng', 'thang', 'realtime',
           'phòng ban', 'phong ban', 'nhân viên', 'nhan vien', 'stt', 'tỷ lệ', 'ty le',
-          'đạt', 'dat', 'hạng vùng', 'doanh thu (rt)', 'số lượng (rt)', 'chương trình'
+          'đạt', 'dat', 'hạng vùng', 'doanh thu (rt)', 'số lượng (rt)', 'chương trình',
+          'siêu thị', 'sieu thi', 'thực hiện', 'thuc hien', 'cửa hàng', 'cua hang', 'kho'
         ].some(kw => lowerCat === kw || lowerCat.startsWith(kw + ' ') || lowerCat.includes('\t') || lowerCat.includes('  '));
 
         let catType: 'SL' | 'DT' | 'ALL' = currentCatType;
@@ -3052,6 +3061,21 @@ export const parseStaffValueList = (text: string, targetHeaderKeyword?: string):
         } else {
           const firstOther = pureNumbers.find(pn => pn.colIdx !== targetColIdx);
           if (firstOther) id = firstOther.raw;
+        }
+      }
+      if (!id) {
+        textColumns.forEach(tc => {
+          const m = tc.val.match(/\b(\d{4,8})\b/);
+          if (m) id = m[1];
+        });
+      }
+    } else if (cols.length >= 2 && /^-?[\d,.]+(%?)$/.test(cols[1].trim()) && !targetHeaderKeyword) {
+      // User requirement: thi đua nhân viên doanh thu = cột 2 từ trái sang (cols[1])
+      value = cleanNum(cols[1]);
+      if (!id && pureNumbers.length > 0) {
+        const idIndex = pureNumbers.findIndex(pn => /^\d{4,8}$/.test(pn.raw) && pn.colIdx !== 1);
+        if (idIndex !== -1) {
+          id = pureNumbers[idIndex].raw;
         }
       }
       if (!id) {

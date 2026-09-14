@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { motion } from 'framer-motion';
 import { parseCategoryData, cn, cleanCategoryName } from '../../RTST/utils';
 import { StaffMatrixData, CategoryData } from '../../RTST/types';
-import { extractStaffNameAndId, isEmpNameStr } from '../utils/staffParserHelper';
+import { extractStaffNameAndId, isEmpNameStr, excludedKeywords } from '../utils/staffParserHelper';
 import { Download, Copy, Check, MessageSquare, MessageCircle, ChevronDown, Search, X, Sparkles } from 'lucide-react';
 import { domToPng } from 'modern-screenshot';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -178,6 +178,36 @@ export const getCategoryBadgeStyleClasses = (catName: string, categoryConfig?: C
   return { bgText: 'text-blue-900', hover: 'hover:bg-[#dbeafe]', gradient: 'linear-gradient(135deg, #dbeafe, #bfdbfe, #93c5fd)' };
 };
 
+const cleanNumLocal = (s: string | undefined): number => {
+  if (!s) return 0;
+  let str = String(s).trim();
+  if (!str || str === '—' || str === '-') return 0;
+  str = str.replace(/%/g, '').replace(/\+/g, '').trim();
+  const lastComma = str.lastIndexOf(',');
+  const lastDot = str.lastIndexOf('.');
+  if (lastComma !== -1 && lastDot !== -1) {
+    if (lastComma > lastDot) {
+      str = str.replace(/\./g, '').replace(/,/g, '.');
+    } else {
+      str = str.replace(/,/g, '');
+    }
+  } else if (lastComma !== -1) {
+    const parts = str.split(',');
+    if (parts.length > 1 && parts.slice(1).every(p => p.length === 3)) {
+      str = str.replace(/,/g, '');
+    } else {
+      str = str.replace(/,/g, '.');
+    }
+  } else if (lastDot !== -1) {
+    const parts = str.split('.');
+    if (parts.length > 1 && parts.slice(1).every(p => p.length === 3)) {
+      str = str.replace(/\./g, '');
+    }
+  }
+  const n = parseFloat(str.replace(/[^\d.-]/g, ''));
+  return isNaN(n) ? 0 : n;
+};
+
 export const parseStaffMatrixDataRefined = (
   input: string, 
   staffCount: number, 
@@ -194,20 +224,6 @@ export const parseStaffMatrixDataRefined = (
   const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   if (lines.length === 0) return { staffMatrix: [], categories: [], results: [] };
 
-  const excludedKeywords = [
-    'bp all in one', 'bp trưởng ca', 'bp truong ca', 'hỗ trợ bi', 'ho tro bi',
-    'copyright', 'dashboard', 'bc ', 'hd sử dụng', 'hd su dung', 'trang chủ',
-    'trang chu', 'báo cáo', 'bao cao', 'khối kinh doanh', 'khoi kinh doanh',
-    'logo bi', 'avatar', 'phòng ban', 'phong ban'
-  ];
-
-  const isEmpNameStr = (str: string) => {
-    if (!str) return false;
-    const lower = str.toLowerCase();
-    if (excludedKeywords.some(ex => lower.includes(ex))) return false;
-    return /[-–—]\s*\d{4,8}\b/.test(str) || /\b\d{4,8}\s*[-–—]/.test(str) || (str.includes(' - ') && /\d/.test(str));
-  };
-
   // ========================================================
   // FORMAT 1: Section-by-Section Vertical BI Report (e.g. 18/19 stores from BI MWG)
   // Structure:
@@ -221,15 +237,32 @@ export const parseStaffMatrixDataRefined = (
   const sectionIndices: { lineIdx: number; catName: string; type: 'SL' | 'DT' }[] = [];
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i];
-    const isTabHeader = /^(DOANH THU|SỐ LƯỢNG|DOANH THU THỰC|DT|SL)\t(HẠNG|TARGET|THỰC HIỆN|TOP)/i.test(l) ||
-      /^DOANH THU\tHẠNG/i.test(l) || /^SỐ LƯỢNG\tHẠNG/i.test(l);
-    const isLineHeader = (l.toUpperCase() === 'DOANH THU' || l.toUpperCase() === 'SỐ LƯỢNG' || l.toUpperCase() === 'DT' || l.toUpperCase() === 'SL') &&
+    const upperL = l.toUpperCase();
+    const isTabHeader = 
+      /^(DOANH THU|SỐ LƯỢNG|DOANH THU THỰC|DT|SL|NHÂN VIÊN|TÊN NHÂN VIÊN|NV|HỌ TÊN|STT)\t/i.test(l) &&
+      (upperL.includes('DOANH THU') || upperL.includes('SỐ LƯỢNG') || upperL.includes('DT') || upperL.includes('SL') || upperL.includes('HẠNG') || upperL.includes('TARGET') || upperL.includes('THỰC HIỆN'));
+    const isLineHeader = (upperL === 'DOANH THU' || upperL === 'SỐ LƯỢNG' || upperL === 'DT' || upperL === 'SL') &&
       i + 1 < lines.length && (lines[i + 1].toUpperCase().includes('HẠNG') || lines[i + 1].toUpperCase().includes('TARGET'));
     const isSectionHeader = isTabHeader || isLineHeader;
     if (isSectionHeader && i > 0) {
       const catName = lines[i - 1];
-      const type = /^(SỐ LƯỢNG|SL)\b/i.test(l) ? 'SL' : 'DT';
+      const type = upperL.includes('SỐ LƯỢNG') || upperL.includes('SL') ? 'SL' : 'DT';
       sectionIndices.push({ lineIdx: i, catName, type });
+    }
+  }
+
+  // Fallback: If no header lines were found, detect category names followed directly by staff rows
+  if (sectionIndices.length === 0) {
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (!l.includes('\t') && l.length >= 2 && !isEmpNameStr(l) && !l.toUpperCase().startsWith('TỔNG')) {
+        if (i + 1 < lines.length) {
+          const nextParts = lines[i + 1].split('\t').map(p => p.trim());
+          if (nextParts.length >= 2 && isEmpNameStr(nextParts[0]) && /^-?[\d,.]+$/.test(nextParts[1])) {
+            sectionIndices.push({ lineIdx: i + 1, catName: l, type: 'DT' });
+          }
+        }
+      }
     }
   }
 
@@ -265,12 +298,13 @@ export const parseStaffMatrixDataRefined = (
 
         if (parts.length >= 2 && isEmpNameStr(parts[0])) {
           nameStr = parts[0];
-          val = parseFloat(parts[1].replace(/,/g, '')) || 0;
+          // User requirement: thi đua nhân viên doanh thu = cột 2 từ trái sang (parts[1])
+          val = cleanNumLocal(parts[1]);
         } else if (isEmpNameStr(line)) {
           nameStr = line;
           if (i + 1 < endLine) {
             const nextParts = lines[i + 1].split('\t').map(p => p.trim());
-            val = parseFloat(nextParts[0].replace(/,/g, '')) || 0;
+            val = cleanNumLocal(nextParts[0]);
             i++;
           }
         }
