@@ -78,9 +78,9 @@ const KhaiBao: React.FC = () => {
     syncTragopMatran
   } = useLuykeData(maKho);
 
-  const handleClearField = (setter: (val: string) => void) => {
-    clearRealtimeField(setter);
-    clearLuykeField(setter);
+  const handleClearField = (setter: (val: string) => void, fieldName?: string) => {
+    clearRealtimeField(setter, fieldName);
+    clearLuykeField(setter, fieldName);
   };
 
   // Two-way synchronization between useRealtimeData and useLuykeData for LUỸ KẾ DT
@@ -168,15 +168,12 @@ const KhaiBao: React.FC = () => {
     }
   }, [clusterCategoryInput, marketFilter, isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync stName and revenue fields from LUỸ KẾ data (BÁO CÁO TỔNG HỢP) when marketFilter changes
-  // ONLY uses luykeMarkets (from categoryRevenueInput). When empty → reset all revenue fields.
-  // PERF: Using functional setState (prev =>) to avoid depending on current state values,
-  // which previously caused infinite re-render loops.
+  // Auto-sync store revenue and target from parsed markets
+  // Only trigger when data actually changes to prevent unnecessary re-renders
   React.useEffect(() => {
     const luykeMarkets = rtProcessedData.luykeMarkets || [];
-    if (marketFilter !== 'ALL') {
-      setStName((prev: string) => prev !== marketFilter ? marketFilter : prev);
-
+    
+    if (marketFilter && marketFilter !== 'ALL' && luykeMarkets.length > 0) {
       const market = luykeMarkets.find(m => normalize(m.name) === normalize(marketFilter));
       
       if (market) {
@@ -198,7 +195,7 @@ const KhaiBao: React.FC = () => {
         setStDtDuKienQD((prev: number) => prev !== dtDuKienQD ? dtDuKienQD : prev);
         setStPercentHTTargetDuKienQD((prev: number) => prev !== percentHT ? percentHT : prev);
       }
-    } else if (luykeMarkets.length === 0) {
+    } else if (luykeMarkets.length === 0 && !isLoading && !isLoadingRealtime && !clusterSummaryInput && !categoryRevenueInput) {
       // Reset khi ô LUỸ KẾ (BÁO CÁO TỔNG HỢP) bị xoá trống và đang ở ALL
       setStName((prev: string) => prev ? '' : prev);
       setStDtlk((prev: number) => prev ? 0 : prev);
@@ -206,7 +203,7 @@ const KhaiBao: React.FC = () => {
       setStDtDuKienQD((prev: number) => prev ? 0 : prev);
       setStPercentHTTargetDuKienQD((prev: number) => prev ? 0 : prev);
     }
-  }, [marketFilter, rtProcessedData.luykeMarkets, rtProcessedData.markets, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD]);
+  }, [marketFilter, rtProcessedData.luykeMarkets, rtProcessedData.markets, setStName, setStDtlk, setStDtqd, setStDtDuKienQD, setStPercentHTTargetDuKienQD, isLoading, isLoadingRealtime, clusterSummaryInput, categoryRevenueInput]);
 
   // Restore % TARGET per-store when switching stores
   // Separate effect to avoid blocking user input on the % TARGET field

@@ -6,7 +6,6 @@ import { Loader2, Save, Trash2, ChevronRight, ChevronLeft, Camera, RotateCcw, Re
 import * as XLSX from 'xlsx';
 import * as htmlToImage from 'html-to-image';
 import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
-import { useRealtimeData } from '../pages/RTST/hooks/useRealtimeData';
 import { normalizeStoreId } from '../pages/RTST/utils';
 import { format, startOfWeek, addDays, isSameDay, parseISO, differenceInDays, startOfMonth, endOfMonth, eachDayOfInterval, addMonths } from 'date-fns';
 import { vi } from 'date-fns/locale';
@@ -24,7 +23,6 @@ const SHIFT_HOURS: { [key: string]: number } = {
 export default function PhanCaTable() {
   const { userProfile } = useAuth();
   const { currentStoreId } = useStore();
-  const { loadData } = useRealtimeData(userProfile?.ma_kho || '');
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);

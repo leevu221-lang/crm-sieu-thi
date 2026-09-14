@@ -107,16 +107,44 @@ export default function App() {
     return 'realtime';
   });
   const { userProfile, loading, logout, refreshProfile, updateStoreName } = useAuth();
-  const [showDeclarationForce, setShowDeclarationForce] = useState(false);
+  // Bỏ qua màn hình đăng nhập, khai báo và khóa gói cước khi truy cập chế độ xem trực tiếp không cần đăng nhập
+  const isGuestOrDirectMode = userProfile?.role === 'guest' || userProfile?.isGuest === true || isDirectDedicatedMode || (typeof window !== 'undefined' && isGuestShareLink());
+
+  const [showDeclarationForce, setShowDeclarationForce] = useState(() => {
+    try {
+      return sessionStorage.getItem('justLoggedIn') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Tự động bật form cấu hình tên siêu thị ngay sau khi người dùng đăng nhập thành công
+  useEffect(() => {
+    if (userProfile && !isGuestOrDirectMode) {
+      try {
+        if (sessionStorage.getItem('justLoggedIn') === 'true') {
+          setShowDeclarationForce(true);
+        }
+      } catch {}
+    }
+  }, [userProfile, isGuestOrDirectMode]);
+
+  const handleDeclarationComplete = () => {
+    try {
+      sessionStorage.setItem('justLoggedIn', 'false');
+    } catch {}
+    setShowDeclarationForce(false);
+  };
+
   const isDeclarationRequired = useMemo(() => {
     if (!userProfile) return false;
-    if (String(userProfile.username).trim() === '43751' || String(userProfile.username).trim() === '1841') return false;
+    if (String(userProfile.username).trim() === '43751') return false;
     
     // Explicitly check for false, meaning the user registered but hasn't completed declaration yet.
     return userProfile.declarationCompleted === false;
   }, [userProfile]);
   const { fontSize, setFontSize, fontFamily, setFontFamily } = useSettings();
-  const { marketFilter, setMarketFilter, availableMarkets, activeRealtimeTab, activeToolHoTroTab, activeTienIchTab, activeLuyKeTab, activeHealthTab } = useStore();
+  const { marketFilter, setMarketFilter, availableMarkets, activeRealtimeTab, activeToolHoTroTab, activeTienIchTab, activeLuyKeTab, activeHealthTab, currentStoreId } = useStore();
   const [showSettings, setShowSettings] = useState(false);
   const [isDesktopView, setIsDesktopView] = useState(true);
   const [showSubscriptionForce, setShowSubscriptionForce] = useState(false);
@@ -158,7 +186,9 @@ export default function App() {
                            currentPage === 'tienich' ? activeTienIchTab : (params.get('tab') || '');
         const tabParam = currentTab ? `&tab=${currentTab}` : '';
         const khoParam = kho ? `?kho=${kho}` : '';
-        const targetPath = `${basePath}${khoParam}${tabParam}${isShare ? '&view=guest' : ''}`;
+        // Giữ param st (siêu thị) trong URL cho guest để F5 không mất store context
+        const stParam = (isShare && currentStoreId && currentStoreId !== 'ALL') ? `&st=${encodeURIComponent(currentStoreId)}` : '';
+        const targetPath = `${basePath}${khoParam}${tabParam}${stParam}${isShare ? '&view=guest' : ''}`;
         const currentFull = window.location.pathname + window.location.search;
         if (currentFull !== targetPath) {
           window.history.replaceState({ page: currentPage, tab: currentTab }, '', targetPath);
@@ -175,7 +205,8 @@ export default function App() {
     activeLuyKeTab,
     activeHealthTab,
     activeToolHoTroTab,
-    activeTienIchTab
+    activeTienIchTab,
+    currentStoreId
   ]);
 
   // Lắng nghe nút Back / Forward trên trình duyệt
@@ -246,6 +277,10 @@ export default function App() {
     // BBKQ (Kiểm Quỹ): mở cho tất cả user
     if (!pages.includes('bbkq')) {
       pages = [...pages, 'bbkq'];
+    }
+    // Tiện Ích: mở cho tất cả người dùng truy cập
+    if (!pages.includes('tienich')) {
+      pages = [...pages, 'tienich'];
     }
     return pages;
   }, [canEditUser, allowedPages, userProfile?.username]);
@@ -344,9 +379,6 @@ export default function App() {
   // Removed the blocking error screen to allow fallback login
   // if (supabaseError && !userProfile) { ... }
 
-  // Bỏ qua màn hình đăng nhập, khai báo và khóa gói cước khi truy cập chế độ xem trực tiếp không cần đăng nhập
-  const isGuestOrDirectMode = userProfile?.role === 'guest' || userProfile?.isGuest === true || isDirectDedicatedMode || (typeof window !== 'undefined' && isGuestShareLink());
-
   if (!userProfile && !isGuestOrDirectMode) {
     return (
       <>
@@ -358,7 +390,7 @@ export default function App() {
   if (!isGuestOrDirectMode && (isDeclarationRequired || showDeclarationForce)) {
     return (
       <StoreDeclaration 
-        onComplete={() => setShowDeclarationForce(false)} 
+        onComplete={handleDeclarationComplete} 
       />
     );
   }
@@ -531,6 +563,7 @@ export default function App() {
         setShowMaintenanceConfirm={setShowMaintenanceConfirm}
         setShowSettings={setShowSettings}
         setShowDeclarationForce={setShowDeclarationForce}
+        setShowSubscriptionForce={userProfile?.isDemo ? undefined : setShowSubscriptionForce}
         logout={logout}
         supabaseError={supabaseError}
         isDirectRealtimeMode={isGuestOrDirectMode}
@@ -657,7 +690,7 @@ export default function App() {
           </div>
         )}
         {showSubscriptionForce && (
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[1000] flex items-center justify-center overflow-y-auto">
             <SubscriptionLockScreen 
               userProfile={userProfile} 
               onRefresh={refreshProfile} 

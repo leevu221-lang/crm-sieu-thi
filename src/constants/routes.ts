@@ -50,14 +50,21 @@ export const URL_PAGE_MAP: Record<string, string> = {
 };
 
 // Helper tạo URL chia sẻ chế độ khách (view-only) cho một trang + mã kho cụ thể
-export const buildGuestShareUrl = (pageId: string, kho: string): string => {
+// Bao gồm tab hiện tại và siêu thị đang chọn để khách thấy đúng nội dung đang chia sẻ
+export const buildGuestShareUrl = (pageId: string, kho: string, tab?: string, storeName?: string): string => {
   const pathname = PAGE_URL_MAP[pageId] || `/${pageId}`;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const params = new URLSearchParams();
-  params.set('share', 'true');
   if (kho) {
     params.set('kho', kho);
   }
+  if (tab) {
+    params.set('tab', tab);
+  }
+  if (storeName && storeName !== 'ALL') {
+    params.set('st', storeName);
+  }
+  params.set('view', 'guest');
   return `${origin}${pathname}?${params.toString()}`;
 };
 

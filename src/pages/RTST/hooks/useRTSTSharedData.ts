@@ -238,6 +238,8 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
     try {
       const docRef = doc(db, 'app_settings', 'thuong_st_data');
       const unsub = onSnapshot(docRef, (snapshot) => {
+        // Don't write stale data during logout/login redirect
+        if ((window as any).__crm_is_redirecting) return;
         if (snapshot.exists()) {
           const data = snapshot.data();
           if (data) {
@@ -925,6 +927,15 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
 
         const currentTargetQD = settings.stTargetQuyDoi || (existingData?.taget_doanh_thu?.stTargetQuyDoi) || 0;
         const currentPercent = settings.stPercentTarget !== undefined ? settings.stPercentTarget : (existingData?.taget_doanh_thu?.stPercentTarget ?? 100);
+
+        // Skip DB write if stPercentTarget was not changed
+        const oldPercent = existingData?.taget_doanh_thu?.stPercentTarget ?? 100;
+        const keys = Object.keys(settings);
+        if (keys.length === 1 && keys[0] === 'stPercentTarget' && settings.stPercentTarget === oldPercent) {
+          console.log(`[useRTSTSharedData] Skip updateStoreSettings — stPercentTarget unchanged (${oldPercent}) for "${cleanStore}"`);
+          return;
+        }
+
         // Use existing stTargetSauHeSo from DB — no recalculation
         const existingTargetSauHeSo = settings.stTargetSauHeSo || existingData?.taget_doanh_thu?.stTargetSauHeSo || Math.round(currentTargetQD * (currentPercent / 100));
 

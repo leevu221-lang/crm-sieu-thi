@@ -278,12 +278,51 @@ export const parseStaffMatrixDataRefined = (
         if (nameStr) {
           const { id, name, shortName } = extractStaffNameAndId(nameStr);
           if (!id && !name) continue;
-          const key = id || name;
-          if (!staffMap.has(key)) {
-            staffMap.set(key, { id, name, shortName, displayName: `${id} - ${name.toUpperCase()}`, values: {} });
+
+          const cleanId = id ? id.trim().toLowerCase() : '';
+          const cleanName = name ? name.trim().toLowerCase() : '';
+
+          let targetKey = '';
+          if (cleanId && staffMap.has(cleanId)) {
+            targetKey = cleanId;
+          } else if (cleanName && staffMap.has(cleanName)) {
+            targetKey = cleanName;
+          } else {
+            for (const [k, existing] of staffMap.entries()) {
+              if (cleanId && existing.id && existing.id.trim().toLowerCase() === cleanId) {
+                targetKey = k;
+                break;
+              }
+              if (cleanName && existing.name && existing.name.trim().toLowerCase() === cleanName) {
+                targetKey = k;
+                break;
+              }
+            }
           }
-          const staffObj = staffMap.get(key)!;
-          staffObj.values[cleanCat] = val;
+
+          if (!targetKey) {
+            targetKey = cleanId || cleanName;
+            staffMap.set(targetKey, {
+              id,
+              name,
+              shortName,
+              displayName: id ? `${id} - ${name.toUpperCase()}` : name.toUpperCase(),
+              values: {}
+            });
+          }
+
+          const staffObj = staffMap.get(targetKey)!;
+          if (!staffObj.id && id) {
+            staffObj.id = id;
+            staffObj.displayName = `${id} - ${staffObj.name.toUpperCase()}`;
+          }
+          if (!staffObj.shortName && shortName) {
+            staffObj.shortName = shortName;
+          }
+
+          // CỘNG DỒN doanh thu / số lượng nếu nhân viên trùng nhau trong cùng một ngành hàng
+          const currentVal = staffObj.values[cleanCat] || 0;
+          staffObj.values[cleanCat] = Math.round((currentVal + val) * 1000) / 1000;
         }
       }
     }
@@ -450,6 +489,34 @@ export const parseStaffMatrixDataRefined = (
   const categoryToColIdx: Map<string, number> = new Map();
   const rawStaffResults: { id: string; name: string; shortName: string; parts: number[] }[] = [];
 
+  const addOrAccumulateStaffResult = (id: string, name: string, shortName: string, rawInputValues: number[]) => {
+    const cleanId = id ? id.trim().toLowerCase() : '';
+    const cleanName = name ? name.trim().toLowerCase() : '';
+
+    const existing = rawStaffResults.find(s =>
+      (cleanId && s.id && s.id.trim().toLowerCase() === cleanId) ||
+      (cleanName && s.name && s.name.trim().toLowerCase() === cleanName)
+    );
+
+    if (existing) {
+      if (!existing.id && id) existing.id = id;
+      if (!existing.shortName && shortName) existing.shortName = shortName;
+      const maxLen = Math.max(existing.parts.length, rawInputValues.length);
+      for (let c = 0; c < maxLen; c++) {
+        const v1 = existing.parts[c] || 0;
+        const v2 = rawInputValues[c] || 0;
+        existing.parts[c] = Math.round((v1 + v2) * 1000) / 1000;
+      }
+    } else {
+      rawStaffResults.push({
+        id,
+        name,
+        shortName,
+        parts: [...rawInputValues]
+      });
+    }
+  };
+
   if (is2DTable && headerLineIdx !== -1) {
     const headerParts = lines[headerLineIdx].split('\t').map(p => p.trim());
     
@@ -502,12 +569,7 @@ export const parseStaffMatrixDataRefined = (
         return isNaN(num) ? 0 : num;
       });
 
-      rawStaffResults.push({
-        id,
-        name,
-        shortName,
-        parts: rawInputValues
-      });
+      addOrAccumulateStaffResult(id, name, shortName, rawInputValues);
     }
   } else {
     // Format 3: "Phòng ban" single column header
@@ -570,12 +632,7 @@ export const parseStaffMatrixDataRefined = (
         return isNaN(num) ? 0 : num;
       });
 
-      rawStaffResults.push({
-        id,
-        name,
-        shortName,
-        parts: rawInputValues
-      });
+      addOrAccumulateStaffResult(id, name, shortName, rawInputValues);
     }
   }
 

@@ -41,7 +41,7 @@ function getNextVersion() {
 
 const nextVersion = getNextVersion();
 const timestamp = getTimestampString();
-const zipFilename = `crm-sieu-thi_${timestamp}_VERSION ${nextVersion}.zip`;
+const zipFilename = `*crm-sieu-thi_${timestamp}_VERSION ${nextVersion}.zip`;
 const zipPath = path.join(backupsDir, zipFilename);
 
 console.log(`🚀 Đang tạo bản sao lưu dự án: ${zipFilename}...`);
@@ -73,19 +73,10 @@ try {
   const stats = fs.statSync(zipPath);
   const sizeMb = (stats.size / (1024 * 1024)).toFixed(2);
 
-  // Tự động sao chép thêm 1 bản ra Desktop để tiện sử dụng
-  const desktopPath = path.join('/Users/linhvu/Desktop', zipFilename);
-  try {
-    fs.copyFileSync(zipPath, desktopPath);
-  } catch (copyErr) {
-    console.warn(`⚠️ Không thể sao chép ra Desktop: ${copyErr.message}`);
-  }
-
   console.log(`==========================================`);
   console.log(`✅ Đã tạo bản backup thành công: VERSION ${nextVersion}`);
   console.log(`📁 Tên file:   ${zipFilename}`);
-  console.log(`📍 Dự án:      ${zipPath}`);
-  console.log(`🖥️ Desktop:    ${desktopPath}`);
+  console.log(`📍 Lưu tại:    ${zipPath}`);
   console.log(`📦 Dung lượng: ${sizeMb} MB`);
   console.log(`==========================================`);
 } catch (err) {

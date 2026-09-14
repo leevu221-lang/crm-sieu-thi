@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Camera, TrendingDown, Check, TrendingUp, MessageCircle, X, Copy, Swords } from 'lucide-react';
+import { Camera, TrendingDown, Check, TrendingUp, MessageCircle, X, Copy, Swords, Loader2 } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
 import { domToPng } from 'modern-screenshot';
 import html2canvas from 'html2canvas';
 import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
-import { ensureFontsReady, EXPORT_FONT_STYLE } from '../../../utils/fontExportUtil';
+import { ensureFontsReady, EXPORT_FONT_STYLE, ensureSharedCaptureStyle, getPreloadedFontCss } from '../../../utils/fontExportUtil';
 import { parseCategoryData } from '../../RTST/utils';
 import { cn } from '../../RTST/utils';
 import { CategoryData, StaffMatrixData } from '../../RTST/types';
@@ -443,115 +443,20 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
   const yesterdayDate = `${String(yesterday.getDate()).padStart(2, '0')}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${yesterday.getFullYear()}`;
 
   const captureElementHelper = async (element: HTMLElement) => {
+    ensureSharedCaptureStyle();
     const tempContainer = document.createElement('div');
-    tempContainer.style.position = 'absolute';
-    tempContainer.style.top = '-9999px';
-    tempContainer.style.left = '-9999px';
-    tempContainer.style.width = '1120px';
-    tempContainer.style.height = 'auto';
-    tempContainer.style.zIndex = '-9999';
-    tempContainer.style.pointerEvents = 'none';
+    tempContainer.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:hidden;pointer-events:none;z-index:-9999;contain:strict;background:#ffffff;';
 
     // Frame wrapper to ensure 100% white background and no clipping
     const frameWrapper = document.createElement('div');
-    frameWrapper.style.width = '1120px';
-    frameWrapper.style.minWidth = '1120px';
-    frameWrapper.style.maxWidth = '1120px';
-    frameWrapper.style.padding = '20px';
-    frameWrapper.style.backgroundColor = '#ffffff';
-    frameWrapper.style.boxSizing = 'border-box';
-    frameWrapper.style.borderRadius = '24px';
-    frameWrapper.style.boxShadow = 'none';
-    frameWrapper.style.display = 'block';
+    frameWrapper.className = 'export-isolated-card';
+    frameWrapper.style.cssText = 'width:1120px;min-width:1120px;max-width:1120px;padding:20px;background-color:#ffffff;box-sizing:border-box;border-radius:24px;box-shadow:none;display:block;';
 
     const clone = element.cloneNode(true) as HTMLElement;
 
-    const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, .capture-btn');
-    noCaptureElements.forEach(el => {
-      (el as HTMLElement).style.display = 'none';
-    });
-
-    // Remove any padding/max-w on clone so it expands 100% inside frameWrapper
-    clone.style.width = '100%';
-    clone.style.minWidth = '100%';
-    clone.style.maxWidth = '100%';
-    clone.style.height = 'auto';
-    clone.style.margin = '0';
-    clone.style.padding = '0';
-    clone.style.backgroundColor = 'transparent';
-    clone.style.display = 'block';
-    clone.style.boxSizing = 'border-box';
-    clone.style.boxShadow = 'none';
-
-    const innerCards = clone.querySelectorAll('.max-w-\\[960px\\], [class*="max-w"]');
-    innerCards.forEach(c => {
-      const htmlC = c as HTMLElement;
-      htmlC.style.maxWidth = '100%';
-      htmlC.style.width = '100%';
-      htmlC.style.boxShadow = 'none';
-    });
-
-    // Ensure stat cards are in 1 row of 6
-    const statGrids = clone.querySelectorAll('[class*="grid-cols"]');
-    statGrids.forEach(g => {
-      const htmlG = g as HTMLElement;
-      htmlG.style.display = 'grid';
-      htmlG.style.gridTemplateColumns = 'repeat(6, minmax(0, 1fr))';
-      htmlG.style.width = '100%';
-      htmlG.style.boxSizing = 'border-box';
-    });
-
-    // Strip shadows & remove truncate
-    const allElements = clone.querySelectorAll('*');
-    allElements.forEach(el => {
-      const htmlEl = el as HTMLElement;
-      if (htmlEl.style) {
-        htmlEl.style.boxShadow = 'none';
-        htmlEl.style.textShadow = 'none';
-        htmlEl.style.filter = 'none';
-      }
-      if (htmlEl.classList) {
-        htmlEl.classList.remove('truncate');
-        Array.from(htmlEl.classList).forEach(cls => {
-          if (cls.startsWith('shadow') || cls.startsWith('drop-shadow') || cls.startsWith('ring')) {
-            htmlEl.classList.remove(cls);
-          }
-        });
-      }
-    });
-
-    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
-    scrollContainers.forEach((el) => {
-      const htmlEl = el as HTMLElement;
-      htmlEl.style.overflow = 'visible';
-      htmlEl.style.width = '100%';
-      htmlEl.style.height = 'auto';
-      htmlEl.style.maxWidth = 'none';
-      htmlEl.style.maxHeight = 'none';
-      htmlEl.style.boxSizing = 'border-box';
-      el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
-    });
-
-    const tables = clone.querySelectorAll('table');
-    tables.forEach((table) => {
-      const htmlTable = table as HTMLElement;
-      htmlTable.style.width = '100%';
-      htmlTable.style.minWidth = '100%';
-      htmlTable.style.maxWidth = '100%';
-      htmlTable.style.boxSizing = 'border-box';
-      htmlTable.style.tableLayout = 'fixed';
-      htmlTable.style.borderCollapse = 'collapse';
-
-      const cols = htmlTable.querySelectorAll('colgroup col');
-      if (cols.length >= 6) {
-        (cols[0] as HTMLElement).style.width = '55px'; // STT
-        (cols[1] as HTMLElement).style.width = '480px'; // NGÀNH HÀNG (full space for long names)
-        (cols[2] as HTMLElement).style.width = '125px'; // TARGET
-        (cols[3] as HTMLElement).style.width = '125px'; // LUỸ KẾ
-        (cols[4] as HTMLElement).style.width = '125px'; // % HT
-        (cols[5] as HTMLElement).style.width = '150px'; // CÒN LẠI
-      }
-    });
+    // Physically remove interactive & non-capture elements
+    clone.querySelectorAll('.no-capture, button, textarea, .capture-btn, input, select').forEach(el => el.remove());
+    clone.style.cssText = "width:100%;min-width:100%;max-width:100%;height:auto;margin:0;padding:0;background-color:transparent;display:block;box-sizing:border-box;box-shadow:none;font-family:'UTM Avo', 'Inter', sans-serif;opacity:1;transform:none;";
 
     frameWrapper.appendChild(clone);
     tempContainer.appendChild(frameWrapper);
@@ -559,40 +464,51 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
 
     try {
       await ensureFontsReady();
+      const frameHeight = frameWrapper.offsetHeight || frameWrapper.scrollHeight || 1200;
       
       let dataUrl: string = '';
       try {
-        const canvas = await html2canvas(frameWrapper, {
-          scale: 2,
+        dataUrl = await domToPng(frameWrapper, {
           backgroundColor: '#ffffff',
-          logging: false,
-          useCORS: true,
-          allowTaint: true,
+          scale: 2,
+          font: false,
           width: 1120,
-          windowWidth: 1120,
+          height: frameHeight,
+          features: {
+            removeControlCharacter: true,
+            removeAbnormalAttributes: true,
+          }
         });
-        dataUrl = canvas.toDataURL('image/png');
-      } catch (h2cErr) {
-        console.warn('html2canvas failed, fallback to domToPng:', h2cErr);
+      } catch (domErr) {
+        console.warn('domToPng failed, fallback to htmlToImage:', domErr);
         try {
-          dataUrl = await domToPng(frameWrapper, {
-            backgroundColor: '#ffffff',
-            scale: 2,
-            features: { font: false, image: false },
-            width: 1120,
-            height: frameWrapper.scrollHeight,
-          });
-        } catch {
           dataUrl = await htmlToImage.toPng(frameWrapper, {
             backgroundColor: '#ffffff',
             pixelRatio: 2,
+            skipFonts: true,
+            fontEmbedCSS: getPreloadedFontCss(),
+            skipAutoScale: true,
+            cacheBust: false,
+            width: 1120,
+            height: frameHeight,
             style: { ...EXPORT_FONT_STYLE },
           });
+        } catch {
+          const canvas = await html2canvas(frameWrapper, {
+            scale: 2,
+            backgroundColor: '#ffffff',
+            logging: false,
+            useCORS: true,
+            allowTaint: true,
+            width: 1120,
+            windowWidth: 1120,
+          });
+          dataUrl = canvas.toDataURL('image/png');
         }
       }
       return dataUrl;
     } finally {
-      document.body.removeChild(tempContainer);
+      tempContainer.remove();
     }
   };
 
@@ -602,6 +518,9 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
 
     setIsCapturing(true);
     setShowSlowNotice(false);
+
+    // Yield control to browser paint cycle so button instantly updates to "ĐANG XUẤT..." state
+    await new Promise(r => setTimeout(r, 20));
 
     // If export takes > 2 seconds, trigger the slow notice overlay
     const slowNoticeTimer = setTimeout(() => {
@@ -652,11 +571,20 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
             <button 
               onClick={handleExport}
               disabled={isCapturing}
-              className="no-capture inline-flex items-center gap-1.5 px-3 py-1 bg-white/25 hover:bg-white/35 text-[#FEF08A] hover:text-white rounded-xl font-black text-xs transition-all active:scale-95 border border-white/30 cursor-pointer shadow-xs"
+              className="no-capture inline-flex items-center gap-1.5 px-3 py-1 bg-white/25 hover:bg-white/35 text-[#FEF08A] hover:text-white rounded-xl font-black text-xs transition-all active:scale-95 border border-white/30 cursor-pointer shadow-xs disabled:opacity-75"
               title="Xuất ảnh báo cáo chi tiết nhân viên"
             >
-              <Camera size={13} className="text-[#FEF08A]" />
-              <span>{isCapturing ? 'ĐANG XUẤT...' : 'XUẤT ẢNH'}</span>
+              {isCapturing ? (
+                <>
+                  <Loader2 size={13} className="text-[#FEF08A] animate-spin" />
+                  <span>ĐANG XUẤT...</span>
+                </>
+              ) : (
+                <>
+                  <Camera size={13} className="text-[#FEF08A]" />
+                  <span>XUẤT ẢNH</span>
+                </>
+              )}
             </button>
 
             {/* ⚔️ Nút So sánh nhanh */}
@@ -674,22 +602,26 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
         </div>
 
         {/* 6 StatCards Dashboard Row */}
-        {(staffTargetQd > 0 || staffDtqd > 0) && (
+        {(staffTargetQd > 0 || staffDtqd !== 0) && (
           <div className="grid grid-cols-6 gap-1.5 sm:gap-2 w-full">
             <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
               <span className="text-[9px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-wider text-center">TARGET QĐ</span>
               <span className="text-[17px] sm:text-[23px] font-black text-slate-800 mt-0.5">
-                {staffTargetQd > 1000000 
-                  ? Math.floor(staffTargetQd / 1000000).toLocaleString('vi-VN')
-                  : Math.round(staffTargetQd).toLocaleString('vi-VN')}
+                {(() => {
+                  const inMillions = staffTargetQd > 1000000 ? staffTargetQd / 1000000 : staffTargetQd;
+                  if (inMillions >= 1000) return Math.round(inMillions).toLocaleString('vi-VN');
+                  const val1Dec = Math.floor(inMillions * 10) / 10;
+                  return (val1Dec % 1 === 0) ? val1Dec.toString() : val1Dec.toFixed(1);
+                })()}
               </span>
             </div>
             <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">
               <span className="text-[9px] sm:text-[10.5px] font-black text-slate-500 uppercase tracking-wider text-center">DTQĐ</span>
               <span className="text-[17px] sm:text-[23px] font-black text-rose-600 mt-0.5">
-                {Math.abs(staffDtqd) > 1000000 
-                  ? Math.floor(staffDtqd / 1000000).toLocaleString('vi-VN')
-                  : Math.round(staffDtqd).toLocaleString('vi-VN')}
+                {(() => {
+                  const inMillions = Math.abs(staffDtqd) > 1000000 ? staffDtqd / 1000000 : staffDtqd;
+                  return Math.round(inMillions).toLocaleString('vi-VN');
+                })()}
               </span>
             </div>
             <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-center shadow-2xs">

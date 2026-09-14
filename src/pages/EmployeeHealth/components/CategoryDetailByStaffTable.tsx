@@ -1,7 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { motion } from 'framer-motion';
-import { Camera, TrendingDown, TrendingUp, ChevronDown, Check, Search, MessageSquare, X, Download, Plus, Layers, FileArchive, Sparkles, Copy } from 'lucide-react';
+import { Camera, ChevronDown, Check, Search, X, Plus, Layers, Sparkles, Copy } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
 import { ensureFontsReady, EXPORT_FONT_STYLE } from '../../../utils/fontExportUtil';
 import JSZip from 'jszip';
@@ -11,10 +10,316 @@ import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
 import { StaffMatrixData, CategoryData } from '../../RTST/types';
 import { cleanCategoryName } from './EmployeeDetailTable';
-import { extractStaffNameAndId } from '../utils/staffParserHelper';
 import { useLuykeData } from '../../RTST/hooks/useLuykeData';
-import { getCategoryGroupSortOrder, getCustomCategoryIndex, parseStaffMatrixDataRefined } from './SummaryThiDuaTable';
+import { parseStaffMatrixDataRefined } from './SummaryThiDuaTable';
 import { CategoryConfigItem } from '../../../hooks/useCategoryConfig';
+
+export interface CategoryRowData {
+  staffName: string;
+  target: number;
+  accumulated: number;
+  projectedRate: number;
+}
+
+export interface CategoryCardData {
+  targetPerStaff: number;
+  rowData: CategoryRowData[];
+  reachedCount: number;
+  totalStaff: number;
+  totTarget: number;
+  totAcc: number;
+  totRate: number;
+  totDiff: number;
+}
+
+interface CategoryCardProps {
+  catName: string;
+  data: CategoryCardData;
+  yesterdayDate: string;
+  dropdownCategories: string[];
+  onExport: (catName: string, elementId: string) => void;
+  onOpenComment: (catName: string, rowData: CategoryRowData[]) => void;
+  onRemoveCard: (catName: string) => void;
+  onSwitchCategory: (oldCat: string, newCat: string) => void;
+}
+
+// ========================================================
+// Memoized Individual Category Card
+// Prevents re-rendering 40+ cards when toggling 1 checkbox or typing in search filter
+// ========================================================
+const CategoryCard = React.memo<CategoryCardProps>(({
+  catName,
+  data,
+  yesterdayDate,
+  dropdownCategories,
+  onExport,
+  onOpenComment,
+  onRemoveCard,
+  onSwitchCategory
+}) => {
+  const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
+  const [switcherSearchTerm, setSwitcherSearchTerm] = useState('');
+
+  const elementId = `cat-detail-${catName.replace(/\s+/g, '-')}`;
+  const { rowData, targetPerStaff, reachedCount, totalStaff, totTarget, totAcc, totRate, totDiff } = data;
+
+  const filteredSwitcherCategories = useMemo(() => {
+    if (!switcherSearchTerm.trim()) return dropdownCategories;
+    const lower = switcherSearchTerm.trim().toLowerCase();
+    return dropdownCategories.filter(nh => nh.toLowerCase().includes(lower));
+  }, [dropdownCategories, switcherSearchTerm]);
+
+  return (
+    <div
+      id={elementId}
+      className="bg-white border border-slate-200/90 rounded-2xl p-2 sm:p-2.5 flex flex-col min-w-0 shadow-sm relative group/card"
+      style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}
+    >
+      {/* Actions: Nhận xét, Ẩn bảng & Chụp ảnh bảng */}
+      <div className="absolute top-3.5 right-3.5 z-20 flex items-center gap-1.5 no-capture export-btn">
+        {/* ✨ Nhận xét */}
+        <button
+          type="button"
+          onClick={() => onOpenComment(catName, rowData)}
+          title="Nhận xét ngành hàng"
+          className="px-2 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border cursor-pointer flex items-center gap-1 shadow-none active:scale-95 bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-purple-500"
+        >
+          <Sparkles size={11} className="animate-pulse" />
+          <span>NHẬN XÉT</span>
+        </button>
+
+        {/* 📷 Chụp ảnh bảng này */}
+        <button
+          type="button"
+          onClick={() => onExport(catName, elementId)}
+          title={`Chụp ảnh trọn vẹn bảng ${catName}`}
+          className="p-1.5 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-none transition-all cursor-pointer border border-white/25 active:scale-95 shadow-none"
+        >
+          <Camera size={13} />
+        </button>
+
+        {/* ✕ Ẩn bảng này */}
+        <button
+          type="button"
+          onClick={() => onRemoveCard(catName)}
+          title={`Ẩn bảng "${catName}"`}
+          className="p-1.5 bg-white/20 hover:bg-rose-500/60 rounded-xl text-white backdrop-blur-none transition-all cursor-pointer border border-white/25 active:scale-95 shadow-none"
+        >
+          <X size={13} strokeWidth={2.5} />
+        </button>
+      </div>
+
+      {/* Header Banner: Emerald Gradient Banner with Switcher Dropdown on Title */}
+      <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] text-white p-3.5 sm:p-4 text-center flex flex-col items-center justify-center rounded-2xl relative overflow-visible w-full mb-2.5">
+        <div className="relative inline-flex items-center justify-center group max-w-full">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsSwitcherOpen(prev => !prev);
+              setSwitcherSearchTerm('');
+            }}
+            className="inline-flex items-center justify-center gap-1 sm:gap-1.5 text-[#FEF08A] font-black uppercase cursor-pointer text-center outline-none transition-all py-0.5 px-1 max-w-full hover:opacity-90 leading-tight break-words text-[19px] sm:text-[23px] md:text-[26px]"
+            style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}
+            title="Bấm để đổi ngành hàng cho bảng này"
+          >
+            <span className="text-center leading-tight break-words max-w-full">{catName}</span>
+            <ChevronDown size={16} className={cn("text-[#FEF08A] transition-transform duration-200 shrink-0 opacity-80 group-hover:opacity-100 no-capture", isSwitcherOpen && "rotate-180")} />
+          </button>
+
+          {/* Switch Category Popover with Search */}
+          {isSwitcherOpen && (
+            <>
+              <div 
+                className="fixed inset-0 z-40 cursor-default" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsSwitcherOpen(false);
+                  setSwitcherSearchTerm('');
+                }} 
+              />
+              <div 
+                className="absolute z-50 top-full mt-2 left-1/2 -translate-x-1/2 w-64 sm:w-72 max-w-[90vw] bg-white rounded-xl shadow-2xl border-2 border-emerald-500 p-2 flex flex-col gap-1.5 export-btn no-capture text-left text-slate-800"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-2 py-0.5 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-200 pb-1 flex items-center justify-between">
+                  <span>CHỌN NGÀNH HÀNG</span>
+                  <span className="text-[#059669] font-black">
+                    {filteredSwitcherCategories.length}/{dropdownCategories.length} MỤC
+                  </span>
+                </div>
+
+                {/* Search Input */}
+                <div className="relative">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 stroke-[2.5]" />
+                  <input
+                    type="text"
+                    value={switcherSearchTerm}
+                    onChange={(e) => setSwitcherSearchTerm(e.target.value)}
+                    placeholder="Gõ tìm ngành hàng..."
+                    autoFocus
+                    className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-600 focus:bg-white font-bold text-slate-800 placeholder:font-medium placeholder:text-slate-400 uppercase tracking-tight"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  {switcherSearchTerm && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSwitcherSearchTerm('');
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full cursor-pointer"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filtered category list */}
+                <div className="overflow-y-auto max-h-56 flex flex-col gap-0.5 pr-0.5">
+                  {filteredSwitcherCategories.map(nh => {
+                    const isCurrent = nh === catName;
+                    return (
+                      <button
+                        key={nh}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (nh !== catName) {
+                            onSwitchCategory(catName, nh);
+                          }
+                          setIsSwitcherOpen(false);
+                          setSwitcherSearchTerm('');
+                        }}
+                        className={cn(
+                          "px-2.5 py-1.5 text-xs font-black uppercase tracking-wide text-left transition-colors flex items-center justify-between cursor-pointer rounded-lg",
+                          isCurrent ? "bg-emerald-50 text-emerald-800" : "hover:bg-slate-100 text-slate-700"
+                        )}
+                      >
+                        <span className="truncate pr-2">{nh}</span>
+                        {isCurrent && <Check size={13} className="text-[#059669] shrink-0 stroke-[3]" />}
+                      </button>
+                    );
+                  })}
+                  {filteredSwitcherCategories.length === 0 && (
+                    <div className="py-3 text-center text-xs font-bold text-slate-400">
+                      Không tìm thấy ngành hàng
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <p className="text-white text-[10.5px] sm:text-[13px] font-bold tracking-wide flex items-center justify-center gap-1 opacity-95 mt-1 whitespace-nowrap text-center">
+          <span>⚡ Luỹ kế đến ngày: {yesterdayDate} | Đạt: {reachedCount}/{totalStaff} ({totalStaff > 0 ? ((reachedCount / totalStaff) * 100).toFixed(1) : 0}%)</span>
+        </p>
+      </div>
+
+      {/* Table Container with Fixed Layout & Uniform Explicit Column Widths */}
+      <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
+        <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900, minWidth: '470px' }}>
+          <colgroup>
+            <col style={{ width: '40px' }} />
+            <col />
+            <col style={{ width: '62px' }} />
+            <col style={{ width: '58px' }} />
+            <col style={{ width: '72px' }} />
+            <col style={{ width: '52px' }} />
+          </colgroup>
+          <thead>
+            <tr className="text-white font-black text-[12px] sm:text-[13.5px] uppercase tracking-tight h-[55px]">
+              <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">STT</th>
+              <th style={{ fontWeight: 900 }} className="px-2 sm:px-2.5 py-0 text-left text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">NHÂN VIÊN</th>
+              <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">TARGET</th>
+              <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">LUỸ KẾ</th>
+              <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">%HT (DK)</th>
+              <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">C.LẠI</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rowData.map((row, index) => {
+              const roundedRate = Math.round(row.projectedRate);
+              const topCount = Math.max(1, Math.round(rowData.length * 0.2));
+              const isBot = index >= rowData.length - topCount || roundedRate < 50;
+              const isEven = index % 2 === 0;
+              const diff = row.accumulated - row.target;
+
+              return (
+                <tr
+                  key={row.staffName}
+                  className={cn(
+                    "transition-colors h-[50px] border-b border-emerald-100/90",
+                    isEven ? "bg-white" : "bg-emerald-50/20",
+                    "hover:bg-emerald-50/70"
+                  )}
+                >
+                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12px] sm:text-[14.5px] text-slate-700 bg-emerald-50/40 whitespace-nowrap overflow-hidden">
+                    #{index + 1}
+                  </td>
+                  <td style={{ fontWeight: 900 }} className="px-2 sm:px-2.5 py-0.5 border-r border-b border-emerald-100/90 text-left overflow-hidden">
+                    <span className={cn(
+                      "font-black uppercase tracking-tight text-[12px] sm:text-[14px] whitespace-nowrap block overflow-hidden text-ellipsis",
+                      isBot ? "text-rose-600" : "text-slate-900"
+                    )}>
+                      {row.staffName}
+                    </span>
+                  </td>
+                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 font-bold text-[12px] sm:text-[14.5px] text-slate-800 whitespace-nowrap overflow-hidden">
+                    {row.target.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  </td>
+                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12px] sm:text-[14.5px] text-rose-600 whitespace-nowrap overflow-hidden">
+                    {row.accumulated.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  </td>
+                  <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap overflow-hidden">
+                    <span className={cn(
+                      "inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[13px] leading-none",
+                      roundedRate >= 100
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-rose-100 text-rose-600"
+                    )}>
+                      {roundedRate}%
+                    </span>
+                  </td>
+                  <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-b border-emerald-100/90 whitespace-nowrap overflow-hidden">
+                    {diff < -0.0001 ? (
+                      <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-600 font-black text-[11px] sm:text-[13px] leading-none">
+                        {diff.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                      </span>
+                    ) : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          {rowData.length > 0 && (
+            <tfoot>
+              <tr className="h-[55px] text-white">
+                <td colSpan={2} style={{ fontWeight: 900 }} className="px-2.5 sm:px-3 py-0 text-center border-r border-emerald-600/50 font-black text-[12px] sm:text-[14.5px] text-white uppercase tracking-widest whitespace-nowrap overflow-hidden bg-[#047857]">
+                  Tổng
+                </td>
+                <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap overflow-hidden bg-[#047857]">
+                  {totTarget.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                </td>
+                <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap overflow-hidden bg-[#047857]">
+                  {totAcc.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                </td>
+                <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap overflow-hidden bg-[#047857]">
+                  {totRate}%
+                </td>
+                <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center text-white font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap overflow-hidden bg-[#047857]">
+                  {totDiff < -0.0001 ? totDiff.toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : null}
+                </td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+    </div>
+  );
+});
+CategoryCard.displayName = 'CategoryCard';
 
 interface CategoryDetailByStaffTableProps {
   luyKeNganhHang: string;
@@ -39,18 +344,34 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   luykeCategories,
   categoryConfig
 }) => {
-  const { results: allStaffMatrix, categories } = parseStaffMatrixDataRefined(thiDuaNv, staffCount, categoryTargets, luykeCategories || [], daysPassed, totalDays, false, categoryConfig);
+  // 1. Memoized Staff Matrix & Categories parsing from text data
+  const { results: allStaffMatrix, categories } = useMemo(() => {
+    return parseStaffMatrixDataRefined(
+      thiDuaNv,
+      staffCount,
+      categoryTargets,
+      luykeCategories || [],
+      daysPassed,
+      totalDays,
+      false,
+      categoryConfig
+    );
+  }, [thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays, categoryConfig]);
 
-  const dropdownCategories = React.useMemo(() => {
+  // 2. Memoized Dropdown Categories list
+  const dropdownCategories = useMemo(() => {
     if (luykeCategories && luykeCategories.length > 0) {
-      return luykeCategories.map((c: any) => c.name).filter((n: string) => n);
+      return luykeCategories.map((c: any) => c.name).filter((n: string) => Boolean(n));
     }
     return categories;
   }, [luykeCategories, categories]);
 
-  const staffMatrix = selectedStaffIds.length > 0
-    ? allStaffMatrix.filter(s => selectedStaffIds.includes(s.fullId))
-    : allStaffMatrix;
+  // 3. Memoized Filtered Staff Matrix
+  const staffMatrix = useMemo(() => {
+    return selectedStaffIds.length > 0
+      ? allStaffMatrix.filter(s => selectedStaffIds.includes(s.fullId))
+      : allStaffMatrix;
+  }, [allStaffMatrix, selectedStaffIds]);
 
   const { activeStore } = useLuykeData();
 
@@ -58,18 +379,84 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isCapturingAll, setIsCapturingAll] = useState(false);
-  const [copiedCat, setCopiedCat] = useState<string | null>(null);
   const [commentOpenCat, setCommentOpenCat] = useState<string | null>(null);
   const [catCommentText, setCatCommentText] = useState('');
   const [catCommentTemplate, setCatCommentTemplate] = useState<1 | 2 | 3>(1);
   const [copiedCatComment, setCopiedCatComment] = useState(false);
-  const [commentRowData, setCommentRowData] = useState<any[]>([]);
+  const [commentRowData, setCommentRowData] = useState<CategoryRowData[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [openNhDropdownFor, setOpenNhDropdownFor] = useState<string | null>(null);
-  const [cardSearchTerm, setCardSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef(false);
 
+  // 4. Precompute Category Data Map with O(1) Lookups
+  // Eliminates thousands of regex and search operations per render!
+  const allCategoryDataMap = useMemo(() => {
+    const cleanCatToIdxMap = new Map<string, number>();
+    categories.forEach((c, idx) => {
+      cleanCatToIdxMap.set(cleanCategoryName(c), idx);
+    });
+
+    const cleanCatToLkTargetMap = new Map<string, number>();
+    if (luykeCategories && luykeCategories.length > 0) {
+      luykeCategories.forEach((c: any) => {
+        if (c?.name) cleanCatToLkTargetMap.set(cleanCategoryName(c.name), c.target || 0);
+      });
+    }
+
+    const cleanCatToMatchingTargetMap = new Map<string, number>();
+    if (categoryTargets && categoryTargets.length > 0) {
+      categoryTargets.forEach((t: any) => {
+        if (t?.name && typeof t.adjustedTarget === 'number') {
+          cleanCatToMatchingTargetMap.set(cleanCategoryName(t.name), t.adjustedTarget);
+        }
+      });
+    }
+
+    const map = new Map<string, CategoryCardData>();
+    for (const catName of dropdownCategories) {
+      const cleanName = cleanCategoryName(catName);
+      const catIdx = cleanCatToIdxMap.has(cleanName) ? cleanCatToIdxMap.get(cleanName)! : -1;
+      const baseTarget = cleanCatToMatchingTargetMap.has(cleanName)
+        ? cleanCatToMatchingTargetMap.get(cleanName)!
+        : (cleanCatToLkTargetMap.get(cleanName) || 0);
+      const targetPerStaff = staffCount > 0 ? baseTarget / staffCount : 0;
+
+      const rowData: CategoryRowData[] = staffMatrix.map(staff => {
+        const accumulated = catIdx >= 0 ? (staff.rawValues[catIdx] || 0) : 0;
+        const projectedRate = catIdx >= 0 ? (staff.projectedRates[catIdx] || 0) : 0;
+        return {
+          staffName: staff.displayName,
+          target: targetPerStaff,
+          accumulated,
+          projectedRate
+        };
+      }).sort((a, b) => b.projectedRate - a.projectedRate);
+
+      const reachedCount = rowData.filter(row => Math.round(row.projectedRate) >= 100).length;
+      const totalStaff = rowData.length;
+      const totTarget = targetPerStaff * totalStaff;
+      const totAcc = rowData.reduce((sum, r) => sum + r.accumulated, 0);
+      const totRate = totTarget > 0 && daysPassed > 0
+        ? Math.round((((totAcc / daysPassed) * totalDays) / totTarget) * 100)
+        : 0;
+      const totDiff = totAcc - totTarget;
+
+      map.set(catName, {
+        targetPerStaff,
+        rowData,
+        reachedCount,
+        totalStaff,
+        totTarget,
+        totAcc,
+        totRate,
+        totDiff
+      });
+    }
+
+    return map;
+  }, [categories, luykeCategories, categoryTargets, staffCount, staffMatrix, dropdownCategories, daysPassed, totalDays]);
+
+  // Restore selection from localStorage
   React.useEffect(() => {
     if (dropdownCategories.length > 0 && !initializedRef.current) {
       const savedKey = `EH_DETAIL_CATEGORIES_${activeStore || 'GLOBAL'}`;
@@ -94,13 +481,22 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     }
   }, [dropdownCategories, activeStore]);
 
+  // Debounced save to localStorage
   React.useEffect(() => {
-    if (dropdownCategories.length > 0 && initializedRef.current && selectedCategories.length > 0) {
+    if (initializedRef.current && selectedCategories.length > 0) {
       const savedKey = `EH_DETAIL_CATEGORIES_${activeStore || 'GLOBAL'}`;
-      localStorage.setItem(savedKey, JSON.stringify(selectedCategories));
+      const timer = setTimeout(() => {
+        try {
+          localStorage.setItem(savedKey, JSON.stringify(selectedCategories));
+        } catch (e) {
+          console.error(e);
+        }
+      }, 300);
+      return () => clearTimeout(timer);
     }
-  }, [selectedCategories, dropdownCategories, activeStore]);
+  }, [selectedCategories, activeStore]);
 
+  // Handle click outside dropdown
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -115,41 +511,67 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     };
   }, []);
 
-  if (dropdownCategories.length === 0 && categories.length === 0) return null;
+  const selectedCategoriesSet = useMemo(() => new Set(selectedCategories), [selectedCategories]);
 
-  const toggleCategory = (cat: string) => {
+  const filteredDropdownCategories = useMemo(() => {
+    if (!searchTerm.trim()) return dropdownCategories;
+    const lower = searchTerm.trim().toLowerCase();
+    return dropdownCategories.filter(cat => cat.toLowerCase().includes(lower));
+  }, [dropdownCategories, searchTerm]);
+
+  const toggleCategory = useCallback((cat: string) => {
     setSelectedCategories(prev =>
       prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
     );
-  };
+  }, []);
 
-  const handleAddCard = () => {
-    const unselected = dropdownCategories.filter(x => !selectedCategories.includes(x));
-    if (unselected.length > 0) {
-      setSelectedCategories(prev => [...prev, unselected[0]]);
-    }
-  };
+  const handleSelectAll = useCallback(() => {
+    React.startTransition(() => {
+      setSelectedCategories(dropdownCategories);
+    });
+  }, [dropdownCategories]);
 
-  const handleRemoveCard = (catName: string) => {
+  const handleDeselectAll = useCallback(() => {
+    React.startTransition(() => {
+      setSelectedCategories([]);
+    });
+  }, []);
+
+  const handleAddCard = useCallback(() => {
+    setSelectedCategories(prev => {
+      const unselected = dropdownCategories.filter(x => !prev.includes(x));
+      if (unselected.length > 0) {
+        return [...prev, unselected[0]];
+      }
+      return prev;
+    });
+  }, [dropdownCategories]);
+
+  const handleRemoveCard = useCallback((catName: string) => {
     setSelectedCategories(prev => prev.filter(c => c !== catName));
-  };
+  }, []);
 
-  const getCategoryClass = (name: string) => {
-    const len = (name || '').trim().length;
-    if (len > 35) return 'text-[14.5px] sm:text-[17px] md:text-[19px] tracking-tight';
-    if (len > 26) return 'text-[16.5px] sm:text-[19px] md:text-[21.5px] tracking-tight';
-    if (len > 18) return 'text-[18.5px] sm:text-[22px] md:text-[24.5px] tracking-tight';
-    if (len > 10) return 'text-[21px] sm:text-[25px] md:text-[28px] tracking-tight';
-    return 'text-[24px] sm:text-[28px] md:text-[31px]';
-  };
+  const handleSwitchCategory = useCallback((oldCat: string, newCat: string) => {
+    setSelectedCategories(prev => {
+      const idx = prev.indexOf(oldCat);
+      if (idx !== -1) {
+        const next = [...prev];
+        next[idx] = newCat;
+        return next;
+      }
+      return [...prev, newCat];
+    });
+  }, []);
 
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayDate = yesterday.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+  const yesterdayDate = useMemo(() => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return yesterday.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+  }, []);
 
-  const captureElementHelper = async (element: HTMLElement) => {
+  const captureElementHelper = useCallback(async (element: HTMLElement, customCount?: number) => {
     const isGridAll = element.id === 'all-categories-container';
-    const count = selectedCategories.length;
+    const count = typeof customCount === 'number' ? customCount : selectedCategories.length;
     const isMultiTable = isGridAll && count > 1;
     
     // Each table card has desktop width of 660px to ensure full employee names fit without truncation
@@ -364,7 +786,6 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     document.body.appendChild(tempContainer);
 
     try {
-      // ★ Ensure UTM Avo font is fully loaded before export
       await ensureFontsReady();
       await new Promise(r => setTimeout(r, 200));
       const dataUrl = await htmlToImage.toPng(frameWrapper, {
@@ -380,27 +801,27 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     } finally {
       document.body.removeChild(tempContainer);
     }
-  };
+  }, [selectedCategories.length]);
 
-  const handleExport = async (catName: string, elementId: string) => {
+  const handleExport = useCallback(async (catName: string, elementId: string) => {
     const element = document.getElementById(elementId);
     if (element) {
       try {
-        const dataUrl = await captureElementHelper(element);
+        const dataUrl = await captureElementHelper(element, 1);
         setPreviewImage(dataUrl);
       } catch (err) {
         console.error('Export category failed:', err);
       }
     }
-  };
+  }, [captureElementHelper]);
 
-  const handleExportAll = async () => {
+  const handleExportAll = useCallback(async () => {
     if (selectedCategories.length === 0) return;
     setIsCapturingAll(true);
     try {
       const element = document.getElementById('all-categories-container');
       if (element) {
-        const dataUrl = await captureElementHelper(element);
+        const dataUrl = await captureElementHelper(element, selectedCategories.length);
         setPreviewImage(dataUrl);
       }
     } catch (err) {
@@ -408,9 +829,9 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     } finally {
       setIsCapturingAll(false);
     }
-  };
+  }, [selectedCategories.length, captureElementHelper]);
 
-  const handleDownloadAllZip = async () => {
+  const handleDownloadAllZip = useCallback(async () => {
     if (selectedCategories.length === 0) return;
     setIsCapturingAll(true);
     try {
@@ -419,7 +840,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
         const elementId = `cat-detail-${catName.replace(/\s+/g, '-')}`;
         const element = document.getElementById(elementId);
         if (element) {
-          const dataUrl = await captureElementHelper(element);
+          const dataUrl = await captureElementHelper(element, 1);
           const base64Data = dataUrl.replace(/^data:image\/png;base64,/, '');
           zip.file(`${catName.replace(/[/\\?%*:|"<>]/g, '-')}.png`, base64Data, { base64: true });
         }
@@ -431,9 +852,9 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     } finally {
       setIsCapturingAll(false);
     }
-  };
+  }, [selectedCategories, captureElementHelper, yesterdayDate]);
 
-  const generateCatComment = (catName: string, rowData: any[], template: 1 | 2 | 3 = 1) => {
+  const generateCatComment = useCallback((catName: string, rowData: CategoryRowData[], template: 1 | 2 | 3 = 1) => {
     if (rowData.length === 0) return '';
     const getStaffId = (s: any) => {
       const parts = s.staffName.split('-');
@@ -498,11 +919,15 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     setCatCommentTemplate(template);
     setCopiedCatComment(false);
     return text;
-  };
+  }, []);
 
-  const filteredDropdownCategories = dropdownCategories.filter(cat =>
-    cat.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleOpenComment = useCallback((catName: string, rowData: CategoryRowData[]) => {
+    setCommentRowData(rowData);
+    generateCatComment(catName, rowData, catCommentTemplate);
+    setCommentOpenCat(catName);
+  }, [catCommentTemplate, generateCatComment]);
+
+  if (dropdownCategories.length === 0 && categories.length === 0) return null;
 
   return (
     <div className="mt-6 sm:mt-8 flex flex-col gap-4 sm:gap-5 w-full max-w-none" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
@@ -565,14 +990,14 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
                   <div className="flex items-center justify-between px-1.5 py-1 border-b border-slate-200 text-[11.5px] font-black uppercase">
                     <button
                       type="button"
-                      onClick={() => setSelectedCategories(dropdownCategories)}
+                      onClick={handleSelectAll}
                       className="text-emerald-700 hover:underline cursor-pointer"
                     >
                       CHỌN TẤT CẢ ({dropdownCategories.length})
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSelectedCategories([])}
+                      onClick={handleDeselectAll}
                       className="text-rose-600 hover:underline cursor-pointer"
                     >
                       BỎ CHỌN HẾT
@@ -582,7 +1007,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
                   {/* Category Checklist */}
                   <div className="overflow-y-auto flex flex-col gap-1 max-h-64 pr-1">
                     {filteredDropdownCategories.map((cat) => {
-                      const isSelected = selectedCategories.includes(cat);
+                      const isSelected = selectedCategoriesSet.has(cat);
                       return (
                         <label
                           key={cat}
@@ -665,317 +1090,21 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
           </>
         ) : (
           selectedCategories.map((catName) => {
-            const catIdx = categories.findIndex(c => cleanCategoryName(c) === cleanCategoryName(catName));
-            const lkCat = luykeCategories.length > 0
-              ? luykeCategories.find((c: any) => cleanCategoryName(c.name) === cleanCategoryName(catName))
-              : null;
-            const matchingTarget = categoryTargets.find((t: any) => cleanCategoryName(t.name) === cleanCategoryName(catName));
-            const baseTarget = (matchingTarget && typeof matchingTarget.adjustedTarget === 'number')
-              ? matchingTarget.adjustedTarget
-              : (lkCat ? lkCat.target : 0);
-            const targetPerStaff = staffCount > 0 ? baseTarget / staffCount : 0;
-            const elementId = `cat-detail-${catName.replace(/\s+/g, '-')}`;
-
-            const rowData = staffMatrix.map(staff => {
-              const accumulated = staff.rawValues[catIdx] || 0;
-              const projectedRate = staff.projectedRates[catIdx] || 0;
-
-              return {
-                staffName: staff.displayName,
-                target: targetPerStaff,
-                accumulated,
-                projectedRate
-              };
-            }).sort((a, b) => b.projectedRate - a.projectedRate);
-
-            const reachedCount = rowData.filter(row => Math.round(row.projectedRate) >= 100).length;
-            const totalStaff = rowData.length;
+            const cardData = allCategoryDataMap.get(catName);
+            if (!cardData) return null;
 
             return (
-              <div
+              <CategoryCard
                 key={catName}
-                id={elementId}
-                className="bg-white border border-slate-200/90 rounded-2xl p-2 sm:p-2.5 flex flex-col min-w-0 shadow-sm relative group/card"
-                style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}
-              >
-                {/* Actions: Tag tên, Ẩn bảng & Chụp ảnh bảng */}
-                <div className="absolute top-3.5 right-3.5 z-20 flex items-center gap-1.5 no-capture export-btn">
-                  {/* ✨ Nhận xét */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCommentRowData(rowData);
-                      generateCatComment(catName, rowData, catCommentTemplate);
-                      setCommentOpenCat(catName);
-                    }}
-                    title="Nhận xét ngành hàng"
-                    className="px-2 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border cursor-pointer flex items-center gap-1 shadow-none active:scale-95 bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-purple-500"
-                  >
-                    <Sparkles size={11} className="animate-pulse" />
-                    <span>NHẬN XÉT</span>
-                  </button>
-
-                  {/* 📷 Chụp ảnh bảng này */}
-                  <button
-                    type="button"
-                    onClick={() => handleExport(catName, elementId)}
-                    title={`Chụp ảnh trọn vẹn bảng ${catName}`}
-                    className="p-1.5 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-none transition-all cursor-pointer border border-white/25 active:scale-95 shadow-none"
-                  >
-                    <Camera size={13} />
-                  </button>
-
-                  {/* ✕ Ẩn bảng này */}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveCard(catName)}
-                    title={`Ẩn bảng "${catName}"`}
-                    className="p-1.5 bg-white/20 hover:bg-rose-500/60 rounded-xl text-white backdrop-blur-none transition-all cursor-pointer border border-white/25 active:scale-95 shadow-none"
-                  >
-                    <X size={13} strokeWidth={2.5} />
-                  </button>
-                </div>
-
-                {/* Header Banner: Emerald Gradient Banner with Switcher Dropdown on Title */}
-                <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] text-white p-3.5 sm:p-4 text-center flex flex-col items-center justify-center rounded-2xl relative overflow-visible w-full mb-2.5">
-                  <div className="relative inline-flex items-center justify-center group max-w-full">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (openNhDropdownFor === catName) {
-                          setOpenNhDropdownFor(null);
-                          setCardSearchTerm('');
-                        } else {
-                          setOpenNhDropdownFor(catName);
-                          setCardSearchTerm('');
-                        }
-                      }}
-                      className={cn(
-                        "inline-flex items-center justify-center gap-1 sm:gap-1.5 text-[#FEF08A] font-black uppercase cursor-pointer text-center outline-none transition-all py-0.5 px-1 max-w-full hover:opacity-90 leading-tight break-words text-[19px] sm:text-[23px] md:text-[26px]"
-                      )}
-                      style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}
-                      title="Bấm để đổi ngành hàng cho bảng này"
-                    >
-                      <span className="text-center leading-tight break-words max-w-full">{catName}</span>
-                      <ChevronDown size={16} className={cn("text-[#FEF08A] transition-transform duration-200 shrink-0 opacity-80 group-hover:opacity-100 no-capture", openNhDropdownFor === catName && "rotate-180")} />
-                    </button>
-
-                    {/* Switch Category Popover with Search */}
-                    {openNhDropdownFor === catName && (
-                      <>
-                        <div 
-                          className="fixed inset-0 z-40 cursor-default" 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenNhDropdownFor(null);
-                            setCardSearchTerm('');
-                          }} 
-                        />
-                        <div 
-                          className="absolute z-50 top-full mt-2 left-1/2 -translate-x-1/2 w-64 sm:w-72 max-w-[90vw] bg-white rounded-xl shadow-2xl border-2 border-emerald-500 p-2 flex flex-col gap-1.5 export-btn no-capture text-left text-slate-800"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div className="px-2 py-0.5 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-200 pb-1 flex items-center justify-between">
-                            <span>CHỌN NGÀNH HÀNG</span>
-                            <span className="text-[#059669] font-black">
-                              {dropdownCategories.filter(nh => nh.toLowerCase().includes(cardSearchTerm.trim().toLowerCase())).length}/{dropdownCategories.length} MỤC
-                            </span>
-                          </div>
-
-                          {/* Search Input */}
-                          <div className="relative">
-                            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 stroke-[2.5]" />
-                            <input
-                              type="text"
-                              value={cardSearchTerm}
-                              onChange={(e) => setCardSearchTerm(e.target.value)}
-                              placeholder="Gõ tìm ngành hàng..."
-                              autoFocus
-                              className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-600 focus:bg-white font-bold text-slate-800 placeholder:font-medium placeholder:text-slate-400 uppercase tracking-tight"
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            {cardSearchTerm && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setCardSearchTerm('');
-                                }}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full cursor-pointer"
-                              >
-                                <X size={12} />
-                              </button>
-                            )}
-                          </div>
-
-                          {/* Filtered category list */}
-                          <div className="overflow-y-auto max-h-56 flex flex-col gap-0.5 pr-0.5">
-                            {dropdownCategories
-                              .filter(nh => nh.toLowerCase().includes(cardSearchTerm.trim().toLowerCase()))
-                              .map(nh => {
-                                const isCurrent = nh === catName;
-                                return (
-                                  <button
-                                    key={nh}
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (nh !== catName) {
-                                        setSelectedCategories(prev => {
-                                          const idx = prev.indexOf(catName);
-                                          if (idx !== -1) {
-                                            const next = [...prev];
-                                            next[idx] = nh;
-                                            return next;
-                                          }
-                                          return [...prev, nh];
-                                        });
-                                      }
-                                      setOpenNhDropdownFor(null);
-                                      setCardSearchTerm('');
-                                    }}
-                                    className={cn(
-                                      "px-2.5 py-1.5 text-xs font-black uppercase tracking-wide text-left transition-colors flex items-center justify-between cursor-pointer rounded-lg",
-                                      isCurrent ? "bg-emerald-50 text-emerald-800" : "hover:bg-slate-100 text-slate-700"
-                                    )}
-                                  >
-                                    <span className="truncate pr-2">{nh}</span>
-                                    {isCurrent && <Check size={13} className="text-[#059669] shrink-0 stroke-[3]" />}
-                                  </button>
-                                );
-                              })}
-                            {dropdownCategories.filter(nh => nh.toLowerCase().includes(cardSearchTerm.trim().toLowerCase())).length === 0 && (
-                              <div className="py-3 text-center text-xs font-bold text-slate-400">
-                                Không tìm thấy ngành hàng
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  <p className="text-white text-[10.5px] sm:text-[13px] font-bold tracking-wide flex items-center justify-center gap-1 opacity-95 mt-1 whitespace-nowrap text-center">
-                    <span>⚡ Luỹ kế đến ngày: {yesterdayDate} | Đạt: {reachedCount}/{totalStaff} ({totalStaff > 0 ? ((reachedCount / totalStaff) * 100).toFixed(1) : 0}%)</span>
-                  </p>
-                </div>
-
-                {/* Table Container with Fixed Layout & Uniform Explicit Column Widths */}
-                <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
-                  <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900, minWidth: '470px' }}>
-                    <colgroup>
-                      <col style={{ width: '40px' }} />
-                      <col />
-                      <col style={{ width: '62px' }} />
-                      <col style={{ width: '58px' }} />
-                      <col style={{ width: '72px' }} />
-                      <col style={{ width: '52px' }} />
-                    </colgroup>
-                    <thead>
-                      <tr className="text-white font-black text-[12px] sm:text-[13.5px] uppercase tracking-tight h-[55px]">
-                        <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">STT</th>
-                        <th style={{ fontWeight: 900 }} className="px-2 sm:px-2.5 py-0 text-left text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">NHÂN VIÊN</th>
-                        <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">TARGET</th>
-                        <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">LUỸ KẾ</th>
-                        <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">%HT (DK)</th>
-                        <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">C.LẠI</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rowData.map((row, index) => {
-                        const roundedRate = Math.round(row.projectedRate);
-                        const topCount = Math.max(1, Math.round(rowData.length * 0.2));
-                        const isBot = index >= rowData.length - topCount || roundedRate < 50;
-                        const isEven = index % 2 === 0;
-                        const diff = row.accumulated - row.target;
-
-                        return (
-                          <tr
-                            key={row.staffName}
-                            className={cn(
-                              "transition-colors h-[50px] border-b border-emerald-100/90",
-                              isEven ? "bg-white" : "bg-emerald-50/20",
-                              "hover:bg-emerald-50/70"
-                            )}
-                          >
-                            <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12px] sm:text-[14.5px] text-slate-700 bg-emerald-50/40 whitespace-nowrap overflow-hidden">
-                              #{index + 1}
-                            </td>
-                            <td style={{ fontWeight: 900 }} className="px-2 sm:px-2.5 py-0.5 border-r border-b border-emerald-100/90 text-left overflow-hidden">
-                              <span className={cn(
-                                "font-black uppercase tracking-tight text-[12px] sm:text-[14px] whitespace-nowrap block overflow-hidden text-ellipsis",
-                                isBot ? "text-rose-600" : "text-slate-900"
-                              )}>
-                                {row.staffName}
-                              </span>
-                            </td>
-                            <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 font-bold text-[12px] sm:text-[14.5px] text-slate-800 whitespace-nowrap overflow-hidden">
-                              {row.target.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
-                            </td>
-                            <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12px] sm:text-[14.5px] text-rose-600 whitespace-nowrap overflow-hidden">
-                              {row.accumulated.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
-                            </td>
-                            <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap overflow-hidden">
-                              <span className={cn(
-                                "inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[13px] leading-none",
-                                roundedRate >= 100
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : "bg-rose-100 text-rose-600"
-                              )}>
-                                {roundedRate}%
-                              </span>
-                            </td>
-                            <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-b border-emerald-100/90 whitespace-nowrap overflow-hidden">
-                              {diff < -0.0001 ? (
-                                <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-md bg-rose-100 text-rose-600 font-black text-[11px] sm:text-[13px] leading-none">
-                                  {diff.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
-                                </span>
-                              ) : null}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    {rowData.length > 0 && (
-                      <tfoot>
-                        <tr className="h-[55px] text-white">
-                          <td colSpan={2} style={{ fontWeight: 900 }} className="px-2.5 sm:px-3 py-0 text-center border-r border-emerald-600/50 font-black text-[12px] sm:text-[14.5px] text-white uppercase tracking-widest whitespace-nowrap overflow-hidden bg-[#047857]">
-                            Tổng
-                          </td>
-                          <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap overflow-hidden bg-[#047857]">
-                            {(targetPerStaff * rowData.length).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
-                          </td>
-                          <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap overflow-hidden bg-[#047857]">
-                            {rowData.reduce((sum, r) => sum + r.accumulated, 0).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}
-                          </td>
-                          <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap overflow-hidden bg-[#047857]">
-                            {(() => {
-                              const totTarget = targetPerStaff * rowData.length;
-                              const totAcc = rowData.reduce((sum, r) => sum + r.accumulated, 0);
-                              const totRate = totTarget > 0 && daysPassed > 0
-                                ? Math.round((((totAcc / daysPassed) * totalDays) / totTarget) * 100)
-                                : 0;
-                              return `${totRate}%`;
-                            })()}
-                          </td>
-                          <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center text-white font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap overflow-hidden bg-[#047857]">
-                            {(() => {
-                              const totTarget = targetPerStaff * rowData.length;
-                              const totAcc = rowData.reduce((sum, r) => sum + r.accumulated, 0);
-                              const totDiff = totAcc - totTarget;
-                              if (totDiff < -0.0001) {
-                                return totDiff.toLocaleString('vi-VN', { maximumFractionDigits: 1 });
-                              }
-                              return null;
-                            })()}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    )}
-                  </table>
-                </div>
-              </div>
+                catName={catName}
+                data={cardData}
+                yesterdayDate={yesterdayDate}
+                dropdownCategories={dropdownCategories}
+                onExport={handleExport}
+                onOpenComment={handleOpenComment}
+                onRemoveCard={handleRemoveCard}
+                onSwitchCategory={handleSwitchCategory}
+              />
             );
           })
         )}

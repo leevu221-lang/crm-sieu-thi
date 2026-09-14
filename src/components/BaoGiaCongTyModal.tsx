@@ -42,16 +42,16 @@ export default function BaoGiaCongTyModal({ isOpen, onClose }: BaoGiaCongTyModal
     { name: 'MÁY LẠNH CASPER GC-12IB36', quantity: '3', retailPrice: '8990000', discountPrice: '7990000' }
   ]);
 
-  const [companyName, setCompanyName] = useState(() => savedData?.companyName ?? 'CHI NHÁNH CÔNG TY CỔ PHẦN ĐẦU TƯ ĐIỆN MÁY XANH');
-  const [companyAddress, setCompanyAddress] = useState(() => savedData?.companyAddress ?? '155A, NGUYỄN TẤT THÀNH, LÝ VĂN LÂM, TỈNH CÀ MAU');
-  const [companyPhone, setCompanyPhone] = useState(() => savedData?.companyPhone ?? '1900232460');
+  const [companyName, setCompanyName] = useState(() => savedData?.companyName ?? '');
+  const [companyAddress, setCompanyAddress] = useState(() => savedData?.companyAddress ?? '');
+  const [companyPhone, setCompanyPhone] = useState(() => savedData?.companyPhone ?? '');
   const [companyTax, setCompanyTax] = useState(() => savedData?.companyTax ?? '');
 
-  const [customerName, setCustomerName] = useState(() => savedData?.customerName ?? 'DUNG');
-  const [customerPhone, setCustomerPhone] = useState(() => savedData?.customerPhone ?? '0976896425');
-  const [customerCompany, setCustomerCompany] = useState(() => savedData?.customerCompany ?? 'CHI NHÁNH PHÍA NAM - TỔNG CÔNG TY XÂY DỰNG TRƯỜNG SƠN');
+  const [customerName, setCustomerName] = useState(() => savedData?.customerName ?? '');
+  const [customerPhone, setCustomerPhone] = useState(() => savedData?.customerPhone ?? '');
+  const [customerCompany, setCustomerCompany] = useState(() => savedData?.customerCompany ?? '');
   const [customerEmail, setCustomerEmail] = useState(() => savedData?.customerEmail ?? '');
-  const [customerAddress, setCustomerAddress] = useState(() => savedData?.customerAddress ?? '30D PHAN VĂN TRỊ, PHƯỜNG HẠNH THÔNG, THÀNH PHỐ HỒ CHÍ MINH, VIỆT NAM');
+  const [customerAddress, setCustomerAddress] = useState(() => savedData?.customerAddress ?? '');
 
   const [terms, setTerms] = useState(() => savedData?.terms || [
     'Giá trên đã bao gồm 10% VAT,',

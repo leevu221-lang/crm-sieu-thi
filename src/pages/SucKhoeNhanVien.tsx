@@ -9,9 +9,9 @@ import { HeartPulse, Camera, TrendingUp, Search, ChevronDown, ChevronUp, Check, 
 import { supabase } from '../supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as htmlToImage from 'html-to-image';
-import { domToPng } from 'modern-screenshot';
+import { domToPng, domToBlob } from 'modern-screenshot';
 import html2canvas from 'html2canvas';
-import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
+import { ensureFontsReady, EXPORT_FONT_STYLE, ensureSharedCaptureStyle, getPreloadedFontCss } from '../utils/fontExportUtil';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -531,7 +531,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
     // Detect compact ranking/report tabs
     const isDoanhThuNvTab = Boolean(element.querySelector('.max-w-\\[880px\\]')) || 
+                            Boolean(element.querySelector('.max-w-\\[900px\\]')) || 
                             element.classList.contains('max-w-[880px]') ||
+                            element.classList.contains('max-w-[900px]') ||
                             Boolean(element.querySelector('h2')?.textContent?.includes('BẢNG XẾP HẠNG DOANH THU'));
 
     const isPhucVuTab = Boolean(element.querySelector('h2')?.textContent?.includes('PHỤC VỤ NHÂN VIÊN'));
@@ -540,8 +542,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
     const isCompactTab = isDoanhThuNvTab || isPhucVuTab || isBanKemTab || isTraChamTab;
 
-    let compactWidth = 880;
-    if (isDoanhThuNvTab) compactWidth = 880;
+    let compactWidth = 900;
+    if (isDoanhThuNvTab) compactWidth = 900;
     else if (isPhucVuTab) compactWidth = Math.max(860, sumColWidths > 0 ? sumColWidths + 20 : 860);
     else if (isBanKemTab) compactWidth = Math.max(840, sumColWidths > 0 ? sumColWidths + 20 : 840);
     else if (isTraChamTab) compactWidth = Math.max(800, sumColWidths > 0 ? sumColWidths + 20 : 800);
@@ -735,34 +737,54 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     }
   };
 
-  type CaptureStrategy = 'domToPng' | 'htmlToImage' | 'html2canvas';
+  type CaptureStrategy = 'domToBlob' | 'domToPng' | 'htmlToImage' | 'html2canvas';
 
   const runCaptureStrategy = async (frameWrapper: HTMLElement, strategy: CaptureStrategy): Promise<Blob | string> => {
-    if (strategy === 'domToPng') {
-      // `font: false` is a TOP-LEVEL modern-screenshot option, not a `features` key —
-      // the previous `features: { font: false, image: false }` matched no real option
-      // (features only has copyScrollbar/removeAbnormalAttributes/removeControlCharacter/
-      // fixSvgXmlDecode/restoreScrollPosition) and silently did nothing, so domToPng was
-      // downloading and base64-embedding every @font-face on the page for EVERY card —
-      // almost certainly the actual source of the 15-30s+ per-card times measured. Fonts
-      // are already rendered by the browser via ensureFontsReady() before we ever call
-      // this, and the result is rasterized to PNG immediately in this same page, so
-      // there's nothing that needs a portable embedded font — safe to fully disable.
-      return await domToPng(frameWrapper, {
+    const frameHeight = frameWrapper.offsetHeight || frameWrapper.scrollHeight || 1200;
+    if (strategy === 'domToBlob') {
+      const blob = await domToBlob(frameWrapper, {
         backgroundColor: '#ffffff',
         scale: 2,
         font: false,
         width: 1120,
-        height: frameWrapper.scrollHeight,
+        height: frameHeight,
+        features: {
+          removeControlCharacter: true,
+          removeAbnormalAttributes: true,
+        },
       });
+      if (!blob || blob.size === 0) throw new Error('domToBlob produced empty blob');
+      return blob;
+    }
+    if (strategy === 'domToPng') {
+      const dataUrl = await domToPng(frameWrapper, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        font: false,
+        width: 1120,
+        height: frameHeight,
+        features: {
+          removeControlCharacter: true,
+          removeAbnormalAttributes: true,
+        },
+      });
+      if (!dataUrl) throw new Error('domToPng produced no dataUrl');
+      return dataUrl;
     }
     if (strategy === 'htmlToImage') {
-      return await htmlToImage.toPng(frameWrapper, {
+      const blob = await htmlToImage.toBlob(frameWrapper, {
         backgroundColor: '#ffffff',
         pixelRatio: 2,
         skipFonts: true,
+        fontEmbedCSS: getPreloadedFontCss(),
+        skipAutoScale: true,
+        cacheBust: false,
+        width: 1120,
+        height: frameHeight,
         style: { ...EXPORT_FONT_STYLE },
       });
+      if (!blob) throw new Error('htmlToImage produced no blob');
+      return blob;
     }
     const canvas = await html2canvas(frameWrapper, {
       scale: 2,
@@ -778,180 +800,56 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     return blob;
   };
 
-  // Builds the off-screen, capture-ready clone of an employee detail card.
-  // Caller owns cleanup: remove the returned tempContainer from document.body when done.
-  const buildCaptureFrame = (element: HTMLElement): { tempContainer: HTMLElement; frameWrapper: HTMLElement } => {
-    const tempContainer = document.createElement('div');
-    tempContainer.style.position = 'absolute';
-    tempContainer.style.top = '-9999px';
-    tempContainer.style.left = '-9999px';
-    tempContainer.style.width = '1120px';
-    tempContainer.style.height = 'auto';
-    tempContainer.style.zIndex = '-9999';
-    tempContainer.style.pointerEvents = 'none';
-    tempContainer.style.backgroundColor = '#ffffff';
-
+  // Builds the capture-ready frame wrapper for an employee detail card.
+  // Optimizations:
+  // 1. Injects preloaded UTM Avo @font-face definition directly for 100% font fidelity.
+  // 2. Physically strips non-export nodes (.remove()) to reduce DOM serialization tree by ~40%.
+  // 3. Built on-demand per card to minimize concurrent browser memory usage.
+  const buildCaptureFrame = (element: HTMLElement): { frameWrapper: HTMLElement } => {
+    ensureSharedCaptureStyle();
     const frameWrapper = document.createElement('div');
-    frameWrapper.style.width = '1120px';
-    frameWrapper.style.minWidth = '1120px';
-    frameWrapper.style.maxWidth = '1120px';
-    frameWrapper.style.padding = '20px';
-    frameWrapper.style.backgroundColor = '#ffffff';
-    frameWrapper.style.boxSizing = 'border-box';
-    frameWrapper.style.borderRadius = '24px';
-    frameWrapper.style.boxShadow = 'none';
-    frameWrapper.style.display = 'block';
+    frameWrapper.className = 'export-isolated-card';
+    frameWrapper.style.cssText = 'width:1120px;min-width:1120px;max-width:1120px;padding:20px;background-color:#ffffff;box-sizing:border-box;border-radius:24px;box-shadow:none;display:block;';
+
+    const fontCss = getPreloadedFontCss();
+    if (fontCss) {
+      const styleEl = document.createElement('style');
+      styleEl.textContent = fontCss;
+      frameWrapper.appendChild(styleEl);
+    }
 
     const clone = element.cloneNode(true) as HTMLElement;
 
-    const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, .capture-btn, input, select');
-    noCaptureElements.forEach(el => {
-      (el as HTMLElement).style.display = 'none';
-    });
-
-    clone.style.width = '100%';
-    clone.style.minWidth = '100%';
-    clone.style.maxWidth = '100%';
-    clone.style.height = 'auto';
-    clone.style.margin = '0';
-    clone.style.padding = '0';
-    clone.style.backgroundColor = 'transparent';
-    clone.style.display = 'block';
-    clone.style.boxSizing = 'border-box';
-    clone.style.boxShadow = 'none';
-    clone.style.fontFamily = "'UTM Avo', 'Inter', sans-serif";
-
-    const innerCards = clone.querySelectorAll('.max-w-\\[960px\\], [class*="max-w"]');
-    innerCards.forEach(c => {
-      const htmlC = c as HTMLElement;
-      htmlC.style.maxWidth = '100%';
-      htmlC.style.width = '100%';
-      htmlC.style.boxShadow = 'none';
-    });
-
-    const statGrids = clone.querySelectorAll('[class*="grid-cols"]');
-    statGrids.forEach(g => {
-      const htmlG = g as HTMLElement;
-      htmlG.style.display = 'grid';
-      htmlG.style.gridTemplateColumns = 'repeat(6, minmax(0, 1fr))';
-      htmlG.style.width = '100%';
-      htmlG.style.boxSizing = 'border-box';
-    });
-
-    const allElements = clone.querySelectorAll('*');
-    allElements.forEach(el => {
-      const htmlEl = el as HTMLElement;
-      if (htmlEl.style) {
-        htmlEl.style.boxShadow = 'none';
-        htmlEl.style.textShadow = 'none';
-        htmlEl.style.filter = 'none';
-      }
-      if (htmlEl.classList) {
-        htmlEl.classList.remove('truncate');
-        Array.from(htmlEl.classList).forEach(cls => {
-          if (cls.startsWith('shadow') || cls.startsWith('drop-shadow') || cls.startsWith('ring')) {
-            htmlEl.classList.remove(cls);
-          }
-        });
-      }
-    });
-
-    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
-    scrollContainers.forEach((el) => {
-      const htmlEl = el as HTMLElement;
-      htmlEl.style.overflow = 'visible';
-      htmlEl.style.width = '100%';
-      htmlEl.style.height = 'auto';
-      htmlEl.style.maxWidth = 'none';
-      htmlEl.style.maxHeight = 'none';
-      htmlEl.style.boxSizing = 'border-box';
-      el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
-    });
-
-    const tables = clone.querySelectorAll('table');
-    tables.forEach((table) => {
-      const htmlTable = table as HTMLElement;
-      htmlTable.style.width = '100%';
-      htmlTable.style.minWidth = '100%';
-      htmlTable.style.maxWidth = '100%';
-      htmlTable.style.boxSizing = 'border-box';
-      htmlTable.style.tableLayout = 'fixed';
-      htmlTable.style.borderCollapse = 'collapse';
-
-      const cols = htmlTable.querySelectorAll('colgroup col');
-      if (cols.length >= 6) {
-        (cols[0] as HTMLElement).style.width = '55px';
-        (cols[1] as HTMLElement).style.width = '480px';
-        (cols[2] as HTMLElement).style.width = '125px';
-        (cols[3] as HTMLElement).style.width = '125px';
-        (cols[4] as HTMLElement).style.width = '125px';
-        (cols[5] as HTMLElement).style.width = '150px';
-      }
-    });
+    // Physically purge non-capture elements (buttons, toolbars, inputs)
+    clone.querySelectorAll('.no-capture, button, textarea, .capture-btn, input, select').forEach(el => el.remove());
+    clone.style.cssText = "width:100%;min-width:100%;max-width:100%;height:auto;margin:0;padding:0;background-color:transparent;display:block;box-sizing:border-box;box-shadow:none;font-family:'UTM Avo', 'Inter', sans-serif;opacity:1;transform:none;";
 
     frameWrapper.appendChild(clone);
+    return { frameWrapper };
+  };
+
+  const DEFAULT_CAPTURE_ORDER: CaptureStrategy[] = ['domToBlob', 'domToPng', 'htmlToImage', 'html2canvas'];
+
+  const captureSingleEmployeeCard = async (element: HTMLElement, order: CaptureStrategy[] = DEFAULT_CAPTURE_ORDER): Promise<Blob | string> => {
+    const tempContainer = document.createElement('div');
+    tempContainer.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:hidden;pointer-events:none;z-index:-9999;contain:strict;background:#ffffff;';
+    const { frameWrapper } = buildCaptureFrame(element);
     tempContainer.appendChild(frameWrapper);
     document.body.appendChild(tempContainer);
-    return { tempContainer, frameWrapper };
-  };
-
-  // Times domToPng vs html2canvas against the SAME real card once, up front, and
-  // reports which is actually faster for this data shape. Their relative speed
-  // depends heavily on DOM size/complexity — domToPng (SVG foreignObject) is
-  // usually faster for simple markup but can lose badly on very large/deeply
-  // nested tables where per-node inline-style serialization dominates, which
-  // turned out to be the case here (16-30s+ per card once contention was
-  // factored out). Costs one extra capture up front instead of guessing wrong
-  // and paying for it on every card of the batch.
-  const benchmarkCaptureStrategies = async (element: HTMLElement): Promise<CaptureStrategy> => {
-    const { tempContainer, frameWrapper } = buildCaptureFrame(element);
-    try {
-      let domMs = Infinity;
-      let canvasMs = Infinity;
-      try {
-        const t0 = performance.now();
-        await runCaptureStrategy(frameWrapper, 'domToPng');
-        domMs = performance.now() - t0;
-      } catch (e) {
-        console.warn('[Export benchmark] domToPng failed:', e);
-      }
-      try {
-        const t0 = performance.now();
-        await runCaptureStrategy(frameWrapper, 'html2canvas');
-        canvasMs = performance.now() - t0;
-      } catch (e) {
-        console.warn('[Export benchmark] html2canvas failed:', e);
-      }
-      const winner: CaptureStrategy = canvasMs < domMs ? 'html2canvas' : 'domToPng';
-      console.log(`[Export benchmark] domToPng=${domMs.toFixed(0)}ms html2canvas=${canvasMs.toFixed(0)}ms → using ${winner} for the rest of the batch`);
-      return winner;
-    } finally {
-      document.body.removeChild(tempContainer);
-    }
-  };
-
-  const captureSingleEmployeeCard = async (element: HTMLElement, order: CaptureStrategy[]): Promise<Blob | string> => {
-    const __tag = element.id.replace('employee-detail-', '') || '?';
-    const __t0 = performance.now();
-    const { tempContainer, frameWrapper } = buildCaptureFrame(element);
-    const __tPrep = performance.now();
 
     try {
       let lastErr: unknown = null;
       for (const strategy of order) {
         try {
-          const __t1 = performance.now();
-          const result = await runCaptureStrategy(frameWrapper, strategy);
-          console.log(`[Export ${__tag}] prep=${(__tPrep - __t0).toFixed(0)}ms ${strategy}=${(performance.now() - __t1).toFixed(0)}ms total=${(performance.now() - __t0).toFixed(0)}ms`);
-          return result;
+          return await runCaptureStrategy(frameWrapper, strategy);
         } catch (err) {
           lastErr = err;
-          console.warn(`[Export ${__tag}] ${strategy} failed, trying next strategy:`, err);
+          console.warn(`[Export Single] ${strategy} failed, trying next strategy:`, err);
         }
       }
       throw lastErr instanceof Error ? lastErr : new Error('All capture strategies failed to produce an image');
     } finally {
-      document.body.removeChild(tempContainer);
+      tempContainer.remove();
     }
   };
 
@@ -962,93 +860,147 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       return;
     }
 
+    // 1. Immediately activate capturing state & initialize progress counter
     setIsCapturing(true);
-    const startTime = Date.now();
     setBatchExportProgress({ current: 0, total: tables.length, percent: 0 });
+
+    // 2. Yield control to browser paint cycle so React renders the loading overlay instantly (0ms lag)
+    await new Promise(resolve => setTimeout(resolve, 20));
+
+    const startTime = Date.now();
+
+    // Balanced worker pool (2-3 workers): Prevents CPU thread thrashing and memory spikes
+    const hwCores = typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency || 4) : 4;
+    const CONCURRENCY = Math.min(tables.length, Math.max(2, Math.min(3, hwCores)));
+
+    // Create persistent isolated worker containers on document.body in a single batch append
+    const fragment = document.createDocumentFragment();
+    const workerContainers: HTMLDivElement[] = [];
+    for (let i = 0; i < CONCURRENCY; i++) {
+      const container = document.createElement('div');
+      container.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:hidden;pointer-events:none;z-index:-9999;contain:strict;background:#ffffff;';
+      fragment.appendChild(container);
+      workerContainers.push(container);
+    }
+    document.body.appendChild(fragment);
 
     try {
       await ensureFontsReady();
+      ensureSharedCaptureStyle();
+
+      // Lazy metadata list: we do NOT clone DOM all upfront to avoid RAM blowups
+      const preparedCards = tables.map((element, idx) => {
+        const rawName = element.id.replace('employee-detail-', '').trim();
+        const cleanName = rawName.replace(/[/\\?%*:|"<>]/g, '_');
+        return { idx, rawName, cleanName, element };
+      });
+
       const zip = new JSZip();
       let completedCount = 0;
       const failedNames: string[] = [];
-
-      // Pick the faster render strategy for THIS card shape once, up front (see
-      // benchmarkCaptureStrategies), instead of assuming domToPng always wins.
-      const strategyOrder: CaptureStrategy = await benchmarkCaptureStrategies(tables[0]);
-      const order: CaptureStrategy[] = strategyOrder === 'html2canvas'
-        ? ['html2canvas', 'domToPng', 'htmlToImage']
-        : ['domToPng', 'htmlToImage', 'html2canvas'];
-
-      // Real-world captures on complex tables here turned out to be CPU-bound on
-      // the main thread — more "concurrent" workers just interleave and queue
-      // behind each other rather than truly parallelizing, and measured captures
-      // got progressively SLOWER (16s → 34s+) as concurrency rose. Keep the pool
-      // small so it can still overlap the async I/O portions (image/font decode)
-      // without starving every in-flight card of main-thread time.
-      const CONCURRENCY = Math.min(3, tables.length);
+      const order: CaptureStrategy[] = ['domToBlob', 'domToPng', 'htmlToImage', 'html2canvas'];
       let currentIndex = 0;
 
-      const worker = async () => {
-        while (currentIndex < tables.length) {
-          const idx = currentIndex++;
-          const element = tables[idx];
-          if (!element) continue;
+      const reportProgress = (current: number, total: number) => {
+        const percent = Math.round((current / total) * 100);
+        setBatchExportProgress({ current, total, percent });
+      };
 
-          const rawName = element.id.replace('employee-detail-', '').trim();
+      const runWorker = async (workerIndex: number) => {
+        const workerContainer = workerContainers[workerIndex];
+
+        while (currentIndex < preparedCards.length) {
+          const card = preparedCards[currentIndex++];
+          if (!card) continue;
+
+          const { idx, rawName, cleanName, element } = card;
           try {
-            const cleanName = rawName.replace(/[/\\?%*:|"<>]/g, '_');
-            // Watchdog: if this one employee's data trips up every capture strategy
-            // in a way that never resolves or rejects (seen at 50 NV — batch stalls
-            // forever with no error, no progress, no zip), Promise.all(workers) would
-            // hang indefinitely because the whole batch waits on every worker. Race
-            // against a timeout so a single bad card is skipped instead of taking the
-            // entire export down with it.
-            const result = await Promise.race([
-              captureSingleEmployeeCard(element, order),
-              new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error(`Capture timed out after 25s`)), 25000)
-              ),
-            ]);
+            // Lazy frame generation: Only hold currently rendering cards in memory
+            const { frameWrapper } = buildCaptureFrame(element);
+            workerContainer.replaceChildren(frameWrapper);
 
-            if (result instanceof Blob) {
-              zip.file(`ChiTiet_${String(idx + 1).padStart(2, '0')}_${cleanName}.png`, result);
-            } else if (typeof result === 'string') {
-              const base64Data = result.split(',')[1];
-              zip.file(`ChiTiet_${String(idx + 1).padStart(2, '0')}_${cleanName}.png`, base64Data, { base64: true });
+            // Execute capture with high-speed domToBlob first
+            let result: Blob | string | null = null;
+            let lastErr: unknown = null;
+
+            for (const strategy of order) {
+              try {
+                result = await Promise.race([
+                  runCaptureStrategy(frameWrapper, strategy),
+                  new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error(`${strategy} timed out after 8s`)), 8000)
+                  ),
+                ]);
+                if (result) break;
+              } catch (strategyErr) {
+                lastErr = strategyErr;
+                console.warn(`[Export ${rawName}] ${strategy} failed, falling back:`, strategyErr);
+              }
             }
+
+            if (!result) {
+              throw lastErr instanceof Error ? lastErr : new Error('Capture failed');
+            }
+
+            // Immediately convert into raw ArrayBuffer so JSZip doesn't freeze the UI on zip.generateAsync
+            let arrayBuffer: ArrayBuffer;
+            if (result instanceof Blob) {
+              arrayBuffer = await result.arrayBuffer();
+            } else if (typeof result === 'string') {
+              const base64Str = result.includes(',') ? result.split(',')[1] : result;
+              const binaryStr = atob(base64Str);
+              const len = binaryStr.length;
+              const bytes = new Uint8Array(len);
+              for (let b = 0; b < len; b++) {
+                bytes[b] = binaryStr.charCodeAt(b);
+              }
+              arrayBuffer = bytes.buffer;
+            } else {
+              throw new Error('Unsupported result format');
+            }
+
+            zip.file(`ChiTiet_${String(idx + 1).padStart(2, '0')}_${cleanName}.png`, arrayBuffer, { binary: true });
           } catch (err) {
-            console.error(`[Export] FAILED for "${rawName}" (card ${idx + 1}/${tables.length}):`, err);
+            console.error(`[Export] FAILED for "${rawName}" (card ${idx + 1}/${preparedCards.length}):`, err);
             failedNames.push(rawName);
           } finally {
+            // Free worker container DOM memory immediately
+            workerContainer.replaceChildren();
             completedCount++;
-            const percent = Math.round((completedCount / tables.length) * 100);
-            setBatchExportProgress({ current: completedCount, total: tables.length, percent });
+            reportProgress(completedCount, preparedCards.length);
+            // Micro-yield to browser event loop so progress bar updates smoothly on screen
+            await new Promise(r => setTimeout(r, 0));
           }
         }
       };
 
-      const workers = Array.from({ length: Math.min(CONCURRENCY, tables.length) }, () => worker());
+      const workers = Array.from({ length: CONCURRENCY }, (_, i) => runWorker(i));
       await Promise.all(workers);
 
-      // Fast STORE compression (images are already PNG compressed)
+      // Final progress update
+      reportProgress(preparedCards.length, preparedCards.length);
+
+      // Instantaneous STORE compression (images are already pre-converted ArrayBuffers)
       const content = await zip.generateAsync({
         type: "blob",
         compression: "STORE"
       });
 
       const durationSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
-      saveAs(content, `ChiTiet_All_${tables.length}_NV.zip`);
-      const successCount = tables.length - failedNames.length;
+      saveAs(content, `ChiTiet_All_${preparedCards.length}_NV.zip`);
+      const successCount = preparedCards.length - failedNames.length;
       if (failedNames.length > 0) {
         console.warn(`[Export] ${failedNames.length} nhân viên bị lỗi/timeout:`, failedNames);
-        showNotification(`Đã xuất ${successCount}/${tables.length} nhân viên trong ${durationSeconds}s. Bỏ qua ${failedNames.length} NV lỗi: ${failedNames.slice(0, 5).join(', ')}${failedNames.length > 5 ? '...' : ''}`, 'warning');
+        showNotification(`Đã xuất ${successCount}/${preparedCards.length} nhân viên trong ${durationSeconds}s. Bỏ qua ${failedNames.length} NV lỗi: ${failedNames.slice(0, 5).join(', ')}${failedNames.length > 5 ? '...' : ''}`, 'warning');
       } else {
-        showNotification(`Đã xuất thành công ${successCount}/${tables.length} nhân viên trong ${durationSeconds}s!`, 'success');
+        showNotification(`Đã xuất thành công ${successCount}/${preparedCards.length} nhân viên trong ${durationSeconds}s!`, 'success');
       }
     } catch (err) {
       console.error('Batch export error:', err);
       showNotification('Có lỗi xảy ra khi xuất ảnh hàng loạt!', 'error');
     } finally {
+      // Remove persistent worker containers from DOM
+      workerContainers.forEach(c => c.remove());
       setIsCapturing(false);
       setBatchExportProgress(null);
     }
@@ -1351,26 +1303,29 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     );
   }, [processedData.markets]);
 
+  const filteredLuykeCategories = useMemo(() => {
+    return (processedData?.categories || []).filter((c: any) => isCategoryForMarket(c, marketFilter));
+  }, [processedData?.categories, marketFilter]);
+
   const currentMarket = useMemo(() => {
     if (!marketFilter || marketFilter === 'ALL') {
       return allowedMarkets[0] || null;
     }
-    const norm = (s: string) => removeAccents(s || '').toLowerCase().replace(/^\d+\s*[-_]\s*/, '').trim();
-    const filterClean = norm(marketFilter);
+    const normFilter = normalize(marketFilter);
     return allowedMarkets.find((m: any) => {
-      const mClean = norm(m.name);
-      return mClean === filterClean || mClean.includes(filterClean) || filterClean.includes(mClean);
+      const nm = normalize(m.name || m.tenKho || m.tenSieuThi || '');
+      return nm === normFilter || nm.includes(normFilter) || normFilter.includes(nm);
     }) || null;
   }, [allowedMarkets, marketFilter]);
 
   const targetData = useMemo(() => {
     if (!marketFilter || marketFilter === 'ALL') return null;
-    const norm = (s: string) => removeAccents(s || '').toLowerCase().replace(/^\d+\s*[-_]\s*/, '').trim();
-    const filterClean = norm(marketFilter);
-    const targetDataKey = Object.keys(allStoreTargets || {}).find((k: string) => {
-      const kClean = norm(k);
-      return kClean === filterClean || kClean.includes(filterClean) || filterClean.includes(kClean);
-    });
+    const normFilter = normalize(marketFilter);
+    const targetDataKey = Object.keys(allStoreTargets || {}).find(k => normalize(k) === normFilter)
+      || Object.keys(allStoreTargets || {}).find(k => {
+        const nk = normalize(k);
+        return nk.includes(normFilter) || normFilter.includes(nk);
+      });
     return targetDataKey ? allStoreTargets[targetDataKey] : null;
   }, [allStoreTargets, marketFilter]);
 
@@ -1378,20 +1333,68 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     ? (((currentMarket.actualVirtual || 0) - currentMarket.actualReal) / currentMarket.actualReal) * 100 
     : 0;
 
-  // Exact same calculation as BC THÁNG (LuyKe.tsx line 1391-1394 & 2143-2146)
-  const dtDuKienQD = currentMarket?.targetQD || 0;
-  const percentTargetVal = Number((targetData as any)?.stPercentTarget) || Number(stPercentTarget) || 100;
-  const rawTargetQD = dtDuKienQD > 0 
-    ? dtDuKienQD 
-    : ((targetData as any)?.stTargetQuyDoi || stTargetQuyDoi || 0);
-  const displayTargetQD = rawTargetQD > 0 
-    ? Math.round(rawTargetQD * (percentTargetVal / 100)) 
-    : ((targetData as any)?.stTargetSauHeSo || stTargetSauHeSo || 0);
+  // Exact same calculation as BC THÁNG (LuyKe.tsx line 1475-1493)
+  const displayTargetQD = useMemo(() => {
+    if (!marketFilter || marketFilter === 'ALL') {
+      return stTargetSauHeSo || stTargetQuyDoi || 0;
+    }
+    const normFilter = normalize(marketFilter);
+
+    // 1. Popup "CẤU HÌNH TARGET" from localStorage (crm_cluster_store_target_config)
+    let clusterTargetConfig: any = null;
+    try {
+      const rawClusterCfg = localStorage.getItem('crm_cluster_store_target_config');
+      if (rawClusterCfg) {
+        const parsedCfg = JSON.parse(rawClusterCfg);
+        const cfgKey = Object.keys(parsedCfg).find(k => normalize(k) === normFilter)
+          || Object.keys(parsedCfg).find(k => {
+            const nk = normalize(k);
+            return nk.includes(normFilter) || normFilter.includes(nk);
+          });
+        if (cfgKey) clusterTargetConfig = parsedCfg[cfgKey];
+      }
+    } catch {}
+
+    const isCurrentActive = normalize(stName) === normFilter;
+
+    const percentTargetVal = clusterTargetConfig?.mucTieuPercent !== undefined
+      ? Number(clusterTargetConfig.mucTieuPercent)
+      : (Number((targetData as any)?.stPercentTarget) || (isCurrentActive ? Number(stPercentTarget) : 100) || 100);
+
+    if (clusterTargetConfig && Number(clusterTargetConfig.targetCungKyNam) > 0) {
+      return Math.round(Number(clusterTargetConfig.targetCungKyNam) * (percentTargetVal / 100));
+    }
+
+    // 2. Parsed market data from excel or DB cache (allStoreTargets)
+    const dtDuKienQD = currentMarket?.targetQD || 0;
+    const rawTargetQD = dtDuKienQD > 0 
+      ? dtDuKienQD 
+      : (Number((targetData as any)?.stTargetQuyDoi) || (isCurrentActive ? stTargetQuyDoi : 0) || 0);
+
+    if (rawTargetQD > 0) {
+      return Math.round(rawTargetQD * (percentTargetVal / 100));
+    }
+
+    // 3. Fallback from targetData or active store (do NOT leak cluster total stTargetSauHeSo to single store)
+    if ((targetData as any)?.stTargetSauHeSo && Number((targetData as any).stTargetSauHeSo) > 0) {
+      return Number((targetData as any).stTargetSauHeSo);
+    }
+
+    if (isCurrentActive && stTargetSauHeSo > 0) {
+      return stTargetSauHeSo;
+    }
+
+    return 0;
+  }, [marketFilter, targetData, currentMarket, stPercentTarget, stName, stTargetQuyDoi, stTargetSauHeSo]);
 
   // Sync stName and target fields when marketFilter or data changes (consistent with Lũy Kế page)
   useEffect(() => {
     if (marketFilter === 'ALL') return;
-    const market = allowedMarkets.find((m: any) => removeAccents(m.name) === removeAccents(marketFilter));
+    const normFilter = normalize(marketFilter);
+    const market = allowedMarkets.find((m: any) => {
+      const nm = normalize(m.name || m.tenKho || m.tenSieuThi || '');
+      return nm === normFilter || nm.includes(normFilter) || normFilter.includes(nm);
+    });
     if (!market) return;
 
     if (stName !== market.name) setStName(market.name);
@@ -1403,7 +1406,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     if (stDtDuKienQD !== dtDuKienQD) setStDtDuKienQD(dtDuKienQD);
     if (stPercentHTTargetDuKienQD !== percentHT) setStPercentHTTargetDuKienQD(percentHT);
 
-    const targetDataKey = Object.keys(allStoreTargets || {}).find((k: string) => removeAccents(k) === removeAccents(market.name));
+    const targetDataKey = Object.keys(allStoreTargets || {}).find(k => normalize(k) === normFilter);
     const targetData = targetDataKey ? allStoreTargets[targetDataKey] : null;
     if (targetData) {
       if (targetData.stPercentTarget !== undefined && stPercentTarget !== targetData.stPercentTarget) {
@@ -4044,8 +4047,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const list: StaffComparisonData[] = biRevenueData.map((staff, idx) => {
       const targetQdPerStaff = filteredBiData.length > 0 ? displayTargetQD / filteredBiData.length : 0;
       const actualTargetQd = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
-      const staffActualVal = staff.actualVal || 0;
-      const actualDtqd = Math.abs(staffActualVal) > 1000000 ? staffActualVal : staffActualVal * 1000000;
+      // DTQĐ lấy từ cột "L.kế" ở bảng Doanh thu nv (virtualVal)
+      const staffDtqdVal = staff.virtualVal || 0;
+      const actualDtqd = Math.abs(staffDtqdVal) > 1000000 ? staffDtqdVal : staffDtqdVal * 1000000;
       const staffPercentHT = (actualTargetQd > 0 && daysPassed > 0)
         ? (((actualDtqd / daysPassed) * totalDays) / actualTargetQd) * 100
         : 0;
@@ -4294,6 +4298,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                       daysPassed={daysPassed}
                       totalDays={totalDays}
                       stPercentHTTargetDuKienQD={marketPercentQD}
+                      tragopNv={effectiveTragopNv}
                     />
                   </div>
                 </motion.div>
@@ -4320,7 +4325,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                     totalDays={totalDays}
                     stTargetSauHeSo={displayTargetQD}
                     categoryTargets={categoryTargets}
-                    luykeCategories={processedData.categories.filter((c: any) => isCategoryForMarket(c, marketFilter))}
+                    luykeCategories={filteredLuykeCategories}
                     marketFilter={marketFilter}
                     storeName={marketFilter !== 'ALL' ? marketFilter : ''}
                   />
@@ -4399,8 +4404,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                         if (!staff) return null;
                         const targetQdPerStaff = filteredBiData.length > 0 ? displayTargetQD / filteredBiData.length : 0;
                         const actualTargetQd = targetQdPerStaff > 1000000 ? targetQdPerStaff : targetQdPerStaff * 1000000;
-                        const staffActualVal = staff.actualVal || 0;
-                        const actualDtqd = Math.abs(staffActualVal) > 1000000 ? staffActualVal : staffActualVal * 1000000;
+                        // DTQĐ lấy từ cột "L.kế" ở bảng Doanh thu nv (virtualVal)
+                        const staffDtqdVal = staff.virtualVal || 0;
+                        const actualDtqd = Math.abs(staffDtqdVal) > 1000000 ? staffDtqdVal : staffDtqdVal * 1000000;
                         const staffPercentHT = (actualTargetQd > 0 && daysPassed > 0)
                           ? (((actualDtqd / daysPassed) * totalDays) / actualTargetQd) * 100
                           : 0;
@@ -4462,9 +4468,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                               daysPassed={daysPassed}
                               totalDays={totalDays}
                               categoryTargets={categoryTargets}
-                              luykeCategories={processedData.categories.filter((c: any) => isCategoryForMarket(c, marketFilter))}
+                              luykeCategories={filteredLuykeCategories}
                               staffTargetQd={targetQdPerStaff}
-                              staffDtqd={staffActualVal}
+                              staffDtqd={staffDtqdVal}
                               staffPercentHT={staffPercentHT}
                               staffHieuQuaQd={staffHieuQuaQd}
                               staffBonusHientai={staffBonusHientai}
@@ -4511,7 +4517,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                     totalDays={totalDays}
                     selectedStaffIds={selectedStaffIds}
                     categoryTargets={categoryTargets}
-                    luykeCategories={processedData.categories.filter((c: any) => isCategoryForMarket(c, marketFilter))}
+                    luykeCategories={filteredLuykeCategories}
                     categoryConfig={categoryConfig}
                   />
                 </motion.div>
@@ -4535,7 +4541,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                     totalDays={totalDays}
                     categoryTargets={categoryTargets}
                     selectedStaffIds={selectedStaffIds}
-                    luykeCategories={processedData.categories.filter((c: any) => isCategoryForMarket(c, marketFilter))}
+                    luykeCategories={filteredLuykeCategories}
                     categoryConfig={categoryConfig}
                   />
                 </motion.div>
@@ -7263,7 +7269,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         initialStaffAId={compareStaffAId}
         initialStaffBId={compareStaffBId}
         detailCategories={detailComparisonCategories}
-        luykeCategories={processedData.categories.filter((c: any) => isCategoryForMarket(c, marketFilter))}
+        luykeCategories={filteredLuykeCategories}
         categoryTargets={categoryTargets}
         staffCount={filteredBiData.length > 0 ? filteredBiData.length : 1}
         daysPassed={daysPassed}
@@ -7527,7 +7533,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       )}
 
       {/* Unified Global Capture Loading Overlay */}
-      <CaptureLoadingOverlay isLoading={isCapturing} />
+      <CaptureLoadingOverlay 
+        isLoading={isCapturing} 
+        progress={batchExportProgress}
+      />
     </div>
   );
 };

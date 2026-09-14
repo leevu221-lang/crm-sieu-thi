@@ -957,6 +957,8 @@ export const GiaTriDhTab: React.FC<GiaTriDhTabProps> = ({
     const unsubscribe = onSnapshot(
       docRef,
       (snap) => {
+        // Don't write stale data during logout/login redirect
+        if ((window as any).__crm_is_redirecting) return;
         if (snap.exists()) {
           const data = snap.data();
           if (data.gtdh_giocong_data !== undefined && data.gtdh_giocong_data !== null) {

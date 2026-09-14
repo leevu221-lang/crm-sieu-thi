@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { CalendarDays, Plus, Trash2, Save, Edit3, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, ArrowLeftRight, Camera, Download, Copy, Check, Lock, Unlock, History, Search, Filter, ArrowRight, Clock, User, Share2, Store } from 'lucide-react';
 import { doc, onSnapshot, setDoc, runTransaction, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
@@ -56,27 +57,27 @@ interface MonthDoc {
   updatedBy?: string;
 }
 
-// ─── Shift color mapping ─────────────────────────────────────────────────────
+// ─── Shift color mapping (Pastel Soft UI / Tinted Pills: Tone 300 nền / Tone 900 chữ) ─
 const PRESET_COLORS = [
-  { bg: '#3b82f6', text: '#ffffff', border: '#2563eb' },   // blue
-  { bg: '#8b5cf6', text: '#ffffff', border: '#7c3aed' },   // violet
-  { bg: '#06b6d4', text: '#ffffff', border: '#0891b2' },   // cyan
-  { bg: '#f59e0b', text: '#ffffff', border: '#d97706' },   // amber
-  { bg: '#ec4899', text: '#ffffff', border: '#db2777' },   // pink
-  { bg: '#14b8a6', text: '#ffffff', border: '#0d9488' },   // teal
-  { bg: '#f97316', text: '#ffffff', border: '#ea580c' },   // orange
-  { bg: '#6366f1', text: '#ffffff', border: '#4f46e5' },   // indigo
-  { bg: '#84cc16', text: '#ffffff', border: '#65a30d' },   // lime
-  { bg: '#a855f7', text: '#ffffff', border: '#9333ea' },   // purple
+  { bg: '#93c5fd', text: '#1e3a8a', border: '#60a5fa' },   // blue (blue-300 / blue-900)
+  { bg: '#c4b5fd', text: '#4c1d95', border: '#a78bfa' },   // violet (violet-300 / violet-900)
+  { bg: '#67e8f9', text: '#164e63', border: '#22d3ee' },   // cyan (cyan-300 / cyan-900)
+  { bg: '#fcd34d', text: '#78350f', border: '#fbbf24' },   // amber (amber-300 / amber-900)
+  { bg: '#f9a8d4', text: '#831843', border: '#f472b6' },   // pink (pink-300 / pink-900)
+  { bg: '#5eead4', text: '#134e4a', border: '#2dd4bf' },   // teal (teal-300 / teal-900)
+  { bg: '#fdba74', text: '#7c2d12', border: '#fb923c' },   // orange (orange-300 / orange-900)
+  { bg: '#a5b4fc', text: '#312e81', border: '#818cf8' },   // indigo (indigo-300 / indigo-900)
+  { bg: '#bef264', text: '#365314', border: '#a3e635' },   // lime (lime-300 / lime-900)
+  { bg: '#d8b4fe', text: '#581c87', border: '#c084fc' },   // purple (purple-300 / purple-900)
 ];
 
 const baseShiftStyles: Record<string, { bg: string; text: string; border: string }> = {
-  'Ca sáng':   { bg: '#22c55e', text: '#ffffff', border: '#16a34a' },
-  'Ca Chiều':  { bg: '#8b5cf6', text: '#ffffff', border: '#7c3aed' },
-  'Ca Gãy':    { bg: '#eab308', text: '#ffffff', border: '#ca8a04' },
-  'OFF':       { bg: '#ef4444', text: '#ffffff', border: '#dc2626' },
-  'ST khác':   { bg: '#3b82f6', text: '#ffffff', border: '#2563eb' },
-  '':          { bg: '#f1f5f9', text: '#94a3b8', border: '#e2e8f0' },
+  'Ca sáng':   { bg: '#86efac', text: '#14532d', border: '#4ade80' }, // green-300 / green-900
+  'Ca Chiều':  { bg: '#c4b5fd', text: '#4c1d95', border: '#a78bfa' }, // violet-300 / violet-900
+  'Ca Gãy':    { bg: '#fde047', text: '#713f12', border: '#facc15' }, // yellow-300 / yellow-900
+  'OFF':       { bg: '#fca5a5', text: '#7f1d1d', border: '#f87171' }, // red-300 / red-900
+  'ST khác':   { bg: '#93c5fd', text: '#1e3a8a', border: '#60a5fa' }, // blue-300 / blue-900
+  '':          { bg: '#f8fafc', text: '#94a3b8', border: '#cbd5e1' },
 };
 
 const BASE_SHIFTS: string[] = ['Ca sáng', 'Ca Chiều', 'Ca Gãy', 'OFF', 'ST khác'];
@@ -578,23 +579,23 @@ const ShiftCell: React.FC<{
   const s = getShiftStyle(value, customShifts);
   if (!editable) {
     return (
-      <td className="px-1 py-2.5 text-center border" style={{ borderColor: '#e2e8f0', height: '46px' }}>
+      <td className="px-1 py-2.5 text-center border whitespace-nowrap" style={{ borderColor: '#cbd5e1', height: '46px', minWidth: 95, whiteSpace: 'nowrap' }}>
         {value ? (
-          <span style={{ backgroundColor: s.bg, color: s.text, borderRadius: '6px', padding: '4px 8.5px', fontSize: '12px', fontWeight: 800, display: 'inline-block', letterSpacing: '0.3px', textShadow: '0 1px 1px rgba(0,0,0,0.1)' }}>
+          <span style={{ backgroundColor: s.bg, color: s.text, border: `1px solid ${s.border || s.bg}`, borderRadius: '6px', padding: '4px 8.5px', fontSize: '12px', fontWeight: 800, display: 'inline-block', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>
             {value}
           </span>
         ) : (
-          <span style={{ color: '#cbd5e1', fontSize: '12px' }}>—</span>
+          <span style={{ color: '#cbd5e1', fontSize: '12px', whiteSpace: 'nowrap' }}>—</span>
         )}
       </td>
     );
   }
   return (
-    <td className="p-0 border" style={{ borderColor: '#e2e8f0', height: '46px' }}>
+    <td className="p-0 border whitespace-nowrap" style={{ borderColor: '#cbd5e1', height: '46px', minWidth: 95, whiteSpace: 'nowrap' }}>
       <select value={value} onChange={e => onChange(e.target.value as ShiftType)}
         onDragStart={e => e.stopPropagation()}
-        className="w-full h-full px-0.5 py-2.5 text-[12px] font-bold text-center border-0 outline-none cursor-pointer"
-        style={{ backgroundColor: s.bg, color: s.text, minWidth: 90, minHeight: '46px' }}>
+        className="w-full h-full px-0.5 py-2.5 text-[12px] font-bold text-center border-0 outline-none cursor-pointer whitespace-nowrap"
+        style={{ backgroundColor: s.bg, color: s.text, minWidth: 95, minHeight: '46px', whiteSpace: 'nowrap' }}>
         {options.map(o => <option key={o} value={o}>{o || '(trống)'}</option>)}
       </select>
     </td>
@@ -661,44 +662,65 @@ const ScheduleTable: React.FC<{
 
   return (
     <div className="mb-6 w-full overflow-x-auto no-scrollbar max-w-full" style={{ WebkitOverflowScrolling: 'touch' }}>
-      <div style={{ minWidth: 1400, width: 'max-content' }} className="pb-2">
+      <div style={{ minWidth: 1450, width: 'max-content' }} className="pb-2">
         <div className="text-center py-4 font-utm-avo font-black text-2xl sm:text-[25px] tracking-wider uppercase w-full"
-          style={{ fontFamily: 'var(--font-utm-avo), "UTM Avo", sans-serif', background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #fbbf24 100%)', color: '#1a1a1a', borderBottom: '3px solid #fde047', borderRadius: '10px 10px 0 0', letterSpacing: '2px', textShadow: '0 1px 0 rgba(255,255,255,0.4)', boxSizing: 'border-box' }}>
+          style={{
+            fontFamily: 'var(--font-utm-avo), "UTM Avo", sans-serif',
+            background: category === 'DTDLGD'
+              ? 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 50%, #86efac 100%)'
+              : 'linear-gradient(135deg, #fef08a 0%, #fde68a 50%, #fde047 100%)',
+            color: category === 'DTDLGD' ? '#14532d' : '#78350f',
+            border: '1.5px solid #cbd5e1',
+            borderBottom: '2.5px solid #cbd5e1',
+            borderRadius: '10px 10px 0 0',
+            letterSpacing: '2px',
+            boxSizing: 'border-box'
+          }}>
           <div>{title}</div>
           {storeName && (
-            <div className="text-sm font-bold tracking-normal normal-case mt-1 text-slate-800 opacity-90">
+            <div className="text-sm font-bold tracking-normal normal-case mt-1 opacity-90"
+              style={{ color: category === 'DTDLGD' ? '#166534' : '#854d0e' }}>
               Siêu thị: <span className="font-extrabold uppercase">{storeName}</span>
             </div>
           )}
         </div>
-        <div className="border border-slate-300 w-full" style={{ borderRadius: '0 0 10px 10px', boxSizing: 'border-box' }}>
-          <table className="w-full border-collapse" style={{ width: '100%', minWidth: '100%' }}>
+        <div className="border border-slate-300 w-full" style={{ borderRadius: '0 0 10px 10px', boxSizing: 'border-box', borderColor: '#cbd5e1' }}>
+          <table className="w-full border-collapse" style={{ width: '100%', minWidth: 1450, tableLayout: 'auto' }}>
             <thead>
-            <tr style={{ background: 'linear-gradient(180deg, #1e293b 0%, #334155 100%)' }}>
+            <tr>
               {editing && (
-                <th className="px-1 py-2 border text-[11px] font-bold text-amber-300 text-center uppercase tracking-wider" style={{ borderColor: '#475569', minWidth: 75 }}>
+                <th className="px-1 py-2 border text-[11px] font-black text-center uppercase tracking-wider whitespace-nowrap" style={{ backgroundColor: '#e2e8f0', color: '#1e293b', borderColor: '#cbd5e1', minWidth: 75, whiteSpace: 'nowrap' }}>
                   VỊ TRÍ
                 </th>
               )}
-              <th className="px-2 py-2 border text-[12px] font-bold text-white text-center uppercase tracking-wider" style={{ borderColor: '#475569', minWidth: 40 }}>STT</th>
-              <th className="px-2 py-2 border text-[12px] font-bold text-white text-left uppercase tracking-wider" style={{ borderColor: '#475569', minWidth: 160 }}>TÊN PG HÃNG</th>
-              {weekDates.map((d, i) => (
-                <th key={i} className="px-1 py-1.5 border text-center"
-                  style={{ borderColor: '#475569', minWidth: 90, background: d.getDay() === 0 ? '#7c2d12' : 'transparent' }}>
-                  <div className="text-[12px] font-bold" style={{ color: d.getDay() === 0 ? '#fdba74' : '#93c5fd' }}>{dayName(d)}</div>
-                  <div className="text-[11px] font-bold text-white">{fmtDate(d)}</div>
-                  {dayNotes[i] && <div className="text-[10px] font-normal text-amber-300 whitespace-pre-line leading-tight mt-0.5">{dayNotes[i]}</div>}
-                </th>
-              ))}
-              <th className="px-1 py-1.5 border text-[12px] font-bold text-white text-center uppercase tracking-wider" style={{ borderColor: '#475569', minWidth: 220 }}>
-                <div>NOTE</div>
-                <div className="text-[10px] font-normal text-green-300">Ca Sáng: 8h-16h</div>
-                <div className="text-[10px] font-normal text-purple-300">Ca Chiều: 13h-21h</div>
-                <div className="text-[10px] font-normal text-yellow-300">Ca Gãy: 8h-12h - 16h-21h</div>
+              <th className="px-2 py-2 border text-[12px] font-black text-center uppercase tracking-wider whitespace-nowrap" style={{ backgroundColor: '#e2e8f0', color: '#1e293b', borderColor: '#cbd5e1', minWidth: 45, whiteSpace: 'nowrap' }}>STT</th>
+              <th className="px-2 py-2 border text-[12px] font-black text-left uppercase tracking-wider whitespace-nowrap" style={{ backgroundColor: '#e2e8f0', color: '#1e293b', borderColor: '#cbd5e1', minWidth: 180, whiteSpace: 'nowrap' }}>TÊN PG HÃNG</th>
+              {weekDates.map((d, i) => {
+                const isSunday = d.getDay() === 0;
+                return (
+                  <th key={i} className="px-1 py-1.5 border text-center whitespace-nowrap"
+                    style={{
+                      borderColor: '#cbd5e1',
+                      minWidth: 95,
+                      whiteSpace: 'nowrap',
+                      backgroundColor: isSunday ? '#fecdd3' : '#bae6fd',
+                      color: isSunday ? '#9f1239' : '#0369a1',
+                    }}>
+                    <div className="text-[12px] font-black whitespace-nowrap" style={{ color: isSunday ? '#9f1239' : '#0369a1' }}>{dayName(d)}</div>
+                    <div className="text-[11px] font-bold whitespace-nowrap" style={{ color: isSunday ? '#be123c' : '#0284c7' }}>{fmtDate(d)}</div>
+                    {dayNotes[i] && <div className="text-[10px] font-semibold whitespace-pre-line leading-tight mt-0.5" style={{ color: isSunday ? '#9f1239' : '#0284c7' }}>{dayNotes[i]}</div>}
+                  </th>
+                );
+              })}
+              <th className="px-1 py-1.5 border text-[12px] font-black text-center uppercase tracking-wider whitespace-nowrap" style={{ backgroundColor: '#fef08a', color: '#713f12', borderColor: '#cbd5e1', minWidth: 320, whiteSpace: 'nowrap' }}>
+                <div className="font-black mb-0.5 text-[#713f12] whitespace-nowrap">NOTE</div>
+                <div className="text-[10px] font-bold text-[#14532d] normal-case whitespace-nowrap">Ca Sáng: 8h-16h</div>
+                <div className="text-[10px] font-bold text-[#581c87] normal-case whitespace-nowrap">Ca Chiều: 13h-21h</div>
+                <div className="text-[10px] font-bold text-[#b45309] normal-case whitespace-nowrap">Ca Gãy: 8h-12h - 16h-21h</div>
               </th>
-              <th className="px-1 py-2 border text-[12px] font-bold text-white text-center uppercase tracking-wider" style={{ borderColor: '#475569', minWidth: 160 }}>SDT SUP + Tên</th>
+              <th className="px-1 py-2 border text-[12px] font-black text-center uppercase tracking-wider whitespace-nowrap" style={{ backgroundColor: '#e9d5ff', color: '#581c87', borderColor: '#cbd5e1', minWidth: 230, whiteSpace: 'nowrap' }}>SDT SUP + Tên</th>
               {editing && (
-                <th className="px-1 py-2 border text-[11px] font-bold text-amber-300 text-center uppercase tracking-wider" style={{ borderColor: '#475569', minWidth: 110 }}>
+                <th className="px-1 py-2 border text-[11px] font-black text-center uppercase tracking-wider whitespace-nowrap" style={{ backgroundColor: '#e2e8f0', color: '#1e293b', borderColor: '#cbd5e1', minWidth: 110, whiteSpace: 'nowrap' }}>
                   THAO TÁC
                 </th>
               )}
@@ -746,14 +768,14 @@ const ScheduleTable: React.FC<{
                   }}
                   style={{
                     backgroundColor: isDragging ? '#fef3c7' : (isDragOver ? '#ecfdf5' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc')),
-                    borderBottom: isDragOver ? '2px solid #10b981' : '1px solid #e2e8f0',
+                    borderBottom: isDragOver ? '2px solid #10b981' : '1px solid #cbd5e1',
                     opacity: isDragging ? 0.4 : 1,
                     minHeight: '46px',
                     transition: 'background-color 0.15s ease, border-color 0.15s ease'
                   }}
                 >
                   {editing && (
-                    <td className="px-1 py-2.5 border text-center" style={{ borderColor: '#e2e8f0', height: '46px' }}>
+                    <td className="px-1 py-2.5 border text-center" style={{ borderColor: '#cbd5e1', height: '46px' }}>
                       <div className="flex items-center justify-center gap-0.5">
                         <button
                           type="button"
@@ -782,16 +804,16 @@ const ScheduleTable: React.FC<{
                       </div>
                     </td>
                   )}
-                  <td className="px-2 py-2.5 border text-center text-[13px] font-bold text-black" style={{ borderColor: '#e2e8f0', minWidth: 40, height: '46px' }}>{idx + 1}</td>
-                  <td className="px-2 py-2.5 border text-[13px] font-bold text-slate-800" style={{ borderColor: '#e2e8f0', height: '46px' }}>
+                  <td className="px-2 py-2.5 border text-center text-[13px] font-bold text-black whitespace-nowrap" style={{ borderColor: '#cbd5e1', minWidth: 45, height: '46px', whiteSpace: 'nowrap' }}>{idx + 1}</td>
+                  <td className="px-2 py-2.5 border text-[13px] font-bold text-slate-800 whitespace-nowrap" style={{ borderColor: '#cbd5e1', minWidth: 180, height: '46px', whiteSpace: 'nowrap' }}>
                     {editing ? (
                       <input value={pg.tenPgHang} onChange={e => updateName(pg.id, e.target.value)}
                         onDragStart={e => e.stopPropagation()}
                         className="w-full px-1.5 py-1.5 border border-slate-300 rounded text-[13px] focus:ring-1 focus:ring-green-400 outline-none font-bold"
                         placeholder="VD: Ngọc Trâm - Realme" />
                     ) : (
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold">{pg.tenPgHang || '—'}</span>
+                      <div className="flex items-center justify-between gap-1 whitespace-nowrap">
+                        <span className="font-bold whitespace-nowrap">{pg.tenPgHang || '—'}</span>
                         {is43751Admin && pg.tenPgHang && (
                           <button
                             onClick={() => onViewPgHistory?.(pg.tenPgHang)}
@@ -807,22 +829,22 @@ const ScheduleTable: React.FC<{
                   {ws.shifts.map((shift, di) => (
                     <ShiftCell key={di} value={shift} onChange={v => updateShift(pg.id, di, v)} editable={editing} options={shiftOpts} customShifts={customShifts} />
                   ))}
-                  <td className="px-1.5 py-2.5 border text-[13px] text-slate-600" style={{ borderColor: '#e2e8f0', height: '46px' }}>
+                  <td className="px-2 py-2.5 border text-[13px] text-slate-700" style={{ borderColor: '#cbd5e1', minWidth: 320, height: '46px' }}>
                     {editing ? (
                       <textarea value={pg.note} onChange={e => updateNote(pg.id, e.target.value)}
                         onDragStart={e => e.stopPropagation()}
                         className="w-full px-1.5 py-1 border border-slate-300 rounded text-[13px] focus:ring-1 focus:ring-green-400 outline-none resize-none" rows={2} placeholder="Ca sáng 9h-15h..." />
-                    ) : <span className="whitespace-pre-wrap text-[13px] leading-relaxed">{pg.note || '—'}</span>}
+                    ) : <span className="whitespace-pre-line text-[12.5px] leading-snug">{pg.note || '—'}</span>}
                   </td>
-                  <td className="px-1.5 py-2.5 border text-[13px] text-slate-600" style={{ borderColor: '#e2e8f0', height: '46px' }}>
+                  <td className="px-2 py-2.5 border text-[13px] text-slate-700 whitespace-nowrap" style={{ borderColor: '#cbd5e1', minWidth: 230, height: '46px', whiteSpace: 'nowrap' }}>
                     {editing ? (
                       <input value={pg.sdtSup} onChange={e => updateSdt(pg.id, e.target.value)}
                         onDragStart={e => e.stopPropagation()}
                         className="w-full px-1.5 py-1 border border-slate-300 rounded text-[13px] focus:ring-1 focus:ring-green-400 outline-none" placeholder="0901234567 (Tên)" />
-                    ) : <span className="text-[13px] leading-relaxed">{pg.sdtSup || '—'}</span>}
+                    ) : <span className="text-[13px] leading-relaxed whitespace-nowrap font-medium">{pg.sdtSup || '—'}</span>}
                   </td>
                   {editing && (
-                    <td className="px-1 py-2.5 border text-center" style={{ borderColor: '#e2e8f0', minWidth: 110, height: '46px' }}>
+                    <td className="px-1 py-2.5 border text-center" style={{ borderColor: '#cbd5e1', minWidth: 110, height: '46px' }}>
                       <div className="flex items-center justify-center gap-1">
                         {onMoveToOtherCategory && (
                           <button
@@ -896,8 +918,8 @@ const PGHistoryModal: React.FC<{
     return matchSearch && matchPg && matchWeek;
   });
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 md:p-6" onClick={onClose}>
+  const modalContent = (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 md:p-6" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white">
@@ -1057,6 +1079,8 @@ const PGHistoryModal: React.FC<{
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 
 // ─── Main page ───────────────────────────────────────────────────────────────
@@ -1124,9 +1148,31 @@ const LichLamViecPG: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [capturing, setCapturing] = useState(false);
 
+  // Helper to copy an image blob to clipboard with multiple fallback strategies
+  const copyImageBlobToClipboard = async (blob: Blob): Promise<boolean> => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.write) {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        return true;
+      }
+    } catch (err1) {
+      console.warn('Direct ClipboardItem failed, attempting Promise resolve:', err1);
+      try {
+        if (navigator.clipboard && navigator.clipboard.write) {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': Promise.resolve(blob) })]);
+          return true;
+        }
+      } catch (err2) {
+        console.warn('Promise ClipboardItem failed:', err2);
+      }
+    }
+    return false;
+  };
+
   const handleExport = async (ref: React.RefObject<HTMLDivElement>, title: string) => {
     if (!ref.current) { alert('Không tìm thấy bảng để chụp'); return; }
     setCapturing(true);
+    setCopied(false);
     try {
       const el = ref.current;
       
@@ -1134,8 +1180,9 @@ const LichLamViecPG: React.FC = () => {
       const savedStyles: { el: HTMLElement; props: Record<string, string> }[] = [];
       
       // The container itself
-      savedStyles.push({ el, props: { width: el.style.width, overflow: el.style.overflow, maxHeight: el.style.maxHeight } });
+      savedStyles.push({ el, props: { width: el.style.width, minWidth: el.style.minWidth, overflow: el.style.overflow, maxHeight: el.style.maxHeight } });
       el.style.width = 'max-content';
+      el.style.minWidth = '1450px';
       el.style.overflow = 'visible';
       el.style.maxHeight = 'none';
       
@@ -1144,18 +1191,19 @@ const LichLamViecPG: React.FC = () => {
       overflowEls.forEach(child => {
         savedStyles.push({ el: child, props: { overflow: child.style.overflow, width: child.style.width, minWidth: child.style.minWidth, maxWidth: child.style.maxWidth, maxHeight: child.style.maxHeight } });
         child.style.overflow = 'visible';
-        child.style.width = '100%';
-        child.style.minWidth = '100%';
+        child.style.width = 'max-content';
+        child.style.minWidth = '1450px';
         child.style.maxWidth = 'none';
         child.style.maxHeight = 'none';
       });
       
-      // Ensure tables expand fully and match 100% of banner width
+      // Ensure tables expand fully without wrapping
       const tables = el.querySelectorAll<HTMLTableElement>('table');
       tables.forEach(tbl => {
-        savedStyles.push({ el: tbl, props: { width: tbl.style.width, minWidth: tbl.style.minWidth } });
+        savedStyles.push({ el: tbl, props: { width: tbl.style.width, minWidth: tbl.style.minWidth, tableLayout: tbl.style.tableLayout } });
         tbl.style.width = '100%';
-        tbl.style.minWidth = '100%';
+        tbl.style.minWidth = '1450px';
+        tbl.style.tableLayout = 'auto';
       });
 
       // ★ Ensure UTM Avo font is fully loaded before export
@@ -1191,16 +1239,33 @@ const LichLamViecPG: React.FC = () => {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, pad, pad);
-        setPreviewImg(canvas.toDataURL('image/png'));
+        const finalDataUrl = canvas.toDataURL('image/png');
+        setPreviewImg(finalDataUrl);
         setPreviewTitle(title);
-        setCopied(false);
         setCapturing(false);
+
+        // ★ Auto copy image to clipboard
+        canvas.toBlob(async (blob) => {
+          if (blob) {
+            const success = await copyImageBlobToClipboard(blob);
+            if (success) {
+              setCopied(true);
+            }
+          }
+        }, 'image/png');
       };
       img.onerror = () => {
         setPreviewImg(dataUrl);
         setPreviewTitle(title);
-        setCopied(false);
         setCapturing(false);
+        // Fallback auto copy
+        fetch(dataUrl)
+          .then(r => r.blob())
+          .then(async (blob) => {
+            const success = await copyImageBlobToClipboard(blob);
+            if (success) setCopied(true);
+          })
+          .catch(() => {});
       };
       img.src = dataUrl;
       return;
@@ -1216,9 +1281,13 @@ const LichLamViecPG: React.FC = () => {
     try {
       const res = await fetch(previewImg);
       const blob = await res.blob();
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      const success = await copyImageBlobToClipboard(blob);
+      if (success) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      } else {
+        window.open(previewImg, '_blank');
+      }
     } catch {
       // Fallback: open in new tab
       window.open(previewImg, '_blank');
@@ -1266,10 +1335,7 @@ const LichLamViecPG: React.FC = () => {
   const handleShareLink = () => {
     const currentKho = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '';
     if (!currentKho) return;
-    let shareUrl = buildGuestShareUrl('lichpg', currentKho);
-    if (activeStoreName && activeStoreName !== 'ALL') {
-      shareUrl += `&st=${encodeURIComponent(activeStoreName)}`;
-    }
+    const shareUrl = buildGuestShareUrl('lichpg', currentKho, '', activeStoreName);
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(shareUrl).then(() => {
         setCopiedLink(true);
@@ -1656,9 +1722,9 @@ const LichLamViecPG: React.FC = () => {
 
       {/* Shift legend with add/remove */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        {BASE_SHIFTS.map(o => { const s = getShiftStyle(o, customShifts); return <span key={o} className="px-3 py-1 rounded-full text-[11px] font-bold shadow-sm" style={{ backgroundColor: s.bg, color: s.text, letterSpacing: '0.3px' }}>{o}</span>; })}
+        {BASE_SHIFTS.map(o => { const s = getShiftStyle(o, customShifts); return <span key={o} className="px-3 py-1 rounded-full text-[11px] font-bold shadow-xs border" style={{ backgroundColor: s.bg, color: s.text, borderColor: s.border || s.bg, letterSpacing: '0.3px' }}>{o}</span>; })}
         {customShifts.map(o => { const s = getShiftStyle(o, customShifts); return (
-          <span key={o} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold shadow-sm" style={{ backgroundColor: s.bg, color: s.text, letterSpacing: '0.3px' }}>
+          <span key={o} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold shadow-xs border" style={{ backgroundColor: s.bg, color: s.text, borderColor: s.border || s.bg, letterSpacing: '0.3px' }}>
             {o}
             {editing && <button onClick={() => { setCustomShifts(prev => prev.filter(x => x !== o)); }} className="ml-0.5 hover:opacity-70"><X size={10} /></button>}
           </span>
@@ -1849,25 +1915,61 @@ const LichLamViecPG: React.FC = () => {
       )}
 
       {/* Image Preview Popup */}
-      {previewImg && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setPreviewImg(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-[95vw] max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-2.5 border-b border-slate-200">
-              <span className="text-[12px] text-slate-400">📱 Nhấn vào ảnh để mở · 💻 Chuột phải → Copy</span>
-              <button onClick={() => setPreviewImg(null)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
-                <X size={18} />
-              </button>
+      {previewImg && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4" onClick={() => setPreviewImg(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-[96vw] max-h-[95vh] flex flex-col z-10" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 gap-3 flex-wrap">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-black text-slate-800">{previewTitle || 'Ảnh Lịch PG'}</span>
+                {copied ? (
+                  <span className="flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-full text-xs font-bold shadow-sm animate-pulse">
+                    <Check size={14} className="text-emerald-700" /> Đã tự động copy ảnh vào bộ nhớ tạm! (Sẵn sàng Ctrl + V để dán)
+                  </span>
+                ) : (
+                  <span className="text-[12px] text-slate-400">📱 Nhấn vào ảnh để mở · 💻 Chuột phải hoặc bấm Sao chép để dán</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCopy}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-black rounded-lg transition-all shadow-sm cursor-pointer ${
+                    copied
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                      : 'bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100'
+                  }`}
+                  title="Sao chép ảnh vào clipboard để dán Zalo/Facebook"
+                >
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                  {copied ? 'Đã sao chép!' : 'Sao chép lại'}
+                </button>
+                <button
+                  onClick={handleDownload}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-black rounded-lg bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200 transition-all shadow-sm cursor-pointer"
+                  title="Tải ảnh PNG về máy tính / điện thoại"
+                >
+                  <Download size={14} /> Tải ảnh
+                </button>
+                <button
+                  onClick={() => setPreviewImg(null)}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors ml-1 cursor-pointer"
+                  title="Đóng"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
-            <div className="overflow-auto p-4" style={{ maxHeight: 'calc(95vh - 50px)' }}>
+            <div className="overflow-auto p-4 flex justify-center bg-slate-50" style={{ maxHeight: 'calc(95vh - 60px)' }}>
               <img
                 src={previewImg}
                 alt="Preview"
-                className="max-w-full rounded-lg shadow-md cursor-pointer"
+                className="max-w-full h-auto rounded-lg shadow-md cursor-pointer border border-slate-200"
                 onClick={() => window.open(previewImg!, '_blank')}
+                title="Nhấn để mở ảnh gốc trong tab mới"
               />
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

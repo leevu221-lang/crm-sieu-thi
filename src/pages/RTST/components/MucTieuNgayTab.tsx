@@ -45,6 +45,7 @@ interface MucTieuNgayTabProps {
   captureElementDirect: (ref: React.RefObject<HTMLDivElement | null>) => void;
   userProfile?: any;
   luykeProcessedData?: any;
+  dailyTargetQD?: number;
 }
 
 // Fallback standard DT category template if no categories are uploaded yet
@@ -71,7 +72,8 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
   captureElement,
   captureElementDirect,
   userProfile,
-  luykeProcessedData
+  luykeProcessedData,
+  dailyTargetQD
 }) => {
   const { showNotification } = useNotification();
   const captureRef = useRef<HTMLDivElement | null>(null);
@@ -113,11 +115,18 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
     }
     return {
       dtThuc: (parsedMarket as any)?.targetReal || 0,
-      dtQd: parsedMarket?.targetQD || 0,
+      dtQd: dailyTargetQD || (parsedMarket?.targetQD || 0),
       effQd: 0,
       traCham: 0
     };
   });
+
+  // Auto-fill dtQd from dailyTargetQD if not customized
+  useEffect(() => {
+    if (dailyTargetQD && dailyTargetQD > 0 && (!overviewTargets.dtQd || overviewTargets.dtQd === 0)) {
+      setOverviewTargets(prev => ({ ...prev, dtQd: dailyTargetQD }));
+    }
+  }, [dailyTargetQD]);
 
   // State: Target Values for Table 2 (Categories keyed by category name - strictly from BC NGÀY > TỔNG QUAN, 0/blank if empty)
   const [categoryTargets, setCategoryTargets] = useState<Record<string, number>>(() => {
@@ -163,6 +172,8 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
     try {
       const docRef = doc(db, 'app_settings', `daily_targets_${storeNormalizedKey}`);
       const unsub = onSnapshot(docRef, (snapshot) => {
+        // Don't write stale data during logout/login redirect
+        if ((window as any).__crm_is_redirecting) return;
         if (snapshot.exists()) {
           const data = snapshot.data();
           if (data && !isEditingRef.current) {

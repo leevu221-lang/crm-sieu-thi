@@ -6,6 +6,7 @@
 
 // Base64 font embedding cache (populated on first call)
 let _fontDataCache: { regular: string; bold: string } | null = null;
+let _cachedFontCss: string | null = null;
 
 /**
  * Convert a font file URL to a base64 data URI for inline embedding.
@@ -13,17 +14,134 @@ let _fontDataCache: { regular: string; bold: string } | null = null;
 async function fetchFontAsBase64(url: string): Promise<string> {
   try {
     const response = await fetch(url);
-    const buffer = await response.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return `data:font/truetype;base64,${btoa(binary)}`;
+    const blob = await response.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const res = reader.result as string;
+        if (res && !res.startsWith('data:font/')) {
+          resolve(res.replace(/^data:[^;]+;base64,/, 'data:font/truetype;base64,'));
+        } else {
+          resolve(res || '');
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
   } catch (e) {
     console.warn('[FontUtil] Failed to fetch font as base64:', url, e);
     return '';
   }
+}
+
+// Preload fonts in the background as soon as module loads
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    preloadFontDataCache().catch(() => {});
+  }, 1000);
+}
+
+/**
+ * Preload base64 font files and compile the inline font CSS once in memory.
+ */
+export async function preloadFontDataCache(): Promise<string> {
+  if (_cachedFontCss) return _cachedFontCss;
+
+  if (!_fontDataCache) {
+    const [regular, bold] = await Promise.all([
+      fetchFontAsBase64('/fonts/UTM Avo.ttf'),
+      fetchFontAsBase64('/fonts/UTM Avo Bold.ttf'),
+    ]);
+    _fontDataCache = { regular, bold };
+  }
+
+  if (_fontDataCache.regular || _fontDataCache.bold) {
+    _cachedFontCss = `
+      @font-face {
+        font-family: "UTM Avo";
+        src: url("${_fontDataCache.regular}") format("truetype");
+        font-weight: 400;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "UTM Avo";
+        src: url("${_fontDataCache.bold}") format("truetype");
+        font-weight: 700;
+        font-style: normal;
+      }
+    `;
+  }
+  return _cachedFontCss || '';
+}
+
+/**
+ * Ensures shared export stylesheet is injected once into document.head.
+ * Eliminates DOM insertion overhead and avoids style leaks.
+ */
+export function ensureSharedCaptureStyle(): void {
+  if (typeof document === 'undefined' || document.getElementById('export-isolated-card-shared-style')) return;
+  const style = document.createElement('style');
+  style.id = 'export-isolated-card-shared-style';
+  style.textContent = `
+    ${getPreloadedFontCss()}
+    .export-isolated-card * {
+      box-shadow: none !important;
+      text-shadow: none !important;
+      filter: none !important;
+      animation: none !important;
+      transition: none !important;
+    }
+    .export-isolated-card .truncate {
+      overflow: visible !important;
+      text-overflow: clip !important;
+      white-space: normal !important;
+    }
+    .export-isolated-card .overflow-x-auto, 
+    .export-isolated-card .overflow-y-auto, 
+    .export-isolated-card .overflow-hidden, 
+    .export-isolated-card [class*="overflow"] {
+      overflow: visible !important;
+      width: 100% !important;
+      height: auto !important;
+      max-width: none !important;
+      max-height: none !important;
+      box-sizing: border-box !important;
+    }
+    .export-isolated-card .max-w-\\[960px\\], 
+    .export-isolated-card [class*="max-w"] {
+      max-width: 100% !important;
+      width: 100% !important;
+      box-shadow: none !important;
+    }
+    .export-isolated-card [class*="grid-cols"] {
+      display: grid !important;
+      grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+      width: 100% !important;
+      box-sizing: border-box !important;
+    }
+    .export-isolated-card table {
+      width: 100% !important;
+      min-width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      table-layout: fixed !important;
+      border-collapse: collapse !important;
+    }
+    .export-isolated-card colgroup col:nth-child(1) { width: 55px !important; }
+    .export-isolated-card colgroup col:nth-child(2) { width: 480px !important; }
+    .export-isolated-card colgroup col:nth-child(3) { width: 125px !important; }
+    .export-isolated-card colgroup col:nth-child(4) { width: 125px !important; }
+    .export-isolated-card colgroup col:nth-child(5) { width: 125px !important; }
+    .export-isolated-card colgroup col:nth-child(6) { width: 150px !important; }
+  `;
+  document.head.appendChild(style);
+}
+
+/**
+ * Get synchronously preloaded font CSS string (returns empty string if not yet loaded).
+ */
+export function getPreloadedFontCss(): string {
+  return _cachedFontCss || '';
 }
 
 /**
@@ -34,12 +152,15 @@ async function fetchFontAsBase64(url: string): Promise<string> {
  */
 export async function ensureFontsReady(): Promise<boolean> {
   try {
-    // 1. Wait for all browser font loading to complete
+    // 1. Preload base64 font cache in background immediately
+    const fontCachePromise = preloadFontDataCache().catch(() => '');
+
+    // 2. Wait for all browser font loading to complete
     if (document.fonts) {
       await document.fonts.ready;
     }
 
-    // 2. Force-load UTM Avo if not already loaded
+    // 3. Force-load UTM Avo if not already loaded
     const fontFamilies = [
       { family: 'UTM Avo', weight: '400' },
       { family: 'UTM Avo', weight: '700' },
@@ -47,12 +168,9 @@ export async function ensureFontsReady(): Promise<boolean> {
 
     for (const { family, weight } of fontFamilies) {
       try {
-        const font = new FontFace(family, '', { weight });
-        // Check if this font variation is loaded
         const isLoaded = document.fonts.check(`${weight} 16px "${family}"`);
         if (!isLoaded) {
           console.warn(`[FontUtil] Font "${family}" weight ${weight} not detected. Attempting force-load...`);
-          // Try to trigger load by creating a hidden element
           const probe = document.createElement('span');
           probe.style.fontFamily = `"${family}", monospace`;
           probe.style.fontWeight = weight;
@@ -64,29 +182,20 @@ export async function ensureFontsReady(): Promise<boolean> {
           probe.textContent = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
           document.body.appendChild(probe);
           
-          // Wait a bit for browser to trigger font load
-          await new Promise(r => setTimeout(r, 100));
+          await new Promise(r => setTimeout(r, 60));
           if (document.fonts) await document.fonts.ready;
           document.body.removeChild(probe);
         }
-      } catch (e) {
-        // Font check API might not be available, continue
-      }
+      } catch (e) {}
     }
 
-    // 3. Final confirmation wait
+    // 4. Final confirmation wait & ensure font cache is completed
     if (document.fonts) {
       await document.fonts.ready;
     }
+    await fontCachePromise;
 
-    // 4. Verify font is actually available
     const verified = document.fonts.check('700 16px "UTM Avo"');
-    if (!verified) {
-      console.warn('[FontUtil] UTM Avo Bold font could not be verified. Export may use fallback font.');
-    } else {
-      console.log('[FontUtil] ✅ UTM Avo font confirmed loaded and ready for export.');
-    }
-
     return verified;
   } catch (e) {
     console.warn('[FontUtil] Font readiness check failed:', e);
@@ -102,50 +211,13 @@ export async function ensureFontsReady(): Promise<boolean> {
  */
 export async function injectFontStyleIntoClone(container: HTMLElement): Promise<void> {
   try {
-    // Fetch font files as base64 (cached)
-    if (!_fontDataCache) {
-      const [regular, bold] = await Promise.all([
-        fetchFontAsBase64('/fonts/UTM Avo.ttf'),
-        fetchFontAsBase64('/fonts/UTM Avo Bold.ttf'),
-      ]);
-      _fontDataCache = { regular, bold };
-    }
-
-    if (!_fontDataCache.regular && !_fontDataCache.bold) {
-      console.warn('[FontUtil] No font data available for inline injection.');
-      return;
-    }
+    const css = await preloadFontDataCache();
+    if (!css) return;
 
     const styleEl = document.createElement('style');
     styleEl.setAttribute('data-font-inject', 'true');
-    styleEl.textContent = `
-      @font-face {
-        font-family: "UTM Avo";
-        src: url("${_fontDataCache.regular}") format("truetype");
-        font-weight: 400;
-        font-style: normal;
-      }
-      @font-face {
-        font-family: "UTM Avo";
-        src: url("${_fontDataCache.bold}") format("truetype");
-        font-weight: 700;
-        font-style: normal;
-      }
-      @font-face {
-        font-family: "UTM Avo";
-        src: url("${_fontDataCache.bold}") format("truetype");
-        font-weight: 800;
-        font-style: normal;
-      }
-      @font-face {
-        font-family: "UTM Avo";
-        src: url("${_fontDataCache.bold}") format("truetype");
-        font-weight: 900;
-        font-style: normal;
-      }
-    `;
+    styleEl.textContent = css;
 
-    // Insert at the beginning of the container
     if (container.firstChild) {
       container.insertBefore(styleEl, container.firstChild);
     } else {

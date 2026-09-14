@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Trophy, TrendingDown, Camera } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { StaffData } from '../../RTST/types';
@@ -13,6 +13,7 @@ interface RevenueRankingTableQdQProps {
   selectedStaffId?: string | null;
   onSelectStaff?: (id: string) => void;
   stPercentHTTargetDuKienQD?: number;
+  tragopNv?: string;
 }
 
 const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({ 
@@ -23,7 +24,8 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
   totalDays = 30,
   selectedStaffId = null,
   onSelectStaff,
-  stPercentHTTargetDuKienQD = 0
+  stPercentHTTargetDuKienQD = 0,
+  tragopNv = ''
 }) => {
   // Pre-compute %HT for sorting
   const computePercentHT = (staff: StaffData) => {
@@ -58,9 +60,200 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
   const actualTotalVirtual = Math.abs(totalVirtual) > 1000000 ? totalVirtual : totalVirtual * 1000000;
   const totalPercentHT = (actualTotalTargetQd > 0 && daysPassed > 0) ? (((actualTotalVirtual / daysPassed) * totalDays) / actualTotalTargetQd) * 100 : 0;
 
+  // Parse Trả Góp / Trả Chậm NV data
+  const traChamMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    if (!tragopNv || !tragopNv.trim()) return map;
+
+    const cleanNumber = (val: string): number => {
+      if (!val) return 0;
+      let s = val.trim();
+      const hasComma = s.includes(',');
+      const hasDot = s.includes('.');
+      if (hasComma && hasDot) {
+        if (s.indexOf(',') < s.indexOf('.')) {
+          s = s.replace(/,/g, '');
+        } else {
+          s = s.replace(/\./g, '').replace(/,/g, '.');
+        }
+      } else if (hasComma) {
+        s = s.replace(/,/g, '.');
+      }
+      const clean = s.replace(/[^\d.-]/g, '');
+      const num = parseFloat(clean);
+      return isNaN(num) ? 0 : num;
+    };
+
+    const norm = (str: string): string => {
+      return (str || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/đ/g, 'd')
+        .replace(/[^a-z0-9]/g, '');
+    };
+
+    const allKnownStaff = data.map(s => ({ fullId: s.fullId, displayName: s.displayName }));
+
+    const matchStaff = (rawStaffStr: string, percent: number) => {
+      if (!rawStaffStr) return;
+      const rowNorm = norm(rawStaffStr);
+      const rowIdMatch = rawStaffStr.match(/\b\d{4,8}\b/);
+      const rowId = rowIdMatch ? rowIdMatch[0] : '';
+
+      for (const staff of allKnownStaff) {
+        const staffId = staff.fullId.toLowerCase().trim();
+        // 1. Direct ID match
+        if (rowId && staffId && rowId === staffId) {
+          map[staff.fullId] = percent;
+          return;
+        }
+        // 2. Staff ID contained in raw string
+        if (staffId && rowNorm.includes(staffId)) {
+          map[staff.fullId] = percent;
+          return;
+        }
+        // 3. Name comparison (case-insensitive & accent-insensitive)
+        const staffName = (staff.displayName.split(/[-–—]/).pop() || '').trim();
+        const staffNorm = norm(staffName);
+        if (rowNorm === staffNorm) {
+          map[staff.fullId] = percent;
+          return;
+        }
+        if (staffNorm.length >= 4 && rowNorm.length >= 4) {
+          if (rowNorm.includes(staffNorm) || staffNorm.includes(rowNorm)) {
+            map[staff.fullId] = percent;
+            return;
+          }
+        }
+      }
+    };
+
+    const lines = tragopNv.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const ignoredKeywords = [
+      'nhanvien', 'homecredit', 'fecredit', 'shinhan', 'dmsieuthi', 'tytrong',
+      'logobi', 'trangchu', 'baocao', 'khoikinhdoanh', 'hdsudung', 'avatar',
+      'vungtay', 'dashboard', 'hotrobi', 'chientranh', 'lichsu', 'quanly',
+      'danhsach', 'saovang', 'chupanh', 'xuatpdf', 'xuatexcel', 'hotline',
+      'tiendo', 'rank', 'tongcong', 'tong', 'phankhuc', 'nganhhang', 'thang', 'nam',
+      'tgdd', 'tileduyet', 'realtime', 'tatcavung', 'xuattheomau', 'capnhatluc',
+      'toggletheme', 'timbaocao', 'employee', 'guest', 'admin', 'xem', 'khuvuc', 'sieuthi', 'vung',
+      'smartpos', 'payoo', 'kredivo', 'tpbank', 'paylater'
+    ];
+
+    const isHeaderString = (str: string) => {
+      const clean = norm(str);
+      if (!clean) return true;
+      if (clean === 'dt' || clean === 'dttragop' || clean === 'dtsieuthi' || clean === 'tytrongtracham') return true;
+      if (ignoredKeywords.some(k => clean === k || clean.includes(k))) return true;
+      return false;
+    };
+
+    // Check if there are alternating 2-line Web BI entries (Name on line i, numbers on line i+1)
+    let parsedAnyTwoLine = false;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const parts = line.includes('\t')
+        ? line.split('\t').map(p => p.trim())
+        : line.split(/\t| {2,}/).map(p => p.trim());
+
+      if (parts.length === 1 && /[a-zA-ZÀ-ỹ]/.test(line) && !isHeaderString(line) && i + 1 < lines.length) {
+        const nextParts = lines[i + 1].includes('\t')
+          ? lines[i + 1].split('\t').map(p => p.trim())
+          : lines[i + 1].split(/\t| {2,}/).map(p => p.trim());
+
+        if (nextParts.length >= 2 && /^[-]?\d/.test(nextParts[0])) {
+          let percent = nextParts.length > 2 ? cleanNumber(nextParts[2]) : 0;
+          if (percent === 0) {
+            const installRev = cleanNumber(nextParts[0]);
+            const totalRev = cleanNumber(nextParts[1]);
+            if (totalRev > 0) percent = (installRev / totalRev) * 100;
+          }
+          matchStaff(line, percent);
+          parsedAnyTwoLine = true;
+          i++;
+          continue;
+        }
+      }
+    }
+
+    if (parsedAnyTwoLine) {
+      return map;
+    }
+
+    const hasTabs = lines.some(l => l.includes('\t'));
+    const isDetailed = tragopNv.toLowerCase().includes('homecredit') ||
+                       tragopNv.toLowerCase().includes('fecredit') ||
+                       tragopNv.toLowerCase().includes('shinhan');
+
+    if (hasTabs || lines.some(l => l.split(/ {2,}/).length >= 2)) {
+      lines.forEach(line => {
+        let parts = line.includes('\t')
+          ? line.split('\t').map(p => p.trim())
+          : line.split(/\t| {2,}/).map(p => p.trim());
+        if (parts.length < 2) return;
+        const firstColClean = norm(parts[0]);
+        if (!firstColClean || ignoredKeywords.some(k => firstColClean === k || (k.length > 4 && firstColClean.includes(k)))) return;
+
+        while (parts.length > 0 && parts[parts.length - 1] === '') parts.pop();
+        if (parts.length < 2) return;
+
+        if (isDetailed) {
+          if (parts.length >= 3) {
+            let percent = cleanNumber(parts[parts.length - 1]);
+            const lastPart = parts[parts.length - 1];
+            if (percent > 0 && percent <= 1 && lastPart && !lastPart.includes('%')) {
+              percent = percent * 100;
+            }
+            matchStaff(parts[0], percent);
+          }
+        } else {
+          if (parts.length >= 3) {
+            let percent = parts.length > 4 ? cleanNumber(parts[4]) : 0;
+            if (percent > 0 && percent <= 1 && parts[4] && !parts[4].includes('%')) {
+              percent = percent * 100;
+            }
+            let totalRevRaw = cleanNumber(parts[1]);
+            let installRevRaw = cleanNumber(parts[2]);
+            if (Math.abs(totalRevRaw) > 0 && Math.abs(totalRevRaw) < 1000000) totalRevRaw *= 1000000;
+            if (Math.abs(installRevRaw) > 0 && Math.abs(installRevRaw) < 1000000) installRevRaw *= 1000000;
+            if (percent === 0 && totalRevRaw > 0) {
+              percent = (installRevRaw / totalRevRaw) * 100;
+            }
+            matchStaff(parts[0], percent);
+          }
+        }
+      });
+    }
+
+    return map;
+  }, [tragopNv, data]);
+
+  // Compute average Tra Cham for valid records
+  const validTraChamVals = useMemo(() => {
+    return sortedData
+      .map(s => s.fullId in traChamMap ? traChamMap[s.fullId] : null)
+      .filter((v): v is number => v !== null);
+  }, [sortedData, traChamMap]);
+
+  const avgTraCham = useMemo(() => {
+    return validTraChamVals.length > 0
+      ? validTraChamVals.reduce((sum, v) => sum + v, 0) / validTraChamVals.length
+      : 0;
+  }, [validTraChamVals]);
+
+  const formatStaffTarget = (val: number) => {
+    if (!val || val === 0) return '0';
+    if (val >= 1000) {
+      return Math.round(val).toLocaleString('vi-VN');
+    }
+    const val1Dec = Math.floor(val * 10) / 10;
+    return (val1Dec % 1 === 0) ? val1Dec.toString() : val1Dec.toFixed(1);
+  };
+
   return (
     <div className="w-full flex justify-center" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
-      <div className="w-full max-w-[880px] bg-white border border-slate-200/90 p-2 sm:p-2.5 rounded-2xl shadow-sm flex flex-col">
+      <div className="w-full max-w-[900px] bg-white border border-slate-200/90 p-2 sm:p-2.5 rounded-2xl shadow-sm flex flex-col">
         {/* Top Header Banner: Emerald Gradient with Gold/Yellow Title matching Bảng 2 */}
         <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 rounded-2xl text-white relative shrink-0 mb-2.5 text-center flex flex-col items-center justify-center">
           <h2 className="text-[19px] sm:text-[23px] md:text-[27px] font-black text-[#FEF08A] uppercase tracking-wide leading-tight whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
@@ -79,15 +272,16 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
 
         {/* Table Container */}
         <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
-          <table className="w-full border-separate border-spacing-0 table-fixed bg-white text-[12px] sm:text-[14.5px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900, minWidth: '820px' }}>
+          <table className="w-full border-separate border-spacing-0 table-fixed bg-white text-[12px] sm:text-[14.5px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900, minWidth: '860px' }}>
             <colgroup>
-              <col style={{ width: '50px' }} />
-              <col style={{ width: '310px' }} />
-              <col style={{ width: '100px' }} />
-              <col style={{ width: '100px' }} />
+              <col style={{ width: '45px' }} />
+              <col style={{ width: '270px' }} />
+              <col style={{ width: '95px' }} />
+              <col style={{ width: '95px' }} />
+              <col style={{ width: '95px' }} />
               <col style={{ width: '105px' }} />
-              <col style={{ width: '115px' }} />
-              <col style={{ width: '60px' }} />
+              <col style={{ width: '105px' }} />
+              <col style={{ width: '55px' }} />
             </colgroup>
             <thead>
               <tr className="text-white font-black text-[12px] sm:text-[13.5px] uppercase tracking-tight h-[44px]">
@@ -97,6 +291,7 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                 <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">L.KẾ</th>
                 <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">%HT</th>
                 <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">HQ.QĐ</th>
+                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">% T.CHẬM</th>
                 <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">XH</th>
               </tr>
             </thead>
@@ -118,6 +313,9 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                   const isTop = index < topCount;
                   const isBottom = index >= sortedData.length - topCount;
                   const isEven = index % 2 === 0;
+
+                  const hasTraCham = staff.fullId in traChamMap;
+                  const traChamPercent = hasTraCham ? (traChamMap[staff.fullId] ?? 0) : null;
 
                   return (
                     <tr 
@@ -142,7 +340,7 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                         </span>
                       </td>
                       <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 font-bold text-[12.5px] sm:text-[14.5px] text-slate-800 whitespace-nowrap">
-                        {targetQdPerStaff > 0 ? formatCurrencyValue(targetQdPerStaff) : '0'}
+                        {targetQdPerStaff > 0 ? formatStaffTarget(targetQdPerStaff) : '0'}
                       </td>
                       <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12.5px] sm:text-[14.5px] text-rose-600 whitespace-nowrap">
                         {formatCurrencyValue(staff.virtualVal || 0)}
@@ -161,6 +359,14 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                       )}>
                         {effQd.toFixed(1)}%
                       </td>
+                      <td style={{ fontWeight: 900 }} className={cn(
+                        "px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap",
+                        traChamPercent !== null
+                          ? (traChamPercent >= 50 ? "text-emerald-700 font-black" : "text-rose-600 font-bold")
+                          : "text-slate-400"
+                      )}>
+                        {traChamPercent !== null ? `${traChamPercent.toFixed(1)}%` : '-'}
+                      </td>
                       <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-b border-emerald-100/90 whitespace-nowrap font-black text-[12px] sm:text-[14px]">
                         {isTop ? (
                           <span className="text-emerald-700 font-black">Top</span>
@@ -173,7 +379,7 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center h-[100px]">
+                  <td colSpan={8} className="px-4 py-12 text-center h-[100px]">
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                       Chưa có dữ liệu xếp hạng doanh thu
                     </p>
@@ -198,6 +404,9 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                   </td>
                   <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap bg-[#047857]">
                     {stPercentHTTargetDuKienQD > 0 ? `${stPercentHTTargetDuKienQD.toFixed(1)}%` : ''}
+                  </td>
+                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap bg-[#047857]">
+                    {validTraChamVals.length > 0 ? `${avgTraCham.toFixed(1)}%` : ''}
                   </td>
                   <td className="px-1 py-0 text-center whitespace-nowrap bg-[#047857]"></td>
                 </tr>

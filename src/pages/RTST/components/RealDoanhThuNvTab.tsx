@@ -23,6 +23,7 @@ import {
   Square
 } from 'lucide-react';
 import { domToPng } from 'modern-screenshot';
+import { addWhiteBorderToDataUrl } from '../../../utils/imageBorderUtil';
 import { motion, AnimatePresence } from 'framer-motion';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
@@ -322,7 +323,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       const legacy = localStorage.getItem(`mwg_rt_staff_raw_${cleanStore}`);
       if (legacy && legacy.trim()) return legacy;
     } catch (e) {}
-    return cleanStore === '1841' ? DEFAULT_RAW_MWG_DATA_1841 : '';
+    return '';
   });
 
   // Filter Staff State (Excluded staff IDs) with Persistence
@@ -365,8 +366,6 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       const saved = localStorage.getItem(`real_dthu_nv_raw_${cleanStore}`);
       if (saved && saved.trim()) {
         setRawInput(saved);
-      } else if (cleanStore === '1841') {
-        setRawInput(DEFAULT_RAW_MWG_DATA_1841);
       }
 
       const savedFilters = localStorage.getItem(`real_dthu_nv_excluded_${cleanStore}`);
@@ -385,6 +384,8 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
     // 2. Realtime listener from Cloud Firestore
     const docRef = doc(db, 'app_settings', `real_dthu_nv_${cleanStore}`);
     const unsubscribe = onSnapshot(docRef, (snapshot) => {
+      // Don't write stale data during logout/login redirect
+      if ((window as any).__crm_is_redirecting) return;
       if (snapshot.exists()) {
         const data = snapshot.data();
         if (data && !isEditingRef.current) {
@@ -405,7 +406,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       } else {
         // Document does not exist in Firestore yet.
         // Seed current local data or default template to Firestore so other devices (e.g. mobile) can immediately get it!
-        const initialToSave = localStorage.getItem(`real_dthu_nv_raw_${cleanStore}`) || (cleanStore === '1841' ? DEFAULT_RAW_MWG_DATA_1841 : '');
+        const initialToSave = localStorage.getItem(`real_dthu_nv_raw_${cleanStore}`) || '';
         if (initialToSave) {
           setDoc(docRef, {
             storeId: cleanStore,
@@ -487,9 +488,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
     }
   };
 
-  const handleResetDefault = () => {
-    handleSaveData(DEFAULT_RAW_MWG_DATA_1841, true);
-  };
+
 
   const handlePasteClipboard = async () => {
     try {
@@ -822,10 +821,11 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       if (captureElement) {
         captureElement(tableRef, `Realtime_DThu_Qui_Doi_${cleanStore}`);
       } else {
-        const dataUrl = await domToPng(tableRef.current, {
+        const rawDataUrl = await domToPng(tableRef.current, {
           scale: 2,
           backgroundColor: '#ffffff'
         });
+        const dataUrl = await addWhiteBorderToDataUrl(rawDataUrl, 20, tableRef.current.offsetWidth);
         const link = document.createElement('a');
         link.download = `Realtime_DThu_Qui_Doi_${cleanStore}.png`;
         link.href = dataUrl;
@@ -941,17 +941,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                   <span>Dán Từ Clipboard</span>
                 </button>
 
-                {cleanStore === '1841' && (
-                  <button
-                    type="button"
-                    onClick={handleResetDefault}
-                    className="inline-flex items-center gap-1 px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all active:scale-95"
-                    title="Nạp lại data mẫu siêu thị 1841"
-                  >
-                    <RotateCcw size={13} />
-                    <span>Nạp Lại Mẫu 1841</span>
-                  </button>
-                )}
+
 
                 <button
                   type="button"

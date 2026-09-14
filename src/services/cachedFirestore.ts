@@ -17,6 +17,7 @@
 // until it actually goes stale.
 import { doc, getDoc, DocumentData } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { registerCacheCleaner } from './globalCacheRegistry';
 
 interface CacheEntry<T> {
   data: T | null;
@@ -90,3 +91,12 @@ export function setCachedDoc<T = DocumentData>(collectionName: string, docId: st
   memCache.set(key, entry);
   try { localStorage.setItem(lsKey(collectionName, docId), JSON.stringify(entry)); } catch {}
 }
+
+/** Wipe all in-memory caches. Called during login/logout to prevent data leakage between accounts. */
+export function clearAllCachedDocs(): void {
+  memCache.clear();
+  inFlight.clear();
+}
+
+// Auto-register with the global cache registry so AuthContext can clear us
+registerCacheCleaner(clearAllCachedDocs);

@@ -104,6 +104,7 @@ import { RealDoanhThuNvTab } from './RTST/components/RealDoanhThuNvTab';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
+import { addWhiteBorderToDataUrl } from '../utils/imageBorderUtil';
 import { isValidStoreName, normalize, normalizeStoreId } from './RTST/utils';
 
 const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: boolean, onClick: () => void, icon: any, label: string, count?: number }) => (
@@ -1627,7 +1628,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   const {
     drillFilterStaff, setDrillFilterStaff,
     categoryMappingInput, setCategoryMappingInput,
-    allStoreTargets, stTargetSauHeSo, stTargetQuyDoi, stPercentTarget
+    allStoreTargets, stTargetSauHeSo, stTargetQuyDoi, stPercentTarget,
+    totalDays, stName
   } = useRTSTSharedData(selectedMaKho);
 
   const customCategoryMap = useMemo(() => {
@@ -1893,6 +1895,73 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const daysPassed = now.getDate();
     return { totalDaysInMonth, daysPassed };
   }, []);
+
+  // Helper to resolve BC THÁNG > TARGET QĐ exactly as displayed in the card (not raw data)
+  const resolveMonthTargetQD = useCallback((storeName: string, lkMarket?: any, parsedMarket?: any) => {
+    if (!storeName) return 0;
+    const normMarket = normalize(storeName);
+
+    // 1. Match in allStoreTargets: prioritize exact match first, then substring
+    const targetDataKey = Object.keys(allStoreTargets || {}).find(k => normalize(k) === normMarket)
+      || Object.keys(allStoreTargets || {}).find(k => {
+        const normK = normalize(k);
+        return normK.includes(normMarket) || normMarket.includes(normK);
+      });
+    const targetData: any = targetDataKey ? allStoreTargets[targetDataKey] : null;
+
+    // 2. Check popup "CẤU HÌNH TARGET" from localStorage (crm_cluster_store_target_config)
+    let clusterTargetConfig: any = null;
+    try {
+      const rawClusterCfg = localStorage.getItem('crm_cluster_store_target_config');
+      if (rawClusterCfg) {
+        const parsedCfg = JSON.parse(rawClusterCfg);
+        const cfgKey = Object.keys(parsedCfg).find(k => normalize(k) === normMarket)
+          || Object.keys(parsedCfg).find(k => {
+            const nk = normalize(k);
+            return nk.includes(normMarket) || normMarket.includes(nk);
+          });
+        if (cfgKey) clusterTargetConfig = parsedCfg[cfgKey];
+      }
+    } catch {}
+
+    const isCurrentActive = normalize(stName) === normMarket;
+
+    const percentTargetVal = clusterTargetConfig?.mucTieuPercent !== undefined
+      ? Number(clusterTargetConfig.mucTieuPercent)
+      : (Number((targetData as any)?.stPercentTarget) || (isCurrentActive ? Number(stPercentTarget) : 100) || 100);
+
+    let displayTargetQD = 0;
+    if (clusterTargetConfig && Number(clusterTargetConfig.targetCungKyNam) > 0) {
+      displayTargetQD = Math.round(Number(clusterTargetConfig.targetCungKyNam) * (percentTargetVal / 100));
+    } else {
+      const dtDuKienQD = lkMarket?.targetQD || parsedMarket?.targetQD || 0;
+      const rawTargetQD = dtDuKienQD > 0
+        ? dtDuKienQD
+        : (Number((targetData as any)?.stTargetQuyDoi) || (isCurrentActive ? stTargetQuyDoi : 0) || 0);
+
+      displayTargetQD = rawTargetQD > 0
+        ? Math.round(rawTargetQD * (percentTargetVal / 100))
+        : (Number((targetData as any)?.stTargetSauHeSo) || (isCurrentActive ? stTargetSauHeSo : 0) || 0);
+    }
+
+    return displayTargetQD;
+  }, [allStoreTargets, stName, stPercentTarget, stTargetQuyDoi, stTargetSauHeSo]);
+
+  const activeStoreDailyTargetQD = useMemo(() => {
+    const targetMarket = filteredMarkets.find(m => marketFilter === 'ALL' || m.name === marketFilter) || filteredMarkets[0];
+    if (!targetMarket) return 0;
+    const pm = processedData.markets?.find((p: any) =>
+      normalize(p.name).includes(normalize(targetMarket.name)) ||
+      normalize(targetMarket.name).includes(normalize(p.name))
+    );
+    const lk = luykeProcessedData?.markets?.find((lm: any) =>
+      normalize(lm.name).includes(normalize(targetMarket.name)) ||
+      normalize(targetMarket.name).includes(normalize(lm.name))
+    );
+    const monthTarget = resolveMonthTargetQD(targetMarket.name, lk, pm);
+    const daysInMonth = totalDays || mucTieu100Info.totalDaysInMonth || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    return daysInMonth > 0 ? Math.round(monthTarget / daysInMonth) : monthTarget;
+  }, [filteredMarkets, marketFilter, processedData.markets, luykeProcessedData?.markets, resolveMonthTargetQD, totalDays, mucTieu100Info.totalDaysInMonth]);
 
   // ===== SSG Boss: Load M.TIÊU H.NAY for TARGET column =====
   const [ssgBossData, setSsgBossData] = useState<{
@@ -4531,13 +4600,16 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      const dataUrl = await domToPng(element, {
+      const rawDataUrl = await domToPng(element, {
         scale: 2.5,
         backgroundColor: '#ffffff',
         width: fullWidth,
         height: fullHeight,
         features: { removeControlCharacter: true }
       });
+
+      // Add clean white border/padding around the exported table (viền trắng xung quanh bảng)
+      const dataUrl = await addWhiteBorderToDataUrl(rawDataUrl, 20, fullWidth);
 
       // Restore all styles in reverse order
       savedStyles.forEach(({ el, cssText }) => { el.style.cssText = cssText; });
@@ -4753,13 +4825,13 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const dateStr = now.toLocaleDateString('vi-VN');
     const nowHeader = `${timeStr} NGÀY ${dateStr}`;
-    // Use raw targetQD from BC THÁNG (lũy kế) directly - matching OverviewDashboard
+    // BC NGÀY > TARGET QĐ = BC THÁNG > TARGET QĐ (Số hiển thị trong thẻ) / SỐ NGÀY TRONG THÁNG
     const activeLkMarket = activeDeclared ? luykeProcessedData?.markets?.find(lm =>
       normalize(lm.name).includes(normalize(activeDeclared.name)) ||
       normalize(activeDeclared.name).includes(normalize(lm.name))
     ) : null;
-    const monthTargetQD = activeLkMarket?.targetQD || parsedMarket.targetQD || 0;
-    const totalDaysInMonth = mucTieu100Info.totalDaysInMonth || new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const monthTargetQD = resolveMonthTargetQD(activeDeclared?.name || parsedMarket.name, activeLkMarket, parsedMarket);
+    const totalDaysInMonth = totalDays || mucTieu100Info.totalDaysInMonth || new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     const dailyTargetQD = totalDaysInMonth > 0 ? Math.round(monthTargetQD / totalDaysInMonth) : monthTargetQD;
     const dailyPercentHT = dailyTargetQD > 0 
       ? Math.round(((parsedMarket.actualVirtual || 0) / dailyTargetQD) * 100) 
@@ -4963,6 +5035,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         .capturing-screenshot .no-capture { display: none !important; }
         .capturing-screenshot .capturing-screenshot-inline { display: inline !important; }
         .capturing-screenshot .capture-only-title { display: block !important; }
+        .capturing-screenshot #chi-tiet-nganh-hang-capture-wrapper {
+          border: 1px solid #e2e8f0 !important;
+          border-radius: 16px !important;
+          overflow: hidden !important;
+        }
         
         /* Force CSS Grid columns to render identically to on-screen column layout during screenshot capture */
         .capturing-screenshot .force-grid-cols-6 {
@@ -5528,13 +5605,13 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           luotBillThuHo: 0
                         };
 
-                        // Use raw targetQD from BC THÁNG (lũy kế) directly
+                        // BC NGÀY > TARGET QĐ = BC THÁNG > TARGET QĐ (Số hiển thị trong thẻ) / SỐ NGÀY TRONG THÁNG
                         const lkMarket = luykeProcessedData?.markets?.find(lm =>
                           normalize(lm.name).includes(normalize(declaredMarket.name)) ||
                           normalize(declaredMarket.name).includes(normalize(lm.name))
                         );
-                        const monthTargetQD = lkMarket?.targetQD || parsedMarket.targetQD || 0;
-                        const totalDaysInMonth = mucTieu100Info.totalDaysInMonth || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+                        const monthTargetQD = resolveMonthTargetQD(declaredMarket.name, lkMarket, parsedMarket);
+                        const totalDaysInMonth = totalDays || mucTieu100Info.totalDaysInMonth || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
                         const dailyTargetQD = totalDaysInMonth > 0 ? Math.round(monthTargetQD / totalDaysInMonth) : monthTargetQD;
                         const dailyPercentHT = dailyTargetQD > 0 
                           ? Math.round(((parsedMarket.actualVirtual || 0) / dailyTargetQD) * 100) 
@@ -5585,7 +5662,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             </div>
                             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
                               <StatCard
-                                title="TAGET QĐ"
+                                title="TARGET QĐ"
                                 value={formatCurrencyUnit(dailyTargetQD)}
                                 subValue=""
                                 icon={Target}
@@ -6126,6 +6203,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                     captureElementDirect={captureElementDirect}
                     userProfile={userProfile}
                     luykeProcessedData={luykeProcessedData}
+                    dailyTargetQD={activeStoreDailyTargetQD}
                   />
                 </motion.div>
               )}

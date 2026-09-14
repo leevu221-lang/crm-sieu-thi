@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../supabaseClient';
+import { registerCacheCleaner } from './globalCacheRegistry';
 
 export interface EmployeeBirthday {
   id?: string;
@@ -58,8 +59,12 @@ let birthdaysInFlight: Promise<EmployeeBirthday[]> | null = null;
 
 function invalidateBirthdaysCache() {
   birthdaysMemCache = null;
+  birthdaysInFlight = null;
   try { localStorage.removeItem(BIRTHDAY_CACHE_KEY); } catch {}
 }
+
+// Auto-register with the global cache registry so AuthContext can clear us during login/logout
+registerCacheCleaner(invalidateBirthdaysCache);
 
 export const birthdayService = {
   /**

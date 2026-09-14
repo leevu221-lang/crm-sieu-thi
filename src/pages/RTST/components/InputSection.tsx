@@ -69,7 +69,7 @@ interface InputSectionProps {
   ycxData: string;
   onAnalyze: () => void;
   onSaveRealtime: (silent?: boolean) => void;
-  clearField?: (setter: (val: string) => void) => void;
+  clearField?: (setter: (val: string) => void, fieldName?: string) => void;
   forceDeleteAllData?: () => Promise<void>;
   onSaveLuyke: (isSilent?: boolean, source?: 'staff' | 'targets' | 'auto' | string, storeName?: string, overrideTargets?: any[], fieldName?: string) => void;
   onSyncRealtime: () => void;
@@ -385,6 +385,10 @@ const InputSection: React.FC<InputSectionProps> = ({
   const toggleInput = (id: string) => setExpandedInput(prev => prev === id ? null : id);
   const [savingRow, setSavingRow] = useState<string | null>(null);
 
+  // Focus value trackers to prevent saving unchanged data on blur
+  const focusedInputValRef = React.useRef<Record<string, string>>({});
+  const focusedPercentRef = React.useRef<Record<string, number>>({});
+
   // Per-store data cache logic has been removed here because it was causing data leakage 
   // between stores due to race conditions during React renders.
   // We now rely entirely on the perfectly synchronized `allStoresCache` passed via props
@@ -643,7 +647,7 @@ const InputSection: React.FC<InputSectionProps> = ({
 
                         {item.hasData && (
                           <button 
-                            onClick={(e) => { e.stopPropagation(); if (clearField) { clearField(item.onChange); } else { item.onChange(''); } }} 
+                            onClick={(e) => { e.stopPropagation(); if (clearField) { clearField(item.onChange, item.title); } else { item.onChange(''); } }} 
                             className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all shrink-0 cursor-pointer border border-transparent hover:border-rose-200" 
                             title="Xoá dữ liệu ô này"
                           >
@@ -813,7 +817,7 @@ const InputSection: React.FC<InputSectionProps> = ({
               const cardStaffCategoryInput = isActiveCard ? staffCategoryInput : (cachedData?.staffCategoryInput || '');
               const cardBanKemNv = isActiveCard ? (banKemNv || '') : (cachedData?.banKemNv || '');
               const cardTragopMatran = isActiveCard ? (storeConfig['tragop_matran'] || '') : (cachedData?.tragopMatran || '');
-              const cardTragopNv = isActiveCard ? (storeConfig['tragop_nv'] || tragopNv || localStorage.getItem(storeConfigKey('tragop_nv')) || '') : (cachedData?.tragopNv || localStorage.getItem(`cauhinh_${storeName}_tragop_nv`) || '');
+              const cardTragopNv = isActiveCard ? (tragopNv || '') : (cachedData?.tragopNv || '');
               const cardPhucVu = isActiveCard ? (phucVu || '') : (cachedData?.phucVu || '');
               const cardPercentTarget = isActiveCard ? stPercentTarget : (cachedData?.stPercentTarget || 0);
               const cardCategoryTargets = isActiveCard ? categoryTargets : (cachedData?.categoryTargets || []);
@@ -828,7 +832,7 @@ const InputSection: React.FC<InputSectionProps> = ({
                 { key: `${storeName}_dt_nv`, label: 'DOANH THU NV', value: cardStaffInput, setter: isActiveCard ? setStaffInput : undefined, biLink: 'https://bi.thegioididong.com/sieu-thi-con?id=16500&tab=bcdtnv&rt=2&dm=1' },
                 { key: `${storeName}_td_nv`, label: 'THI ĐUA NV', value: cardStaffCategoryInput, setter: isActiveCard ? setStaffCategoryInput : undefined },
                 { key: `${storeName}_hq_nv`, label: 'HQ BÁN KÈM NV', value: cardBanKemNv, setter: isActiveCard ? setBanKemNv : undefined },
-                { key: `${storeName}_tragop`, label: 'TRẢ GÓP NV', value: cardTragopNv, isConfig: true, configKey: 'tragop_nv' },
+                { key: `${storeName}_tragop`, label: 'TRẢ GÓP NV', value: cardTragopNv, setter: isActiveCard ? setTragopNv : undefined },
               ];
 
               return (
@@ -874,21 +878,16 @@ const InputSection: React.FC<InputSectionProps> = ({
                       const handleChange = (v: string) => {
                         if (!isActiveCard) { handleCardActivate(); return; }
                         const cleanV = cleanBiReportText(v);
-                        if (item.isConfig && item.configKey) {
-                          updateStoreConfig(item.configKey, cleanV);
-                        } else if (item.setter) {
+                        if (item.setter) {
                           item.setter(cleanV);
                         }
                       };
                       const handleClear = () => {
                         if (!isActiveCard) return;
-                        if (item.isConfig && item.configKey) {
-                          clearStoreConfig(item.configKey);
-                          // Config fields also need DB save
-                          setTimeout(() => onSaveLuyke(true, 'auto'), 200);
-                        } else if (item.setter) {
-                          if (clearField) clearField(item.setter);
+                        if (item.setter) {
+                          if (clearField) clearField(item.setter, item.label);
                           else item.setter('');
+                          setTimeout(() => onSaveLuyke(true, 'auto', undefined, undefined, item.label), 200);
                         }
                       };
 
@@ -946,29 +945,27 @@ const InputSection: React.FC<InputSectionProps> = ({
                             <div className="relative w-full">
                               <textarea 
                                 value={val} 
+                                onFocus={() => {
+                                  focusedInputValRef.current[item.key] = val;
+                                }}
                                 onChange={(e) => handleChange(e.target.value)} 
                                 onPaste={(e) => { e.preventDefault(); const t = e.clipboardData.getData('text'); if (t) { handleChange(t); } }} 
-                                onBlur={() => onSaveLuyke(false, 'auto', undefined, undefined, item.label)} 
+                                onBlur={() => {
+                                  const prevVal = focusedInputValRef.current[item.key] ?? '';
+                                  if (val === prevVal) {
+                                    // Data didn't change! Skip saving to conserve Firebase writes!
+                                    return;
+                                  }
+                                  focusedInputValRef.current[item.key] = val;
+                                  onSaveLuyke(false, 'auto', undefined, undefined, item.label);
+                                }} 
                                 rows={3} 
                                 autoFocus 
                                 placeholder="Dán dữ liệu (Ctrl + V)..." 
                                 className={cn(
-                                  "w-full bg-white border border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/15 rounded-2xl p-3 text-[13px] outline-none resize-none font-sans font-normal shadow-inner text-slate-800",
-                                  item.configKey === 'tragop_matran' && "pb-10"
+                                  "w-full bg-white border border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/15 rounded-2xl p-3 text-[13px] outline-none resize-none font-sans font-normal shadow-inner text-slate-800"
                                 )} 
                               />
-                              {item.configKey === 'tragop_matran' && syncTragopMatran && (
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    syncTragopMatran();
-                                  }}
-                                  className="absolute right-2.5 bottom-2.5 px-3 py-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-xs cursor-pointer z-10"
-                                >
-                                  Đồng bộ từ Khai báo
-                                </button>
-                              )}
                             </div>
                           )}
                         </div>
@@ -1048,9 +1045,18 @@ const InputSection: React.FC<InputSectionProps> = ({
                       <input 
                         type="number" 
                         value={cardPercentTarget || ''} 
+                        onFocus={() => {
+                          focusedPercentRef.current[storeName] = cardPercentTarget;
+                        }}
                         onChange={(e) => { if (isActiveCard) setStPercentTarget(Number(e.target.value)); else handleCardActivate(); }}
                         onBlur={() => { 
                           if (isActiveCard) {
+                            const prevPercent = focusedPercentRef.current[storeName];
+                            if (prevPercent !== undefined && prevPercent === cardPercentTarget) {
+                              // Unchanged, skip DB write!
+                              return;
+                            }
+                            focusedPercentRef.current[storeName] = cardPercentTarget;
                             if (updateStoreSettings) {
                               updateStoreSettings(storeName, { stPercentTarget: cardPercentTarget });
                             } else {
@@ -1128,7 +1134,24 @@ const InputSection: React.FC<InputSectionProps> = ({
                                         <td className="p-1.5 text-[11px] text-slate-600">{item.target.toLocaleString()}</td>
                                         <td className="p-1.5 text-[11px] font-black text-indigo-600">{item.adjustedTarget.toLocaleString()}</td>
                                         <td className="p-1.5 text-center">
-                                          <input type="number" value={item.percent} onChange={(e) => { if (!isActiveCard) return; const nv = Number(e.target.value); const nt = categoryTargets.map(t => t.name === item.name ? { ...t, percent: nv, adjustedTarget: t.target * (nv / 100) } : t); setCategoryTargets(nt); if (onSaveLuyke) { onSaveLuyke(true, 'targets', undefined, nt, 'TARGET THI ĐUA'); } }} disabled={!isActiveCard} className={cn("w-14 border rounded-lg p-1 text-[11px] text-center font-sans font-normal outline-none", isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400")} />
+                                          <input 
+                                            type="number" 
+                                            value={item.percent} 
+                                            onChange={(e) => { 
+                                              if (!isActiveCard) return; 
+                                              const nv = Number(e.target.value); 
+                                              const nt = categoryTargets.map(t => t.name === item.name ? { ...t, percent: nv, adjustedTarget: t.target * (nv / 100) } : t); 
+                                              setCategoryTargets(nt); 
+                                            }} 
+                                            onBlur={() => {
+                                              if (!isActiveCard) return;
+                                              if (onSaveLuyke) { 
+                                                onSaveLuyke(true, 'targets', undefined, categoryTargets, 'TARGET THI ĐUA'); 
+                                              } 
+                                            }}
+                                            disabled={!isActiveCard} 
+                                            className={cn("w-14 border rounded-lg p-1 text-[11px] text-center font-sans font-normal outline-none", isActiveCard ? "bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-500" : "bg-slate-100 border-slate-200 cursor-not-allowed text-slate-400")} 
+                                          />
                                         </td>
                                       </tr>
                                     ))}

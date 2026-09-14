@@ -6,6 +6,7 @@ import { db } from '../firebaseConfig';
 import { trackUserPing } from '../services/accessTracker';
 import { localYcxDb, isValidStoreName } from '../pages/RTST/utils';
 import { URL_PAGE_MAP, isGuestShareLink } from '../constants/routes';
+import { clearAllGlobalCaches } from '../services/globalCacheRegistry';
 
 interface AuthContextType {
   userProfile: UserProfile | null;
@@ -120,12 +121,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       localStorage.setItem('rtst_ma_kho', kho);
+      // Đọc siêu thị được chia sẻ từ URL param st
+      const stParam = params.get('st') || params.get('sieuthi') || '';
+      if (stParam) {
+        localStorage.setItem('currentStoreId', stParam);
+      }
       const guestUser: any = {
         username: `Khách (${kho})`,
         role: 'guest',
         isGuest: true,
         ma_kho: kho,
         storeCode: kho,
+        ten_sieu_thi: stParam || '',
+        selected_store: stParam || '',
         declarationCompleted: true,
         paymentConfirmed: true,
         status: 'active',
@@ -270,7 +278,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             permissions: ['lkst', 'rtst', 'sknv', 'updata'] as any,
             userPermissions: {
               canEditUser: true,
-              allowedPages: ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'birthday']
+              allowedPages: ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'users', 'tnb_data', 'birthday']
             },
             ten_sieu_thi: `Siêu thị ${maKho} (Offline Mode)`,
             status: 'active',
@@ -304,15 +312,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Fallback: look up declared stores in store table
         const { data: storeRecords } = await supabase
           .from('store')
-          .select('id, ten_sieu_thi, declared_stores')
+          .select('id, ten_sieu_thi, declared_stores, updated_at')
           .eq('warehouse_code', maKho);
 
         if (storeRecords && storeRecords.length > 0) {
-          const recWithDeclared = storeRecords.find((r: any) => Array.isArray(r.declared_stores) && r.declared_stores.length > 0);
+          const sorted = [...storeRecords].sort((a: any, b: any) => {
+            const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+            const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+            return timeB - timeA;
+          });
+
+          const recWithDeclared = sorted.find((r: any) => Array.isArray(r.declared_stores) && r.declared_stores.length > 0);
           if (recWithDeclared && recWithDeclared.declared_stores[0] && isValidStoreName(recWithDeclared.declared_stores[0])) {
             storeName = recWithDeclared.declared_stores[0];
           } else {
-            const firstValid = storeRecords.find((r: any) => isValidStoreName(r.ten_sieu_thi || r.id));
+            const firstValid = sorted.find((r: any) => isValidStoreName(r.ten_sieu_thi || r.id));
             if (firstValid) storeName = firstValid.ten_sieu_thi || firstValid.id;
           }
         }
@@ -334,7 +348,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       const isSuperAdmin = username === '43751';
-      const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'tnbleader', 'birthday', 'bangiasoc'];
+      const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday', 'bangiasoc'];
 
       const resolvedStoreName = storeName || (isValidStoreName(storeData?.ten_kho) ? storeData.ten_kho : `Siêu thị ${data.storeCode}`);
 
@@ -366,6 +380,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (theme) {
           try { localStorage.setItem('theme', theme); } catch {}
         }
+        // Clear IndexedDB (YCX cache from previous user)
+        try { localYcxDb.clear().catch(() => {}); } catch {}
+        // Clear all module-level RAM caches to prevent data bleed between accounts
+        clearAllGlobalCaches();
       };
 
       cleanStorageForNewUser();
@@ -375,6 +393,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Record access login event
       trackUserPing(data.username, data.storeCode, 'realtime', 'LOGIN');
+
+      // Set redirect flag BEFORE the timeout so active Firestore listeners
+      // stop writing stale data to localStorage during the transition.
+      (window as any).__crm_is_redirecting = true;
 
       // Hard redirect to load all contexts & RAM 100% fresh for the new user
       setTimeout(() => {
@@ -395,7 +417,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           permissions: ['lkst', 'rtst', 'sknv', 'updata'] as any,
           userPermissions: {
             canEditUser: true,
-            allowedPages: ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'users', 'tnb_data', 'tnbleader', 'birthday']
+            allowedPages: ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday']
           },
           ten_sieu_thi: `Siêu thị ${maKho} (Offline Mode)`,
           status: 'active',
@@ -407,9 +429,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (theme) {
           try { localStorage.setItem('theme', theme); } catch {}
         }
+        try { localYcxDb.clear().catch(() => {}); } catch {}
+        clearAllGlobalCaches();
         localStorage.setItem('userProfile', JSON.stringify(profile));
         localStorage.setItem('rtst_ma_kho', profile.ma_kho);
         sessionStorage.setItem('justLoggedIn', 'true');
+        (window as any).__crm_is_redirecting = true;
         setTimeout(() => {
           window.location.replace(window.location.origin);
         }, 800);
@@ -493,7 +518,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Create default user permissions
-      const defaultPages = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'birthday', 'bangiasoc', 'tnb_data'];
+      const defaultPages = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'birthday', 'bangiasoc', 'tnb_data'];
       const { error: permError } = await supabase
         .from('user_permissions')
         .insert({
@@ -577,7 +602,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 3. Clear IndexedDB cached data
     try { localYcxDb.clear().catch(() => {}); } catch {}
 
-    // 4. Hard redirect immediately to origin root.
+    // 4. Clear all module-level RAM caches (firestore memCache, birthday cache, market registry, etc.)
+    clearAllGlobalCaches();
+
+    // 5. Set redirect flag so active Firestore listeners stop writing stale data
+    (window as any).__crm_is_redirecting = true;
+
+    // 6. Hard redirect immediately to origin root.
     // This stops all running timers, clears all module-level caches in RAM,
     // closes all active Firestore/Supabase socket connections, and guarantees 
     // that the browser starts 100% fresh for the next user.
@@ -595,6 +626,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
       setUserProfile(updatedProfile);
       localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
+      localStorage.setItem('currentStoreId', newStoreName);
 
       // Persist to ql_nguoi_dung in Firebase so any other browser device stays synchronized
       if (userProfile.username && userProfile.username !== 'ADMIN' && userProfile.role !== 'guest') {

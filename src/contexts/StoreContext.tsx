@@ -98,11 +98,24 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const warehouseCode = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '';
 
   const [currentStoreId, setCurrentStoreIdRaw] = useState(() => {
+    // 1. Ưu tiên param st từ URL (dùng cho link chia sẻ khách)
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const stParam = params.get('st') || params.get('sieuthi') || params.get('store');
+      if (stParam && stParam.trim() && isValidStoreName(stParam.trim())) {
+        return stParam.trim();
+      }
+    } catch {}
+    // 2. User đã đăng nhập (không phải guest) — ưu tiên store đã chọn
     if (userProfile && userProfile.role !== 'guest') {
       const preferred = (userProfile as any)?.selected_store || userProfile.ten_sieu_thi;
       if (preferred && isValidStoreName(preferred)) {
         return preferred;
       }
+    }
+    // 3. Guest profile có ten_sieu_thi từ link chia sẻ
+    if (userProfile?.role === 'guest' && userProfile.ten_sieu_thi && isValidStoreName(userProfile.ten_sieu_thi)) {
+      return userProfile.ten_sieu_thi;
     }
     return localStorage.getItem('currentStoreId') || 'ALL';
   });
@@ -290,7 +303,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         const maKhoNum = parseInt(cleanMaKho, 10);
         let query = supabase
           .from('store')
-          .select('id, declared_stores');
+          .select('id, ten_sieu_thi, declared_stores, updated_at');
 
         if (!isNaN(maKhoNum)) {
           query = query.or(`warehouse_code.eq.${cleanMaKho},warehouse_code.eq.${maKhoNum}`);
@@ -306,8 +319,15 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
 
         if (data && data.length > 0) {
+          // Sắp xếp các bản ghi theo thời gian cập nhật mới nhất (updated_at desc)
+          const sorted = [...data].sort((a: any, b: any) => {
+            const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+            const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+            return timeB - timeA;
+          });
+
           // Try to find the record that has declared_stores array
-          const recordWithArray = data.find(
+          const recordWithArray = sorted.find(
             (d: any) => d.declared_stores && Array.isArray(d.declared_stores) && d.declared_stores.length > 0
           );
 
@@ -317,7 +337,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             storeNames = recordWithArray.declared_stores;
           } else {
             // Fallback: collect all IDs that are valid store names
-            storeNames = data.map((d: any) => d.id).filter((name: string) => isValidStoreName(name));
+            storeNames = sorted.map((d: any) => d.ten_sieu_thi || d.id).filter((name: string) => isValidStoreName(name));
           }
 
           const uniqueStores = Array.from(new Set(storeNames))

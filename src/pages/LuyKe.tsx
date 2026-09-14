@@ -2345,7 +2345,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                         {/* 6 Gradient StatCards */}
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
                           <StatCard
-                            title="TAGET QĐ"
+                            title="TARGET QĐ"
                             value={formatCurrencyUnit(displayTargetQD)}
                             icon={Target}
                             color="rose"

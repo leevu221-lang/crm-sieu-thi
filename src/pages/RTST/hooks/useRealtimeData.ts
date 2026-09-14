@@ -85,15 +85,27 @@ function setGlobalLastSaveTs(ts: number) {
 
 export const useRealtimeData = (maKho: string) => {
   const { showNotification } = useNotification();
-  const { isStoreReady, currentStoreId } = useStore();
+  const { isStoreReady, currentStoreId, availableStores } = useStore();
   
   // Normalize maKho: trim and remove leading zeros for consistency
   const normalizedMaKho = maKho ? maKho.trim().replace(/^0+/, '') : '';
 
   const isDirtyRef = useRef(false);
 
-  const [marketInput, setMarketInput] = useState('');
-  const [categoryInput, setCategoryInput] = useState('');
+  const [marketInput, setMarketInput] = useState(() => {
+    try {
+      return (normalizedMaKho && localStorage.getItem(`rtst_market_input_${normalizedMaKho}`)) || '';
+    } catch {
+      return '';
+    }
+  });
+  const [categoryInput, setCategoryInput] = useState(() => {
+    try {
+      return (normalizedMaKho && localStorage.getItem(`rtst_category_input_${normalizedMaKho}`)) || '';
+    } catch {
+      return '';
+    }
+  });
   const [ycxData, setYcxData] = useState('');
   const [ycxDataMoi, setYcxDataMoi] = useState('');
   const [ycxFileName, setYcxFileNameState] = useState('');
@@ -105,7 +117,13 @@ export const useRealtimeData = (maKho: string) => {
       return '';
     }
   });
-  const [categoryTargetInput, setCategoryTargetInput] = useState('');
+  const [categoryTargetInput, setCategoryTargetInput] = useState(() => {
+    try {
+      return (normalizedMaKho && localStorage.getItem(`rtst_cat_target_${normalizedMaKho}`)) || '';
+    } catch {
+      return '';
+    }
+  });
   // NOTE: must start empty, NOT maKho — activeStore holds a STORE NAME (matches Firestore doc id
   // via normalizeStoreId), while maKho is the warehouse code. Seeding it with maKho let the
   // mount-time loadData() effect below (line ~578) race against the correct currentStoreId-driven
@@ -144,14 +162,22 @@ export const useRealtimeData = (maKho: string) => {
   // Sync activeStore and load data when StoreContext's currentStoreId changes
   const prevStoreIdRef = useRef(currentStoreId);
   useEffect(() => {
-    if (!currentStoreId || currentStoreId === 'ALL') return;
     if (!normalizedMaKho) return;
+
+    if (currentStoreId === 'ALL') {
+      prevStoreIdRef.current = 'ALL';
+      setActiveStore('ALL');
+      loadData('ALL');
+      return;
+    }
+    
+    if (!currentStoreId) return;
     
     // Skip if store hasn't actually changed
     if (prevStoreIdRef.current === currentStoreId && activeStore === currentStoreId) return;
 
-    // FORCE SAVE the old store's data before we switch away from it
-    if (prevStoreIdRef.current && prevStoreIdRef.current !== 'ALL' && hasLoadedFromDB) {
+    // FORCE SAVE the old store's data before we switch away from it ONLY if user edited something
+    if (prevStoreIdRef.current && prevStoreIdRef.current !== 'ALL' && hasLoadedFromDB && isDirtyRef.current) {
       if (saveRealtimeDataRef.current) {
         console.log(`[RealtimeData] AUTO-REACT: Force saving OLD store before switch → "${prevStoreIdRef.current}"`);
         saveRealtimeDataRef.current(true);
@@ -302,21 +328,45 @@ export const useRealtimeData = (maKho: string) => {
     setIsYcxDirty(true);
   }, []);
 
-  const clearField = useCallback((setter: (val: string) => void) => {
+  const clearField = useCallback((setter: (val: string) => void, fieldName?: string) => {
     // Block ALL restore paths
     setGlobalLastSaveTs(Date.now());
     skipSubscriptionRef.current = true;
     setter('');
     isDirtyRef.current = false;
+
+    // Determine field name if not passed
+    let resolvedFieldName = fieldName;
+    if (!resolvedFieldName) {
+      if (setter === setMarketInput) resolvedFieldName = 'REALTIME DT';
+      else if (setter === setCategoryInput) resolvedFieldName = 'REALTIME TĐ';
+      else if (setter === setCategoryRevenueInput) resolvedFieldName = 'LUỸ KẾ DT';
+      else if (setter === setCategoryTargetInput) resolvedFieldName = 'LUỸ KẾ TĐ';
+    }
+
+    if (resolvedFieldName === 'REALTIME DT' && normalizedMaKho) {
+      try { localStorage.removeItem(`rtst_market_input_${normalizedMaKho}`); } catch {}
+    } else if (resolvedFieldName === 'REALTIME TĐ' && normalizedMaKho) {
+      try { localStorage.removeItem(`rtst_category_input_${normalizedMaKho}`); } catch {}
+    } else if (resolvedFieldName === 'LUỸ KẾ DT') {
+      try {
+        localStorage.removeItem('rt_catrev');
+        localStorage.removeItem('rtst_cluster_summary');
+        localStorage.removeItem('rtst_catrev');
+      } catch {}
+    } else if (resolvedFieldName === 'LUỸ KẾ TĐ' && normalizedMaKho) {
+      try { localStorage.removeItem(`rtst_cat_target_${normalizedMaKho}`); } catch {}
+    }
+
     // Save immediately — no delay
     if (saveRealtimeDataRef.current) {
-      saveRealtimeDataRef.current(true);
+      saveRealtimeDataRef.current(true, resolvedFieldName);
     }
     // Release subscription block after 2s
     setTimeout(() => {
       skipSubscriptionRef.current = false;
     }, 2000);
-  }, []);
+  }, [normalizedMaKho]);
 
   const saveRealtimeData = useCallback(async (silent = false, fieldName?: string) => {
     setGlobalLastSaveTs(Date.now());
@@ -330,7 +380,26 @@ export const useRealtimeData = (maKho: string) => {
       autoSaveTimeoutRef.current = null;
     }
 
-    const cleanStore = (activeStoreRef.current || '').trim();
+    let cleanStore = (activeStoreRef.current || '').trim();
+
+    // If activeStore is 'ALL' or empty, resolve to first available valid store for cluster data
+    if ((!cleanStore || cleanStore === 'ALL' || !isValidStoreName(cleanStore)) && availableStores && availableStores.length > 0) {
+      const candidate = availableStores.find(s => s.name && s.name !== 'ALL' && isValidStoreName(s.name));
+      if (candidate) {
+        cleanStore = candidate.name;
+        console.log(`[RealtimeData] Resolved target store for cluster data: "${cleanStore}"`);
+      }
+    }
+
+    // Fallback: check processedData.markets
+    if ((!cleanStore || cleanStore === 'ALL' || !isValidStoreName(cleanStore)) && processedData?.markets?.length > 0) {
+      const candidate = processedData.markets.find(m => m.name && isValidStoreName(m.name));
+      if (candidate) {
+        cleanStore = candidate.name;
+        console.log(`[RealtimeData] Resolved target store from parsed markets: "${cleanStore}"`);
+      }
+    }
+
     if (!normalizedMaKho || !cleanStore || !isValidStoreName(cleanStore)) {
       if (!silent && !cleanStore) {
         showNotification('Vui lòng chọn hoặc tải dữ liệu siêu thị trước khi lưu!', 'error');
@@ -384,14 +453,37 @@ export const useRealtimeData = (maKho: string) => {
         id: normalizeStoreId(cleanStore), // Normalized UPPERCASE ID to prevent duplicates
         warehouse_code: cleanMaKho,
         ten_sieu_thi: cleanStore,
-        updated_at: new Date().toISOString(),
-        rt_bi_tong_quan: marketVal || '',
-        rt_nh_cum: categoryVal || '',
-        ycx_data: compressedYcx || '',
-        ycx_data_moi: compressedYcxMoi || '',
-        ycx_file_name: ycxFileNameVal,
-        ycx_file_name_moi: ycxFileNameMoiVal
+        updated_at: new Date().toISOString()
       };
+
+      // NEVER send empty strings to Firestore unless explicitly triggered by clearField for that specific field
+      if (marketVal) {
+        payload.rt_bi_tong_quan = marketVal;
+      } else if (fieldName === 'REALTIME DT') {
+        payload.rt_bi_tong_quan = '';
+      }
+
+      if (categoryVal) {
+        payload.rt_nh_cum = categoryVal;
+      } else if (fieldName === 'REALTIME TĐ') {
+        payload.rt_nh_cum = '';
+      }
+
+      if (compressedYcx) {
+        payload.ycx_data = compressedYcx;
+        if (ycxFileNameVal) payload.ycx_file_name = ycxFileNameVal;
+      } else if (fieldName === 'YCX') {
+        payload.ycx_data = '';
+        payload.ycx_file_name = '';
+      }
+
+      if (compressedYcxMoi) {
+        payload.ycx_data_moi = compressedYcxMoi;
+        if (ycxFileNameMoiVal) payload.ycx_file_name_moi = ycxFileNameMoiVal;
+      } else if (fieldName === 'YCX_MOI') {
+        payload.ycx_data_moi = '';
+        payload.ycx_file_name_moi = '';
+      }
 
       // Only include LK fields if they actually have content, or if this save was explicitly triggered for that field
       if (categoryRevenueVal) {
@@ -452,7 +544,7 @@ export const useRealtimeData = (maKho: string) => {
     } finally {
       setIsSavingRealtime(false);
     }
-  }, [maKho, activeStore, marketInput, categoryInput, ycxData, ycxDataMoi, categoryRevenueInput, categoryTargetInput, showNotification]);
+  }, [normalizedMaKho, activeStore, availableStores, processedData, showNotification]);
 
   // PERF: Keep ref up-to-date
   useEffect(() => { saveRealtimeDataRef.current = saveRealtimeData; }, [saveRealtimeData]);
@@ -501,6 +593,11 @@ export const useRealtimeData = (maKho: string) => {
   // Force-save listener: flush pending realtime data before version-update reload
   useEffect(() => {
     const handleForceSave = () => {
+      // CRITICAL GUARD: Only flush if user actually has pending un-saved edits AND data has finished loading!
+      if (!isDirtyRef.current || !hasLoadedFromDB) {
+        console.log('[RealtimeData] Skip force-save before reload — no dirty edits or data not loaded yet');
+        return;
+      }
       console.log('[RealtimeData] Force-save triggered before reload — flushing pending data');
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current);
@@ -513,7 +610,7 @@ export const useRealtimeData = (maKho: string) => {
     };
     window.addEventListener('force-save-before-reload', handleForceSave);
     return () => window.removeEventListener('force-save-before-reload', handleForceSave);
-  }, []);
+  }, [hasLoadedFromDB]);
 
   // Function to load data for a specific store name
   const loadDataForStore = useCallback(async (targetStore: string) => {
@@ -531,40 +628,68 @@ export const useRealtimeData = (maKho: string) => {
     // Do not pre-clear input fields — keep existing local data intact until query resolves
     setLastUpdated(null);
 
-    if (!isValidStoreName(targetStore)) {
+    const isAllMode = targetStore === 'ALL';
+    const sanitizeField = async (val: any) => {
+      if (!val) return '';
+      let str = String(val).trim();
+      if (str.startsWith('GZ:')) {
+        try {
+          str = await decompressString(str);
+          if (str.startsWith('GZ:')) return '';
+        } catch (e) {
+          return '';
+        }
+      }
+      return str;
+    };
+
+    if (!isAllMode && !isValidStoreName(targetStore)) {
       setIsLoadingRealtime(false);
+      setHasLoadedFromDB(true);
       return;
     }
 
     console.log(`[RealtimeData] loadData → store: "${targetStore}"`);
 
     try {
-      const targetDocId = normalizeStoreId(targetStore.trim());
-      console.log(`[RealtimeData] Querying document ID: "${targetDocId}"`);
-      const { data: record, error } = await supabase
-        .from('store')
-        .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ycx_data_moi, ycx_file_name, ycx_file_name_moi, ten_sieu_thi, updated_at')
-        .eq('id', targetDocId)
-        .maybeSingle();
+      let record: any = null;
+      let targetDocId = !isAllMode ? normalizeStoreId(targetStore.trim()) : '';
 
-      if (error) {
-        console.error('[RTST] Error loading realtime data:', error);
-        return;
+      if (!isAllMode && targetDocId) {
+        console.log(`[RealtimeData] Querying document ID: "${targetDocId}"`);
+        const { data, error } = await supabase
+          .from('store')
+          .select('rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ycx_data_moi, ycx_file_name, ycx_file_name_moi, ten_sieu_thi, updated_at')
+          .eq('id', targetDocId)
+          .maybeSingle();
+
+        if (error) {
+          console.error('[RTST] Error loading realtime data:', error);
+        } else {
+          record = data;
+        }
       }
 
-      const sanitizeField = async (val: any) => {
-        if (!val) return '';
-        let str = String(val).trim();
-        if (str.startsWith('GZ:')) {
-          try {
-            str = await decompressString(str);
-            if (str.startsWith('GZ:')) return '';
-          } catch (e) {
-            return '';
-          }
+      // FALLBACK for 'ALL' mode OR if no doc found by targetDocId:
+      // Query warehouse documents to load shared cluster reports
+      if (!record && normalizedMaKho) {
+        console.log(`[RealtimeData] ⚠️ Fallback querying by warehouse_code="${normalizedMaKho}"...`);
+        const maKhoNum = parseInt(normalizedMaKho, 10);
+        const { data: allStoreData } = await supabase
+          .from('store')
+          .select('id, rt_bi_tong_quan, rt_nh_cum, lk_bi_tong_quan, lk_nh_sieu_thi, ycx_data, ycx_data_moi, ycx_file_name, ycx_file_name_moi, ten_sieu_thi, updated_at')
+          .or(!isNaN(maKhoNum)
+            ? `warehouse_code.eq.${normalizedMaKho},warehouse_code.eq.${maKhoNum}`
+            : `warehouse_code.eq.${normalizedMaKho}`);
+
+        if (allStoreData && allStoreData.length > 0) {
+          // Find doc that contains cluster reports
+          const withCluster = allStoreData.find(d => d.rt_bi_tong_quan || d.rt_nh_cum || d.lk_bi_tong_quan || d.lk_nh_sieu_thi);
+          record = withCluster || allStoreData[0];
+          targetDocId = record.id || targetDocId;
+          console.log(`[RealtimeData] ✓ Warehouse fallback found doc: "${record?.id || record?.ten_sieu_thi}"`);
         }
-        return str;
-      };
+      }
 
       if (record) {
         skipAutoSaveRef.current = true;
@@ -576,10 +701,21 @@ export const useRealtimeData = (maKho: string) => {
           const loadedCategoryRevenue = await sanitizeField(record.lk_bi_tong_quan);
           const loadedCategoryTarget = await sanitizeField(record.lk_nh_sieu_thi);
           // Only overwrite local state if DB has non-empty values to prevent data loss
-          if (loadedMarket) setMarketInput(loadedMarket);
-          if (loadedCategory) setCategoryInput(loadedCategory);
-          if (loadedCategoryRevenue) setCategoryRevenueInput(loadedCategoryRevenue);
-          if (loadedCategoryTarget) setCategoryTargetInput(loadedCategoryTarget);
+          if (loadedMarket) {
+            setMarketInput(loadedMarket);
+            try { localStorage.setItem(`rtst_market_input_${normalizedMaKho}`, loadedMarket); } catch {}
+          }
+          if (loadedCategory) {
+            setCategoryInput(loadedCategory);
+            try { localStorage.setItem(`rtst_category_input_${normalizedMaKho}`, loadedCategory); } catch {}
+          }
+          if (loadedCategoryRevenue) {
+            setCategoryRevenueInput(loadedCategoryRevenue);
+          }
+          if (loadedCategoryTarget) {
+            setCategoryTargetInput(loadedCategoryTarget);
+            try { localStorage.setItem(`rtst_cat_target_${normalizedMaKho}`, loadedCategoryTarget); } catch {}
+          }
 
           let finalYcxData = await sanitizeField(record.ycx_data);
           let finalYcxDataMoi = await sanitizeField(record.ycx_data_moi);
@@ -587,9 +723,10 @@ export const useRealtimeData = (maKho: string) => {
           let finalYcxFileNameMoi = record.ycx_file_name_moi || '';
 
           // If empty (because it was too large to save to DB), try to recover from LocalDB
+          const resolvedDocId = targetDocId || record.id || normalizeStoreId(targetStore);
           if (!finalYcxData || !finalYcxDataMoi || !finalYcxFileName) {
             try {
-              const localPayload = await localYcxDb.get('ycx_' + targetDocId);
+              const localPayload = await localYcxDb.get('ycx_' + resolvedDocId);
               if (localPayload) {
                 const parsed = JSON.parse(localPayload);
                 if (!finalYcxData && parsed.ycx_data) finalYcxData = await sanitizeField(parsed.ycx_data);
@@ -600,17 +737,14 @@ export const useRealtimeData = (maKho: string) => {
             } catch (e) {}
           }
 
-          setYcxData(finalYcxData);
-          setYcxDataMoi(finalYcxDataMoi);
-          // Restore YCX file names from Firebase or LocalDB
-          setYcxFileNameState(finalYcxFileName);
-          setYcxFileNameMoiState(finalYcxFileNameMoi);
+          if (finalYcxData) setYcxData(finalYcxData);
+          if (finalYcxDataMoi) setYcxDataMoi(finalYcxDataMoi);
+          if (finalYcxFileName) setYcxFileNameState(finalYcxFileName);
+          if (finalYcxFileNameMoi) setYcxFileNameMoiState(finalYcxFileNameMoi);
 
-          // Seed the no-op-save guard with what we just loaded, so the first
-          // onBlur after loading (with no actual user edit) doesn't fire a
-          // redundant write just because *InputRef hasn't caught up to state yet.
+          // Seed the no-op-save guard with what we just loaded
           lastSavedSnapshotRef.current = JSON.stringify([
-            targetDocId, loadedMarket, loadedCategory, loadedCategoryRevenue,
+            resolvedDocId, loadedMarket, loadedCategory, loadedCategoryRevenue,
             loadedCategoryTarget, finalYcxData, finalYcxDataMoi, finalYcxFileName, finalYcxFileNameMoi
           ]);
         } else {
@@ -627,7 +761,7 @@ export const useRealtimeData = (maKho: string) => {
         }
       } else {
         console.log(`[RealtimeData] No record found in DB for ID: "${targetDocId}" — keeping existing local data`);
-        if (!isDirtyRef.current) {
+        if (!isDirtyRef.current && targetDocId) {
           try {
             const localPayload = await localYcxDb.get('ycx_' + targetDocId);
             if (localPayload) {
@@ -811,13 +945,25 @@ export const useRealtimeData = (maKho: string) => {
     marketInputRef.current = newVal;
     isDirtyRef.current = true;
     setMarketInput(newVal);
-  }, []);
+    try {
+      if (normalizedMaKho) {
+        if (newVal) localStorage.setItem(`rtst_market_input_${normalizedMaKho}`, newVal);
+        else localStorage.removeItem(`rtst_market_input_${normalizedMaKho}`);
+      }
+    } catch {}
+  }, [normalizedMaKho]);
   const setCategoryInputSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(categoryInputRef.current) : val;
     categoryInputRef.current = newVal;
     isDirtyRef.current = true;
     setCategoryInput(newVal);
-  }, []);
+    try {
+      if (normalizedMaKho) {
+        if (newVal) localStorage.setItem(`rtst_category_input_${normalizedMaKho}`, newVal);
+        else localStorage.removeItem(`rtst_category_input_${normalizedMaKho}`);
+      }
+    } catch {}
+  }, [normalizedMaKho]);
   const setCategoryRevenueInputSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(categoryRevenueInputRef.current) : val;
     categoryRevenueInputRef.current = newVal;
@@ -836,7 +982,13 @@ export const useRealtimeData = (maKho: string) => {
     categoryTargetInputRef.current = newVal;
     isDirtyRef.current = true;
     setCategoryTargetInput(newVal);
-  }, []);
+    try {
+      if (normalizedMaKho) {
+        if (newVal) localStorage.setItem(`rtst_cat_target_${normalizedMaKho}`, newVal);
+        else localStorage.removeItem(`rtst_cat_target_${normalizedMaKho}`);
+      }
+    } catch {}
+  }, [normalizedMaKho]);
 
   // FORCE DELETE: Xoá toàn bộ dữ liệu trên Firebase, chặn mọi phục hồi
   const forceDeleteAllData = useCallback(async () => {

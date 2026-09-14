@@ -1014,6 +1014,11 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       throw new Error('Chưa xác định được tên siêu thị. Vui lòng chọn siêu thị.');
     }
     
+    if (data === phucVu) {
+      console.log('[EmployeeHealth] Skip savePhucVu — data unchanged');
+      return;
+    }
+
     setPhucVu(data); // Optimistic update
     setIsSaving(true);
     try {
@@ -1047,6 +1052,12 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       throw new Error('Chưa xác định được tên siêu thị. Vui lòng chọn siêu thị.');
     }
     
+    const cleaned = cleanBiReportText(data);
+    if (cleaned === banKemNv) {
+      console.log('[EmployeeHealth] Skip saveBanKemNv — data unchanged');
+      return;
+    }
+
     setBanKemNvInternal(data); // Optimistic update
     banKemDirtyRef.current = false; // Manual save clears dirty
     setIsSaving(true);
@@ -1081,6 +1092,12 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
       throw new Error('Chưa xác định được tên siêu thị. Vui lòng chọn siêu thị.');
     }
     
+    const cleaned = cleanBiReportText(data);
+    if (cleaned === nganhhangChinhNv) {
+      console.log('[EmployeeHealth] Skip saveNganhhangChinhNv — data unchanged');
+      return;
+    }
+
     setNganhhangChinhNvInternal(data); // Optimistic update
     nganhhangChinhDirtyRef.current = false; // Manual save clears dirty
     setIsSaving(true);

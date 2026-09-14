@@ -606,6 +606,16 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
     return Math.round(absolute).toLocaleString('vi-VN');
   };
 
+  const formatTargetVal = (val: number): string => {
+    const absolute = Math.abs(val);
+    const inMillions = absolute > 1000000 ? absolute / 1000000 : absolute;
+    if (inMillions >= 1000) {
+      return Math.round(inMillions).toLocaleString('vi-VN');
+    }
+    const val1Dec = Math.floor(inMillions * 10) / 10;
+    return (val1Dec % 1 === 0) ? val1Dec.toString() : val1Dec.toFixed(1);
+  };
+
   const formatName = (name: string) => {
     if (!name) return '';
     const parts = name.split(' - ');
@@ -694,7 +704,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
                   const progressWidth = Math.min(row.progressPercent, 120);
 
                   // Format mục tiêu
-                  const targetStr = row.targetDisplay > 0 ? formatRevenue(row.targetDisplay) : '';
+                  const targetStr = row.targetDisplay > 0 ? formatTargetVal(row.targetDisplay) : '';
 
                   return (
                     <tr key={row.staff.fullId} className={cn("h-[48px] transition-colors border-b border-emerald-100/90", isEven ? "bg-white" : "bg-emerald-50/20", "hover:bg-emerald-50/70")}>

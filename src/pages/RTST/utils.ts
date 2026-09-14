@@ -6,6 +6,7 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import type { MarketInfo, CategoryData, StaffData, StaffMatrixData, YcxStaffData, YcxItemDetail, YcxRankData, MwgBiStaffRow, MwgBiSummaryKpi, MwgBiStaffTotals, MwgBiStaffReportData } from './types';
+import { registerCacheCleaner } from '../../services/globalCacheRegistry';
 
 
 export const removeAccents = (str: string): string => {
@@ -182,6 +183,13 @@ export function getLuyKeProgress(daysPassed: number, totalDays: number): string 
 
 // --- Market Utils ---
 let marketRegistryCache: Record<string, string> | null = null;
+
+export function clearMarketRegistryCache() {
+  marketRegistryCache = null;
+}
+
+// Auto-register with the global cache registry so AuthContext can clear us during login/logout
+registerCacheCleaner(clearMarketRegistryCache);
 
 export const getMarketRegistry = (): Record<string, string> => {
   if (marketRegistryCache) return marketRegistryCache;

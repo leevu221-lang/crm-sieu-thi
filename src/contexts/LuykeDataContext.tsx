@@ -89,6 +89,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isProcessingSave, setIsProcessingSave] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoadedFromDB, setHasLoadedFromDB] = useState(false);
+  const isDirtyRef = useRef(false);
   const skipSubscriptionRef = useRef(0); // Timestamp: ignore subscription until this time
   const skipAutoSaveRef = useRef(false);
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -120,9 +121,40 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const tragopMatranRef = useRef(tragopMatran);
   const tragopNvRef = useRef(tragopNv);
   const banKemNvRef = useRef(banKemNv);
-  // Snapshot of the last value actually written to Firestore, used to skip no-op
-  // saves (onBlur fires even when the field wasn't actually changed) — see saveLuykeData.
-  const lastSavedLuykeSnapshotRef = useRef<string | null>(null);
+  // Snapshot of the last value actually written to DB, keyed per store ID.
+  // Used to skip no-op saves when field hasn't changed.
+  const dbStoreSnapshotsRef = useRef<Record<string, string>>({});
+
+  const computeStoreSnapshotKey = useCallback((
+    storeName: string,
+    summary: string,
+    category: string,
+    targets: any[],
+    staff: string,
+    staffCategory: string,
+    staffList: string,
+    dtGioCongVal: string,
+    dataPhanCaVal: any,
+    tragopMatranVal: string,
+    tragopNvVal: string,
+    banKemNvVal: string
+  ) => {
+    return JSON.stringify([
+      normalizeStoreId(storeName),
+      summary || '',
+      category || '',
+      targets || [],
+      staff || '',
+      staffCategory || '',
+      staffList || '',
+      dtGioCongVal || '',
+      dataPhanCaVal || null,
+      tragopMatranVal || '',
+      tragopNvVal || '',
+      banKemNvVal || ''
+    ]);
+  }, []);
+
   const categoryTargetsRef = useRef(categoryTargets);
   const percentCacheRef = useRef<Map<string, number>>(new Map());
   const activeStoreRef = useRef(activeStore);
@@ -149,8 +181,10 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [categoryTargets]);
 
   const setBanKemNvSync = useCallback((val: string) => {
+    if (val === banKemNvRef.current) return;
     setBanKemNvState(val);
     banKemNvRef.current = val;
+    isDirtyRef.current = true;
   }, []);
 
   // Warehouse code variants for DB queries (handles zero-padding differences)
@@ -174,32 +208,6 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [rawMaKho]);
 
-  // AUTO-REACT: When global currentStoreId changes, auto-load data for new store
-  // This centralizes store switching logic — pages no longer need manual setActiveStore + loadData calls
-  const prevStoreIdRef = useRef(currentStoreId);
-  useEffect(() => {
-    if (!currentStoreId || currentStoreId === 'ALL') return;
-    if (!rawMaKho) return;
-    // Skip if store hasn't actually changed (initial mount or same store)
-    if (prevStoreIdRef.current === currentStoreId && activeStore === currentStoreId) return;
-    
-    // FORCE SAVE the old store's data before we switch away from it
-    // This prevents losing data that was typed but not yet auto-saved
-    // Guard: NEVER save if warehouse changed!
-    const isSameWarehouse = prevWarehouseCodeRef.current === rawMaKho;
-    if (prevStoreIdRef.current && prevStoreIdRef.current !== 'ALL' && hasLoadedFromDB && isSameWarehouse) {
-      if (saveLuykeDataRef.current) {
-        console.log(`[LuykeData] AUTO-REACT: Force saving OLD store before switch → "${prevStoreIdRef.current}"`);
-        saveLuykeDataRef.current(true, 'auto', prevStoreIdRef.current);
-      }
-    }
-    
-    prevStoreIdRef.current = currentStoreId;
-    
-    console.log(`[LuykeData] AUTO-REACT: currentStoreId changed → "${currentStoreId}"`);
-    setActiveStore(currentStoreId);
-    loadData(currentStoreId);
-  }, [currentStoreId, rawMaKho, hasLoadedFromDB]);
 
 
   const saveLuykeData = useCallback(async (isSilent: boolean = false, source: 'staff' | 'targets' | 'auto' | string = 'auto', storeName?: string, overrideTargets?: any[], fieldName?: string) => {
@@ -209,7 +217,16 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       clearTimeout(autoSaveTimeoutRef.current);
       autoSaveTimeoutRef.current = null;
     }
-    const cleanStore = (storeName || activeStore || '').trim();
+    let cleanStore = (storeName || activeStore || '').trim();
+
+    // If cleanStore is 'ALL' or not a valid declared store name, resolve to first available valid store for cluster data
+    if ((!cleanStore || cleanStore === 'ALL' || !isValidStoreName(cleanStore)) && availableStores && availableStores.length > 0) {
+      const candidate = availableStores.find(s => s.name && s.name !== 'ALL' && isValidStoreName(s.name));
+      if (candidate) {
+        cleanStore = candidate.name;
+        console.log(`[LuykeData] Resolved target store for cluster data: "${cleanStore}"`);
+      }
+    }
 
     if (!rawMaKho || !cleanStore || !isValidStoreName(cleanStore)) {
       if (!isSilent && !cleanStore) {
@@ -234,15 +251,15 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const banKemNvVal = cleanBiReportText(banKemNvRef.current || '') || '';
     const categoryTargetsVal = (targetsToSave && targetsToSave.length > 0) ? targetsToSave : [];
 
-    // Skip the write entirely if nothing actually differs from the last value
-    // persisted for this store — same reasoning as useRealtimeData.ts's guard.
-    const currentSnapshotKey = JSON.stringify([
-      normalizeStoreId(cleanStore), summaryVal, categoryVal, categoryTargetsVal, staffVal,
+    // Skip the write entirely if nothing actually differs from the last value persisted for this store
+    const storeKey = normalizeStoreId(cleanStore);
+    const currentSnapshotKey = computeStoreSnapshotKey(
+      cleanStore, summaryVal, categoryVal, categoryTargetsVal, staffVal,
       staffCategoryVal, staffListVal, dtGioCongVal, dataPhanCaRef.current, tragopMatranVal,
       tragopNvVal, banKemNvVal
-    ]);
-    if (lastSavedLuykeSnapshotRef.current === currentSnapshotKey) {
-      console.log(`[LuykeData] Skip save — no change detected${fieldName ? ` (${fieldName})` : ''}`);
+    );
+    if (dbStoreSnapshotsRef.current[storeKey] === currentSnapshotKey) {
+      console.log(`[LuykeData] Skip save — no change detected for "${cleanStore}"${fieldName ? ` (${fieldName})` : ''}`);
       return;
     }
 
@@ -272,15 +289,57 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         payload.lk_nh_sieu_thi = '';
       }
 
-      payload.category_targets = categoryTargetsVal;
-      payload.lk_dt_nv = staffVal || '';
-      payload.lk_td_nv = staffCategoryVal || '';
-      payload.ds_nhan_vien = staffListVal;
-      payload.dt_gio_cong = dtGioCongVal;
-      payload.data_phan_ca = dataPhanCaRef.current || null;
-      payload.tragop_matran = tragopMatranVal;
-      payload.tragop_nv = tragopNvVal;
-      payload.ban_kem_nv = banKemNvVal;
+      // ONLY include per-store fields if they have content, or if explicitly cleared!
+      // This prevents empty in-memory fields from wiping existing DB records with ""
+      if (categoryTargetsVal && categoryTargetsVal.length > 0) {
+        payload.category_targets = categoryTargetsVal;
+      } else if (fieldName === 'TARGET THI ĐUA') {
+        payload.category_targets = [];
+      }
+
+      if (staffVal) {
+        payload.lk_dt_nv = staffVal;
+      } else if (fieldName === 'DOANH THU NV' || fieldName === 'CHI TIẾT DTNV') {
+        payload.lk_dt_nv = '';
+      }
+
+      if (staffCategoryVal) {
+        payload.lk_td_nv = staffCategoryVal;
+      } else if (fieldName === 'THI ĐUA NV') {
+        payload.lk_td_nv = '';
+      }
+
+      if (staffListVal) {
+        payload.ds_nhan_vien = staffListVal;
+      } else if (fieldName === 'DS NHÂN VIÊN') {
+        payload.ds_nhan_vien = '';
+      }
+
+      if (dtGioCongVal) {
+        payload.dt_gio_cong = dtGioCongVal;
+      }
+
+      if (dataPhanCaRef.current) {
+        payload.data_phan_ca = dataPhanCaRef.current;
+      }
+
+      if (tragopMatranVal) {
+        payload.tragop_matran = tragopMatranVal;
+      } else if (fieldName === 'TRẢ GÓP MT') {
+        payload.tragop_matran = '';
+      }
+
+      if (tragopNvVal) {
+        payload.tragop_nv = tragopNvVal;
+      } else if (fieldName === 'TRẢ GÓP NV') {
+        payload.tragop_nv = '';
+      }
+
+      if (banKemNvVal) {
+        payload.ban_kem_nv = banKemNvVal;
+      } else if (fieldName === 'BÁN KÈM NV' || fieldName === 'HQ BÁN KÈM NV') {
+        payload.ban_kem_nv = '';
+      }
 
       const { error } = await supabase
         .from('store')
@@ -291,7 +350,8 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         throw error;
       }
 
-      lastSavedLuykeSnapshotRef.current = currentSnapshotKey;
+      isDirtyRef.current = false;
+      dbStoreSnapshotsRef.current[storeKey] = currentSnapshotKey;
 
       // Keep allStoresCache in sync after successful save
       setAllStoresCache(prev => {
@@ -683,6 +743,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!rawMaKho || !activeStore || !hasLoadedFromDB) return;
     if (isLoading) return;
     if (!isStoreReady) return; // ← GUARD: Don't save during store switch
+    if (!isDirtyRef.current) return; // ← GUARD: Don't save if nothing was edited
     
     // Skip auto-save when only activeStore changed (store is switching, data is stale)
     if (prevActiveStoreRef.current !== activeStore) {
@@ -710,6 +771,11 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Force-save listener: flush pending data before version-update reload
   useEffect(() => {
     const handleForceSave = () => {
+      // CRITICAL GUARD: Only flush if user actually has pending un-saved edits AND data has finished loading!
+      if (!isDirtyRef.current || !hasLoadedFromDB || isLoading) {
+        console.log('[LuykeData] Skip force-save before reload — no dirty edits or still loading');
+        return;
+      }
       console.log('[LuykeData] Force-save triggered before reload — flushing pending data to Firestore');
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current);
@@ -720,7 +786,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
     window.addEventListener('force-save-before-reload', handleForceSave);
     return () => window.removeEventListener('force-save-before-reload', handleForceSave);
-  }, [saveLuykeData]);
+  }, [saveLuykeData, hasLoadedFromDB, isLoading]);
 
   // Synchronize component state to global cache immediately when user types
   // This prevents data loss (e.g. pasted text disappearing) if they switch tabs before the 2s auto-save
@@ -739,6 +805,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         existing.clusterCategoryInput === clusterCategoryInput &&
         existing.staffInput === staffInput &&
         existing.staffCategoryInput === staffCategoryInput &&
+        existing.banKemNv === banKemNv &&
         existing.tragopMatran === tragopMatran &&
         existing.tragopNv === tragopNv &&
         existing.categoryTargets === categoryTargets
@@ -754,6 +821,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           clusterCategoryInput,
           staffInput,
           staffCategoryInput,
+          banKemNv,
           tragopMatran,
           tragopNv,
           categoryTargets
@@ -762,7 +830,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   }, [
     activeStore, clusterSummaryInput, clusterCategoryInput, staffInput, 
-    staffCategoryInput, tragopMatran, tragopNv, categoryTargets, 
+    staffCategoryInput, banKemNv, tragopMatran, tragopNv, categoryTargets, 
     hasLoadedFromDB, updateAllStoresCache
   ]);
 
@@ -797,11 +865,12 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setClusterCategoryInput(cachedData.clusterCategoryInput || '');
       setStaffInput(cachedData.staffInput || '');
       setStaffCategoryInput(cachedData.staffCategoryInput || '');
-      setStaffListInput(''); // Note: staff list isn't cached, could be added later
+      setStaffListInput(''); // Note: staff list isn't cached
       setDtGioCong(''); 
       setDataPhanCa(null);
       setTragopMatran(cachedData.tragopMatran || '');
       setTragopNv(cachedData.tragopNv || '');
+      setBanKemNvState(cachedData.banKemNv || '');
       setCategoryTargets(cachedData.categoryTargets || []);
       
       // Process synchronously to instantly display cached data without 300ms wait
@@ -811,14 +880,12 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         cachedData.clusterCategoryInput || '',
         cachedData.staffInput || ''
       );
-    } else {
-      // Keep previous data during fetch to prevent layout collapse/flicker.
-      // Fields will be updated or cleared once the Supabase query resolves.
     }
     
     // Block auto-save + cancel pending
     setIsLoading(true);
     setHasLoadedFromDB(false);
+    isDirtyRef.current = false;
     if (autoSaveTimeoutRef.current) { clearTimeout(autoSaveTimeoutRef.current); autoSaveTimeoutRef.current = null; }
     skipAutoSaveRef.current = true;
     skipSubscriptionRef.current = Date.now() + 2000;
@@ -827,49 +894,6 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     console.log(`[LuykeData] loadData → store: "${targetStore}", maKho: ${shortMaKho}`);
     
     try {
-      // Query directly using the selected store name as the unique document ID
-      let { data, error } = await supabase
-        .from('store')
-        .select('id, lk_bi_tong_quan, lk_nh_sieu_thi, lk_dt_nv, lk_td_nv, ds_nhan_vien, dt_gio_cong, data_phan_ca, tragop_matran, tragop_nv, category_targets, ten_sieu_thi, updated_at, taget_doanh_thu, ban_kem_nv, phuc_vu')
-        .eq('id', normalizeStoreId(targetStore.trim()))
-        .maybeSingle();
-      
-      // FALLBACK: If no document found by ID, try querying by warehouse_code + match ten_sieu_thi
-      // This handles old documents with warehouse_code as ID, or different naming formats
-      if (!data && rawMaKho) {
-        console.log(`[LuykeData] ⚠️ No doc found by ID="${targetStore}", trying warehouse_code fallback...`);
-        const maKhoNum = parseInt(rawMaKho, 10);
-        const { data: allStoreData } = await supabase
-          .from('store')
-          .select('id, lk_bi_tong_quan, lk_nh_sieu_thi, lk_dt_nv, lk_td_nv, ds_nhan_vien, dt_gio_cong, data_phan_ca, tragop_matran, tragop_nv, category_targets, ten_sieu_thi, updated_at, taget_doanh_thu, ban_kem_nv, phuc_vu')
-          .or(!isNaN(maKhoNum) 
-            ? `warehouse_code.eq.${rawMaKho},warehouse_code.eq.${maKhoNum}`
-            : `warehouse_code.eq.${rawMaKho}`);
-        if (allStoreData) {
-          const arr = Array.isArray(allStoreData) ? allStoreData : [allStoreData];
-          const cleanTarget = targetStore.trim().toUpperCase();
-          // First try exact match on ten_sieu_thi or id
-          const exactMatch = arr.find(d => 
-            (d.ten_sieu_thi || '').trim().toUpperCase() === cleanTarget ||
-            (d.id || '').trim().toUpperCase() === cleanTarget
-          );
-          // Fallback: partial match (store name contains target prefix or vice versa)
-          const partialMatch = !exactMatch && arr.find(d =>
-            cleanTarget.includes((d.ten_sieu_thi || d.id || '').trim().toUpperCase().split(' - ')[0]) ||
-            (d.ten_sieu_thi || d.id || '').trim().toUpperCase().includes(cleanTarget.split(' - ')[0])
-          );
-          data = exactMatch || partialMatch || (arr.length === 1 ? arr[0] : null);
-          if (data) console.log(`[LuykeData] ✓ Fallback found doc: "${data.id || data.ten_sieu_thi}"`);
-          else console.log(`[LuykeData] ✗ No match found in ${arr.length} warehouse docs`);
-        }
-      }
-      
-      if (error) console.error('[LuykeData] Query error:', error);
-      
-      let clusterSummary = '';
-      let clusterCategory = '';
-      let loadedTargets: any[] = [];
-
       const sanitizeField = async (val: any) => {
         if (!val) return '';
         let str = String(val).trim();
@@ -884,44 +908,112 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return str;
       };
 
+      // 1. Fetch all store records for this warehouse up front
+      // This populates all cards in "CẤU HÌNH SIÊU THỊ & NHÂN VIÊN" with their own independent data!
+      const maKhoNum = parseInt(rawMaKho, 10);
+      const { data: allStoreData, error: queryErr } = await supabase
+        .from('store')
+        .select('id, lk_bi_tong_quan, lk_nh_sieu_thi, lk_dt_nv, lk_td_nv, ds_nhan_vien, dt_gio_cong, data_phan_ca, tragop_matran, tragop_nv, category_targets, ten_sieu_thi, updated_at, taget_doanh_thu, ban_kem_nv, phuc_vu')
+        .or(!isNaN(maKhoNum) 
+          ? `warehouse_code.eq.${rawMaKho},warehouse_code.eq.${maKhoNum}`
+          : `warehouse_code.eq.${rawMaKho}`);
+
+      if (queryErr) console.error('[LuykeData] Query error:', queryErr);
+
+      const storeRows: any[] = Array.isArray(allStoreData) ? allStoreData : (allStoreData ? [allStoreData] : []);
+
+      // Populate global cache and DB snapshots for all found store rows in this warehouse
+      for (const row of storeRows) {
+        const rowStoreName = row.ten_sieu_thi || row.id || '';
+        if (!rowStoreName) continue;
+        const rowSummary = await sanitizeField(row.lk_bi_tong_quan);
+        const rowCategory = await sanitizeField(row.lk_nh_sieu_thi);
+        const rowTargets = Array.isArray(row.category_targets) ? row.category_targets : [];
+
+        // Save DB snapshot for this store to prevent redundant saves
+        const rowSnapshot = computeStoreSnapshotKey(
+          rowStoreName,
+          rowSummary,
+          rowCategory,
+          rowTargets,
+          cleanBiReportText(row.lk_dt_nv || ''),
+          cleanBiReportText(row.lk_td_nv || ''),
+          cleanBiReportText(row.ds_nhan_vien || ''),
+          cleanBiReportText(row.dt_gio_cong || ''),
+          row.data_phan_ca || null,
+          cleanBiReportText(row.tragop_matran || ''),
+          cleanBiReportText(row.tragop_nv || ''),
+          cleanBiReportText(row.ban_kem_nv || '')
+        );
+        dbStoreSnapshotsRef.current[normalizeStoreId(rowStoreName)] = rowSnapshot;
+        if (row.id) {
+          dbStoreSnapshotsRef.current[normalizeStoreId(row.id)] = rowSnapshot;
+        }
+
+        // Cache for allStoresCache
+        globalAllStoresCache[rowStoreName] = {
+          clusterSummaryInput: rowSummary,
+          clusterCategoryInput: rowCategory,
+          staffInput: row.lk_dt_nv || '',
+          staffCategoryInput: row.lk_td_nv || '',
+          banKemNv: row.ban_kem_nv || '',
+          phucVu: row.phuc_vu ? 'has_data' : '',
+          tragopMatran: row.tragop_matran || '',
+          tragopNv: row.tragop_nv || '',
+          stPercentTarget: row.taget_doanh_thu?.stPercentTarget ?? 100,
+          categoryTargets: rowTargets,
+        };
+      }
+      setAllStoresCache({ ...globalAllStoresCache });
+
+      // Find the specific record for targetStore
+      let data: any = null;
+      if (targetStore) {
+        const cleanTarget = targetStore.trim().toUpperCase();
+        data = storeRows.find(d => 
+          (d.id || '').trim().toUpperCase() === normalizeStoreId(cleanTarget) ||
+          (d.ten_sieu_thi || '').trim().toUpperCase() === cleanTarget
+        );
+        if (!data) {
+          data = storeRows.find(d =>
+            cleanTarget.includes((d.ten_sieu_thi || d.id || '').trim().toUpperCase().split(' - ')[0]) ||
+            (d.ten_sieu_thi || d.id || '').trim().toUpperCase().includes(cleanTarget.split(' - ')[0])
+          );
+        }
+      }
+
+      // If not found in warehouse results, try single direct query by normalized ID
+      if (!data && targetStore) {
+        const { data: singleData } = await supabase
+          .from('store')
+          .select('id, lk_bi_tong_quan, lk_nh_sieu_thi, lk_dt_nv, lk_td_nv, ds_nhan_vien, dt_gio_cong, data_phan_ca, tragop_matran, tragop_nv, category_targets, ten_sieu_thi, updated_at, taget_doanh_thu, ban_kem_nv, phuc_vu')
+          .eq('id', normalizeStoreId(targetStore.trim()))
+          .maybeSingle();
+        if (singleData) data = singleData;
+      }
+
+      let clusterSummary = '';
+      let clusterCategory = '';
+      let loadedTargets: any[] = [];
+
       if (data) {
         clusterSummary = await sanitizeField(data.lk_bi_tong_quan);
         clusterCategory = await sanitizeField(data.lk_nh_sieu_thi);
-
-        // Pre-populate allStoresCache for inactive card display
         const activeName = data.ten_sieu_thi || targetStore || '';
-        if (activeName) {
-          updateAllStoresCache((prev: any) => ({
-            ...prev,
-            [activeName]: {
-              clusterSummaryInput: clusterSummary,
-              clusterCategoryInput: clusterCategory,
-              staffInput: data.lk_dt_nv || '',
-              staffCategoryInput: data.lk_td_nv || '',
-              banKemNv: data.ban_kem_nv || '',
-              phucVu: data.phuc_vu ? 'has_data' : '',
-              tragopMatran: data.tragop_matran || '',
-              tragopNv: data.tragop_nv || '',
-              stPercentTarget: data.taget_doanh_thu?.stPercentTarget ?? 100,
-              categoryTargets: Array.isArray(data.category_targets) ? data.category_targets : [],
-            }
-          }));
-        }
-
         console.log(`[LuykeData] ✓ Data loaded for: "${activeName}"`);
-        
+
         if (globalPendingSaves.has(targetStore)) {
           console.log(`[LuykeData] Save in progress for "${targetStore}", skipping DB overwrite for input fields`);
         } else {
           if (clusterSummary) setClusterSummaryInput(clusterSummary);
           if (clusterCategory) setClusterCategoryInput(clusterCategory);
           
-          // Process synchronously to instantly display DB data without 300ms wait
           handleProcess(loadedTargets, clusterSummary || clusterSummaryInputRef.current, clusterCategory || clusterCategoryInputRef.current, data.lk_dt_nv || staffInputRef.current || '');
         }
-        
-        if (data.lk_dt_nv) setStaffInput(data.lk_dt_nv);
-        if (data.lk_td_nv) setStaffCategoryInput(data.lk_td_nv);
+
+        // PER-STORE DATA: ALWAYS set all per-store fields (clean string if missing in DB to avoid bleed)
+        setStaffInput(data.lk_dt_nv || '');
+        setStaffCategoryInput(data.lk_td_nv || '');
         setStaffListInput(data.ds_nhan_vien || '');
         setDtGioCong(data.dt_gio_cong || '');
         setDataPhanCa(data.data_phan_ca || null);
@@ -935,16 +1027,53 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           setCategoryTargets([]);
         }
         if (data.ten_sieu_thi) setActiveStore(data.ten_sieu_thi);
+
+        // Store snapshot for targetStore
+        const targetSnapshot = computeStoreSnapshotKey(
+          activeName,
+          clusterSummary,
+          clusterCategory,
+          loadedTargets,
+          cleanBiReportText(data.lk_dt_nv || ''),
+          cleanBiReportText(data.lk_td_nv || ''),
+          cleanBiReportText(data.ds_nhan_vien || ''),
+          cleanBiReportText(data.dt_gio_cong || ''),
+          data.data_phan_ca || null,
+          cleanBiReportText(data.tragop_matran || ''),
+          cleanBiReportText(data.tragop_nv || ''),
+          cleanBiReportText(data.ban_kem_nv || '')
+        );
+        dbStoreSnapshotsRef.current[normalizeStoreId(activeName)] = targetSnapshot;
+        if (data.id) {
+          dbStoreSnapshotsRef.current[normalizeStoreId(data.id)] = targetSnapshot;
+        }
       } else {
-        console.log(`[LuykeData] ✗ No data found in DB for: "${targetStore}" → preserving local data`);
+        console.log(`[LuykeData] ✗ No data found in DB for: "${targetStore}" → cleanly initialize empty per-store state`);
+        // CLEAR all per-store fields so NOTHING from previous store bleeds through!
+        setStaffInput('');
+        setStaffCategoryInput('');
+        setStaffListInput('');
+        setDtGioCong('');
+        setDataPhanCa(null);
+        setTragopMatran('');
+        setTragopNv('');
+        setBanKemNvState('');
+        setCategoryTargets([]);
         if (targetStore) setActiveStore(targetStore);
+
+        // Record baseline snapshot so blurring or store switching does NOT perform an unnecessary save
+        const emptySnapshot = computeStoreSnapshotKey(
+          targetStore,
+          cleanBiReportText(clusterSummaryInputRef.current || ''),
+          cleanBiReportText(clusterCategoryInputRef.current || ''),
+          [],
+          '', '', '', '', null, '', '', ''
+        );
+        dbStoreSnapshotsRef.current[normalizeStoreId(targetStore)] = emptySnapshot;
       }
-      
+
       skipAutoSaveRef.current = true;
       setHasLoadedFromDB(true);
-      // Store DB targets in ref so the auto-process useEffect can use them.
-      // The useEffect will fire with the LATEST handleProcess closure (which has
-      // the correct clusterCategoryInput) and pass these DB targets for % preservation.
       dbLoadedTargetsRef.current = loadedTargets;
     } catch (err) {
       console.error('[LuykeData] loadData error:', err);
@@ -952,10 +1081,52 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       clearTimeout(fallbackTimeout);
       setIsLoading(false);
       setHasLoadedFromDB(true);
-      // MULTI-STORE: Mark store as ready — auto-save can resume
+      isDirtyRef.current = false;
       setStoreReady(true);
     }
-  }, [rawMaKho, warehouseCodes, activeStore, handleProcess, setStoreReady]);
+  }, [rawMaKho, warehouseCodes, activeStore, handleProcess, setStoreReady, computeStoreSnapshotKey]);
+
+  // AUTO-REACT: When global currentStoreId changes, auto-load data for new store
+  // Placed AFTER loadData and saveLuykeData to prevent Temporal Dead Zone (TDZ) initialization errors
+  const prevStoreIdRef = useRef(currentStoreId);
+  useEffect(() => {
+    if (!currentStoreId || currentStoreId === 'ALL') return;
+    if (!rawMaKho) return;
+    // Skip if store hasn't actually changed (initial mount or same store)
+    if (prevStoreIdRef.current === currentStoreId && activeStore === currentStoreId) return;
+    
+    // SAVE OLD STORE ONLY IF DATA WAS ACTUALLY EDITED (isDirtyRef is true and differs from DB)
+    const isSameWarehouse = prevWarehouseCodeRef.current === rawMaKho;
+    if (prevStoreIdRef.current && prevStoreIdRef.current !== 'ALL' && hasLoadedFromDB && isSameWarehouse && isDirtyRef.current) {
+      const oldStoreKey = normalizeStoreId(prevStoreIdRef.current);
+      const oldSnapshot = computeStoreSnapshotKey(
+        prevStoreIdRef.current,
+        cleanBiReportText(clusterSummaryInputRef.current || ''),
+        cleanBiReportText(clusterCategoryInputRef.current || ''),
+        categoryTargetsRef.current || [],
+        cleanBiReportText(staffInputRef.current || ''),
+        cleanBiReportText(staffCategoryInputRef.current || ''),
+        cleanBiReportText(staffListInputRef.current || '') || '',
+        cleanBiReportText(dtGioCongRef.current || '') || '',
+        dataPhanCaRef.current,
+        cleanBiReportText(tragopMatranRef.current || '') || '',
+        cleanBiReportText(tragopNvRef.current || '') || '',
+        cleanBiReportText(banKemNvRef.current || '') || ''
+      );
+      if (dbStoreSnapshotsRef.current[oldStoreKey] !== oldSnapshot) {
+        if (saveLuykeDataRef.current) {
+          console.log(`[LuykeData] AUTO-REACT: Force saving modified OLD store before switch → "${prevStoreIdRef.current}"`);
+          saveLuykeDataRef.current(true, 'auto', prevStoreIdRef.current);
+        }
+      }
+    }
+    
+    prevStoreIdRef.current = currentStoreId;
+    
+    console.log(`[LuykeData] AUTO-REACT: currentStoreId changed → "${currentStoreId}"`);
+    setActiveStore(currentStoreId);
+    loadData(currentStoreId);
+  }, [currentStoreId, rawMaKho, hasLoadedFromDB, computeStoreSnapshotKey, loadData]);
 
 
   // Set up Supabase Realtime subscription for store
@@ -1249,7 +1420,9 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Synchronous setters to prevent stale closures during rapid paste/blur events
   const setClusterSummaryInputSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(clusterSummaryInputRef.current) : val;
+    if (newVal === clusterSummaryInputRef.current) return;
     clusterSummaryInputRef.current = newVal; 
+    isDirtyRef.current = true;
     setClusterSummaryInput(newVal);
     try {
       if (newVal) {
@@ -1261,31 +1434,52 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
   const setClusterCategoryInputSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(clusterCategoryInputRef.current) : val;
-    clusterCategoryInputRef.current = newVal; setClusterCategoryInput(newVal);
+    if (newVal === clusterCategoryInputRef.current) return;
+    clusterCategoryInputRef.current = newVal;
+    isDirtyRef.current = true;
+    setClusterCategoryInput(newVal);
   }, []);
   const setStaffInputSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(staffInputRef.current) : val;
-    staffInputRef.current = newVal; setStaffInput(newVal);
+    if (newVal === staffInputRef.current) return;
+    staffInputRef.current = newVal;
+    isDirtyRef.current = true;
+    setStaffInput(newVal);
   }, []);
   const setStaffCategoryInputSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(staffCategoryInputRef.current) : val;
-    staffCategoryInputRef.current = newVal; setStaffCategoryInput(newVal);
+    if (newVal === staffCategoryInputRef.current) return;
+    staffCategoryInputRef.current = newVal;
+    isDirtyRef.current = true;
+    setStaffCategoryInput(newVal);
   }, []);
   const setStaffListInputSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(staffListInputRef.current) : val;
-    staffListInputRef.current = newVal; setStaffListInput(newVal);
+    if (newVal === staffListInputRef.current) return;
+    staffListInputRef.current = newVal;
+    isDirtyRef.current = true;
+    setStaffListInput(newVal);
   }, []);
   const setDtGioCongSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(dtGioCongRef.current) : val;
-    dtGioCongRef.current = newVal; setDtGioCong(newVal);
+    if (newVal === dtGioCongRef.current) return;
+    dtGioCongRef.current = newVal;
+    isDirtyRef.current = true;
+    setDtGioCong(newVal);
   }, []);
   const setTragopMatranSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(tragopMatranRef.current) : val;
-    tragopMatranRef.current = newVal; setTragopMatran(newVal);
+    if (newVal === tragopMatranRef.current) return;
+    tragopMatranRef.current = newVal;
+    isDirtyRef.current = true;
+    setTragopMatran(newVal);
   }, []);
   const setTragopNvSync = useCallback((val: string | ((prev: string) => string)) => {
     const newVal = typeof val === 'function' ? val(tragopNvRef.current) : val;
-    tragopNvRef.current = newVal; setTragopNv(newVal);
+    if (newVal === tragopNvRef.current) return;
+    tragopNvRef.current = newVal;
+    isDirtyRef.current = true;
+    setTragopNv(newVal);
   }, []);
 
   const value = {
@@ -1313,12 +1507,24 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     syncTragopMatran,
     loadData,
     setActiveStore: handleSetActiveStore,
-    clearField: (setter: (val: string) => void) => {
+    clearField: (setter: (val: string) => void, fieldName?: string) => {
       skipSubscriptionRef.current = Date.now() + 10000;
       setter('');
+      isDirtyRef.current = false;
+      let resolvedFieldName = fieldName;
+      if (!resolvedFieldName) {
+        if (setter === setClusterSummaryInput || setter === setClusterSummaryInputSync) resolvedFieldName = 'LUỸ KẾ DT';
+        else if (setter === setClusterCategoryInput || setter === setClusterCategoryInputSync) resolvedFieldName = 'LUỸ KẾ TĐ';
+        else if (setter === setStaffInput || setter === setStaffInputSync) resolvedFieldName = 'DOANH THU NV';
+        else if (setter === setStaffCategoryInput || setter === setStaffCategoryInputSync) resolvedFieldName = 'THI ĐUA NV';
+        else if (setter === setStaffListInput || setter === setStaffListInputSync) resolvedFieldName = 'DS NHÂN VIÊN';
+        else if (setter === setTragopMatran || setter === setTragopMatranSync) resolvedFieldName = 'TRẢ GÓP MT';
+        else if (setter === setTragopNv || setter === setTragopNvSync) resolvedFieldName = 'TRẢ GÓP NV';
+        else if (setter === setBanKemNvState || setter === setBanKemNvSync) resolvedFieldName = 'BÁN KÈM NV';
+      }
       // Save immediately — no delay
       if (saveLuykeDataRef.current) {
-        saveLuykeDataRef.current(true, 'auto');
+        saveLuykeDataRef.current(true, 'auto', undefined, undefined, resolvedFieldName);
       }
     }
   };

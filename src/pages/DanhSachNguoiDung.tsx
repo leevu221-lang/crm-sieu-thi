@@ -956,11 +956,13 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                                 { id: 'khaibao', label: 'Khai Báo', color: 'bg-violet-100 text-violet-700' },
                                 { id: 'health', label: 'Sức Khoẻ', color: 'bg-rose-100 text-rose-700' },
                                 { id: 'toolhotro', label: 'Tool HT', color: 'bg-amber-100 text-amber-700' },
+                                { id: 'tienich', label: 'Tiện Ích', color: 'bg-purple-100 text-purple-700' },
                                 { id: 'tnb_data', label: 'TNB DATA', color: 'bg-emerald-100 text-emerald-700' },
                                 { id: 'tnbleader', label: 'TNB LEADER', color: 'bg-amber-100 text-amber-700' },
                                 { id: 'birthday', label: 'Sinh Nhật', color: 'bg-pink-100 text-pink-700' },
                                 { id: 'feedback', label: 'HƯỚNG DẪN & GÓP Ý', color: 'bg-indigo-100 text-indigo-700' },
                                 { id: 'excelviewer', label: 'XEM FILE EXCEL', color: 'bg-emerald-100 text-emerald-700' },
+                                { id: 'lichpg', label: 'Lịch PG', color: 'bg-teal-100 text-teal-700' },
                               ].filter(p => user.userPermissions?.allowedPages?.includes(p.id)).map(p => (
                                 <span key={p.id} className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${p.color}`}>{p.label}</span>
                               ))}
@@ -1285,6 +1287,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
                       { id: 'khaibao', label: 'Khai Báo', color: 'bg-indigo-500' },
                       { id: 'health', label: 'Sức khoẻ nhân viên', color: 'bg-rose-500' },
                       { id: 'toolhotro', label: 'Tool Hỗ Trợ', color: 'bg-amber-500' },
+                      { id: 'tienich', label: 'Tiện Ích', color: 'bg-purple-500' },
                       { id: 'tnb_data', label: 'TNB DATA', color: 'bg-emerald-500' },
                       { id: 'tnbleader', label: 'TNB LEADER', color: 'bg-amber-500' },
                       { id: 'birthday', label: 'Sinh nhật NV', color: 'bg-pink-500' },

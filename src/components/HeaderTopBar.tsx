@@ -15,8 +15,8 @@ interface HeaderTopBarProps {
 }
 
 export default function HeaderTopBar({
-  tenSieuThi = 'ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH',
-  maKho = '43751',
+  tenSieuThi = '',
+  maKho = '',
   roleName = 'admin',
   isSidebarOpen = true,
   onToggleSidebar,

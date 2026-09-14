@@ -15,9 +15,11 @@ import {
   Settings,
   Share2,
   Check,
+  Crown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { buildGuestShareUrl } from '../../../constants/routes';
+import { useStore } from '../../../contexts/StoreContext';
 
 interface GradientV2HeaderProps {
   userProfile: any;
@@ -33,6 +35,7 @@ interface GradientV2HeaderProps {
   setShowSettings: (show: boolean) => void;
   setShowDeclarationForce: (show: boolean) => void;
   logout: () => void;
+  setShowSubscriptionForce?: (show: boolean) => void;
   /* New: sidebar toggle */
   onToggleSidebar?: () => void;
   sidebarExpanded?: boolean;
@@ -52,6 +55,7 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
   setShowSettings,
   setShowDeclarationForce,
   logout,
+  setShowSubscriptionForce,
   onToggleSidebar,
   sidebarExpanded,
 }) => {
@@ -62,10 +66,19 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
 
+  const { currentStoreId, activeRealtimeTab, activeLuyKeTab, activeHealthTab, activeToolHoTroTab, activeTienIchTab } = useStore();
+
   const handleShareLink = () => {
     const currentKho = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '';
     if (!currentKho) return;
-    const shareUrl = buildGuestShareUrl(currentPage, currentKho);
+    // Xác định tab hiện tại theo trang đang mở
+    const currentTab = currentPage === 'realtime' ? activeRealtimeTab :
+                       currentPage === 'luyke' ? activeLuyKeTab :
+                       currentPage === 'health' ? activeHealthTab :
+                       currentPage === 'toolhotro' ? activeToolHoTroTab :
+                       currentPage === 'tienich' ? activeTienIchTab : '';
+    // Tạo URL chia sẻ kèm tab + siêu thị đang chọn
+    const shareUrl = buildGuestShareUrl(currentPage, currentKho, currentTab, currentStoreId);
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(shareUrl).then(() => {
         setCopiedLink(true);
@@ -241,6 +254,18 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
               )}
             </button>
 
+            {/* Subscription / Gói Cước Button */}
+            {setShowSubscriptionForce && (
+              <button
+                onClick={() => setShowSubscriptionForce(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer border bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-700 border-amber-200 hover:shadow-md hover:shadow-amber-100"
+                title="Đăng ký & gia hạn gói cước sử dụng"
+              >
+                <Crown size={14} className="text-amber-500 shrink-0" />
+                <span className="hidden sm:inline text-[11px] font-black tracking-wide uppercase">Gói Cước</span>
+              </button>
+            )}
+
             {/* Live Clock */}
             <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-full text-[11px] font-bold tracking-tight whitespace-nowrap">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -303,6 +328,16 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                     </div>
 
                     {/* Action buttons */}
+                    {setShowSubscriptionForce && (
+                      <button
+                        onClick={() => { setShowSubscriptionForce(true); setUserDropdownOpen(false); }}
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] font-bold text-amber-700 hover:bg-amber-50 transition-all cursor-pointer"
+                      >
+                        <Crown size={16} className="text-amber-500 shrink-0" />
+                        <span>Đăng ký gói cước</span>
+                      </button>
+                    )}
+
                     <button
                       onClick={() => { setShowDeclarationForce(true); setUserDropdownOpen(false); }}
                       className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all cursor-pointer"
