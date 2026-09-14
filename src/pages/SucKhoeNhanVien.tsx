@@ -59,16 +59,26 @@ const isCategoryForMarket = (c: any, marketFilter: string): boolean => {
   const rawFilterNorm = removeAccents(marketFilter).toLowerCase().trim();
   const rawMarketNorm = removeAccents(c.marketName).toLowerCase().trim();
 
-  const normFilter = rawFilterNorm.replace(/^(dml|dms3|dms|dmm|tgd|aar|bhx)\s*-\s*/i, '').trim();
-  const normMarket = rawMarketNorm.replace(/^(dml|dms3|dms|dmm|tgd|aar|bhx)\s*-\s*/i, '').trim();
-
   const filterCode = (marketFilter.match(/\b\d{4,6}\b/) || [])[0];
   const marketCode = (c.marketName.match(/\b\d{4,6}\b/) || [])[0];
   if (filterCode && marketCode && filterCode === marketCode) return true;
 
+  const normalizeMarketStr = (str: string): string => {
+    if (!str) return '';
+    let s = removeAccents(str).toLowerCase().trim();
+    s = s.replace(/^\d{3,6}\s*[-–—:]\s*/, '');
+    s = s.replace(/\s*[-–—:]\s*\d{3,6}$/, '');
+    s = s.replace(/^(dml|dms3|dms|dmm|tgd|aar|bhx|mwg)[_\s-]+/i, '');
+    s = s.replace(/[_\s-]+/g, ' ').trim();
+    return s;
+  };
+
+  const normFilter = normalizeMarketStr(marketFilter);
+  const normMarket = normalizeMarketStr(c.marketName);
+
   return rawMarketNorm === rawFilterNorm || 
          normMarket === normFilter ||
-         (normMarket.length > 3 && normFilter.length > 3 && normMarket === normFilter);
+         (normMarket.length > 3 && normFilter.length > 3 && (normMarket.includes(normFilter) || normFilter.includes(normMarket)));
 };
 
 const splitLine = (l: string): string[] => {
@@ -3379,7 +3389,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         targetCatsToUse,
         mDaysPassed,
         mTotalDays,
-        mDaysPassed > 0
+        false,
+        categoryConfig
       );
 
       return { staffMatrix, totalCat: categories.length };
@@ -4150,7 +4161,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       categoryTargets || [],
       (processedData?.categories || []).filter((c: any) => isCategoryForMarket(c, marketFilter)),
       daysPassed || 1,
-      totalDays || 30
+      totalDays || 30,
+      false,
+      categoryConfig
     );
     const staffMatrix = matrixRes?.staffMatrix || [];
     const detailCategories = matrixRes?.categories || [];
@@ -4446,6 +4459,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                     luykeCategories={filteredLuykeCategories}
                     marketFilter={marketFilter}
                     storeName={marketFilter !== 'ALL' ? marketFilter : ''}
+                    categoryConfig={categoryConfig}
                   />
                 </motion.div>
               )}

@@ -1277,9 +1277,13 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
 
   const sortedMarkets = [...markets].sort((a, b) => b.name.length - a.name.length).map(m => {
     const normName = normalize(m.name);
-    const nameWithoutPrefix = normalize(m.name.replace(/^(ĐML|ĐMM|ĐMS3|ĐMS|TGD|AAR|BHX)\s*-\s*/i, ''));
-    const codeMatch = m.name.match(/^([^-]+)/);
-    const code = codeMatch ? codeMatch[1].trim() : "";
+    const cleanStore = m.name
+      .replace(/^\d{3,6}\s*[-–—:]\s*/, '')
+      .replace(/^(ĐML|ĐMM|ĐMS3|ĐMS|TGD|AAR|BHX|MWG)[_\s-]+/i, '')
+      .replace(/\s*[-–—:]\s*\d{3,6}$/, '');
+    const nameWithoutPrefix = normalize(cleanStore);
+    const codeMatch = m.name.match(/\b\d{4,6}\b/);
+    const code = codeMatch ? codeMatch[0].trim() : "";
     return { ...m, normName, nameWithoutPrefix, code };
   });
   
@@ -1292,12 +1296,39 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
     if (cols.length === 0) continue;
 
     // Detect if this line defines category type (e.g. "DOANH THU (RT)" or "SỐ LƯỢNG (RT)")
-    const fullLineUpper = line.toUpperCase();
-    if (fullLineUpper.includes('DOANH THU (RT)') || (fullLineUpper.includes('DOANH THU') && !fullLineUpper.includes('HỢP NHẤT')) || fullLineUpper.includes('DTLK') || fullLineUpper.includes('DT (RT)')) {
+    // A line is a type header ONLY if:
+    // 1. It is a multi-column table header containing table column keywords (TARGET, HẠNG, DỰ BÁO, % HT, TOP/BOTTOM, BỘ PHẬN, THỰC HIỆN)
+    // 2. OR it is strictly a standalone type indicator (e.g. exactly "DOANH THU", "DOANH THU (RT)", "SỐ LƯỢNG", "SLLK", "DTLK")
+    const trimmedLine = line.trim();
+    const trimmedUpper = trimmedLine.toUpperCase();
+    const isMultiCol = line.includes('\t') || line.includes('  ');
+    const isHeaderCols = isMultiCol && (
+      trimmedUpper.includes('TARGET') || 
+      trimmedUpper.includes('HẠNG') || 
+      trimmedUpper.includes('DỰ BÁO') || 
+      trimmedUpper.includes('% HT') || 
+      trimmedUpper.includes('TOP/BOTTOM') || 
+      trimmedUpper.includes('BỘ PHẬN') || 
+      trimmedUpper.includes('THỰC HIỆN')
+    );
+
+    const isExactDtIndicator = /^(DOANH THU(\s*\(.*?\))?|DTLK|DT(\s*\(.*?\))?|DT)$/i.test(trimmedLine);
+    const isExactSlIndicator = /^(SỐ LƯỢNG(\s*\(.*?\))?|SLLK|SL(\s*\(.*?\))?|SL)$/i.test(trimmedLine);
+
+    if (isHeaderCols) {
+      if (trimmedUpper.includes('SỐ LƯỢNG') || trimmedUpper.includes('SL')) {
+        currentCatType = 'SL';
+      } else if (trimmedUpper.includes('DOANH THU') || trimmedUpper.includes('DT')) {
+        currentCatType = 'DT';
+      }
+      continue;
+    }
+
+    if (isExactDtIndicator && !trimmedUpper.includes('HỢP NHẤT')) {
       currentCatType = 'DT';
       continue;
     }
-    if (fullLineUpper.includes('SỐ LƯỢNG (RT)') || fullLineUpper.includes('SỐ LƯỢNG') || fullLineUpper.includes('SLLK') || fullLineUpper.includes('SL (RT)')) {
+    if (isExactSlIndicator) {
       currentCatType = 'SL';
       continue;
     }
@@ -1308,7 +1339,8 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
       const colVal = cols[c];
       if (colVal.toLowerCase().startsWith('tổng') || isSupermarketLine(colVal) || sortedMarkets.some(m => {
         const normC = normalize(colVal);
-        return normC.includes(m.normName) || (m.nameWithoutPrefix.length > 3 && normC.includes(m.nameWithoutPrefix)) || (m.code.length >= 3 && normC.includes(m.code));
+        const cleanC = normalize(colVal.replace(/^\d{3,6}\s*[-–—:]\s*/, '').replace(/^(ĐML|ĐMM|ĐMS3|ĐMS|TGD|AAR|BHX|MWG)[_\s-]+/i, ''));
+        return normC.includes(m.normName) || (m.nameWithoutPrefix.length > 3 && (normC.includes(m.nameWithoutPrefix) || cleanC.includes(m.nameWithoutPrefix))) || (m.code.length >= 3 && normC.includes(m.code));
       })) {
         storeColIdx = c;
         break;
@@ -1353,9 +1385,10 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
       }
       
       // Update market name if matched
+      const cleanFirstCol = normalize(firstCol.replace(/^\d{3,6}\s*[-–—:]\s*/, '').replace(/^(ĐML|ĐMM|ĐMS3|ĐMS|TGD|AAR|BHX|MWG)[_\s-]+/i, ''));
       const matchedMarket = sortedMarkets.find(m => {
         return normFirstCol.includes(m.normName) || 
-               (m.nameWithoutPrefix.length > 3 && normFirstCol.includes(m.nameWithoutPrefix)) ||
+               (m.nameWithoutPrefix.length > 3 && (normFirstCol.includes(m.nameWithoutPrefix) || cleanFirstCol.includes(m.nameWithoutPrefix))) ||
                (m.code.length >= 3 && normFirstCol.includes(m.code));
       });
       if (matchedMarket) {

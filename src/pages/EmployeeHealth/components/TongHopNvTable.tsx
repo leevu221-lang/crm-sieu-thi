@@ -9,6 +9,8 @@ import { parseStaffMatrixDataRefined } from './SummaryThiDuaTable';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
 
+import { CategoryConfigItem } from '../../../hooks/useCategoryConfig';
+
 const removeAccents = (str: string): string => {
   return str
     .normalize('NFD')
@@ -32,6 +34,7 @@ interface TongHopNvTableProps {
   luykeCategories: CategoryData[];
   marketFilter: string;
   storeName?: string;
+  categoryConfig?: CategoryConfigItem[];
 }
 
 const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
@@ -47,7 +50,8 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
   categoryTargets,
   luykeCategories,
   marketFilter,
-  storeName
+  storeName,
+  categoryConfig
 }) => {
   const captureRef = useRef<HTMLDivElement>(null);
   const [isCapturing, setIsCapturing] = useState(false);
@@ -62,9 +66,11 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
       categoryTargets,
       luykeCategories,
       daysPassed,
-      totalDays
+      totalDays,
+      false,
+      categoryConfig
     ),
-    [thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays]
+    [thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays, categoryConfig]
   );
 
   // Parse trả chậm data
