@@ -3098,7 +3098,10 @@ export const parseStaffValueList = (text: string, targetHeaderKeyword?: string):
       name = name.replace(/[-–—\s]+$/, '').trim();
     }
 
-    if (name || id) {
+    const hasValidLetters = Boolean(name && (normalize(name).match(/[a-z]/g) || []).length >= 2);
+    const hasValidEmpId = Boolean(id && /^\d{4,8}$/.test(id.trim()));
+
+    if (hasValidLetters || hasValidEmpId) {
       results.push({
         id: id || name,
         name: name || id,

@@ -2837,6 +2837,60 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     return Math.round(val).toLocaleString('vi-VN');
   };
 
+  const matchStaff = (
+    emp: { id?: string; name?: string },
+    staff: { fullId: string; displayName: string }
+  ): boolean => {
+    const staffId = (staff.fullId || '').trim();
+    const empId = (emp.id || '').trim();
+
+    // 1. Direct ID match (valid 4-8 digit employee IDs only)
+    if (empId && /^\d{4,8}$/.test(empId) && staffId && /^\d{4,8}$/.test(staffId)) {
+      if (empId === staffId) return true;
+    }
+
+    // If emp.name or emp.id contains the full 4+ digit staffId as a standalone token
+    if (staffId && /^\d{4,8}$/.test(staffId)) {
+      const rawEmpName = emp.name || '';
+      if (new RegExp(`(?:^|[^0-9])${staffId}(?:[^0-9]|$)`).test(rawEmpName) ||
+          new RegExp(`(?:^|[^0-9])${staffId}(?:[^0-9]|$)`).test(empId)) {
+        return true;
+      }
+    }
+
+    // 2. Name match
+    const cleanEmp = removeAccents((emp.name || '')
+      .replace(/^\s*(?:user\s+)?\d+\s*[-–—:]\s*/i, '')
+      .replace(/\s*[-–—:]\s*\d+\s*$/, '')
+      .replace(/^USER\s+/i, '')
+      .trim());
+    const cleanStaff = removeAccents((staff.displayName || '')
+      .replace(/^\s*(?:user\s+)?\d+\s*[-–—:]\s*/i, '')
+      .replace(/\s*[-–—:]\s*\d+\s*$/, '')
+      .replace(/^USER\s+/i, '')
+      .trim());
+
+    // Both must have at least 2 letters
+    const empLetters = (cleanEmp.match(/[a-z]/g) || []).length;
+    const staffLetters = (cleanStaff.match(/[a-z]/g) || []).length;
+    if (empLetters < 2 || staffLetters < 2) return false;
+
+    // Exact match
+    if (cleanEmp === cleanStaff) return true;
+
+    // Word-based match (e.g. if middle name is omitted or extra space)
+    const empWords = cleanEmp.split(/\s+/).filter(w => w.length > 1);
+    const staffWords = cleanStaff.split(/\s+/).filter(w => w.length > 1);
+    if (empWords.length >= 2 && staffWords.length >= 2) {
+      const common = empWords.filter(w => staffWords.includes(w));
+      if (common.length >= 2 && (common.length === empWords.length || common.length === staffWords.length)) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
   const parsedRank3TData = useMemo(() => {
     const parseDtqdWithEff = (rawText: string) => {
       if (!rawText || !rawText.trim()) return [];
@@ -2848,7 +2902,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
           eff = eff * 100;
         }
         return {
-          id: item.fullId || (item.displayName.match(/\d+/) ? item.displayName.match(/\d+/)![0] : ''),
+          id: item.fullId || (item.displayName.match(/\b\d{4,8}\b/) ? item.displayName.match(/\b\d{4,8}\b/)![0] : ''),
           name: item.displayName,
           value: val,
           eff
@@ -2895,6 +2949,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       thunhap: number;
       nganhhang: number;
       giocong: number;
+      tracham1: number;
+      tracham2: number;
+      tracham3: number;
+      tracham: number;
     }>();
 
     const getCleanName = (nameStr: string) => {
@@ -2910,17 +2968,28 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       return cleaned.replace(/^USER\s+/i, '').trim();
     };
 
+    const isValidStaffEntry = (nameStr: string, idStr?: string) => {
+      if (idStr && /^\d{4,8}$/.test(idStr.trim())) return true;
+      if (!nameStr) return false;
+      const clean = removeAccents(nameStr.trim());
+      const letters = clean.match(/[a-z]/g);
+      if (!letters || letters.length < 2) return false;
+      const ignored = ['tong', 'total', 'dmx', 'ho tro bi', 'stt', 'he so', 'chua xep', 'nhan vien', 'msnv', 'cong'];
+      return !ignored.some(ig => clean === ig || clean.startsWith(ig + ' ') || clean.endsWith(' ' + ig));
+    };
+
     const getEmpKey = (emp: { id: string; name: string }) => {
       const cleanName = getCleanName(emp.name || emp.id);
       return `NAME_${normalize(cleanName)}`;
     };
 
     const getOrCreate = (emp: { id: string; name: string }) => {
-      const key = getEmpKey(emp);
       const cleanName = getCleanName(emp.name || emp.id);
+      if (!isValidStaffEntry(cleanName, emp.id)) return null;
+      const key = getEmpKey(emp);
       if (!employeeMap.has(key)) {
         employeeMap.set(key, {
-          id: emp.id && /^\d{5,}$/.test(emp.id) ? emp.id : '',
+          id: emp.id && /^\d{4,8}$/.test(emp.id) ? emp.id : '',
           name: cleanName,
           dtqd1: 0,
           dtqd2: 0,
@@ -2945,7 +3014,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         });
       } else {
         const existing = employeeMap.get(key)!;
-        if (!existing.id && emp.id && /^\d{5,}$/.test(emp.id)) {
+        if (!existing.id && emp.id && /^\d{4,8}$/.test(emp.id)) {
           existing.id = emp.id;
         }
       }
@@ -2954,6 +3023,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
     parsedDtqd1.forEach(item => {
       const entry = getOrCreate(item);
+      if (!entry) return;
       entry.dtqd1 += item.value;
       entry.dtqd += item.value;
       if (item.eff > 0) {
@@ -2963,6 +3033,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     });
     parsedDtqd2.forEach(item => {
       const entry = getOrCreate(item);
+      if (!entry) return;
       entry.dtqd2 += item.value;
       entry.dtqd += item.value;
       if (item.eff > 0) {
@@ -2972,6 +3043,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     });
     parsedDtqd3.forEach(item => {
       const entry = getOrCreate(item);
+      if (!entry) return;
       entry.dtqd3 += item.value;
       entry.dtqd += item.value;
       if (item.eff > 0) {
@@ -2982,58 +3054,70 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
     parsedTn1.forEach(item => {
       const entry = getOrCreate(item);
+      if (!entry) return;
       entry.thunhap1 += item.value;
       entry.thunhap += item.value;
     });
     parsedTn2.forEach(item => {
       const entry = getOrCreate(item);
+      if (!entry) return;
       entry.thunhap2 += item.value;
       entry.thunhap += item.value;
     });
     parsedTn3.forEach(item => {
       const entry = getOrCreate(item);
+      if (!entry) return;
       entry.thunhap3 += item.value;
       entry.thunhap += item.value;
     });
 
     parsedNh1.forEach(item => {
       const entry = getOrCreate(item);
+      if (!entry) return;
       entry.nganhhang += item.value;
     });
     parsedNh2.forEach(item => {
       const entry = getOrCreate(item);
+      if (!entry) return;
       entry.nganhhang += item.value;
     });
     parsedNh3.forEach(item => {
       const entry = getOrCreate(item);
+      if (!entry) return;
       entry.nganhhang += item.value;
     });
 
     parsedGc1.forEach(item => {
       const entry = getOrCreate(item);
+      if (!entry) return;
       entry.giocong += item.value;
     });
     parsedGc2.forEach(item => {
       const entry = getOrCreate(item);
+      if (!entry) return;
       entry.giocong += item.value;
     });
     parsedGc3.forEach(item => {
       const entry = getOrCreate(item);
+      if (!entry) return;
       entry.giocong += item.value;
     });
 
     parsedTracham1.forEach(item => {
       const entry = getOrCreate(item);
+      if (!entry) return;
       entry.tracham1 += item.value;
       entry.tracham += item.value;
     });
     parsedTracham2.forEach(item => {
       const entry = getOrCreate(item);
+      if (!entry) return;
       entry.tracham2 += item.value;
       entry.tracham += item.value;
     });
     parsedTracham3.forEach(item => {
       const entry = getOrCreate(item);
+      if (!entry) return;
       entry.tracham3 += item.value;
       entry.tracham += item.value;
     });
@@ -3127,56 +3211,84 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, tracham3t1, tracham3t2, tracham3t3, parseTn, isProjectedMonth1, isProjectedMonth2, isProjectedMonth3, daysPassed, totalDays, rankMonth1, rankMonth2, rankMonth3]);
 
   const filteredRank3TData = useMemo(() => {
-    if (!biRevenueData || biRevenueData.length === 0) return parsedRank3TData;
+    // Synchronize 3-Month Ranking table directly with BỘ LỌC NHÂN VIÊN ở đầu trang (selectedStaffIds)
+    if (biRevenueData && biRevenueData.length > 0) {
+      // 1. Only include staff that are ticked/checked in the top staff filter
+      const activeStaffList = biRevenueData.filter(s => selectedStaffIds.includes(s.fullId));
 
-    // Synchronize 3-Month Ranking table (Hình 2) with BỘ LỌC NHÂN VIÊN (Hình 1 / selectedStaffIds)
-    const selectedData = parsedRank3TData.filter(emp => {
-      const empIdClean = emp.id ? emp.id.toLowerCase().trim() : '';
-      const empNameClean = removeAccents((emp.name || '').toLowerCase().trim());
+      // 2. Map each selected staff with their aggregated rank 3T data
+      const resultRows = activeStaffList.map(staff => {
+        const found = parsedRank3TData.find(emp => matchStaff(emp, staff));
+        const cleanDisplayName = (staff.displayName || '')
+          .replace(/^\s*(?:user\s+)?\d+\s*[-–—:]\s*/i, '')
+          .replace(/\s*[-–—:]\s*\d+\s*$/, '')
+          .replace(/^USER\s+/i, '')
+          .trim() || staff.displayName;
 
-      // Filter out non-employee summary rows like ĐMX, Tổng, Hỗ trợ BI
-      if (!empNameClean || empNameClean === 'dmx' || empNameClean === 'tong' || empNameClean.includes('ho tro bi')) {
-        return false;
-      }
-
-      const matchingStaff = biRevenueData.find(staff => {
-        const staffFullIdClean = (staff.fullId || '').toLowerCase().trim();
-        const staffDisplayClean = removeAccents((staff.displayName || '').toLowerCase().trim());
-
-        // 1. Direct ID match
-        if (empIdClean && (staffFullIdClean.includes(empIdClean) || staffDisplayClean.includes(empIdClean))) {
-          return true;
+        if (found) {
+          return {
+            ...found,
+            id: staff.fullId,
+            name: found.name || cleanDisplayName
+          };
         }
 
-        // 2. Display Name match
-        if (empNameClean) {
-          if (staffDisplayClean.includes(empNameClean) || empNameClean.includes(staffDisplayClean)) {
-            return true;
-          }
-
-          // Match by name parts after removing hyphens
-          const parts = staff.displayName.split(/[-–—]/).map(p => removeAccents(p.trim().toLowerCase())).filter(Boolean);
-          for (const part of parts) {
-            if (part && part.length > 2 && !/^\d+$/.test(part)) {
-              if (empNameClean.includes(part) || part.includes(empNameClean)) {
-                return true;
-              }
-            }
-          }
-        }
-        return false;
+        // Ticked in filter but no 3-month rank data yet: initialize with 0s
+        return {
+          id: staff.fullId,
+          name: cleanDisplayName,
+          dtqd1: 0,
+          dtqd2: 0,
+          dtqd3: 0,
+          dtqd: 0,
+          eff1: 0,
+          eff2: 0,
+          eff3: 0,
+          hasEff1: false,
+          hasEff2: false,
+          hasEff3: false,
+          thunhap1: 0,
+          thunhap2: 0,
+          thunhap3: 0,
+          thunhap: 0,
+          nganhhang: 0,
+          giocong: 0,
+          tracham1: 0,
+          tracham2: 0,
+          tracham3: 0,
+          tracham: 0,
+          effQd1: 0,
+          effQd2: 0,
+          effQd3: 0,
+          effQd: 0
+        };
       });
 
-      // ONLY include if employee matches a staff in biRevenueData AND is checked in selectedStaffIds
-      if (!matchingStaff) return false;
-      return selectedStaffIds.includes(matchingStaff.fullId);
+      // Sort by DTQĐ TB descending
+      const sorted = resultRows.sort((a, b) => (b.dtqd || 0) - (a.dtqd || 0));
+
+      if (!searchTerm.trim()) return sorted;
+      const cleanSearch = removeAccents(searchTerm.toLowerCase());
+      return sorted.filter(emp => 
+        removeAccents((emp.name || '').toLowerCase()).includes(cleanSearch) ||
+        (emp.id || '').toLowerCase().includes(cleanSearch)
+      );
+    }
+
+    // Fallback if biRevenueData is not yet loaded: only include valid staff rows from parsedRank3TData
+    const validParsed = parsedRank3TData.filter(emp => {
+      const cleanName = removeAccents((emp.name || '').toLowerCase().trim());
+      const letters = (cleanName.match(/[a-z]/g) || []).length;
+      if (letters < 2) return false;
+      const ignored = ['tong', 'total', 'dmx', 'ho tro bi', 'stt', 'he so', 'chua xep', 'nhan vien', 'msnv', 'cong'];
+      return !ignored.some(ig => cleanName === ig || cleanName.startsWith(ig + ' ') || cleanName.endsWith(' ' + ig));
     });
 
-    if (!searchTerm.trim()) return selectedData;
+    if (!searchTerm.trim()) return validParsed;
     const cleanSearch = removeAccents(searchTerm.toLowerCase());
-    return selectedData.filter(emp => 
-      removeAccents(emp.name.toLowerCase()).includes(cleanSearch) ||
-      emp.id.toLowerCase().includes(cleanSearch)
+    return validParsed.filter(emp => 
+      removeAccents((emp.name || '').toLowerCase()).includes(cleanSearch) ||
+      (emp.id || '').toLowerCase().includes(cleanSearch)
     );
   }, [parsedRank3TData, searchTerm, selectedStaffIds, biRevenueData]);
 
@@ -3312,16 +3424,13 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
     filteredRank3TData.forEach(row => {
       const empId = (row.id || '').toLowerCase().trim();
-      const empNameClean = removeAccents((row.name || '').toLowerCase());
 
       const findAchieved = (mRes: { staffMatrix: any[], totalCat: number }) => {
         if (!mRes.staffMatrix || mRes.staffMatrix.length === 0) return 0;
-        const found = mRes.staffMatrix.find(item => {
-          const rowId = (item.fullId || item.id || '').toLowerCase().trim();
-          const rowNameClean = removeAccents((item.displayName || item.name || '').toLowerCase());
-          return (empId && rowId && (empId === rowId || empId.includes(rowId) || rowId.includes(empId))) ||
-                 (empNameClean && rowNameClean && (empNameClean === rowNameClean || empNameClean.includes(rowNameClean) || rowNameClean.includes(empNameClean)));
-        });
+        const found = mRes.staffMatrix.find(item => matchStaff(
+          { id: empId, name: row.name },
+          { fullId: item.fullId || item.id || '', displayName: item.displayName || item.name || '' }
+        ));
         return found ? (found.achievedCount ?? found.achieved ?? 0) : 0;
       };
 
@@ -3338,13 +3447,16 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
       const totalText = totalCatSum > 0 ? `${totalAch}/${totalCatSum}` : '';
 
-      scores[row.id || row.name] = {
+      const scoreObj = {
         m1Text,
         m2Text,
         m3Text,
         totalText,
         hasData: totalCatSum > 0
       };
+
+      if (row.id) scores[row.id] = scoreObj;
+      if (row.name) scores[row.name] = scoreObj;
     });
 
     return scores;
@@ -7229,8 +7341,14 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                       ) : (
                         <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[32px] p-12 text-center">
                           <Trophy size={48} className="mx-auto text-slate-300 mb-4 animate-pulse" />
-                          <h3 className="text-lg font-black text-slate-400 uppercase tracking-widest">CHƯA CÓ DỮ LIỆU XẾP HẠNG</h3>
-                          <p className="text-slate-400 text-sm font-medium">Vui lòng dán dữ liệu cột Nhân viên và giá trị số tương ứng vào các ô dán dữ liệu phía trên để tổng hợp.</p>
+                          <h3 className="text-lg font-black text-slate-400 uppercase tracking-widest">
+                            {selectedStaffIds.length === 0 ? "CHƯA CHỌN NHÂN VIÊN TRONG BỘ LỌC" : "CHƯA CÓ DỮ LIỆU XẾP HẠNG"}
+                          </h3>
+                          <p className="text-slate-400 text-sm font-medium">
+                            {selectedStaffIds.length === 0
+                              ? "Vui lòng tick chọn ít nhất một nhân viên ở bộ lọc NHÂN VIÊN ở đầu trang để hiển thị bảng xếp hạng."
+                              : "Vui lòng dán dữ liệu cột Nhân viên và giá trị số tương ứng vào các ô dán dữ liệu phía trên để tổng hợp."}
+                          </p>
                         </div>
                       )}
                     </div>
