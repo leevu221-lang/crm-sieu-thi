@@ -1541,87 +1541,107 @@ export const extractCategoriesFromStoreThiDua = (
   };
 
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
-  const categories: string[] = [];
-  const targetMap: Record<string, number> = {};
-  const typeMap: Record<string, 'SL' | 'DT'> = {};
-  const seenClean = new Set<string>();
 
-  let curCat = '';
-  let curType: 'SL' | 'DT' = 'DT';
-
+  // Step 1: Identify all category sections by their table header (DOANH THU/SỐ LƯỢNG + TARGET/HẠNG/THỰC HIỆN)
+  const sectionIndices: { lineIdx: number; catName: string; type: 'SL' | 'DT' }[] = [];
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const upper = line.toUpperCase();
-
-    // Check if line is a table header
-    const isColHdr = (line.includes('\t') || line.includes('  ')) && (
-      upper.includes('TARGET') || upper.includes('HẠNG') || upper.includes('DỰ BÁO') || upper.includes('% HT') || upper.includes('TOP/BOTTOM')
+    const l = lines[i];
+    const upperL = l.toUpperCase();
+    const isTabHeader = 
+      /^(DOANH THU|SỐ LƯỢNG|DOANH THU THỰC|DT|SL|NHÂN VIÊN|TÊN NHÂN VIÊN|NV|HỌ TÊN|STT)\t/i.test(l) &&
+      (upperL.includes('DOANH THU') || upperL.includes('SỐ LƯỢNG') || upperL.includes('DT') || upperL.includes('SL') || upperL.includes('HẠNG') || upperL.includes('TARGET') || upperL.includes('THỰC HIỆN') || upperL.includes('% HT'));
+    
+    const isMultiColHeader = (l.includes('\t') || l.includes('  ')) && (
+      (upperL.includes('TARGET') && (upperL.includes('% HT') || upperL.includes('HẠNG') || upperL.includes('DỰ BÁO'))) ||
+      (upperL.includes('HẠNG TRONG ST') || upperL.includes('TOP/BOTTOM ST'))
     );
-    const isExactType = /^(DOANH THU(\s*\(.*?\))?|DTLK|DT|SỐ LƯỢNG(\s*\(.*?\))?|SLLK|SL)$/i.test(line.trim());
 
-    if (isColHdr || isExactType) {
-      if (upper.includes('SỐ LƯỢNG') || upper.includes('SL')) curType = 'SL';
-      else if (upper.includes('DOANH THU') || upper.includes('DT')) curType = 'DT';
-      continue;
-    }
+    const isLineHeader = (upperL === 'DOANH THU' || upperL === 'SỐ LƯỢNG' || upperL === 'DT' || upperL === 'SL') &&
+      i + 1 < lines.length && (lines[i + 1].toUpperCase().includes('HẠNG') || lines[i + 1].toUpperCase().includes('TARGET') || lines[i + 1].toUpperCase().includes('% HT'));
 
-    if (upper.startsWith('TỔNG') || upper === 'TỔNG') {
-      continue;
-    }
-
-    // Check if line is a data / supermarket row
-    const cols = line.split(/\t|\s{2,}/).map(c => c.trim()).filter(Boolean);
-    const rawCols = line.split('\t').map(c => c.trim());
-    const isStoreRow = isSupermarketLine(cols[0]) || (cols.length >= 3 && /^-?[\d,.]+(%?)$/.test(cols[1]) && /^-?[\d,.]+(%?)$/.test(cols[2]));
-
-    if (isStoreRow) {
-      if (curCat) {
-        let target = 0;
-        let actual = 0;
-        if (rawCols.length >= 3) {
-          actual = cleanNumLocal(rawCols[1]);
-          target = cleanNumLocal(rawCols[2]);
-        } else if (cols.length >= 3) {
-          actual = cleanNumLocal(cols[1]);
-          target = cleanNumLocal(cols[2]);
+    if (isTabHeader || isMultiColHeader || isLineHeader) {
+      if (i > 0) {
+        let catIdx = i - 1;
+        let catName = lines[catIdx];
+        if (/^(DOANH THU|SỐ LƯỢNG|DT|SL)$/i.test(catName.trim()) && catIdx > 0) {
+          catIdx--;
+          catName = lines[catIdx];
         }
-
-        const clean = cleanCategoryName(curCat);
-        if (targetMap[clean] === undefined || (marketFilter && marketFilter !== 'ALL' && cols[0].toUpperCase().includes(marketFilter.toUpperCase()))) {
-          targetMap[clean] = target;
+        if (/^\d{4,6}$/.test(catName.trim()) && catIdx > 0) {
+          // If line is just a program code like 10964, look one line up
+          catIdx--;
+          catName = lines[catIdx];
         }
-      }
-      continue;
-    }
-
-    // Category name line detection
-    const hasLetters = /[a-zA-Zà-ỹÀ-Ỹ]/.test(line);
-    const isPureNumbersOrTabs = /^[\d\s,.\-+/%:()\t]+$/.test(line) || line.split('\t').length >= 3;
-    if (hasLetters && !isPureNumbersOrTabs && !line.includes('chương trình') && upper !== 'TOÀN CÔNG TY' && !line.includes('http')) {
-      if (!isSupermarketLine(line) && !isColHdr && !isExactType) {
-        curCat = line;
-        const clean = cleanCategoryName(curCat);
-        if (clean && !seenClean.has(clean)) {
-          seenClean.add(clean);
-          categories.push(curCat);
-          typeMap[clean] = curType;
+        if (catName && !catName.includes('chương trình') && catName.toUpperCase() !== 'TOÀN CÔNG TY' && catName.toUpperCase() !== 'TỔNG') {
+          const type: 'SL' | 'DT' = (upperL.includes('SỐ LƯỢNG') || upperL.includes('SL')) ? 'SL' : 'DT';
+          sectionIndices.push({ lineIdx: i, catName, type });
         }
       }
     }
   }
 
-  const categoryObjects = categories.map(name => {
-    const clean = cleanCategoryName(name);
-    return {
-      name,
+  // Fallback if no BI table headers found: simple newline list of categories
+  if (sectionIndices.length === 0) {
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (!l.includes('\t') && l.length >= 2 && !isSupermarketLine(l) && !l.toUpperCase().startsWith('TỔNG') && !l.includes('chương trình') && l.toUpperCase() !== 'TOÀN CÔNG TY') {
+        sectionIndices.push({ lineIdx: i, catName: l, type: 'DT' });
+      }
+    }
+  }
+
+  const seenClean = new Set<string>();
+  const categories: string[] = [];
+  const categoryObjects: (CategoryData & { clean: string })[] = [];
+
+  for (let s = 0; s < sectionIndices.length; s++) {
+    const sec = sectionIndices[s];
+    const catName = sec.catName;
+    const clean = cleanCategoryName(catName);
+    if (!clean || seenClean.has(clean)) continue;
+    seenClean.add(clean);
+    categories.push(catName);
+
+    // Find store target in the section rows
+    let target = 0;
+    const startLine = sec.lineIdx + 1;
+    const endLine = s + 1 < sectionIndices.length ? sectionIndices[s + 1].lineIdx : lines.length;
+
+    for (let r = startLine; r < endLine; r++) {
+      const row = lines[r];
+      const rowUpper = row.toUpperCase();
+      const rawCols = row.split('\t').map(c => c.trim());
+      const cols = row.split(/\t|\s{2,}/).map(c => c.trim()).filter(Boolean);
+
+      // In store report: row has store name, target is in cols[2]
+      if (marketFilter && marketFilter !== 'ALL' && rowUpper.includes(marketFilter.toUpperCase())) {
+        if (rawCols.length >= 3 && /^-?[\d,.]+(%?)$/.test(rawCols[2])) {
+          target = cleanNumLocal(rawCols[2]);
+          break;
+        } else if (r + 1 < endLine) {
+          const nextCols = lines[r + 1].split(/\t|\s{2,}/).map(c => c.trim());
+          if (nextCols.length >= 2 && /^-?[\d,.]+(%?)$/.test(nextCols[1])) {
+            target = cleanNumLocal(nextCols[1]);
+            break;
+          }
+        }
+      } else if (cols.length >= 3 && /^-?[\d,.]+(%?)$/.test(cols[1]) && /^-?[\d,.]+(%?)$/.test(cols[2])) {
+        if (target === 0) target = cleanNumLocal(cols[2]);
+      }
+    }
+
+    categoryObjects.push({
+      name: catName,
       clean,
-      target: targetMap[clean] || 0,
+      target,
+      type: sec.type,
       actual: 0,
       rate: 0,
-      type: typeMap[clean] || 'DT',
+      marketName: marketFilter || '',
+      revenue: 0,
       group: 'ALL'
-    };
-  });
+    });
+  }
 
   return { categories, categoryObjects, totalCat: categories.length };
 };
