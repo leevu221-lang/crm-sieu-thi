@@ -2773,9 +2773,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     tracham2Sum,
     tracham3Sum
   } = useMemo(() => {
-    const parsedDtqd1 = parseStaffValueList(dtqd3t1);
-    const parsedDtqd2 = parseStaffValueList(dtqd3t2);
-    const parsedDtqd3 = parseStaffValueList(dtqd3t3);
+    const parsedDtqd1 = parseStaffRankData(dtqd3t1).map(s => ({ id: s.fullId || '', name: s.displayName, value: s.virtualVal || s.actualVal || 0 }));
+    const parsedDtqd2 = parseStaffRankData(dtqd3t2).map(s => ({ id: s.fullId || '', name: s.displayName, value: s.virtualVal || s.actualVal || 0 }));
+    const parsedDtqd3 = parseStaffRankData(dtqd3t3).map(s => ({ id: s.fullId || '', name: s.displayName, value: s.virtualVal || s.actualVal || 0 }));
     
     const parsedTn1 = parseTn(thunhap3t1);
     const parsedTn2 = parseTn(thunhap3t2);
@@ -2842,7 +2842,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       if (!rawText || !rawText.trim()) return [];
       const list = parseStaffRankData(rawText);
       return list.map(item => {
-        let val = item.actualVal || 0;
+        let val = item.virtualVal || item.actualVal || 0;
         let eff = item.effVal || 0;
         if (eff > 0 && eff <= 1.0) {
           eff = eff * 100;
