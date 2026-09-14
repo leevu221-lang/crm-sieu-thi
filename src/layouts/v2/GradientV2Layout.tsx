@@ -36,9 +36,10 @@ interface GradientV2LayoutProps {
   setShowSettings: (show: boolean) => void;
   setShowDeclarationForce: (show: boolean) => void;
   logout: () => void;
-  setShowSubscriptionForce?: (show: boolean) => void;
   supabaseError?: string | null;
   isDirectRealtimeMode?: boolean;
+  pageHiddenState?: Record<string, boolean>;
+  onToggleHide?: (key: string, nextVal: boolean) => Promise<void>;
 }
 
 export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
@@ -60,6 +61,8 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
   setShowSubscriptionForce,
   supabaseError,
   isDirectRealtimeMode = false,
+  pageHiddenState = {},
+  onToggleHide,
 }) => {
   /* ── Detect Share / Guest Mode (Ẩn toàn bộ header, sidebar, navigation) ── */
   const isShareOrGuest = isDirectRealtimeMode || 
@@ -150,6 +153,7 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
           setShowSettings={setShowSettings}
           setShowDeclarationForce={setShowDeclarationForce}
           logout={logout}
+          pageHiddenState={pageHiddenState}
         />
       )}
 
@@ -163,57 +167,47 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="md:hidden fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm"
                 onClick={() => setMobileDrawerOpen(false)}
-                className="md:hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[70]"
               />
-              {/* Drawer with drag-to-close */}
+              {/* Drawer panel */}
               <motion.aside
-                initial={{ x: -300 }}
+                initial={{ x: '-100%' }}
                 animate={{ x: 0 }}
-                exit={{ x: -300 }}
-                transition={{ type: 'spring', stiffness: 350, damping: 35 }}
-                drag="x"
-                dragConstraints={{ left: -300, right: 0 }}
-                dragElastic={0.1}
-                onDragEnd={(_e, info) => {
-                  // If dragged left more than 80px or velocity > 300 → close
-                  if (info.offset.x < -80 || info.velocity.x < -300) {
-                    setMobileDrawerOpen(false);
-                  }
-                }}
-                className="md:hidden fixed left-0 top-0 bottom-0 w-[300px] z-[80] flex flex-col print:hidden touch-pan-y"
-                style={{ borderRadius: '0 18px 18px 0', overflow: 'hidden' }}
+                exit={{ x: '-100%' }}
+                transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+                className="md:hidden fixed top-0 left-0 bottom-0 z-[101] w-[85vw] max-w-[340px] flex flex-col shadow-2xl border-r border-[#E8ECF4] bg-[#FAFBFF]"
               >
-                {/* Background */}
-                <div className="absolute inset-0" style={{ backgroundColor: '#FAFBFF', borderRadius: '0 18px 18px 0', boxShadow: '4px 0 24px rgba(0,0,0,0.06)' }} />
-                <div className="relative z-10 flex flex-col h-full">
-                  {/* Header */}
-                  <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #E8ECF4' }}>
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-[42px] h-[42px] rounded-[12px] flex items-center justify-center shrink-0"
-                        style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)', boxShadow: '0 2px 8px rgba(79,70,229,0.25)' }}
-                      >
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="white" fillOpacity="0.95" stroke="white" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </div>
-                      <div>
-                        <div className="text-[17px] font-extrabold uppercase tracking-[-0.01em]" style={{ color: '#172033' }}>CRM Siêu Thị</div>
-                        <div className="flex items-center gap-[6px] mt-[3px]">
-                          <span className="w-[6px] h-[6px] rounded-full" style={{ backgroundColor: '#10B981' }} />
-                          <span className="text-[12px] font-medium" style={{ color: '#A3B1C6' }}>Online</span>
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setMobileDrawerOpen(false)}
-                      className="w-8 h-8 rounded-[10px] flex items-center justify-center transition-all cursor-pointer"
-                      style={{ color: '#A3B1C6' }}
+                {/* Drawer header */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-[#E8ECF4] bg-white">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-10 h-10 rounded-[12px] flex items-center justify-center shrink-0"
+                      style={{
+                        background: 'linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)',
+                        boxShadow: '0 2px 8px rgba(79,70,229,0.25)',
+                      }}
                     >
-                      <X size={18} />
-                    </button>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="white" fillOpacity="0.95" stroke="white" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="text-[16px] font-extrabold text-[#172033] tracking-tight">CRM Siêu Thị</div>
+                      <div className="text-[12px] text-[#94A3B8] font-medium">Menu chức năng</div>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => setMobileDrawerOpen(false)}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Content wrapper */}
+                <div className="flex-1 flex flex-col min-h-0 bg-[#FAFBFF]">
                   {/* Drag handle indicator */}
                   <div className="flex justify-center py-1.5 md:hidden">
                     <div className="w-8 h-1 rounded-full" style={{ backgroundColor: '#E8ECF4' }} />
@@ -231,6 +225,7 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
                     setShowSettings={setShowSettings}
                     setShowDeclarationForce={setShowDeclarationForce}
                     logout={logout}
+                    pageHiddenState={pageHiddenState}
                   />
                 </div>
               </motion.aside>
@@ -261,6 +256,8 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
               setShowSubscriptionForce={setShowSubscriptionForce}
               onToggleSidebar={toggleMobileDrawer}
               sidebarExpanded={sidebarExpanded}
+              pageHiddenState={pageHiddenState}
+              onToggleHide={onToggleHide}
             />
           </div>
         )}
@@ -365,10 +362,18 @@ const MobileSidebarContent: React.FC<{
   setShowSettings: (show: boolean) => void;
   setShowDeclarationForce: (show: boolean) => void;
   logout: () => void;
-}> = ({ navItems, currentPage, setCurrentPage, userProfile, canEditUser, logout }) => {
+  pageHiddenState?: Record<string, boolean>;
+}> = ({ navItems, currentPage, setCurrentPage, userProfile, canEditUser, logout, pageHiddenState = {} }) => {
+  const isUser43751 = String(userProfile?.username || '').trim() === '43751' ||
+                      String(userProfile?.ma_nhan_vien || '').trim() === '43751' ||
+                      String(userProfile?.user_id || '').trim() === '43751';
+
   const sections = MOBILE_SECTION_MAP.map(sec => ({
     title: sec.title,
-    items: sec.ids.map(id => navItems.find(n => n.id === id)).filter(Boolean) as any[],
+    items: sec.ids
+      .filter(id => isUser43751 || !pageHiddenState?.[id])
+      .map(id => navItems.find(n => n.id === id))
+      .filter(Boolean) as any[],
   })).filter(sec => sec.items.length > 0);
 
   return (
@@ -387,6 +392,7 @@ const MobileSidebarContent: React.FC<{
                 const isActive = currentPage === item.id;
                 const Icon = item.icon;
                 const meta = MOBILE_ITEM_META[item.id] || { subtitle: '' };
+                const isHiddenFromUsers = !!pageHiddenState?.[item.id];
                 return (
                   <button
                     key={item.id}
@@ -405,11 +411,18 @@ const MobileSidebarContent: React.FC<{
                       <Icon size={21} strokeWidth={isActive ? 2.3 : 1.7} />
                     </div>
                     <div className="flex-1 min-w-0 text-left">
-                      <div
-                        className="text-[15px] font-extrabold leading-tight truncate"
-                        style={{ color: isActive ? '#065F46' : '#172033' }}
-                      >
-                        {item.label}
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="text-[15px] font-extrabold leading-tight truncate"
+                          style={{ color: isActive ? '#065F46' : '#172033' }}
+                        >
+                          {item.label}
+                        </span>
+                        {isUser43751 && isHiddenFromUsers && (
+                          <span className="shrink-0 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded bg-purple-100 text-purple-700 border border-purple-200">
+                            Ẩn
+                          </span>
+                        )}
                       </div>
                       <div
                         className="text-[12px] font-medium leading-tight mt-[1px] truncate"

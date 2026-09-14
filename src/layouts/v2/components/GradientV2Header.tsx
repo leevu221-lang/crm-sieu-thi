@@ -16,10 +16,13 @@ import {
   Share2,
   Check,
   Crown,
+  EyeOff,
+  Eye,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { buildGuestShareUrl } from '../../../constants/routes';
 import { useStore } from '../../../contexts/StoreContext';
+import { HiddenPagesModal } from './HiddenPagesModal';
 
 interface GradientV2HeaderProps {
   userProfile: any;
@@ -39,6 +42,9 @@ interface GradientV2HeaderProps {
   /* New: sidebar toggle */
   onToggleSidebar?: () => void;
   sidebarExpanded?: boolean;
+  /* Hidden from user feature strictly for user 43751 */
+  pageHiddenState?: Record<string, boolean>;
+  onToggleHide?: (key: string, nextVal: boolean) => Promise<void>;
 }
 
 export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
@@ -58,13 +64,20 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
   setShowSubscriptionForce,
   onToggleSidebar,
   sidebarExpanded,
+  pageHiddenState = {},
+  onToggleHide,
 }) => {
   const [liveClockStr, setLiveClockStr] = useState<string>('');
   const [storeDropdownOpen, setStoreDropdownOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [showHiddenModal, setShowHiddenModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
+
+  const isUser43751 = String(userProfile?.username || '').trim() === '43751' ||
+                      String(userProfile?.ma_nhan_vien || '').trim() === '43751' ||
+                      String(userProfile?.user_id || '').trim() === '43751';
 
   const { currentStoreId, activeRealtimeTab, activeLuyKeTab, activeHealthTab, activeToolHoTroTab, activeTienIchTab } = useStore();
 
@@ -380,6 +393,30 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                       </button>
                     )}
 
+                    {/* Tính năng Ẩn khỏi người dùng - CHỈ HIỂN THỊ VỚI USER 43751 */}
+                    {isUser43751 && (
+                      <button
+                        onClick={() => { setShowHiddenPagesModal(true); setUserDropdownOpen(false); }}
+                        className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] font-bold transition-all cursor-pointer ${
+                          pageHiddenState[effectivePageKey]
+                            ? 'text-purple-700 bg-purple-50/80 hover:bg-purple-100/80'
+                            : 'text-slate-700 hover:bg-purple-50 hover:text-purple-700'
+                        }`}
+                      >
+                        <EyeOff size={16} className={pageHiddenState[effectivePageKey] ? 'text-purple-600 shrink-0' : 'text-slate-400 shrink-0'} />
+                        <span>Ẩn khỏi người dùng</span>
+                        {pageHiddenState[effectivePageKey] ? (
+                          <span className="ml-auto px-1.5 py-0.5 text-[9.5px] font-black rounded-md bg-purple-200/90 text-purple-900 uppercase tracking-wider shadow-2xs">
+                            Đang ẩn
+                          </span>
+                        ) : (
+                          <span className="ml-auto text-[10.5px] text-purple-600 font-semibold">
+                            Cấu hình
+                          </span>
+                        )}
+                      </button>
+                    )}
+
                     <div className="h-px bg-slate-100 my-1" />
 
                     <button
@@ -397,6 +434,17 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
 
         </div>
       </div>
+
+      {/* Modal Ẩn khỏi người dùng - DÀNH RIÊNG CHO USER 43751 */}
+      {isUser43751 && onToggleHide && (
+        <HiddenPagesModal
+          isOpen={showHiddenPagesModal}
+          onClose={() => setShowHiddenPagesModal(false)}
+          pageHiddenState={pageHiddenState}
+          onToggleHide={onToggleHide}
+          effectivePageKey={effectivePageKey}
+        />
+      )}
     </header>
   );
 };

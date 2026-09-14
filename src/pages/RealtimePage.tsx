@@ -1206,7 +1206,7 @@ const fmtRawDate = (raw: string): string => {
   return raw;
 };
 
-export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false }: { pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean, useV2Layout?: boolean }) {
+export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751Local = false, pageHiddenState = {} }: { pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean, useV2Layout?: boolean, pageHiddenState?: Record<string, boolean> }) {
   const isV2Active = true;
   const { userProfile } = useAuth();
   const isAdmin = userProfile?.username === '43751' || userProfile?.username === 'ADMIN' || userProfile?.role === 'admin';
@@ -5126,7 +5126,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
               { id: 'real_dthu_nv', label: 'REAL D.THU NV', icon: TrendingUp, grad: 'from-amber-500 via-orange-500 to-rose-500', activeBg: 'bg-amber-50 text-amber-600' },
               { id: 'khai_thac', label: 'DATA YCX', icon: Activity, grad: 'from-emerald-600 to-teal-600', activeBg: 'bg-emerald-50 text-emerald-600' },
               ...(isUser43751 ? [{ id: 'khai_thac_moi', label: 'DATA YCX MỚI', icon: Activity, grad: 'from-teal-600 to-cyan-600', activeBg: 'bg-teal-50 text-teal-600' }] : [])
-            ].map((item) => {
+            ]
+              .filter(item => isUser43751 || !pageHiddenState[`realtime_${item.id}`])
+              .map((item) => {
               const isActive = activeTab === item.id;
               const Icon = item.icon;
               return (
@@ -5154,15 +5156,19 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
           {/* Main Content Area - Full Width */}
           <div className="w-full min-w-0">
-            {pageMaintenanceState[`realtime_${activeTab}`] && !isUser43751Local ? (
+            {((pageMaintenanceState[`realtime_${activeTab}`] && !isUser43751Local) || (!isUser43751 && pageHiddenState[`realtime_${activeTab}`])) ? (
               <div className="flex items-center justify-center h-full p-6 mt-12">
                 <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-amber-200 shadow-xl w-full">
                   <div className="w-24 h-24 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-amber-500 shadow-inner">
                     <AlertCircle size={48} />
                   </div>
-                  <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">HỆ THỐNG ĐANG BẢO TRÌ</h1>
+                  <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">
+                    {pageHiddenState[`realtime_${activeTab}`] ? 'TAB ĐANG TẠM ẨN' : 'HỆ THỐNG ĐANG BẢO TRÌ'}
+                  </h1>
                   <p className="text-slate-500 font-medium leading-relaxed">
-                    Tab này đang trong quá trình bảo trì và nâng cấp. Xin lỗi vì sự bất tiện này!
+                    {pageHiddenState[`realtime_${activeTab}`]
+                      ? 'Mục này hiện đang được tạm ẩn khỏi hệ thống. Vui lòng quay lại sau!'
+                      : 'Tab này đang trong quá trình bảo trì và nâng cấp. Xin lỗi vì sự bất tiện này!'}
                   </p>
                 </div>
               </div>

@@ -191,7 +191,7 @@ const StatCard: React.FC<{
   );
 };
 
-const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean }> = ({ pageMaintenanceState = {}, isUser43751Local = false }) => {
+const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean, pageHiddenState?: Record<string, boolean> }> = ({ pageMaintenanceState = {}, isUser43751Local = false, pageHiddenState = {} }) => {
   const { userProfile } = useAuth();
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const { marketFilter, setMarketFilter, availableMarkets } = useMarket();
@@ -201,7 +201,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
   }, [availableMarkets]);
   const [maKho, setMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
 
-  const is43751 = userProfile?.username === '43751';
+  const is43751 = isUser43751Local || String(userProfile?.username).trim() === '43751' || String(userProfile?.ma_nhan_vien).trim() === '43751' || String(userProfile?.user_id).trim() === '43751';
 
 
 
@@ -2174,7 +2174,9 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
             { id: 'thuong_st', label: 'THƯỞNG ST', icon: Zap, grad: 'from-amber-500 to-orange-500' },
             { id: 'bcdtnh', label: 'BC DT NGÀNH HÀNG', icon: LayoutGrid, grad: 'from-teal-600 to-cyan-600' },
             { id: 'ssg_boss', label: 'SSG BOSS', icon: Trophy, grad: 'from-amber-600 to-yellow-500' }
-          ].map((item) => {
+          ]
+            .filter((item) => is43751 || !pageHiddenState[`luyke_${item.id}`])
+            .map((item) => {
             const isActive = activeTab === item.id;
             const Icon = item.icon;
             return (
@@ -2199,15 +2201,19 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
 
         {/* Main Content Area - Full Width */}
         <div className="w-full min-w-0 space-y-6">
-          {pageMaintenanceState[`luyke_${activeTab}`] && !isUser43751Local ? (
+          {((pageMaintenanceState[`luyke_${activeTab}`] && !isUser43751Local) || (!is43751 && pageHiddenState[`luyke_${activeTab}`])) ? (
             <div className="flex items-center justify-center h-full p-6 mt-12">
               <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-amber-200 shadow-xl w-full">
                 <div className="w-24 h-24 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-amber-500 shadow-inner">
                   <AlertCircle size={48} />
                 </div>
-                <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">HỆ THỐNG ĐANG BẢO TRÌ</h1>
+                <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">
+                  {pageHiddenState[`luyke_${activeTab}`] ? 'TAB ĐANG TẠM ẨN' : 'HỆ THỐNG ĐANG BẢO TRÌ'}
+                </h1>
                 <p className="text-slate-500 font-medium leading-relaxed">
-                  Tab này đang trong quá trình bảo trì và nâng cấp. Xin lỗi vì sự bất tiện này!
+                  {pageHiddenState[`luyke_${activeTab}`]
+                    ? 'Mục này hiện đang được tạm ẩn khỏi hệ thống. Vui lòng quay lại sau!'
+                    : 'Tab này đang trong quá trình bảo trì và nâng cấp. Xin lỗi vì sự bất tiện này!'}
                 </p>
               </div>
             </div>

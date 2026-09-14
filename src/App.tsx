@@ -153,6 +153,16 @@ export default function App() {
   const [pageMaintenanceState, setPageMaintenanceState] = useState<Record<string, boolean>>({});
   const [showMaintenanceConfirm, setShowMaintenanceConfirm] = useState(false);
 
+  // Page Hidden Mode State (Ẩn khỏi người dùng - chỉ hiển thị với user 43751)
+  const [pageHiddenState, setPageHiddenState] = useState<Record<string, boolean>>(() => {
+    try {
+      const cached = localStorage.getItem('crm_hidden_pages');
+      return cached ? JSON.parse(cached) : {};
+    } catch {
+      return {};
+    }
+  });
+
   const effectivePageKey = currentPage === 'realtime' ? `realtime_${activeRealtimeTab}` : 
                            currentPage === 'toolhotro' ? `toolhotro_${activeToolHoTroTab}` : 
                            currentPage === 'tienich' ? `tienich_${activeTienIchTab}` : 
@@ -247,6 +257,36 @@ export default function App() {
     });
     return () => unsub();
   }, []);
+
+  // Lắng nghe cấu hình ẩn trang từ Firestore (system_settings/hidden_pages)
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'system_settings', 'hidden_pages'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = (docSnap.data() || {}) as Record<string, boolean>;
+        setPageHiddenState(data);
+        try {
+          localStorage.setItem('crm_hidden_pages', JSON.stringify(data));
+        } catch {}
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Hàm chuyển đổi ẩn / hiện trang dành riêng cho user 43751
+  const handleToggleHidePage = async (key: string, nextVal: boolean) => {
+    setPageHiddenState(prev => {
+      const updated = { ...prev, [key]: nextVal };
+      try {
+        localStorage.setItem('crm_hidden_pages', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    try {
+      await setDoc(doc(db, 'system_settings', 'hidden_pages'), { [key]: nextVal }, { merge: true });
+    } catch (err) {
+      console.error('Lỗi khi cập nhật ẩn trang:', err);
+    }
+  };
 
   // Hard Rule implementation for fallback if userProfile has missing userPermissions (legacy session)
   const isSuperAdminHardcoded = userProfile?.username === '43751' || userProfile?.username === 'ADMIN';
@@ -405,7 +445,9 @@ export default function App() {
     );
   }
 
-  const isUser43751Local = String(userProfile?.username || '').trim() === '43751';
+  const isUser43751Local = String(userProfile?.username || '').trim() === '43751' ||
+                           String(userProfile?.ma_nhan_vien || '').trim() === '43751' ||
+                           String(userProfile?.user_id || '').trim() === '43751';
 
   const isSuperAdmin = canEditUser;
 
@@ -425,7 +467,11 @@ export default function App() {
     { id: 'lichpg', label: 'Lịch PG', icon: CalendarDays, color: 'teal' }
   ];
   
-  const NAV_ITEMS = BASE_NAV_ITEMS.filter(item => effectiveAllowedPages.includes(item.id));
+  const NAV_ITEMS = BASE_NAV_ITEMS.filter(item => {
+    if (!effectiveAllowedPages.includes(item.id)) return false;
+    if (!isUser43751Local && pageHiddenState[item.id]) return false;
+    return true;
+  });
 
   const renderMainContent = () => (
     <LuykeDataProvider>
@@ -440,6 +486,30 @@ export default function App() {
         >
           <Suspense fallback={<LoadingSpinner />}>
             {(() => {
+              const isHiddenBlocked = !isUser43751Local && pageHiddenState[currentPage];
+              if (isHiddenBlocked) {
+                return (
+                  <div className="flex items-center justify-center h-full p-6 mt-12">
+                    <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-purple-200 shadow-xl w-full">
+                      <div className="w-24 h-24 bg-purple-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-purple-600 shadow-inner">
+                        <AlertCircle size={48} />
+                      </div>
+                      <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">TRANG HIỆN KHÔNG KHẢ DỤNG</h1>
+                      <p className="text-slate-500 font-medium leading-relaxed mb-8">
+                        Trang này hiện đang được tạm ẩn khỏi hệ thống. Vui lòng quay lại sau!
+                      </p>
+                      <button 
+                        onClick={() => setCurrentPage('realtime')}
+                        className="px-8 py-3 bg-gradient-to-r from-[#2563EB] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center mx-auto gap-2 cursor-pointer"
+                      >
+                        <RefreshCw size={18} />
+                        QUAY LẠI BC NGÀY
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
               const isMaintenanceBlockedByApp = !['realtime', 'toolhotro', 'tienich', 'luyke', 'health'].includes(currentPage) && pageMaintenanceState[currentPage] && !isUser43751Local;
               
               if (isMaintenanceBlockedByApp) {
@@ -490,9 +560,9 @@ export default function App() {
                 );
               }
 
-              if (currentPage === 'realtime' && effectiveAllowedPages.includes('realtime')) return <NewRealtimePage pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
+              if (currentPage === 'realtime' && effectiveAllowedPages.includes('realtime')) return <NewRealtimePage pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} pageHiddenState={pageHiddenState} />;
               if (currentPage === 'khaibao' && effectiveAllowedPages.includes('khaibao')) return <KhaiBao />;
-              if (currentPage === 'luyke' && effectiveAllowedPages.includes('luyke')) return <LuyKe pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
+              if (currentPage === 'luyke' && effectiveAllowedPages.includes('luyke')) return <LuyKe pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} pageHiddenState={pageHiddenState} />;
               if (currentPage === 'tnb_data' && effectiveAllowedPages.includes('tnb_data')) return <TnbData />;
               if (currentPage === 'tnbleader' && effectiveAllowedPages.includes('tnbleader')) return <TnbLeader pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
               if (currentPage === 'toolhotro' && effectiveAllowedPages.includes('toolhotro')) return <ToolHoTro pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
@@ -506,7 +576,7 @@ export default function App() {
                   }} />
                 );
               }
-              if (currentPage === 'health' && effectiveAllowedPages.includes('health')) return <EmployeeHealth pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} />;
+              if (currentPage === 'health' && effectiveAllowedPages.includes('health')) return <EmployeeHealth pageMaintenanceState={pageMaintenanceState} isUser43751Local={isUser43751Local} pageHiddenState={pageHiddenState} />;
               if (currentPage === 'birthday' && effectiveAllowedPages.includes('birthday')) return <SinhNhatNv />;
               if (currentPage === 'feedback') return <FeedbackPage />;
               if (currentPage === 'excelviewer' && effectiveAllowedPages.includes('excelviewer')) return <ExcelViewer />;
@@ -567,6 +637,8 @@ export default function App() {
         logout={logout}
         supabaseError={supabaseError}
         isDirectRealtimeMode={isGuestOrDirectMode}
+        pageHiddenState={pageHiddenState}
+        onToggleHide={handleToggleHidePage}
       >
         {renderMainContent()}
       </GradientV2Layout>

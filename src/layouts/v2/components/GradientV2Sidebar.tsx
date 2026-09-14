@@ -164,6 +164,7 @@ interface GradientV2SidebarProps {
   setShowSettings: (show: boolean) => void;
   setShowDeclarationForce: (show: boolean) => void;
   logout: () => void;
+  pageHiddenState?: Record<string, boolean>;
 }
 
 /* ── Badge Component ── */
@@ -184,8 +185,9 @@ const SubMenuItem: React.FC<{
   icon: any;
   label: string;
   isActive: boolean;
+  isHidden?: boolean;
   onClick: (e: React.MouseEvent) => void;
-}> = ({ icon: SubIcon, label, isActive, onClick }) => (
+}> = ({ icon: SubIcon, label, isActive, isHidden, onClick }) => (
   <button
     onClick={onClick}
     className="w-full flex items-center gap-2.5 px-3 py-[6.5px] rounded-[10px] text-[13.5px] font-bold transition-all duration-150 cursor-pointer"
@@ -208,6 +210,11 @@ const SubMenuItem: React.FC<{
       style={{ color: isActive ? COLORS.subActive : COLORS.textMuted, flexShrink: 0 }}
     />
     <span className="truncate">{label}</span>
+    {isHidden && (
+      <span className="shrink-0 text-[8.5px] font-black uppercase tracking-wider px-1 py-0.2 rounded bg-purple-100 text-purple-700 border border-purple-200 ml-1">
+        Ẩn
+      </span>
+    )}
     {isActive && (
       <div className="ml-auto flex items-center gap-1.5 shrink-0 pl-1">
         {/* Animated dynamic radar pulse beacon in high-contrast Emerald Green */}
@@ -266,6 +273,7 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
   setShowSettings,
   setShowDeclarationForce,
   logout,
+  pageHiddenState = {},
 }) => {
   const {
     activeRealtimeTab, setActiveRealtimeTab,
@@ -275,12 +283,16 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
     activeTienIchTab, setActiveTienIchTab,
   } = useStore();
 
-  const isAdmin = userProfile?.username === '43751';
+  const isUser43751 = String(userProfile?.username || '').trim() === '43751' ||
+                      String(userProfile?.ma_nhan_vien || '').trim() === '43751' ||
+                      String(userProfile?.user_id || '').trim() === '43751';
+  const isAdmin = isUser43751;
   const sidebarWidth = expanded ? SIDEBAR_EXPANDED : SIDEBAR_COLLAPSED;
 
   const sections = SECTION_MAP.map((sec) => ({
     title: sec.title,
     items: sec.ids
+      .filter((id) => isUser43751 || !pageHiddenState[id])
       .map((id) => navItems.find((n) => n.id === id))
       .filter(Boolean) as NavItem[],
   })).filter((sec) => sec.items.length > 0);
@@ -499,11 +511,18 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                               transition={{ duration: 0.15 }}
                               className="flex-1 min-w-0 text-left"
                             >
-                              <div
-                                className="text-[15.5px] font-extrabold leading-tight truncate"
-                                style={{ color: isActive ? COLORS.mainActiveText : COLORS.textPrimary }}
-                              >
-                                {item.label}
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className="text-[15.5px] font-extrabold leading-tight truncate"
+                                  style={{ color: isActive ? COLORS.mainActiveText : COLORS.textPrimary }}
+                                >
+                                  {item.label}
+                                </span>
+                                {isUser43751 && pageHiddenState[item.id] && (
+                                  <span className="shrink-0 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded bg-purple-100 text-purple-700 border border-purple-200">
+                                    Ẩn
+                                  </span>
+                                )}
                               </div>
                               <div
                                 className="text-[12.5px] font-medium leading-tight mt-[2px] truncate"
@@ -538,12 +557,15 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                           {/* Realtime sub-tabs */}
                           {showSub && item.id === 'realtime' && (
                             <SubMenuContainer>
-                              {[...REALTIME_SUBS, ...(isAdmin ? REALTIME_SUBS_ADMIN : [])].map((sub) => (
+                              {[...REALTIME_SUBS, ...(isAdmin ? REALTIME_SUBS_ADMIN : [])]
+                                .filter((sub) => isUser43751 || !pageHiddenState[`realtime_${sub.id}`])
+                                .map((sub) => (
                                 <SubMenuItem
                                   key={sub.id}
                                   icon={sub.icon}
                                   label={sub.label}
                                   isActive={activeRealtimeTab === sub.id}
+                                  isHidden={isUser43751 && !!pageHiddenState[`realtime_${sub.id}`]}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (currentPage !== 'realtime') setCurrentPage('realtime');
@@ -557,12 +579,15 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                           {/* LuyKe sub-tabs */}
                           {showSub && item.id === 'luyke' && (
                             <SubMenuContainer>
-                              {LUYKE_SUBS.map((sub) => (
+                              {LUYKE_SUBS
+                                .filter((sub) => isUser43751 || !pageHiddenState[`luyke_${sub.id}`])
+                                .map((sub) => (
                                 <SubMenuItem
                                   key={sub.id}
                                   icon={sub.icon}
                                   label={sub.label}
                                   isActive={activeLuyKeTab === sub.id}
+                                  isHidden={isUser43751 && !!pageHiddenState[`luyke_${sub.id}`]}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (currentPage !== 'luyke') setCurrentPage('luyke');
@@ -576,12 +601,15 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                           {/* Health sub-tabs */}
                           {showSub && item.id === 'health' && (
                             <SubMenuContainer>
-                              {HEALTH_SUBS.map((sub) => (
+                              {HEALTH_SUBS
+                                .filter((sub) => isUser43751 || !pageHiddenState[`health_${sub.id}`])
+                                .map((sub) => (
                                 <SubMenuItem
                                   key={sub.id}
                                   icon={sub.icon}
                                   label={sub.label}
                                   isActive={activeHealthTab === sub.id}
+                                  isHidden={isUser43751 && !!pageHiddenState[`health_${sub.id}`]}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (currentPage !== 'health') setCurrentPage('health');
@@ -595,7 +623,9 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                           {/* ToolHoTro sub-tabs */}
                           {showSub && item.id === 'toolhotro' && (
                             <SubMenuContainer>
-                              {TOOLHOTRO_SUBS.map((sub) => {
+                              {TOOLHOTRO_SUBS
+                                .filter((sub) => isUser43751 || !pageHiddenState[`toolhotro_${sub.id}`])
+                                .map((sub) => {
                                 const isSubActive = activeToolHoTroTab === sub.id ||
                                   (sub.id === 'all-sticker' && STICKER_VARIANTS.has(activeToolHoTroTab));
                                 return (
@@ -604,6 +634,7 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                                     icon={sub.icon}
                                     label={sub.label}
                                     isActive={isSubActive}
+                                    isHidden={isUser43751 && !!pageHiddenState[`toolhotro_${sub.id}`]}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       if (currentPage !== 'toolhotro') setCurrentPage('toolhotro');
@@ -622,7 +653,9 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                                 ...TIENICH_SUBS,
                                 ...(isAdmin ? TIENICH_SUBS_ADMIN : []),
                                 ...TIENICH_SUBS_TAIL,
-                              ].map((sub) => {
+                              ]
+                                .filter((sub) => isUser43751 || !pageHiddenState[`tienich_${sub.id}`])
+                                .map((sub) => {
                                 const isSubActive = activeTienIchTab === sub.id;
                                 return (
                                   <SubMenuItem
@@ -630,6 +663,7 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                                     icon={sub.icon}
                                     label={sub.label}
                                     isActive={isSubActive}
+                                    isHidden={isUser43751 && !!pageHiddenState[`tienich_${sub.id}`]}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       if (currentPage !== 'tienich') setCurrentPage('tienich');

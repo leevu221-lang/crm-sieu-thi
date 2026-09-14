@@ -465,7 +465,7 @@ const CustomFilterPopover: React.FC<CustomFilterPopoverProps> = ({
   );
 };
 
-const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean }> = ({ pageMaintenanceState = {}, isUser43751Local = false }) => {
+const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean, pageHiddenState?: Record<string, boolean> }> = ({ pageMaintenanceState = {}, isUser43751Local = false, pageHiddenState = {} }) => {
   const { userProfile, authEmployeeName } = useAuth();
   const isUser43751 = isUser43751Local || 
                       String(userProfile?.username || '').trim() === '43751' || 
@@ -4291,7 +4291,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
               {/* Bottom Deck: Segmented Tab Bar Navigation — Mobile only */}
               <div className="md:hidden w-full overflow-hidden">
                 <div className="flex items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 bg-slate-100/80 backdrop-blur-md rounded-xl sm:rounded-2xl border border-slate-200/80 overflow-x-auto no-scrollbar shadow-inner">
-                  {menuItems.map((item) => {
+                  {menuItems
+                    .filter(item => isUser43751 || !pageHiddenState[`health_${item.id}`])
+                    .map((item) => {
                     const isActive = activeTab === item.id;
                     const Icon = item.icon;
                     return (
@@ -4316,15 +4318,19 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
           {/* Main Content Area */}
           <div className="space-y-10">
-            {pageMaintenanceState[`health_${activeTab}`] && !isUser43751Local ? (
+            {((pageMaintenanceState[`health_${activeTab}`] && !isUser43751Local) || (!isUser43751 && pageHiddenState[`health_${activeTab}`])) ? (
               <div className="flex items-center justify-center h-full p-6 mt-12">
                 <div className="bg-white rounded-3xl p-12 max-w-lg text-center border border-amber-200 shadow-xl w-full">
                   <div className="w-24 h-24 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-amber-500 shadow-inner">
                     <AlertCircle size={48} />
                   </div>
-                  <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">HỆ THỐNG ĐANG BẢO TRÌ</h1>
+                  <h1 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-4">
+                    {pageHiddenState[`health_${activeTab}`] ? 'TAB ĐANG TẠM ẨN' : 'HỆ THỐNG ĐANG BẢO TRÌ'}
+                  </h1>
                   <p className="text-slate-500 font-medium leading-relaxed">
-                    Tab này đang trong quá trình bảo trì và nâng cấp. Xin lỗi vì sự bất tiện này!
+                    {pageHiddenState[`health_${activeTab}`]
+                      ? 'Mục này hiện đang được tạm ẩn khỏi hệ thống. Vui lòng quay lại sau!'
+                      : 'Tab này đang trong quá trình bảo trì và nâng cấp. Xin lỗi vì sự bất tiện này!'}
                   </p>
                 </div>
               </div>
