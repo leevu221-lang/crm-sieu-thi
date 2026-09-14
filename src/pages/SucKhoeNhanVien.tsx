@@ -81,6 +81,17 @@ const isCategoryForMarket = (c: any, marketFilter: string): boolean => {
          (normMarket.length > 3 && normFilter.length > 3 && (normMarket.includes(normFilter) || normFilter.includes(normMarket)));
 };
 
+const extractMonthNumber = (str: string): number => {
+  if (!str) return 0;
+  const m = str.match(/(?:tháng\s*|t\s*)?(\d{1,2})(?:[\/\-\s]\d{4})?/i);
+  if (m && m[1]) {
+    const num = parseInt(m[1], 10);
+    if (num >= 1 && num <= 12) return num;
+  }
+  const fallback = parseInt(str.replace(/\D/g, ''), 10);
+  return (fallback >= 1 && fallback <= 12) ? fallback : 0;
+};
+
 const splitLine = (l: string): string[] => {
   if (l.includes('\t')) {
     return l.split('\t').map(p => p.trim());
@@ -1307,10 +1318,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   // Filter processed markets
   const allowedMarkets = useMemo(() => {
     if (!processedData.markets) return [];
-    const allowedPrefixes = ["ĐML", "ĐMM", "ĐMS", "ĐMS3", "TGD", "AAR"];
-    return processedData.markets.filter((m: any) =>
-      allowedPrefixes.some((prefix: string) => m.name.toUpperCase().startsWith(prefix))
-    );
+    const allowedPrefixes = ["ĐML", "ĐMM", "ĐMS", "ĐMS3", "TGD", "AAR", "BHX", "MWG"];
+    return processedData.markets.filter((m: any) => {
+      const name = (m.name || '').toUpperCase();
+      const cleanName = name.replace(/^\d{3,6}\s*[-–—:]\s*/, '').trim();
+      return allowedPrefixes.some((prefix: string) => cleanName.startsWith(prefix) || name.startsWith(prefix));
+    });
   }, [processedData.markets]);
 
   const filteredLuykeCategories = useMemo(() => {
@@ -1701,7 +1714,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     setTracham3t2(tracham3t3);
     setGiocong3t2(giocong3t3);
 
-    const m3Num = parseInt(rankMonth3.replace(/\D/g, '')) || 6;
+    const m3Num = extractMonthNumber(rankMonth3) || 6;
     const nextM3Num = m3Num >= 12 ? 1 : m3Num + 1;
     setRankMonth3(`Tháng ${nextM3Num}`);
 
@@ -3158,22 +3171,22 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       if (thunhap > 0 && thunhap < 1000000) thunhap = thunhap * 1000000;
 
       const currentSystemMonth = new Date().getMonth() + 1;
-      const m1Num = parseInt(rankMonth1.replace(/\D/g, '')) || 4;
-      const m2Num = parseInt(rankMonth2.replace(/\D/g, '')) || 5;
-      const m3Num = parseInt(rankMonth3.replace(/\D/g, '')) || 6;
+      const m1Num = extractMonthNumber(rankMonth1) || 4;
+      const m2Num = extractMonthNumber(rankMonth2) || 5;
+      const m3Num = extractMonthNumber(rankMonth3) || 6;
       const isM1CurrentMonth = m1Num === currentSystemMonth;
       const isM2CurrentMonth = m2Num === currentSystemMonth;
       const isM3CurrentMonth = m3Num === currentSystemMonth;
 
-      if (isProjectedMonth1 && isM1CurrentMonth && daysPassed > 0) {
+      if (isProjectedMonth1 && (isM1CurrentMonth || daysPassed > 0) && daysPassed > 0) {
         dtqd1 = (dtqd1 / daysPassed) * totalDays;
         thunhap1 = (thunhap1 / daysPassed) * totalDays;
       }
-      if (isProjectedMonth2 && isM2CurrentMonth && daysPassed > 0) {
+      if (isProjectedMonth2 && (isM2CurrentMonth || daysPassed > 0) && daysPassed > 0) {
         dtqd2 = (dtqd2 / daysPassed) * totalDays;
         thunhap2 = (thunhap2 / daysPassed) * totalDays;
       }
-      if (isProjectedMonth3 && isM3CurrentMonth && daysPassed > 0) {
+      if (isProjectedMonth3 && (isM3CurrentMonth || daysPassed > 0) && daysPassed > 0) {
         dtqd3 = (dtqd3 / daysPassed) * totalDays;
         thunhap3 = (thunhap3 / daysPassed) * totalDays;
       }
@@ -3358,16 +3371,27 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
     const staffCount = filteredRank3TData.length;
 
-    const calcMonth = (nganhhangInput: string, thiduaInput: string, mDaysPassed: number = 0, mTotalDays: number = 30) => {
-      if (!nganhhangInput.trim()) return { staffMatrix: [], totalCat: 0 };
+    const calcMonth = (
+      nganhhangInput: string, 
+      thiduaInput: string, 
+      mDaysPassed: number = 0, 
+      mTotalDays: number = 30,
+      isCurrentMonth: boolean = false
+    ) => {
+      const effectiveNganhHang = (nganhhangInput && nganhhangInput.trim()) 
+        ? nganhhangInput.trim() 
+        : (isCurrentMonth ? (thiDuaNv || '').trim() : '');
+
+      if (!effectiveNganhHang) return { staffMatrix: [], totalCat: 0 };
 
       const hasThiduaText = Boolean(thiduaInput && thiduaInput.trim().length > 0);
       let targetCatsToUse: any[] = [];
 
-      if (hasThiduaText) {
-        const categoryTargets = parseCategoryData(thiduaInput.trim(), 0, 30, allowedMarkets, 'LUYKE');
-
-        const filteredCategoryTargets = categoryTargets.filter((c: any) => isCategoryForMarket(c, marketFilter));
+      if (isCurrentMonth && categoryTargets && categoryTargets.length > 0) {
+        targetCatsToUse = categoryTargets;
+      } else if (hasThiduaText) {
+        const parsedCategoryTargets = parseCategoryData(thiduaInput.trim(), 0, 30, allowedMarkets, 'LUYKE');
+        const filteredCategoryTargets = parsedCategoryTargets.filter((c: any) => isCategoryForMarket(c, marketFilter));
         
         // Deduplicate unique categories per store using cleanCategoryName
         const seenCat = new Set<string>();
@@ -3382,11 +3406,15 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         targetCatsToUse = mainStoreCategories;
       }
 
+      const effectiveLuykeCats = isCurrentMonth && filteredLuykeCategories && filteredLuykeCategories.length > 0
+        ? filteredLuykeCategories
+        : targetCatsToUse;
+
       const { staffMatrix, categories } = parseStaffMatrixDataRefined(
-        nganhhangInput,
+        effectiveNganhHang,
         staffCount,
         targetCatsToUse,
-        targetCatsToUse,
+        effectiveLuykeCats,
         mDaysPassed,
         mTotalDays,
         false,
@@ -3397,32 +3425,32 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     };
 
     const currentSystemMonth = new Date().getMonth() + 1;
-    const m1Num = parseInt(rankMonth1.replace(/\D/g, '')) || 4;
-    const m2Num = parseInt(rankMonth2.replace(/\D/g, '')) || 5;
-    const m3Num = parseInt(rankMonth3.replace(/\D/g, '')) || 6;
+    const m1Num = extractMonthNumber(rankMonth1) || 4;
+    const m2Num = extractMonthNumber(rankMonth2) || 5;
+    const m3Num = extractMonthNumber(rankMonth3) || 6;
     const isM1CurrentMonth = m1Num === currentSystemMonth;
     const isM2CurrentMonth = m2Num === currentSystemMonth;
     const isM3CurrentMonth = m3Num === currentSystemMonth;
 
     let m1;
-    if (isProjectedMonth1 && isM1CurrentMonth && daysPassed > 0) {
-      m1 = calcMonth(nganhhang3t1, thidua3t1, daysPassed, totalDays);
+    if (isProjectedMonth1 && daysPassed > 0) {
+      m1 = calcMonth(nganhhang3t1, thidua3t1, daysPassed, totalDays, isM1CurrentMonth || isProjectedMonth1);
     } else {
-      m1 = calcMonth(nganhhang3t1, thidua3t1);
+      m1 = calcMonth(nganhhang3t1, thidua3t1, 0, 30, isM1CurrentMonth);
     }
 
     let m2;
-    if (isProjectedMonth2 && isM2CurrentMonth && daysPassed > 0) {
-      m2 = calcMonth(nganhhang3t2, thidua3t2, daysPassed, totalDays);
+    if (isProjectedMonth2 && daysPassed > 0) {
+      m2 = calcMonth(nganhhang3t2, thidua3t2, daysPassed, totalDays, isM2CurrentMonth || isProjectedMonth2);
     } else {
-      m2 = calcMonth(nganhhang3t2, thidua3t2);
+      m2 = calcMonth(nganhhang3t2, thidua3t2, 0, 30, isM2CurrentMonth);
     }
     
     let m3;
-    if (isProjectedMonth3 && isM3CurrentMonth && daysPassed > 0) {
-      m3 = calcMonth(nganhhang3t3, thidua3t3, daysPassed, totalDays);
+    if (isProjectedMonth3 && daysPassed > 0) {
+      m3 = calcMonth(nganhhang3t3, thidua3t3, daysPassed, totalDays, isM3CurrentMonth || isProjectedMonth3);
     } else {
-      m3 = calcMonth(nganhhang3t3, thidua3t3);
+      m3 = calcMonth(nganhhang3t3, thidua3t3, 0, 30, isM3CurrentMonth);
     }
 
     const scores: Record<string, {
@@ -3471,7 +3499,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     });
 
     return scores;
-  }, [filteredRank3TData, nganhhang3t1, thidua3t1, nganhhang3t2, thidua3t2, nganhhang3t3, thidua3t3, marketFilter, allowedMarkets, mainStoreCategories, isProjectedMonth1, isProjectedMonth2, isProjectedMonth3, daysPassed, totalDays, rankMonth1, rankMonth2, rankMonth3]);
+  }, [filteredRank3TData, nganhhang3t1, thidua3t1, nganhhang3t2, thidua3t2, nganhhang3t3, thidua3t3, thiDuaNv, categoryTargets, filteredLuykeCategories, categoryConfig, marketFilter, allowedMarkets, mainStoreCategories, isProjectedMonth1, isProjectedMonth2, isProjectedMonth3, daysPassed, totalDays, rankMonth1, rankMonth2, rankMonth3]);
 
   const rank3TNganhHangTopBotStats = useMemo(() => {
     if (!filteredRank3TData || filteredRank3TData.length === 0) return { stats: {}, sets: null };
@@ -6667,10 +6695,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                         </label>
 
                         {/* New Toggles for Projected Months */}
-                        {(parseInt(rankMonth1.replace(/\D/g, '')) || 4) === new Date().getMonth() + 1 && (
+                        {(extractMonthNumber(rankMonth1) || 4) === new Date().getMonth() + 1 && (
                           <label className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors shadow-sm group">
                             <span className="flex items-center gap-2 text-[12px] font-bold text-slate-700 uppercase tracking-wider group-hover:text-amber-600 transition-colors">
-                              <TrendingUp size={16} /> DỰ KIẾN THÁNG {(parseInt(rankMonth1.replace(/\D/g, '')) || 4)}
+                              <TrendingUp size={16} /> DỰ KIẾN THÁNG {(extractMonthNumber(rankMonth1) || 4)}
                             </span>
                             <div className="relative">
                               <input
@@ -6690,10 +6718,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                             </div>
                           </label>
                         )}
-                        {(parseInt(rankMonth2.replace(/\D/g, '')) || 5) === new Date().getMonth() + 1 && (
+                        {(extractMonthNumber(rankMonth2) || 5) === new Date().getMonth() + 1 && (
                           <label className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors shadow-sm group">
                             <span className="flex items-center gap-2 text-[12px] font-bold text-slate-700 uppercase tracking-wider group-hover:text-amber-600 transition-colors">
-                              <TrendingUp size={16} /> DỰ KIẾN THÁNG {(parseInt(rankMonth2.replace(/\D/g, '')) || 5)}
+                              <TrendingUp size={16} /> DỰ KIẾN THÁNG {(extractMonthNumber(rankMonth2) || 5)}
                             </span>
                             <div className="relative">
                               <input
@@ -6713,10 +6741,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                             </div>
                           </label>
                         )}
-                        {(parseInt(rankMonth3.replace(/\D/g, '')) || 6) === new Date().getMonth() + 1 && (
+                        {(extractMonthNumber(rankMonth3) || 6) === new Date().getMonth() + 1 && (
                           <label className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors shadow-sm group">
                             <span className="flex items-center gap-2 text-[12px] font-bold text-slate-700 uppercase tracking-wider group-hover:text-amber-600 transition-colors">
-                              <TrendingUp size={16} /> DỰ KIẾN THÁNG {(parseInt(rankMonth3.replace(/\D/g, '')) || 6)}
+                              <TrendingUp size={16} /> DỰ KIẾN THÁNG {(extractMonthNumber(rankMonth3) || 6)}
                             </span>
                             <div className="relative">
                               <input
