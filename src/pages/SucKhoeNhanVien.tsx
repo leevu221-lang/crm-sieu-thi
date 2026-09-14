@@ -3390,7 +3390,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       if (isCurrentMonth && categoryTargets && categoryTargets.length > 0) {
         targetCatsToUse = categoryTargets;
       } else if (hasThiduaText) {
-        const parsedCategoryTargets = parseCategoryData(thiduaInput.trim(), 0, 30, allowedMarkets, 'LUYKE');
+        const effectiveMarkets = allowedMarkets.length > 0 
+          ? allowedMarkets 
+          : [{ id: maKho, name: marketFilter !== 'ALL' ? marketFilter : (tenSieuThi || maKho) }];
+        const parsedCategoryTargets = parseCategoryData(thiduaInput.trim(), 0, 30, effectiveMarkets, 'LUYKE');
         const filteredCategoryTargets = parsedCategoryTargets.filter((c: any) => isCategoryForMarket(c, marketFilter));
         
         // Deduplicate unique categories per store using cleanCategoryName
@@ -3402,13 +3405,19 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
             targetCatsToUse.push(c);
           }
         });
-      } else if (mainStoreCategories.length > 0) {
-        targetCatsToUse = mainStoreCategories;
       }
 
-      const effectiveLuykeCats = isCurrentMonth && filteredLuykeCategories && filteredLuykeCategories.length > 0
+      if (targetCatsToUse.length === 0) {
+        if (categoryTargets && categoryTargets.length > 0) {
+          targetCatsToUse = categoryTargets;
+        } else if (mainStoreCategories.length > 0) {
+          targetCatsToUse = mainStoreCategories;
+        }
+      }
+
+      const effectiveLuykeCats = (filteredLuykeCategories && filteredLuykeCategories.length > 0)
         ? filteredLuykeCategories
-        : targetCatsToUse;
+        : (targetCatsToUse.length > 0 ? targetCatsToUse : mainStoreCategories);
 
       const { staffMatrix, categories } = parseStaffMatrixDataRefined(
         effectiveNganhHang,
@@ -6167,7 +6176,16 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
                               <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">THI ĐUA NHÂN VIÊN ({rankMonth1})</label>
-                              <span className="text-[10px] font-black text-indigo-600">{nganhhang1Sum.toLocaleString('vi-VN')}</span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => setConfirmModal({ title: 'Đồng bộ Thi Đua NV', message: 'Đồng bộ dữ liệu từ CẬP NHẬT > CẤU HÌNH SIÊU THỊ > THI ĐUA NV vào cột ' + rankMonth1 + '?\nDữ liệu cũ sẽ bị ghi đè.', variant: 'info', onConfirm: () => { if (thiDuaNv) setNganhhang3t1(thiDuaNv); else alert('Chưa có dữ liệu Thi Đua NV từ CẤU HÌNH SIÊU THỊ'); } })}
+                                  className="flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95"
+                                  title="Đồng bộ từ CẤU HÌNH SIÊU THỊ > THI ĐUA NV"
+                                >
+                                  <RefreshCw size={9} />Đồng bộ
+                                </button>
+                                <span className="text-[10px] font-black text-indigo-600">{nganhhang1Sum.toLocaleString('vi-VN')}</span>
+                              </div>
                             </div>
                             <textarea
                               value={nganhhang3t1}
@@ -6179,7 +6197,16 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
                               <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">Thi Đua Siêu Thị ({rankMonth1})</label>
-                              <span className="text-[10px] font-black text-purple-600">{thidua1Sum.toLocaleString('vi-VN')}</span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => setConfirmModal({ title: 'Đồng bộ Thi Đua Siêu Thị', message: 'Đồng bộ dữ liệu từ CẬP NHẬT > THI ĐUA CỤM > LUỸ KẾ TĐ vào cột ' + rankMonth1 + '?\nDữ liệu cũ sẽ bị ghi đè.', variant: 'info', onConfirm: () => { if (luyKeNganhHang) setThidua3t1(luyKeNganhHang); else alert('Chưa có dữ liệu Thi Đua Siêu Thị từ THI ĐUA CỤM'); } })}
+                                  className="flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95"
+                                  title="Đồng bộ từ THI ĐUA CỤM > LUỸ KẾ TĐ"
+                                >
+                                  <RefreshCw size={9} />Đồng bộ
+                                </button>
+                                <span className="text-[10px] font-black text-purple-600">{thidua1Sum.toLocaleString('vi-VN')}</span>
+                              </div>
                             </div>
                             <textarea
                               value={thidua3t1}
@@ -6304,7 +6331,16 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
                               <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">THI ĐUA NHÂN VIÊN ({rankMonth2})</label>
-                              <span className="text-[10px] font-black text-indigo-600">{nganhhang2Sum.toLocaleString('vi-VN')}</span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => setConfirmModal({ title: 'Đồng bộ Thi Đua NV', message: 'Đồng bộ dữ liệu từ CẬP NHẬT > CẤU HÌNH SIÊU THỊ > THI ĐUA NV vào cột ' + rankMonth2 + '?\nDữ liệu cũ sẽ bị ghi đè.', variant: 'info', onConfirm: () => { if (thiDuaNv) setNganhhang3t2(thiDuaNv); else alert('Chưa có dữ liệu Thi Đua NV từ CẤU HÌNH SIÊU THỊ'); } })}
+                                  className="flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95"
+                                  title="Đồng bộ từ CẤU HÌNH SIÊU THỊ > THI ĐUA NV"
+                                >
+                                  <RefreshCw size={9} />Đồng bộ
+                                </button>
+                                <span className="text-[10px] font-black text-indigo-600">{nganhhang2Sum.toLocaleString('vi-VN')}</span>
+                              </div>
                             </div>
                             <textarea
                               value={nganhhang3t2}
@@ -6316,7 +6352,16 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
                               <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">Thi Đua Siêu Thị ({rankMonth2})</label>
-                              <span className="text-[10px] font-black text-purple-600">{thidua2Sum.toLocaleString('vi-VN')}</span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => setConfirmModal({ title: 'Đồng bộ Thi Đua Siêu Thị', message: 'Đồng bộ dữ liệu từ CẬP NHẬT > THI ĐUA CỤM > LUỸ KẾ TĐ vào cột ' + rankMonth2 + '?\nDữ liệu cũ sẽ bị ghi đè.', variant: 'info', onConfirm: () => { if (luyKeNganhHang) setThidua3t2(luyKeNganhHang); else alert('Chưa có dữ liệu Thi Đua Siêu Thị từ THI ĐUA CỤM'); } })}
+                                  className="flex items-center gap-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all active:scale-95"
+                                  title="Đồng bộ từ THI ĐUA CỤM > LUỸ KẾ TĐ"
+                                >
+                                  <RefreshCw size={9} />Đồng bộ
+                                </button>
+                                <span className="text-[10px] font-black text-purple-600">{thidua2Sum.toLocaleString('vi-VN')}</span>
+                              </div>
                             </div>
                             <textarea
                               value={thidua3t2}
