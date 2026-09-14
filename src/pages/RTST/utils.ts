@@ -1234,6 +1234,13 @@ const isMarketNameLike = (name: string): boolean => {
   return hasPrefix || hasStoreKeywords || startsWithCode;
 };
 
+export const isSupermarketLine = (text: string): boolean => {
+  const upper = text.toUpperCase().trim();
+  const hasSupermarketPrefix = /(ĐML|ĐMM|ĐMS|ĐMS3|TGD|AAR|BHX|MWG)[_\s-]/i.test(upper) || /^\d+\s*[-–—]\s*(ĐML|ĐMM|ĐMS|ĐMS3|TGD|AAR|BHX|MWG)/i.test(upper);
+  const isTotal = upper === 'TỔNG' || upper.startsWith('TỔNG ') || upper.startsWith('TỔNG (');
+  return (hasSupermarketPrefix && !text.includes('Sim') && !text.includes('Thẻ') && !text.includes('thẻ')) || isTotal;
+};
+
 export const parseCategoryData = (input: string, daysPassed: number, totalDays: number, markets: MarketInfo[], mode: 'REALTIME' | 'LUYKE' = 'REALTIME'): CategoryData[] => {
   const val = input.trim();
   if (!val) return [];
@@ -1243,13 +1250,6 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
   // 1. Preprocess lines: Combine standalone supermarket lines with following data numbers line
   const rawLines = val.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   const lines: string[] = [];
-
-  const isSupermarketLine = (text: string) => {
-    const upper = text.toUpperCase().trim();
-    const hasSupermarketPrefix = /(ĐML|ĐMM|ĐMS|ĐMS3|TGD|AAR|BHX|MWG)[_\s-]/i.test(upper) || /^\d+\s*[-–—]\s*(ĐML|ĐMM|ĐMS|ĐMS3|TGD|AAR|BHX|MWG)/i.test(upper);
-    const isTotal = upper === 'TỔNG' || upper.startsWith('TỔNG ') || upper.startsWith('TỔNG (');
-    return (hasSupermarketPrefix && !text.includes('Sim') && !text.includes('Thẻ') && !text.includes('thẻ')) || isTotal;
-  };
 
   for (let i = 0; i < rawLines.length; i++) {
     const line = rawLines[i];
@@ -1521,6 +1521,109 @@ export const parseCategoryData = (input: string, daysPassed: number, totalDays: 
     }
   }
   return results;
+};
+
+export const extractCategoriesFromStoreThiDua = (
+  rawText: string, 
+  marketFilter?: string
+): { 
+  categories: string[]; 
+  categoryObjects: (CategoryData & { clean: string })[];
+  totalCat: number;
+} => {
+  const raw = (rawText || '').trim();
+  if (!raw) return { categories: [], categoryObjects: [], totalCat: 0 };
+
+  const cleanNumLocal = (s: any) => {
+    if (!s) return 0;
+    const cleaned = s.toString().replace(/,/g, '').replace(/%/g, '').replace(/\+/g, '').trim();
+    return parseFloat(cleaned) || 0;
+  };
+
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const categories: string[] = [];
+  const targetMap: Record<string, number> = {};
+  const typeMap: Record<string, 'SL' | 'DT'> = {};
+  const seenClean = new Set<string>();
+
+  let curCat = '';
+  let curType: 'SL' | 'DT' = 'DT';
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const upper = line.toUpperCase();
+
+    // Check if line is a table header
+    const isColHdr = (line.includes('\t') || line.includes('  ')) && (
+      upper.includes('TARGET') || upper.includes('HẠNG') || upper.includes('DỰ BÁO') || upper.includes('% HT') || upper.includes('TOP/BOTTOM')
+    );
+    const isExactType = /^(DOANH THU(\s*\(.*?\))?|DTLK|DT|SỐ LƯỢNG(\s*\(.*?\))?|SLLK|SL)$/i.test(line.trim());
+
+    if (isColHdr || isExactType) {
+      if (upper.includes('SỐ LƯỢNG') || upper.includes('SL')) curType = 'SL';
+      else if (upper.includes('DOANH THU') || upper.includes('DT')) curType = 'DT';
+      continue;
+    }
+
+    if (upper.startsWith('TỔNG') || upper === 'TỔNG') {
+      continue;
+    }
+
+    // Check if line is a data / supermarket row
+    const cols = line.split(/\t|\s{2,}/).map(c => c.trim()).filter(Boolean);
+    const rawCols = line.split('\t').map(c => c.trim());
+    const isStoreRow = isSupermarketLine(cols[0]) || (cols.length >= 3 && /^-?[\d,.]+(%?)$/.test(cols[1]) && /^-?[\d,.]+(%?)$/.test(cols[2]));
+
+    if (isStoreRow) {
+      if (curCat) {
+        let target = 0;
+        let actual = 0;
+        if (rawCols.length >= 3) {
+          actual = cleanNumLocal(rawCols[1]);
+          target = cleanNumLocal(rawCols[2]);
+        } else if (cols.length >= 3) {
+          actual = cleanNumLocal(cols[1]);
+          target = cleanNumLocal(cols[2]);
+        }
+
+        const clean = cleanCategoryName(curCat);
+        if (targetMap[clean] === undefined || (marketFilter && marketFilter !== 'ALL' && cols[0].toUpperCase().includes(marketFilter.toUpperCase()))) {
+          targetMap[clean] = target;
+        }
+      }
+      continue;
+    }
+
+    // Category name line detection
+    const hasLetters = /[a-zA-Zà-ỹÀ-Ỹ]/.test(line);
+    const isPureNumbersOrTabs = /^[\d\s,.\-+/%:()\t]+$/.test(line) || line.split('\t').length >= 3;
+    if (hasLetters && !isPureNumbersOrTabs && !line.includes('chương trình') && upper !== 'TOÀN CÔNG TY' && !line.includes('http')) {
+      if (!isSupermarketLine(line) && !isColHdr && !isExactType) {
+        curCat = line;
+        const clean = cleanCategoryName(curCat);
+        if (clean && !seenClean.has(clean)) {
+          seenClean.add(clean);
+          categories.push(curCat);
+          typeMap[clean] = curType;
+        }
+      }
+    }
+  }
+
+  const categoryObjects = categories.map(name => {
+    const clean = cleanCategoryName(name);
+    return {
+      name,
+      clean,
+      target: targetMap[clean] || 0,
+      actual: 0,
+      rate: 0,
+      type: typeMap[clean] || 'DT',
+      group: 'ALL'
+    };
+  });
+
+  return { categories, categoryObjects, totalCat: categories.length };
 };
 
 export const parseStaffRankData = (input: string): StaffData[] => {

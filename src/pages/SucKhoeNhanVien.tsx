@@ -32,7 +32,7 @@ import TongHopNvTable from './EmployeeHealth/components/TongHopNvTable';
 import StaffComparisonModal, { StaffComparisonData } from './EmployeeHealth/components/StaffComparisonModal';
 import { GiaTriDhTab } from './EmployeeHealth/components/GiaTriDhTab';
 import { extractStaffNameAndId } from './EmployeeHealth/utils/staffParserHelper';
-import { cn, parseStaffRankData, parseYcxData, normalizeStoreId, parseStaffValueList, normalize, parseCategoryData, cleanCategoryName, isKhoLuuDong, formatCurrencyValue } from './RTST/utils';
+import { cn, parseStaffRankData, parseYcxData, normalizeStoreId, parseStaffValueList, normalize, parseCategoryData, cleanCategoryName, isKhoLuuDong, formatCurrencyValue, extractCategoriesFromStoreThiDua } from './RTST/utils';
 import { useCategoryConfig } from '../hooks/useCategoryConfig';
 
 const removeAccents = (str: string): string => {
@@ -3366,6 +3366,20 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     return unique;
   }, [processedData?.categories, marketFilter]);
 
+  // Extract categories strictly from "Thi Đua Siêu Thị (Tháng 7)" and "(Tháng 8)"
+  const m1StoreData = useMemo(() => {
+    return extractCategoriesFromStoreThiDua(thidua3t1, marketFilter);
+  }, [thidua3t1, marketFilter]);
+
+  const m2StoreData = useMemo(() => {
+    if (thidua3t2 && thidua3t2.trim().length > 0) {
+      const parsed = extractCategoriesFromStoreThiDua(thidua3t2, marketFilter);
+      if (parsed.totalCat > 0) return parsed;
+    }
+    // Fallback to Thi Đua Siêu Thị (Tháng 7) as requested
+    return m1StoreData;
+  }, [thidua3t2, marketFilter, m1StoreData]);
+
   const rank3TNganhHangScores = useMemo(() => {
     if (!filteredRank3TData || filteredRank3TData.length === 0) return {};
 
@@ -3376,7 +3390,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       thiduaInput: string, 
       mDaysPassed: number = 0, 
       mTotalDays: number = 30,
-      isCurrentMonth: boolean = false
+      isCurrentMonth: boolean = false,
+      preParsedStoreData?: { categories: string[]; categoryObjects: any[]; totalCat: number }
     ) => {
       const effectiveNganhHang = (nganhhangInput && nganhhangInput.trim()) 
         ? nganhhangInput.trim() 
@@ -3384,27 +3399,36 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
       if (!effectiveNganhHang) return { staffMatrix: [], totalCat: 0 };
 
-      const hasThiduaText = Boolean(thiduaInput && thiduaInput.trim().length > 0);
       let targetCatsToUse: any[] = [];
+      let totalCatCount = 0;
 
       if (isCurrentMonth && categoryTargets && categoryTargets.length > 0) {
         targetCatsToUse = categoryTargets;
-      } else if (hasThiduaText) {
-        const effectiveMarkets = allowedMarkets.length > 0 
-          ? allowedMarkets 
-          : [{ id: maKho, name: marketFilter !== 'ALL' ? marketFilter : (tenSieuThi || maKho) }];
-        const parsedCategoryTargets = parseCategoryData(thiduaInput.trim(), 0, 30, effectiveMarkets, 'LUYKE');
-        const filteredCategoryTargets = parsedCategoryTargets.filter((c: any) => isCategoryForMarket(c, marketFilter));
-        
-        // Deduplicate unique categories per store using cleanCategoryName
-        const seenCat = new Set<string>();
-        filteredCategoryTargets.forEach((c: any) => {
-          const clean = cleanCategoryName(c.name);
-          if (clean && !seenCat.has(clean)) {
-            seenCat.add(clean);
-            targetCatsToUse.push(c);
-          }
-        });
+      } else if (preParsedStoreData && preParsedStoreData.totalCat > 0) {
+        targetCatsToUse = preParsedStoreData.categoryObjects;
+        totalCatCount = preParsedStoreData.totalCat;
+      } else if (thiduaInput && thiduaInput.trim().length > 0) {
+        const parsed = extractCategoriesFromStoreThiDua(thiduaInput.trim(), marketFilter);
+        if (parsed.totalCat > 0) {
+          targetCatsToUse = parsed.categoryObjects;
+          totalCatCount = parsed.totalCat;
+        } else {
+          const effectiveMarkets = allowedMarkets.length > 0 
+            ? allowedMarkets 
+            : [{ id: maKho, name: marketFilter !== 'ALL' ? marketFilter : (tenSieuThi || maKho) }];
+          const parsedCategoryTargets = parseCategoryData(thiduaInput.trim(), 0, 30, effectiveMarkets, 'LUYKE');
+          const filteredCategoryTargets = parsedCategoryTargets.filter((c: any) => isCategoryForMarket(c, marketFilter));
+          
+          // Deduplicate unique categories per store using cleanCategoryName
+          const seenCat = new Set<string>();
+          filteredCategoryTargets.forEach((c: any) => {
+            const clean = cleanCategoryName(c.name);
+            if (clean && !seenCat.has(clean)) {
+              seenCat.add(clean);
+              targetCatsToUse.push(c);
+            }
+          });
+        }
       } else if (mainStoreCategories.length > 0) {
         targetCatsToUse = mainStoreCategories;
       }
@@ -3412,6 +3436,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       const effectiveLuykeCats = isCurrentMonth && filteredLuykeCategories && filteredLuykeCategories.length > 0
         ? filteredLuykeCategories
         : targetCatsToUse;
+
+      // Only apply categoryConfig filter for current month (e.g. Month 9).
+      // Historical months (T7, T8) must use all competition categories defined in that month's store report.
+      const configToUse = isCurrentMonth ? categoryConfig : undefined;
 
       const { staffMatrix, categories } = parseStaffMatrixDataRefined(
         effectiveNganhHang,
@@ -3421,10 +3449,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         mDaysPassed,
         mTotalDays,
         false,
-        categoryConfig
+        configToUse
       );
 
-      return { staffMatrix, totalCat: categories.length };
+      const finalTotalCat = totalCatCount > 0 ? totalCatCount : categories.length;
+
+      return { staffMatrix, totalCat: finalTotalCat };
     };
 
     const currentSystemMonth = new Date().getMonth() + 1;
@@ -3437,16 +3467,16 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
     let m1;
     if (isProjectedMonth1 && daysPassed > 0) {
-      m1 = calcMonth(nganhhang3t1, thidua3t1, daysPassed, totalDays, isM1CurrentMonth || isProjectedMonth1);
+      m1 = calcMonth(nganhhang3t1, thidua3t1, daysPassed, totalDays, isM1CurrentMonth || isProjectedMonth1, m1StoreData);
     } else {
-      m1 = calcMonth(nganhhang3t1, thidua3t1, 0, 30, isM1CurrentMonth);
+      m1 = calcMonth(nganhhang3t1, thidua3t1, 0, 30, isM1CurrentMonth, m1StoreData);
     }
 
     let m2;
     if (isProjectedMonth2 && daysPassed > 0) {
-      m2 = calcMonth(nganhhang3t2, thidua3t2, daysPassed, totalDays, isM2CurrentMonth || isProjectedMonth2);
+      m2 = calcMonth(nganhhang3t2, thidua3t2, daysPassed, totalDays, isM2CurrentMonth || isProjectedMonth2, m2StoreData);
     } else {
-      m2 = calcMonth(nganhhang3t2, thidua3t2, 0, 30, isM2CurrentMonth);
+      m2 = calcMonth(nganhhang3t2, thidua3t2, 0, 30, isM2CurrentMonth, m2StoreData);
     }
     
     let m3;
@@ -3502,7 +3532,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     });
 
     return scores;
-  }, [filteredRank3TData, nganhhang3t1, thidua3t1, nganhhang3t2, thidua3t2, nganhhang3t3, thidua3t3, thiDuaNv, categoryTargets, filteredLuykeCategories, categoryConfig, marketFilter, allowedMarkets, mainStoreCategories, isProjectedMonth1, isProjectedMonth2, isProjectedMonth3, daysPassed, totalDays, rankMonth1, rankMonth2, rankMonth3]);
+  }, [filteredRank3TData, nganhhang3t1, thidua3t1, nganhhang3t2, thidua3t2, nganhhang3t3, thidua3t3, thiDuaNv, categoryTargets, filteredLuykeCategories, categoryConfig, marketFilter, allowedMarkets, mainStoreCategories, isProjectedMonth1, isProjectedMonth2, isProjectedMonth3, daysPassed, totalDays, rankMonth1, rankMonth2, rankMonth3, m1StoreData, m2StoreData]);
 
   const rank3TNganhHangTopBotStats = useMemo(() => {
     if (!filteredRank3TData || filteredRank3TData.length === 0) return { stats: {}, sets: null };
@@ -6182,7 +6212,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
                               <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">Thi Đua Siêu Thị ({rankMonth1})</label>
-                              <span className="text-[10px] font-black text-purple-600">{thidua1Sum.toLocaleString('vi-VN')}</span>
+                              <span className="text-[10px] font-black text-purple-600">
+                                {m1StoreData.totalCat > 0 ? `${m1StoreData.totalCat} ngành hàng` : (thidua1Sum > 0 ? thidua1Sum.toLocaleString('vi-VN') : '')}
+                              </span>
                             </div>
                             <textarea
                               value={thidua3t1}
@@ -6319,7 +6351,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
                               <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">Thi Đua Siêu Thị ({rankMonth2})</label>
-                              <span className="text-[10px] font-black text-purple-600">{thidua2Sum.toLocaleString('vi-VN')}</span>
+                              <span className="text-[10px] font-black text-purple-600">
+                                {m2StoreData.totalCat > 0 ? `${m2StoreData.totalCat} ngành hàng` : (thidua2Sum > 0 ? thidua2Sum.toLocaleString('vi-VN') : '')}
+                              </span>
                             </div>
                             <textarea
                               value={thidua3t2}
