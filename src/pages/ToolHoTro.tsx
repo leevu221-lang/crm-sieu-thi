@@ -530,6 +530,20 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       setEventPrintLayout('16');
       setShowEventPromoLabel(false);
       setPrintConfig({ style: 'classic', layout: '16', showPromoLabel: false });
+      setInventoryData([]);
+      setLastUpdateInventory(null);
+      setInventoryFile(null);
+      setPriceFile(null);
+      setLastUpdatePrice(null);
+      setUpdatedBy('');
+      setManualData({
+        productCode: '',
+        name: '',
+        originalPrice: '',
+        discountPrice: '100.000',
+        nganhHang: 'ĐỒNG GIÁ 100K',
+        endDate: ''
+      });
     } else {
       setPromoLabelTextVal('SẢN PHẨM GIÁ SỐC - EVENT T7 & CN');
     }
@@ -591,8 +605,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         }
       };
 
-      if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dong-gia-100k') {
-        const docId = activeTab === 'sticker-gvgs' ? 'GVGS_GLOBAL' : activeTab === 'sticker-dong-gia-100k' ? 'DONG_GIA_100K_GLOBAL' : 'EVENT_DMX_GLOBAL';
+      if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-gvgs') {
+        const docId = activeTab === 'sticker-gvgs' ? 'GVGS_GLOBAL' : 'EVENT_DMX_GLOBAL';
         // Fetch globally from Firebase (Firestore) first
         (async () => {
           try {
@@ -828,7 +842,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       } else {
         loadPhieuBhFromLocalStorage();
       }
-    } else if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k') {
+    } else if (activeTab === 'sticker-event-dmx') {
       const storeName = currentStoreId !== 'ALL' ? currentStoreId : '';
       if (storeName) {
         (async () => {
@@ -915,14 +929,14 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         if (headerRowIdx !== -1) {
           const headerRow = inventoryData[headerRowIdx].map((h: any) => String(h || '').toLowerCase().trim());
           let maSpIdx = headerRow.findIndex((h: string) => h === 'mã sản phẩm' || h === 'mã sp' || h === 'mã hàng');
-          if (maSpIdx === -1 && (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k')) {
+          if (maSpIdx === -1 && activeTab === 'sticker-event-dmx') {
             maSpIdx = 2; // Column C fallback
           }
           const nganhHangIdx = headerRow.findIndex((h: string) => h === 'ngành hàng');
           const nhomHangIdx = headerRow.findIndex((h: string) => h === 'nhóm hàng');
-          // Fallback for EVENT DMX / ĐỒNG GIÁ 100K: Col D (index 3) = Ngành hàng, Col E (index 4) = Nhóm hàng
-          const effectiveNganhHangIdx = nganhHangIdx !== -1 ? nganhHangIdx : ((activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k') ? 3 : -1);
-          const effectiveNhomHangIdx = nhomHangIdx !== -1 ? nhomHangIdx : ((activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k') ? 4 : -1);
+          // Fallback for EVENT DMX: Col D (index 3) = Ngành hàng, Col E (index 4) = Nhóm hàng
+          const effectiveNganhHangIdx = nganhHangIdx !== -1 ? nganhHangIdx : (activeTab === 'sticker-event-dmx' ? 3 : -1);
+          const effectiveNhomHangIdx = nhomHangIdx !== -1 ? nhomHangIdx : (activeTab === 'sticker-event-dmx' ? 4 : -1);
           const qrIdx = headerRow.findIndex((h: string) => h.includes('qr') || h.includes('quét') || h.includes('điện thoại'));
           const tonKhoIdx = headerRow.findIndex((h: string) => h === 'tồn cuối' || h === 'tồn kho' || h === 'tồn' || h.includes('số lượng') || h.includes('sl') || h.includes('kho') || h.includes('qty'));
 
@@ -933,7 +947,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               const maSp = String(row[maSpIdx] || '').trim();
               if (maSp) {
                 const qrVal = qrIdx !== -1 ? String(row[qrIdx] || '').trim() : '';
-                const tonKhoVal = (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k')
+                const tonKhoVal = activeTab === 'sticker-event-dmx'
                   ? parseInt(String(row[9] || '').replace(/\./g, '').replace(/,/g, '')) || 0
                   : (tonKhoIdx !== -1 ? parseInt(String(row[tonKhoIdx]).replace(/\./g, '').replace(/,/g, '')) || 0 : 1);
                 const existing = inventoryMap.get(maSp);
@@ -1264,9 +1278,9 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       }));
       setUpdatedBy(currentUsername);
       
-      if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dong-gia-100k') {
-        const docId = activeTab === 'sticker-gvgs' ? 'GVGS_GLOBAL' : activeTab === 'sticker-dong-gia-100k' ? 'DONG_GIA_100K_GLOBAL' : 'EVENT_DMX_GLOBAL';
-        const docTitle = activeTab === 'sticker-gvgs' ? 'Cấu hình GVGS toàn hệ thống' : activeTab === 'sticker-dong-gia-100k' ? 'Cấu hình ĐỒNG GIÁ 100K toàn hệ thống' : 'Cấu hình EVENT ĐMX toàn hệ thống';
+      if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-gvgs') {
+        const docId = activeTab === 'sticker-gvgs' ? 'GVGS_GLOBAL' : 'EVENT_DMX_GLOBAL';
+        const docTitle = activeTab === 'sticker-gvgs' ? 'Cấu hình GVGS toàn hệ thống' : 'Cấu hình EVENT ĐMX toàn hệ thống';
 
         // Save to Firebase (store table in database) -> document docId
         const record = {
@@ -1337,7 +1351,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           timestamp
         }));
 
-        if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k') {
+        if (activeTab === 'sticker-event-dmx') {
           const storeName = currentStoreId !== 'ALL' ? currentStoreId : '';
           if (!storeName) {
             showNotification('Vui lòng chọn siêu thị cụ thể trước khi tải tồn kho!', 'error');
@@ -1749,11 +1763,11 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           timestamp
         }));
         
-        // Sync price data to Firebase for EVENT DMX / ĐỒNG GIÁ 100K tab
-        if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k') {
+        // Sync price data to Firebase for EVENT DMX tab
+        if (activeTab === 'sticker-event-dmx') {
           const currentUsername = userProfile?.username || '43751';
-          const docId = activeTab === 'sticker-dong-gia-100k' ? 'DONG_GIA_100K_GLOBAL' : 'EVENT_DMX_GLOBAL';
-          const docTitle = activeTab === 'sticker-dong-gia-100k' ? 'Cấu hình ĐỒNG GIÁ 100K toàn hệ thống' : 'Cấu hình EVENT ĐMX toàn hệ thống';
+          const docId = 'EVENT_DMX_GLOBAL';
+          const docTitle = 'Cấu hình EVENT ĐMX toàn hệ thống';
           const record = {
             id: docId,
             ten_sieu_thi: docTitle,
@@ -2094,8 +2108,12 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   };
 
   const handleAddManualSticker = () => {
-    if (!manualData.name || !manualData.discountPrice) {
-      showNotification('Vui lòng nhập tên sản phẩm và giá giảm!', 'error');
+    const finalDiscountPrice = activeTab === 'sticker-dong-gia-100k'
+      ? (manualData.discountPrice ? parseInt(manualData.discountPrice.replace(/[^\d]/g, '')) : 100000)
+      : (parseInt(manualData.discountPrice.replace(/[^\d]/g, '')) || 0);
+
+    if (!manualData.name || (!finalDiscountPrice && activeTab !== 'sticker-dong-gia-100k')) {
+      showNotification('Vui lòng nhập tên sản phẩm!', 'error');
       return;
     }
 
@@ -2104,20 +2122,29 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       maSanPham: manualData.productCode || 'MANUAL',
       name: manualData.name,
       originalPrice: parseInt(manualData.originalPrice.replace(/[^\d]/g, '')) || 0,
-      discountPrice: parseInt(manualData.discountPrice.replace(/[^\d]/g, '')) || 0,
+      discountPrice: finalDiscountPrice || 100000,
       nganhHang: activeTab === 'sticker-mln' ? (manualData.nganhHang || 'MÁY LỌC NƯỚC') : activeTab === 'sticker-gvgs' ? (manualData.nganhHang || 'GIỜ VÀNG GIÁ SỐC') : activeTab === 'sticker-dong-gia-100k' ? (manualData.nganhHang || 'ĐỒNG GIÁ 100K') : (manualData.nganhHang || 'THỦ CÔNG'),
       nhomHang: 'THỦ CÔNG',
       endDate: manualData.endDate || '',
       isManual: true
     };
 
-    setPriceData(prev => [newItem, ...prev]);
+    setPriceData(prev => {
+      const updated = [newItem, ...prev];
+      const keys = getStorageKeysForTab(activeTab);
+      safeLocalStorageSet(keys.price, JSON.stringify({
+        data: updated,
+        timestamp: new Date().toISOString()
+      }));
+      return updated;
+    });
+
     setManualData({
       productCode: '',
       name: '',
       originalPrice: '',
-      discountPrice: '',
-      nganhHang: '',
+      discountPrice: activeTab === 'sticker-dong-gia-100k' ? '100.000' : '',
+      nganhHang: activeTab === 'sticker-dong-gia-100k' ? 'ĐỒNG GIÁ 100K' : '',
       endDate: ''
     });
     showNotification('Đã thêm sản phẩm thủ công vào danh sách!', 'success');
@@ -2127,11 +2154,19 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     const itemToDelete = filteredPriceData[index];
     if (!itemToDelete) return;
 
-    setPriceData(prev => prev.filter(item => {
-      return !(item.maSanPham === itemToDelete.maSanPham && 
-               item.productCode === itemToDelete.productCode && 
-               item.name === itemToDelete.name);
-    }));
+    setPriceData(prev => {
+      const updated = prev.filter(item => {
+        return !(item.maSanPham === itemToDelete.maSanPham && 
+                 item.productCode === itemToDelete.productCode && 
+                 item.name === itemToDelete.name);
+      });
+      const keys = getStorageKeysForTab(activeTab);
+      safeLocalStorageSet(keys.price, JSON.stringify({
+        data: updated,
+        timestamp: new Date().toISOString()
+      }));
+      return updated;
+    });
     showNotification('Đã xóa sản phẩm khỏi danh sách!', 'success');
   };
 
@@ -2143,15 +2178,23 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     const numericValue = value.replace(/[^0-9]/g, '');
     const newValue = numericValue ? parseInt(numericValue, 10) : 0;
     
-    setPriceData(prev => prev.map(item => {
-      const matches = (item.maSanPham === itemToUpdate.maSanPham && 
-                       item.productCode === itemToUpdate.productCode && 
-                       item.name === itemToUpdate.name);
-      if (matches) {
-        return { ...item, [field]: newValue };
-      }
-      return item;
-    }));
+    setPriceData(prev => {
+      const updated = prev.map(item => {
+        const matches = (item.maSanPham === itemToUpdate.maSanPham && 
+                         item.productCode === itemToUpdate.productCode && 
+                         item.name === itemToUpdate.name);
+        if (matches) {
+          return { ...item, [field]: newValue };
+        }
+        return item;
+      });
+      const keys = getStorageKeysForTab(activeTab);
+      safeLocalStorageSet(keys.price, JSON.stringify({
+        data: updated,
+        timestamp: new Date().toISOString()
+      }));
+      return updated;
+    });
   };
 
   const handleCategoryChange = (index: number, value: string) => {
@@ -2879,7 +2922,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               {/* Left Column */}
               {activeTab !== 'sticker-dcnb' && activeTab !== 'sticker-event-dmx' && (
                 <div className="col-span-1 space-y-6">
-                  {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') && (
+                  {activeTab !== 'sticker-dong-gia-100k' && (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') && (
                   /* Card 1: Thông tin & Nhập dữ liệu */
                   <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
                     <div className="flex items-center justify-between mb-4">
@@ -3029,7 +3072,9 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                       <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
                         <FilePlus size={16} />
                       </div>
-                      <h3 className="text-sm font-bold text-slate-700 uppercase tracking-tight">NHẬP TAY THỦ CÔNG</h3>
+                      <h3 className="text-sm font-bold text-slate-700 uppercase tracking-tight">
+                        {activeTab === 'sticker-dong-gia-100k' ? 'NHẬP TAY SẢN PHẨM ĐỒNG GIÁ 100K' : 'NHẬP TAY THỦ CÔNG'}
+                      </h3>
                       </div>
                       <button 
                         onClick={handleClearData}
@@ -3138,8 +3183,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               <label className="text-[10px] font-bold text-slate-500 uppercase">Giá sau giảm</label>
                               <input 
                                 type="text"
-                                placeholder="Giá giảm..."
-                                value={manualData.discountPrice}
+                                placeholder={activeTab === 'sticker-dong-gia-100k' ? '100.000' : 'Giá giảm...'}
+                                value={activeTab === 'sticker-dong-gia-100k' ? (manualData.discountPrice || '100.000') : manualData.discountPrice}
                                 onChange={(e) => setManualData(prev => ({ ...prev, discountPrice: formatPriceInput(e.target.value) }))}
                                 className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
                               />
@@ -3537,7 +3582,13 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                         }}
                                       >
                                         <Sticker
-                                          item={{ name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }}
+                                          item={
+                                            activeTab === 'sticker-dong-gia-100k' && combinedPriceData.length > 0
+                                              ? combinedPriceData[0]
+                                              : activeTab === 'sticker-dong-gia-100k'
+                                                ? { name: 'CHẢO CHỐNG DÍNH SUNHOUSE 24CM', originalPrice: 250000, discountPrice: 100000, qrData: '100000', maSanPham: 'DG100K' }
+                                                : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
+                                          }
                                           style="classic"
                                           layout="1"
                                           showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' ? false : showEventPromoLabel}
@@ -3860,7 +3911,119 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
 
                 {activeTab !== 'sticker-dcnb' && (
-                  <>
+                  activeTab === 'sticker-dong-gia-100k' ? (
+                    priceData.length > 0 ? (
+                      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
+                        <div className="p-6 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+                              <FilePlus size={20} />
+                            </div>
+                            <div>
+                              <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">DANH SÁCH SẢN PHẨM ĐỒNG GIÁ 100K</h3>
+                              <p className="text-xs font-medium text-slate-500 mt-0.5">
+                                Đã nhập {priceData.length} sản phẩm ({selectedIndices.length} sản phẩm được chọn in)
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <button 
+                              onClick={handleClearData}
+                              className="text-xs font-bold text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Trash2 size={14} />
+                              Xóa danh sách
+                            </button>
+                          </div>
+                        </div>
+                        <div className="overflow-auto flex-1 p-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+                          <table className="w-full text-left border-collapse border border-slate-200 min-w-[700px]">
+                            <thead className="sticky top-0 z-10">
+                              <tr className="bg-slate-100 shadow-sm">
+                                <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 w-10 text-center">
+                                  <input 
+                                    type="checkbox" 
+                                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                    checked={priceData.length > 0 && selectedIndices.length === priceData.length}
+                                    onChange={handleSelectAll}
+                                  />
+                                </th>
+                                <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 w-12 text-center">STT</th>
+                                <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-center w-20">SL In</th>
+                                <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 w-28">Mã SP</th>
+                                <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Tên sản phẩm</th>
+                                <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-right w-36">Giá gốc</th>
+                                <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-right w-36">Giá giảm</th>
+                                <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-center w-12">Xóa</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {priceData.map((item, index) => (
+                                <tr key={index} className="hover:bg-amber-50/20 transition-colors bg-amber-50/10">
+                                  <td className="py-3 px-4 text-center">
+                                    <input 
+                                      type="checkbox" 
+                                      className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                      checked={selectedIndices.includes(index)}
+                                      onChange={() => handleSelectRow(index)}
+                                    />
+                                  </td>
+                                  <td className="py-3 px-4 text-sm font-medium text-slate-500 text-center">{index + 1}</td>
+                                  <td className="py-3 px-4 text-center">
+                                    <input 
+                                      type="number" 
+                                      min="0" 
+                                      className="w-16 bg-white border border-slate-200 text-slate-700 py-1 px-2 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center"
+                                      value={printQuantities[index] ?? 0}
+                                      onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 0)}
+                                    />
+                                  </td>
+                                  <td className="py-3 px-4 text-sm font-bold text-indigo-600">{item.maSanPham || item.productCode || '-'}</td>
+                                  <td className="py-3 px-4 text-sm font-bold text-slate-800">{item.name}</td>
+                                  <td className="py-3 px-4 text-sm font-medium text-slate-600 text-right">
+                                    <input 
+                                      type="text" 
+                                      className="w-32 bg-white border border-slate-200 text-slate-700 py-1 px-2 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right"
+                                      value={Number(item.originalPrice || 0).toLocaleString('vi-VN') + ' đ'}
+                                      onChange={(e) => handlePriceChange(index, 'originalPrice', e.target.value)}
+                                    />
+                                  </td>
+                                  <td className="py-3 px-4 text-sm font-bold text-red-600 text-right">
+                                    <input 
+                                      type="text" 
+                                      className="w-32 bg-white border border-slate-200 text-red-600 py-1 px-2 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right"
+                                      value={Number(item.discountPrice || 0).toLocaleString('vi-VN') + ' đ'}
+                                      onChange={(e) => handlePriceChange(index, 'discountPrice', e.target.value)}
+                                    />
+                                  </td>
+                                  <td className="py-3 px-4 text-center">
+                                    <button 
+                                      onClick={() => handleDeleteRow(index)}
+                                      className="text-slate-400 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50 cursor-pointer"
+                                      title="Xóa dòng"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 text-center space-y-3">
+                        <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto text-3xl">
+                          🏷️
+                        </div>
+                        <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">Danh Sách Sản Phẩm Đồng Giá 100K</h3>
+                        <p className="text-xs font-bold text-slate-500 max-w-md mx-auto leading-relaxed">
+                          Chưa có sản phẩm nào. Vui lòng nhập thông tin sản phẩm ở ô <strong>"NHẬP TAY SẢN PHẨM ĐỒNG GIÁ 100K"</strong> bên trái để thêm vào danh sách in sticker 16 ô / trang A4.
+                        </p>
+                      </div>
+                    )
+                  ) : (
+                    <>
                     <div className="bg-emerald-50/40 rounded-3xl shadow-sm border border-emerald-100/70 p-6">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-4">
@@ -4230,6 +4393,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                   </div>
                 )}
                   </>
+                  )
                 )}
               </div>
               </div>
