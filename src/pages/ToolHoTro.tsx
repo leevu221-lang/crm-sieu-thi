@@ -3710,6 +3710,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                         </button>
                       </div>
                     ) : (
+                      <>
                       <div className="grid grid-cols-2 gap-2">
                         {[
                           { layout: '1', label: 'BẤM ĐỂ IN (1 / TRANG A4)' },
@@ -3756,6 +3757,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                           </button>
                         </div>
                       )}
+                      </>
                     )}
                   </div>
                 </div>
