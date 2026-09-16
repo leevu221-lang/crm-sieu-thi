@@ -981,7 +981,11 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
           <div className="flex flex-col items-end shrink-0">
             <QRCode value={item.qrData || item.maSanPham || item.productCode || '00000'} size={56} level="L" />
             <div className="text-[10px] font-bold mt-1 text-right leading-tight tracking-tight">
-              {item.maSanPham || item.productCode}<br/>
+              {(item.maSanPham || item.productCode) ? (
+                <>
+                  {item.maSanPham || item.productCode}<br/>
+                </>
+              ) : null}
               {timeString}
             </div>
           </div>
@@ -989,13 +993,15 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
 
         {/* Middle Section - Prices */}
         <div className="flex-1 flex flex-col items-center justify-center -mt-2">
-          <div className="relative">
-            <span className="text-[55px] font-black tracking-tighter" style={{ fontFamily: '"Oswald", sans-serif', transform: 'scaleY(1.1)', display: 'inline-block' }}>
-              {formatPrice(item.originalPrice)}
-            </span>
-            {/* Custom strikethrough line to match image (thick line) */}
-            <div className="absolute top-1/2 left-[-5%] right-[-5%] h-[4px] bg-black -translate-y-1/2"></div>
-          </div>
+          {Number(item.originalPrice) > 0 && (
+            <div className="relative mb-1">
+              <span className="text-[55px] font-black tracking-tighter" style={{ fontFamily: '"Oswald", sans-serif', transform: 'scaleY(1.1)', display: 'inline-block' }}>
+                {formatPrice(item.originalPrice)}
+              </span>
+              {/* Custom strikethrough line to match image (thick line) */}
+              <div className="absolute top-1/2 left-[-5%] right-[-5%] h-[4px] bg-black -translate-y-1/2"></div>
+            </div>
+          )}
           <div className="text-[120px] leading-[0.8] font-black tracking-tighter mt-2" style={{ fontFamily: '"Oswald", sans-serif', transform: 'scaleY(1.1)', display: 'inline-block' }}>
             {formatPrice(item.discountPrice)}
           </div>

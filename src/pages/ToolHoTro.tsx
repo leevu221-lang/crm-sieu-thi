@@ -5,7 +5,7 @@ import {
   ChevronDown, CheckCircle2, Save, Loader2, Calendar, ArrowUpDown, 
   SortAsc, SortDesc, PieChart, Users, UploadCloud, Settings, 
   ChevronRight, LayoutGrid, FileText, Tag, Scan, MapPin, ClipboardList,
-  RefreshCw, AlertCircle, Banknote
+  RefreshCw, AlertCircle, Banknote, RotateCcw
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
@@ -467,6 +467,21 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     nganhHang: '',
     endDate: ''
   });
+
+  const [dongGiaTitle, setDongGiaTitle] = useState(() => {
+    return localStorage.getItem('rtst_dong_gia_title') || 'ĐỒNG GIÁ';
+  });
+  const [dongGiaPrice, setDongGiaPrice] = useState(() => {
+    return localStorage.getItem('rtst_dong_gia_price') || '100.000';
+  });
+  const [dongGiaQuantity, setDongGiaQuantity] = useState<number>(() => {
+    const saved = localStorage.getItem('rtst_dong_gia_quantity');
+    return saved ? parseInt(saved, 10) || 16 : 16;
+  });
+
+  const numericDongGiaPrice = useMemo(() => {
+    return parseInt(String(dongGiaPrice).replace(/\D/g, ''), 10) || 100000;
+  }, [dongGiaPrice]);
 
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [printQuantities, setPrintQuantities] = useState<Record<number, number>>({});
@@ -3066,190 +3081,334 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
                 {/* Card 2: Nhập thủ công */}
                 {activeTab !== 'sticker-dcnb' && activeTab !== 'sticker-event-dmx' && activeTab !== 'sticker-gvgs' && (
-                  <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
-                        <FilePlus size={16} />
-                      </div>
-                      <h3 className="text-sm font-bold text-slate-700 uppercase tracking-tight">
-                        {activeTab === 'sticker-dong-gia-100k' ? 'NHẬP TAY SẢN PHẨM ĐỒNG GIÁ 100K' : 'NHẬP TAY THỦ CÔNG'}
-                      </h3>
-                      </div>
-                      <button 
-                        onClick={handleClearData}
-                        className="flex items-center gap-1 text-red-500 hover:text-red-600 transition-colors"
-                      >
-                        <Trash2 size={14} />
-                        <span className="text-xs font-medium">Xóa dữ liệu</span>
-                      </button>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      {activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' ? (
-                        <>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase">Ngành hàng</label>
-                              <input 
-                                type="text"
-                                placeholder={activeTab === 'sticker-gvgs' ? "VD: GIỜ VÀNG GIÁ SỐC" : "VD: MÁY LỌC NƯỚC"}
-                                value={manualData.nganhHang}
-                                onChange={(e) => setManualData(prev => ({ ...prev, nganhHang: e.target.value }))}
-                                className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase">Tên sản phẩm</label>
-                              <input 
-                                type="text"
-                                placeholder="Tên SP..."
-                                value={manualData.name}
-                                onChange={(e) => setManualData(prev => ({ ...prev, name: e.target.value }))}
-                                className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
-                              />
-                            </div>
+                  activeTab === 'sticker-dong-gia-100k' ? (
+                    <div className="bg-white rounded-3xl shadow-sm border border-amber-200/80 p-5 space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
+                            <Tag size={18} />
                           </div>
-                          <div className="grid grid-cols-3 gap-2">
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase">Giá gốc</label>
-                              <input 
-                                type="text"
-                                placeholder="Giá gốc..."
-                                value={manualData.originalPrice}
-                                onChange={(e) => setManualData(prev => ({ ...prev, originalPrice: formatPriceInput(e.target.value) }))}
-                                className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-2 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase">Giá sau giảm</label>
-                              <input 
-                                type="text"
-                                placeholder="Giá giảm..."
-                                value={manualData.discountPrice}
-                                onChange={(e) => setManualData(prev => ({ ...prev, discountPrice: formatPriceInput(e.target.value) }))}
-                                className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-2 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase">Ngày hết hạn</label>
-                              <input 
-                                type="text"
-                                placeholder="31/05/2026"
-                                value={manualData.endDate}
-                                onChange={(e) => setManualData(prev => ({ ...prev, endDate: e.target.value }))}
-                                className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-2 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
-                              />
-                            </div>
+                          <div>
+                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">
+                              CẤU HÌNH IN TEM ĐỒNG GIÁ
+                            </h3>
+                            <p className="text-[10.5px] font-bold text-slate-400">
+                              Nhập ô chữ và số tiền để in nhanh 16 tem / trang A4 ngang
+                            </p>
                           </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase">Mã sản phẩm</label>
-                              <input 
-                                type="text"
-                                placeholder="Mã SP..."
-                                value={manualData.productCode}
-                                onChange={(e) => setManualData(prev => ({ ...prev, productCode: e.target.value }))}
-                                className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase">Tên sản phẩm</label>
-                              <input 
-                                type="text"
-                                placeholder="Tên SP..."
-                                value={manualData.name}
-                                onChange={(e) => setManualData(prev => ({ ...prev, name: e.target.value }))}
-                                className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
-                              />
-                            </div>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase">Giá gốc</label>
-                              <input 
-                                type="text"
-                                placeholder="Giá gốc..."
-                                value={manualData.originalPrice}
-                                onChange={(e) => setManualData(prev => ({ ...prev, originalPrice: formatPriceInput(e.target.value) }))}
-                                className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase">Giá sau giảm</label>
-                              <input 
-                                type="text"
-                                placeholder={activeTab === 'sticker-dong-gia-100k' ? '100.000' : 'Giá giảm...'}
-                                value={activeTab === 'sticker-dong-gia-100k' ? (manualData.discountPrice || '100.000') : manualData.discountPrice}
-                                onChange={(e) => setManualData(prev => ({ ...prev, discountPrice: formatPriceInput(e.target.value) }))}
-                                className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
-                              />
-                            </div>
-                          </div>
-                        </>
-                      )}
-
-                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        </div>
                         <button
-                          onClick={handleAddManualSticker}
-                          className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-2"
+                          onClick={() => {
+                            setDongGiaTitle('ĐỒNG GIÁ');
+                            setDongGiaPrice('100.000');
+                            setDongGiaQuantity(16);
+                            safeLocalStorageSet('rtst_dong_gia_title', 'ĐỒNG GIÁ');
+                            safeLocalStorageSet('rtst_dong_gia_price', '100.000');
+                            safeLocalStorageSet('rtst_dong_gia_quantity', '16');
+                          }}
+                          className="flex items-center gap-1 text-slate-400 hover:text-amber-600 transition-colors text-xs font-bold cursor-pointer"
+                          title="Đặt lại mặc định"
                         >
-                          <FilePlus size={14} />
-                          THÊM VÀO LIST
+                          <RotateCcw size={13} />
+                          <span>Mặc định 100K</span>
                         </button>
-                        
-                        <label className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer">
-                          <UploadCloud size={14} />
-                          FILE EXCEL {'->'} LIST
-                          <input 
-                            type="file" 
-                            className="hidden" 
-                            accept=".xlsx, .xls"
-                            onChange={(e) => {
-                              handleFileUpload(e, 'price', true);
-                              e.target.value = ''; // Reset to allow same file again
-                            }}
-                          />
-                        </label>
                       </div>
 
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        {/* Ô chữ: "ĐỒNG GIÁ" */}
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-black text-slate-600 uppercase tracking-wide flex items-center gap-1.5">
+                            <span>🏷️</span> Ô Chữ Tiêu Đề
+                          </label>
+                          <input
+                            type="text"
+                            value={dongGiaTitle}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDongGiaTitle(val);
+                              safeLocalStorageSet('rtst_dong_gia_title', val);
+                            }}
+                            placeholder="ĐỒNG GIÁ"
+                            className="w-full bg-amber-50/40 border-2 border-amber-200/80 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 text-amber-950 py-2.5 px-3.5 rounded-2xl text-sm font-black focus:outline-none transition-all shadow-sm uppercase"
+                          />
+                          <span className="text-[10px] font-bold text-slate-400 block pl-1">
+                            * Hiển thị ở phần tiêu đề trên sticker
+                          </span>
+                        </div>
+
+                        {/* Ô nhập: "SỐ TIỀN" */}
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-black text-slate-600 uppercase tracking-wide flex items-center gap-1.5">
+                            <span>💰</span> Ô Nhập Số Tiền (VNĐ)
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={dongGiaPrice}
+                              onChange={(e) => {
+                                const formatted = formatPriceInput(e.target.value);
+                                setDongGiaPrice(formatted);
+                                safeLocalStorageSet('rtst_dong_gia_price', formatted);
+                              }}
+                              placeholder="100.000"
+                              className="w-full bg-amber-50/40 border-2 border-amber-200/80 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 text-red-600 py-2.5 px-3.5 rounded-2xl text-base font-black focus:outline-none transition-all shadow-sm text-right pr-8"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">
+                              đ
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-bold text-slate-400 block pl-1">
+                            * Số tiền to nổi bật ở giữa tem sticker
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Số lượng tem in */}
+                      <div className="bg-slate-50/80 border border-slate-200/70 rounded-2xl p-3 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-black text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                            <span>🖨️</span> Số lượng tem in:
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min={1}
+                              max={500}
+                              value={dongGiaQuantity}
+                              onChange={(e) => {
+                                const q = Math.max(1, parseInt(e.target.value) || 1);
+                                setDongGiaQuantity(q);
+                                safeLocalStorageSet('rtst_dong_gia_quantity', q.toString());
+                              }}
+                              className="w-20 bg-white border border-slate-300 text-slate-800 py-1 px-2.5 rounded-xl text-xs font-black text-center focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            />
+                            <span className="text-xs font-black text-slate-500">
+                              tem ({Math.ceil(dongGiaQuantity / 16)} trang A4)
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Nút chọn nhanh số lượng */}
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {[16, 32, 48, 64].map((qty) => (
+                            <button
+                              key={qty}
+                              type="button"
+                              onClick={() => {
+                                setDongGiaQuantity(qty);
+                                safeLocalStorageSet('rtst_dong_gia_quantity', qty.toString());
+                              }}
+                              className={`py-1.5 px-1 rounded-xl text-[10.5px] font-black tracking-tight border transition-all cursor-pointer ${
+                                dongGiaQuantity === qty
+                                  ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-sm ring-1 ring-amber-400'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-amber-50 hover:border-amber-300'
+                              }`}
+                            >
+                              {qty} tem ({qty / 16} trg)
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Nút in nhanh trực tiếp */}
                       <button
                         onClick={() => {
-                          const templateData = (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs')
-                            ? [
-                                {
-                                  'NGÀNH HÀNG': activeTab === 'sticker-gvgs' ? 'GIỜ VÀNG GIÁ SỐC' : 'MÁY LỌC NƯỚC',
-                                  'TÊN SẢN PHẨM': 'Karofi KAQ-X18 11 lõi',
-                                  'GIÁ GỐC': 6990000,
-                                  'GIÁ SAU GIẢM': 4990000,
-                                  'NGÀY HẾT HẠN': '31/05/2026'
-                                }
-                              ]
-                            : [
-                                {
-                                  'MÃ SẢN PHẨM': 'SP001',
-                                  'TÊN SẢN PHẨM': 'Ví dụ Tên Sản Phẩm',
-                                  'GIÁ GỐC': 1000000,
-                                  'GIÁ SAU GIẢM': 500000
-                                }
-                              ];
-                          const worksheet = XLSX.utils.json_to_sheet(templateData);
-                          const workbook = XLSX.utils.book_new();
-                          XLSX.utils.book_append_sheet(workbook, worksheet, activeTab === 'sticker-gvgs' ? 'GVGS_Template' : activeTab === 'sticker-mln' ? 'MLN_Template' : 'StickerTemplate');
-                          XLSX.writeFile(workbook, activeTab === 'sticker-gvgs' ? 'Mau_In_Sticker_GVGS.xlsx' : activeTab === 'sticker-mln' ? 'Mau_In_Sticker_MLN.xlsx' : 'Mau_In_Sticker_Event.xlsx');
-                          showNotification(activeTab === 'sticker-gvgs' ? 'Đã tải file Excel mẫu GVGS!' : activeTab === 'sticker-mln' ? 'Đã tải file Excel mẫu MLN!' : 'Đã tải file Excel mẫu!', 'success');
+                          setEventPrintLayout('16');
+                          setPrintConfig({ style: 'classic', layout: '16', showPromoLabel: false });
+                          setIsPrintModalOpen(true);
                         }}
-                        className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-2"
+                        className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-2xl text-xs sm:text-sm font-black uppercase tracking-wider transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
                       >
-                        <UploadCloud size={14} />
-                        XUẤT FILE MẪU
+                        <Printer size={18} />
+                        <span>BẤM ĐỂ IN NGAY ({dongGiaQuantity} TEM / {Math.ceil(dongGiaQuantity / 16)} TRANG A4)</span>
                       </button>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
+                          <FilePlus size={16} />
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-700 uppercase tracking-tight">
+                          NHẬP TAY THỦ CÔNG
+                        </h3>
+                        </div>
+                        <button 
+                          onClick={handleClearData}
+                          className="flex items-center gap-1 text-red-500 hover:text-red-600 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                          <span className="text-xs font-medium">Xóa dữ liệu</span>
+                        </button>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        {activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' ? (
+                          <>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase">Ngành hàng</label>
+                                <input 
+                                  type="text"
+                                  placeholder={activeTab === 'sticker-gvgs' ? "VD: GIỜ VÀNG GIÁ SỐC" : "VD: MÁY LỌC NƯỚC"}
+                                  value={manualData.nganhHang}
+                                  onChange={(e) => setManualData(prev => ({ ...prev, nganhHang: e.target.value }))}
+                                  className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase">Tên sản phẩm</label>
+                                <input 
+                                  type="text"
+                                  placeholder="Tên SP..."
+                                  value={manualData.name}
+                                  onChange={(e) => setManualData(prev => ({ ...prev, name: e.target.value }))}
+                                  className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase">Giá gốc</label>
+                                <input 
+                                  type="text"
+                                  placeholder="Giá gốc..."
+                                  value={manualData.originalPrice}
+                                  onChange={(e) => setManualData(prev => ({ ...prev, originalPrice: formatPriceInput(e.target.value) }))}
+                                  className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-2 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase">Giá sau giảm</label>
+                                <input 
+                                  type="text"
+                                  placeholder="Giá giảm..."
+                                  value={manualData.discountPrice}
+                                  onChange={(e) => setManualData(prev => ({ ...prev, discountPrice: formatPriceInput(e.target.value) }))}
+                                  className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-2 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase">Ngày hết hạn</label>
+                                <input 
+                                  type="text"
+                                  placeholder="31/05/2026"
+                                  value={manualData.endDate}
+                                  onChange={(e) => setManualData(prev => ({ ...prev, endDate: e.target.value }))}
+                                  className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-2 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase">Mã sản phẩm</label>
+                                <input 
+                                  type="text"
+                                  placeholder="Mã SP..."
+                                  value={manualData.productCode}
+                                  onChange={(e) => setManualData(prev => ({ ...prev, productCode: e.target.value }))}
+                                  className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase">Tên sản phẩm</label>
+                                <input 
+                                  type="text"
+                                  placeholder="Tên SP..."
+                                  value={manualData.name}
+                                  onChange={(e) => setManualData(prev => ({ ...prev, name: e.target.value }))}
+                                  className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase">Giá gốc</label>
+                                <input 
+                                  type="text"
+                                  placeholder="Giá gốc..."
+                                  value={manualData.originalPrice}
+                                  onChange={(e) => setManualData(prev => ({ ...prev, originalPrice: formatPriceInput(e.target.value) }))}
+                                  className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase">Giá sau giảm</label>
+                                <input 
+                                  type="text"
+                                  placeholder="Giá giảm..."
+                                  value={manualData.discountPrice}
+                                  onChange={(e) => setManualData(prev => ({ ...prev, discountPrice: formatPriceInput(e.target.value) }))}
+                                  className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                              </div>
+                            </div>
+                          </>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <button
+                            onClick={handleAddManualSticker}
+                            className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-2"
+                          >
+                            <FilePlus size={14} />
+                            THÊM VÀO LIST
+                          </button>
+                          
+                          <label className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer">
+                            <UploadCloud size={14} />
+                            FILE EXCEL {'->'} LIST
+                            <input 
+                              type="file" 
+                              className="hidden" 
+                              accept=".xlsx, .xls"
+                              onChange={(e) => {
+                                handleFileUpload(e, 'price', true);
+                                e.target.value = ''; // Reset to allow same file again
+                              }}
+                            />
+                          </label>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            const templateData = (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs')
+                              ? [
+                                  {
+                                    'NGÀNH HÀNG': activeTab === 'sticker-gvgs' ? 'GIỜ VÀNG GIÁ SỐC' : 'MÁY LỌC NƯỚC',
+                                    'TÊN SẢN PHẨM': 'Karofi KAQ-X18 11 lõi',
+                                    'GIÁ GỐC': 6990000,
+                                    'GIÁ SAU GIẢM': 4990000,
+                                    'NGÀY HẾT HẠN': '31/05/2026'
+                                  }
+                                ]
+                              : [
+                                  {
+                                    'MÃ SẢN PHẨM': 'SP001',
+                                    'TÊN SẢN PHẨM': 'Ví dụ Tên Sản Phẩm',
+                                    'GIÁ GỐC': 1000000,
+                                    'GIÁ SAU GIẢM': 500000
+                                  }
+                                ];
+                            const worksheet = XLSX.utils.json_to_sheet(templateData);
+                            const workbook = XLSX.utils.book_new();
+                            XLSX.utils.book_append_sheet(workbook, worksheet, activeTab === 'sticker-gvgs' ? 'GVGS_Template' : activeTab === 'sticker-mln' ? 'MLN_Template' : 'StickerTemplate');
+                            XLSX.writeFile(workbook, activeTab === 'sticker-gvgs' ? 'Mau_In_Sticker_GVGS.xlsx' : activeTab === 'sticker-mln' ? 'Mau_In_Sticker_MLN.xlsx' : 'Mau_In_Sticker_Event.xlsx');
+                            showNotification(activeTab === 'sticker-gvgs' ? 'Đã tải file Excel mẫu GVGS!' : activeTab === 'sticker-mln' ? 'Đã tải file Excel mẫu MLN!' : 'Đã tải file Excel mẫu!', 'success');
+                          }}
+                          className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-2"
+                        >
+                          <UploadCloud size={14} />
+                          XUẤT FILE MẪU
+                        </button>
+                      </div>
+                    </div>
+                  )
                 )}
 
                 </div>
@@ -3583,15 +3742,20 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                       >
                                         <Sticker
                                           item={
-                                            activeTab === 'sticker-dong-gia-100k' && combinedPriceData.length > 0
-                                              ? combinedPriceData[0]
-                                              : activeTab === 'sticker-dong-gia-100k'
-                                                ? { name: 'CHẢO CHỐNG DÍNH SUNHOUSE 24CM', originalPrice: 250000, discountPrice: 100000, qrData: '100000', maSanPham: 'DG100K' }
-                                                : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
+                                            activeTab === 'sticker-dong-gia-100k'
+                                              ? {
+                                                  name: dongGiaTitle || 'ĐỒNG GIÁ',
+                                                  discountPrice: numericDongGiaPrice,
+                                                  originalPrice: 0,
+                                                  maSanPham: '',
+                                                  productCode: '',
+                                                  qrData: `${dongGiaPrice || '100.000'}đ`
+                                                }
+                                              : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
                                           }
                                           style="classic"
                                           layout="1"
-                                          showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' ? false : showEventPromoLabel}
+                                          showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-dong-gia-100k' ? false : showEventPromoLabel}
                                           promoLabelText={promoLabelTextVal}
                                         />
                                       </div>
@@ -3797,18 +3961,17 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                         <button
                           onMouseEnter={() => setEventPrintLayout('16')}
                           onClick={() => {
-                            setPrintConfig({ style: 'classic', layout: '16', showPromoLabel: showEventPromoLabel });
+                            setPrintConfig({ style: 'classic', layout: '16', showPromoLabel: false });
                             setIsPrintModalOpen(true);
                           }}
-                          disabled={combinedPriceData.length === 0 || selectedIndices.length === 0}
-                          className={`w-full py-4 px-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed ${
+                          className={`w-full py-4 px-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer ${
                             eventPrintLayout === '16'
                               ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 ring-2 ring-amber-400 ring-offset-2 shadow-amber-200'
                               : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                           }`}
                         >
                           <Printer size={18} />
-                          <span>BẤM ĐỂ IN (16 / TRANG A4 NGANG)</span>
+                          <span>BẤM ĐỂ IN ({dongGiaQuantity} TEM / 16 TEM MỖI TRANG A4 NGANG)</span>
                         </button>
                         <div className="grid grid-cols-2 gap-2">
                           {[
@@ -3822,11 +3985,10 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               key={s.layout}
                               onMouseEnter={() => setEventPrintLayout(s.layout)}
                               onClick={() => {
-                                setPrintConfig({ style: 'classic', layout: s.layout, showPromoLabel: showEventPromoLabel });
+                                setPrintConfig({ style: 'classic', layout: s.layout, showPromoLabel: false });
                                 setIsPrintModalOpen(true);
                               }}
-                              disabled={combinedPriceData.length === 0 || selectedIndices.length === 0}
-                              className={`w-full py-3 px-3 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed ${
+                              className={`w-full py-3 px-3 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer ${
                                 eventPrintLayout === s.layout
                                   ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 ring-2 ring-amber-400 ring-offset-2'
                                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
@@ -3912,116 +4074,53 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
                 {activeTab !== 'sticker-dcnb' && (
                   activeTab === 'sticker-dong-gia-100k' ? (
-                    priceData.length > 0 ? (
-                      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[600px]">
-                        <div className="p-6 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
-                              <FilePlus size={20} />
-                            </div>
-                            <div>
-                              <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">DANH SÁCH SẢN PHẨM ĐỒNG GIÁ 100K</h3>
-                              <p className="text-xs font-medium text-slate-500 mt-0.5">
-                                Đã nhập {priceData.length} sản phẩm ({selectedIndices.length} sản phẩm được chọn in)
-                              </p>
-                            </div>
+                    <div className="bg-white rounded-3xl shadow-sm border border-amber-200/80 p-6 md:p-8 space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 text-white flex items-center justify-center text-2xl shadow-md shadow-amber-500/20">
+                            🏷️
                           </div>
-                          <div className="flex items-center gap-3">
-                            <button 
-                              onClick={handleClearData}
-                              className="text-xs font-bold text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
-                            >
-                              <Trash2 size={14} />
-                              Xóa danh sách
-                            </button>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md">
+                                CHẾ ĐỘ IN ĐỒNG GIÁ
+                              </span>
+                              <span className="text-xs font-bold text-slate-400">• Khổ A4 ngang (16 ô/trang)</span>
+                            </div>
+                            <h3 className="text-lg md:text-xl font-black text-slate-800 uppercase tracking-tight mt-0.5">
+                              {dongGiaTitle || 'ĐỒNG GIÁ'} - {dongGiaPrice || '100.000'} ĐỒNG
+                            </h3>
                           </div>
                         </div>
-                        <div className="overflow-auto flex-1 p-0" style={{ WebkitOverflowScrolling: 'touch' }}>
-                          <table className="w-full text-left border-collapse border border-slate-200 min-w-[700px]">
-                            <thead className="sticky top-0 z-10">
-                              <tr className="bg-slate-100 shadow-sm">
-                                <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 w-10 text-center">
-                                  <input 
-                                    type="checkbox" 
-                                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                                    checked={priceData.length > 0 && selectedIndices.length === priceData.length}
-                                    onChange={handleSelectAll}
-                                  />
-                                </th>
-                                <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 w-12 text-center">STT</th>
-                                <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-center w-20">SL In</th>
-                                <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 w-28">Mã SP</th>
-                                <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Tên sản phẩm</th>
-                                <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-right w-36">Giá gốc</th>
-                                <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-right w-36">Giá giảm</th>
-                                <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-center w-12">Xóa</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {priceData.map((item, index) => (
-                                <tr key={index} className="hover:bg-amber-50/20 transition-colors bg-amber-50/10">
-                                  <td className="py-3 px-4 text-center">
-                                    <input 
-                                      type="checkbox" 
-                                      className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                                      checked={selectedIndices.includes(index)}
-                                      onChange={() => handleSelectRow(index)}
-                                    />
-                                  </td>
-                                  <td className="py-3 px-4 text-sm font-medium text-slate-500 text-center">{index + 1}</td>
-                                  <td className="py-3 px-4 text-center">
-                                    <input 
-                                      type="number" 
-                                      min="0" 
-                                      className="w-16 bg-white border border-slate-200 text-slate-700 py-1 px-2 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center"
-                                      value={printQuantities[index] ?? 0}
-                                      onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 0)}
-                                    />
-                                  </td>
-                                  <td className="py-3 px-4 text-sm font-bold text-indigo-600">{item.maSanPham || item.productCode || '-'}</td>
-                                  <td className="py-3 px-4 text-sm font-bold text-slate-800">{item.name}</td>
-                                  <td className="py-3 px-4 text-sm font-medium text-slate-600 text-right">
-                                    <input 
-                                      type="text" 
-                                      className="w-32 bg-white border border-slate-200 text-slate-700 py-1 px-2 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right"
-                                      value={Number(item.originalPrice || 0).toLocaleString('vi-VN') + ' đ'}
-                                      onChange={(e) => handlePriceChange(index, 'originalPrice', e.target.value)}
-                                    />
-                                  </td>
-                                  <td className="py-3 px-4 text-sm font-bold text-red-600 text-right">
-                                    <input 
-                                      type="text" 
-                                      className="w-32 bg-white border border-slate-200 text-red-600 py-1 px-2 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right"
-                                      value={Number(item.discountPrice || 0).toLocaleString('vi-VN') + ' đ'}
-                                      onChange={(e) => handlePriceChange(index, 'discountPrice', e.target.value)}
-                                    />
-                                  </td>
-                                  <td className="py-3 px-4 text-center">
-                                    <button 
-                                      onClick={() => handleDeleteRow(index)}
-                                      className="text-slate-400 hover:text-red-500 transition-colors p-1.5 rounded-lg hover:bg-red-50 cursor-pointer"
-                                      title="Xóa dòng"
-                                    >
-                                      <Trash2 size={16} />
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+
+                        <button
+                          onClick={() => {
+                            setEventPrintLayout('16');
+                            setPrintConfig({ style: 'classic', layout: '16', showPromoLabel: false });
+                            setIsPrintModalOpen(true);
+                          }}
+                          className="py-3.5 px-6 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 active:scale-95"
+                        >
+                          <Printer size={16} />
+                          <span>IN NGAY {dongGiaQuantity} TEM ({Math.ceil(dongGiaQuantity / 16)} TRANG A4)</span>
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-slate-100">
+                        <div className="bg-amber-50/40 p-4 rounded-2xl border border-amber-100">
+                          <span className="text-[10px] font-extrabold uppercase text-slate-400 block mb-1">Tiêu đề in (Ô chữ)</span>
+                          <span className="text-base font-black text-amber-950">{dongGiaTitle || 'ĐỒNG GIÁ'}</span>
+                        </div>
+                        <div className="bg-amber-50/40 p-4 rounded-2xl border border-amber-100">
+                          <span className="text-[10px] font-extrabold uppercase text-slate-400 block mb-1">Mức giá in (Số tiền)</span>
+                          <span className="text-lg font-black text-red-600">{dongGiaPrice || '100.000'} đ</span>
+                        </div>
+                        <div className="bg-amber-50/40 p-4 rounded-2xl border border-amber-100">
+                          <span className="text-[10px] font-extrabold uppercase text-slate-400 block mb-1">Số lượng & Khổ in</span>
+                          <span className="text-sm font-black text-slate-800">{dongGiaQuantity} tem ({Math.ceil(dongGiaQuantity / 16)} trang A4 ngang)</span>
                         </div>
                       </div>
-                    ) : (
-                      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 text-center space-y-3">
-                        <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto text-3xl">
-                          🏷️
-                        </div>
-                        <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">Danh Sách Sản Phẩm Đồng Giá 100K</h3>
-                        <p className="text-xs font-bold text-slate-500 max-w-md mx-auto leading-relaxed">
-                          Chưa có sản phẩm nào. Vui lòng nhập thông tin sản phẩm ở ô <strong>"NHẬP TAY SẢN PHẨM ĐỒNG GIÁ 100K"</strong> bên trái để thêm vào danh sách in sticker 16 ô / trang A4.
-                        </p>
-                      </div>
-                    )
+                    </div>
                   ) : (
                     <>
                     <div className="bg-emerald-50/40 rounded-3xl shadow-sm border border-emerald-100/70 p-6">
@@ -4911,7 +5010,16 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               ? Array(6).fill(addressFlyerData)
               : activeTab === 'in-phieu-bh'
                 ? (phieuBhPrintLayout === 'right' ? [null, phieuBhData] : Array(parseInt(phieuBhPrintLayout || '2')).fill(phieuBhData))
-                : (isPrintModalOpen ? filteredPriceData.flatMap((item, index) => {
+                : activeTab === 'sticker-dong-gia-100k'
+                  ? Array.from({ length: dongGiaQuantity || 16 }).map(() => ({
+                      name: dongGiaTitle || 'ĐỒNG GIÁ',
+                      originalPrice: 0,
+                      discountPrice: numericDongGiaPrice,
+                      maSanPham: '',
+                      productCode: '',
+                      qrData: `${dongGiaPrice || '100.000'}đ`
+                    }))
+                  : (isPrintModalOpen ? filteredPriceData.flatMap((item, index) => {
                     const isSelected = selectedIndices.length === 0 || selectedIndices.includes(index);
                     const quantity = printQuantities[index] || 1;
                     return isSelected && quantity > 0 ? Array(quantity).fill(item) : [];
