@@ -541,10 +541,10 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     if (activeTab === 'sticker-event-dmx') {
       setPromoLabelTextVal('GIÁ KM 43346-TRẦN TRỌNG THIỆN GỬI');
     } else if (activeTab === 'sticker-dong-gia-100k') {
-      setPromoLabelTextVal('ĐỒNG GIÁ 100.000Đ');
+      setPromoLabelTextVal('ĐỒNG GIÁ');
       setEventPrintLayout('16');
       setShowEventPromoLabel(false);
-      setPrintConfig({ style: 'classic', layout: '16', showPromoLabel: false });
+      setPrintConfig({ style: 'dong_gia', layout: '16', showPromoLabel: false });
       setInventoryData([]);
       setLastUpdateInventory(null);
       setInventoryFile(null);
@@ -2323,7 +2323,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               setActiveTab('sticker-dong-gia-100k');
               setEventPrintLayout('16');
               setShowEventPromoLabel(false);
-              setPrintConfig({ style: 'classic', layout: '16', showPromoLabel: false });
+              setPrintConfig({ style: 'dong_gia', layout: '16', showPromoLabel: false });
             }}
             className={`flex items-center gap-2.5 py-3 px-6 rounded-full text-sm font-extrabold uppercase tracking-wide transition-all border-2 shadow-sm shrink-0 whitespace-nowrap cursor-pointer ${
               activeTab === 'sticker-dong-gia-100k'
@@ -3214,7 +3214,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                       <button
                         onClick={() => {
                           setEventPrintLayout('16');
-                          setPrintConfig({ style: 'classic', layout: '16', showPromoLabel: false });
+                          setPrintConfig({ style: 'dong_gia', layout: '16', showPromoLabel: false });
                           setIsPrintModalOpen(true);
                         }}
                         className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 rounded-2xl text-xs sm:text-sm font-black uppercase tracking-wider transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
@@ -3747,13 +3747,14 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                                   name: dongGiaTitle || 'ĐỒNG GIÁ',
                                                   discountPrice: numericDongGiaPrice,
                                                   originalPrice: 0,
+                                                  isDongGia: true,
                                                   maSanPham: '',
                                                   productCode: '',
-                                                  qrData: `${dongGiaPrice || '100.000'}đ`
+                                                  qrData: ''
                                                 }
                                               : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
                                           }
-                                          style="classic"
+                                          style={activeTab === 'sticker-dong-gia-100k' ? 'dong_gia' : 'classic'}
                                           layout="1"
                                           showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-dong-gia-100k' ? false : showEventPromoLabel}
                                           promoLabelText={promoLabelTextVal}
@@ -3961,7 +3962,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                         <button
                           onMouseEnter={() => setEventPrintLayout('16')}
                           onClick={() => {
-                            setPrintConfig({ style: 'classic', layout: '16', showPromoLabel: false });
+                            setPrintConfig({ style: 'dong_gia', layout: '16', showPromoLabel: false });
                             setIsPrintModalOpen(true);
                           }}
                           className={`w-full py-4 px-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer ${
@@ -3985,7 +3986,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               key={s.layout}
                               onMouseEnter={() => setEventPrintLayout(s.layout)}
                               onClick={() => {
-                                setPrintConfig({ style: 'classic', layout: s.layout, showPromoLabel: false });
+                                setPrintConfig({ style: 'dong_gia', layout: s.layout, showPromoLabel: false });
                                 setIsPrintModalOpen(true);
                               }}
                               className={`w-full py-3 px-3 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer ${
@@ -4096,7 +4097,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                         <button
                           onClick={() => {
                             setEventPrintLayout('16');
-                            setPrintConfig({ style: 'classic', layout: '16', showPromoLabel: false });
+                            setPrintConfig({ style: 'dong_gia', layout: '16', showPromoLabel: false });
                             setIsPrintModalOpen(true);
                           }}
                           className="py-3.5 px-6 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 active:scale-95"
@@ -5015,9 +5016,10 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                       name: dongGiaTitle || 'ĐỒNG GIÁ',
                       originalPrice: 0,
                       discountPrice: numericDongGiaPrice,
+                      isDongGia: true,
                       maSanPham: '',
                       productCode: '',
-                      qrData: `${dongGiaPrice || '100.000'}đ`
+                      qrData: ''
                     }))
                   : (isPrintModalOpen ? filteredPriceData.flatMap((item, index) => {
                     const isSelected = selectedIndices.length === 0 || selectedIndices.includes(index);

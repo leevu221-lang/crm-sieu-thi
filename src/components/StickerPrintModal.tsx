@@ -968,6 +968,47 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
     );
   }
 
+  if (style === 'dong_gia' || item?.isDongGia) {
+    return (
+      <div className="sticker-font-own w-[148.5mm] h-[105mm] bg-white border-[8px] border-black p-1.5 box-border relative text-black shrink-0 overflow-hidden" style={{ fontFamily: '"Oswald", sans-serif' }}>
+        <div className="w-full h-full border-[3px] border-black p-4 flex flex-col relative justify-between">
+          {/* Top Section - Centered Big Title without QR */}
+          <div className="w-full text-center pt-2 px-3 shrink-0">
+            <h1 
+              className="text-[54px] leading-tight font-black uppercase tracking-tight text-black" 
+              style={{ fontFamily: '"Oswald", sans-serif', transform: 'scaleY(1.08)' }}
+            >
+              {item.name || 'ĐỒNG GIÁ'}
+            </h1>
+          </div>
+
+          {/* Middle Section - Big Centered Price */}
+          <div className="flex-1 flex flex-col items-center justify-center -mt-2">
+            <div 
+              className="text-[132px] leading-[0.8] font-black tracking-tighter text-black" 
+              style={{ fontFamily: '"Oswald", sans-serif', transform: 'scaleY(1.1)', display: 'inline-block' }}
+            >
+              {formatPrice(item.discountPrice)}
+            </div>
+          </div>
+
+          {/* Bottom Section - Optional Promo Text */}
+          {showPromoLabel && promoLabelText && (
+            <div 
+              className="text-center font-black text-[22px] mb-4 tracking-tight uppercase text-red-600"
+              style={{ color: 'red' }}
+            >
+              {promoLabelText}
+            </div>
+          )}
+
+          {/* Thick Black Bar at the bottom inside inner border */}
+          <div className="absolute bottom-0 left-0 right-0 h-5 bg-black"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="sticker-font-own w-[148.5mm] h-[105mm] bg-white border-[8px] border-black p-1.5 box-border relative text-black shrink-0 overflow-hidden" style={{ fontFamily: '"Oswald", sans-serif' }}>
       <div className="w-full h-full border-[3px] border-black p-3 flex flex-col relative">
