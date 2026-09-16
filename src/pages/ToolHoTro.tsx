@@ -942,18 +942,76 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         }
 
         if (headerRowIdx !== -1) {
+          const cleanH = (str: any) => {
+            return String(str || '')
+              .toLowerCase()
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .replace(/đ/g, 'd')
+              .replace(/[^a-z0-9]/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+          };
+
           const headerRow = inventoryData[headerRowIdx].map((h: any) => String(h || '').toLowerCase().trim());
-          let maSpIdx = headerRow.findIndex((h: string) => h === 'mã sản phẩm' || h === 'mã sp' || h === 'mã hàng');
+          const normHeaderRow = headerRow.map(h => cleanH(h));
+
+          let maSpIdx = normHeaderRow.findIndex(h => 
+            h === 'ma san pham' || h === 'ma sp' || h === 'ma hang' || 
+            h === 'masp' || h === 'ma' || h.includes('ma san pham') || 
+            h.includes('ma sp') || h.includes('ma hang')
+          );
           if (maSpIdx === -1 && activeTab === 'sticker-event-dmx') {
             maSpIdx = 2; // Column C fallback
           }
-          const nganhHangIdx = headerRow.findIndex((h: string) => h === 'ngành hàng');
-          const nhomHangIdx = headerRow.findIndex((h: string) => h === 'nhóm hàng');
+
+          const nganhHangIdx = headerRow.findIndex((h: string) => h === 'ngành hàng' || cleanH(h) === 'nganh hang');
+          const nhomHangIdx = headerRow.findIndex((h: string) => h === 'nhóm hàng' || cleanH(h) === 'nhom hang');
           // Fallback for EVENT DMX: Col D (index 3) = Ngành hàng, Col E (index 4) = Nhóm hàng
           const effectiveNganhHangIdx = nganhHangIdx !== -1 ? nganhHangIdx : (activeTab === 'sticker-event-dmx' ? 3 : -1);
           const effectiveNhomHangIdx = nhomHangIdx !== -1 ? nhomHangIdx : (activeTab === 'sticker-event-dmx' ? 4 : -1);
           const qrIdx = headerRow.findIndex((h: string) => h.includes('qr') || h.includes('quét') || h.includes('điện thoại'));
-          const tonKhoIdx = headerRow.findIndex((h: string) => h === 'tồn cuối' || h === 'tồn kho' || h === 'tồn' || h.includes('số lượng') || h.includes('sl') || h.includes('kho') || h.includes('qty'));
+
+          // Tìm cột Tồn Kho thông minh:
+          const isExcludedCol = (h: string) => {
+            return h.includes('ma kho') || h.includes('ten kho') || 
+                   h.includes('kho nhan') || h.includes('kho xuat') || 
+                   h.includes('kho nhap') || h.includes('kho chuyen') ||
+                   h === 'kho' || h === 'kho hang' ||
+                   h.includes('ton dau') || h.includes('dau ky') ||
+                   h.includes('ban') || h.includes('xuat') || h.includes('nhap') || 
+                   h.includes('chuyen') || h.includes('dat') || h.includes('order') || 
+                   h.includes('huy') || h.includes('hong') || h.includes('loi') || 
+                   h.includes('gia') || h.includes('tien') || h.includes('don gia') || 
+                   h.includes('don vi') || h === 'dvt' || h === 'don vi tinh';
+          };
+
+          // Ưu tiên 1: Tên chính xác cột tồn kho / tồn cuối / sl tồn
+          const primaryStockTerms = [
+            'ton cuoi', 'ton cuoi ky', 'ton kho', 'sl ton', 'so luong ton', 
+            'ton thuc te', 'ton kha dung', 'ton hien tai', 'ton st', 'ton dmx', 'ton'
+          ];
+          let tonKhoIdx = normHeaderRow.findIndex(h => {
+            if (isExcludedCol(h)) return false;
+            return primaryStockTerms.some(term => h === term || h.startsWith(term + ' ') || h.endsWith(' ' + term));
+          });
+
+          // Ưu tiên 2: Chứa từ khóa 'ton' (không dính mã kho, tồn đầu...)
+          if (tonKhoIdx === -1) {
+            tonKhoIdx = normHeaderRow.findIndex(h => {
+              if (isExcludedCol(h)) return false;
+              return h.includes('ton');
+            });
+          }
+
+          // Ưu tiên 3: Các cột số lượng chung (loại trừ các cột bán, xuất, nhập, giá...)
+          if (tonKhoIdx === -1) {
+            const genericQtyTerms = ['so luong', 'soluong', 'sl', 'qty', 'quantity', 'stock'];
+            tonKhoIdx = normHeaderRow.findIndex(h => {
+              if (isExcludedCol(h)) return false;
+              return genericQtyTerms.some(term => h === term || h.startsWith(term + ' '));
+            });
+          }
 
           if (maSpIdx !== -1) {
             for (let i = headerRowIdx + 1; i < inventoryData.length; i++) {
@@ -962,9 +1020,33 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               const maSp = String(row[maSpIdx] || '').trim();
               if (maSp) {
                 const qrVal = qrIdx !== -1 ? String(row[qrIdx] || '').trim() : '';
-                const tonKhoVal = activeTab === 'sticker-event-dmx'
-                  ? parseInt(String(row[9] || '').replace(/\./g, '').replace(/,/g, '')) || 0
-                  : (tonKhoIdx !== -1 ? parseInt(String(row[tonKhoIdx]).replace(/\./g, '').replace(/,/g, '')) || 0 : 1);
+                
+                let tonKhoVal = 0;
+                // 1. Ưu tiên hàng đầu: Lấy từ cột tìm được theo header
+                if (tonKhoIdx !== -1 && row[tonKhoIdx] !== undefined && row[tonKhoIdx] !== null && String(row[tonKhoIdx]).trim() !== '') {
+                  tonKhoVal = parseInt(String(row[tonKhoIdx]).replace(/\./g, '').replace(/,/g, '').trim()) || 0;
+                }
+
+                // 2. Fallback cho tab EVENT DMX nếu tonKhoIdx không tìm thấy hoặc giá trị tại cột đó = 0:
+                if (tonKhoVal === 0 && activeTab === 'sticker-event-dmx') {
+                  // Thử cột J (index 9)
+                  const col9Val = parseInt(String(row[9] || '').replace(/\./g, '').replace(/,/g, '').trim()) || 0;
+                  if (col9Val > 0) {
+                    tonKhoVal = col9Val;
+                  } else {
+                    // Thử các cột thông dụng khác trong báo cáo tồn MWG
+                    for (const cIdx of [7, 8, 6, 10, 5]) {
+                      const parsedVal = parseInt(String(row[cIdx] || '').replace(/\./g, '').replace(/,/g, '').trim()) || 0;
+                      if (parsedVal > 0) {
+                        tonKhoVal = parsedVal;
+                        break;
+                      }
+                    }
+                  }
+                } else if (tonKhoVal === 0 && tonKhoIdx === -1 && activeTab !== 'sticker-event-dmx') {
+                  tonKhoVal = 1;
+                }
+
                 const existing = inventoryMap.get(maSp);
                 
                 inventoryMap.set(maSp, {
@@ -985,7 +1067,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         inventoryData.forEach((item: any) => {
           if (item.ma_san_pham) {
             const existing = inventoryMap.get(item.ma_san_pham);
-            const itemQty = item.so_luong || item.soluong || item.qty || item.quantity || 1;
+            const rawQty = item.ton_kho ?? item.tonKho ?? item.so_luong_ton ?? item.so_luong ?? item.soluong ?? item.qty ?? item.quantity;
+            const itemQty = rawQty !== undefined && rawQty !== null && !isNaN(Number(rawQty)) ? Number(rawQty) : 1;
             inventoryMap.set(item.ma_san_pham, {
               nganhHang: item.nganh_hang || '',
               nhomHang: item.nhom_hang || '',
@@ -4376,7 +4459,19 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">STT</th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-center">SL In</th>
                             {activeTab === 'sticker-event-dmx' && (
-                              <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-center bg-slate-50/80">Tồn kho</th>
+                              <th className="py-2.5 px-3 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-center bg-slate-50/80">
+                                <div className="flex flex-col items-center gap-1">
+                                  <span>Tồn kho</span>
+                                  <button
+                                    type="button"
+                                    onClick={handleSetPrintQtyToInventoryAll}
+                                    className="px-2 py-0.5 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 text-emerald-800 rounded-md text-[9px] font-black uppercase tracking-wider transition-colors shadow-xs"
+                                    title="Gán số lượng in bằng tồn kho cho tất cả sản phẩm đang lọc"
+                                  >
+                                    Lấy theo tồn
+                                  </button>
+                                </div>
+                              </th>
                             )}
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Mã SP</th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Tên sản phẩm</th>
