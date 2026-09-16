@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, Suspense } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Wrench, Printer, Trash2, Info, Archive, ShieldAlert, FilePlus, X,
@@ -11,15 +11,16 @@ import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { Sticker, DcnbCard } from '../components/StickerPrintModal';
-
-// Lazy-loaded components for code splitting - only loaded when needed
-const StickerPrintModal = React.lazy(() => import('../components/StickerPrintModal'));
-const PrintLayoutModal = React.lazy(() => import('../components/PrintLayoutModal'));
-const BienBanTinhTrangHangHoa = React.lazy(() => import('../components/BienBanTinhTrangHangHoa'));
-const BaoGiaCongTyModal = React.lazy(() => import('../components/BaoGiaCongTyModal'));
-const StickerTemplateTab = React.lazy(() => import('../components/StickerTemplateTab'));
-const BbkqTab = React.lazy(() => import('../components/BbkqTab'));
+import StickerPrintModal, { Sticker, DcnbCard } from '../components/StickerPrintModal';
+import PrintLayoutModal from '../components/PrintLayoutModal';
+import PhanCaTable from '../components/PhanCaTable';
+import PhanCaTuanTable from '../components/PhanCaTuanTable';
+import BienBanTinhTrangHangHoa from '../components/BienBanTinhTrangHangHoa';
+import BaoGiaCongTyModal from '../components/BaoGiaCongTyModal';
+import StickerTemplateTab from '../components/StickerTemplateTab';
+import InventoryManagement from '../components/InventoryManagement';
+import { RoadshowManagement } from '../components/RoadshowManagement';
+import BbkqTab from '../components/BbkqTab';
 
 import { STORAGE_KEYS } from './RTST/types';
 import { normalizeStoreId } from './RTST/utils';
@@ -2317,9 +2318,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 exit={{ opacity: 0, y: -15 }}
                 transition={{ duration: 0.2 }}
               >
-                <Suspense fallback={<div className="flex items-center justify-center p-12"><Loader2 className="animate-spin text-indigo-500" size={24} /></div>}>
-                  <BbkqTab />
-                </Suspense>
+                <BbkqTab />
               </motion.div>
             )}
 
@@ -2833,9 +2832,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
               >
-                <Suspense fallback={<div className="flex items-center justify-center p-12"><Loader2 className="animate-spin text-indigo-500" size={24} /></div>}>
-                  <StickerTemplateTab />
-                </Suspense>
+                <StickerTemplateTab />
               </motion.div>
             )}
 
@@ -3477,7 +3474,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               }}
                             >
                               {Array.from({ length: eventPrintLayout === '1' ? 1 : eventPrintLayout === '2' ? 2 : eventPrintLayout === '4' ? 4 : eventPrintLayout === '16' ? 16 : eventPrintLayout === '12' ? 12 : 8 }).map((_, idx) => {
-                                const scaleMap: Record<string, number> = { '1': 1.96, '2': 1.38, '4': 0.94, '8': 0.68, '12': 0.47, '16': 0.47 };
+                                const scaleMap: Record<string, number> = { '1': 1.96, '2': 1.38, '4': 0.94, '8': 0.68, '12': 0.47, '16': 0.46 };
                                 const sVal = scaleMap[eventPrintLayout] || 0.94;
                                 return (
                                   <div 
@@ -4639,72 +4636,56 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         </div>
       </div>
 
-      {isBienBanModalOpen && (
-        <Suspense fallback={null}>
-          <BienBanTinhTrangHangHoa 
-            isOpen={isBienBanModalOpen}
-            onClose={() => setIsBienBanModalOpen(false)}
-            title={bienBanTitle}
-          />
-        </Suspense>
-      )}
+      <BienBanTinhTrangHangHoa 
+        isOpen={isBienBanModalOpen}
+        onClose={() => setIsBienBanModalOpen(false)}
+        title={bienBanTitle}
+      />
 
-      {isBaoGiaModalOpen && (
-        <Suspense fallback={null}>
-          <BaoGiaCongTyModal 
-            isOpen={isBaoGiaModalOpen}
-            onClose={() => setIsBaoGiaModalOpen(false)}
-          />
-        </Suspense>
-      )}
+      <BaoGiaCongTyModal 
+        isOpen={isBaoGiaModalOpen}
+        onClose={() => setIsBaoGiaModalOpen(false)}
+      />
 
-      {isLayoutModalOpen && (
-        <Suspense fallback={null}>
-          <PrintLayoutModal
-            isOpen={isLayoutModalOpen}
-            isCe={activeTab === 'sticker-ce'}
-            isLk={activeTab === 'sticker-lk'}
-            onClose={() => setIsLayoutModalOpen(false)}
-            onConfirm={(style, layout, showPromoLabel) => {
-              setPrintConfig({ style, layout, showPromoLabel });
-              setIsLayoutModalOpen(false);
-              setIsPrintModalOpen(true);
-            }}
-          />
-        </Suspense>
-      )}
+      <PrintLayoutModal
+        isOpen={isLayoutModalOpen}
+        isCe={activeTab === 'sticker-ce'}
+        isLk={activeTab === 'sticker-lk'}
+        onClose={() => setIsLayoutModalOpen(false)}
+        onConfirm={(style, layout, showPromoLabel) => {
+          setPrintConfig({ style, layout, showPromoLabel });
+          setIsLayoutModalOpen(false);
+          setIsPrintModalOpen(true);
+        }}
+      />
 
-      {isPrintModalOpen && (
-        <Suspense fallback={null}>
-          <StickerPrintModal 
-            isOpen={isPrintModalOpen} 
-            onClose={() => setIsPrintModalOpen(false)} 
-            data={
-              activeTab === 'sticker-dcnb'
-                ? Array(24).fill({})
-                : activeTab === 'in-dia-chi'
-                  ? Array(6).fill(addressFlyerData)
-                  : activeTab === 'in-phieu-bh'
-                    ? (phieuBhPrintLayout === 'right' ? [null, phieuBhData] : Array(parseInt(phieuBhPrintLayout || '2')).fill(phieuBhData))
-                    : filteredPriceData.flatMap((item, index) => {
-                        const isSelected = selectedIndices.length === 0 || selectedIndices.includes(index);
-                        const quantity = printQuantities[index] || 1;
-                        return isSelected && quantity > 0 ? Array(quantity).fill(item) : [];
-                      })
-            } 
-            config={
-              activeTab === 'in-dia-chi'
-                ? { style: 'address_flyer', layout: '6', showPromoLabel: false }
-                : activeTab === 'in-phieu-bh'
-                  ? { style: 'phieu_bh', layout: phieuBhPrintLayout, showPromoLabel: false }
-                  : printConfig
-            }
-            mlnHeaderTemplate={activeTab === 'sticker-gvgs' ? gvgsHeaderTemplate : mlnHeaderTemplate}
-            mlnFooterTemplate={activeTab === 'sticker-gvgs' ? gvgsFooterTemplate : mlnFooterTemplate}
-            promoLabelText={promoLabelTextVal}
-          />
-        </Suspense>
-      )}
+      <StickerPrintModal 
+        isOpen={isPrintModalOpen} 
+        onClose={() => setIsPrintModalOpen(false)} 
+        data={
+          activeTab === 'sticker-dcnb'
+            ? Array(24).fill({})
+            : activeTab === 'in-dia-chi'
+              ? Array(6).fill(addressFlyerData)
+              : activeTab === 'in-phieu-bh'
+                ? (phieuBhPrintLayout === 'right' ? [null, phieuBhData] : Array(parseInt(phieuBhPrintLayout || '2')).fill(phieuBhData))
+                : (isPrintModalOpen ? filteredPriceData.flatMap((item, index) => {
+                    const isSelected = selectedIndices.length === 0 || selectedIndices.includes(index);
+                    const quantity = printQuantities[index] || 1;
+                    return isSelected && quantity > 0 ? Array(quantity).fill(item) : [];
+                  }) : [])
+        } 
+        config={
+          activeTab === 'in-dia-chi'
+            ? { style: 'address_flyer', layout: '6', showPromoLabel: false }
+            : activeTab === 'in-phieu-bh'
+              ? { style: 'phieu_bh', layout: phieuBhPrintLayout, showPromoLabel: false }
+              : printConfig
+        }
+        mlnHeaderTemplate={activeTab === 'sticker-gvgs' ? gvgsHeaderTemplate : mlnHeaderTemplate}
+        mlnFooterTemplate={activeTab === 'sticker-gvgs' ? gvgsFooterTemplate : mlnFooterTemplate}
+        promoLabelText={promoLabelTextVal}
+      />
 
       {/* Scanner Modal */}
       {isScannerOpen && (

@@ -19,9 +19,15 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
   const isA5 = ((config.style === 'display' || config.style === 'giovang') && config.layout === '1') || ((config.style === 'sticker_ce' || config.style === 'sticker_lk') && config.layout === '1') || (config.style === 'phieu_bh' && config.layout === 'right');
   const isA4Giasoc = config.style === 'a4_giasoc';
   const isPhieuBH = config.style === 'phieu_bh';
+  const [renderAllPages, setRenderAllPages] = useState(false);
+  const [isPreparing, setIsPreparing] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setRenderAllPages(false);
+      setIsPreparing(false);
+      return;
+    }
     
     const updateScale = () => {
       if (containerRef.current) {
@@ -47,15 +53,19 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
     return () => window.removeEventListener('resize', updateScale);
   }, [isOpen, config.layout]);
 
-  useEffect(() => {
-    console.log('StickerPrintModal data:', data);
-    console.log('StickerPrintModal config:', config);
-  }, [data, isOpen, config]);
-
   if (!isOpen) return null;
 
   const handlePrint = () => {
-    window.print();
+    if (pages.length > 4 && !renderAllPages) {
+      setIsPreparing(true);
+      setRenderAllPages(true);
+      setTimeout(() => {
+        window.print();
+        setIsPreparing(false);
+      }, 150);
+    } else {
+      window.print();
+    }
   };
 
   const getLayoutStyles = () => {
@@ -95,7 +105,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
       case '4': return { cols: 2, rows: 2, scale: 0.94, orientation: 'landscape' };
       case '8': return { cols: 2, rows: 4, scale: 0.68, orientation: 'portrait' };
       case '12': return { cols: 4, rows: 3, scale: 0.47, orientation: 'landscape' };
-      case '16': return { cols: 4, rows: 4, scale: 0.47, orientation: 'landscape' };
+      case '16': return { cols: 4, rows: 4, scale: 0.46, orientation: 'landscape' };
       default: return { cols: 2, rows: 2, scale: 0.94, orientation: 'landscape' };
     }
   };
@@ -170,28 +180,37 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
             overflow: visible !important;
           }
           .page-break {
-            page-break-before: avoid;
-            break-before: avoid;
-            page-break-inside: avoid;
-            break-inside: avoid;
+            page-break-before: avoid !important;
+            break-before: avoid !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            height: ${layoutStyles.orientation === 'portrait' ? '295mm' : '205mm'} !important;
+            max-height: ${layoutStyles.orientation === 'portrait' ? '295mm' : '205mm'} !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
           }
           .page-break:not(:last-child) {
-            page-break-after: always;
-            break-after: page;
+            page-break-after: always !important;
+            break-after: page !important;
           }
           
           /* Remove borders of grid cells when printing to prevent height calculations from overflowing */
           .page-break > div {
             border: none !important;
             border-width: 0 !important;
+            overflow: hidden !important;
           }
         `}
       </style>
       
       {/* Modal Controls - Hidden when printing */}
       <div className="absolute top-4 right-4 flex gap-2 print:hidden z-50">
-        <button onClick={handlePrint} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-colors">
-          <Printer size={20} /> In Ngay
+        <button 
+          onClick={handlePrint} 
+          disabled={isPreparing}
+          className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-colors"
+        >
+          <Printer size={20} /> {isPreparing ? 'Đang chuẩn bị trang in...' : 'In Ngay'}
         </button>
         <button onClick={onClose} className="bg-white hover:bg-slate-100 text-slate-800 p-2 rounded-xl shadow-lg transition-colors">
           <X size={24} />
@@ -207,14 +226,14 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
             </div>
           ) : (
             <div className="flex flex-col items-center gap-8 print:gap-0 print:block w-full">
-              {pages.map((page, pageIndex) => (
+              {(renderAllPages || pages.length <= 4 ? pages : pages.slice(0, 4)).map((page, pageIndex) => (
                 <div key={pageIndex} className="bg-white shadow-xl print:shadow-none grid page-break" style={{ 
                   width: isA5 
                     ? (layoutStyles.orientation === 'portrait' ? '147.5mm' : '209mm') 
                     : (layoutStyles.orientation === 'portrait' ? '210mm' : '297mm'),
                   height: isA5 
                     ? (layoutStyles.orientation === 'portrait' ? '209mm' : '147.5mm') 
-                    : (layoutStyles.orientation === 'portrait' ? '297mm' : '210mm'),
+                    : (layoutStyles.orientation === 'portrait' ? '295mm' : '205mm'),
                   padding: (config.style === 'address_flyer' || config.style === 'dcnb') ? '5mm' : ((isA5 || isA4Giasoc || isDisplayA4) ? '0' : '2mm'),
                   gridTemplateColumns: `repeat(${layoutStyles.cols}, 1fr)`,
                   gridTemplateRows: `repeat(${layoutStyles.rows}, 1fr)`,
@@ -248,6 +267,16 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                   ))}
                 </div>
               ))}
+              {!renderAllPages && pages.length > 4 && (
+                <div className="text-center p-4 bg-amber-50 text-amber-800 rounded-2xl border border-amber-200 print:hidden w-full max-w-xl shadow-sm">
+                  <p className="font-bold text-sm">
+                    Đang xem trước 4 / {pages.length} trang ({data.length} tem) để tải siêu nhanh.
+                  </p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    Bấm <span className="font-black text-emerald-700">"IN NGAY"</span> ở góc trên bên phải để in toàn bộ {pages.length} trang ({data.length} tem).
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -265,7 +294,7 @@ export function DcnbCard() {
   );
 }
 
-export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderTemplate = '', mlnFooterTemplate = '', promoLabelText = 'sản phẩm giá sốc - event T7 & CN' }: { item: any, style: string, layout: string, showPromoLabel?: boolean, mlnHeaderTemplate?: string, mlnFooterTemplate?: string, promoLabelText?: string }) {
+export const Sticker = React.memo(function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderTemplate = '', mlnFooterTemplate = '', promoLabelText = 'sản phẩm giá sốc - event T7 & CN' }: { item: any, style: string, layout: string, showPromoLabel?: boolean, mlnHeaderTemplate?: string, mlnFooterTemplate?: string, promoLabelText?: string }) {
   // Get current time for the sticker
   const now = new Date();
   const day = now.getDate().toString().padStart(2, '0');
@@ -987,4 +1016,4 @@ export function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderT
       </div>
     </div>
   );
-}
+});
