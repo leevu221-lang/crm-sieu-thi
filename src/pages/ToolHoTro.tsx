@@ -1075,12 +1075,22 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
   React.useEffect(() => {
     const initialQuantities: Record<number, number> = {};
-    filteredPriceData.forEach((_, index) => {
-      initialQuantities[index] = 1;
+    const selected: number[] = [];
+    filteredPriceData.forEach((item, index) => {
+      if (activeTab === 'sticker-event-dmx' && filters.onlyInventory) {
+        const qty = item.tonKho !== undefined ? Math.max(0, item.tonKho) : 0;
+        initialQuantities[index] = qty;
+        if (qty > 0) {
+          selected.push(index);
+        }
+      } else {
+        initialQuantities[index] = 1;
+        selected.push(index);
+      }
     });
     setPrintQuantities(initialQuantities);
-    setSelectedIndices(filteredPriceData.map((_, index) => index));
-  }, [filteredPriceData]);
+    setSelectedIndices(selected);
+  }, [filteredPriceData, activeTab, filters.onlyInventory]);
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -1088,7 +1098,13 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       setSelectedIndices(allIndices);
       const newQuantities = { ...printQuantities };
       allIndices.forEach(index => {
-        if (!newQuantities[index] || newQuantities[index] === 0) newQuantities[index] = 1;
+        if (!newQuantities[index] || newQuantities[index] === 0) {
+          if (activeTab === 'sticker-event-dmx' && filters.onlyInventory) {
+            newQuantities[index] = filteredPriceData[index]?.tonKho || 1;
+          } else {
+            newQuantities[index] = 1;
+          }
+        }
       });
       setPrintQuantities(newQuantities);
     } else {
@@ -1102,7 +1118,10 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         return prev.filter(i => i !== index);
       } else {
         if (!printQuantities[index] || printQuantities[index] === 0) {
-          setPrintQuantities(prevQ => ({ ...prevQ, [index]: 1 }));
+          const defaultQty = (activeTab === 'sticker-event-dmx' && filters.onlyInventory)
+            ? (filteredPriceData[index]?.tonKho || 1)
+            : 1;
+          setPrintQuantities(prevQ => ({ ...prevQ, [index]: defaultQty }));
         }
         return [...prev, index];
       }
@@ -4356,6 +4375,9 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             </th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">STT</th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-center">SL In</th>
+                            {activeTab === 'sticker-event-dmx' && (
+                              <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-center bg-slate-50/80">Tồn kho</th>
+                            )}
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Mã SP</th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Tên sản phẩm</th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">Ngành hàng</th>
@@ -4387,6 +4409,11 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                   onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 0)}
                                 />
                               </td>
+                              {activeTab === 'sticker-event-dmx' && (
+                                <td className="py-3 px-4 text-center text-sm font-black text-emerald-600 bg-slate-50/40">
+                                  {item.tonKho ?? 0}
+                                </td>
+                              )}
                               <td className="py-3 px-4 text-sm font-bold text-indigo-600">{item.maSanPham || item.productCode || '-'}</td>
                               <td className="py-3 px-4 text-sm font-bold text-slate-800">{item.name}</td>
                               <td className="py-3 px-4 text-sm font-medium text-slate-600">{item.nganhHang || '-'}</td>
