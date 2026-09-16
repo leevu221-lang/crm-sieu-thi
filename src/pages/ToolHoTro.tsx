@@ -3392,7 +3392,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                   : activeTab === 'sticker-dcnb'
                                     ? 'scale(0.58)'
                                     : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event')
-                                      ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? 'scale(0.4)' : 'scale(0.42)')
+                                      ? (eventPrintLayout === '2' || eventPrintLayout === '8' || eventPrintLayout === '12' ? 'scale(0.4)' : 'scale(0.42)')
                                       : 'scale(0.95)',
                             transformOrigin: 'center',
                             width: (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs')
@@ -3404,7 +3404,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                   : activeTab === 'sticker-dcnb'
                                     ? '210mm'
                                     : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event')
-                                      ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? '210mm' : '297mm')
+                                      ? (eventPrintLayout === '2' || eventPrintLayout === '8' || eventPrintLayout === '12' ? '210mm' : '297mm')
                                       : '148.5mm',
                             height: (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') 
                               ? ((activeTab === 'sticker-gvgs' ? gvgsPrintLayout : mlnPrintLayout) === '1' ? '210mm' : '297mm')
@@ -3415,7 +3415,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                   : activeTab === 'sticker-dcnb'
                                     ? '297mm'
                                     : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event')
-                                      ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? '297mm' : '210mm')
+                                      ? (eventPrintLayout === '2' || eventPrintLayout === '8' || eventPrintLayout === '12' ? '297mm' : '210mm')
                                       : '105mm',
                             flexShrink: 0
                           }}
@@ -3469,12 +3469,12 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             <div 
                               className="w-full h-full grid bg-white border border-slate-100"
                               style={{
-                                gridTemplateColumns: `repeat(${eventPrintLayout === '1' || eventPrintLayout === '2' ? 1 : 2}, 1fr)`,
+                                gridTemplateColumns: `repeat(${eventPrintLayout === '12' ? 3 : eventPrintLayout === '1' || eventPrintLayout === '2' ? 1 : 2}, 1fr)`,
                                 gridTemplateRows: `repeat(${eventPrintLayout === '1' ? 1 : eventPrintLayout === '2' || eventPrintLayout === '4' ? 2 : 4}, 1fr)`,
                               }}
                             >
-                              {Array.from({ length: eventPrintLayout === '1' ? 1 : eventPrintLayout === '2' ? 2 : eventPrintLayout === '4' ? 4 : 8 }).map((_, idx) => {
-                                const scaleMap: Record<string, number> = { '1': 1.96, '2': 1.38, '4': 0.94, '8': 0.68 };
+                              {Array.from({ length: eventPrintLayout === '1' ? 1 : eventPrintLayout === '2' ? 2 : eventPrintLayout === '4' ? 4 : eventPrintLayout === '12' ? 12 : 8 }).map((_, idx) => {
+                                const scaleMap: Record<string, number> = { '1': 1.96, '2': 1.38, '4': 0.94, '8': 0.68, '12': 0.47 };
                                 const sVal = scaleMap[eventPrintLayout] || 0.94;
                                 return (
                                   <div 
@@ -3736,6 +3736,26 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                           </button>
                         ))}
                       </div>
+                      {activeTab === 'sticker-event-dmx' && (
+                        <div className="mt-2">
+                          <button
+                            onMouseEnter={() => setEventPrintLayout('12')}
+                            onClick={() => {
+                              setPrintConfig({ style: 'classic', layout: '12', showPromoLabel: showEventPromoLabel });
+                              setIsPrintModalOpen(true);
+                            }}
+                            disabled={combinedPriceData.length === 0 || selectedIndices.length === 0}
+                            className={`w-full py-3.5 px-3 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed ${
+                              eventPrintLayout === '12'
+                                ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 ring-2 ring-amber-400 ring-offset-2'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                            }`}
+                          >
+                            <Printer size={16} />
+                            <span>BẤM ĐỂ IN (12 / TRANG A4)</span>
+                          </button>
+                        </div>
+                      )}
                     )}
                   </div>
                 </div>
