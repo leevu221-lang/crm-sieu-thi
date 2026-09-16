@@ -3472,12 +3472,12 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             <div 
                               className="w-full h-full grid bg-white border border-slate-100"
                               style={{
-                                gridTemplateColumns: `repeat(${eventPrintLayout === '12' ? 4 : eventPrintLayout === '1' || eventPrintLayout === '2' ? 1 : 2}, 1fr)`,
-                                gridTemplateRows: `repeat(${eventPrintLayout === '1' ? 1 : eventPrintLayout === '12' ? 3 : eventPrintLayout === '2' || eventPrintLayout === '4' ? 2 : 4}, 1fr)`,
+                                gridTemplateColumns: `repeat(${eventPrintLayout === '12' || eventPrintLayout === '16' ? 4 : eventPrintLayout === '1' || eventPrintLayout === '2' ? 1 : 2}, 1fr)`,
+                                gridTemplateRows: `repeat(${eventPrintLayout === '1' ? 1 : eventPrintLayout === '16' ? 4 : eventPrintLayout === '12' ? 3 : eventPrintLayout === '2' || eventPrintLayout === '4' ? 2 : 4}, 1fr)`,
                               }}
                             >
-                              {Array.from({ length: eventPrintLayout === '1' ? 1 : eventPrintLayout === '2' ? 2 : eventPrintLayout === '4' ? 4 : eventPrintLayout === '12' ? 12 : 8 }).map((_, idx) => {
-                                const scaleMap: Record<string, number> = { '1': 1.96, '2': 1.38, '4': 0.94, '8': 0.68, '12': 0.47 };
+                              {Array.from({ length: eventPrintLayout === '1' ? 1 : eventPrintLayout === '2' ? 2 : eventPrintLayout === '4' ? 4 : eventPrintLayout === '16' ? 16 : eventPrintLayout === '12' ? 12 : 8 }).map((_, idx) => {
+                                const scaleMap: Record<string, number> = { '1': 1.96, '2': 1.38, '4': 0.94, '8': 0.68, '12': 0.47, '16': 0.47 };
                                 const sVal = scaleMap[eventPrintLayout] || 0.94;
                                 return (
                                   <div 
@@ -3741,7 +3741,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                         ))}
                       </div>
                       {activeTab === 'sticker-event-dmx' && (
-                        <div className="mt-2">
+                        <div className="mt-2 grid grid-cols-2 gap-2">
                           <button
                             onMouseEnter={() => setEventPrintLayout('12')}
                             onClick={() => {
@@ -3757,6 +3757,22 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                           >
                             <Printer size={16} />
                             <span>BẤM ĐỂ IN (12 / TRANG A4)</span>
+                          </button>
+                          <button
+                            onMouseEnter={() => setEventPrintLayout('16')}
+                            onClick={() => {
+                              setPrintConfig({ style: 'classic', layout: '16', showPromoLabel: showEventPromoLabel });
+                              setIsPrintModalOpen(true);
+                            }}
+                            disabled={combinedPriceData.length === 0 || selectedIndices.length === 0}
+                            className={`w-full py-3.5 px-3 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed ${
+                              eventPrintLayout === '16'
+                                ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 ring-2 ring-amber-400 ring-offset-2'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                            }`}
+                          >
+                            <Printer size={16} />
+                            <span>BẤM ĐỂ IN (16 / TRANG A4)</span>
                           </button>
                         </div>
                       )}
