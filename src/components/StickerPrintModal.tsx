@@ -27,7 +27,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
       if (containerRef.current) {
         const availableWidth = containerRef.current.clientWidth;
         const padding = 64;
-        const isPortrait = (config.layout === '2' && !isPhieuBH) || config.layout === '8' || config.layout === '12' || config.style === 'display' || config.style === 'giovang' || isA4Giasoc || config.style === 'address_flyer' || (isPhieuBH && config.layout !== 'right' && config.layout !== '2');
+        const isPortrait = (config.layout === '2' && !isPhieuBH) || config.layout === '8' || config.style === 'display' || config.style === 'giovang' || isA4Giasoc || config.style === 'address_flyer' || (isPhieuBH && config.layout !== 'right' && config.layout !== '2');
         const pageDimensions = isA5 
           ? { width: 148.5, height: 210 } // A5
           : { width: 210, height: 297 };  // A4
@@ -94,7 +94,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
       case '2': return { cols: 1, rows: 2, scale: 1.38, orientation: 'portrait' };
       case '4': return { cols: 2, rows: 2, scale: 0.94, orientation: 'landscape' };
       case '8': return { cols: 2, rows: 4, scale: 0.68, orientation: 'portrait' };
-      case '12': return { cols: 3, rows: 4, scale: 0.47, orientation: 'portrait' };
+      case '12': return { cols: 4, rows: 3, scale: 0.47, orientation: 'landscape' };
       default: return { cols: 2, rows: 2, scale: 0.94, orientation: 'landscape' };
     }
   };
