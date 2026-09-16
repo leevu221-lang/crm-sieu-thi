@@ -428,6 +428,11 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           inventory: 'rtst_sticker_event_dmx_inventory_data',
           price: 'rtst_sticker_event_dmx_price_data'
         };
+      case 'sticker-dong-gia-100k':
+        return {
+          inventory: 'rtst_sticker_dong_gia_100k_inventory_data',
+          price: 'rtst_sticker_dong_gia_100k_price_data'
+        };
       default:
         return {
           inventory: STORAGE_KEYS.STICKER_INVENTORY_DATA,
@@ -520,6 +525,11 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   useEffect(() => {
     if (activeTab === 'sticker-event-dmx') {
       setPromoLabelTextVal('GIÁ KM 43346-TRẦN TRỌNG THIỆN GỬI');
+    } else if (activeTab === 'sticker-dong-gia-100k') {
+      setPromoLabelTextVal('ĐỒNG GIÁ 100.000Đ');
+      setEventPrintLayout('16');
+      setShowEventPromoLabel(false);
+      setPrintConfig({ style: 'classic', layout: '16', showPromoLabel: false });
     } else {
       setPromoLabelTextVal('SẢN PHẨM GIÁ SỐC - EVENT T7 & CN');
     }
@@ -532,6 +542,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       activeTab === 'sticker-gvgs' || 
       activeTab === 'sticker-dcnb' || 
       activeTab === 'sticker-event-dmx' ||
+      activeTab === 'sticker-dong-gia-100k' ||
       activeTab === 'sticker-event' || 
       activeTab === 'sticker'
     ) {
@@ -580,8 +591,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         }
       };
 
-      if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-gvgs') {
-        const docId = activeTab === 'sticker-gvgs' ? 'GVGS_GLOBAL' : 'EVENT_DMX_GLOBAL';
+      if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dong-gia-100k') {
+        const docId = activeTab === 'sticker-gvgs' ? 'GVGS_GLOBAL' : activeTab === 'sticker-dong-gia-100k' ? 'DONG_GIA_100K_GLOBAL' : 'EVENT_DMX_GLOBAL';
         // Fetch globally from Firebase (Firestore) first
         (async () => {
           try {
@@ -817,7 +828,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       } else {
         loadPhieuBhFromLocalStorage();
       }
-    } else if (activeTab === 'sticker-event-dmx') {
+    } else if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k') {
       const storeName = currentStoreId !== 'ALL' ? currentStoreId : '';
       if (storeName) {
         (async () => {
@@ -904,14 +915,14 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         if (headerRowIdx !== -1) {
           const headerRow = inventoryData[headerRowIdx].map((h: any) => String(h || '').toLowerCase().trim());
           let maSpIdx = headerRow.findIndex((h: string) => h === 'mã sản phẩm' || h === 'mã sp' || h === 'mã hàng');
-          if (maSpIdx === -1 && activeTab === 'sticker-event-dmx') {
+          if (maSpIdx === -1 && (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k')) {
             maSpIdx = 2; // Column C fallback
           }
           const nganhHangIdx = headerRow.findIndex((h: string) => h === 'ngành hàng');
           const nhomHangIdx = headerRow.findIndex((h: string) => h === 'nhóm hàng');
-          // Fallback for EVENT DMX: Col D (index 3) = Ngành hàng, Col E (index 4) = Nhóm hàng
-          const effectiveNganhHangIdx = nganhHangIdx !== -1 ? nganhHangIdx : (activeTab === 'sticker-event-dmx' ? 3 : -1);
-          const effectiveNhomHangIdx = nhomHangIdx !== -1 ? nhomHangIdx : (activeTab === 'sticker-event-dmx' ? 4 : -1);
+          // Fallback for EVENT DMX / ĐỒNG GIÁ 100K: Col D (index 3) = Ngành hàng, Col E (index 4) = Nhóm hàng
+          const effectiveNganhHangIdx = nganhHangIdx !== -1 ? nganhHangIdx : ((activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k') ? 3 : -1);
+          const effectiveNhomHangIdx = nhomHangIdx !== -1 ? nhomHangIdx : ((activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k') ? 4 : -1);
           const qrIdx = headerRow.findIndex((h: string) => h.includes('qr') || h.includes('quét') || h.includes('điện thoại'));
           const tonKhoIdx = headerRow.findIndex((h: string) => h === 'tồn cuối' || h === 'tồn kho' || h === 'tồn' || h.includes('số lượng') || h.includes('sl') || h.includes('kho') || h.includes('qty'));
 
@@ -922,7 +933,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               const maSp = String(row[maSpIdx] || '').trim();
               if (maSp) {
                 const qrVal = qrIdx !== -1 ? String(row[qrIdx] || '').trim() : '';
-                const tonKhoVal = activeTab === 'sticker-event-dmx'
+                const tonKhoVal = (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k')
                   ? parseInt(String(row[9] || '').replace(/\./g, '').replace(/,/g, '')) || 0
                   : (tonKhoIdx !== -1 ? parseInt(String(row[tonKhoIdx]).replace(/\./g, '').replace(/,/g, '')) || 0 : 1);
                 const existing = inventoryMap.get(maSp);
@@ -1253,9 +1264,9 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       }));
       setUpdatedBy(currentUsername);
       
-      if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-gvgs') {
-        const docId = activeTab === 'sticker-gvgs' ? 'GVGS_GLOBAL' : 'EVENT_DMX_GLOBAL';
-        const docTitle = activeTab === 'sticker-gvgs' ? 'Cấu hình GVGS toàn hệ thống' : 'Cấu hình EVENT ĐMX toàn hệ thống';
+      if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dong-gia-100k') {
+        const docId = activeTab === 'sticker-gvgs' ? 'GVGS_GLOBAL' : activeTab === 'sticker-dong-gia-100k' ? 'DONG_GIA_100K_GLOBAL' : 'EVENT_DMX_GLOBAL';
+        const docTitle = activeTab === 'sticker-gvgs' ? 'Cấu hình GVGS toàn hệ thống' : activeTab === 'sticker-dong-gia-100k' ? 'Cấu hình ĐỒNG GIÁ 100K toàn hệ thống' : 'Cấu hình EVENT ĐMX toàn hệ thống';
 
         // Save to Firebase (store table in database) -> document docId
         const record = {
@@ -1326,7 +1337,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           timestamp
         }));
 
-        if (activeTab === 'sticker-event-dmx') {
+        if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k') {
           const storeName = currentStoreId !== 'ALL' ? currentStoreId : '';
           if (!storeName) {
             showNotification('Vui lòng chọn siêu thị cụ thể trước khi tải tồn kho!', 'error');
@@ -1738,12 +1749,14 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           timestamp
         }));
         
-        // Sync price data to Firebase for EVENT DMX tab
-        if (activeTab === 'sticker-event-dmx') {
+        // Sync price data to Firebase for EVENT DMX / ĐỒNG GIÁ 100K tab
+        if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k') {
           const currentUsername = userProfile?.username || '43751';
+          const docId = activeTab === 'sticker-dong-gia-100k' ? 'DONG_GIA_100K_GLOBAL' : 'EVENT_DMX_GLOBAL';
+          const docTitle = activeTab === 'sticker-dong-gia-100k' ? 'Cấu hình ĐỒNG GIÁ 100K toàn hệ thống' : 'Cấu hình EVENT ĐMX toàn hệ thống';
           const record = {
-            id: 'EVENT_DMX_GLOBAL',
-            ten_sieu_thi: 'Cấu hình EVENT ĐMX toàn hệ thống',
+            id: docId,
+            ten_sieu_thi: docTitle,
             warehouse_code: 'GLOBAL',
             sticker_ce_price_data: JSON.stringify(finalData),
             updated_by: currentUsername,
@@ -2092,7 +2105,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       name: manualData.name,
       originalPrice: parseInt(manualData.originalPrice.replace(/[^\d]/g, '')) || 0,
       discountPrice: parseInt(manualData.discountPrice.replace(/[^\d]/g, '')) || 0,
-      nganhHang: activeTab === 'sticker-mln' ? (manualData.nganhHang || 'MÁY LỌC NƯỚC') : activeTab === 'sticker-gvgs' ? (manualData.nganhHang || 'GIỜ VÀNG GIÁ SỐC') : (manualData.nganhHang || 'THỦ CÔNG'),
+      nganhHang: activeTab === 'sticker-mln' ? (manualData.nganhHang || 'MÁY LỌC NƯỚC') : activeTab === 'sticker-gvgs' ? (manualData.nganhHang || 'GIỜ VÀNG GIÁ SỐC') : activeTab === 'sticker-dong-gia-100k' ? (manualData.nganhHang || 'ĐỒNG GIÁ 100K') : (manualData.nganhHang || 'THỦ CÔNG'),
       nhomHang: 'THỦ CÔNG',
       endDate: manualData.endDate || '',
       isManual: true
@@ -2246,6 +2259,22 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           >
             <span className="text-lg">🎪</span> EVENT ĐMX
           </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('sticker-dong-gia-100k');
+              setEventPrintLayout('16');
+              setShowEventPromoLabel(false);
+              setPrintConfig({ style: 'classic', layout: '16', showPromoLabel: false });
+            }}
+            className={`flex items-center gap-2.5 py-3 px-6 rounded-full text-sm font-extrabold uppercase tracking-wide transition-all border-2 shadow-sm shrink-0 whitespace-nowrap cursor-pointer ${
+              activeTab === 'sticker-dong-gia-100k'
+                ? 'border-amber-500 bg-amber-50 text-amber-700 ring-2 ring-amber-400/50'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700'
+            }`}
+          >
+            <span className="text-lg">🏷️</span> ĐỒNG GIÁ 100K
+          </button>
         </div>
       </div>
     );
@@ -2266,6 +2295,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
             const isActive = activeTab === item.id || 
               (item.id === 'all-sticker' && (
                 activeTab === 'sticker-event-dmx' ||
+                activeTab === 'sticker-dong-gia-100k' ||
                 activeTab === 'sticker-event' ||
                 activeTab === 'sticker-lk' ||
                 activeTab === 'sticker-ce' ||
@@ -2836,7 +2866,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               </motion.div>
             )}
 
-            {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dcnb') && (
+            {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event' || activeTab === 'sticker' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dcnb') && (
               <motion.div
                 key={activeTab}
                 initial={{ opacity: 0, x: 20 }}
@@ -2844,12 +2874,12 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
-                {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dcnb') && renderSubTabs()}
+                {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dcnb') && renderSubTabs()}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Column */}
               {activeTab !== 'sticker-dcnb' && activeTab !== 'sticker-event-dmx' && (
                 <div className="col-span-1 space-y-6">
-                  {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') && (
+                  {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') && (
                   /* Card 1: Thông tin & Nhập dữ liệu */
                   <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
                     <div className="flex items-center justify-between mb-4">
@@ -2954,7 +2984,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                       )}
                     </div>
 
-                    {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-event' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') && (
+                    {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-event' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') && (
                       <div className="mt-3">
                         <button
                           onClick={handleStartScanner}
@@ -3284,7 +3314,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                   </div>
                 )}
 
-                {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'sticker-dcnb' || activeTab === 'sticker-ce') && (
+                {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'sticker-dcnb' || activeTab === 'sticker-ce') && (
                   <div className={activeTab === 'sticker-event-dmx' ? 'grid grid-cols-1 lg:grid-cols-3 gap-6 items-start' : ''}>
                     {activeTab === 'sticker-event-dmx' && (
                       <div className="lg:col-span-1 bg-[#f5f6ff] border-2 border-indigo-100/90 rounded-3xl p-6 shadow-sm space-y-4 animate-fade-in">
@@ -3354,13 +3384,15 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             ? 'CHỌN BỐ CỤC IN MLN' 
                             : activeTab === 'sticker-gvgs'
                               ? 'CHỌN BỐ CỤC IN GVGS'
-                              : activeTab === 'sticker-lk'
-                                ? 'CHỌN BỐ CỤC IN LOA KÉO'
-                                : activeTab === 'sticker-ce'
-                                  ? 'CHỌN BỐ CỤC IN TIVI, TỦ LẠNH, MÁY GIẶT'
-                                  : activeTab === 'sticker-dcnb'
-                                    ? 'XEM TRƯỚC TRANG IN DCNB'
-                                    : 'CHỌN BỐ CỤC IN'}
+                              : activeTab === 'sticker-dong-gia-100k'
+                                ? 'CHỌN BỐ CỤC IN ĐỒNG GIÁ 100K'
+                                : activeTab === 'sticker-lk'
+                                  ? 'CHỌN BỐ CỤC IN LOA KÉO'
+                                  : activeTab === 'sticker-ce'
+                                    ? 'CHỌN BỐ CỤC IN TIVI, TỦ LẠNH, MÁY GIẶT'
+                                    : activeTab === 'sticker-dcnb'
+                                      ? 'XEM TRƯỚC TRANG IN DCNB'
+                                      : 'CHỌN BỐ CỤC IN'}
                         </h2>
                         <p className="text-[11px] text-slate-400 font-medium">
                           {activeTab === 'sticker-mln'
@@ -3391,7 +3423,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                   ? (cePrintLayout === '1' ? 'scale(0.48)' : 'scale(0.58)')
                                   : activeTab === 'sticker-dcnb'
                                     ? 'scale(0.58)'
-                                    : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event')
+                                    : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event')
                                       ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? 'scale(0.4)' : 'scale(0.42)')
                                       : 'scale(0.95)',
                             transformOrigin: 'center',
@@ -3403,7 +3435,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                   ? '210mm'
                                   : activeTab === 'sticker-dcnb'
                                     ? '210mm'
-                                    : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event')
+                                    : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event')
                                       ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? '210mm' : '297mm')
                                       : '148.5mm',
                             height: (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') 
@@ -3414,7 +3446,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                   ? (cePrintLayout === '1' ? '148.5mm' : '297mm')
                                   : activeTab === 'sticker-dcnb'
                                     ? '297mm'
-                                    : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event')
+                                    : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event')
                                       ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? '297mm' : '210mm')
                                       : '105mm',
                             flexShrink: 0
@@ -3465,7 +3497,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                 showPromoLabel={false}
                               />
                             </div>
-                          ) : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event') ? (
+                          ) : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event') ? (
                             <div 
                               className="w-full h-full grid bg-white border border-slate-100"
                               style={{
@@ -3540,7 +3572,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                           )}
                         </div>
                       </div>
-                      {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event') && (
+                      {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event') && (
                         <div className="p-3.5 bg-slate-50/40 backdrop-blur-sm border-t border-indigo-50/60 space-y-3">
                           <label className="flex items-center gap-2.5 text-xs font-bold text-slate-700 cursor-pointer">
                             <input 
@@ -3708,6 +3740,52 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                           <Printer size={16} />
                           <span>BẤM ĐỂ IN (1 TRANG A4 / 24 STICKER)</span>
                         </button>
+                      </div>
+                    ) : activeTab === 'sticker-dong-gia-100k' ? (
+                      <div className="space-y-2">
+                        <button
+                          onMouseEnter={() => setEventPrintLayout('16')}
+                          onClick={() => {
+                            setPrintConfig({ style: 'classic', layout: '16', showPromoLabel: showEventPromoLabel });
+                            setIsPrintModalOpen(true);
+                          }}
+                          disabled={combinedPriceData.length === 0 || selectedIndices.length === 0}
+                          className={`w-full py-4 px-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed ${
+                            eventPrintLayout === '16'
+                              ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 ring-2 ring-amber-400 ring-offset-2 shadow-amber-200'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          <Printer size={18} />
+                          <span>BẤM ĐỂ IN (16 / TRANG A4 NGANG)</span>
+                        </button>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { layout: '12', label: 'BẤM ĐỂ IN (12 / TRANG A4)' },
+                            { layout: '8', label: 'BẤM ĐỂ IN (8 / TRANG A4)' },
+                            { layout: '4', label: 'BẤM ĐỂ IN (4 / TRANG A4)' },
+                            { layout: '2', label: 'BẤM ĐỂ IN (2 / TRANG A4)' },
+                            { layout: '1', label: 'BẤM ĐỂ IN (1 / TRANG A4)' }
+                          ].map((s) => (
+                            <button
+                              key={s.layout}
+                              onMouseEnter={() => setEventPrintLayout(s.layout)}
+                              onClick={() => {
+                                setPrintConfig({ style: 'classic', layout: s.layout, showPromoLabel: showEventPromoLabel });
+                                setIsPrintModalOpen(true);
+                              }}
+                              disabled={combinedPriceData.length === 0 || selectedIndices.length === 0}
+                              className={`w-full py-3 px-3 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed ${
+                                eventPrintLayout === s.layout
+                                  ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 ring-2 ring-amber-400 ring-offset-2'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                              }`}
+                            >
+                              <Printer size={15} />
+                              <span>{s.label}</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     ) : (
                       <>
