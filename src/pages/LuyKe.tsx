@@ -12,7 +12,8 @@ import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
 import { 
   RefreshCw, ShoppingBag, TrendingUp, Camera, LayoutGrid, Activity, Globe, ChevronDown, Zap, Upload, Trash2, 
   HelpCircle, FileSpreadsheet, X, AlertCircle, Trophy, Target, BarChart3, CreditCard, Calendar, ArrowUpRight, 
-  ArrowDownRight, MessageSquare, Layers, Store, Smartphone, Watch, Monitor, Award, Filter, Sparkles, Loader2, Copy, Check
+  ArrowDownRight, MessageSquare, Layers, Store, Smartphone, Watch, Monitor, Award, Filter, Sparkles, Loader2, Copy, Check,
+  Eye, EyeOff, Search, SlidersHorizontal, RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
@@ -1436,6 +1437,122 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
   const [categoryCommentText, setCategoryCommentText] = useState('');
   const [copiedCategoryComment, setCopiedCategoryComment] = useState(false);
 
+  // Bộ lọc ẩn ngành hàng SL & DT (CHỈ ÁP DỤNG RIÊNG CHO BC THÁNG > TỔNG QUAN)
+  const [hiddenCatsSL, setHiddenCatsSL] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('bcthang_tongquan_hidden_cats_sl');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [hiddenCatsDT, setHiddenCatsDT] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('bcthang_tongquan_hidden_cats_dt');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isCategoryFilterModalOpen, setIsCategoryFilterModalOpen] = useState(false);
+  const [categoryFilterActiveTab, setCategoryFilterActiveTab] = useState<'SL' | 'DT'>('SL');
+  const [categoryFilterSearch, setCategoryFilterSearch] = useState('');
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('bcthang_tongquan_hidden_cats_sl', JSON.stringify(hiddenCatsSL));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [hiddenCatsSL]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('bcthang_tongquan_hidden_cats_dt', JSON.stringify(hiddenCatsDT));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [hiddenCatsDT]);
+
+  // Raw lists for SL & DT in BC Tháng > Tổng quan
+  const rawCategoriesSL = useMemo(() => {
+    return filteredCategories.filter((c: any) => c.type === 'SL' || c.type === 'ALL');
+  }, [filteredCategories]);
+
+  const rawCategoriesDT = useMemo(() => {
+    return filteredCategories.filter((c: any) => c.type === 'DT' || c.type === 'ALL');
+  }, [filteredCategories]);
+
+  // Filtered lists with hidden items removed ONLY for BC THÁNG > TỔNG QUAN
+  const visibleCategoriesSL = useMemo(() => {
+    if (hiddenCatsSL.length === 0) return rawCategoriesSL;
+    const hiddenSet = new Set(hiddenCatsSL.map(s => s.trim().toUpperCase()));
+    return rawCategoriesSL.filter((c: any) => !hiddenSet.has((c.name || '').trim().toUpperCase()));
+  }, [rawCategoriesSL, hiddenCatsSL]);
+
+  const visibleCategoriesDT = useMemo(() => {
+    if (hiddenCatsDT.length === 0) return rawCategoriesDT;
+    const hiddenSet = new Set(hiddenCatsDT.map(s => s.trim().toUpperCase()));
+    return rawCategoriesDT.filter((c: any) => !hiddenSet.has((c.name || '').trim().toUpperCase()));
+  }, [rawCategoriesDT, hiddenCatsDT]);
+
+  const toggleHideCategorySL = (name: string) => {
+    const key = (name || '').trim().toUpperCase();
+    setHiddenCatsSL(prev => {
+      const exists = prev.some(s => s.trim().toUpperCase() === key);
+      if (exists) {
+        return prev.filter(s => s.trim().toUpperCase() !== key);
+      } else {
+        return [...prev, key];
+      }
+    });
+  };
+
+  const toggleHideCategoryDT = (name: string) => {
+    const key = (name || '').trim().toUpperCase();
+    setHiddenCatsDT(prev => {
+      const exists = prev.some(s => s.trim().toUpperCase() === key);
+      if (exists) {
+        return prev.filter(s => s.trim().toUpperCase() !== key);
+      } else {
+        return [...prev, key];
+      }
+    });
+  };
+
+  const showAllCategoriesSL = () => setHiddenCatsSL([]);
+  const showAllCategoriesDT = () => setHiddenCatsDT([]);
+
+  const hideAllCategoriesSL = () => {
+    setHiddenCatsSL(rawCategoriesSL.map((c: any) => (c.name || '').trim().toUpperCase()));
+  };
+
+  const hideAllCategoriesDT = () => {
+    setHiddenCatsDT(rawCategoriesDT.map((c: any) => (c.name || '').trim().toUpperCase()));
+  };
+
+  const hideAchievedCategoriesSL = () => {
+    const achieved = rawCategoriesSL
+      .filter((c: any) => {
+        let rate = 0;
+        if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
+        return Math.round(rate) >= 100;
+      })
+      .map((c: any) => (c.name || '').trim().toUpperCase());
+    setHiddenCatsSL(prev => Array.from(new Set([...prev, ...achieved])));
+  };
+
+  const hideAchievedCategoriesDT = () => {
+    const achieved = rawCategoriesDT
+      .filter((c: any) => {
+        let rate = 0;
+        if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
+        return Math.round(rate) >= 100;
+      })
+      .map((c: any) => (c.name || '').trim().toUpperCase());
+    setHiddenCatsDT(prev => Array.from(new Set([...prev, ...achieved])));
+  };
+
   const formatCurrencyUnit = (num: number) => {
     const abs = Math.abs(Math.round(num));
     if (abs >= 1000) return `${Math.round(num).toLocaleString('vi-VN')} tỷ`;
@@ -1572,8 +1689,8 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     const actualVirtualStr = formatCurrencyUnit(actualVirtual || 0);
     const percentQdStr = `${percentQDVal >= 0 ? '+' : ''}${percentQDVal.toFixed(1)}%`;
 
-    // SL Categories
-    const slCats = filteredCategories.filter((c: any) => c.type === 'SL' || c.type === 'ALL').map((c: any) => {
+    // SL Categories (BC THÁNG > TỔNG QUAN)
+    const slCats = visibleCategoriesSL.map((c: any) => {
       let rate = 0;
       if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
       const remaining = c.target - c.revenue;
@@ -1583,8 +1700,8 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     const slNotDone = slCats.filter(c => Math.round(c.rate) < 100).sort((a, b) => b.remaining - a.remaining);
     const slTop = [...slCats].sort((a, b) => b.rate - a.rate);
 
-    // DT Categories
-    const dtCats = filteredCategories.filter((c: any) => c.type === 'DT' || c.type === 'ALL').map((c: any) => {
+    // DT Categories (BC THÁNG > TỔNG QUAN)
+    const dtCats = visibleCategoriesDT.map((c: any) => {
       let rate = 0;
       if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
       const remaining = c.target - c.revenue;
@@ -1718,7 +1835,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
         text: t3
       }
     ];
-  }, [marketsForDashboard, allStoreTargets, stTargetSauHeSo, stTargetQuyDoi, stPercentTarget, daysPassed, totalDays, filteredCategories, selectedStoreExcelData, maKho, clusterSummaryInput]);
+  }, [marketsForDashboard, allStoreTargets, stTargetSauHeSo, stTargetQuyDoi, stPercentTarget, daysPassed, totalDays, filteredCategories, visibleCategoriesSL, visibleCategoriesDT, selectedStoreExcelData, maKho, clusterSummaryInput]);
 
   const handleOpenCategoryCommentModal = () => {
     setCategoryCommentText(luykeCategoryCommentTemplates[selectedCategoryTemplate]?.text || luykeCategoryCommentTemplates[0]?.text || '');
@@ -2443,7 +2560,25 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                         </button>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => setIsCategoryFilterModalOpen(true)}
+                          className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-[11px] sm:text-[12px] font-black uppercase tracking-wider transition-all duration-300 active:scale-95 cursor-pointer border shadow-sm ${
+                            (hiddenCatsSL.length > 0 || hiddenCatsDT.length > 0)
+                              ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300 ring-2 ring-rose-400/20'
+                              : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                          }`}
+                          title="Bộ lọc ẩn/hiện ngành hàng SL & DT (Chỉ áp dụng cho Tổng quan)"
+                        >
+                          <Filter size={14} className={hiddenCatsSL.length > 0 || hiddenCatsDT.length > 0 ? 'text-rose-600' : 'text-slate-500'} />
+                          <span>ẨN/HIỆN NGÀNH HÀNG</span>
+                          {(hiddenCatsSL.length > 0 || hiddenCatsDT.length > 0) && (
+                            <span className="bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-2xs">
+                              Ẩn {hiddenCatsSL.length + hiddenCatsDT.length}
+                            </span>
+                          )}
+                        </button>
+
                         <button
                           onClick={handleOpenCategoryCommentModal}
                           className="flex items-center gap-2 px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-wider bg-gradient-to-r from-[#2563EB] via-[#4F46E5] to-[#7C3AED] hover:from-[#1D4ED8] hover:via-[#4338CA] hover:to-[#6D28D9] text-white shadow-md shadow-indigo-500/25 transition-all duration-300 active:scale-95 cursor-pointer border border-indigo-400/30"
@@ -2480,11 +2615,11 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                               </span>
                               <span className="opacity-70">||</span>
                               <span className="text-white font-extrabold whitespace-nowrap">
-                                ĐẠT : {filteredCategories.filter((c: any) => c.type === 'SL' || c.type === 'ALL').filter((c: any) => {
+                                ĐẠT : {visibleCategoriesSL.filter((c: any) => {
                                   let rate = 0;
                                   if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
                                   return Math.round(rate) >= 100;
-                                }).length}/{filteredCategories.filter((c: any) => c.type === 'SL' || c.type === 'ALL').length}
+                                }).length}/{visibleCategoriesSL.length}
                               </span>
                               <span className="opacity-70">||</span>
                               <span className="text-emerald-100 font-bold whitespace-nowrap">
@@ -2492,6 +2627,23 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                               </span>
                             </div>
                           </div>
+
+                          {/* Filter Button next to Camera */}
+                          <button
+                            onClick={() => {
+                              setCategoryFilterActiveTab('SL');
+                              setIsCategoryFilterModalOpen(true);
+                            }}
+                            className="no-capture absolute right-12 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                            title="Bộ lọc ẩn/hiện ngành hàng SL"
+                          >
+                            <Filter size={16} />
+                            {hiddenCatsSL.length > 0 && (
+                              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
+                                {hiddenCatsSL.length}
+                              </span>
+                            )}
+                          </button>
 
                           {/* Camera Capture Button */}
                           <button
@@ -2502,6 +2654,33 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                             <Camera size={16} />
                           </button>
                         </div>
+
+                        {hiddenCatsSL.length > 0 && (
+                          <div className="no-capture px-3 py-1.5 bg-rose-50 border border-rose-200/80 rounded-xl text-[11px] font-bold text-rose-700 flex items-center justify-between mb-2.5">
+                            <div className="flex items-center gap-1.5">
+                              <EyeOff size={13} className="text-rose-500" />
+                              <span>Đang ẩn <strong>{hiddenCatsSL.length}</strong> ngành hàng SL</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setCategoryFilterActiveTab('SL');
+                                  setIsCategoryFilterModalOpen(true);
+                                }}
+                                className="underline hover:text-rose-900 cursor-pointer"
+                              >
+                                Chỉnh sửa
+                              </button>
+                              <span>•</span>
+                              <button
+                                onClick={showAllCategoriesSL}
+                                className="hover:text-rose-900 cursor-pointer font-black"
+                              >
+                                Hiện tất cả
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
                         {showSllkComment && (
                           <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl mb-2.5 no-capture">
@@ -2557,31 +2736,42 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                               </tr>
                             </thead>
                             <tbody>
-                              {sortCategoryList(
-                                filteredCategories.filter((c: any) => c.type === 'SL' || c.type === 'ALL'),
-                                sortModeSL
-                              ).map((cat: any, idx: number) => {
-                                let rate = 0;
-                                if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
-                                const remaining = cat.target - cat.revenue;
-                                const isEven = idx % 2 === 0;
-                                return (
-                                  <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
-                                    <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
-                                    <td className={`px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 truncate tracking-tight ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>{cat.name}</td>
-                                    <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
-                                    <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
-                                    <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
-                                      <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
-                                        {Math.round(rate)}%
-                                      </span>
-                                    </td>
-                                    <td className={`px-1 py-0 text-[14.5px] font-bold text-center border-b border-emerald-100/90 ${sortModeSL.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600`}>
-                                      {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
+                              {visibleCategoriesSL.length === 0 ? (
+                                <tr>
+                                  <td colSpan={6} className="py-8 text-center text-xs font-bold text-slate-500 bg-white">
+                                    Tất cả ngành hàng SL đang bị ẩn bởi bộ lọc.
+                                    <button
+                                      onClick={showAllCategoriesSL}
+                                      className="ml-2 text-emerald-600 hover:text-emerald-700 underline font-black cursor-pointer"
+                                    >
+                                      Hiện lại tất cả
+                                    </button>
+                                  </td>
+                                </tr>
+                              ) : (
+                                sortCategoryList(visibleCategoriesSL, sortModeSL).map((cat: any, idx: number) => {
+                                  let rate = 0;
+                                  if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
+                                  const remaining = cat.target - cat.revenue;
+                                  const isEven = idx % 2 === 0;
+                                  return (
+                                    <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
+                                      <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
+                                      <td className={`px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 truncate tracking-tight ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>{cat.name}</td>
+                                      <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
+                                      <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                      <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
+                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
+                                          {Math.round(rate)}%
+                                        </span>
+                                      </td>
+                                      <td className={`px-1 py-0 text-[14.5px] font-bold text-center border-b border-emerald-100/90 ${sortModeSL.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600`}>
+                                        {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              )}
                             </tbody>
                           </table>
                         </div>
@@ -2601,11 +2791,11 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                               </span>
                               <span className="opacity-70">||</span>
                               <span className="text-white font-extrabold whitespace-nowrap">
-                                ĐẠT : {filteredCategories.filter((c: any) => c.type === 'DT' || c.type === 'ALL').filter((c: any) => {
+                                ĐẠT : {visibleCategoriesDT.filter((c: any) => {
                                   let rate = 0;
                                   if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
                                   return Math.round(rate) >= 100;
-                                }).length}/{filteredCategories.filter((c: any) => c.type === 'DT' || c.type === 'ALL').length}
+                                }).length}/{visibleCategoriesDT.length}
                               </span>
                               <span className="opacity-70">||</span>
                               <span className="text-emerald-100 font-bold whitespace-nowrap">
@@ -2613,6 +2803,23 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                               </span>
                             </div>
                           </div>
+
+                          {/* Filter Button next to Camera */}
+                          <button
+                            onClick={() => {
+                              setCategoryFilterActiveTab('DT');
+                              setIsCategoryFilterModalOpen(true);
+                            }}
+                            className="no-capture absolute right-12 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                            title="Bộ lọc ẩn/hiện ngành hàng DT"
+                          >
+                            <Filter size={16} />
+                            {hiddenCatsDT.length > 0 && (
+                              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
+                                {hiddenCatsDT.length}
+                              </span>
+                            )}
+                          </button>
 
                           {/* Camera Capture Button */}
                           <button
@@ -2623,6 +2830,33 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                             <Camera size={16} />
                           </button>
                         </div>
+
+                        {hiddenCatsDT.length > 0 && (
+                          <div className="no-capture px-3 py-1.5 bg-rose-50 border border-rose-200/80 rounded-xl text-[11px] font-bold text-rose-700 flex items-center justify-between mb-2.5">
+                            <div className="flex items-center gap-1.5">
+                              <EyeOff size={13} className="text-rose-500" />
+                              <span>Đang ẩn <strong>{hiddenCatsDT.length}</strong> ngành hàng DT</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setCategoryFilterActiveTab('DT');
+                                  setIsCategoryFilterModalOpen(true);
+                                }}
+                                className="underline hover:text-rose-900 cursor-pointer"
+                              >
+                                Chỉnh sửa
+                              </button>
+                              <span>•</span>
+                              <button
+                                onClick={showAllCategoriesDT}
+                                className="hover:text-rose-900 cursor-pointer font-black"
+                              >
+                                Hiện tất cả
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
                         {showDtlkComment && (
                           <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl mb-2.5 no-capture">
@@ -2678,31 +2912,42 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                               </tr>
                             </thead>
                             <tbody>
-                              {sortCategoryList(
-                                filteredCategories.filter((c: any) => c.type === 'DT' || c.type === 'ALL'),
-                                sortModeDT
-                              ).map((cat: any, idx: number) => {
-                                let rate = 0;
-                                if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
-                                const remaining = cat.target - cat.revenue;
-                                const isEven = idx % 2 === 0;
-                                return (
-                                  <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
-                                    <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
-                                    <td className={`px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 truncate tracking-tight ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>{cat.name}</td>
-                                    <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
-                                    <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
-                                    <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
-                                      <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
-                                        {Math.round(rate)}%
-                                      </span>
-                                    </td>
-                                    <td className={`px-1 py-0 text-[14.5px] font-bold text-center border-b border-emerald-100/90 ${sortModeDT.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600`}>
-                                      {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
+                              {visibleCategoriesDT.length === 0 ? (
+                                <tr>
+                                  <td colSpan={6} className="py-8 text-center text-xs font-bold text-slate-500 bg-white">
+                                    Tất cả ngành hàng DT đang bị ẩn bởi bộ lọc.
+                                    <button
+                                      onClick={showAllCategoriesDT}
+                                      className="ml-2 text-emerald-600 hover:text-emerald-700 underline font-black cursor-pointer"
+                                    >
+                                      Hiện lại tất cả
+                                    </button>
+                                  </td>
+                                </tr>
+                              ) : (
+                                sortCategoryList(visibleCategoriesDT, sortModeDT).map((cat: any, idx: number) => {
+                                  let rate = 0;
+                                  if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
+                                  const remaining = cat.target - cat.revenue;
+                                  const isEven = idx % 2 === 0;
+                                  return (
+                                    <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
+                                      <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
+                                      <td className={`px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 truncate tracking-tight ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>{cat.name}</td>
+                                      <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
+                                      <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                      <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
+                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
+                                          {Math.round(rate)}%
+                                        </span>
+                                      </td>
+                                      <td className={`px-1 py-0 text-[14.5px] font-bold text-center border-b border-emerald-100/90 ${sortModeDT.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600`}>
+                                        {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              )}
                             </tbody>
                           </table>
                         </div>
@@ -3494,6 +3739,251 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Bộ Lọc Ẩn Ngành Hàng Modal (Chỉ áp dụng riêng cho BC THÁNG > TỔNG QUAN) */}
+      {isCategoryFilterModalOpen && typeof document !== 'undefined' && ReactDOM.createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
+          <div
+            onClick={() => setIsCategoryFilterModalOpen(false)}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+          />
+          <div
+            className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 z-10 my-auto animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]"
+            style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}
+          >
+            {/* Header Banner */}
+            <div className="flex items-center justify-between px-5 sm:px-6 py-4 bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] text-white shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white backdrop-blur-xs">
+                  <Filter size={18} />
+                </div>
+                <div>
+                  <h3 className="text-[14.5px] sm:text-[16px] font-black text-white uppercase tracking-wide">
+                    Bộ Lọc Ẩn Ngành Hàng
+                  </h3>
+                  <p className="text-[10.5px] text-emerald-100 font-medium">
+                    Áp dụng riêng cho BC THÁNG &gt; TỔNG QUAN • Lưu tự động vào trình duyệt
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsCategoryFilterModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-white/20 text-white transition-colors cursor-pointer"
+                title="Đóng modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Subtabs SL vs DT */}
+            <div className="px-5 sm:px-6 pt-4 pb-2 border-b border-slate-100 bg-slate-50/70 shrink-0">
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  onClick={() => setCategoryFilterActiveTab('SL')}
+                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${
+                    categoryFilterActiveTab === 'SL'
+                      ? 'bg-gradient-to-r from-[#047857] to-[#10B981] text-white border-emerald-600 shadow-sm'
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                  }`}
+                >
+                  <span>NGÀNH HÀNG (SL)</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    categoryFilterActiveTab === 'SL' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {visibleCategoriesSL.length}/{rawCategoriesSL.length}
+                  </span>
+                  {hiddenCatsSL.length > 0 && (
+                    <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full">
+                      Ẩn {hiddenCatsSL.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setCategoryFilterActiveTab('DT')}
+                  className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${
+                    categoryFilterActiveTab === 'DT'
+                      ? 'bg-gradient-to-r from-[#047857] to-[#10B981] text-white border-emerald-600 shadow-sm'
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                  }`}
+                >
+                  <span>NGÀNH HÀNG (DT)</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    categoryFilterActiveTab === 'DT' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {visibleCategoriesDT.length}/{rawCategoriesDT.length}
+                  </span>
+                  {hiddenCatsDT.length > 0 && (
+                    <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full">
+                      Ẩn {hiddenCatsDT.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Search & Fast Actions */}
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2.5">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={categoryFilterSearch}
+                    onChange={(e) => setCategoryFilterSearch(e.target.value)}
+                    placeholder={`Tìm kiếm ngành hàng ${categoryFilterActiveTab}...`}
+                    className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                  {categoryFilterSearch && (
+                    <button
+                      onClick={() => setCategoryFilterSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    onClick={() => categoryFilterActiveTab === 'SL' ? showAllCategoriesSL() : showAllCategoriesDT()}
+                    className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-[11px] font-black uppercase transition-all cursor-pointer"
+                    title="Hiện tất cả ngành hàng trong danh sách này"
+                  >
+                    Hiện tất cả
+                  </button>
+
+                  <button
+                    onClick={() => categoryFilterActiveTab === 'SL' ? hideAchievedCategoriesSL() : hideAchievedCategoriesDT()}
+                    className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-[11px] font-black uppercase transition-all cursor-pointer"
+                    title="Ẩn những ngành hàng đã đạt kế hoạch (>= 100%)"
+                  >
+                    Ẩn ngành đã đạt
+                  </button>
+
+                  <button
+                    onClick={() => categoryFilterActiveTab === 'SL' ? hideAllCategoriesSL() : hideAllCategoriesDT()}
+                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 rounded-xl text-[11px] font-black uppercase transition-all cursor-pointer"
+                    title="Ẩn toàn bộ ngành hàng trong danh sách này"
+                  >
+                    Ẩn tất cả
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Category Items List */}
+            <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-2">
+              {(() => {
+                const currentList = categoryFilterActiveTab === 'SL' ? rawCategoriesSL : rawCategoriesDT;
+                const currentHidden = categoryFilterActiveTab === 'SL' ? hiddenCatsSL : hiddenCatsDT;
+                const toggleFn = categoryFilterActiveTab === 'SL' ? toggleHideCategorySL : toggleHideCategoryDT;
+
+                const filteredList = currentList.filter((c: any) => {
+                  if (!categoryFilterSearch.trim()) return true;
+                  return (c.name || '').toLowerCase().includes(categoryFilterSearch.toLowerCase().trim());
+                });
+
+                if (filteredList.length === 0) {
+                  return (
+                    <div className="py-12 text-center text-slate-400">
+                      <p className="text-sm font-bold">Không tìm thấy ngành hàng phù hợp với từ khóa "{categoryFilterSearch}"</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {filteredList.map((cat: any, idx: number) => {
+                      const isHidden = currentHidden.includes((cat.name || '').trim().toUpperCase());
+                      let rate = 0;
+                      if (cat.target > 0 && daysPassed > 0) {
+                        rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
+                      }
+
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => toggleFn(cat.name)}
+                          className={`p-2.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-2.5 select-none ${
+                            !isHidden
+                              ? 'bg-white hover:bg-emerald-50/40 border-emerald-200 shadow-2xs'
+                              : 'bg-slate-50/90 hover:bg-slate-100 border-slate-200 opacity-60'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {/* Checkbox / Eye toggle */}
+                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border transition-all ${
+                              !isHidden
+                                ? 'bg-emerald-600 border-emerald-600 text-white'
+                                : 'bg-white border-slate-300 text-slate-400'
+                            }`}>
+                              {!isHidden ? <Check size={14} strokeWidth={3} /> : <EyeOff size={12} />}
+                            </div>
+
+                            <div className="min-w-0">
+                              <h4 className={`text-xs font-black uppercase truncate ${
+                                !isHidden ? 'text-slate-800' : 'text-slate-400 line-through'
+                              }`}>
+                                {cat.name}
+                              </h4>
+                              <div className="text-[10px] text-slate-500 font-semibold flex items-center gap-2 mt-0.5">
+                                <span>Target: {Math.round(cat.target || 0).toLocaleString()}</span>
+                                <span>•</span>
+                                <span>LK: {Math.round(cat.revenue || 0).toLocaleString()}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-md font-black text-[11px] leading-none ${
+                              Math.round(rate) >= 100
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-rose-100 text-rose-600'
+                            }`}>
+                              {Math.round(rate)}%
+                            </span>
+                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                              !isHidden
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-slate-200 text-slate-600'
+                            }`}>
+                              {!isHidden ? 'Hiện' : 'Ẩn'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer Actions */}
+            <div className="px-5 sm:px-6 py-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    showAllCategoriesSL();
+                    showAllCategoriesDT();
+                  }}
+                  className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                  title="Đặt lại hiển thị tất cả ngành hàng cho cả 2 bảng SL và DT"
+                >
+                  <RotateCcw size={12} />
+                  <span>Đặt lại mặc định (Hiện tất cả SL & DT)</span>
+                </button>
+              </div>
+
+              <button
+                onClick={() => setIsCategoryFilterModalOpen(false)}
+                className="px-6 py-2 bg-gradient-to-r from-[#047857] to-[#10B981] hover:from-[#036348] hover:to-[#059669] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer"
+              >
+                Xác nhận & Hoàn tất
+              </button>
             </div>
           </div>
         </div>,
