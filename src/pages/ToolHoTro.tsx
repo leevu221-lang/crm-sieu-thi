@@ -545,6 +545,17 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     sortOrder: '' // '' | 'asc' | 'desc'
   });
 
+  // Ô nhập "Tên sản phẩm" tách riêng khỏi filters.tenSanPham để gõ mượt: mỗi lần
+  // filters.tenSanPham đổi sẽ kéo theo lọc lại toàn bộ bảng giá + reset selection/quantity
+  // (bảng có thể rất lớn), nên chỉ đẩy giá trị vào filters sau khi người dùng ngừng gõ.
+  const [tenSanPhamInput, setTenSanPhamInput] = useState('');
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setFilters(prev => (prev.tenSanPham === tenSanPhamInput ? prev : { ...prev, tenSanPham: tenSanPhamInput }));
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [tenSanPhamInput]);
+
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [scannerSessionId, setScannerSessionId] = useState('');
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
@@ -2374,14 +2385,35 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     try {
       setInventoryData(scannedCodes);
       setLastUpdateInventory(new Date().toLocaleString('vi-VN'));
-      
+
       const keys = getStorageKeysForTab(activeTab);
       const storageKey = keys.inventory;
-      
+
       safeLocalStorageSet(storageKey, JSON.stringify({
         data: scannedCodes,
         timestamp: new Date().toISOString()
       }));
+
+      // Đồng bộ mã đã quét lên Supabase để không bị mất khi tải lại trang / đổi siêu thị,
+      // giống hệt luồng tải file Excel tồn kho cho tab EVENT ĐMX.
+      if (activeTab === 'sticker-event-dmx') {
+        const storeName = currentStoreId !== 'ALL' ? currentStoreId : '';
+        if (storeName) {
+          const normalizedId = normalizeStoreId(storeName);
+          const cleanStoreCode = maKho.replace(/^0+/, '');
+          const { error: syncErr } = await supabase
+            .from('store')
+            .upsert({
+              id: normalizedId,
+              ten_sieu_thi: storeName,
+              warehouse_code: cleanStoreCode,
+              sticker_ce_inventory_data: JSON.stringify(scannedCodes)
+            }, { onConflict: 'id' });
+          if (syncErr) {
+            console.error('Lỗi khi đồng bộ mã quét lên Firebase:', syncErr);
+          }
+        }
+      }
 
       if (scannerSessionId) {
         supabase.from('scanner_sessions').delete().eq('id', scannerSessionId)
@@ -4464,9 +4496,10 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                         <span className="text-sm font-medium text-slate-600">Có trong tồn kho</span>
                       </label>
                     </div>
-                    <button 
+                    <button
                       onClick={() => {
                         setFilters({ maSieuThi: '', nganhHang: '', nhomHang: '', tenSanPham: '', onlyInventory: false, selectedQrs: null, sortOrder: '' });
+                        setTenSanPhamInput('');
                         setPrintQuantity('');
                       }}
                       className="text-sm font-medium text-emerald-700 hover:text-emerald-800 hover:underline"
@@ -4510,11 +4543,11 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-500">Tên sản phẩm</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         placeholder="Tên hoặc mã SP..."
-                        value={filters.tenSanPham}
-                        onChange={(e) => setFilters(prev => ({ ...prev, tenSanPham: e.target.value }))}
+                        value={tenSanPhamInput}
+                        onChange={(e) => setTenSanPhamInput(e.target.value)}
                         className="w-full bg-white border border-emerald-200/80 text-slate-800 py-2.5 px-3 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                       />
                     </div>
