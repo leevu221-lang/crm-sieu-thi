@@ -5,9 +5,9 @@ import {
   ChevronDown, CheckCircle2, Save, Loader2, Calendar, ArrowUpDown, 
   SortAsc, SortDesc, PieChart, Users, UploadCloud, Settings, 
   ChevronRight, LayoutGrid, FileText, Tag, Scan, MapPin, ClipboardList,
-  RefreshCw, AlertCircle, Banknote, RotateCcw
+  RefreshCw, AlertCircle, Banknote, RotateCcw,
+  ShoppingCart, Plus, ShoppingBag, Minus
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -368,6 +368,21 @@ function safeLocalStorageSet(key: string, value: string) {
   }
 }
 
+export interface EventDmxCartItem {
+  id: string;
+  maSanPham: string;
+  productCode?: string;
+  name: string;
+  tonKho?: number;
+  originalPrice?: number | string;
+  discountPrice?: number | string;
+  nganhHang?: string;
+  nhomHang?: string;
+  qrData?: string;
+  quantity: number;
+  addedAt?: string;
+}
+
 export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local = false }: { pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean }) {
   const { userProfile } = useAuth();
   const maKho = userProfile?.ma_kho || '';
@@ -395,6 +410,29 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   const [lastUpdateInventory, setLastUpdateInventory] = useState<string | null>(null);
   const [lastUpdatePrice, setLastUpdatePrice] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error' | '', text: string }>({ type: '', text: '' });
+
+  const [cartItems, setCartItems] = useState<EventDmxCartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('rtst_sticker_event_dmx_cart');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isCartModalOpen, setIsCartModalOpen] = useState<boolean>(false);
+  const [printSource, setPrintSource] = useState<'table' | 'cart'>('table');
+
+  useEffect(() => {
+    try {
+      safeLocalStorageSet('rtst_sticker_event_dmx_cart', JSON.stringify(cartItems));
+    } catch (e) {
+      console.error('Error saving cart to localStorage:', e);
+    }
+  }, [cartItems]);
+
+  const totalCartStickers = useMemo(() => {
+    return cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
+  }, [cartItems]);
 
   const getStorageKeysForTab = (tab: string) => {
     switch (tab) {
@@ -1249,6 +1287,117 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     setPrintQuantities(newQuantities);
     setSelectedIndices(newSelected);
     showNotification(`Đã đặt số lượng in theo tồn kho cho ${filteredPriceData.length} sản phẩm hiển thị!`, 'success');
+  };
+
+  const handleAddToCart = (item: any, quantityToPrint: number) => {
+    const qty = Math.max(1, quantityToPrint || 1);
+    const code = item.maSanPham || item.productCode || (item.name || '').split(' - ')[0].trim();
+    setCartItems(prev => {
+      const existingIdx = prev.findIndex(p => (p.maSanPham || p.productCode) === code);
+      if (existingIdx !== -1) {
+        const updated = [...prev];
+        updated[existingIdx] = {
+          ...updated[existingIdx],
+          quantity: updated[existingIdx].quantity + qty,
+          tonKho: item.tonKho !== undefined ? item.tonKho : updated[existingIdx].tonKho,
+          discountPrice: item.discountPrice || updated[existingIdx].discountPrice,
+          originalPrice: item.originalPrice || updated[existingIdx].originalPrice,
+        };
+        showNotification(`Đã tăng số lượng "${item.name}" trong giỏ in (+${qty} tem)!`, 'success');
+        return updated;
+      } else {
+        const newItem: EventDmxCartItem = {
+          id: code || `${Date.now()}_${Math.random()}`,
+          maSanPham: code,
+          productCode: item.productCode || code,
+          name: item.name,
+          tonKho: item.tonKho || 0,
+          originalPrice: item.originalPrice || '',
+          discountPrice: item.discountPrice || '',
+          nganhHang: item.nganhHang || '',
+          nhomHang: item.nhomHang || '',
+          qrData: item.qrData || '',
+          quantity: qty,
+          addedAt: new Date().toISOString()
+        };
+        showNotification(`Đã thêm "${item.name}" vào giỏ in (${qty} tem)!`, 'success');
+        return [...prev, newItem];
+      }
+    });
+  };
+
+  const handleAddSelectedToCart = () => {
+    if (selectedIndices.length === 0) {
+      showNotification('Vui lòng tick chọn ít nhất 1 sản phẩm để thêm vào giỏ in!', 'error');
+      return;
+    }
+    let count = 0;
+    setCartItems(prev => {
+      const map = new Map<string, EventDmxCartItem>();
+      prev.forEach(p => map.set(p.maSanPham || p.productCode || p.id, { ...p }));
+
+      selectedIndices.forEach(idx => {
+        const item = filteredPriceData[idx];
+        if (!item) return;
+        const code = item.maSanPham || item.productCode || (item.name || '').split(' - ')[0].trim();
+        const qty = Math.max(1, printQuantities[idx] || 1);
+        if (map.has(code)) {
+          const exist = map.get(code)!;
+          exist.quantity = exist.quantity + qty;
+          exist.tonKho = item.tonKho !== undefined ? item.tonKho : exist.tonKho;
+          exist.discountPrice = item.discountPrice || exist.discountPrice;
+          exist.originalPrice = item.originalPrice || exist.originalPrice;
+        } else {
+          map.set(code, {
+            id: code || `${Date.now()}_${Math.random()}`,
+            maSanPham: code,
+            productCode: item.productCode || code,
+            name: item.name,
+            tonKho: item.tonKho || 0,
+            originalPrice: item.originalPrice || '',
+            discountPrice: item.discountPrice || '',
+            nganhHang: item.nganhHang || '',
+            nhomHang: item.nhomHang || '',
+            qrData: item.qrData || '',
+            quantity: qty,
+            addedAt: new Date().toISOString()
+          });
+        }
+        count++;
+      });
+      return Array.from(map.values());
+    });
+    showNotification(`Đã thêm ${count} sản phẩm đã chọn vào giỏ hàng in!`, 'success');
+  };
+
+  const handleUpdateCartItemQty = (id: string, newQty: number) => {
+    const qty = Math.max(1, newQty);
+    setCartItems(prev => prev.map(p => (p.id === id || p.maSanPham === id) ? { ...p, quantity: qty } : p));
+  };
+
+  const handleRemoveCartItem = (id: string) => {
+    setCartItems(prev => prev.filter(p => p.id !== id && p.maSanPham !== id));
+    showNotification('Đã xóa sản phẩm khỏi giỏ in!', 'info');
+  };
+
+  const handleClearCart = () => {
+    if (cartItems.length === 0) return;
+    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ sản phẩm trong giỏ hàng in không?')) {
+      setCartItems([]);
+      localStorage.removeItem('rtst_sticker_event_dmx_cart');
+      showNotification('Đã xóa sạch giỏ hàng in!', 'info');
+    }
+  };
+
+  const handlePrintFromCart = (layout: string) => {
+    if (cartItems.length === 0) {
+      showNotification('Giỏ hàng in đang trống, vui lòng thêm sản phẩm vào giỏ trước khi in!', 'error');
+      return;
+    }
+    setPrintSource('cart');
+    setPrintConfig({ style: 'classic', layout, showPromoLabel: showEventPromoLabel });
+    setIsCartModalOpen(false);
+    setIsPrintModalOpen(true);
   };
 
   const totalStickersToPrint = React.useMemo(() => {
@@ -4116,6 +4265,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             key={s.layout}
                             onMouseEnter={() => setEventPrintLayout(s.layout)}
                             onClick={() => {
+                              setPrintSource('table');
                               setPrintConfig({ style: 'classic', layout: s.layout, showPromoLabel: showEventPromoLabel });
                               setIsPrintModalOpen(true);
                             }}
@@ -4132,10 +4282,12 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                         ))}
                       </div>
                       {activeTab === 'sticker-event-dmx' && (
+                        <>
                         <div className="mt-2 grid grid-cols-2 gap-2">
                           <button
                             onMouseEnter={() => setEventPrintLayout('12')}
                             onClick={() => {
+                              setPrintSource('table');
                               setPrintConfig({ style: 'classic', layout: '12', showPromoLabel: showEventPromoLabel });
                               setIsPrintModalOpen(true);
                             }}
@@ -4152,6 +4304,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                           <button
                             onMouseEnter={() => setEventPrintLayout('16')}
                             onClick={() => {
+                              setPrintSource('table');
                               setPrintConfig({ style: 'classic', layout: '16', showPromoLabel: showEventPromoLabel });
                               setIsPrintModalOpen(true);
                             }}
@@ -4166,6 +4319,47 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             <span>BẤM ĐỂ IN (16 / TRANG A4)</span>
                           </button>
                         </div>
+
+                        {/* Banner Giỏ Hàng In Lưu Trữ Bền Vững */}
+                        {cartItems.length > 0 && (
+                          <div className="mt-3 p-3.5 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 rounded-2xl border border-amber-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-900 flex items-center justify-center shrink-0">
+                                <ShoppingBag size={18} className="text-amber-700" />
+                              </div>
+                              <div>
+                                <div className="text-xs font-black text-amber-950 flex items-center gap-2">
+                                  <span>Giỏ hàng in:</span>
+                                  <span className="text-orange-700 bg-amber-100 px-2 py-0.5 rounded-md font-black">{cartItems.length} sản phẩm</span>
+                                  <span className="text-slate-600 font-bold">({totalCartStickers} tem)</span>
+                                </div>
+                                <div className="text-[10px] text-amber-700 font-medium mt-0.5">
+                                  Được lưu tự động qua các lần lọc. Giữ nguyên đến khi bấm Xóa giỏ hàng.
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setIsCartModalOpen(true)}
+                                className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 rounded-xl text-xs font-black transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <ShoppingCart size={14} />
+                                <span>Xem & In Giỏ</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleClearCart}
+                                className="px-2.5 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                                title="Xóa toàn bộ sản phẩm trong giỏ hàng in"
+                              >
+                                <Trash2 size={13} />
+                                <span>Xóa</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        </>
                       )}
                       </>
                     )}
@@ -4436,7 +4630,36 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        {activeTab === 'sticker-event-dmx' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={handleAddSelectedToCart}
+                              disabled={selectedIndices.length === 0}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-xs cursor-pointer"
+                              title="Thêm các sản phẩm đang tick chọn vào giỏ hàng in"
+                            >
+                              <Plus size={14} />
+                              <span>Thêm đã chọn ({selectedIndices.length})</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setIsCartModalOpen(true)}
+                              className="relative flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black rounded-xl text-xs shadow-sm transition-all cursor-pointer"
+                              title="Xem và in danh sách sản phẩm trong giỏ hàng"
+                            >
+                              <ShoppingCart size={14} />
+                              <span>Giỏ in ({cartItems.length})</span>
+                              {totalCartStickers > 0 && (
+                                <span className="bg-slate-950 text-amber-300 text-[10px] font-black px-1.5 py-0.2 rounded-full ml-0.5">
+                                  {totalCartStickers} tem
+                                </span>
+                              )}
+                            </button>
+                          </>
+                        )}
                         {saveMessage.text && (
                           <span className={`text-xs font-bold ${saveMessage.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
                             {saveMessage.text}
@@ -4458,6 +4681,11 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             </th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">STT</th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-center">SL In</th>
+                            {activeTab === 'sticker-event-dmx' && (
+                              <th className="py-3 px-2 text-xs font-bold text-indigo-700 uppercase tracking-wider border-b border-slate-200 text-center w-14 bg-indigo-50/60">
+                                Giỏ in
+                              </th>
+                            )}
                             {activeTab === 'sticker-event-dmx' && (
                               <th className="py-2.5 px-3 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-center bg-slate-50/80">
                                 <div className="flex flex-col items-center gap-1">
@@ -4504,6 +4732,18 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                   onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 0)}
                                 />
                               </td>
+                              {activeTab === 'sticker-event-dmx' && (
+                                <td className="py-3 px-2 text-center bg-indigo-50/20">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddToCart(item, printQuantities[index] || 1)}
+                                    className="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100 rounded-lg transition-colors inline-flex items-center justify-center cursor-pointer"
+                                    title={`Thêm ${item.name} (${printQuantities[index] || 1} tem) vào giỏ in`}
+                                  >
+                                    <ShoppingCart size={16} />
+                                  </button>
+                                </td>
+                              )}
                               {activeTab === 'sticker-event-dmx' && (
                                 <td className="py-3 px-4 text-center text-sm font-black text-emerald-600 bg-slate-50/40">
                                   {item.tonKho ?? 0}
@@ -5125,7 +5365,10 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
       <StickerPrintModal 
         isOpen={isPrintModalOpen} 
-        onClose={() => setIsPrintModalOpen(false)} 
+        onClose={() => {
+          setIsPrintModalOpen(false);
+          setPrintSource('table');
+        }} 
         data={
           activeTab === 'sticker-dcnb'
             ? Array(24).fill({})
@@ -5143,11 +5386,15 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                       productCode: '',
                       qrData: ''
                     }))
-                  : (isPrintModalOpen ? filteredPriceData.flatMap((item, index) => {
-                    const isSelected = selectedIndices.length === 0 || selectedIndices.includes(index);
-                    const quantity = printQuantities[index] || 1;
-                    return isSelected && quantity > 0 ? Array(quantity).fill(item) : [];
-                  }) : [])
+                  : (isPrintModalOpen ? (
+                      (activeTab === 'sticker-event-dmx' && printSource === 'cart')
+                        ? cartItems.flatMap(item => Array(item.quantity || 1).fill(item))
+                        : filteredPriceData.flatMap((item, index) => {
+                            const isSelected = selectedIndices.length === 0 || selectedIndices.includes(index);
+                            const quantity = printQuantities[index] || 1;
+                            return isSelected && quantity > 0 ? Array(quantity).fill(item) : [];
+                          })
+                    ) : [])
         } 
         config={
           activeTab === 'in-dia-chi'
@@ -5160,6 +5407,219 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         mlnFooterTemplate={activeTab === 'sticker-gvgs' ? gvgsFooterTemplate : mlnFooterTemplate}
         promoLabelText={promoLabelTextVal}
       />
+
+      {/* Modal Giỏ Hàng In - EVENT ĐMX */}
+      {isCartModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 md:p-4 animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] shadow-2xl overflow-hidden border border-slate-200 flex flex-col">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 px-5 py-4 text-slate-950 flex items-center justify-between shrink-0 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-slate-950/10 backdrop-blur-xs flex items-center justify-center text-slate-950 font-black">
+                  <ShoppingCart size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-base md:text-lg uppercase tracking-wider leading-tight text-slate-950">
+                      Giỏ Hàng In Tem - EVENT ĐMX
+                    </h3>
+                    <span className="bg-slate-950 text-amber-300 text-xs font-black px-2.5 py-0.5 rounded-full shadow-xs">
+                      {cartItems.length} sản phẩm
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-900/90 font-semibold mt-0.5">
+                    Lưu trữ bền vững đến khi bấm "Xóa giỏ hàng" • Tổng {totalCartStickers} tem in
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsCartModalOpen(false)}
+                className="w-9 h-9 rounded-full bg-black/10 hover:bg-black/20 text-slate-950 flex items-center justify-center transition-colors cursor-pointer"
+                title="Đóng modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Toolbar if cart has items */}
+            {cartItems.length > 0 ? (
+              <div className="px-5 py-3 bg-amber-50/60 border-b border-amber-100 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
+                <div className="flex items-center gap-2 text-slate-700 font-medium">
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Dữ liệu giỏ được lưu trên máy này, không bị mất khi lọc dữ liệu hoặc tải lại trang.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearCart}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer hover:border-red-300"
+                >
+                  <Trash2 size={13} />
+                  <span>Xóa toàn bộ giỏ hàng</span>
+                </button>
+              </div>
+            ) : null}
+
+            {/* Body */}
+            <div className="p-4 md:p-5 overflow-y-auto flex-1 space-y-4">
+              {cartItems.length === 0 ? (
+                <div className="py-16 flex flex-col items-center justify-center text-center">
+                  <div className="w-20 h-20 rounded-3xl bg-amber-50 border border-amber-200 text-amber-500 flex items-center justify-center mb-4 shadow-sm">
+                    <ShoppingBag size={40} />
+                  </div>
+                  <h4 className="text-base font-black text-slate-800 uppercase tracking-wide">
+                    Giỏ hàng in đang trống
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-md mt-1 font-medium leading-relaxed">
+                    Hãy vào danh sách bảng giá sản phẩm EVENT ĐMX, tick chọn sản phẩm hoặc bấm icon <ShoppingCart size={14} className="inline text-indigo-600 mx-1 align-text-bottom" /> trên từng dòng để thêm vào giỏ in!
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setIsCartModalOpen(false)}
+                    className="mt-5 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer"
+                  >
+                    Quay lại bảng giá
+                  </button>
+                </div>
+              ) : (
+                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+                  <div className="overflow-x-auto max-h-[46vh]" style={{ WebkitOverflowScrolling: 'touch' }}>
+                    <table className="w-full text-left border-collapse min-w-[700px]">
+                      <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-xs border-b border-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider">
+                        <tr>
+                          <th className="py-3 px-3 text-center w-12">STT</th>
+                          <th className="py-3 px-3 text-center w-32">SL In (Tem)</th>
+                          <th className="py-3 px-3 text-center w-20">Tồn kho</th>
+                          <th className="py-3 px-3">Mã SP</th>
+                          <th className="py-3 px-4">Tên sản phẩm</th>
+                          <th className="py-3 px-3 text-right">Giá KM</th>
+                          <th className="py-3 px-3 text-center w-12">Xóa</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-sm">
+                        {cartItems.map((item, idx) => (
+                          <tr key={item.id || idx} className="hover:bg-amber-50/30 transition-colors">
+                            <td className="py-3 px-3 text-center font-bold text-slate-400 text-xs">{idx + 1}</td>
+                            <td className="py-3 px-3 text-center">
+                              <div className="inline-flex items-center border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateCartItemQty(item.id, (item.quantity || 1) - 1)}
+                                  className="p-1.5 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+                                  title="Giảm 1 tem"
+                                >
+                                  <Minus size={12} />
+                                </button>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={item.quantity || 1}
+                                  onChange={(e) => handleUpdateCartItemQty(item.id, parseInt(e.target.value) || 1)}
+                                  className="w-12 text-center text-xs font-black text-slate-800 py-1 focus:outline-none bg-transparent"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateCartItemQty(item.id, (item.quantity || 1) + 1)}
+                                  className="p-1.5 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+                                  title="Tăng 1 tem"
+                                >
+                                  <Plus size={12} />
+                                </button>
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 text-center font-black text-emerald-600 text-xs">
+                              <span className="bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                                {item.tonKho ?? 0}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-xs font-bold text-indigo-600 font-mono">
+                              {item.maSanPham || item.productCode || '-'}
+                            </td>
+                            <td className="py-3 px-4 text-xs font-bold text-slate-800 leading-snug">
+                              {item.name}
+                              {(item.nganhHang || item.nhomHang) && (
+                                <div className="text-[10px] text-slate-400 font-normal mt-0.5">
+                                  {[item.nganhHang, item.nhomHang].filter(Boolean).join(' • ')}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              <div className="text-xs font-black text-red-600">
+                                {Number(item.discountPrice || 0).toLocaleString('vi-VN')} đ
+                              </div>
+                              {Number(item.originalPrice || 0) > 0 && (
+                                <div className="text-[10px] text-slate-400 line-through">
+                                  {Number(item.originalPrice || 0).toLocaleString('vi-VN')} đ
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveCartItem(item.id)}
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                title="Xóa khỏi giỏ in"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer / Quick Print Layout Selector */}
+            {cartItems.length > 0 && (
+              <div className="p-4 md:p-5 bg-slate-50/90 border-t border-slate-200 shrink-0 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Printer size={16} className="text-indigo-600" />
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-800">
+                      Chọn Bố Cục In Nhanh Từ Toàn Bộ Giỏ Hàng
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 font-medium">
+                    Tổng cộng: <strong className="text-slate-900 font-black">{cartItems.length} sản phẩm</strong> • <strong className="text-orange-600 font-black">{totalCartStickers} tem in</strong>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                  {[
+                    { layout: '1', label: '1 Tem / A4' },
+                    { layout: '2', label: '2 Tem / A4' },
+                    { layout: '4', label: '4 Tem / A4' },
+                    { layout: '8', label: '8 Tem / A4' },
+                    { layout: '12', label: '12 Tem / A4' },
+                    { layout: '16', label: '16 Tem / A4' },
+                  ].map(l => {
+                    const pages = Math.ceil(totalCartStickers / parseInt(l.layout));
+                    return (
+                      <button
+                        key={l.layout}
+                        type="button"
+                        onClick={() => handlePrintFromCart(l.layout)}
+                        className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer shadow-2xs ${
+                          l.layout === '4' || l.layout === '8'
+                            ? 'bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 border-amber-500 font-black'
+                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 font-bold'
+                        }`}
+                        title={`In ${totalCartStickers} tem theo bố cục ${l.label} (khoảng ${pages} trang A4)`}
+                      >
+                        <span className="text-xs">{l.label}</span>
+                        <span className="text-[10px] opacity-80 font-semibold">~{pages} trang A4</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Scanner Modal */}
       {isScannerOpen && (
