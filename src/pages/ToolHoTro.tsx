@@ -404,6 +404,9 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   const [priceFile, setPriceFile] = useState<File | null>(null);
   const [inventoryData, setInventoryData] = useState<any[]>([]);
   const [priceData, setPriceData] = useState<any[]>([]);
+  // Skips the next priceData autosave-to-localStorage pass when the caller already wrote
+  // the exact same cache entry (avoids double JSON.stringify of a potentially large list).
+  const skipNextPriceAutosaveRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [updatedBy, setUpdatedBy] = useState<string>('43751');
@@ -660,6 +663,28 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
       if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-gvgs') {
         const docId = activeTab === 'sticker-gvgs' ? 'GVGS_GLOBAL' : 'EVENT_DMX_GLOBAL';
+
+        // Paint the last-known price list instantly from localStorage so the tab isn't
+        // blank while the shared (potentially large) price blob round-trips over the
+        // network, then refresh it in the background below (stale-while-revalidate).
+        try {
+          const cachedPrice = localStorage.getItem(keys.price);
+          if (cachedPrice) {
+            const parsedCache = JSON.parse(cachedPrice);
+            skipNextPriceAutosaveRef.current = true;
+            setPriceData(parsedCache.data || []);
+            const cachedTimestamp = parsedCache.timestamp ? new Date(parsedCache.timestamp) : null;
+            if (cachedTimestamp && !isNaN(cachedTimestamp.getTime())) {
+              setLastUpdatePrice(cachedTimestamp.toLocaleString('vi-VN'));
+            }
+            if (parsedCache.updated_by) {
+              setUpdatedBy(parsedCache.updated_by);
+            }
+          }
+        } catch (e) {
+          console.error(`Lỗi khi đọc cache cục bộ cho ${activeTab}:`, e);
+        }
+
         // Fetch globally from Firebase (Firestore) first
         (async () => {
           try {
@@ -681,6 +706,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                   ? JSON.parse(data.sticker_ce_price_data)
                   : data.sticker_ce_price_data;
 
+                skipNextPriceAutosaveRef.current = true;
                 setPriceData(parsedPrice || []);
                 setUpdatedBy(data.updated_by || '43751');
                 
@@ -722,6 +748,10 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
   // Autosave priceData to localStorage when it changes
   React.useEffect(() => {
+    if (skipNextPriceAutosaveRef.current) {
+      skipNextPriceAutosaveRef.current = false;
+      return;
+    }
     if (priceData.length > 0) {
       const keys = getStorageKeysForTab(activeTab);
       safeLocalStorageSet(keys.price, JSON.stringify({
