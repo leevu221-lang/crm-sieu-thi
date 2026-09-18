@@ -1263,21 +1263,97 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   const [categoryFilterActiveTab, setCategoryFilterActiveTab] = useState<'SL' | 'DT'>('SL');
   const [categoryFilterSearch, setCategoryFilterSearch] = useState('');
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('bcngay_tongquan_hidden_cats_sl', JSON.stringify(hiddenCatsSL));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [hiddenCatsSL]);
+  const hiddenCatsSLRef = useRef(hiddenCatsSL);
+  const hiddenCatsDTRef = useRef(hiddenCatsDT);
+  hiddenCatsSLRef.current = hiddenCatsSL;
+  hiddenCatsDTRef.current = hiddenCatsDT;
 
+  const saveFilterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Lắng nghe dữ liệu bộ lọc thời gian thực từ Firebase Firestore (onSnapshot)
   useEffect(() => {
     try {
-      localStorage.setItem('bcngay_tongquan_hidden_cats_dt', JSON.stringify(hiddenCatsDT));
+      const filterDocRef = doc(db, 'system_configs', 'bcngay_category_filter');
+      const unsubscribe = onSnapshot(
+        filterDocRef,
+        (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            if (Array.isArray(data?.hiddenCatsSL)) {
+              setHiddenCatsSL(data.hiddenCatsSL);
+              hiddenCatsSLRef.current = data.hiddenCatsSL;
+              try {
+                localStorage.setItem('bcngay_tongquan_hidden_cats_sl', JSON.stringify(data.hiddenCatsSL));
+              } catch (e) {
+                console.error(e);
+              }
+            }
+            if (Array.isArray(data?.hiddenCatsDT)) {
+              setHiddenCatsDT(data.hiddenCatsDT);
+              hiddenCatsDTRef.current = data.hiddenCatsDT;
+              try {
+                localStorage.setItem('bcngay_tongquan_hidden_cats_dt', JSON.stringify(data.hiddenCatsDT));
+              } catch (e) {
+                console.error(e);
+              }
+            }
+          }
+        },
+        (error) => {
+          console.error('Lỗi khi lắng nghe bộ lọc ngành hàng từ Firebase:', error);
+        }
+      );
+      return () => {
+        unsubscribe();
+        if (saveFilterTimeoutRef.current) {
+          clearTimeout(saveFilterTimeoutRef.current);
+        }
+      };
     } catch (e) {
       console.error(e);
     }
-  }, [hiddenCatsDT]);
+  }, []);
+
+  // Hàm lưu bộ lọc lên Firebase Firestore (tối ưu gộp document, hỗ trợ debounce)
+  const saveCategoryFilterToFirebase = useCallback(async (newSL: string[], newDT: string[]) => {
+    try {
+      const filterDocRef = doc(db, 'system_configs', 'bcngay_category_filter');
+      await setDoc(
+        filterDocRef,
+        {
+          hiddenCatsSL: newSL,
+          hiddenCatsDT: newDT,
+          updatedAt: serverTimestamp(),
+          updatedBy: userProfile?.username || userProfile?.name || 'anonymous'
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.error('Lỗi khi lưu bộ lọc ngành hàng lên Firebase:', err);
+    }
+  }, [userProfile]);
+
+  const queueSaveCategoryFilter = useCallback((newSL: string[], newDT: string[], immediate = false) => {
+    // Lưu ngay vào localStorage
+    try {
+      localStorage.setItem('bcngay_tongquan_hidden_cats_sl', JSON.stringify(newSL));
+      localStorage.setItem('bcngay_tongquan_hidden_cats_dt', JSON.stringify(newDT));
+    } catch (e) {
+      console.error(e);
+    }
+
+    if (saveFilterTimeoutRef.current) {
+      clearTimeout(saveFilterTimeoutRef.current);
+    }
+
+    if (immediate) {
+      saveCategoryFilterToFirebase(newSL, newDT);
+    } else {
+      saveFilterTimeoutRef.current = setTimeout(() => {
+        saveCategoryFilterToFirebase(newSL, newDT);
+      }, 350);
+    }
+  }, [saveCategoryFilterToFirebase]);
 
   // Fetch pending users for admin (43751)
   const fetchPendingUsers = async () => {
@@ -4786,11 +4862,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const key = (name || '').trim().toUpperCase();
     setHiddenCatsSL(prev => {
       const exists = prev.some(s => s.trim().toUpperCase() === key);
-      if (exists) {
-        return prev.filter(s => s.trim().toUpperCase() !== key);
-      } else {
-        return [...prev, key];
-      }
+      const nextSL = exists
+        ? prev.filter(s => s.trim().toUpperCase() !== key)
+        : [...prev, key];
+      hiddenCatsSLRef.current = nextSL;
+      queueSaveCategoryFilter(nextSL, hiddenCatsDTRef.current);
+      return nextSL;
     });
   };
 
@@ -4798,23 +4875,39 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const key = (name || '').trim().toUpperCase();
     setHiddenCatsDT(prev => {
       const exists = prev.some(s => s.trim().toUpperCase() === key);
-      if (exists) {
-        return prev.filter(s => s.trim().toUpperCase() !== key);
-      } else {
-        return [...prev, key];
-      }
+      const nextDT = exists
+        ? prev.filter(s => s.trim().toUpperCase() !== key)
+        : [...prev, key];
+      hiddenCatsDTRef.current = nextDT;
+      queueSaveCategoryFilter(hiddenCatsSLRef.current, nextDT);
+      return nextDT;
     });
   };
 
-  const showAllCategoriesSL = () => setHiddenCatsSL([]);
-  const showAllCategoriesDT = () => setHiddenCatsDT([]);
+  const showAllCategoriesSL = () => {
+    setHiddenCatsSL([]);
+    hiddenCatsSLRef.current = [];
+    queueSaveCategoryFilter([], hiddenCatsDTRef.current, true);
+  };
+
+  const showAllCategoriesDT = () => {
+    setHiddenCatsDT([]);
+    hiddenCatsDTRef.current = [];
+    queueSaveCategoryFilter(hiddenCatsSLRef.current, [], true);
+  };
 
   const hideAllCategoriesSL = () => {
-    setHiddenCatsSL(rawCategoriesSL.map((c: any) => (c.name || '').trim().toUpperCase()));
+    const nextSL = rawCategoriesSL.map((c: any) => (c.name || '').trim().toUpperCase());
+    setHiddenCatsSL(nextSL);
+    hiddenCatsSLRef.current = nextSL;
+    queueSaveCategoryFilter(nextSL, hiddenCatsDTRef.current, true);
   };
 
   const hideAllCategoriesDT = () => {
-    setHiddenCatsDT(rawCategoriesDT.map((c: any) => (c.name || '').trim().toUpperCase()));
+    const nextDT = rawCategoriesDT.map((c: any) => (c.name || '').trim().toUpperCase());
+    setHiddenCatsDT(nextDT);
+    hiddenCatsDTRef.current = nextDT;
+    queueSaveCategoryFilter(hiddenCatsSLRef.current, nextDT, true);
   };
 
   const hideAchievedCategoriesSL = () => {
@@ -4824,7 +4917,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         return Math.round(rate) >= 100;
       })
       .map((c: any) => (c.name || '').trim().toUpperCase());
-    setHiddenCatsSL(prev => Array.from(new Set([...prev, ...achieved])));
+    setHiddenCatsSL(prev => {
+      const nextSL = Array.from(new Set([...prev, ...achieved]));
+      hiddenCatsSLRef.current = nextSL;
+      queueSaveCategoryFilter(nextSL, hiddenCatsDTRef.current, true);
+      return nextSL;
+    });
   };
 
   const hideAchievedCategoriesDT = () => {
@@ -4834,7 +4932,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         return Math.round(rate) >= 100;
       })
       .map((c: any) => (c.name || '').trim().toUpperCase());
-    setHiddenCatsDT(prev => Array.from(new Set([...prev, ...achieved])));
+    setHiddenCatsDT(prev => {
+      const nextDT = Array.from(new Set([...prev, ...achieved]));
+      hiddenCatsDTRef.current = nextDT;
+      queueSaveCategoryFilter(hiddenCatsSLRef.current, nextDT, true);
+      return nextDT;
+    });
   };
 
   const filteredStaff = useMemo(() => {
@@ -9044,7 +9147,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                     Bộ Lọc Ẩn Ngành Hàng
                   </h3>
                   <p className="text-[10.5px] text-emerald-100 font-medium">
-                    Áp dụng riêng cho BC NGÀY &gt; TỔNG QUAN • Lưu tự động vào trình duyệt
+                    Áp dụng riêng cho BC NGÀY &gt; TỔNG QUAN • Tự động lưu &amp; đồng bộ Firebase
                   </p>
                 </div>
               </div>
@@ -9241,11 +9344,15 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
-                    showAllCategoriesSL();
-                    showAllCategoriesDT();
+                    setHiddenCatsSL([]);
+                    setHiddenCatsDT([]);
+                    hiddenCatsSLRef.current = [];
+                    hiddenCatsDTRef.current = [];
+                    queueSaveCategoryFilter([], [], true);
+                    showNotification('Đã đặt lại hiển thị tất cả ngành hàng và lưu lên Firebase!', 'success');
                   }}
                   className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
-                  title="Đặt lại hiển thị tất cả ngành hàng cho cả 2 bảng SL và DT"
+                  title="Đặt lại hiển thị tất cả ngành hàng cho cả 2 bảng SL và DT và lưu lên Firebase"
                 >
                   <RotateCcw size={12} />
                   <span>Đặt lại mặc định (Hiện tất cả SL & DT)</span>
@@ -9253,7 +9360,13 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
               </div>
 
               <button
-                onClick={() => setIsCategoryFilterModalOpen(false)}
+                onClick={() => {
+                  setIsCategoryFilterModalOpen(false);
+                  if (saveFilterTimeoutRef.current) {
+                    clearTimeout(saveFilterTimeoutRef.current);
+                  }
+                  saveCategoryFilterToFirebase(hiddenCatsSLRef.current, hiddenCatsDTRef.current);
+                }}
                 className="px-6 py-2 bg-gradient-to-r from-[#047857] to-[#10B981] hover:from-[#036348] hover:to-[#059669] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer"
               >
                 Xác nhận & Hoàn tất
