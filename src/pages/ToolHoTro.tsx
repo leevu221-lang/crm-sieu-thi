@@ -1643,6 +1643,12 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           return;
         }
 
+        const xlsxLib: any = (typeof XLSX !== 'undefined' ? XLSX : null) || (typeof window !== 'undefined' ? (window as any).XLSX : null);
+        if (!xlsxLib) {
+          showNotification('Trình duyệt chưa nạp xong thư viện Excel, vui lòng tải lại trang (Ctrl+F5 / Cmd+Shift+R)!', 'error');
+          return;
+        }
+
         // Đọc workbook với đa cơ chế fallback (ArrayBuffer -> Uint8Array -> Binary latin1 -> UTF-8/HTML/CSV -> UTF-16LE)
         // Lưu ý: Không dùng cellDates: true vì sẽ throw ngoại lệ khi gặp định dạng ngày không chuẩn trong file xuất từ ERP
         let wb: any = null;
@@ -1650,7 +1656,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
         // 1. ArrayBuffer trực tiếp (chuẩn XLSX/XLS)
         try {
-          wb = XLSX.read(dataBuffer, { type: 'array' });
+          wb = xlsxLib.read(dataBuffer, { type: 'array' });
         } catch (e1) {
           lastReadError = e1;
         }
@@ -1658,7 +1664,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         // 2. Uint8Array (dành cho một số trình duyệt / WebView)
         if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) {
           try {
-            wb = XLSX.read(new Uint8Array(dataBuffer), { type: 'array' });
+            wb = xlsxLib.read(new Uint8Array(dataBuffer), { type: 'array' });
           } catch (e2) {
             if (!lastReadError) lastReadError = e2;
           }
@@ -1668,7 +1674,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) {
           try {
             const binary = new TextDecoder('latin1').decode(dataBuffer);
-            wb = XLSX.read(binary, { type: 'binary' });
+            wb = xlsxLib.read(binary, { type: 'binary' });
           } catch (e3) {
             if (!lastReadError) lastReadError = e3;
           }
@@ -1678,7 +1684,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) {
           try {
             const textUtf8 = new TextDecoder('utf-8').decode(dataBuffer);
-            wb = XLSX.read(textUtf8, { type: 'string' });
+            wb = xlsxLib.read(textUtf8, { type: 'string' });
           } catch (e4) {
             if (!lastReadError) lastReadError = e4;
           }
@@ -1688,7 +1694,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) {
           try {
             const textUtf16 = new TextDecoder('utf-16le').decode(dataBuffer);
-            wb = XLSX.read(textUtf16, { type: 'string' });
+            wb = xlsxLib.read(textUtf16, { type: 'string' });
           } catch (e5) {
             if (!lastReadError) lastReadError = e5;
           }
@@ -1707,14 +1713,14 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         if (wb.SheetNames.length === 1) {
           const firstSheet = wb.Sheets[wb.SheetNames[0]];
           if (firstSheet) {
-            bestData = (XLSX.utils.sheet_to_json(firstSheet, { header: 1, range: 0, defval: '' }) as any[][]) || [];
+            bestData = (xlsxLib.utils.sheet_to_json(firstSheet, { header: 1, range: 0, defval: '' }) as any[][]) || [];
           }
         } else {
           for (const sName of wb.SheetNames) {
             try {
               const sheet = wb.Sheets[sName];
               if (!sheet) continue;
-              const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1, range: 0, defval: '' }) as any[][];
+              const sheetRows = xlsxLib.utils.sheet_to_json(sheet, { header: 1, range: 0, defval: '' }) as any[][];
               if (!sheetRows || !Array.isArray(sheetRows) || sheetRows.length === 0) continue;
               
               const validRows = sheetRows.filter(r => 
@@ -1733,7 +1739,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           if (!bestData || bestData.length === 0) {
             const firstSheet = wb.Sheets[wb.SheetNames[0]];
             if (firstSheet) {
-              bestData = (XLSX.utils.sheet_to_json(firstSheet, { header: 1, range: 0, defval: '' }) as any[][]) || [];
+              bestData = (xlsxLib.utils.sheet_to_json(firstSheet, { header: 1, range: 0, defval: '' }) as any[][]) || [];
             }
           }
         }
