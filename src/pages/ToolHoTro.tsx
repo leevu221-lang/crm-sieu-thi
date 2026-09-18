@@ -341,6 +341,7 @@ const formatPriceInput = (val: string) => {
 
 // Safe localStorage wrapper: catches quota errors, clears old sticker caches, and retries
 const STICKER_CACHE_KEYS = [
+  'rtst_sticker_mau81_price_data', 'rtst_sticker_mau81_inventory_data',
   'rtst_sticker_mln_price_data', 'rtst_sticker_mln_inventory_data',
   'rtst_sticker_gvgs_price_data', 'rtst_sticker_gvgs_inventory_data',
   'rtst_sticker_dcnb_price_data', 'rtst_sticker_dcnb_inventory_data',
@@ -348,6 +349,7 @@ const STICKER_CACHE_KEYS = [
   'rtst_sticker_ce_price_data', 'rtst_sticker_ce_inventory_data',
   'rtst_sticker_lk_price_data', 'rtst_sticker_lk_inventory_data',
   'rtst_sticker_price_data', 'rtst_sticker_inventory_data',
+  'rtst_sticker_dong_gia_100k_price_data', 'rtst_sticker_dong_gia_100k_inventory_data'
 ];
 function safeLocalStorageSet(key: string, value: string) {
   try {
@@ -404,9 +406,6 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   const [priceFile, setPriceFile] = useState<File | null>(null);
   const [inventoryData, setInventoryData] = useState<any[]>([]);
   const [priceData, setPriceData] = useState<any[]>([]);
-  // Skips the next priceData autosave-to-localStorage pass when the caller already wrote
-  // the exact same cache entry (avoids double JSON.stringify of a potentially large list).
-  const skipNextPriceAutosaveRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [updatedBy, setUpdatedBy] = useState<string>('43751');
@@ -474,10 +473,12 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           inventory: 'rtst_sticker_dong_gia_100k_inventory_data',
           price: 'rtst_sticker_dong_gia_100k_price_data'
         };
+      case 'all-sticker':
+      case 'sticker-event':
       default:
         return {
-          inventory: STORAGE_KEYS.STICKER_INVENTORY_DATA,
-          price: STORAGE_KEYS.STICKER_PRICE_DATA
+          inventory: 'rtst_sticker_mau81_inventory_data',
+          price: 'rtst_sticker_mau81_price_data'
         };
     }
   };
@@ -590,6 +591,16 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
   // Fetch data from local storage or Firebase on activeTab changes
   useEffect(() => {
+    // Reset selection and quantities on tab switch
+    setSelectedIndices([]);
+    setPrintQuantities({});
+    setPriceFile(null);
+    setInventoryFile(null);
+    setPriceData([]);
+    setInventoryData([]);
+    setLastUpdatePrice(null);
+    setLastUpdateInventory(null);
+
     if (activeTab === 'sticker-event-dmx') {
       setPromoLabelTextVal('GIÁ KM 43346-TRẦN TRỌNG THIỆN GỬI');
     } else if (activeTab === 'sticker-dong-gia-100k') {
@@ -597,11 +608,6 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       setEventPrintLayout('16');
       setShowEventPromoLabel(false);
       setPrintConfig({ style: 'dong_gia', layout: '16', showPromoLabel: false });
-      setInventoryData([]);
-      setLastUpdateInventory(null);
-      setInventoryFile(null);
-      setPriceFile(null);
-      setLastUpdatePrice(null);
       setUpdatedBy('');
       setManualData({
         productCode: '',
@@ -682,7 +688,6 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           const cachedPrice = localStorage.getItem(keys.price);
           if (cachedPrice) {
             const parsedCache = JSON.parse(cachedPrice);
-            skipNextPriceAutosaveRef.current = true;
             setPriceData(parsedCache.data || []);
             const cachedTimestamp = parsedCache.timestamp ? new Date(parsedCache.timestamp) : null;
             if (cachedTimestamp && !isNaN(cachedTimestamp.getTime())) {
@@ -717,7 +722,6 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                   ? JSON.parse(data.sticker_ce_price_data)
                   : data.sticker_ce_price_data;
 
-                skipNextPriceAutosaveRef.current = true;
                 setPriceData(parsedPrice || []);
                 setUpdatedBy(data.updated_by || '43751');
                 
@@ -756,21 +760,6 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       }
     }
   }, [activeTab]);
-
-  // Autosave priceData to localStorage when it changes
-  React.useEffect(() => {
-    if (skipNextPriceAutosaveRef.current) {
-      skipNextPriceAutosaveRef.current = false;
-      return;
-    }
-    if (priceData.length > 0) {
-      const keys = getStorageKeysForTab(activeTab);
-      safeLocalStorageSet(keys.price, JSON.stringify({
-        data: priceData,
-        timestamp: new Date().toISOString()
-      }));
-    }
-  }, [priceData, activeTab]);
 
   const loadAddressFromLocalStorage = () => {
     const saved = localStorage.getItem(STORAGE_KEYS.STICKER_ADDRESS_DATA);
@@ -2121,6 +2110,10 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     const keys = getStorageKeysForTab(activeTab);
     localStorage.removeItem(keys.inventory);
     localStorage.removeItem(keys.price);
+    if (activeTab === 'all-sticker' || activeTab === 'sticker-event') {
+      localStorage.removeItem(STORAGE_KEYS.STICKER_PRICE_DATA);
+      localStorage.removeItem(STORAGE_KEYS.STICKER_INVENTORY_DATA);
+    }
     setSaveMessage({ type: '', text: '' });
     if (inventoryInputRef.current) inventoryInputRef.current.value = '';
     if (priceInputRef.current) priceInputRef.current.value = '';
@@ -2529,15 +2522,23 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     const itemToUpdate = filteredPriceData[index];
     if (!itemToUpdate) return;
     
-    setPriceData(prev => prev.map(item => {
-      const matches = (item.maSanPham === itemToUpdate.maSanPham && 
-                       item.productCode === itemToUpdate.productCode && 
-                       item.name === itemToUpdate.name);
-      if (matches) {
-        return { ...item, nganhHang: value };
-      }
-      return item;
-    }));
+    setPriceData(prev => {
+      const updated = prev.map(item => {
+        const matches = (item.maSanPham === itemToUpdate.maSanPham && 
+                         item.productCode === itemToUpdate.productCode && 
+                         item.name === itemToUpdate.name);
+        if (matches) {
+          return { ...item, nganhHang: value };
+        }
+        return item;
+      });
+      const keys = getStorageKeysForTab(activeTab);
+      safeLocalStorageSet(keys.price, JSON.stringify({
+        data: updated,
+        timestamp: new Date().toISOString()
+      }));
+      return updated;
+    });
   };
 
   const handleQuickPrint = (style: string, layout: string) => {
