@@ -1626,80 +1626,121 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
     if (type === 'inventory') {
       setInventoryFile(file);
-    } else if (!shouldAppend) {
-      setPriceFile(file);
     }
 
     const reader = new FileReader();
+    reader.onerror = (evt) => {
+      console.error('Lỗi FileReader:', evt);
+      showNotification('Không thể đọc file từ thiết bị của bạn!', 'error');
+    };
+
     reader.onload = async (evt) => {
       try {
         const dataBuffer = evt.target?.result as ArrayBuffer;
-        if (!dataBuffer) {
-          showNotification('Không thể đọc nội dung file!', 'error');
+        if (!dataBuffer || dataBuffer.byteLength === 0) {
+          showNotification('File được chọn bị rỗng hoặc không có dữ liệu!', 'error');
           return;
         }
 
-        // Đọc workbook với đa cơ chế fallback (ArrayBuffer -> Uint8Array -> Binary/Text)
-        let wb: any;
+        // Đọc workbook với đa cơ chế fallback (ArrayBuffer -> Uint8Array -> Binary latin1 -> UTF-8/HTML/CSV -> UTF-16LE)
+        // Lưu ý: Không dùng cellDates: true vì sẽ throw ngoại lệ khi gặp định dạng ngày không chuẩn trong file xuất từ ERP
+        let wb: any = null;
+        let lastReadError: any = null;
+
+        // 1. ArrayBuffer trực tiếp (chuẩn XLSX/XLS)
         try {
-          wb = XLSX.read(dataBuffer, { type: 'array', cellDates: true });
-        } catch (errArray) {
+          wb = XLSX.read(dataBuffer, { type: 'array' });
+        } catch (e1) {
+          lastReadError = e1;
+        }
+
+        // 2. Uint8Array (dành cho một số trình duyệt / WebView)
+        if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) {
           try {
-            wb = XLSX.read(new Uint8Array(dataBuffer), { type: 'array', cellDates: true });
-          } catch (errUint8) {
-            try {
-              const textDecoder = new TextDecoder('utf-8');
-              const textContent = textDecoder.decode(dataBuffer);
-              wb = XLSX.read(textContent, { type: 'string', cellDates: true });
-            } catch (errText) {
-              console.error('Tất cả phương thức đọc XLSX đều thất bại:', errText);
-              throw new Error('Định dạng file không được hỗ trợ hoặc bị lỗi mã hóa!');
-            }
+            wb = XLSX.read(new Uint8Array(dataBuffer), { type: 'array' });
+          } catch (e2) {
+            if (!lastReadError) lastReadError = e2;
+          }
+        }
+
+        // 3. Binary string qua latin1 decode (chuẩn SheetJS cho binary stream, OLE2, BIFF)
+        if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) {
+          try {
+            const binary = new TextDecoder('latin1').decode(dataBuffer);
+            wb = XLSX.read(binary, { type: 'binary' });
+          } catch (e3) {
+            if (!lastReadError) lastReadError = e3;
+          }
+        }
+
+        // 4. UTF-8 text (HTML Table hoặc CSV xuất từ ERP đổi đuôi .xlsx)
+        if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) {
+          try {
+            const textUtf8 = new TextDecoder('utf-8').decode(dataBuffer);
+            wb = XLSX.read(textUtf8, { type: 'string' });
+          } catch (e4) {
+            if (!lastReadError) lastReadError = e4;
+          }
+        }
+
+        // 5. UTF-16LE text (Unicode TSV / text export)
+        if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) {
+          try {
+            const textUtf16 = new TextDecoder('utf-16le').decode(dataBuffer);
+            wb = XLSX.read(textUtf16, { type: 'string' });
+          } catch (e5) {
+            if (!lastReadError) lastReadError = e5;
           }
         }
 
         if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) {
-          showNotification('File Excel không có sheet dữ liệu nào!', 'error');
+          const detail = lastReadError?.message || 'Không thể giải mã dữ liệu';
+          showNotification(`Không thể mở file Excel: ${detail}`, 'error');
           return;
         }
 
-        // Quét tất cả các sheet để tìm sheet có nhiều dòng dữ liệu thực tế nhất
+        // Lấy dữ liệu từ Sheet
         let bestData: any[][] = [];
         let maxValidRows = 0;
 
-        for (const sName of wb.SheetNames) {
-          try {
-            const sheet = wb.Sheets[sName];
-            if (!sheet) continue;
-            const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1, range: 0, defval: '' }) as any[][];
-            if (!sheetRows || !Array.isArray(sheetRows) || sheetRows.length === 0) continue;
-            
-            // Đếm số dòng có nội dung thực tế trong 60 cột đầu
-            const validRows = sheetRows.filter(r => 
-              r && Array.isArray(r) && r.slice(0, 60).some(c => c !== undefined && c !== null && String(c).trim() !== '')
-            ).length;
-
-            if (validRows > maxValidRows) {
-              maxValidRows = validRows;
-              bestData = sheetRows;
-            }
-          } catch (sErr) {
-            console.warn(`Lỗi đọc sheet ${sName}:`, sErr);
-          }
-        }
-
-        if (!bestData || bestData.length === 0) {
-          // Fallback: Lấy sheet đầu tiên nếu maxValidRows = 0
+        if (wb.SheetNames.length === 1) {
           const firstSheet = wb.Sheets[wb.SheetNames[0]];
           if (firstSheet) {
             bestData = (XLSX.utils.sheet_to_json(firstSheet, { header: 1, range: 0, defval: '' }) as any[][]) || [];
+          }
+        } else {
+          for (const sName of wb.SheetNames) {
+            try {
+              const sheet = wb.Sheets[sName];
+              if (!sheet) continue;
+              const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1, range: 0, defval: '' }) as any[][];
+              if (!sheetRows || !Array.isArray(sheetRows) || sheetRows.length === 0) continue;
+              
+              const validRows = sheetRows.filter(r => 
+                r && Array.isArray(r) && r.slice(0, 50).some(c => c !== undefined && c !== null && String(c).trim() !== '')
+              ).length;
+
+              if (validRows > maxValidRows) {
+                maxValidRows = validRows;
+                bestData = sheetRows;
+              }
+            } catch (sErr) {
+              console.warn(`Lỗi đọc sheet ${sName}:`, sErr);
+            }
+          }
+
+          if (!bestData || bestData.length === 0) {
+            const firstSheet = wb.Sheets[wb.SheetNames[0]];
+            if (firstSheet) {
+              bestData = (XLSX.utils.sheet_to_json(firstSheet, { header: 1, range: 0, defval: '' }) as any[][]) || [];
+            }
           }
         }
 
         const data = bestData;
 
         if (!data || data.length === 0) {
-          showNotification('File Excel không có dữ liệu!', 'error');
+          showNotification('File Excel không có dữ liệu dòng nào!', 'error');
           return;
         }
 
@@ -2285,6 +2326,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
         const finalData = shouldAppend ? [...priceData, ...parsedPriceData] : parsedPriceData;
         setPriceData(finalData);
+        if (!shouldAppend && type === 'price') setPriceFile(file);
         
         const timestamp = new Date().toISOString();
         if (!shouldAppend) setLastUpdatePrice(new Date(timestamp).toLocaleString('vi-VN'));
