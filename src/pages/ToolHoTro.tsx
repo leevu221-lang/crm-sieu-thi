@@ -1030,8 +1030,13 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
             h === 'masp' || h === 'ma' || h.includes('ma san pham') || 
             h.includes('ma sp') || h.includes('ma hang')
           );
-          if (maSpIdx === -1 && activeTab === 'sticker-event-dmx') {
-            maSpIdx = 2; // Column C fallback
+          if (maSpIdx === -1) {
+            if (activeTab === 'sticker-event-dmx') {
+              maSpIdx = 2; // Column C fallback
+            } else if (activeTab === 'all-sticker' || activeTab === 'sticker-event') {
+              const hasColAK = inventoryData.some(r => r && Array.isArray(r) && r.length > 36 && String(r[36] || '').trim() !== '');
+              maSpIdx = hasColAK ? 36 : 6;
+            }
           }
 
           const nganhHangIdx = headerRow.findIndex((h: string) => h === 'ngành hàng' || cleanH(h) === 'nganh hang');
@@ -1789,20 +1794,24 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         } else {
           showNotification('Đã tải và lưu tạm file Tồn kho!', 'success');
           
-          // Tự động xuất file Excel chỉ lấy dữ liệu cột G (Không tự xuất khi ở tab EVENT ĐMX)
+          // Tự động xuất file Excel (Cột AK cho tab EVENT, Cột G cho các tab khác)
           try {
             const originalName = file.name.substring(0, file.name.lastIndexOf('.')) || 'Du_Lieu';
-            const colGData = data.map((row) => {
-              const value = row && row.length > 6 ? row[6] : '';
+            const isEventTab = activeTab === 'all-sticker' || activeTab === 'sticker-event';
+            const targetColIdx = isEventTab ? 36 : 6; // Tab EVENT: Cột AK (index 36), Tab khác: Cột G (index 6)
+            const targetColName = isEventTab ? 'AK' : 'G';
+
+            const exportData = data.map((row) => {
+              const value = row && row.length > targetColIdx ? row[targetColIdx] : '';
               return [value];
             });
-            const exportWs = XLSX.utils.aoa_to_sheet(colGData);
-            const exportWb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(exportWb, exportWs, 'Sheet1');
-            XLSX.writeFile(exportWb, `${originalName}_Cot_G.xlsx`);
-            showNotification('Đã tự động xuất file Excel cột G!', 'success');
+            const exportWs = xlsxLib.utils.aoa_to_sheet(exportData);
+            const exportWb = xlsxLib.utils.book_new();
+            xlsxLib.utils.book_append_sheet(exportWb, exportWs, 'Sheet1');
+            xlsxLib.writeFile(exportWb, `${originalName}_Cot_${targetColName}.xlsx`);
+            showNotification(`Đã tự động xuất file Excel cột ${targetColName}!`, 'success');
           } catch (err) {
-            console.error('Error auto-exporting column G:', err);
+            console.error('Error auto-exporting column:', err);
           }
         }
       } else {
