@@ -28,6 +28,22 @@ type Employee = { username: string; fullId: string; department: string; group: 1
 type ScheduleMap = Record<string, { hc: string[] }>;
 type OffMap = Record<string, Record<string, boolean>>;
 
+// Vị trí & màu pháo giấy cố định (không random) để hiệu ứng ổn định giữa các lần render.
+const CONFETTI_PIECES = [
+  { dx: -60, dy: -50, rot: -40, color: '#fbcfe8', delay: 0 },
+  { dx: 55, dy: -55, rot: 35, color: '#ddd6fe', delay: 0.04 },
+  { dx: -75, dy: 10, rot: -80, color: '#bae6fd', delay: 0.08 },
+  { dx: 70, dy: 0, rot: 60, color: '#fde68a', delay: 0.02 },
+  { dx: -35, dy: -75, rot: 10, color: '#bbf7d0', delay: 0.1 },
+  { dx: 40, dy: -70, rot: -20, color: '#fbcfe8', delay: 0.06 },
+  { dx: -55, dy: 45, rot: 50, color: '#ddd6fe', delay: 0.12 },
+  { dx: 60, dy: 40, rot: -55, color: '#bae6fd', delay: 0.03 },
+  { dx: -20, dy: -85, rot: 75, color: '#fde68a', delay: 0.09 },
+  { dx: 20, dy: 80, rot: -35, color: '#bbf7d0', delay: 0.05 },
+  { dx: -85, dy: -20, rot: 25, color: '#fbcfe8', delay: 0.11 },
+  { dx: 85, dy: -20, rot: -65, color: '#ddd6fe', delay: 0.01 },
+];
+
 export default function QuaySoTable() {
   const { userProfile } = useAuth();
   const { currentStoreId } = useStore();
@@ -48,16 +64,21 @@ export default function QuaySoTable() {
   const [saveMessage, setSaveMessage] = useState({ type: '', text: '' });
   const [lastSaved, setLastSaved] = useState<string | null>(() => localStorage.getItem('QUAY_SO_LAST_SAVED'));
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [bulkSpinning, setBulkSpinning] = useState(false);
 
   const [spinState, setSpinState] = useState<{
-    open: boolean; dateStr: string | null; display: string[]; winners: string[]; spinning: boolean;
-  }>({ open: false, dateStr: null, display: [], winners: [], spinning: false });
+    open: boolean; dateStr: string | null; display: string[]; winners: string[]; spinning: boolean; justLanded: boolean;
+  }>({ open: false, dateStr: null, display: [], winners: [], spinning: false, justLanded: false });
 
   const tableRef = useRef<HTMLDivElement>(null);
   const spinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const landTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    return () => { if (spinTimerRef.current) clearTimeout(spinTimerRef.current); };
+    return () => {
+      if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
+      if (landTimerRef.current) clearTimeout(landTimerRef.current);
+    };
   }, []);
 
   const dateRange = useMemo(() => {
@@ -279,6 +300,7 @@ export default function QuaySoTable() {
   };
 
   const startSpin = (dateStr: string) => {
+    if (landTimerRef.current) clearTimeout(landTimerRef.current);
     const eligible = employees.filter(e => !offMap[dateStr]?.[e.username]);
     if (eligible.length < 2) {
       flashMessage('error', 'Không đủ nhân viên (chưa OFF) để quay số ngày này!');
@@ -286,14 +308,17 @@ export default function QuaySoTable() {
     }
     const winners = weightedPickTwo(eligible, hcCounts);
     const names = eligible.map(e => e.username);
-    setSpinState({ open: true, dateStr, display: [names[0], names[1] ?? names[0]], winners, spinning: true });
+    setSpinState({ open: true, dateStr, display: [names[0], names[1] ?? names[0]], winners, spinning: true, justLanded: false });
 
     let step = 0;
     const totalSteps = 22;
     const tick = () => {
       step++;
       if (step >= totalSteps) {
-        setSpinState(s => ({ ...s, display: winners, spinning: false }));
+        setSpinState(s => ({ ...s, display: winners, spinning: false, justLanded: true }));
+        landTimerRef.current = setTimeout(() => {
+          setSpinState(s => ({ ...s, justLanded: false }));
+        }, 1000);
         return;
       }
       const d1 = names[Math.floor(Math.random() * names.length)];
@@ -310,12 +335,13 @@ export default function QuaySoTable() {
     const updated = { ...schedule, [spinState.dateStr]: { hc: spinState.winners } };
     setSchedule(updated);
     persist({ schedules: updated });
-    setSpinState({ open: false, dateStr: null, display: [], winners: [], spinning: false });
+    setSpinState({ open: false, dateStr: null, display: [], winners: [], spinning: false, justLanded: false });
   };
 
   const closeSpinModal = () => {
     if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
-    setSpinState({ open: false, dateStr: null, display: [], winners: [], spinning: false });
+    if (landTimerRef.current) clearTimeout(landTimerRef.current);
+    setSpinState({ open: false, dateStr: null, display: [], winners: [], spinning: false, justLanded: false });
   };
 
   const respin = () => {
@@ -328,20 +354,24 @@ export default function QuaySoTable() {
       flashMessage('error', 'Cần ít nhất 2 nhân viên để quay số!');
       return;
     }
-    const updated: ScheduleMap = { ...schedule };
-    const workingCounts: Record<string, number> = { ...hcCounts };
-    dateRange.forEach(date => {
-      const dateStr = format(date, 'yyyy-MM-dd');
-      const eligible = employees.filter(e => !offMap[dateStr]?.[e.username]);
-      if (eligible.length < 2) return;
-      const [w1, w2] = weightedPickTwo(eligible, workingCounts);
-      updated[dateStr] = { hc: [w1, w2] };
-      workingCounts[w1] = (workingCounts[w1] || 0) + 1;
-      workingCounts[w2] = (workingCounts[w2] || 0) + 1;
-    });
-    setSchedule(updated);
-    persist({ schedules: updated });
-    flashMessage('success', `Đã quay số cho ${dateRange.length} ngày!`);
+    setBulkSpinning(true);
+    setTimeout(() => {
+      const updated: ScheduleMap = { ...schedule };
+      const workingCounts: Record<string, number> = { ...hcCounts };
+      dateRange.forEach(date => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        const eligible = employees.filter(e => !offMap[dateStr]?.[e.username]);
+        if (eligible.length < 2) return;
+        const [w1, w2] = weightedPickTwo(eligible, workingCounts);
+        updated[dateStr] = { hc: [w1, w2] };
+        workingCounts[w1] = (workingCounts[w1] || 0) + 1;
+        workingCounts[w2] = (workingCounts[w2] || 0) + 1;
+      });
+      setSchedule(updated);
+      persist({ schedules: updated });
+      setBulkSpinning(false);
+      flashMessage('success', `Đã quay số cho ${dateRange.length} ngày!`);
+    }, 900);
   };
 
   const handleResetSchedule = () => {
@@ -449,49 +479,62 @@ export default function QuaySoTable() {
   };
 
   const STATUS_STYLE: Record<string, string> = {
-    HC: 'bg-amber-100 text-amber-800 border-amber-300',
-    'Sáng': 'bg-sky-100 text-sky-700 border-sky-300',
-    'Chiều': 'bg-indigo-100 text-indigo-700 border-indigo-300',
-    OFF: 'bg-red-50 text-red-500 border-red-200'
+    HC: 'bg-amber-100 text-amber-700 border-amber-200',
+    'Sáng': 'bg-sky-100 text-sky-600 border-sky-200',
+    'Chiều': 'bg-violet-100 text-violet-600 border-violet-200',
+    OFF: 'bg-rose-50 text-rose-300 border-rose-100'
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50">
-      {/* Header Bar */}
-      <div className="bg-white text-slate-800 px-4 py-3 flex items-center justify-between sticky top-0 z-50 shadow-md border-b border-slate-200 flex-wrap gap-4">
-        <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-4xl font-black uppercase tracking-wider leading-tight text-[#004b8d] whitespace-nowrap">QUAY SỐ CA HÀNH CHÍNH</h1>
+    <div className="flex flex-col h-full bg-gradient-to-b from-violet-50 via-fuchsia-50/40 to-sky-50 quay-so-container">
+      <style>{`
+        @keyframes qsPopIn { 0% { transform: scale(0.85); opacity: 0; } 60% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes qsFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+        @keyframes qsDiceSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes qsConfetti { 0% { transform: translate(-50%, -50%) rotate(0deg) scale(1); opacity: 1; } 100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(var(--rot)); opacity: 0; } }
+        .qs-confetti-piece {
+          position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 2px;
+          animation: qsConfetti 0.9s ease-out forwards; pointer-events: none;
+        }
+        .qs-pop-in { animation: qsPopIn 0.4s ease-out; }
+        .qs-dice-spin { animation: qsDiceSpin 0.6s linear infinite; }
+      `}</style>
 
-          <div className="flex items-center bg-slate-100 rounded-lg px-3 py-1.5 gap-2 border border-slate-200 shadow-inner">
+      {/* Header Bar */}
+      <div className="bg-white/90 backdrop-blur-sm text-slate-800 px-4 py-3 flex items-center justify-between sticky top-0 z-50 shadow-sm border-b border-violet-100 flex-wrap gap-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-4xl font-black uppercase tracking-wider leading-tight bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 bg-clip-text text-transparent whitespace-nowrap">QUAY SỐ CA HÀNH CHÍNH</h1>
+
+          <div className="flex items-center bg-white rounded-2xl px-3 py-1.5 gap-2 border border-violet-100 shadow-sm">
             <div className="flex flex-col">
-              <span className="text-[9px] font-black uppercase text-slate-400 leading-none">Từ ngày</span>
-              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="text-xs font-bold bg-transparent border-none outline-none" />
+              <span className="text-[9px] font-black uppercase text-violet-300 leading-none">Từ ngày</span>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="text-xs font-bold bg-transparent border-none outline-none text-violet-700" />
             </div>
-            <span className="text-slate-300">→</span>
+            <span className="text-violet-200">→</span>
             <div className="flex flex-col">
-              <span className="text-[9px] font-black uppercase text-slate-400 leading-none">Đến ngày</span>
-              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="text-xs font-bold bg-transparent border-none outline-none" />
+              <span className="text-[9px] font-black uppercase text-violet-300 leading-none">Đến ngày</span>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="text-xs font-bold bg-transparent border-none outline-none text-violet-700" />
             </div>
           </div>
 
-          <div className="flex items-center bg-slate-100 rounded-lg px-3 py-1.5 gap-2 border border-slate-200 shadow-inner">
-            <span className="text-[9px] font-black uppercase text-slate-400">Tỷ lệ Nhóm 1</span>
+          <div className="flex items-center bg-white rounded-2xl px-3 py-1.5 gap-2 border border-violet-100 shadow-sm">
+            <span className="text-[9px] font-black uppercase text-violet-300">Tỷ lệ Nhóm 1</span>
             <input
               type="number" min={0} max={100} value={ratio}
               onChange={e => setRatio(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-              className="w-12 text-xs font-black text-center bg-white border border-slate-200 rounded outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-12 text-xs font-black text-center bg-violet-50 border border-violet-100 rounded-lg outline-none focus:ring-1 focus:ring-violet-300 text-violet-700"
             />
-            <span className="text-[10px] font-bold text-slate-500">% : {100 - ratio}%</span>
+            <span className="text-[10px] font-bold text-violet-400">% : {100 - ratio}%</span>
             <button
               onClick={handleAssignRatio}
-              className="flex items-center gap-1 bg-slate-600 hover:bg-slate-700 text-white text-[10px] font-black uppercase px-2 py-1 rounded transition-colors"
+              className="flex items-center gap-1 bg-violet-100 hover:bg-violet-200 text-violet-700 border border-violet-200 text-[10px] font-black uppercase px-2 py-1 rounded-lg transition-colors"
             >
               <Shuffle size={12} /> Chia nhóm
             </button>
           </div>
 
           {saveMessage.text && (
-            <div className={`text-[10px] font-bold uppercase px-3 py-1.5 rounded-lg flex items-center min-h-[40px] shadow-sm border max-w-[220px] leading-tight ${saveMessage.type === 'success' ? 'bg-[#008080] text-white border-[#006666]' : 'bg-red-600 text-white border-red-700'}`}>
+            <div className={`text-[10px] font-bold uppercase px-3 py-1.5 rounded-xl flex items-center min-h-[40px] shadow-sm border max-w-[220px] leading-tight ${saveMessage.type === 'success' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-600 border-rose-200'}`}>
               {saveMessage.text}
             </div>
           )}
@@ -500,33 +543,33 @@ export default function QuaySoTable() {
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <button
             onClick={handleSpinAllDays}
-            className="bg-gradient-to-b from-fuchsia-500 to-fuchsia-600 hover:from-fuchsia-600 hover:to-fuchsia-700 border border-fuchsia-400 px-3 py-2 rounded-lg text-[11px] font-black uppercase transition-all flex items-center justify-center gap-1.5 shadow-md text-white min-h-[44px] w-[130px] leading-tight"
+            className="bg-pink-100 hover:bg-pink-200 text-pink-600 border border-pink-200 px-3 py-2 rounded-xl text-[11px] font-black uppercase transition-all flex items-center justify-center gap-1.5 shadow-sm min-h-[44px] w-[130px] leading-tight"
           >
-            <Dice5 size={16} /> Quay tất cả
+            <Dice5 size={16} className={bulkSpinning ? 'qs-dice-spin' : ''} /> Quay tất cả
           </button>
 
           <button
             onClick={handleExportImage}
-            className="bg-gradient-to-b from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 border border-purple-400 px-2 py-1.5 rounded-lg text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 shadow-md text-white min-h-[44px] w-[100px] leading-tight"
+            className="bg-purple-100 hover:bg-purple-200 text-purple-600 border border-purple-200 px-2 py-1.5 rounded-xl text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 shadow-sm min-h-[44px] w-[100px] leading-tight"
           >
             <Camera size={14} /> Chụp ảnh
           </button>
 
           <button
             onClick={() => setShowResetConfirm(true)}
-            className="bg-gradient-to-b from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 border border-red-400 px-2 py-1.5 rounded-lg text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 shadow-md text-white min-h-[44px] w-[100px] leading-tight"
+            className="bg-rose-100 hover:bg-rose-200 text-rose-600 border border-rose-200 px-2 py-1.5 rounded-xl text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 shadow-sm min-h-[44px] w-[100px] leading-tight"
           >
             <RotateCcw size={14} /> Reset
           </button>
 
           <button
             onClick={() => setShowStaffInput(!showStaffInput)}
-            className={`px-2 py-1.5 rounded-lg text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 shadow-md text-white min-h-[44px] w-[110px] leading-tight ${showStaffInput ? 'bg-gradient-to-b from-blue-600 to-blue-700 border border-blue-500' : 'bg-gradient-to-b from-blue-500 to-blue-600 border border-blue-400'}`}
+            className={`px-2 py-1.5 rounded-xl text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 shadow-sm min-h-[44px] w-[110px] leading-tight border ${showStaffInput ? 'bg-blue-200 text-blue-700 border-blue-300' : 'bg-blue-100 hover:bg-blue-200 text-blue-600 border-blue-200'}`}
           >
             <Users size={14} /> DS nhân viên
           </button>
 
-          <label className="cursor-pointer bg-gradient-to-b from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 border border-sky-400 px-2 py-1.5 rounded-lg text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 shadow-md text-white min-h-[44px] w-[100px] leading-tight">
+          <label className="cursor-pointer bg-cyan-100 hover:bg-cyan-200 text-cyan-700 border border-cyan-200 px-2 py-1.5 rounded-xl text-[11px] font-bold uppercase transition-all flex items-center justify-center gap-1.5 shadow-sm min-h-[44px] w-[100px] leading-tight">
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Nhập Excel
             <input type="file" accept=".xlsx, .xls" className="hidden" onChange={e => e.target.files?.[0] && handleUpload(e.target.files[0])} />
           </label>
@@ -535,13 +578,13 @@ export default function QuaySoTable() {
             <button
               onClick={() => persist()}
               disabled={isSaving}
-              className="bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 border border-emerald-400 px-3 py-2 rounded-lg text-[12px] font-bold uppercase transition-all flex items-center justify-center gap-2 shadow-md text-white min-h-[44px] min-w-[130px] leading-tight disabled:opacity-50"
+              className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-200 px-3 py-2 rounded-xl text-[12px] font-bold uppercase transition-all flex items-center justify-center gap-2 shadow-sm min-h-[44px] min-w-[130px] leading-tight disabled:opacity-50"
             >
               {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               Lưu Firebase
             </button>
             {lastSaved && (
-              <span className="text-[9px] text-slate-500 italic text-center">
+              <span className="text-[9px] text-violet-300 italic text-center">
                 Lưu lần cuối: {new Date(lastSaved).toLocaleString('vi-VN')}
               </span>
             )}
@@ -550,14 +593,14 @@ export default function QuaySoTable() {
       </div>
 
       {showStaffInput && (
-        <div className="bg-white p-4 border-b border-slate-200 shadow-inner flex flex-col gap-3">
+        <div className="bg-white/90 p-4 border-b border-violet-100 shadow-sm flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Danh sách nhân viên (mỗi dòng 1 người hoặc dán từ Excel)</h3>
+            <h3 className="text-sm font-black text-violet-700 uppercase tracking-wider">Danh sách nhân viên (mỗi dòng 1 người hoặc dán từ Excel)</h3>
             <div className="flex items-center gap-2">
-              <button onClick={handleApplyStaffInput} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase px-3 py-1.5 rounded shadow transition-all">
+              <button onClick={handleApplyStaffInput} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-200 text-xs font-bold uppercase px-3 py-1.5 rounded-lg shadow-sm transition-all">
                 Cập nhật & Lưu
               </button>
-              <button onClick={() => setShowStaffInput(false)} className="bg-slate-500 hover:bg-slate-600 text-white text-xs font-bold uppercase px-3 py-1.5 rounded shadow transition-all">
+              <button onClick={() => setShowStaffInput(false)} className="bg-slate-100 hover:bg-slate-200 text-slate-500 border border-slate-200 text-xs font-bold uppercase px-3 py-1.5 rounded-lg shadow-sm transition-all">
                 Đóng
               </button>
             </div>
@@ -565,42 +608,49 @@ export default function QuaySoTable() {
           <textarea
             value={rawStaffInput}
             onChange={e => setRawStaffInput(e.target.value)}
-            className="w-full h-32 p-3 border border-slate-300 rounded-lg text-xs font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all shadow-inner text-slate-800"
+            className="w-full h-32 p-3 border border-violet-100 rounded-xl text-xs font-mono focus:border-violet-300 focus:ring-1 focus:ring-violet-300 outline-none transition-all bg-violet-50/40 text-slate-700"
             placeholder={'BP All In One - ĐMX\tLộc_49641\t99153\nBP All In One - ĐMX\tKhiết_30660\t99155\n\nHoặc chỉ cần nhập tên mỗi dòng:\nLộc_49641\nKhiết_30660'}
           />
         </div>
       )}
 
       {/* Legend */}
-      <div className="flex items-center gap-4 px-4 py-2 bg-white border-b border-slate-100 text-[10px] font-bold uppercase flex-wrap">
-        <span className={`px-2 py-1 rounded border ${STATUS_STYLE.HC}`}>HC = Hành chính (quay số)</span>
-        <span className={`px-2 py-1 rounded border ${STATUS_STYLE['Sáng']}`}>Sáng</span>
-        <span className={`px-2 py-1 rounded border ${STATUS_STYLE['Chiều']}`}>Chiều</span>
-        <span className={`px-2 py-1 rounded border ${STATUS_STYLE.OFF}`}>OFF</span>
-        <span className="text-slate-400 normal-case font-medium italic">Nhóm 1/2 tự đảo Sáng ↔ Chiều mỗi ngày. Bấm 🎲 trên từng ngày để quay số 2 người trực hành chính.</span>
+      <div className="flex items-center gap-4 px-4 py-2 bg-white/70 border-b border-violet-100 text-[10px] font-bold uppercase flex-wrap">
+        <span className={`px-2 py-1 rounded-lg border ${STATUS_STYLE.HC}`}>HC = Hành chính (quay số)</span>
+        <span className={`px-2 py-1 rounded-lg border ${STATUS_STYLE['Sáng']}`}>Sáng</span>
+        <span className={`px-2 py-1 rounded-lg border ${STATUS_STYLE['Chiều']}`}>Chiều</span>
+        <span className={`px-2 py-1 rounded-lg border ${STATUS_STYLE.OFF}`}>OFF</span>
+        <span className="text-violet-300 normal-case font-medium italic">Nhóm 1/2 tự đảo Sáng ↔ Chiều mỗi ngày. Bấm 🎲 trên từng ngày để quay số 2 người trực hành chính.</span>
       </div>
+
+      {/* Bulk spin banner */}
+      {bulkSpinning && (
+        <div className="flex items-center justify-center gap-2 px-4 py-2 bg-pink-50 border-b border-pink-100 text-pink-600 text-xs font-black uppercase">
+          <Dice5 size={16} className="qs-dice-spin" /> Đang quay số cho {dateRange.length} ngày...
+        </div>
+      )}
 
       {/* Main Table */}
       <div className="flex-1 overflow-auto p-4">
-        <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden min-w-max" ref={tableRef}>
+        <div className="bg-white rounded-2xl shadow-lg border border-violet-100 overflow-hidden min-w-max" ref={tableRef}>
           <table className="w-full border-collapse text-[11px]">
             <thead>
-              <tr className="bg-[#e6f0fa] border-b border-slate-300">
-                <th className="sticky left-0 z-40 bg-[#e6f0fa] border-r border-slate-300 px-4 py-2 text-left w-56 min-w-[224px]">
-                  <span className="font-black text-[#004b8d] uppercase text-xs">Nhân viên</span>
+              <tr className="bg-gradient-to-b from-violet-50 to-fuchsia-50/60 border-b border-violet-100">
+                <th className="sticky left-0 z-40 bg-violet-50 border-r border-violet-100 px-4 py-2 text-left w-56 min-w-[224px]">
+                  <span className="font-black text-violet-600 uppercase text-xs">Nhân viên</span>
                 </th>
                 {dateRange.map((date, i) => {
                   const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                   const dateStr = format(date, 'yyyy-MM-dd');
                   return (
-                    <th key={i} className={`border-r border-slate-300 px-2 py-1.5 text-center min-w-[92px] ${isWeekend ? 'text-red-600 bg-red-50/50' : 'text-[#004b8d]'}`}>
+                    <th key={i} className={`border-r border-violet-100 px-2 py-1.5 text-center min-w-[92px] ${isWeekend ? 'text-rose-400 bg-rose-50/50' : 'text-violet-600'}`}>
                       <div className="flex flex-col items-center gap-0.5">
                         <span className="font-black uppercase tracking-tighter">{format(date, 'EEEE', { locale: vi })}</span>
                         <span className="font-bold text-[10px]">{format(date, 'dd/MM')}</span>
                         <button
                           onClick={() => startSpin(dateStr)}
                           title="Quay số ca hành chính"
-                          className="mt-0.5 flex items-center gap-1 bg-fuchsia-500 hover:bg-fuchsia-600 text-white text-[9px] font-black uppercase px-1.5 py-0.5 rounded transition-colors"
+                          className="mt-0.5 flex items-center gap-1 bg-pink-100 hover:bg-pink-200 text-pink-600 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-lg transition-colors"
                         >
                           <Dice5 size={11} /> Quay số
                         </button>
@@ -610,12 +660,12 @@ export default function QuaySoTable() {
                 })}
               </tr>
               {/* Summary row */}
-              <tr className="bg-[#f8fafc] border-b-2 border-slate-300">
-                <td className="sticky left-0 z-30 bg-[#f8fafc] border-r border-slate-200 px-4 py-1.5 font-bold text-slate-500 uppercase text-[10px]">
+              <tr className="bg-white/60 border-b-2 border-violet-100">
+                <td className="sticky left-0 z-30 bg-white/90 border-r border-violet-100 px-4 py-1.5 font-bold text-violet-300 uppercase text-[10px]">
                   Tổng hợp
                 </td>
                 {dailySummary.map((s, i) => (
-                  <td key={i} className="border-r border-slate-200 text-center text-[9px] font-bold text-slate-500 px-1 py-1">
+                  <td key={i} className="border-r border-violet-100 text-center text-[9px] font-bold text-violet-300 px-1 py-1">
                     <div>HC:{s.hc} S:{s.sang}</div>
                     <div>C:{s.chieu} OFF:{s.off}</div>
                   </td>
@@ -625,14 +675,14 @@ export default function QuaySoTable() {
             <tbody>
               {Object.entries(groupedEmployees).map(([dept, deptEmps]) => (
                 <React.Fragment key={dept}>
-                  <tr className="bg-[#f1f5f9]">
-                    <td colSpan={1 + dateRange.length} className="sticky left-0 z-20 bg-[#f1f5f9] px-4 py-2 font-black text-[#004b8d] uppercase border-b border-slate-300">
+                  <tr className="bg-fuchsia-50/70">
+                    <td colSpan={1 + dateRange.length} className="sticky left-0 z-20 bg-fuchsia-50/90 px-4 py-2 font-black text-fuchsia-600 uppercase border-b border-violet-100">
                       {dept}
                     </td>
                   </tr>
                   {deptEmps.map(emp => (
-                    <tr key={emp.username} className="border-b border-slate-100 hover:bg-indigo-50/50 transition-colors group">
-                      <td className="sticky left-0 z-20 bg-white group-hover:bg-indigo-50/50 border-r border-slate-200 px-4 py-2">
+                    <tr key={emp.username} className="border-b border-violet-50 hover:bg-violet-50/50 transition-colors group">
+                      <td className="sticky left-0 z-20 bg-white group-hover:bg-violet-50/50 border-r border-violet-100 px-4 py-2">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex flex-col">
                             <span className="font-bold text-slate-700">{emp.username}</span>
@@ -641,7 +691,7 @@ export default function QuaySoTable() {
                           <button
                             onClick={() => handleToggleGroup(emp.username)}
                             title="Bấm để đổi nhóm"
-                            className={`text-[9px] font-black uppercase rounded px-1.5 py-0.5 transition-colors ${emp.group === 1 ? 'bg-sky-100 text-sky-700' : 'bg-indigo-100 text-indigo-700'}`}
+                            className={`text-[9px] font-black uppercase rounded-lg px-1.5 py-0.5 transition-colors ${emp.group === 1 ? 'bg-sky-100 text-sky-600' : 'bg-pink-100 text-pink-600'}`}
                           >
                             Nhóm {emp.group}
                           </button>
@@ -651,14 +701,14 @@ export default function QuaySoTable() {
                         const dateStr = format(date, 'yyyy-MM-dd');
                         const status = getStatus(emp, date);
                         return (
-                          <td key={i} className="border-r border-slate-200 p-1 text-center relative">
-                            <div className={`rounded px-1 py-1 text-[10px] font-black uppercase border ${STATUS_STYLE[status]}`}>
+                          <td key={i} className="border-r border-violet-50 p-1 text-center relative">
+                            <div className={`rounded-lg px-1 py-1 text-[10px] font-black uppercase border ${STATUS_STYLE[status]}`}>
                               {status}
                             </div>
                             <button
                               onClick={() => handleToggleOff(emp.username, dateStr)}
                               title="Bật/Tắt lịch OFF"
-                              className={`absolute top-0 right-0 text-[7px] font-bold uppercase px-1 rounded-bl transition-colors ${status === 'OFF' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-400 hover:bg-red-100 hover:text-red-600'}`}
+                              className={`absolute top-0 right-0 text-[7px] font-bold uppercase px-1 rounded-bl-lg transition-colors ${status === 'OFF' ? 'bg-rose-400 text-white' : 'bg-white/70 text-slate-300 hover:bg-rose-100 hover:text-rose-500'}`}
                             >
                               {status === 'OFF' ? 'ON?' : 'OFF?'}
                             </button>
@@ -671,7 +721,7 @@ export default function QuaySoTable() {
               ))}
               {employees.length === 0 && (
                 <tr>
-                  <td colSpan={1 + dateRange.length} className="px-4 py-10 text-center text-slate-400 italic text-sm">
+                  <td colSpan={1 + dateRange.length} className="px-4 py-10 text-center text-violet-300 italic text-sm">
                     Chưa có danh sách nhân viên. Bấm "DS nhân viên" hoặc "Nhập Excel" để bắt đầu.
                   </td>
                 </tr>
@@ -684,72 +734,89 @@ export default function QuaySoTable() {
       {loading && (
         <div className="fixed inset-0 bg-white/60 backdrop-blur-sm z-[100] flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
-            <Loader2 size={32} className="animate-spin text-[#004b8d]" />
-            <span className="text-xs font-black uppercase text-[#004b8d] tracking-widest">Đang xử lý dữ liệu...</span>
+            <Loader2 size={32} className="animate-spin text-violet-400" />
+            <span className="text-xs font-black uppercase text-violet-400 tracking-widest">Đang xử lý dữ liệu...</span>
           </div>
         </div>
       )}
 
       {/* Spin Modal */}
       {spinState.open && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[120] px-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative">
-            <button onClick={closeSpinModal} className="absolute top-3 right-3 text-slate-400 hover:text-slate-700">
-              <X size={20} />
-            </button>
-            <div className="flex items-center gap-2 justify-center mb-4">
-              <Sparkles size={20} className="text-fuchsia-500" />
-              <h3 className="text-lg font-black text-slate-800 uppercase tracking-wide">
-                Quay số ngày {spinState.dateStr ? format(parseISO(spinState.dateStr), 'dd/MM/yyyy') : ''}
-              </h3>
-            </div>
-            <div className="flex flex-col gap-3 mb-5">
-              {spinState.display.map((name, idx) => (
-                <div
-                  key={idx}
-                  className={`text-center py-4 rounded-xl border-2 font-black text-xl uppercase tracking-wide transition-all ${
-                    spinState.spinning
-                      ? 'border-slate-200 bg-slate-50 text-slate-500'
-                      : 'border-amber-400 bg-amber-50 text-amber-700 scale-105'
-                  }`}
-                >
-                  {name}
-                </div>
-              ))}
-            </div>
-            {spinState.spinning ? (
-              <p className="text-center text-xs font-bold text-slate-400 uppercase animate-pulse">Đang quay...</p>
-            ) : (
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={respin}
-                  className="flex items-center gap-1.5 bg-slate-500 hover:bg-slate-600 text-white text-xs font-black uppercase px-4 py-2 rounded-lg transition-colors"
-                >
-                  <RotateCcw size={14} /> Quay lại
-                </button>
-                <button
-                  onClick={confirmSpin}
-                  className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase px-4 py-2 rounded-lg transition-colors"
-                >
-                  <Check size={14} /> Xác nhận
-                </button>
+        <div className="fixed inset-0 bg-violet-900/30 backdrop-blur-sm flex items-center justify-center z-[120] px-4">
+          <div className="bg-gradient-to-br from-pink-200 via-violet-200 to-sky-200 p-[3px] rounded-3xl shadow-2xl max-w-md w-full">
+            <div className="bg-white rounded-[calc(1.5rem-2px)] p-6 relative overflow-hidden">
+              <button onClick={closeSpinModal} className="absolute top-3 right-3 text-violet-300 hover:text-violet-600 z-10">
+                <X size={20} />
+              </button>
+              <div className="flex items-center gap-2 justify-center mb-4">
+                <Sparkles size={20} className="text-pink-400" />
+                <h3 className="text-lg font-black text-violet-700 uppercase tracking-wide">
+                  Quay số ngày {spinState.dateStr ? format(parseISO(spinState.dateStr), 'dd/MM/yyyy') : ''}
+                </h3>
               </div>
-            )}
+              <div className="flex flex-col gap-3 mb-5 relative">
+                {spinState.justLanded && CONFETTI_PIECES.map((p, idx) => (
+                  <span
+                    key={idx}
+                    className="qs-confetti-piece"
+                    style={{
+                      background: p.color,
+                      animationDelay: `${p.delay}s`,
+                      ['--dx' as any]: `${p.dx}px`,
+                      ['--dy' as any]: `${p.dy}px`,
+                      ['--rot' as any]: `${p.rot}deg`,
+                    }}
+                  />
+                ))}
+                {spinState.display.map((name, idx) => (
+                  <div
+                    key={idx}
+                    className={`text-center py-4 rounded-2xl border-2 font-black text-xl uppercase tracking-wide transition-all ${
+                      spinState.spinning
+                        ? 'border-violet-100 bg-violet-50 text-violet-300'
+                        : 'border-amber-200 bg-gradient-to-br from-amber-50 to-pink-50 text-amber-600 qs-pop-in'
+                    }`}
+                  >
+                    {name}
+                  </div>
+                ))}
+              </div>
+              {spinState.spinning ? (
+                <p className="flex items-center justify-center gap-2 text-xs font-bold text-violet-400 uppercase">
+                  <Dice5 size={14} className="qs-dice-spin" /> Đang quay...
+                </p>
+              ) : (
+                <div className="flex gap-3 justify-center">
+                  <button
+                    onClick={respin}
+                    className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 text-xs font-black uppercase px-4 py-2 rounded-xl transition-colors"
+                  >
+                    <RotateCcw size={14} /> Quay lại
+                  </button>
+                  <button
+                    onClick={confirmSpin}
+                    className="flex items-center gap-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-200 text-xs font-black uppercase px-4 py-2 rounded-xl transition-colors"
+                  >
+                    <Check size={14} /> Xác nhận
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
 
       {/* Reset Confirmation Modal */}
       {showResetConfirm && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-[110]">
-          <div className="bg-white p-6 rounded-xl shadow-xl max-w-md w-full mx-4">
-            <h3 className="text-lg font-bold text-slate-800 mb-2">Xác nhận làm mới</h3>
-            <p className="text-slate-600 mb-6 text-sm">Bạn có chắc chắn muốn xóa toàn bộ lịch quay số và OFF hiện tại? Hành động này không thể hoàn tác.</p>
+        <div className="fixed inset-0 bg-violet-900/30 backdrop-blur-sm flex items-center justify-center z-[110]">
+          <div className="bg-white p-6 rounded-3xl shadow-2xl max-w-md w-full mx-4 border border-violet-100">
+            <h3 className="text-lg font-black text-violet-700 mb-2">Xác nhận làm mới</h3>
+            <p className="text-slate-500 mb-6 text-sm">Bạn có chắc chắn muốn xóa toàn bộ lịch quay số và OFF hiện tại? Hành động này không thể hoàn tác.</p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowResetConfirm(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium text-sm">
+              <button onClick={() => setShowResetConfirm(false)} className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors font-medium text-sm">
                 Hủy
               </button>
-              <button onClick={handleResetSchedule} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm">
+              <button onClick={handleResetSchedule} className="px-4 py-2 bg-rose-400 text-white rounded-xl hover:bg-rose-500 transition-colors font-medium text-sm">
                 Xóa dữ liệu
               </button>
             </div>
