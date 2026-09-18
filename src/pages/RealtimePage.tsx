@@ -6152,7 +6152,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                             })()}
                                           </tr>
                                         );
-                                      })}
+                                      }))}
                                   </tbody>
                                 </table>
                               </div>
@@ -6304,7 +6304,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                             })()}
                                           </tr>
                                         );
-                                      })}
+                                      }))}
                                   </tbody>
                                 </table>
                               </div>
@@ -6617,7 +6617,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                               })()}
                                             </tr>
                                           );
-                                        })}
+                                        }))}
                                     </tbody>
                                   </table>
                                 </div>
