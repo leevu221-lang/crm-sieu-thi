@@ -9,6 +9,7 @@ import {
   ShoppingCart, Plus, ShoppingBag, Minus
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import * as XLSX from 'xlsx';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import StickerPrintModal, { Sticker, DcnbCard } from '../components/StickerPrintModal';
