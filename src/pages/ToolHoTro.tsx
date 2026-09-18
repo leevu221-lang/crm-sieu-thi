@@ -2201,16 +2201,32 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 let origPrice = 0;
                 let discPrice = 0;
 
-                if (originalPriceIdx !== -1 && isPurePriceCell(row[originalPriceIdx])) {
+                // ƯU TIÊN TUYỆT ĐỐI THEO YÊU CẦU: Cột "giá giảm" = Cột F (index 5) trong file Excel
+                const colF = cleanPrice(row[5]);
+                if (colF >= 1000) {
+                  discPrice = colF;
+                }
+
+                // Cột "giá gốc" = Cột E (index 4) trong file Excel
+                const colE = cleanPrice(row[4]);
+                if (colE >= 1000) {
+                  origPrice = colE;
+                }
+
+                // Nếu chưa có Cột F / Cột E, mới dò theo Header tìm được
+                if (origPrice === 0 && originalPriceIdx !== -1 && isPurePriceCell(row[originalPriceIdx])) {
                   origPrice = cleanPrice(row[originalPriceIdx]);
                 }
-                if (discountPriceIdx !== -1 && isPurePriceCell(row[discountPriceIdx])) {
+                if (discPrice === 0 && discountPriceIdx !== -1 && isPurePriceCell(row[discountPriceIdx])) {
                   discPrice = cleanPrice(row[discountPriceIdx]);
                 }
 
                 // Dò tối đa 70 cột để tìm các ô giá hợp lệ
                 const foundPurePrices: number[] = [];
                 const foundColIndices = new Set<number>();
+                if (colE >= 1000) foundColIndices.add(4);
+                if (colF >= 1000) foundColIndices.add(5);
+
                 for (let c = 0; c < maxCols; c++) {
                   if (c === nameIdx || c === maSpIdx) continue;
                   const cell = row[c];
@@ -2237,7 +2253,9 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
                 if (origPrice >= 1000 && discPrice < 1000) discPrice = origPrice;
                 if (discPrice >= 1000 && origPrice < 1000) origPrice = discPrice;
-                if (origPrice > 0 && discPrice > 0 && origPrice < discPrice) {
+
+                // Nếu không có Cột F chỉ định thì mới tự đảo thứ tự giá nếu giá gốc < giá giảm
+                if (colF < 1000 && origPrice > 0 && discPrice > 0 && origPrice < discPrice) {
                   const tmp = origPrice;
                   origPrice = discPrice;
                   discPrice = tmp;
