@@ -1931,120 +1931,290 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               });
             }
           }
-        } else if (shouldAppend) {
-          // TRANG STICKER -> BẢNG DỮ LIỆU BẢNG GIÁ -> Cột A = Mã SP, Cột B = Tên SP, Cột C = Giá gốc, Cột D = Giá giảm
-          const cleanPrice = (val: any) => {
-            if (val === undefined || val === null || val === '') return 0;
-            if (typeof val === 'number') return val;
-            return parseInt(String(val).replace(/[^\d]/g, ''), 10) || 0;
-          };
-
-          for (let i = 0; i < data.length; i++) {
-            const row: any = data[i];
-            if (!row || !Array.isArray(row)) continue;
-
-            const colA = String(row[0] || '').trim();  // Cột A
-            const colB = String(row[1] || '').trim();  // Cột B
-            const colC = row[2];                        // Cột C = Giá gốc
-            const colD = row[3];                        // Cột D = Giá giảm
-
-            // Bỏ qua dòng tiêu đề
-            if (i === 0 && (colA.toLowerCase().includes('mã') || colB.toLowerCase().includes('tên') || colB.toLowerCase().includes('sản phẩm'))) {
-              continue;
-            }
-
-            if (!colB) continue; // Bỏ qua dòng trống không có tên SP
-
-            parsedPriceData.push({
-              maSanPham: colA,
-              productCode: colA,
-              name: colB,
-              originalPrice: cleanPrice(colC),
-              discountPrice: cleanPrice(colD),
-              nganhHang: '',
-              nhomHang: ''
-            });
-          }
         } else {
-          let headerRowIdx = -1;
-          for (let i = 0; i < Math.min(20, data.length); i++) {
-            const row: any = data[i];
-            if (!row || !Array.isArray(row)) continue;
-            const rowStr = row.join(' ').toLowerCase();
-            if (rowStr.includes('tên sản phẩm') || rowStr.includes('tên hàng') || rowStr.includes('mã sản phẩm') || rowStr.includes('giá niêm yết') || rowStr.includes('giá gốc') || rowStr.includes('giá sau giảm')) {
-              headerRowIdx = i;
-              break;
-            }
-          }
+          // XỬ LÝ BẢNG GIÁ MẪU 81 / EVENT / STICKER / TỔNG HỢP (Áp dụng cho cả tải mới và thêm vào danh sách)
+          const parseMau81PriceData = (rawRows: any[][]): any[] => {
+            const parsed: any[] = [];
+            if (!rawRows || rawRows.length === 0) return parsed;
 
-          if (headerRowIdx !== -1) {
-            const headerRow = data[headerRowIdx].map((h: any) => String(h || '').toLowerCase().trim());
-            const maSpIdx = headerRow.findIndex((h: string) => h === 'mã sản phẩm' || h === 'mã sp' || h === 'mã hàng');
-            const nameIdx = headerRow.findIndex((h: string) => h === 'tên sản phẩm' || h === 'tên hàng' || h === 'sản phẩm');
-            const originalPriceIdx = headerRow.findIndex((h: string) => h === 'giá niêm yết' || h === 'giá gốc' || h === 'giá cũ');
-            const discountPriceIdx = headerRow.findIndex((h: string) => h === 'giá mới' || h === 'giá giảm' || h === 'giá bán' || h === 'giá hiện tại' || h === 'giá sau giảm');
-            const nganhHangIdx = headerRow.findIndex((h: string) => h === 'ngành hàng');
-            const nhomHangIdx = headerRow.findIndex((h: string) => h === 'nhóm hàng');
-
-            for (let i = headerRowIdx + 1; i < data.length; i++) {
-              const row: any = data[i];
-              if (!row || !Array.isArray(row)) continue;
-
-              const name = nameIdx !== -1 ? String(row[nameIdx] || '').trim() : '';
-              if (!name || name.toLowerCase().includes('tên sản phẩm')) continue;
-
-              const cleanPrice = (val: any) => {
-                if (val === undefined || val === null || val === '') return 0;
-                if (typeof val === 'number') return val;
-                return parseInt(String(val).replace(/[^\d]/g, ''), 10) || 0;
-              };
-
-              parsedPriceData.push({
-                maSanPham: maSpIdx !== -1 ? String(row[maSpIdx] || '').trim() : '',
-                productCode: maSpIdx !== -1 ? String(row[maSpIdx] || '').trim() : '',
-                name,
-                originalPrice: originalPriceIdx !== -1 ? cleanPrice(row[originalPriceIdx]) : 0,
-                discountPrice: discountPriceIdx !== -1 ? cleanPrice(row[discountPriceIdx]) : 0,
-                nganhHang: nganhHangIdx !== -1 ? String(row[nganhHangIdx] || '').trim() : '',
-                nhomHang: nhomHangIdx !== -1 ? String(row[nhomHangIdx] || '').trim() : ''
-              });
-            }
-          } else {
-            // Fallback: Không tìm thấy header
-            // Cột AK (index 36) = Mã SP, Cột A+B = Tên SP, Cột E = Giá gốc, Cột F = Giá giảm
-            const cleanPrice = (val: any) => {
-              if (val === undefined || val === null || val === '') return 0;
-              if (typeof val === 'number') return val;
-              return parseInt(String(val).replace(/[^\d]/g, ''), 10) || 0;
+            // Helper chuẩn hoá chuỗi header (bỏ dấu tiếng Việt, ký tự đặc biệt, đưa về lowercase)
+            const cleanH = (str: any) => {
+              return String(str || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/đ/g, 'd')
+                .replace(/[^a-z0-9]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
             };
 
-            for (let i = 0; i < data.length; i++) {
-              const row: any = data[i];
+            // Helper trích xuất số tiền an toàn
+            const cleanPrice = (val: any): number => {
+              if (val === undefined || val === null || val === '') return 0;
+              if (typeof val === 'number') {
+                if (isNaN(val) || !isFinite(val)) return 0;
+                return Math.round(val);
+              }
+              let str = String(val).trim();
+              if (!str) return 0;
+              // Bỏ chữ 'đ', 'vnd', 'vnđ'
+              str = str.replace(/[đĐvVnNdD]/g, '').trim();
+              // Xử lý các số có đuôi thập phân .00 hoặc ,00 (Crystal Reports hay xuất ra)
+              str = str.replace(/\.(00|0)$/, '').replace(/,(00|0)$/, '');
+              if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(str)) {
+                str = str.split('.')[0].replace(/,/g, '');
+              } else if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(str)) {
+                str = str.split(',')[0].replace(/\./g, '');
+              } else {
+                str = str.replace(/[^\d]/g, '');
+              }
+              const p = parseInt(str, 10);
+              return isNaN(p) ? 0 : p;
+            };
+
+            // Hàm kiểm tra xem 1 giá trị có phải là số tiền hợp lệ ở siêu thị
+            const isValidPrice = (val: any): boolean => {
+              const p = cleanPrice(val);
+              if (p < 500 || p > 500000000) return false;
+              // Loại trừ barcode 12-14 chữ số không chia hết cho 100
+              const strVal = String(val || '').trim();
+              if (strVal.length >= 10 && p > 1000000000 && p % 1000 !== 0) return false;
+              return true;
+            };
+
+            // 1. Quét tìm Header trong tối đa 30 dòng đầu
+            let headerRowIdx = -1;
+            let maSpIdx = -1;
+            let nameIdx = -1;
+            let originalPriceIdx = -1;
+            let discountPriceIdx = -1;
+            let nganhHangIdx = -1;
+            let nhomHangIdx = -1;
+
+            for (let i = 0; i < Math.min(30, rawRows.length); i++) {
+              const row = rawRows[i];
+              if (!row || !Array.isArray(row)) continue;
+              const normRow = row.map(c => cleanH(c));
+
+              const mIdx = normRow.findIndex(h => 
+                h === 'ma san pham' || h === 'ma sp' || h === 'ma hang' || h === 'ma vt' || 
+                h === 'masp' || h === 'ma' || h === 'barcode' || h === 'ma vach' || 
+                h === 'item code' || h === 'code' || h.includes('ma san pham') || h.includes('ma sp') || h.includes('ma hang')
+              );
+
+              const nIdx = normRow.findIndex(h => 
+                h === 'ten san pham' || h === 'ten sp' || h === 'ten hang' || h === 'ten hang hoa' || 
+                h === 'san pham' || h === 'mat hang' || h === 'ten mat hang' || h === 'item name' || 
+                h === 'description' || h === 'dien giai' || h === 'ten' || h.includes('ten san pham') || h.includes('ten sp') || h.includes('ten hang')
+              );
+
+              const oIdx = normRow.findIndex(h => 
+                h === 'gia niem yet' || h === 'gia ny' || h === 'gia goc' || h === 'gia cu' || 
+                h === 'gia ban niem yet' || h === 'gia truoc giam' || h === 'gia truoc km' || 
+                h === 'gia ban le' || h === 'gia chua giam' || h === 'niem yet' || h === 'don gia' ||
+                h.includes('niem yet') || h.includes('gia goc') || h.includes('gia cu') || h.includes('gia ny') ||
+                (h.includes('gia') && (h.includes('goc') || h.includes('ny') || h.includes('cu') || h.includes('truoc') || h.includes('chua giam')))
+              );
+
+              const dIdx = normRow.findIndex(h => 
+                h === 'gia khuyen mai' || h === 'gia km' || h === 'gia ban km' || h === 'gia sau giam' || 
+                h === 'gia sau km' || h === 'gia giam' || h === 'gia moi' || h === 'gia hien tai' || 
+                h === 'gia soc' || h === 'khuyen mai' || h === 'km' || h === 'sau giam' || 
+                h === 'gia ban' || h.includes('khuyen mai') || h.includes('gia km') || h.includes('sau giam') || 
+                h.includes('gia ban') || h.includes('gia giam') || h.includes('sau km')
+              );
+
+              const countMatched = [mIdx, nIdx, oIdx, dIdx].filter(idx => idx !== -1).length;
+              if (countMatched >= 2 || (nIdx !== -1 && (oIdx !== -1 || dIdx !== -1))) {
+                headerRowIdx = i;
+                maSpIdx = mIdx;
+                nameIdx = nIdx;
+                originalPriceIdx = oIdx;
+                discountPriceIdx = (dIdx === oIdx) ? -1 : dIdx;
+                nganhHangIdx = normRow.findIndex(h => h === 'nganh hang' || h === 'nganh' || h.includes('nganh hang'));
+                nhomHangIdx = normRow.findIndex(h => h === 'nhom hang' || h === 'nhom' || h.includes('nhom hang'));
+                break;
+              }
+            }
+
+            const startRow = headerRowIdx !== -1 ? headerRowIdx + 1 : 0;
+
+            for (let i = startRow; i < rawRows.length; i++) {
+              const row = rawRows[i];
               if (!row || !Array.isArray(row)) continue;
 
-              const colA = String(row[0] || '').trim();  // Cột A
-              const colB = String(row[1] || '').trim();  // Cột B
-              const colE = row[4];                        // Cột E = Giá gốc
-              const colF = row[5];                        // Cột F = Giá giảm
-              const colAK = String(row[36] || '').trim(); // Cột AK = Mã SP
+              // Bỏ qua dòng tiêu đề nếu headerRowIdx === -1 và dòng chứa từ khóa tiêu đề
+              if (headerRowIdx === -1 && i === 0) {
+                const rowStr = cleanH(row.join(' '));
+                if (rowStr.includes('ten') || rowStr.includes('ma') || rowStr.includes('gia')) {
+                  continue;
+                }
+              }
 
-              // Tên SP = Cột A + Cột B (gộp lại)
-              const name = [colA, colB].filter(Boolean).join(' ').trim();
+              // --- 1. XÁC ĐỊNH TÊN SẢN PHẨM ---
+              let name = '';
+              if (nameIdx !== -1 && row[nameIdx] !== undefined) {
+                name = String(row[nameIdx] || '').trim();
+              } else {
+                // Fallback: Thử cột B, hoặc cột A+B, hoặc tìm ô có text dài nhất
+                const colA = String(row[0] || '').trim();
+                const colB = String(row[1] || '').trim();
+                const combinedAB = [colA, colB].filter(s => s && isNaN(Number(s))).join(' ').trim();
+                if (combinedAB && combinedAB.length > 3) {
+                  name = combinedAB;
+                } else {
+                  for (let c = 0; c < Math.min(row.length, 50); c++) {
+                    const val = String(row[c] || '').trim();
+                    if (val.length > name.length && isNaN(Number(val)) && !val.includes('http') && val.length > 3) {
+                      name = val;
+                    }
+                  }
+                }
+              }
 
-              // Bỏ qua dòng trống
+              // Bỏ qua dòng không có tên hoặc là dòng header/tổng kết
               if (!name) continue;
+              const normName = cleanH(name);
+              if (normName === 'ten san pham' || normName === 'ten sp' || normName === 'tong cong' || normName === 'total') continue;
 
-              parsedPriceData.push({
-                maSanPham: colAK,
-                productCode: colAK,
+              // --- 2. XÁC ĐỊNH MÃ SẢN PHẨM ---
+              let maSp = '';
+              if (maSpIdx !== -1 && row[maSpIdx] !== undefined) {
+                maSp = String(row[maSpIdx] || '').trim();
+              } else {
+                // Thử cột AK (index 36) của ERP MWG Mẫu 81
+                const colAK = String(row[36] || '').trim();
+                if (colAK && colAK.length >= 3 && colAK.length <= 25) {
+                  maSp = colAK;
+                } else {
+                  // Thử các cột mã thông dụng: cột A, AC (28), BD (55), AE (30)
+                  for (const cIdx of [0, 28, 55, 30, 1]) {
+                    const val = String(row[cIdx] || '').trim();
+                    if (val && val !== name && (val.length <= 20 || /^[0-9A-Za-z_-]+$/.test(val))) {
+                      maSp = val;
+                      break;
+                    }
+                  }
+                }
+              }
+
+              // Chuẩn hoá mã sản phẩm (nếu có dạng CODE - TÊN)
+              if (maSp.includes(' - ')) {
+                maSp = maSp.split(' - ')[0].trim();
+              } else if (maSp.includes('-') && maSp.split('-')[0].length >= 3) {
+                maSp = maSp.split('-')[0].trim();
+              }
+
+              // Nếu maSp trống nhưng tên có dạng 'MÃ - TÊN SP'
+              if (!maSp && name.includes(' - ')) {
+                const parts = name.split(' - ');
+                if (parts[0].length <= 20) {
+                  maSp = parts[0].trim();
+                  name = parts.slice(1).join(' - ').trim();
+                }
+              }
+
+              // --- 3. XÁC ĐỊNH GIÁ GỐC VÀ GIÁ GIẢM ---
+              let origPrice = originalPriceIdx !== -1 ? cleanPrice(row[originalPriceIdx]) : 0;
+              let discPrice = discountPriceIdx !== -1 ? cleanPrice(row[discountPriceIdx]) : 0;
+
+              // Fallback cột cố định nếu cả 2 giá đều 0
+              if (origPrice === 0 && discPrice === 0) {
+                // Cặp cột Crystal Reports Mẫu 81: Cột E (4) & F (5)
+                const pE = cleanPrice(row[4]);
+                const pF = cleanPrice(row[5]);
+                if (pE > 0 || pF > 0) {
+                  origPrice = pE;
+                  discPrice = pF;
+                } else {
+                  // Cặp cột C (2) & D (3) (template 4 cột)
+                  const pC = cleanPrice(row[2]);
+                  const pD = cleanPrice(row[3]);
+                  if (pC > 0 || pD > 0) {
+                    origPrice = pC;
+                    discPrice = pD;
+                  } else {
+                    // Cặp cột U (20) & V (21)
+                    const pU = cleanPrice(row[20]);
+                    const pV = cleanPrice(row[21]);
+                    if (pU > 0 || pV > 0) {
+                      origPrice = pV > 0 ? pV : pU;
+                      discPrice = pU > 0 ? pU : pV;
+                    } else {
+                      // Cặp cột Q (16) & R (17)
+                      const pQ = cleanPrice(row[16]);
+                      const pR = cleanPrice(row[17]);
+                      if (pQ > 0 || pR > 0) {
+                        origPrice = pQ;
+                        discPrice = pR;
+                      }
+                    }
+                  }
+                }
+              }
+
+              // AUTO PRICE RECOVERY: Quét toàn bộ dòng nếu vẫn chưa tìm thấy giá
+              if (origPrice === 0 || discPrice === 0) {
+                const pricesInRow: number[] = [];
+                for (let c = 0; c < row.length; c++) {
+                  if (c === nameIdx || c === maSpIdx) continue;
+                  const cellVal = row[c];
+                  if (cellVal === undefined || cellVal === null || cellVal === '') continue;
+                  if (String(cellVal).trim() === maSp || String(cellVal).trim() === name) continue;
+                  if (isValidPrice(cellVal)) {
+                    const p = cleanPrice(cellVal);
+                    if (p > 0) pricesInRow.push(p);
+                  }
+                }
+
+                if (origPrice === 0 && discPrice === 0 && pricesInRow.length > 0) {
+                  if (pricesInRow.length >= 2) {
+                    // Nếu có từ 2 giá trở lên: số lớn hơn là giá gốc, số nhỏ hơn là giá sau giảm
+                    const sorted = [...pricesInRow].sort((a, b) => b - a);
+                    origPrice = sorted[0];
+                    discPrice = sorted[1] || sorted[0];
+                  } else {
+                    // Chỉ có 1 giá: gán cho cả giá gốc và giá giảm
+                    origPrice = pricesInRow[0];
+                    discPrice = pricesInRow[0];
+                  }
+                }
+              }
+
+              // Đảm bảo không bị 0đ ở 1 trong 2 cột giá nếu cột kia có giá trị
+              if (origPrice > 0 && discPrice === 0) {
+                discPrice = origPrice;
+              } else if (discPrice > 0 && origPrice === 0) {
+                origPrice = discPrice;
+              }
+
+              // Nếu giá gốc nhỏ hơn giá giảm do nhầm cột: đảo lại cho hợp lý
+              if (origPrice > 0 && discPrice > 0 && origPrice < discPrice) {
+                const tmp = origPrice;
+                origPrice = discPrice;
+                discPrice = tmp;
+              }
+
+              // --- 4. NGÀNH HÀNG & NHÓM HÀNG ---
+              const nganhHang = nganhHangIdx !== -1 ? String(row[nganhHangIdx] || '').trim() : '';
+              const nhomHang = nhomHangIdx !== -1 ? String(row[nhomHangIdx] || '').trim() : '';
+
+              parsed.push({
+                maSanPham: maSp,
+                productCode: maSp,
                 name,
-                originalPrice: cleanPrice(colE),
-                discountPrice: cleanPrice(colF),
-                nganhHang: '',
-                nhomHang: ''
+                originalPrice: origPrice,
+                discountPrice: discPrice,
+                nganhHang,
+                nhomHang
               });
             }
-          }
+
+            return parsed;
+          };
+
+          parsedPriceData.push(...parseMau81PriceData(data));
         }
 
         const finalData = shouldAppend ? [...priceData, ...parsedPriceData] : parsedPriceData;
