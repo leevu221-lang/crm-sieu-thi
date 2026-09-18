@@ -1634,31 +1634,76 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     reader.onload = async (evt) => {
       try {
         const dataBuffer = evt.target?.result as ArrayBuffer;
-        const wb = XLSX.read(dataBuffer, { type: 'array' });
-        
-        // Quét tất cả các sheet để tìm sheet có nhiều dòng dữ liệu nhất (hỗ trợ Crystal Reports đa sheet)
-        let bestData: any[][] = [];
-        let bestSheetName = wb.SheetNames[0];
-        
-        for (const sName of wb.SheetNames) {
-          const sheet = wb.Sheets[sName];
-          if (!sheet) continue;
-          const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1, range: 0, defval: '' }) as any[][];
-          const validRowCount = sheetRows.filter(r => r && Array.isArray(r) && r.some(c => c !== undefined && c !== null && String(c).trim() !== '')).length;
-          if (validRowCount > bestData.length) {
-            bestData = sheetRows;
-            bestSheetName = sName;
+        if (!dataBuffer) {
+          showNotification('Không thể đọc nội dung file!', 'error');
+          return;
+        }
+
+        // Đọc workbook với đa cơ chế fallback (ArrayBuffer -> Uint8Array -> Binary/Text)
+        let wb: any;
+        try {
+          wb = XLSX.read(dataBuffer, { type: 'array', cellDates: true });
+        } catch (errArray) {
+          try {
+            wb = XLSX.read(new Uint8Array(dataBuffer), { type: 'array', cellDates: true });
+          } catch (errUint8) {
+            try {
+              const textDecoder = new TextDecoder('utf-8');
+              const textContent = textDecoder.decode(dataBuffer);
+              wb = XLSX.read(textContent, { type: 'string', cellDates: true });
+            } catch (errText) {
+              console.error('Tất cả phương thức đọc XLSX đều thất bại:', errText);
+              throw new Error('Định dạng file không được hỗ trợ hoặc bị lỗi mã hóa!');
+            }
           }
         }
-        
+
+        if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) {
+          showNotification('File Excel không có sheet dữ liệu nào!', 'error');
+          return;
+        }
+
+        // Quét tất cả các sheet để tìm sheet có nhiều dòng dữ liệu thực tế nhất
+        let bestData: any[][] = [];
+        let maxValidRows = 0;
+
+        for (const sName of wb.SheetNames) {
+          try {
+            const sheet = wb.Sheets[sName];
+            if (!sheet) continue;
+            const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1, range: 0, defval: '' }) as any[][];
+            if (!sheetRows || !Array.isArray(sheetRows) || sheetRows.length === 0) continue;
+            
+            // Đếm số dòng có nội dung thực tế trong 60 cột đầu
+            const validRows = sheetRows.filter(r => 
+              r && Array.isArray(r) && r.slice(0, 60).some(c => c !== undefined && c !== null && String(c).trim() !== '')
+            ).length;
+
+            if (validRows > maxValidRows) {
+              maxValidRows = validRows;
+              bestData = sheetRows;
+            }
+          } catch (sErr) {
+            console.warn(`Lỗi đọc sheet ${sName}:`, sErr);
+          }
+        }
+
+        if (!bestData || bestData.length === 0) {
+          // Fallback: Lấy sheet đầu tiên nếu maxValidRows = 0
+          const firstSheet = wb.Sheets[wb.SheetNames[0]];
+          if (firstSheet) {
+            bestData = (XLSX.utils.sheet_to_json(firstSheet, { header: 1, range: 0, defval: '' }) as any[][]) || [];
+          }
+        }
+
         const data = bestData;
-        
+
         if (!data || data.length === 0) {
           showNotification('File Excel không có dữ liệu!', 'error');
           return;
         }
 
-      if (type === 'inventory') {
+        if (type === 'inventory') {
         const keys = getStorageKeysForTab(activeTab);
         setInventoryData(data);
         const timestamp = new Date().toISOString();
@@ -1958,16 +2003,21 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
             const parsed: any[] = [];
             if (!rawRows || rawRows.length === 0) return parsed;
 
-            // Helper chuẩn hoá chuỗi header (bỏ dấu tiếng Việt, ký tự đặc biệt, đưa về lowercase)
+            // Helper chuẩn hoá chuỗi header an toàn
             const cleanH = (str: any) => {
-              return String(str || '')
-                .toLowerCase()
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
-                .replace(/đ/g, 'd')
-                .replace(/[^a-z0-9]/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
+              try {
+                return String(str || '')
+                  .slice(0, 150)
+                  .toLowerCase()
+                  .normalize('NFD')
+                  .replace(/[\u0300-\u036f]/g, '')
+                  .replace(/đ/g, 'd')
+                  .replace(/[^a-z0-9]/g, ' ')
+                  .replace(/\s+/g, ' ')
+                  .trim();
+              } catch {
+                return '';
+              }
             };
 
             // Helper trích xuất số tiền an toàn
@@ -1979,9 +2029,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               }
               let str = String(val).trim();
               if (!str) return 0;
-              // Bỏ chữ 'đ', 'vnd', 'vnđ'
               str = str.replace(/[đĐvVnNdD]/g, '').trim();
-              // Xử lý các số có đuôi thập phân .00 hoặc ,00 (Crystal Reports hay xuất ra)
               str = str.replace(/\.(00|0)$/, '').replace(/,(00|0)$/, '');
               if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(str)) {
                 str = str.split('.')[0].replace(/,/g, '');
@@ -2007,12 +2055,9 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               const strVal = String(val).trim();
               if (!strVal) return false;
 
-              // Loại trừ ngày tháng
               if (/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(strVal)) return false;
-              // Loại trừ nhãn có dấu hai chấm
               if (/:/.test(strVal)) return false;
 
-              // Chuỗi chỉ được chứa số, ký tự tiền tệ và dấu chấm/phẩy/khoảng trắng
               const stripped = strVal.replace(/[đĐvVnNdDkK$\s]/g, '');
               if (!/^[\d.,]+$/.test(stripped)) {
                 return false;
@@ -2047,7 +2092,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
             for (let i = 0; i < Math.min(30, rawRows.length); i++) {
               const row = rawRows[i];
               if (!row || !Array.isArray(row)) continue;
-              const normRow = row.map(c => cleanH(c));
+              const normRow = row.slice(0, 60).map(c => cleanH(c));
 
               const mIdx = normRow.findIndex(h => 
                 h === 'ma san pham' || h === 'ma sp' || h === 'ma hang' || h === 'ma vt' || 
@@ -2092,134 +2137,139 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
             const startRow = headerRowIdx !== -1 ? headerRowIdx + 1 : 0;
 
             for (let i = startRow; i < rawRows.length; i++) {
-              const row = rawRows[i];
-              if (!row || !Array.isArray(row)) continue;
+              try {
+                const row = rawRows[i];
+                if (!row || !Array.isArray(row)) continue;
 
-              // Bỏ qua dòng trống
-              const hasData = row.some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
-              if (!hasData) continue;
+                // Bỏ qua dòng trống
+                const maxCols = Math.min(row.length, 70);
+                const hasData = row.slice(0, maxCols).some(cell => cell !== undefined && cell !== null && String(cell).trim() !== '');
+                if (!hasData) continue;
 
-              const rowFullText = row.map(c => String(c || '').trim()).join(' ');
-              if (isReportHeaderLine(rowFullText)) continue;
+                const rowFullText = row.slice(0, 30).map(c => String(c || '').trim()).join(' ');
+                if (isReportHeaderLine(rowFullText)) continue;
 
-              // 1. TÌM GIÁ TIỀN TRONG DÒNG
-              let origPrice = 0;
-              let discPrice = 0;
+                // 1. TÌM GIÁ TIỀN TRONG DÒNG
+                let origPrice = 0;
+                let discPrice = 0;
 
-              if (originalPriceIdx !== -1 && isPurePriceCell(row[originalPriceIdx])) {
-                origPrice = cleanPrice(row[originalPriceIdx]);
-              }
-              if (discountPriceIdx !== -1 && isPurePriceCell(row[discountPriceIdx])) {
-                discPrice = cleanPrice(row[discountPriceIdx]);
-              }
-
-              // Dò toàn bộ dòng để tìm các ô giá hợp lệ
-              const foundPurePrices: number[] = [];
-              const foundColIndices = new Set<number>();
-              for (let c = 0; c < row.length; c++) {
-                if (c === nameIdx || c === maSpIdx) continue;
-                const cell = row[c];
-                if (isPurePriceCell(cell)) {
-                  foundPurePrices.push(cleanPrice(cell));
-                  foundColIndices.add(c);
+                if (originalPriceIdx !== -1 && isPurePriceCell(row[originalPriceIdx])) {
+                  origPrice = cleanPrice(row[originalPriceIdx]);
                 }
-              }
-
-              if (origPrice < 1000 && discPrice < 1000) {
-                if (foundPurePrices.length >= 2) {
-                  origPrice = Math.max(...foundPurePrices);
-                  discPrice = Math.min(...foundPurePrices);
-                } else if (foundPurePrices.length === 1) {
-                  origPrice = foundPurePrices[0];
-                  discPrice = foundPurePrices[0];
+                if (discountPriceIdx !== -1 && isPurePriceCell(row[discountPriceIdx])) {
+                  discPrice = cleanPrice(row[discountPriceIdx]);
                 }
-              }
 
-              // Bắt buộc phải có ít nhất 1 giá tiền >= 1000đ
-              if (origPrice < 1000 && discPrice < 1000) {
-                continue;
-              }
+                // Dò tối đa 70 cột để tìm các ô giá hợp lệ
+                const foundPurePrices: number[] = [];
+                const foundColIndices = new Set<number>();
+                for (let c = 0; c < maxCols; c++) {
+                  if (c === nameIdx || c === maSpIdx) continue;
+                  const cell = row[c];
+                  if (isPurePriceCell(cell)) {
+                    foundPurePrices.push(cleanPrice(cell));
+                    foundColIndices.add(c);
+                  }
+                }
 
-              if (origPrice >= 1000 && discPrice < 1000) discPrice = origPrice;
-              if (discPrice >= 1000 && origPrice < 1000) origPrice = discPrice;
-              if (origPrice > 0 && discPrice > 0 && origPrice < discPrice) {
-                const tmp = origPrice;
-                origPrice = discPrice;
-                discPrice = tmp;
-              }
+                if (origPrice < 1000 && discPrice < 1000) {
+                  if (foundPurePrices.length >= 2) {
+                    origPrice = Math.max(...foundPurePrices);
+                    discPrice = Math.min(...foundPurePrices);
+                  } else if (foundPurePrices.length === 1) {
+                    origPrice = foundPurePrices[0];
+                    discPrice = foundPurePrices[0];
+                  }
+                }
 
-              // 2. TÌM TÊN SẢN PHẨM
-              let name = '';
-              if (nameIdx !== -1 && row[nameIdx] !== undefined) {
-                name = String(row[nameIdx] || '').trim();
-              } else {
-                // Thử ghép Cột A và B (nếu cả hai không phải ô giá và chứa chữ)
-                const colA = !foundColIndices.has(0) ? String(row[0] || '').trim() : '';
-                const colB = !foundColIndices.has(1) ? String(row[1] || '').trim() : '';
-                const comb = [colA, colB].filter(s => s && /[a-zA-ZÀ-ỹ]/.test(s) && isNaN(Number(s))).join(' ').trim();
-                if (comb.length >= 5) {
-                  name = comb;
+                // Bắt buộc phải có ít nhất 1 giá tiền >= 1000đ
+                if (origPrice < 1000 && discPrice < 1000) {
+                  continue;
+                }
+
+                if (origPrice >= 1000 && discPrice < 1000) discPrice = origPrice;
+                if (discPrice >= 1000 && origPrice < 1000) origPrice = discPrice;
+                if (origPrice > 0 && discPrice > 0 && origPrice < discPrice) {
+                  const tmp = origPrice;
+                  origPrice = discPrice;
+                  discPrice = tmp;
+                }
+
+                // 2. TÌM TÊN SẢN PHẨM
+                let name = '';
+                if (nameIdx !== -1 && row[nameIdx] !== undefined) {
+                  name = String(row[nameIdx] || '').trim();
                 } else {
-                  // Tìm ô văn bản dài nhất chứa chữ cái tiếng Việt/Latinh và không phải ô giá
-                  for (let c = 0; c < Math.min(row.length, 60); c++) {
-                    if (foundColIndices.has(c)) continue;
-                    const val = String(row[c] || '').trim();
-                    if (val.length > name.length && /[a-zA-ZÀ-ỹ]/.test(val) && isNaN(Number(val)) && !isReportHeaderLine(val)) {
-                      name = val;
+                  // Thử ghép Cột A và B (nếu cả hai không phải ô giá và chứa chữ)
+                  const colA = !foundColIndices.has(0) ? String(row[0] || '').trim() : '';
+                  const colB = !foundColIndices.has(1) ? String(row[1] || '').trim() : '';
+                  const comb = [colA, colB].filter(s => s && /[a-zA-ZÀ-ỹ]/.test(s) && isNaN(Number(s))).join(' ').trim();
+                  if (comb.length >= 5) {
+                    name = comb;
+                  } else {
+                    // Tìm ô văn bản dài nhất chứa chữ cái tiếng Việt/Latinh và không phải ô giá
+                    for (let c = 0; c < Math.min(row.length, 60); c++) {
+                      if (foundColIndices.has(c)) continue;
+                      const val = String(row[c] || '').trim();
+                      if (val.length > name.length && /[a-zA-ZÀ-ỹ]/.test(val) && isNaN(Number(val)) && !isReportHeaderLine(val)) {
+                        name = val;
+                      }
                     }
                   }
                 }
-              }
 
-              if (!name || name.length < 3) continue;
-              const normN = cleanH(name);
-              if (normN === 'ten san pham' || normN === 'ten sp' || normN === 'stt' || isReportHeaderLine(name)) continue;
+                if (!name || name.length < 3) continue;
+                const normN = cleanH(name);
+                if (normN === 'ten san pham' || normN === 'ten sp' || normN === 'stt' || isReportHeaderLine(name)) continue;
 
-              // 3. TÌM MÃ SẢN PHẨM
-              let maSp = '';
-              if (maSpIdx !== -1 && row[maSpIdx] !== undefined) {
-                maSp = String(row[maSpIdx] || '').trim();
-              } else {
-                // Ưu tiên cột AK (36) của Mẫu 81 ERP
-                const colAK = String(row[36] || '').trim();
-                if (colAK && colAK.length >= 3 && colAK.length <= 25 && !foundColIndices.has(36)) {
-                  maSp = colAK;
+                // 3. TÌM MÃ SẢN PHẨM
+                let maSp = '';
+                if (maSpIdx !== -1 && row[maSpIdx] !== undefined) {
+                  maSp = String(row[maSpIdx] || '').trim();
                 } else {
-                  // Dò các cột khác không phải ô giá và khác tên
-                  for (const cIdx of [0, 28, 55, 30, 1, 2]) {
-                    if (foundColIndices.has(cIdx)) continue;
-                    const val = String(row[cIdx] || '').trim();
-                    if (val && val !== name && (val.length <= 20 || /^[0-9A-Za-z_-]+$/.test(val))) {
-                      maSp = val;
-                      break;
+                  // Ưu tiên cột AK (36) của Mẫu 81 ERP
+                  const colAK = String(row[36] || '').trim();
+                  if (colAK && colAK.length >= 3 && colAK.length <= 25 && !foundColIndices.has(36)) {
+                    maSp = colAK;
+                  } else {
+                    // Dò các cột khác không phải ô giá và khác tên
+                    for (const cIdx of [0, 28, 55, 30, 1, 2]) {
+                      if (foundColIndices.has(cIdx)) continue;
+                      const val = String(row[cIdx] || '').trim();
+                      if (val && val !== name && (val.length <= 20 || /^[0-9A-Za-z_-]+$/.test(val))) {
+                        maSp = val;
+                        break;
+                      }
                     }
                   }
                 }
-              }
 
-              if (maSp.includes(' - ')) maSp = maSp.split(' - ')[0].trim();
-              else if (maSp.includes('-') && maSp.split('-')[0].length >= 3) maSp = maSp.split('-')[0].trim();
+                if (maSp.includes(' - ')) maSp = maSp.split(' - ')[0].trim();
+                else if (maSp.includes('-') && maSp.split('-')[0].length >= 3) maSp = maSp.split('-')[0].trim();
 
-              if (!maSp && name.includes(' - ')) {
-                const parts = name.split(' - ');
-                if (parts[0].length <= 20) {
-                  maSp = parts[0].trim();
-                  name = parts.slice(1).join(' - ').trim();
+                if (!maSp && name.includes(' - ')) {
+                  const parts = name.split(' - ');
+                  if (parts[0].length <= 20) {
+                    maSp = parts[0].trim();
+                    name = parts.slice(1).join(' - ').trim();
+                  }
                 }
+
+                const nganhHang = nganhHangIdx !== -1 ? String(row[nganhHangIdx] || '').trim() : '';
+                const nhomHang = nhomHangIdx !== -1 ? String(row[nhomHangIdx] || '').trim() : '';
+
+                parsed.push({
+                  maSanPham: maSp,
+                  productCode: maSp,
+                  name,
+                  originalPrice: origPrice,
+                  discountPrice: discPrice,
+                  nganhHang,
+                  nhomHang
+                });
+              } catch (rowErr) {
+                console.warn(`Lỗi dòng ${i}:`, rowErr);
               }
-
-              const nganhHang = nganhHangIdx !== -1 ? String(row[nganhHangIdx] || '').trim() : '';
-              const nhomHang = nhomHangIdx !== -1 ? String(row[nhomHangIdx] || '').trim() : '';
-
-              parsed.push({
-                maSanPham: maSp,
-                productCode: maSp,
-                name,
-                originalPrice: origPrice,
-                discountPrice: discPrice,
-                nganhHang,
-                nhomHang
-              });
             }
 
             return parsed;
@@ -2275,15 +2325,17 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               : `Đã tải ${parsedPriceData.length} sản phẩm bảng giá và đồng bộ Firebase!`;
             showNotification(message, 'success');
           }
+        } else {
           const message = shouldAppend 
             ? `Đã thêm ${parsedPriceData.length} sản phẩm vào danh sách!` 
             : `Đã tải thành công ${parsedPriceData.length} sản phẩm bảng giá Mẫu 81!`;
           showNotification(message, 'success');
         }
       }
-    } catch (fileErr) {
+    } catch (fileErr: any) {
       console.error('Lỗi xử lý file Excel:', fileErr);
-      showNotification('Có lỗi khi đọc và xử lý file Excel!', 'error');
+      const errMsg = fileErr?.message || String(fileErr);
+      showNotification(`Lỗi khi đọc file Excel: ${errMsg}`, 'error');
     }
   };
     reader.readAsArrayBuffer(file);
