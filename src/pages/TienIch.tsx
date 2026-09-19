@@ -9,14 +9,12 @@ import {
   AlertCircle,
   Sparkles,
   ChevronRight,
-  MessageSquare,
-  Dice5
+  MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../contexts/StoreContext';
 import PhanCaTable from '../components/PhanCaTable';
 import PhanCaTuanTable from '../components/PhanCaTuanTable';
-import QuaySoTable from '../components/QuaySoTable';
 import BienBanTinhTrangHangHoa from '../components/BienBanTinhTrangHangHoa';
 import BaoGiaCongTyModal from '../components/BaoGiaCongTyModal';
 import InventoryManagement from '../components/InventoryManagement';
@@ -42,7 +40,6 @@ export default function TienIch({ pageMaintenanceState = {}, isUser43751Local = 
   const menuItems = [
     { id: 'phan-ca-thang', label: 'PHÂN CA THÁNG', icon: Users, color: 'text-purple-500' },
     { id: 'phan-ca-tuan', label: 'PHÂN CA TUẦN', icon: UploadCloud, color: 'text-orange-500' },
-    { id: 'quay-so', label: 'QUAY SỐ', icon: Dice5, color: 'text-fuchsia-500' },
     { id: 'tuong-tac-line', label: 'TƯƠNG TÁC LINE', icon: MessageSquare, color: 'text-emerald-500' },
     { id: 'bien-ban', label: 'BIÊN BẢN CÁC LOẠI', icon: FileText, color: 'text-rose-500' },
     ...(isAdmin ? [{ id: 'kiem-ke', label: 'KIỂM KÊ', icon: ClipboardList, color: 'text-amber-500' }] : []),
@@ -133,18 +130,6 @@ export default function TienIch({ pageMaintenanceState = {}, isUser43751Local = 
                 transition={{ duration: 0.2 }}
               >
                 <PhanCaTuanTable />
-              </motion.div>
-            )}
-
-            {activeTab === 'quay-so' && (
-              <motion.div
-                key="quay-so"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2 }}
-              >
-                <QuaySoTable />
               </motion.div>
             )}
 

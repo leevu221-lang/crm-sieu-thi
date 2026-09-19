@@ -181,9 +181,11 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       if (isCurrentUrlForPage('tienich')) {
         const params = new URLSearchParams(window.location.search);
         const urlTab = params.get('tab');
-        if (urlTab) return urlTab;
+        if (urlTab && urlTab !== 'quay-so') return urlTab;
       }
-      return localStorage.getItem('crm_active_tienich_tab') || 'phan-ca-thang';
+      const saved = localStorage.getItem('crm_active_tienich_tab');
+      if (saved && saved !== 'quay-so') return saved;
+      return 'phan-ca-thang';
     } catch {
       return 'phan-ca-thang';
     }

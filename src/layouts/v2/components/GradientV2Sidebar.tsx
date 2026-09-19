@@ -25,7 +25,6 @@ import {
   Banknote,
   Sparkles,
   Target,
-  Dice5,
 } from 'lucide-react';
 import { useStore } from '../../../contexts/StoreContext';
 
@@ -132,7 +131,6 @@ const TOOLHOTRO_SUBS = [
 const TIENICH_SUBS = [
   { id: 'phan-ca-thang', label: 'Phân Ca Tháng', icon: Users },
   { id: 'phan-ca-tuan', label: 'Phân Ca Tuần', icon: UploadCloud },
-  { id: 'quay-so', label: 'Quay Số', icon: Dice5 },
   { id: 'tuong-tac-line', label: 'Tương Tác LINE', icon: MessageSquare },
   { id: 'bien-ban', label: 'Biên Bản', icon: FileText },
 ];
