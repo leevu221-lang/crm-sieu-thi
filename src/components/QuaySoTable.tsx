@@ -24,7 +24,8 @@ function getDayParity(date: Date) {
   return ((diff % 2) + 2) % 2; // luôn trả về 0 hoặc 1
 }
 
-type Employee = { username: string; fullId: string; department: string; group: 1 | 2 };
+type Gender = 'nam' | 'nu';
+type Employee = { username: string; fullId: string; department: string; group: 1 | 2; gender?: Gender };
 type ScheduleMap = Record<string, { hc: string[] }>;
 type OffMap = Record<string, Record<string, boolean>>;
 
@@ -44,6 +45,22 @@ const CONFETTI_PIECES = [
   { dx: 85, dy: -20, rot: -65, color: '#ddd6fe', delay: 0.01 },
 ];
 
+// Bảng màu pastel lặp lại cho từng lát của vòng quay.
+const WHEEL_PALETTE = ['#ddd6fe', '#bae6fd', '#fbcfe8', '#fde68a', '#bbf7d0', '#fecdd3'];
+const WHEEL_LABEL_COLOR = '#4c1d95';
+const WHEEL_SIZE = 256;
+const WHEEL_LABEL_RADIUS = 100;
+const WHEEL_SPIN_MS = 3200;
+const WHEEL_LAND_PAUSE_MS = 950;
+
+function normalizeGender(raw?: string): Gender | undefined {
+  if (!raw) return undefined;
+  const v = raw.trim().toLowerCase();
+  if (v === 'nam' || v === 'm' || v === 'male' || v === 'nam giới') return 'nam';
+  if (v === 'nữ' || v === 'nu' || v === 'f' || v === 'female' || v === 'nữ giới') return 'nu';
+  return undefined;
+}
+
 export default function QuaySoTable() {
   const { userProfile } = useAuth();
   const { currentStoreId } = useStore();
@@ -58,6 +75,8 @@ export default function QuaySoTable() {
   const [dateFrom, setDateFrom] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [dateTo, setDateTo] = useState(() => format(addDays(new Date(), 6), 'yyyy-MM-dd'));
   const [ratio, setRatio] = useState(50);
+  const [resultsPerDay, setResultsPerDay] = useState(2);
+  const [genderFilter, setGenderFilter] = useState<'all' | Gender>('all');
 
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -67,9 +86,19 @@ export default function QuaySoTable() {
   const [bulkSpinning, setBulkSpinning] = useState(false);
 
   const [spinState, setSpinState] = useState<{
-    open: boolean; dateStr: string | null; display: string[]; winners: string[]; spinning: boolean; justLanded: boolean;
-  }>({ open: false, dateStr: null, display: [], winners: [], spinning: false, justLanded: false });
+    open: boolean;
+    dateStr: string | null;
+    poolNames: string[];
+    winners: string[];
+    targetCount: number;
+    rotation: number;
+    spinning: boolean;
+    justLanded: boolean;
+  }>({ open: false, dateStr: null, poolNames: [], winners: [], targetCount: 0, rotation: 0, spinning: false, justLanded: false });
 
+  const spinSessionRef = useRef<{ poolNames: string[]; winners: string[]; targetCount: number; dateStr: string | null }>({
+    poolNames: [], winners: [], targetCount: 0, dateStr: null
+  });
   const tableRef = useRef<HTMLDivElement>(null);
   const spinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const landTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -98,14 +127,19 @@ export default function QuaySoTable() {
     setTimeout(() => setSaveMessage({ type: '', text: '' }), 3000);
   };
 
-  const parseStaffListText = (text: string): { username: string; fullId: string; department: string }[] => {
+  const parseStaffListText = (text: string): { username: string; fullId: string; department: string; gender?: Gender }[] => {
     const lines = text.split('\n').filter(l => l.trim());
     return lines.map(line => {
       const parts = line.split('\t');
       if (parts.length >= 2) {
-        return { username: parts[1] || parts[0] || 'N/A', fullId: parts[2] || '', department: parts[0] || 'BP All In One - ĐMX' };
+        return {
+          username: parts[1] || parts[0] || 'N/A',
+          fullId: parts[2] || '',
+          department: parts[0] || 'BP All In One - ĐMX',
+          gender: normalizeGender(parts[3])
+        };
       }
-      return { username: line.trim(), fullId: '', department: 'BP All In One - ĐMX' };
+      return { username: line.trim(), fullId: '', department: 'BP All In One - ĐMX', gender: undefined };
     });
   };
 
@@ -119,6 +153,7 @@ export default function QuaySoTable() {
 
       let staffText = '';
       let groups: Record<string, number> = {};
+      let genders: Record<string, string> = {};
       let sch: ScheduleMap = {};
       let off: OffMap = {};
 
@@ -126,6 +161,7 @@ export default function QuaySoTable() {
         const d = docSnap.data() || {};
         staffText = d.ds_nhan_vien || '';
         groups = d.groups || {};
+        genders = d.genders || {};
         sch = d.schedules || {};
         off = d.offMap || {};
       } else {
@@ -135,6 +171,7 @@ export default function QuaySoTable() {
             const parsed = JSON.parse(local);
             staffText = parsed.ds_nhan_vien || '';
             groups = parsed.groups || {};
+            genders = parsed.genders || {};
             sch = parsed.schedules || {};
             off = parsed.offMap || {};
           } catch (e) {
@@ -152,7 +189,8 @@ export default function QuaySoTable() {
       const parsedStaff = parseStaffListText(staffText);
       const withGroups: Employee[] = parsedStaff.map((emp, idx) => ({
         ...emp,
-        group: (groups[emp.username] === 1 || groups[emp.username] === 2 ? groups[emp.username] : (idx % 2 === 0 ? 1 : 2)) as 1 | 2
+        group: (groups[emp.username] === 1 || groups[emp.username] === 2 ? groups[emp.username] : (idx % 2 === 0 ? 1 : 2)) as 1 | 2,
+        gender: normalizeGender(genders[emp.username]) || emp.gender
       }));
       setEmployees(withGroups);
       setSchedule(sch);
@@ -168,7 +206,7 @@ export default function QuaySoTable() {
 
   useEffect(() => { fetchData(); }, [targetStore]);
 
-  const persist = async (overrides: Partial<{ ds_nhan_vien: string; groups: Record<string, number>; schedules: ScheduleMap; offMap: OffMap }> = {}) => {
+  const persist = async (overrides: Partial<{ ds_nhan_vien: string; groups: Record<string, number>; genders: Record<string, string>; schedules: ScheduleMap; offMap: OffMap }> = {}) => {
     if (!targetStore) return;
     try {
       const storeId = normalizeStoreId(targetStore.trim());
@@ -177,6 +215,7 @@ export default function QuaySoTable() {
         warehouse_code: targetStore,
         ds_nhan_vien: overrides.ds_nhan_vien ?? rawStaffInput,
         groups: overrides.groups ?? Object.fromEntries(employees.map(e => [e.username, e.group])),
+        genders: overrides.genders ?? Object.fromEntries(employees.filter(e => e.gender).map(e => [e.username, e.gender])),
         schedules: overrides.schedules ?? schedule,
         offMap: overrides.offMap ?? offMap,
         updated_at: new Date().toISOString(),
@@ -202,9 +241,17 @@ export default function QuaySoTable() {
     setEmployees(prev => {
       const updated: Employee[] = parsed.map((ns, idx) => {
         const existing = prev.find(e => e.username === ns.username);
-        return { ...ns, group: (existing?.group || (idx % 2 === 0 ? 1 : 2)) as 1 | 2 };
+        return {
+          ...ns,
+          group: (existing?.group || (idx % 2 === 0 ? 1 : 2)) as 1 | 2,
+          gender: ns.gender || existing?.gender
+        };
       });
-      persist({ ds_nhan_vien: rawStaffInput, groups: Object.fromEntries(updated.map(e => [e.username, e.group])) });
+      persist({
+        ds_nhan_vien: rawStaffInput,
+        groups: Object.fromEntries(updated.map(e => [e.username, e.group])),
+        genders: Object.fromEntries(updated.filter(e => e.gender).map(e => [e.username, e.gender as string]))
+      });
       return updated;
     });
     flashMessage('success', 'Đã cập nhật danh sách nhân viên!');
@@ -222,14 +269,19 @@ export default function QuaySoTable() {
         username: String(row[1]).trim(),
         fullId: String(row[2] || '').trim(),
         department: String(row[0] || 'BP All In One - ĐMX').trim(),
-        group: (idx % 2 === 0 ? 1 : 2) as 1 | 2
+        group: (idx % 2 === 0 ? 1 : 2) as 1 | 2,
+        gender: normalizeGender(String(row[3] || ''))
       };
     }).filter(Boolean) as Employee[];
 
     setEmployees(newEmployees);
-    const rawText = newEmployees.map(e => `${e.department}\t${e.username}\t${e.fullId}`).join('\n');
+    const rawText = newEmployees.map(e => `${e.department}\t${e.username}\t${e.fullId}\t${e.gender === 'nam' ? 'Nam' : e.gender === 'nu' ? 'Nữ' : ''}`).join('\n');
     setRawStaffInput(rawText);
-    persist({ ds_nhan_vien: rawText, groups: Object.fromEntries(newEmployees.map(e => [e.username, e.group])) });
+    persist({
+      ds_nhan_vien: rawText,
+      groups: Object.fromEntries(newEmployees.map(e => [e.username, e.group])),
+      genders: Object.fromEntries(newEmployees.filter(e => e.gender).map(e => [e.username, e.gender as string]))
+    });
     flashMessage('success', 'Đã nhập danh sách từ Excel!');
   };
 
@@ -250,6 +302,18 @@ export default function QuaySoTable() {
     setEmployees(prev => {
       const updated = prev.map(e => e.username === username ? { ...e, group: (e.group === 1 ? 2 : 1) as 1 | 2 } : e);
       persist({ groups: Object.fromEntries(updated.map(e => [e.username, e.group])) });
+      return updated;
+    });
+  };
+
+  const handleToggleGender = (username: string) => {
+    setEmployees(prev => {
+      const updated = prev.map(e => {
+        if (e.username !== username) return e;
+        const next: Gender | undefined = e.gender === undefined ? 'nam' : e.gender === 'nam' ? 'nu' : undefined;
+        return { ...e, gender: next };
+      });
+      persist({ genders: Object.fromEntries(updated.filter(e => e.gender).map(e => [e.username, e.gender as string])) });
       return updated;
     });
   };
@@ -283,51 +347,76 @@ export default function QuaySoTable() {
     return counts;
   }, [schedule, employees]);
 
-  const weightedPickTwo = (pool: Employee[], counts: Record<string, number>): string[] => {
+  // Rút N người không lặp lại, ưu tiên (trọng số) người ít bị rút trúng ca hành chính hơn.
+  const weightedPickN = (pool: { username: string }[], counts: Record<string, number>, n: number): string[] => {
     const items = pool.map(e => ({ username: e.username, weight: 1 / Math.pow((counts[e.username] || 0) + 1, 2) }));
-    const pickOne = (): string => {
+    const result: string[] = [];
+    const take = Math.min(n, items.length);
+    for (let k = 0; k < take; k++) {
       const total = items.reduce((s, i) => s + i.weight, 0);
       let r = Math.random() * total;
+      let pickedIdx = items.length - 1;
       for (let i = 0; i < items.length; i++) {
         r -= items[i].weight;
-        if (r <= 0) return items.splice(i, 1)[0].username;
+        if (r <= 0) { pickedIdx = i; break; }
       }
-      return items.splice(items.length - 1, 1)[0].username;
-    };
-    const w1 = pickOne();
-    const w2 = items.length > 0 ? pickOne() : w1;
-    return [w1, w2];
+      result.push(items.splice(pickedIdx, 1)[0].username);
+    }
+    return result;
+  };
+
+  const getEligibleForDay = (dateStr: string): Employee[] => {
+    return employees.filter(e =>
+      !offMap[dateStr]?.[e.username] &&
+      (genderFilter === 'all' || e.gender === genderFilter)
+    );
+  };
+
+  // Quay 1 lát của vòng quay (rút 1 người từ poolNames hiện tại của phiên quay), rồi tự nối tiếp
+  // cho đến khi đủ targetCount kết quả.
+  const spinNextSegment = () => {
+    const session = spinSessionRef.current;
+    if (session.poolNames.length === 0 || session.winners.length >= session.targetCount) return;
+
+    const winnerName = weightedPickN(session.poolNames.map(n => ({ username: n })), hcCounts, 1)[0];
+    const anglePerSeg = 360 / session.poolNames.length;
+    const idx = session.poolNames.indexOf(winnerName);
+    const segCenter = idx * anglePerSeg + anglePerSeg / 2;
+    const extraSpins = 5;
+
+    setSpinState(s => {
+      const baseline = Math.ceil(s.rotation / 360) * 360;
+      const targetRotation = baseline + extraSpins * 360 + (360 - segCenter);
+      return { ...s, poolNames: session.poolNames, spinning: true, rotation: targetRotation, justLanded: false };
+    });
+
+    spinTimerRef.current = setTimeout(() => {
+      session.winners = [...session.winners, winnerName];
+      setSpinState(s => ({ ...s, spinning: false, justLanded: true, winners: session.winners }));
+
+      landTimerRef.current = setTimeout(() => {
+        session.poolNames = session.poolNames.filter(n => n !== winnerName);
+        setSpinState(s => ({ ...s, poolNames: session.poolNames, justLanded: false }));
+        if (session.winners.length < session.targetCount && session.poolNames.length > 0) {
+          spinNextSegment();
+        }
+      }, WHEEL_LAND_PAUSE_MS);
+    }, WHEEL_SPIN_MS);
   };
 
   const startSpin = (dateStr: string) => {
+    if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
     if (landTimerRef.current) clearTimeout(landTimerRef.current);
-    const eligible = employees.filter(e => !offMap[dateStr]?.[e.username]);
-    if (eligible.length < 2) {
-      flashMessage('error', 'Không đủ nhân viên (chưa OFF) để quay số ngày này!');
+    const eligible = getEligibleForDay(dateStr);
+    if (eligible.length < 1) {
+      flashMessage('error', 'Không đủ nhân viên phù hợp bộ lọc để quay số ngày này!');
       return;
     }
-    const winners = weightedPickTwo(eligible, hcCounts);
-    const names = eligible.map(e => e.username);
-    setSpinState({ open: true, dateStr, display: [names[0], names[1] ?? names[0]], winners, spinning: true, justLanded: false });
-
-    let step = 0;
-    const totalSteps = 22;
-    const tick = () => {
-      step++;
-      if (step >= totalSteps) {
-        setSpinState(s => ({ ...s, display: winners, spinning: false, justLanded: true }));
-        landTimerRef.current = setTimeout(() => {
-          setSpinState(s => ({ ...s, justLanded: false }));
-        }, 1000);
-        return;
-      }
-      const d1 = names[Math.floor(Math.random() * names.length)];
-      let d2 = names[Math.floor(Math.random() * names.length)];
-      if (d2 === d1 && names.length > 1) d2 = names[(names.indexOf(d1) + 1) % names.length];
-      setSpinState(s => ({ ...s, display: [d1, d2] }));
-      spinTimerRef.current = setTimeout(tick, 50 + step * 10);
-    };
-    tick();
+    const targetCount = Math.min(resultsPerDay, eligible.length);
+    const poolNames = eligible.map(e => e.username);
+    spinSessionRef.current = { poolNames, winners: [], targetCount, dateStr };
+    setSpinState({ open: true, dateStr, poolNames, winners: [], targetCount, rotation: 0, spinning: false, justLanded: false });
+    spinNextSegment();
   };
 
   const confirmSpin = () => {
@@ -335,23 +424,23 @@ export default function QuaySoTable() {
     const updated = { ...schedule, [spinState.dateStr]: { hc: spinState.winners } };
     setSchedule(updated);
     persist({ schedules: updated });
-    setSpinState({ open: false, dateStr: null, display: [], winners: [], spinning: false, justLanded: false });
+    setSpinState({ open: false, dateStr: null, poolNames: [], winners: [], targetCount: 0, rotation: 0, spinning: false, justLanded: false });
   };
 
   const closeSpinModal = () => {
     if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
     if (landTimerRef.current) clearTimeout(landTimerRef.current);
-    setSpinState({ open: false, dateStr: null, display: [], winners: [], spinning: false, justLanded: false });
+    setSpinState({ open: false, dateStr: null, poolNames: [], winners: [], targetCount: 0, rotation: 0, spinning: false, justLanded: false });
   };
 
   const respin = () => {
-    if (!spinState.dateStr) return;
-    startSpin(spinState.dateStr);
+    if (spinState.dateStr) startSpin(spinState.dateStr);
   };
 
   const handleSpinAllDays = () => {
-    if (employees.length < 2) {
-      flashMessage('error', 'Cần ít nhất 2 nhân viên để quay số!');
+    const genderPool = employees.filter(e => genderFilter === 'all' || e.gender === genderFilter);
+    if (genderPool.length < 1) {
+      flashMessage('error', 'Không có nhân viên phù hợp bộ lọc giới tính để quay số!');
       return;
     }
     setBulkSpinning(true);
@@ -360,12 +449,11 @@ export default function QuaySoTable() {
       const workingCounts: Record<string, number> = { ...hcCounts };
       dateRange.forEach(date => {
         const dateStr = format(date, 'yyyy-MM-dd');
-        const eligible = employees.filter(e => !offMap[dateStr]?.[e.username]);
-        if (eligible.length < 2) return;
-        const [w1, w2] = weightedPickTwo(eligible, workingCounts);
-        updated[dateStr] = { hc: [w1, w2] };
-        workingCounts[w1] = (workingCounts[w1] || 0) + 1;
-        workingCounts[w2] = (workingCounts[w2] || 0) + 1;
+        const eligible = genderPool.filter(e => !offMap[dateStr]?.[e.username]);
+        if (eligible.length < 1) return;
+        const winners = weightedPickN(eligible, workingCounts, resultsPerDay);
+        updated[dateStr] = { hc: winners };
+        winners.forEach(w => { workingCounts[w] = (workingCounts[w] || 0) + 1; });
       });
       setSchedule(updated);
       persist({ schedules: updated });
@@ -483,11 +571,15 @@ export default function QuaySoTable() {
     OFF: 'bg-rose-50 text-rose-300 border-rose-100'
   };
 
+  const GENDER_STYLE: Record<string, string> = {
+    nam: 'bg-sky-100 text-sky-600',
+    nu: 'bg-rose-100 text-rose-500',
+  };
+
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-violet-50 via-fuchsia-50/40 to-sky-50 quay-so-container">
       <style>{`
         @keyframes qsPopIn { 0% { transform: scale(0.85); opacity: 0; } 60% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
-        @keyframes qsFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
         @keyframes qsDiceSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes qsConfetti { 0% { transform: translate(-50%, -50%) rotate(0deg) scale(1); opacity: 1; } 100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(var(--rot)); opacity: 0; } }
         .qs-confetti-piece {
@@ -529,6 +621,32 @@ export default function QuaySoTable() {
             >
               <Shuffle size={12} /> Chia nhóm
             </button>
+          </div>
+
+          <div className="flex items-center bg-white rounded-2xl px-3 py-1.5 gap-2 border border-violet-100 shadow-sm">
+            <span className="text-[9px] font-black uppercase text-violet-300">Số người HC/ngày</span>
+            <input
+              type="number" min={1} max={20} value={resultsPerDay}
+              onChange={e => setResultsPerDay(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-10 text-xs font-black text-center bg-violet-50 border border-violet-100 rounded-lg outline-none focus:ring-1 focus:ring-violet-300 text-violet-700"
+            />
+          </div>
+
+          <div className="flex items-center bg-white rounded-2xl px-1.5 py-1.5 gap-1 border border-violet-100 shadow-sm">
+            <span className="text-[9px] font-black uppercase text-violet-300 pl-1.5">Quay trong</span>
+            {(['all', 'nam', 'nu'] as const).map(g => (
+              <button
+                key={g}
+                onClick={() => setGenderFilter(g)}
+                className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg transition-colors ${
+                  genderFilter === g
+                    ? (g === 'nam' ? 'bg-sky-200 text-sky-700' : g === 'nu' ? 'bg-rose-200 text-rose-600' : 'bg-violet-200 text-violet-700')
+                    : 'text-violet-300 hover:bg-violet-50'
+                }`}
+              >
+                {g === 'all' ? 'Cả hai' : g === 'nam' ? 'Nam' : 'Nữ'}
+              </button>
+            ))}
           </div>
 
           {saveMessage.text && (
@@ -593,7 +711,7 @@ export default function QuaySoTable() {
       {showStaffInput && (
         <div className="bg-white/90 p-4 border-b border-violet-100 shadow-sm flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-black text-violet-700 uppercase tracking-wider">Danh sách nhân viên (mỗi dòng 1 người hoặc dán từ Excel)</h3>
+            <h3 className="text-sm font-black text-violet-700 uppercase tracking-wider">Danh sách nhân viên (Phòng ban - Tên - Mã - Giới tính, mỗi dòng 1 người hoặc dán từ Excel)</h3>
             <div className="flex items-center gap-2">
               <button onClick={handleApplyStaffInput} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-200 text-xs font-bold uppercase px-3 py-1.5 rounded-lg shadow-sm transition-all">
                 Cập nhật & Lưu
@@ -607,8 +725,12 @@ export default function QuaySoTable() {
             value={rawStaffInput}
             onChange={e => setRawStaffInput(e.target.value)}
             className="w-full h-32 p-3 border border-violet-100 rounded-xl text-xs font-mono focus:border-violet-300 focus:ring-1 focus:ring-violet-300 outline-none transition-all bg-violet-50/40 text-slate-700"
-            placeholder={'BP All In One - ĐMX\tLộc_49641\t99153\nBP All In One - ĐMX\tKhiết_30660\t99155\n\nHoặc chỉ cần nhập tên mỗi dòng:\nLộc_49641\nKhiết_30660'}
+            placeholder={'BP All In One - ĐMX\tLộc_49641\t99153\tNam\nBP All In One - ĐMX\tKhiết_30660\t99155\tNữ\n\nHoặc chỉ cần nhập tên mỗi dòng (không cần giới tính):\nLộc_49641\nKhiết_30660'}
           />
+          <p className="text-[10px] text-violet-300 italic">
+            Cột thứ 4 (tuỳ chọn) là giới tính: Nam / Nữ. Không nhập vẫn dùng bình thường — chỉ không lọc theo giới tính được.
+            Sau khi nhập, dùng nút ♂/♀ cạnh tên trong bảng bên dưới để đổi giới tính từng người.
+          </p>
         </div>
       )}
 
@@ -618,7 +740,7 @@ export default function QuaySoTable() {
         <span className={`px-2 py-1 rounded-lg border ${STATUS_STYLE['Sáng']}`}>Sáng</span>
         <span className={`px-2 py-1 rounded-lg border ${STATUS_STYLE['Chiều']}`}>Chiều</span>
         <span className={`px-2 py-1 rounded-lg border ${STATUS_STYLE.OFF}`}>OFF</span>
-        <span className="text-violet-300 normal-case font-medium italic">Nhóm 1/2 tự đảo Sáng ↔ Chiều mỗi ngày. Bấm 🎲 trên từng ngày để quay số 2 người trực hành chính.</span>
+        <span className="text-violet-300 normal-case font-medium italic">Nhóm 1/2 tự đảo Sáng ↔ Chiều mỗi ngày. Bấm 🎲 trên từng ngày để quay số {resultsPerDay} người trực hành chính.</span>
       </div>
 
       {/* Bulk spin banner */}
@@ -682,14 +804,23 @@ export default function QuaySoTable() {
                     <tr key={emp.username} className="border-b border-violet-50 hover:bg-violet-50/50 transition-colors group">
                       <td className="sticky left-0 z-20 bg-white group-hover:bg-violet-50/50 border-r border-violet-100 px-4 py-2">
                         <div className="flex items-center justify-between gap-2">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-700">{emp.username}</span>
-                            <span className="text-[9px] text-slate-400 font-medium">{emp.fullId}</span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleToggleGender(emp.username)}
+                              title="Bấm để đổi giới tính"
+                              className={`w-5 h-5 shrink-0 rounded-full text-[10px] font-black flex items-center justify-center transition-colors ${emp.gender ? GENDER_STYLE[emp.gender] : 'bg-slate-100 text-slate-300'}`}
+                            >
+                              {emp.gender === 'nam' ? '♂' : emp.gender === 'nu' ? '♀' : '?'}
+                            </button>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-slate-700">{emp.username}</span>
+                              <span className="text-[9px] text-slate-400 font-medium">{emp.fullId}</span>
+                            </div>
                           </div>
                           <button
                             onClick={() => handleToggleGroup(emp.username)}
                             title="Bấm để đổi nhóm"
-                            className={`text-[9px] font-black uppercase rounded-lg px-1.5 py-0.5 transition-colors ${emp.group === 1 ? 'bg-sky-100 text-sky-600' : 'bg-pink-100 text-pink-600'}`}
+                            className={`text-[9px] font-black uppercase rounded-lg px-1.5 py-0.5 transition-colors shrink-0 ${emp.group === 1 ? 'bg-sky-100 text-sky-600' : 'bg-pink-100 text-pink-600'}`}
                           >
                             Nhóm {emp.group}
                           </button>
@@ -738,21 +869,23 @@ export default function QuaySoTable() {
         </div>
       )}
 
-      {/* Spin Modal */}
+      {/* Spin Modal — Vòng quay may mắn */}
       {spinState.open && (
         <div className="fixed inset-0 bg-violet-900/30 backdrop-blur-sm flex items-center justify-center z-[120] px-4">
-          <div className="bg-gradient-to-br from-pink-200 via-violet-200 to-sky-200 p-[3px] rounded-3xl shadow-2xl max-w-md w-full">
+          <div className="bg-gradient-to-br from-pink-200 via-violet-200 to-sky-200 p-[3px] rounded-3xl shadow-2xl max-w-sm w-full">
             <div className="bg-white rounded-[calc(1.5rem-2px)] p-6 relative overflow-hidden">
-              <button onClick={closeSpinModal} className="absolute top-3 right-3 text-violet-300 hover:text-violet-600 z-10">
+              <button onClick={closeSpinModal} className="absolute top-3 right-3 text-violet-300 hover:text-violet-600 z-20">
                 <X size={20} />
               </button>
-              <div className="flex items-center gap-2 justify-center mb-4">
-                <Sparkles size={20} className="text-pink-400" />
-                <h3 className="text-lg font-black text-violet-700 uppercase tracking-wide">
+              <div className="flex items-center gap-2 justify-center mb-3">
+                <Sparkles size={18} className="text-pink-400" />
+                <h3 className="text-base font-black text-violet-700 uppercase tracking-wide text-center">
                   Quay số ngày {spinState.dateStr ? format(parseISO(spinState.dateStr), 'dd/MM/yyyy') : ''}
                 </h3>
               </div>
-              <div className="flex flex-col gap-3 mb-5 relative">
+
+              {/* Wheel */}
+              <div className="relative mx-auto mb-4" style={{ width: WHEEL_SIZE, height: WHEEL_SIZE }}>
                 {spinState.justLanded && CONFETTI_PIECES.map((p, idx) => (
                   <span
                     key={idx}
@@ -766,22 +899,94 @@ export default function QuaySoTable() {
                     }}
                   />
                 ))}
-                {spinState.display.map((name, idx) => (
+
+                {/* Pointer */}
+                <div
+                  className="absolute -top-1 left-1/2 z-20"
+                  style={{ transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderTop: '15px solid #8b5cf6' }}
+                />
+
+                {/* Dial */}
+                {spinState.poolNames.length > 0 ? (
                   <div
-                    key={idx}
-                    className={`text-center py-4 rounded-2xl border-2 font-black text-xl uppercase tracking-wide transition-all ${
-                      spinState.spinning
-                        ? 'border-violet-100 bg-violet-50 text-violet-300'
-                        : 'border-amber-200 bg-gradient-to-br from-amber-50 to-pink-50 text-amber-600 qs-pop-in'
-                    }`}
+                    className="rounded-full border-[6px] border-white shadow-lg"
+                    style={{
+                      width: WHEEL_SIZE,
+                      height: WHEEL_SIZE,
+                      background: `conic-gradient(${spinState.poolNames.map((_, i) => {
+                        const anglePerSeg = 360 / spinState.poolNames.length;
+                        return `${WHEEL_PALETTE[i % WHEEL_PALETTE.length]} ${i * anglePerSeg}deg ${(i + 1) * anglePerSeg}deg`;
+                      }).join(', ')})`,
+                      transform: `rotate(${spinState.rotation}deg)`,
+                      transition: `transform ${WHEEL_SPIN_MS}ms cubic-bezier(0.17,0.67,0.12,0.99)`,
+                    }}
                   >
-                    {name}
+                    {spinState.poolNames.map((name, i) => {
+                      const anglePerSeg = 360 / spinState.poolNames.length;
+                      const centerAngle = i * anglePerSeg + anglePerSeg / 2;
+                      return (
+                        <div key={name} style={{ position: 'absolute', top: '50%', left: '50%', width: 0, height: 0, transform: `rotate(${centerAngle}deg)` }}>
+                          <div
+                            style={{
+                              position: 'absolute',
+                              left: 0,
+                              top: -WHEEL_LABEL_RADIUS,
+                              transform: 'translateX(-50%)',
+                              width: 76,
+                              textAlign: 'center',
+                              fontSize: 10,
+                              fontWeight: 900,
+                              textTransform: 'uppercase',
+                              color: WHEEL_LABEL_COLOR,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {name}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                ) : (
+                  <div className="w-full h-full rounded-full border-[6px] border-white bg-violet-50 shadow-lg" />
+                )}
+
+                {/* Hub */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 w-16 h-16 rounded-full bg-white border-4 border-violet-200 shadow-md flex items-center justify-center">
+                  {spinState.spinning ? (
+                    <Dice5 size={22} className="qs-dice-spin text-violet-400" />
+                  ) : (
+                    <span className="text-[11px] font-black text-violet-500 text-center leading-tight">
+                      {spinState.winners.length}/{spinState.targetCount}
+                    </span>
+                  )}
+                </div>
               </div>
-              {spinState.spinning ? (
+
+              {/* Kết quả đã quay */}
+              <div className="flex flex-wrap gap-1.5 justify-center mb-4">
+                {Array.from({ length: spinState.targetCount }).map((_, i) => {
+                  const won = spinState.winners[i];
+                  return (
+                    <span
+                      key={i}
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
+                        won
+                          ? 'bg-gradient-to-br from-amber-50 to-pink-50 text-amber-700 border-amber-200 qs-pop-in'
+                          : 'bg-violet-50 text-violet-200 border-dashed border-violet-100'
+                      }`}
+                    >
+                      {won || `#${i + 1}`}
+                    </span>
+                  );
+                })}
+              </div>
+
+              {spinState.spinning || spinState.winners.length < spinState.targetCount ? (
                 <p className="flex items-center justify-center gap-2 text-xs font-bold text-violet-400 uppercase">
-                  <Dice5 size={14} className="qs-dice-spin" /> Đang quay...
+                  <Dice5 size={14} className="qs-dice-spin" /> Đang quay {spinState.winners.length + 1}/{spinState.targetCount}...
                 </p>
               ) : (
                 <div className="flex gap-3 justify-center">
