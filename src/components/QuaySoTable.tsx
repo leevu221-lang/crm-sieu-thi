@@ -383,13 +383,11 @@ export default function QuaySoTable() {
   };
 
   const groupedEmployees = useMemo(() => {
-    const groups: Record<string, Employee[]> = {};
-    employees.forEach(emp => {
-      const dept = emp.department || 'Khác';
-      if (!groups[dept]) groups[dept] = [];
-      groups[dept].push(emp);
-    });
-    return groups;
+    const groups: [1 | 2, Employee[]][] = [
+      [1, employees.filter(e => e.group === 1)],
+      [2, employees.filter(e => e.group === 2)],
+    ];
+    return groups.filter(([, emps]) => emps.length > 0);
   }, [employees]);
 
   const dailySummary = useMemo(() => {
@@ -673,14 +671,14 @@ export default function QuaySoTable() {
               </tr>
             </thead>
             <tbody>
-              {Object.entries(groupedEmployees).map(([dept, deptEmps]) => (
-                <React.Fragment key={dept}>
-                  <tr className="bg-fuchsia-50/70">
-                    <td colSpan={1 + dateRange.length} className="sticky left-0 z-20 bg-fuchsia-50/90 px-4 py-2 font-black text-fuchsia-600 uppercase border-b border-violet-100">
-                      {dept}
+              {groupedEmployees.map(([groupNo, groupEmps]) => (
+                <React.Fragment key={groupNo}>
+                  <tr className={groupNo === 1 ? 'bg-sky-50/70' : 'bg-pink-50/70'}>
+                    <td colSpan={1 + dateRange.length} className={`sticky left-0 z-20 px-4 py-2 font-black uppercase border-b border-violet-100 ${groupNo === 1 ? 'bg-sky-50/90 text-sky-600' : 'bg-pink-50/90 text-pink-600'}`}>
+                      Nhóm {groupNo} <span className="font-medium normal-case text-[10px] opacity-70">({groupEmps.length} người)</span>
                     </td>
                   </tr>
-                  {deptEmps.map(emp => (
+                  {groupEmps.map(emp => (
                     <tr key={emp.username} className="border-b border-violet-50 hover:bg-violet-50/50 transition-colors group">
                       <td className="sticky left-0 z-20 bg-white group-hover:bg-violet-50/50 border-r border-violet-100 px-4 py-2">
                         <div className="flex items-center justify-between gap-2">
