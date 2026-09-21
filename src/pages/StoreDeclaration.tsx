@@ -43,9 +43,34 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     return cleaned;
   };
 
-  const is43751 = String(userProfile?.username || '').trim() === '43751' ||
-                  String(userProfile?.ma_nhan_vien || '').trim() === '43751' ||
-                  String(userProfile?.user_id || '').trim() === '43751';
+  // Phân quyền: CHỈ hiển thị tính năng DS BOSS cho User 43751
+  const is43751 = useMemo(() => {
+    // 1. Kiểm tra từ AuthContext
+    const upUsername = String(userProfile?.username || '').trim();
+    const upMnv = String(userProfile?.ma_nhan_vien || '').trim();
+    const upId = String(userProfile?.user_id || '').trim();
+    if (upUsername === '43751' || upMnv === '43751' || upId === '43751') return true;
+
+    // 2. Kiểm tra từ LocalStorage cache
+    try {
+      const stored = localStorage.getItem('userProfile');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (
+          String(parsed?.username || '').trim() === '43751' ||
+          String(parsed?.ma_nhan_vien || '').trim() === '43751' ||
+          String(parsed?.user_id || '').trim() === '43751'
+        ) {
+          return true;
+        }
+      }
+    } catch {}
+
+    const directUser = localStorage.getItem('username') || localStorage.getItem('user_id');
+    if (String(directUser || '').trim() === '43751') return true;
+
+    return false;
+  }, [userProfile]);
 
   // State DS BOSS lưu Firebase
   const [dsBossList, setDsBossList] = useState<BossStoreItem[]>(() => {
@@ -160,22 +185,23 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
         throw new Error('File Excel rỗng!');
       }
 
-      // Xác định Cột E (Mã kho - index 4) và Cột C (Tên siêu thị - index 2)
-      let colIndexKho = 4;
-      let colIndexTen = 2;
+      // Người dùng chỉ định: Cột E sẽ là shop 1 (Mã kho - index 4), Cột C là Tên siêu thị (index 2)
+      let colIndexKho = 4; // Cột E: Mã kho shop 1
+      let colIndexTen = 2; // Cột C: Tên siêu thị
       let startRowIdx = 0;
-      let detectedHeaders: string[] = ['Cột A', 'Cột B', 'Tên Siêu Thị (Cột C)', 'Cột D', 'Mã Kho (Cột E)'];
+      let detectedHeaders: string[] = ['Cột A', 'Cột B', 'Tên Siêu Thị (Cột C)', 'Cột D', 'Mã Kho Shop 1 (Cột E)'];
 
+      // Kiểm tra 10 dòng đầu để bỏ qua dòng tiêu đề (nếu có)
       for (let r = 0; r < Math.min(10, jsonData.length); r++) {
         const row = jsonData[r];
         if (!Array.isArray(row)) continue;
-        const rowStr = row.map((c) => String(c || '').toLowerCase().trim());
-        const foundKho = rowStr.findIndex((c) => c === 'mã kho' || c === 'ma kho' || c === 'kho' || c.includes('mã kho') || c.includes('makho'));
-        const foundTen = rowStr.findIndex((c) => c === 'tên siêu thị' || c === 'ten sieu thi' || c.includes('tên siêu thị') || c.includes('tên kho') || c.includes('ten kho'));
+        const colCVal = String(row[2] || '').toLowerCase().trim();
+        const colEVal = String(row[4] || '').toLowerCase().trim();
 
-        if (foundKho !== -1 || foundTen !== -1) {
-          if (foundKho !== -1) colIndexKho = foundKho;
-          if (foundTen !== -1) colIndexTen = foundTen;
+        const isHeaderRow = /^(mã kho|ma kho|kho|makho|shop|shop 1|cột e)/i.test(colEVal) ||
+                            /^(tên siêu thị|ten sieu thi|tên kho|ten kho|cột c|siêu thị)/i.test(colCVal);
+
+        if (isHeaderRow) {
           detectedHeaders = row.map((c, i) => String(c || '').trim() || `Cột ${String.fromCharCode(65 + i)}`);
           startRowIdx = r + 1;
           break;
@@ -187,11 +213,13 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
         const row = jsonData[i];
         if (!Array.isArray(row) || row.length === 0) continue;
 
-        const rawKho = String(row[colIndexKho] ?? '').trim();
+        // Ưu tiên đọc chính xác Cột E (index 4) và Cột C (index 2)
+        const rawKho = String(row[colIndexKho] ?? '').replace(/\.0+$/, '').trim();
         const rawTen = cleanStoreInput(String(row[colIndexTen] ?? ''));
 
         if (!rawKho || !rawTen) continue;
-        if (/^(mã kho|tên siêu thị|stt|kho)$/i.test(rawKho) || /^(mã kho|tên siêu thị|stt)$/i.test(rawTen)) continue;
+        if (/^(mã kho|ma kho|kho|makho|stt|shop|shop 1|cột e)$/i.test(rawKho)) continue;
+        if (/^(tên siêu thị|ten sieu thi|tên kho|stt|cột c)$/i.test(rawTen)) continue;
 
         parsedRows.push({
           id: `boss_${parsedRows.length + 1}_${Date.now()}_${i}`,
@@ -202,7 +230,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
       }
 
       if (parsedRows.length === 0) {
-        throw new Error('Không tìm thấy dòng dữ liệu nào hợp lệ có Mã kho (Cột E) và Tên siêu thị (Cột C)!');
+        throw new Error('Không tìm thấy dòng dữ liệu nào hợp lệ có Cột E (Mã kho shop 1) và Cột C (Tên siêu thị)! Vui lòng kiểm tra lại file Excel.');
       }
 
       // Lưu vào Firebase Firestore
@@ -223,22 +251,30 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
       setDsBossList(parsedRows);
       setDsBossHeaders(detectedHeaders);
 
-      // Tự động điền cho mã kho hiện tại
+      // Đối chiếu mã kho Cột E với mã kho đăng nhập để điền tên siêu thị Cột C vào form trên
       const cleanCur = String(maKho).trim().replace(/^0+/, '');
       const matchedCur = parsedRows.filter((r) => String(r.maKho).trim().replace(/^0+/, '') === cleanCur);
       if (matchedCur.length > 0) {
-        setStore1(cleanStoreInput(matchedCur[0]?.tenSieuThi || ''));
-        setStore2(cleanStoreInput(matchedCur[1]?.tenSieuThi || ''));
-        setStore3(cleanStoreInput(matchedCur[2]?.tenSieuThi || ''));
-        setStore4(cleanStoreInput(matchedCur[3]?.tenSieuThi || ''));
-      }
+        const m1 = cleanStoreInput(matchedCur[0]?.tenSieuThi || '');
+        const m2 = cleanStoreInput(matchedCur[1]?.tenSieuThi || '');
+        const m3 = cleanStoreInput(matchedCur[2]?.tenSieuThi || '');
+        const m4 = cleanStoreInput(matchedCur[3]?.tenSieuThi || '');
 
-      setStatusMessage({
-        type: 'success',
-        text: `Đã nạp thành công ${parsedRows.length} siêu thị từ file Excel vào Firebase! ${
-          matchedCur.length > 0 ? `Đã tự động điền ${matchedCur.length} siêu thị cho kho ${maKho}.` : ''
-        }`,
-      });
+        if (m1) setStore1(m1);
+        if (m2) setStore2(m2);
+        if (m3) setStore3(m3);
+        if (m4) setStore4(m4);
+
+        setStatusMessage({
+          type: 'success',
+          text: `Đã nạp thành công ${parsedRows.length} siêu thị từ file DS BOSS! Đã đối chiếu mã kho ${maKho} (Cột E) và tự động điền "${m1}" (Cột C) vào Siêu thị 1 ở form trên.`,
+        });
+      } else {
+        setStatusMessage({
+          type: 'success',
+          text: `Đã nạp thành công ${parsedRows.length} siêu thị từ file DS BOSS vào Firebase! (Mã kho đăng nhập ${maKho} chưa có trong Cột E của file này).`,
+        });
+      }
     } catch (err: any) {
       console.error('[StoreDeclaration] Upload DS BOSS failed:', err);
       setStatusMessage({ type: 'error', text: 'Lỗi tải file DS BOSS: ' + (err.message || '') });
@@ -252,8 +288,9 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     if (!is43751) return;
     setIsUpdatingBoss(true);
     try {
+      const cleanedTen = cleanStoreInput(newTenSieuThi);
       const updated = dsBossList.map((r) =>
-        r.id === id ? { ...r, maKho: newMaKho.trim(), tenSieuThi: cleanStoreInput(newTenSieuThi) } : r
+        r.id === id ? { ...r, maKho: newMaKho.trim(), tenSieuThi: cleanedTen } : r
       );
       setDsBossList(updated);
       localStorage.setItem('rtst_ds_boss_config', JSON.stringify({ headers: dsBossHeaders, rows: updated }));
@@ -265,6 +302,12 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
         headers: dsBossHeaders,
         rows: updated,
       }, { merge: true });
+
+      // Nếu dòng vừa sửa khớp mã kho hiện tại, lập tức cập nhật vào Siêu thị 1 ở form trên!
+      const cleanCur = String(maKho).trim().replace(/^0+/, '');
+      if (String(newMaKho).trim().replace(/^0+/, '') === cleanCur && cleanedTen) {
+        setStore1(cleanedTen);
+      }
     } finally {
       setIsUpdatingBoss(false);
     }
@@ -775,81 +818,6 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                 </p>
               </div>
 
-              {/* ADMIN 43751 TOOLBAR - CHỈ HIỂN THỊ VÀ CHỈNH SỬA VỚI USER 43751 */}
-              {is43751 && (
-                <div className="mb-6 p-4 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-2xl border border-indigo-500/30 text-white shadow-xl">
-                  <div className="flex flex-wrap items-center justify-between gap-2.5 mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 flex items-center gap-1 shadow-sm">
-                        👑 Admin 43751
-                      </span>
-                      <span className="text-xs font-black text-indigo-200">
-                        Quản lý DS BOSS ({dsBossList.length} siêu thị trên Firebase)
-                      </span>
-                    </div>
-                    {isUploadingBoss && (
-                      <span className="text-xs text-amber-300 font-bold flex items-center gap-1.5 animate-pulse">
-                        <Loader2 size={13} className="animate-spin" /> Đang tải file lên...
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    {/* Nút Upload File Excel DS BOSS */}
-                    <label className="flex items-center gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black cursor-pointer transition-all active:scale-95 shadow-md shadow-indigo-600/30">
-                      <FileSpreadsheet size={16} className="text-indigo-200" />
-                      <span>Tải file Excel DS BOSS</span>
-                      <input
-                        type="file"
-                        accept=".xlsx, .xls, .csv"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleUploadBossExcel(file);
-                          e.target.value = '';
-                        }}
-                        className="hidden"
-                        disabled={isUploadingBoss}
-                      />
-                    </label>
-
-                    {/* Nút Xem Danh Sách BOSS dạng modal bảng */}
-                    <button
-                      type="button"
-                      onClick={() => setShowBossModal(true)}
-                      className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-indigo-200 hover:text-white rounded-xl text-xs font-black cursor-pointer transition-all active:scale-95 border border-indigo-400/20 shadow-sm"
-                    >
-                      <Eye size={16} />
-                      <span>Bảng Xem & Sửa DS BOSS ({dsBossList.length})</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* BANNER TỰ ĐỘNG ĐIỀN TỪ DS BOSS - ÁP DỤNG CHO TẤT CẢ TÀI KHOẢN NGƯỜI DÙNG */}
-              {matchedBossStores.length > 0 && (
-                <div className="mb-5 p-3.5 bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-emerald-500/10 border border-amber-300/80 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-2xs">
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={16} className="text-amber-600 animate-pulse shrink-0" />
-                    <span className="text-xs font-black text-slate-800">
-                      Khớp <strong className="text-indigo-700">{matchedBossStores.length} siêu thị</strong> từ file BOSS cho kho {maKho}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      applyAutoFill(true);
-                      setStatusMessage({
-                        type: 'success',
-                        text: `Đã tự động điền ${matchedBossStores.length} siêu thị từ DS BOSS!`,
-                      });
-                    }}
-                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] font-black tracking-wide uppercase transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
-                  >
-                    Điền lại từ DS BOSS
-                  </button>
-                </div>
-              )}
-
               {statusMessage && (
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
@@ -997,6 +965,86 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                   </div>
                 </div>
               </div>
+
+              {/* DÀNH RIÊNG CHO USER 43751: Ô TẢI FILE EXCEL DS BOSS + BUTTON HIỂN THỊ DANH SÁCH BOSS */}
+              {is43751 && (
+                <div className="mt-5 p-4 bg-gradient-to-br from-indigo-50/80 via-purple-50/50 to-slate-50 border border-indigo-200/90 rounded-2xl shadow-sm">
+                  <div className="flex items-center justify-between gap-2 mb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 flex items-center gap-1 shadow-xs">
+                        👑 User 43751
+                      </span>
+                      <span className="text-xs font-black text-slate-800">
+                        Cấu hình DS BOSS ({dsBossList.length} siêu thị)
+                      </span>
+                    </div>
+                    {isUploadingBoss && (
+                      <span className="text-xs text-indigo-600 font-bold flex items-center gap-1.5 animate-pulse">
+                        <Loader2 size={13} className="animate-spin" /> Đang xử lý file...
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] font-bold text-slate-500 mb-3 leading-relaxed">
+                    Cột E (Mã kho Shop 1) đối chiếu với mã kho đăng nhập ({maKho}) để tự động điền tên siêu thị Cột C vào form trên.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {/* Ô tải file Excel DS BOSS */}
+                    <label className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black cursor-pointer transition-all active:scale-95 shadow-sm shadow-indigo-200">
+                      <FileSpreadsheet size={16} />
+                      <span>Tải file Excel DS BOSS</span>
+                      <input
+                        type="file"
+                        accept=".xlsx, .xls, .csv"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadBossExcel(file);
+                          e.target.value = '';
+                        }}
+                        className="hidden"
+                        disabled={isUploadingBoss}
+                      />
+                    </label>
+
+                    {/* Button hiển thị danh sách boss có thể sửa / xoá theo dòng */}
+                    <button
+                      type="button"
+                      onClick={() => setShowBossModal(true)}
+                      className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-white hover:bg-slate-100 text-indigo-700 hover:text-indigo-800 rounded-xl text-xs font-black cursor-pointer transition-all active:scale-95 border border-indigo-200 shadow-xs"
+                    >
+                      <Eye size={16} className="text-indigo-600" />
+                      <span>Hiển thị danh sách BOSS ({dsBossList.length})</span>
+                    </button>
+                  </div>
+
+                  {/* Trạng thái đối chiếu mã kho hiện tại nếu có trong DS BOSS */}
+                  {matchedBossStores.length > 0 && (
+                    <div className="mt-3 pt-2.5 border-t border-indigo-100 flex items-center justify-between gap-2">
+                      <div className="text-[11.5px] font-bold text-slate-700 flex items-center gap-1.5 truncate">
+                        <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                        <span className="truncate">
+                          Khớp kho {maKho}: <strong className="text-indigo-700">{matchedBossStores[0]?.tenSieuThi}</strong>
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          applyAutoFill(true);
+                          setStatusMessage({
+                            type: 'success',
+                            text: `Đã điền "${matchedBossStores[0]?.tenSieuThi}" vào Siêu thị 1 ở form trên!`,
+                          });
+                        }}
+                        className="px-2.5 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 rounded-lg text-[10.5px] font-black uppercase transition-colors shrink-0 cursor-pointer"
+                        title="Điền lại tên siêu thị này vào form trên"
+                      >
+                        Điền lại vào Form
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 pt-4">

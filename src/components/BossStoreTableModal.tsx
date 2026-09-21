@@ -259,6 +259,10 @@ export const BossStoreTableModal: React.FC<BossStoreTableModalProps> = ({
                 type="text"
                 value={newMaKho}
                 onChange={(e) => setNewMaKho(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveNewRow();
+                  if (e.key === 'Escape') setIsAdding(false);
+                }}
                 placeholder="Mã kho (Cột E)"
                 className="w-full px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
@@ -268,6 +272,10 @@ export const BossStoreTableModal: React.FC<BossStoreTableModalProps> = ({
                 type="text"
                 value={newTenSieuThi}
                 onChange={(e) => setNewTenSieuThi(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveNewRow();
+                  if (e.key === 'Escape') setIsAdding(false);
+                }}
                 placeholder="Tên siêu thị chuẩn BI (Cột C, VD: ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH)"
                 className="w-full px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
@@ -307,13 +315,19 @@ export const BossStoreTableModal: React.FC<BossStoreTableModalProps> = ({
               <p className="font-bold text-sm">Không tìm thấy siêu thị nào khớp với từ khóa!</p>
             </div>
           ) : (
-            <table className="w-full text-left border-collapse text-xs">
+            <table className="w-full text-left border-collapse text-xs table-fixed">
+              <colgroup>
+                <col className="w-12 sm:w-14" />
+                <col className="w-28 sm:w-36" />
+                <col />
+                <col className="w-24 sm:w-28" />
+              </colgroup>
               <thead className="sticky top-0 bg-slate-100 z-10 shadow-xs border-b border-slate-200">
                 <tr className="text-slate-600 uppercase font-black tracking-wider text-[11px]">
-                  <th className="py-2.5 px-3 w-14 text-center">STT</th>
-                  <th className="py-2.5 px-3 w-32">Mã kho (Cột E)</th>
+                  <th className="py-2.5 px-3 text-center">STT</th>
+                  <th className="py-2.5 px-3">Mã kho (Cột E)</th>
                   <th className="py-2.5 px-3">Tên siêu thị (Cột C)</th>
-                  <th className="py-2.5 px-3 w-28 text-center">Thao tác</th>
+                  <th className="py-2.5 px-3 text-center">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
@@ -331,6 +345,10 @@ export const BossStoreTableModal: React.FC<BossStoreTableModalProps> = ({
                             type="text"
                             value={editMaKho}
                             onChange={(e) => setEditMaKho(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveEdit(row.id);
+                              if (e.key === 'Escape') handleCancelEdit();
+                            }}
                             className="w-full px-2 py-1 bg-white border border-amber-400 rounded-md font-bold text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                           />
                         </td>
@@ -339,6 +357,10 @@ export const BossStoreTableModal: React.FC<BossStoreTableModalProps> = ({
                             type="text"
                             value={editTenSieuThi}
                             onChange={(e) => setEditTenSieuThi(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveEdit(row.id);
+                              if (e.key === 'Escape') handleCancelEdit();
+                            }}
                             className="w-full px-2 py-1 bg-white border border-amber-400 rounded-md font-bold text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                           />
                         </td>
@@ -384,11 +406,11 @@ export const BossStoreTableModal: React.FC<BossStoreTableModalProps> = ({
                           {row.maKho}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3">
-                        <div className="font-bold text-slate-800 flex items-center gap-2">
-                          <span>{row.tenSieuThi}</span>
+                      <td className="py-2.5 px-3 truncate">
+                        <div className="font-bold text-slate-800 flex items-center gap-2 truncate">
+                          <span className="truncate" title={row.tenSieuThi}>{row.tenSieuThi}</span>
                           {isMatchCurrent && (
-                            <span className="text-[10px] font-black px-1.5 py-0.2 bg-indigo-100 text-indigo-700 rounded border border-indigo-200">
+                            <span className="text-[10px] font-black px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded border border-indigo-200 shrink-0">
                               Kho hiện tại
                             </span>
                           )}
