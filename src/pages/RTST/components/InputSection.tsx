@@ -503,15 +503,7 @@ const InputSection: React.FC<InputSectionProps> = ({
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
-            <button
-              onClick={() => setShowResetConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 hover:border-rose-300 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer active:scale-95 shadow-xs"
-              title="Reset toàn bộ dữ liệu khai báo"
-            >
-              <RefreshCw size={14} className={cn((isSavingRealtime || isLoadingRealtime) && "animate-spin")} />
-              <span>RESET DỮ LIỆU</span>
-            </button>
-
+            {/* Nút RESET DỮ LIỆU đã được ẩn theo yêu cầu */}
             <div className="flex items-center gap-2.5 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl shadow-xs">
               <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", (isSavingRealtime || isLoadingRealtime) ? "bg-amber-500 animate-ping" : "bg-emerald-500")} />
               <span className="text-xs font-black text-slate-700 uppercase tracking-wider">

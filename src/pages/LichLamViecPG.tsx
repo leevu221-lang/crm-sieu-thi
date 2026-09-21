@@ -1396,7 +1396,11 @@ const LichLamViecPG: React.FC = () => {
       if (snap.exists()) {
         const d = snap.data() as any;
         const monthData = d.lich_pg?.[monthKey] || d.data_phan_ca_pg?.[monthKey];
-        if (monthData) {
+        const hasValidRoster = monthData && (
+          (Array.isArray(monthData.ictRoster) && monthData.ictRoster.length > 0) ||
+          (Array.isArray(monthData.dtdlgdRoster) && monthData.dtdlgdRoster.length > 0)
+        );
+        if (monthData && hasValidRoster) {
           // If this device is NOT actively editing, sync everything in real-time from Firestore
           if (!editingRef.current) {
             setIctRoster(Array.isArray(monthData.ictRoster) ? monthData.ictRoster : []);
@@ -1416,11 +1420,46 @@ const LichLamViecPG: React.FC = () => {
         }
       }
 
+      // If store doc has no valid PG data, fallback to sibling stores in same cluster/warehouse
+      if (!editingRef.current && availableStores && availableStores.length > 1) {
+        for (const sibling of availableStores) {
+          const sibId = normalizeStoreId(sibling.name);
+          if (sibId && sibId !== targetStoreDocId) {
+            try {
+              const sibSnap = await getDoc(doc(db, 'store', sibId));
+              if (sibSnap.exists()) {
+                const sD = sibSnap.data() as any;
+                const sMonthData = sD.lich_pg?.[monthKey] || sD.data_phan_ca_pg?.[monthKey];
+                if (sMonthData && (
+                  (Array.isArray(sMonthData.ictRoster) && sMonthData.ictRoster.length > 0) ||
+                  (Array.isArray(sMonthData.dtdlgdRoster) && sMonthData.dtdlgdRoster.length > 0)
+                )) {
+                  if (!editingRef.current) {
+                    setIctRoster(Array.isArray(sMonthData.ictRoster) ? sMonthData.ictRoster : []);
+                    setDtdlgdRoster(Array.isArray(sMonthData.dtdlgdRoster) ? sMonthData.dtdlgdRoster : []);
+                    setAllWeekData(sMonthData.weekData || {});
+                    if (Array.isArray(sMonthData.customShifts)) setCustomShifts(sMonthData.customShifts);
+                  }
+                  if (sMonthData.allowUserEdit !== undefined && typeof sMonthData.allowUserEdit === 'object') {
+                    setAllowUserEdit(sMonthData.allowUserEdit);
+                  }
+                  setLoaded(true);
+                  return;
+                }
+              }
+            } catch (e) {
+              // ignore
+            }
+          }
+        }
+      }
+
       // If store doc has no PG data for this month yet, use default sample data
       if (!editingRef.current) {
           // Default initial sample data
           setIctRoster([
             { id: genId(), tenPgHang: 'Ngọc Trâm - Realme', sdtSup: 'Lý Tấn Được 0946676440', note: 'Ca gãy (9h-12/13h-18h), t6-17-cn (9h-12h/14h-19h) sáng 9h-16h', category: 'ICT' },
+            { id: genId(), tenPgHang: 'VIVO', sdtSup: '', note: '', category: 'ICT' },
             { id: genId(), tenPgHang: 'Thanh - Xiaomiii', sdtSup: 'Gia Khang 0824013017', note: 'Ca sáng: 9h-17h/8h-16h ca chiều 12h-20h/ 13h-21h', category: 'ICT' },
             { id: genId(), tenPgHang: 'Anh Thư - Oppo', sdtSup: 'Phạm Thiên Tâm 0354827949', note: 'Ca sáng: 8h-16h. Ca chiều: 12h-20h', category: 'ICT' },
           ]);
@@ -1428,7 +1467,7 @@ const LichLamViecPG: React.FC = () => {
             { id: genId(), tenPgHang: 'Trung Tín - TCL', sdtSup: 'Sơn: 0939292323', note: 'Ca sáng từ 9h-15h, ca chiều từ 14h-20h, ngày cuối tuần 8h-18h', category: 'DTDLGD' },
             { id: genId(), tenPgHang: 'Oanh - LG', sdtSup: '0904955285 (A Tùng)', note: 'Ca sáng (08h-16h)(9h-17h), ca chiều (12h-20h)(13h-21h)', category: 'DTDLGD' },
             { id: genId(), tenPgHang: 'Trang - Toshiba', sdtSup: '0939095555 (Anh Trung)', note: 'Ca sáng(9h-15h), ca chiều(14h-20h), T7 CN(9h-20h)', category: 'DTDLGD' },
-            { id: genId(), tenPgHang: 'Tuấn Aqua', sdtSup: '', note: '', category: 'DTDLGD' },
+            { id: genId(), tenPgHang: 'Xuyên - Aqua', sdtSup: 'Ngô Thị Thùy Dung 0939 301 337', note: '', category: 'DTDLGD' },
             { id: genId(), tenPgHang: 'Khang Hi - Mutosi', sdtSup: '0898815291 (Nhi)', note: 'Ca sáng từ 9h-17h/8h-16h. Ca chiều 12h-20h', category: 'DTDLGD' },
             { id: genId(), tenPgHang: 'Trúc - Bluestone', sdtSup: '', note: 'Ca sáng (09-16h), ca chiều (13h-20h)', category: 'DTDLGD' },
             { id: genId(), tenPgHang: 'Trinh - Sunhouse', sdtSup: '', note: 'Ca sáng(9h-16h), Ca Gãy 16h-20h', category: 'DTDLGD' },
@@ -1444,7 +1483,7 @@ const LichLamViecPG: React.FC = () => {
     });
 
     return unsub;
-  }, [monthKey, targetStoreDocId]);
+  }, [monthKey, targetStoreDocId, availableStores]);
 
   const handleStartEdit = () => {
     originalDataRef.current = {

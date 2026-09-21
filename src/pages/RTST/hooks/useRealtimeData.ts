@@ -1059,8 +1059,7 @@ export const useRealtimeData = (maKho: string) => {
       const targetDocId = normalizeStoreId(cleanStore);
       console.log(`[RealtimeData] FORCE DELETE all data for: "${targetDocId}"`);
 
-      // BYPASS adapter (merge:true) — use Firestore setDoc directly with merge:false
-      // This REPLACES the entire document, removing ALL old fields
+      // SAFEGUARD: Use merge: true so other modules (e.g. lich_pg, declared_stores) are NEVER wiped out
       const docRef = doc(db, 'store', targetDocId);
       await setDoc(docRef, {
         id: targetDocId,
@@ -1085,7 +1084,7 @@ export const useRealtimeData = (maKho: string) => {
         // YCX fields
         ycx_data: '',
         ycx_data_moi: ''
-      }); // NO merge — full overwrite
+      }, { merge: true });
 
       console.log('[RealtimeData] FORCE DELETE completed successfully');
     } catch (err: any) {
