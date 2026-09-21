@@ -760,8 +760,26 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
   type CaptureStrategy = 'domToBlob' | 'domToPng' | 'htmlToImage' | 'html2canvas';
 
-  const runCaptureStrategy = async (frameWrapper: HTMLElement, strategy: CaptureStrategy, scale: number = 1.2): Promise<Blob | string> => {
+  const runCaptureStrategy = async (frameWrapper: HTMLElement, strategy: CaptureStrategy, scale: number = 1): Promise<Blob | string> => {
     const frameHeight = frameWrapper.offsetHeight || frameWrapper.scrollHeight || 1200;
+    if (strategy === 'domToBlob') {
+      const blob = await domToBlob(frameWrapper, {
+        backgroundColor: '#ffffff',
+        scale: scale,
+        font: false,
+        width: 1120,
+        height: frameHeight,
+        drawImageInterval: 0,
+        features: {
+          copyScrollbar: false,
+          removeControlCharacter: false,
+          removeAbnormalAttributes: false,
+          fixSvgXmlDecode: false,
+        },
+      });
+      if (!blob || blob.size === 0) throw new Error('domToBlob produced empty blob');
+      return blob;
+    }
     if (strategy === 'domToPng') {
       const dataUrl = await domToPng(frameWrapper, {
         backgroundColor: '#ffffff',
@@ -793,24 +811,6 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         style: { ...EXPORT_FONT_STYLE },
       });
       if (!blob || blob.size === 0) throw new Error('htmlToImage produced no blob');
-      return blob;
-    }
-    if (strategy === 'domToBlob') {
-      const blob = await domToBlob(frameWrapper, {
-        backgroundColor: '#ffffff',
-        scale: scale,
-        font: false,
-        width: 1120,
-        height: frameHeight,
-        drawImageInterval: 0,
-        features: {
-          copyScrollbar: false,
-          removeControlCharacter: false,
-          removeAbnormalAttributes: false,
-          fixSvgXmlDecode: false,
-        },
-      });
-      if (!blob || blob.size === 0) throw new Error('domToBlob produced empty blob');
       return blob;
     }
     const canvas = await html2canvas(frameWrapper, {
@@ -848,7 +848,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     return { frameWrapper };
   };
 
-  const DEFAULT_CAPTURE_ORDER: CaptureStrategy[] = ['domToPng', 'domToBlob', 'htmlToImage', 'html2canvas'];
+  const DEFAULT_CAPTURE_ORDER: CaptureStrategy[] = ['domToBlob', 'domToPng', 'htmlToImage', 'html2canvas'];
 
   const captureSingleEmployeeCard = async (element: HTMLElement, order: CaptureStrategy[] = DEFAULT_CAPTURE_ORDER): Promise<Blob | string> => {
     const tempContainer = document.createElement('div');
@@ -885,13 +885,13 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     setBatchExportProgress({ current: 0, total: tables.length, percent: 0 });
 
     // 2. Yield control to browser paint cycle so React renders the loading overlay instantly (0ms lag)
-    await new Promise(resolve => setTimeout(resolve, 40));
+    await new Promise(resolve => setTimeout(resolve, 20));
 
     const startTime = Date.now();
 
-    // Adaptive multi-worker pool: Maximize throughput across available CPU cores (up to 4 concurrent workers)
+    // High-throughput multi-worker pool: 6 parallel workers on modern devices, 3 on low-spec
     const hardwareCores = typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency || 4) : 4;
-    const CONCURRENCY = Math.min(tables.length, Math.max(2, Math.min(4, hardwareCores >= 6 ? 4 : (hardwareCores >= 4 ? 3 : 2))));
+    const CONCURRENCY = Math.min(tables.length, Math.max(3, Math.min(6, hardwareCores)));
     const workerContainers: HTMLElement[] = [];
     for (let w = 0; w < CONCURRENCY; w++) {
       const wc = document.createElement('div');
@@ -913,20 +913,15 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
       const zip = new JSZip();
       const failedNames: string[] = [];
-      const order: CaptureStrategy[] = ['domToPng', 'domToBlob', 'htmlToImage', 'html2canvas'];
+      const order: CaptureStrategy[] = ['domToBlob', 'domToPng', 'htmlToImage', 'html2canvas'];
 
       const reportProgress = (current: number, total: number) => {
         const percent = Math.round((current / total) * 100);
         setBatchExportProgress({ current, total, percent });
       };
 
-      // Crisp scale (1.15x for low-spec, 1.2x for standard): ~1300px width, ultra-sharp text with minimal rasterization footprint
-      const isLowSpec = typeof navigator !== 'undefined' && (
-        (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ||
-        ((navigator as any).deviceMemory && (navigator as any).deviceMemory <= 4) ||
-        /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-      );
-      const exportScale = isLowSpec ? 1.15 : 1.2;
+      // 1:1 Pixel perfection: 1120px native width renders with zero interpolation, zero DPI overhead, and max speed
+      const exportScale = 1;
 
       let nextCardIdx = 0;
       let completedCount = 0;
