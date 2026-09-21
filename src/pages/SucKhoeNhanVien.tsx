@@ -760,7 +760,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
   type CaptureStrategy = 'domToBlob' | 'domToPng' | 'htmlToImage' | 'html2canvas';
 
-  const runCaptureStrategy = async (frameWrapper: HTMLElement, strategy: CaptureStrategy, scale: number = 1.25): Promise<Blob | string> => {
+  const runCaptureStrategy = async (frameWrapper: HTMLElement, strategy: CaptureStrategy, scale: number = 1.2): Promise<Blob | string> => {
     const frameHeight = frameWrapper.offsetHeight || frameWrapper.scrollHeight || 1200;
     if (strategy === 'domToPng') {
       const dataUrl = await domToPng(frameWrapper, {
@@ -769,9 +769,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         font: false,
         width: 1120,
         height: frameHeight,
+        drawImageInterval: 0,
         features: {
+          copyScrollbar: false,
           removeControlCharacter: false,
           removeAbnormalAttributes: false,
+          fixSvgXmlDecode: false,
         },
       });
       if (!dataUrl) throw new Error('domToPng produced no dataUrl');
@@ -799,9 +802,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         font: false,
         width: 1120,
         height: frameHeight,
+        drawImageInterval: 0,
         features: {
+          copyScrollbar: false,
           removeControlCharacter: false,
           removeAbnormalAttributes: false,
+          fixSvgXmlDecode: false,
         },
       });
       if (!blob || blob.size === 0) throw new Error('domToBlob produced empty blob');
@@ -883,8 +889,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
     const startTime = Date.now();
 
-    // Isolated dual worker containers: Cuts export duration in half without memory spikes
-    const CONCURRENCY = Math.min(tables.length, 2);
+    // Adaptive multi-worker pool: Maximize throughput across available CPU cores (up to 4 concurrent workers)
+    const hardwareCores = typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency || 4) : 4;
+    const CONCURRENCY = Math.min(tables.length, Math.max(2, Math.min(4, hardwareCores >= 6 ? 4 : (hardwareCores >= 4 ? 3 : 2))));
     const workerContainers: HTMLElement[] = [];
     for (let w = 0; w < CONCURRENCY; w++) {
       const wc = document.createElement('div');
@@ -913,13 +920,13 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         setBatchExportProgress({ current, total, percent });
       };
 
-      // Crisp 1.25x scale (1400px width): 50% fewer pixels than 1.75x, renders 3x faster, perfectly sharp for UTM Avo fonts
+      // Crisp scale (1.15x for low-spec, 1.2x for standard): ~1300px width, ultra-sharp text with minimal rasterization footprint
       const isLowSpec = typeof navigator !== 'undefined' && (
         (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ||
         ((navigator as any).deviceMemory && (navigator as any).deviceMemory <= 4) ||
         /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
       );
-      const exportScale = isLowSpec ? 1.2 : 1.25;
+      const exportScale = isLowSpec ? 1.15 : 1.2;
 
       let nextCardIdx = 0;
       let completedCount = 0;
@@ -976,9 +983,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
             completedCount++;
             reportProgress(completedCount, preparedCards.length);
 
-            // Fast micro-yield to browser event loop via requestAnimationFrame + setTimeout (10ms)
-            // Allows React to paint progress bar and perform GC without stalling UI
-            await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 10)));
+            // Fast micro-yield to browser event loop via requestAnimationFrame (0ms latency, paints progress bar smoothly)
+            await new Promise(resolve => requestAnimationFrame(resolve));
           }
         }
       };
