@@ -1,10 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../contexts/StoreContext';
-import { Store, ArrowRight, Save, Loader2, Sparkles, Info, CheckCircle2, Copy, Check, X, ShieldCheck } from 'lucide-react';
+import { 
+  Store, ArrowRight, Save, Loader2, Sparkles, Info, CheckCircle2, Copy, Check, X, ShieldCheck,
+  FileSpreadsheet, Eye
+} from 'lucide-react';
 import { isValidStoreName, normalizeStoreId, formatMarketName } from './RTST/utils';
+import * as XLSX from 'xlsx';
+import { db } from '../firebaseConfig';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { BossStoreTableModal, BossStoreItem } from '../components/BossStoreTableModal';
 
 interface StoreDeclarationProps {
   onComplete: () => void;
@@ -34,6 +41,280 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     // Khắc phục lỗi dấu gạch nối chèn nhầm vào ngày/tháng/số nhà (ví dụ "Đường -19/5" -> "Đường 19/5")
     cleaned = cleaned.replace(/(Đường|Đ\.|Phố)\s*-\s*(\d+)/gi, '$1 $2').trim();
     return cleaned;
+  };
+
+  const is43751 = String(userProfile?.username || '').trim() === '43751' ||
+                  String(userProfile?.ma_nhan_vien || '').trim() === '43751' ||
+                  String(userProfile?.user_id || '').trim() === '43751';
+
+  // State DS BOSS lưu Firebase
+  const [dsBossList, setDsBossList] = useState<BossStoreItem[]>(() => {
+    try {
+      const cached = localStorage.getItem('rtst_ds_boss_config');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return Array.isArray(parsed.rows) ? parsed.rows : [];
+      }
+    } catch {}
+    return [];
+  });
+  const [dsBossHeaders, setDsBossHeaders] = useState<string[]>(() => {
+    try {
+      const cached = localStorage.getItem('rtst_ds_boss_config');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return Array.isArray(parsed.headers) ? parsed.headers : [];
+      }
+    } catch {}
+    return [];
+  });
+  const [isUploadingBoss, setIsUploadingBoss] = useState(false);
+  const [showBossModal, setShowBossModal] = useState(false);
+  const [isUpdatingBoss, setIsUpdatingBoss] = useState(false);
+
+  // Realtime listener DS BOSS từ Firebase Firestore (Cost-optimized, 0 polling)
+  useEffect(() => {
+    const docRef = doc(db, 'app_settings', 'ds_boss_config');
+    const unsubscribe = onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data && Array.isArray(data.rows)) {
+          setDsBossList(data.rows);
+          if (Array.isArray(data.headers)) {
+            setDsBossHeaders(data.headers);
+          }
+          try {
+            localStorage.setItem('rtst_ds_boss_config', JSON.stringify({
+              headers: data.headers || [],
+              rows: data.rows,
+            }));
+          } catch {}
+        }
+      }
+    }, (err) => {
+      console.warn('[StoreDeclaration] Firebase DS BOSS listener error:', err);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Lọc các siêu thị khớp mã kho Cột E với mã kho đăng nhập (giữ nguyên thứ tự trên xuống dưới từ file Excel)
+  const matchedBossStores = useMemo(() => {
+    if (!maKho || dsBossList.length === 0) return [];
+    const cleanTarget = String(maKho).trim().replace(/^0+/, '');
+    return dsBossList.filter((r) => {
+      const rowKho = String(r.maKho || '').trim().replace(/^0+/, '');
+      return rowKho !== '' && rowKho === cleanTarget;
+    });
+  }, [dsBossList, maKho]);
+
+  // Hàm tự động điền các siêu thị theo thứ tự từ trên xuống dưới
+  const applyAutoFill = useCallback((force = false) => {
+    if (matchedBossStores.length === 0) return false;
+    const m1 = cleanStoreInput(matchedBossStores[0]?.tenSieuThi || '');
+    const m2 = cleanStoreInput(matchedBossStores[1]?.tenSieuThi || '');
+    const m3 = cleanStoreInput(matchedBossStores[2]?.tenSieuThi || '');
+    const m4 = cleanStoreInput(matchedBossStores[3]?.tenSieuThi || '');
+
+    if (force) {
+      if (m1) setStore1(m1);
+      setStore2(m2);
+      setStore3(m3);
+      setStore4(m4);
+    } else {
+      setStore1((prev) => prev || m1);
+      setStore2((prev) => prev || m2);
+      setStore3((prev) => prev || m3);
+      setStore4((prev) => prev || m4);
+    }
+    return true;
+  }, [matchedBossStores]);
+
+  // Tự động điền khi danh sách BOSS hoặc mã kho thay đổi nếu các ô chưa có giá trị
+  useEffect(() => {
+    if (matchedBossStores.length > 0) {
+      setStore1((prev) => prev || cleanStoreInput(matchedBossStores[0]?.tenSieuThi || ''));
+      setStore2((prev) => prev || cleanStoreInput(matchedBossStores[1]?.tenSieuThi || ''));
+      setStore3((prev) => prev || cleanStoreInput(matchedBossStores[2]?.tenSieuThi || ''));
+      setStore4((prev) => prev || cleanStoreInput(matchedBossStores[3]?.tenSieuThi || ''));
+    }
+  }, [matchedBossStores]);
+
+  // Handler tải file Excel DS BOSS (chỉ 43751)
+  const handleUploadBossExcel = async (file: File) => {
+    if (!is43751) {
+      setStatusMessage({ type: 'error', text: 'Chỉ tài khoản Quản trị viên 43751 mới có quyền tải lên DS BOSS!' });
+      return;
+    }
+    setIsUploadingBoss(true);
+    setStatusMessage(null);
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as any[][];
+
+      if (!jsonData || jsonData.length === 0) {
+        throw new Error('File Excel rỗng!');
+      }
+
+      // Xác định Cột E (Mã kho - index 4) và Cột C (Tên siêu thị - index 2)
+      let colIndexKho = 4;
+      let colIndexTen = 2;
+      let startRowIdx = 0;
+      let detectedHeaders: string[] = ['Cột A', 'Cột B', 'Tên Siêu Thị (Cột C)', 'Cột D', 'Mã Kho (Cột E)'];
+
+      for (let r = 0; r < Math.min(10, jsonData.length); r++) {
+        const row = jsonData[r];
+        if (!Array.isArray(row)) continue;
+        const rowStr = row.map((c) => String(c || '').toLowerCase().trim());
+        const foundKho = rowStr.findIndex((c) => c === 'mã kho' || c === 'ma kho' || c === 'kho' || c.includes('mã kho') || c.includes('makho'));
+        const foundTen = rowStr.findIndex((c) => c === 'tên siêu thị' || c === 'ten sieu thi' || c.includes('tên siêu thị') || c.includes('tên kho') || c.includes('ten kho'));
+
+        if (foundKho !== -1 || foundTen !== -1) {
+          if (foundKho !== -1) colIndexKho = foundKho;
+          if (foundTen !== -1) colIndexTen = foundTen;
+          detectedHeaders = row.map((c, i) => String(c || '').trim() || `Cột ${String.fromCharCode(65 + i)}`);
+          startRowIdx = r + 1;
+          break;
+        }
+      }
+
+      const parsedRows: BossStoreItem[] = [];
+      for (let i = startRowIdx; i < jsonData.length; i++) {
+        const row = jsonData[i];
+        if (!Array.isArray(row) || row.length === 0) continue;
+
+        const rawKho = String(row[colIndexKho] ?? '').trim();
+        const rawTen = cleanStoreInput(String(row[colIndexTen] ?? ''));
+
+        if (!rawKho || !rawTen) continue;
+        if (/^(mã kho|tên siêu thị|stt|kho)$/i.test(rawKho) || /^(mã kho|tên siêu thị|stt)$/i.test(rawTen)) continue;
+
+        parsedRows.push({
+          id: `boss_${parsedRows.length + 1}_${Date.now()}_${i}`,
+          maKho: rawKho,
+          tenSieuThi: rawTen,
+          rawCells: row.map((c) => String(c ?? '').trim()),
+        });
+      }
+
+      if (parsedRows.length === 0) {
+        throw new Error('Không tìm thấy dòng dữ liệu nào hợp lệ có Mã kho (Cột E) và Tên siêu thị (Cột C)!');
+      }
+
+      // Lưu vào Firebase Firestore
+      const docRef = doc(db, 'app_settings', 'ds_boss_config');
+      await setDoc(docRef, {
+        updatedAt: new Date().toISOString(),
+        updatedBy: '43751',
+        headers: detectedHeaders,
+        rows: parsedRows,
+      });
+
+      // Cache localStorage
+      localStorage.setItem('rtst_ds_boss_config', JSON.stringify({
+        headers: detectedHeaders,
+        rows: parsedRows,
+      }));
+
+      setDsBossList(parsedRows);
+      setDsBossHeaders(detectedHeaders);
+
+      // Tự động điền cho mã kho hiện tại
+      const cleanCur = String(maKho).trim().replace(/^0+/, '');
+      const matchedCur = parsedRows.filter((r) => String(r.maKho).trim().replace(/^0+/, '') === cleanCur);
+      if (matchedCur.length > 0) {
+        setStore1(cleanStoreInput(matchedCur[0]?.tenSieuThi || ''));
+        setStore2(cleanStoreInput(matchedCur[1]?.tenSieuThi || ''));
+        setStore3(cleanStoreInput(matchedCur[2]?.tenSieuThi || ''));
+        setStore4(cleanStoreInput(matchedCur[3]?.tenSieuThi || ''));
+      }
+
+      setStatusMessage({
+        type: 'success',
+        text: `Đã nạp thành công ${parsedRows.length} siêu thị từ file Excel vào Firebase! ${
+          matchedCur.length > 0 ? `Đã tự động điền ${matchedCur.length} siêu thị cho kho ${maKho}.` : ''
+        }`,
+      });
+    } catch (err: any) {
+      console.error('[StoreDeclaration] Upload DS BOSS failed:', err);
+      setStatusMessage({ type: 'error', text: 'Lỗi tải file DS BOSS: ' + (err.message || '') });
+    } finally {
+      setIsUploadingBoss(false);
+    }
+  };
+
+  // Cập nhật 1 dòng dữ liệu DS BOSS (chỉ 43751)
+  const handleUpdateBossRow = async (id: string, newMaKho: string, newTenSieuThi: string) => {
+    if (!is43751) return;
+    setIsUpdatingBoss(true);
+    try {
+      const updated = dsBossList.map((r) =>
+        r.id === id ? { ...r, maKho: newMaKho.trim(), tenSieuThi: cleanStoreInput(newTenSieuThi) } : r
+      );
+      setDsBossList(updated);
+      localStorage.setItem('rtst_ds_boss_config', JSON.stringify({ headers: dsBossHeaders, rows: updated }));
+
+      const docRef = doc(db, 'app_settings', 'ds_boss_config');
+      await setDoc(docRef, {
+        updatedAt: new Date().toISOString(),
+        updatedBy: '43751',
+        headers: dsBossHeaders,
+        rows: updated,
+      }, { merge: true });
+    } finally {
+      setIsUpdatingBoss(false);
+    }
+  };
+
+  // Xóa 1 dòng dữ liệu DS BOSS (chỉ 43751)
+  const handleDeleteBossRow = async (id: string) => {
+    if (!is43751) return;
+    setIsUpdatingBoss(true);
+    try {
+      const updated = dsBossList.filter((r) => r.id !== id);
+      setDsBossList(updated);
+      localStorage.setItem('rtst_ds_boss_config', JSON.stringify({ headers: dsBossHeaders, rows: updated }));
+
+      const docRef = doc(db, 'app_settings', 'ds_boss_config');
+      await setDoc(docRef, {
+        updatedAt: new Date().toISOString(),
+        updatedBy: '43751',
+        headers: dsBossHeaders,
+        rows: updated,
+      }, { merge: true });
+    } finally {
+      setIsUpdatingBoss(false);
+    }
+  };
+
+  // Thêm 1 dòng mới vào DS BOSS (chỉ 43751)
+  const handleAddBossRow = async (newMaKho: string, newTenSieuThi: string) => {
+    if (!is43751) return;
+    setIsUpdatingBoss(true);
+    try {
+      const newRow: BossStoreItem = {
+        id: `boss_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        maKho: newMaKho.trim(),
+        tenSieuThi: cleanStoreInput(newTenSieuThi),
+      };
+      const updated = [newRow, ...dsBossList];
+      setDsBossList(updated);
+      localStorage.setItem('rtst_ds_boss_config', JSON.stringify({ headers: dsBossHeaders, rows: updated }));
+
+      const docRef = doc(db, 'app_settings', 'ds_boss_config');
+      await setDoc(docRef, {
+        updatedAt: new Date().toISOString(),
+        updatedBy: '43751',
+        headers: dsBossHeaders,
+        rows: updated,
+      }, { merge: true });
+    } finally {
+      setIsUpdatingBoss(false);
+    }
   };
 
   const handleCopyExample = (text: string) => {
@@ -125,6 +406,18 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
               loaded1 = whData.ten_kho;
             }
           } catch {}
+        }
+
+        // Dự phòng 3: Nếu chưa có trong database nhưng có trong DS BOSS, tự động điền theo thứ tự trên xuống
+        if (!loaded1 && dsBossList.length > 0) {
+          const cleanTarget = maKho.trim().replace(/^0+/, '');
+          const matched = dsBossList.filter(r => String(r.maKho || '').trim().replace(/^0+/, '') === cleanTarget);
+          if (matched.length > 0) {
+            loaded1 = cleanStoreInput(matched[0]?.tenSieuThi || '');
+            if (!loaded2 && matched[1]) loaded2 = cleanStoreInput(matched[1]?.tenSieuThi || '');
+            if (!loaded3 && matched[2]) loaded3 = cleanStoreInput(matched[2]?.tenSieuThi || '');
+            if (!loaded4 && matched[3]) loaded4 = cleanStoreInput(matched[3]?.tenSieuThi || '');
+          }
         }
 
         if (loaded1) setStore1(loaded1);
@@ -482,6 +775,81 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                 </p>
               </div>
 
+              {/* ADMIN 43751 TOOLBAR - CHỈ HIỂN THỊ VÀ CHỈNH SỬA VỚI USER 43751 */}
+              {is43751 && (
+                <div className="mb-6 p-4 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-2xl border border-indigo-500/30 text-white shadow-xl">
+                  <div className="flex flex-wrap items-center justify-between gap-2.5 mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 flex items-center gap-1 shadow-sm">
+                        👑 Admin 43751
+                      </span>
+                      <span className="text-xs font-black text-indigo-200">
+                        Quản lý DS BOSS ({dsBossList.length} siêu thị trên Firebase)
+                      </span>
+                    </div>
+                    {isUploadingBoss && (
+                      <span className="text-xs text-amber-300 font-bold flex items-center gap-1.5 animate-pulse">
+                        <Loader2 size={13} className="animate-spin" /> Đang tải file lên...
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Nút Upload File Excel DS BOSS */}
+                    <label className="flex items-center gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black cursor-pointer transition-all active:scale-95 shadow-md shadow-indigo-600/30">
+                      <FileSpreadsheet size={16} className="text-indigo-200" />
+                      <span>Tải file Excel DS BOSS</span>
+                      <input
+                        type="file"
+                        accept=".xlsx, .xls, .csv"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadBossExcel(file);
+                          e.target.value = '';
+                        }}
+                        className="hidden"
+                        disabled={isUploadingBoss}
+                      />
+                    </label>
+
+                    {/* Nút Xem Danh Sách BOSS dạng modal bảng */}
+                    <button
+                      type="button"
+                      onClick={() => setShowBossModal(true)}
+                      className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-indigo-200 hover:text-white rounded-xl text-xs font-black cursor-pointer transition-all active:scale-95 border border-indigo-400/20 shadow-sm"
+                    >
+                      <Eye size={16} />
+                      <span>Bảng Xem & Sửa DS BOSS ({dsBossList.length})</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* BANNER TỰ ĐỘNG ĐIỀN TỪ DS BOSS - ÁP DỤNG CHO TẤT CẢ TÀI KHOẢN NGƯỜI DÙNG */}
+              {matchedBossStores.length > 0 && (
+                <div className="mb-5 p-3.5 bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-emerald-500/10 border border-amber-300/80 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={16} className="text-amber-600 animate-pulse shrink-0" />
+                    <span className="text-xs font-black text-slate-800">
+                      Khớp <strong className="text-indigo-700">{matchedBossStores.length} siêu thị</strong> từ file BOSS cho kho {maKho}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      applyAutoFill(true);
+                      setStatusMessage({
+                        type: 'success',
+                        text: `Đã tự động điền ${matchedBossStores.length} siêu thị từ DS BOSS!`,
+                      });
+                    }}
+                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] font-black tracking-wide uppercase transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
+                  >
+                    Điền lại từ DS BOSS
+                  </button>
+                </div>
+              )}
+
               {statusMessage && (
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
@@ -661,6 +1029,22 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
           </div>
         </div>
       </motion.div>
+
+      {/* MODAL BẢNG XEM & SỬA DS BOSS (CHỈ DÀNH CHO ADMIN 43751) */}
+      {is43751 && (
+        <BossStoreTableModal
+          isOpen={showBossModal}
+          onClose={() => setShowBossModal(false)}
+          rows={dsBossList}
+          headers={dsBossHeaders}
+          onUpdateRow={handleUpdateBossRow}
+          onDeleteRow={handleDeleteBossRow}
+          onAddRow={handleAddBossRow}
+          onUploadExcel={handleUploadBossExcel}
+          isUpdating={isUpdatingBoss}
+          currentMaKho={maKho}
+        />
+      )}
     </div>
   );
 }
