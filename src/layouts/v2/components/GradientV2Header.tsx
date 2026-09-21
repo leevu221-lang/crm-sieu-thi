@@ -267,8 +267,8 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
               )}
             </button>
 
-            {/* Subscription / Gói Cước Button */}
-            {setShowSubscriptionForce && (
+            {/* Subscription / Gói Cước Button (Chỉ hiển thị với user 43751) */}
+            {isUser43751 && setShowSubscriptionForce && (
               <button
                 onClick={() => setShowSubscriptionForce(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer border bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-700 border-amber-200 hover:shadow-md hover:shadow-amber-100"
@@ -341,7 +341,7 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                     </div>
 
                     {/* Action buttons */}
-                    {setShowSubscriptionForce && (
+                    {isUser43751 && setShowSubscriptionForce && (
                       <button
                         onClick={() => { setShowSubscriptionForce(true); setUserDropdownOpen(false); }}
                         className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[12px] font-bold text-amber-700 hover:bg-amber-50 transition-all cursor-pointer"

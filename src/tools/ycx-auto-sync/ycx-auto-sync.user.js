@@ -388,39 +388,38 @@
       return match || null;
     }
 
-    /** ⚠️ KIỂM TRA TRỌNG TÂM: ô tìm/chọn nhân viên là dạng tag/chip multi-select
-     * (ảnh cho thấy có chip "Thạch Vũ ×" xoá được). Đây thường là 1 thư viện kiểu
-     * select2/Choices.js: click vào để mở input ẩn bên trong, gõ chữ, đợi dropdown
-     * gợi ý hiện ra, rồi CLICK vào đúng gợi ý khớp tên (không phải chỉ set value).
-     * Cách định vị: tìm input text nằm gần nút "Tìm kiếm" nhất (cùng hàng filter).
-     */
+    /** ĐÃ XÁC NHẬN với DOM thật (qua Chrome DevTools Protocol, tab BCNB đăng nhập
+     * thật): ô tìm/chọn nhân viên là thư viện Angular UI-Select — multi-select
+     * dạng chip, input thật nằm bên trong với class "ui-select-search" và
+     * type="search" (KHÔNG phải type="text" như dự đoán ban đầu). */
     function findEmployeeSearchInput() {
+      const direct = document.querySelector('input.ui-select-search');
+      if (direct) return direct;
+      // Dự phòng nếu class đổi tên trong tương lai: dò theo nút Tìm kiếm như cũ.
       const searchBtn = findSearchButton();
       if (!searchBtn) {
         warn('Không tìm thấy nút "Tìm kiếm" để làm mốc neo. ⚠️ KIỂM TRA text nút thật.');
         return null;
       }
-      // Hàng filter (chứa 2 ô ngày, ô chọn NV, dropdown vị trí thưởng, nút Tìm kiếm)
-      // thường là 1 flex/grid container chung — tìm ancestor gần nhất có chứa
-      // >= 1 input text VÀ chính là cha (hoặc ông) của nút Tìm kiếm.
       let row = searchBtn;
       for (let i = 0; i < 5 && row; i++) {
-        const textInputs = row.querySelectorAll('input[type="text"], input:not([type])');
-        if (textInputs.length > 0) return textInputs[textInputs.length - 1]; // ô NV thường nằm gần cuối, sát nút Tìm kiếm
+        const textInputs = row.querySelectorAll('input[type="text"], input[type="search"], input:not([type])');
+        if (textInputs.length > 0) return textInputs[textInputs.length - 1];
         row = row.parentElement;
       }
       warn('Không xác định được ô tìm nhân viên. ⚠️ KIỂM TRA cấu trúc hàng filter thật.');
       return null;
     }
 
-    /** ⚠️ KIỂM TRA: xoá các chip nhân viên đang chọn sẵn (nếu có) trước khi chọn
-     * người mới, để không bị cộng dồn nhiều NV trong 1 lần tìm kiếm. Ảnh cho
-     * thấy mỗi chip có dấu "×" để xoá — tìm mọi phần tử có text đúng 1 ký tự "×"
-     * nằm trong cùng khối với ô tìm kiếm rồi bấm hết. */
+    /** ĐÃ XÁC NHẬN: nút xoá chip đang chọn là <span class="ui-select-match-close">
+     * (KHÔNG phải các nút "×" khác trên trang — trang có 1 widget "Tìm nhân viên"
+     * không liên quan ở menu trên cùng cũng có nút "×" tên class "clearButton",
+     * trước đây bị quét trúng nhầm vì tìm theo text "×" trên toàn document).
+     * Giờ chỉ tìm trong đúng khối ui-select chứa ô tìm kiếm, theo đúng class thật. */
     function clearSelectedChips(searchInput) {
-      const container = searchInput.closest('div')?.parentElement || searchInput.parentElement;
+      const container = searchInput.closest('[class*="ui-select"]') || searchInput.parentElement;
       if (!container) return;
-      const closeButtons = findElementsByOwnText(container, /^[×xX]$/, 'span, button, i');
+      const closeButtons = Array.from(container.querySelectorAll('.ui-select-match-close'));
       log(`clearSelectedChips: gỡ ${closeButtons.length} chip đang chọn sẵn.`);
       closeButtons.forEach((btn) => btn.click());
     }
@@ -433,34 +432,38 @@
       return `<${el.tagName.toLowerCase()}${id}${cls}> "${txt}"`;
     }
 
-    async function pickEmployeeSuggestion(searchInput, tenNv) {
+    /** SỬA QUAN TRỌNG: bản trước gõ TÊN NV (tenNv) để lọc gợi ý — đã xác nhận bằng
+     * test thật là SAI: tìm "Thạch Vũ" khớp NHẦM qua "Thạch Vũ Thuỷ" (2 người khác
+     * nhau), vì thư viện lọc theo "chứa chuỗi" trên cả tên. Với 1 script tự điền dữ
+     * liệu thưởng, chọn nhầm người là lỗi nghiêm trọng. Giờ gõ MÃ NV (maNv) — mã số
+     * là duy nhất, không bị đụng hàng — và còn kiểm tra lại đúng "U{maNv} -" nằm
+     * trong gợi ý trước khi bấm, để chắc chắn 100% chọn đúng người. */
+    async function pickEmployeeSuggestion(searchInput, maNv, tenNv) {
       clearSelectedChips(searchInput);
       searchInput.focus();
       searchInput.click();
-      setReactValue(searchInput, tenNv);
-      log(`Đã gõ "${tenNv}" vào ô: ${describeEl(searchInput)}`);
+      setReactValue(searchInput, maNv);
+      log(`Đã gõ mã "${maNv}" (${tenNv}) vào ô: ${describeEl(searchInput)}`);
       await sleep(CONFIG.WAIT_AFTER_TYPE_MS);
 
-      // ⚠️ KIỂM TRA: dropdown gợi ý thường là 1 <ul>/<div role="listbox"> mới xuất
-      // hiện SAU khi gõ, chứa các item text trùng/khớp gần đúng tên đang gõ.
-      // Tìm mọi phần tử có text CHỨA tên NV (không phân biệt hoa/thường, bỏ dấu
-      // cách thừa) xuất hiện SAU input trong DOM, ưu tiên phần tử nhỏ nhất khớp.
-      const normalizedTarget = tenNv.trim().toLowerCase();
-      const candidates = findElementsByOwnText(
-        document,
-        (t) => t.trim().toLowerCase().includes(normalizedTarget)
-      ).filter((el) => el !== searchInput && !el.contains(searchInput));
+      // ĐÃ XÁC NHẬN: mỗi gợi ý là 1 <div class="ui-select-choices-row" role="option">
+      // với nội dung dạng "U{maNv} - {Tên} - {Phòng ban}".
+      const rows = Array.from(document.querySelectorAll('.ui-select-choices-row'));
+      log(`Tìm thấy ${rows.length} gợi ý: ${rows.slice(0, 5).map(describeEl).join(' | ')}`);
 
-      log(`Tìm thấy ${candidates.length} phần tử chứa "${tenNv}": ${candidates.slice(0, 5).map(describeEl).join(' | ')}`);
-
-      if (candidates.length === 0) {
-        warn(`Không thấy gợi ý autocomplete nào chứa tên "${tenNv}" sau khi gõ. ⚠️ KIỂM TRA: có thể cần gõ chậm hơn (event keydown/keyup thay vì set value 1 lần), hoặc dropdown dùng Shadow DOM.`);
+      if (rows.length === 0) {
+        warn(`Không thấy gợi ý autocomplete nào cho mã "${maNv}" sau khi gõ. ⚠️ KIỂM TRA: có thể cần gõ chậm hơn hoặc mã NV không tồn tại trên BCNB.`);
         return false;
       }
-      // Ưu tiên phần tử KHÔNG có element con (lá của cây DOM) — thường là item gợi ý thật.
-      const leaf = candidates.find((el) => el.children.length === 0) || candidates[0];
-      log(`👉 Sẽ bấm vào: ${describeEl(leaf)}`);
-      leaf.click();
+      // Chỉ chấp nhận gợi ý có đúng "U{maNv} -" hoặc "{maNv} -" — không đoán đại gợi ý đầu tiên.
+      const idPattern = new RegExp(`\\bU?${maNv}\\s*-`);
+      const exact = rows.find((r) => idPattern.test(r.textContent || ''));
+      if (!exact) {
+        warn(`Có ${rows.length} gợi ý nhưng KHÔNG có gợi ý nào khớp đúng mã "${maNv}". ⚠️ KIỂM TRA: gợi ý thấy được là "${rows.map((r) => (r.textContent || '').trim()).join(' | ')}".`);
+        return false;
+      }
+      log(`👉 Sẽ bấm vào gợi ý khớp đúng mã: ${describeEl(exact)}`);
+      exact.click();
       await sleep(CONFIG.WAIT_AFTER_PICK_SUGGEST_MS);
       log(`Sau khi bấm, giá trị ô tìm kiếm: "${searchInput.value}"`);
       return true;
@@ -470,42 +473,38 @@
      * thường hay input có gắn datepicker overlay (click mở lịch, không gõ tay
      * được trực tiếp). Thử set value trực tiếp trước; nếu ảnh thực tế cho thấy
      * UI có mở lịch popup, cách này sẽ CẦN đổi sang mô phỏng click ngày trên lịch. */
+    /** ĐÃ XÁC NHẬN: 2 ô ngày là <input type="text" name="from"> / <input name="to">
+     * (KHÔNG có định dạng dd/mm/yyyy sẵn trong value/placeholder như đoán ban đầu —
+     * placeholder thật là "Từ ngày"/"Đến ngày" nên heuristic cũ không khớp được gì).
+     * Click vào ô này sẽ mở 1 lịch popup (bootstrap datepicker), NHƯNG set giá trị
+     * bằng setReactValue (không thật sự click/focus qua chuột) đã test KHÔNG làm
+     * mở popup và Angular vẫn nhận đúng giá trị mới — nên giữ nguyên cách này. */
     function setDateRangeInputs(fromStr, toStr) {
-      const searchBtn = findSearchButton();
-      if (!searchBtn) return false;
-      let row = searchBtn;
-      let dateInputs = [];
-      for (let i = 0; i < 5 && row; i++) {
-        dateInputs = Array.from(row.querySelectorAll('input')).filter((inp) => {
-          const v = (inp.value || inp.placeholder || '').trim();
-          return /^\d{2}\/\d{2}\/\d{4}$/.test(v) || inp.type === 'date' || /ngày|date/i.test(inp.name || inp.id || '');
-        });
-        if (dateInputs.length >= 2) break;
-        row = row.parentElement;
-      }
-      if (dateInputs.length < 2) {
-        warn('Không xác định được 2 ô ngày (từ - đến). ⚠️ KIỂM TRA selector ô ngày thật. Sẽ dùng khoảng ngày mặc định đang hiển thị trên trang (có thể sai kỳ).');
+      const fromInput = document.querySelector('input[name="from"]');
+      const toInput = document.querySelector('input[name="to"]');
+      if (!fromInput || !toInput) {
+        warn('Không xác định được 2 ô ngày (từ - đến). ⚠️ KIỂM TRA input[name="from"]/[name="to"] còn đúng không (BCNB có thể đã đổi tên).');
         return false;
       }
-      setReactValue(dateInputs[0], fromStr);
-      setReactValue(dateInputs[1], toStr);
+      setReactValue(fromInput, fromStr);
+      setReactValue(toInput, toStr);
       return true;
     }
 
-    /** ⚠️ KIỂM TRA: có thể CÓ HƠN 1 <table> trong khu vực kết quả (vd 1 bảng cho
-     * header nhóm cột dính "sticky" + 1 bảng cho phần thân, hoặc 1 bảng riêng
-     * cho cột "Tổng cộng" luôn hiển thị bên trái khi cuộn ngang). Gộp TẤT CẢ
-     * bảng tìm thấy trong khu vực kết quả (dưới nút Tìm kiếm) lại, nối bằng
-     * dòng trống — khớp với việc Ctrl+A sẽ chọn hết mọi bảng nhìn thấy trên trang. */
+    /** ĐÃ XÁC NHẬN: trang này KHÔNG có <form> bao ngoài khu filter/kết quả, nên
+     * scopeRoot cũ luôn rơi về document.body — và trang LUÔN có sẵn 1 bảng khác
+     * không liên quan (id="tableUserSearchSearchUser", thuộc widget "Tìm nhân viên"
+     * ở menu trên cùng, luôn rỗng "Không có dữ liệu"). Nếu không loại trừ bảng này,
+     * dữ liệu dán vào CRM sẽ bị lẫn rác. Bảng thưởng thật có class "table-bordered". */
     function extractResultTsv() {
-      const searchBtn = findSearchButton();
-      const scopeRoot = searchBtn?.closest('form')?.parentElement || document.body;
-      const tables = Array.from(scopeRoot.querySelectorAll('table'));
+      const tables = Array.from(document.querySelectorAll('table')).filter(
+        (t) => t.id !== 'tableUserSearchSearchUser'
+      );
       if (tables.length === 0) {
-        warn('Không tìm thấy <table> nào trong khu vực kết quả. ⚠️ KIỂM TRA vùng chứa bảng thật.');
+        warn('Không tìm thấy <table> nào trong khu vực kết quả (ngoài bảng "Tìm nhân viên" đã loại trừ). ⚠️ KIỂM TRA vùng chứa bảng thật.');
         return '';
       }
-      log(`Tìm thấy ${tables.length} bảng trong khu vực kết quả.`);
+      log(`Tìm thấy ${tables.length} bảng trong khu vực kết quả (đã loại trừ bảng "Tìm nhân viên" không liên quan).`);
       return tables.map(tableToTsv).join('\n\n');
     }
 
@@ -515,8 +514,8 @@
         const searchInput = findEmployeeSearchInput();
         if (!searchInput) throw new Error('Không tìm thấy ô tìm nhân viên.');
 
-        const picked = await pickEmployeeSuggestion(searchInput, req.tenNv);
-        if (!picked) throw new Error(`Không chọn được gợi ý cho "${req.tenNv}".`);
+        const picked = await pickEmployeeSuggestion(searchInput, req.maNv, req.tenNv);
+        if (!picked) throw new Error(`Không chọn được gợi ý khớp đúng mã "${req.maNv}" (${req.tenNv}).`);
 
         setDateRangeInputs(req.from, req.to);
 

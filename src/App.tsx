@@ -633,7 +633,7 @@ export default function App() {
         setShowMaintenanceConfirm={setShowMaintenanceConfirm}
         setShowSettings={setShowSettings}
         setShowDeclarationForce={setShowDeclarationForce}
-        setShowSubscriptionForce={userProfile?.isDemo ? undefined : setShowSubscriptionForce}
+        setShowSubscriptionForce={(userProfile?.isDemo || !isUser43751Local) ? undefined : setShowSubscriptionForce}
         logout={logout}
         supabaseError={supabaseError}
         isDirectRealtimeMode={isGuestOrDirectMode}
