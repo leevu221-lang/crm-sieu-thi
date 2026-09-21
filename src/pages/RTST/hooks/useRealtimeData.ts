@@ -519,6 +519,41 @@ export const useRealtimeData = (maKho: string) => {
         throw upsertError;
       }
 
+      // Synchronize the 4 cluster report fields to ALL configured sibling stores in this warehouse
+      const clusterFieldsToSync: any = {};
+      if (marketVal) clusterFieldsToSync.rt_bi_tong_quan = marketVal;
+      else if (fieldName === 'REALTIME DT') clusterFieldsToSync.rt_bi_tong_quan = '';
+
+      if (categoryVal) clusterFieldsToSync.rt_nh_cum = categoryVal;
+      else if (fieldName === 'REALTIME TĐ') clusterFieldsToSync.rt_nh_cum = '';
+
+      if (categoryRevenueVal) clusterFieldsToSync.lk_bi_tong_quan = categoryRevenueVal;
+      else if (fieldName === 'LUỸ KẾ DT') clusterFieldsToSync.lk_bi_tong_quan = '';
+
+      if (categoryTargetVal) clusterFieldsToSync.lk_nh_sieu_thi = categoryTargetVal;
+      else if (fieldName === 'LUỸ KẾ TĐ') clusterFieldsToSync.lk_nh_sieu_thi = '';
+
+      if (Object.keys(clusterFieldsToSync).length > 0 && availableStores && availableStores.length > 1) {
+        const siblingStores = availableStores.filter(
+          s => s.name && s.name !== 'ALL' && s.name.trim() !== cleanStore.trim() && isValidStoreName(s.name)
+        );
+        if (siblingStores.length > 0) {
+          const siblingPayloads = siblingStores.map(s => ({
+            id: normalizeStoreId(s.name),
+            warehouse_code: cleanMaKho,
+            ten_sieu_thi: s.name,
+            updated_at: new Date().toISOString(),
+            ...clusterFieldsToSync
+          }));
+          try {
+            await supabase.from('store').upsert(siblingPayloads, { onConflict: 'id' });
+            console.log(`[RealtimeData] ✓ Đồng bộ dữ liệu báo cáo cụm (${Object.keys(clusterFieldsToSync).join(', ')}) cho ${siblingPayloads.length} siêu thị khác`);
+          } catch (syncErr) {
+            console.warn('[RealtimeData] Lỗi đồng bộ dữ liệu cụm sang siêu thị khác:', syncErr);
+          }
+        }
+      }
+
       lastSavedSnapshotRef.current = currentSnapshotKey;
 
       if (!silent) {
@@ -670,10 +705,14 @@ export const useRealtimeData = (maKho: string) => {
         }
       }
 
-      // FALLBACK for 'ALL' mode OR if no doc found by targetDocId:
+      // FALLBACK for 'ALL' mode OR if no doc found by targetDocId, OR if record is missing cluster reports:
       // Query warehouse documents to load shared cluster reports
-      if (!record && normalizedMaKho) {
-        console.log(`[RealtimeData] ⚠️ Fallback querying by warehouse_code="${normalizedMaKho}"...`);
+      const hasClusterInRecord = record && (
+        record.rt_bi_tong_quan || record.rt_nh_cum || record.lk_bi_tong_quan || record.lk_nh_sieu_thi
+      );
+
+      if ((!record || !hasClusterInRecord) && normalizedMaKho) {
+        console.log(`[RealtimeData] ⚠️ Querying warehouse_code="${normalizedMaKho}" to load cluster reports...`);
         const maKhoNum = parseInt(normalizedMaKho, 10);
         const { data: allStoreData } = await supabase
           .from('store')
@@ -685,9 +724,22 @@ export const useRealtimeData = (maKho: string) => {
         if (allStoreData && allStoreData.length > 0) {
           // Find doc that contains cluster reports
           const withCluster = allStoreData.find(d => d.rt_bi_tong_quan || d.rt_nh_cum || d.lk_bi_tong_quan || d.lk_nh_sieu_thi);
-          record = withCluster || allStoreData[0];
-          targetDocId = record.id || targetDocId;
-          console.log(`[RealtimeData] ✓ Warehouse fallback found doc: "${record?.id || record?.ten_sieu_thi}"`);
+          if (withCluster) {
+            if (!record) {
+              record = withCluster;
+              targetDocId = record.id || targetDocId;
+            } else {
+              // Fill in missing cluster reports into record without overwriting store-specific data
+              if (!record.rt_bi_tong_quan && withCluster.rt_bi_tong_quan) record.rt_bi_tong_quan = withCluster.rt_bi_tong_quan;
+              if (!record.rt_nh_cum && withCluster.rt_nh_cum) record.rt_nh_cum = withCluster.rt_nh_cum;
+              if (!record.lk_bi_tong_quan && withCluster.lk_bi_tong_quan) record.lk_bi_tong_quan = withCluster.lk_bi_tong_quan;
+              if (!record.lk_nh_sieu_thi && withCluster.lk_nh_sieu_thi) record.lk_nh_sieu_thi = withCluster.lk_nh_sieu_thi;
+            }
+            console.log(`[RealtimeData] ✓ Warehouse fallback merged cluster reports from doc: "${withCluster?.id || withCluster?.ten_sieu_thi}"`);
+          } else if (!record) {
+            record = allStoreData[0];
+            targetDocId = record.id || targetDocId;
+          }
         }
       }
 
