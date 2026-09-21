@@ -329,6 +329,9 @@ export const isValidStoreName = (name: string): boolean => {
   // Reject pure numbers (e.g. "7981", "1841", "001") - these are warehouse codes (mã kho), NEVER supermarket names!
   if (/^\d+$/.test(trimmed)) return false;
 
+  // Reject generic placeholder names like "Siêu thị 2323", "Siêu thị 1841 (Offline Mode)"
+  if (/^siêu\s*thị\s*\d+(\s*\(offline mode\))?$/i.test(trimmed)) return false;
+
   // Supermarket names must contain at least one Vietnamese or Latin letter
   if (!/[a-zA-ZÀ-ỹ]/.test(trimmed)) return false;
 

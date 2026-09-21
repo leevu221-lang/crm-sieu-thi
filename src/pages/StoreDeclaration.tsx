@@ -137,7 +137,18 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     });
   }, [dsBossList, maKho]);
 
-  // Hàm tự động điền các siêu thị theo thứ tự từ trên xuống dưới
+  // Helper kiểm tra xem giá trị có phải là placeholder không hợp lệ (như "Siêu thị 2323", "Offline Mode", ...)
+  const isPlaceholderStore = (val: string) => {
+    if (!val) return true;
+    const v = val.trim();
+    if (/^siêu\s*thị\s*\d+/i.test(v)) return true;
+    if (/offline\s*mode/i.test(v)) return true;
+    if (!isValidStoreName(v)) return true;
+    return false;
+  };
+
+  // Hàm tự động điền các siêu thị theo thứ tự từ trên xuống dưới:
+  // Dòng đầu điền vào Siêu thị 1, tương tự các dòng tiếp theo điền vào Siêu thị 2, 3, 4
   const applyAutoFill = useCallback((force = false) => {
     if (matchedBossStores.length === 0) return false;
     const m1 = cleanStoreInput(matchedBossStores[0]?.tenSieuThi || '');
@@ -151,21 +162,44 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
       setStore3(m3);
       setStore4(m4);
     } else {
-      setStore1((prev) => prev || m1);
-      setStore2((prev) => prev || m2);
-      setStore3((prev) => prev || m3);
-      setStore4((prev) => prev || m4);
+      setStore1((prev) => (isPlaceholderStore(prev) || !prev ? m1 : prev));
+      setStore2((prev) => (isPlaceholderStore(prev) || !prev ? m2 : prev));
+      setStore3((prev) => (isPlaceholderStore(prev) || !prev ? m3 : prev));
+      setStore4((prev) => (isPlaceholderStore(prev) || !prev ? m4 : prev));
     }
     return true;
   }, [matchedBossStores]);
 
-  // Tự động điền khi danh sách BOSS hoặc mã kho thay đổi nếu các ô chưa có giá trị
+  // Tự động điền khi danh sách BOSS hoặc mã kho thay đổi:
+  // Yêu cầu khi cột MST cùng mã kho đăng nhập thì dòng đầu sẽ điền vào Siêu thị 1, tương tự các dòng tiếp theo
   useEffect(() => {
     if (matchedBossStores.length > 0) {
-      setStore1((prev) => prev || cleanStoreInput(matchedBossStores[0]?.tenSieuThi || ''));
-      setStore2((prev) => prev || cleanStoreInput(matchedBossStores[1]?.tenSieuThi || ''));
-      setStore3((prev) => prev || cleanStoreInput(matchedBossStores[2]?.tenSieuThi || ''));
-      setStore4((prev) => prev || cleanStoreInput(matchedBossStores[3]?.tenSieuThi || ''));
+      const m1 = cleanStoreInput(matchedBossStores[0]?.tenSieuThi || '');
+      const m2 = cleanStoreInput(matchedBossStores[1]?.tenSieuThi || '');
+      const m3 = cleanStoreInput(matchedBossStores[2]?.tenSieuThi || '');
+      const m4 = cleanStoreInput(matchedBossStores[3]?.tenSieuThi || '');
+
+      setStore1((prev) => {
+        if (isPlaceholderStore(prev) || !prev || !matchedBossStores.some((r) => cleanStoreInput(r.tenSieuThi) === prev)) {
+          return m1;
+        }
+        return prev;
+      });
+
+      setStore2((prev) => {
+        if (isPlaceholderStore(prev) || !prev) return m2;
+        return prev;
+      });
+
+      setStore3((prev) => {
+        if (isPlaceholderStore(prev) || !prev) return m3;
+        return prev;
+      });
+
+      setStore4((prev) => {
+        if (isPlaceholderStore(prev) || !prev) return m4;
+        return prev;
+      });
     }
   }, [matchedBossStores]);
 
@@ -497,62 +531,72 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
         let loaded3 = '';
         let loaded4 = '';
 
-        if (!error && data && data.length > 0) {
-          // Ưu tiên bản ghi cập nhật mới nhất (updated_at desc)
-          const sorted = [...data].sort((a: any, b: any) => {
-            const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-            const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
-            return timeB - timeA;
-          });
+        // ƯU TIÊN 1 (Tuyệt đối): Nếu có trong DS BOSS khớp mã kho đăng nhập,
+        // Dòng đầu điền vào siêu thị 1, các dòng tiếp theo tương tự điền vào siêu thị 2, 3, 4
+        const cleanTarget = maKho.trim().replace(/^0+/, '');
+        const bossMatched = dsBossList.filter((r) => {
+          const rowKho = String(r.maKho || '').trim().replace(/^0+/, '');
+          const d = String(r.mstSieuThi || '').trim();
+          const e = String(r.base || '').trim();
+          return (rowKho !== '' && rowKho === cleanTarget) ||
+                 d.startsWith(`${cleanTarget} -`) || d.startsWith(`${maKho} -`) ||
+                 e.startsWith(`${cleanTarget} -`) || e.startsWith(`${maKho} -`);
+        });
 
-          const found = sorted.find((d: any) => d.declared_stores && Array.isArray(d.declared_stores) && d.declared_stores.length > 0);
-          if (found) {
-            const stores = (found as any).declared_stores;
-            loaded1 = cleanStoreInput(stores[0] || '');
-            loaded2 = cleanStoreInput(stores[1] || '');
-            loaded3 = cleanStoreInput(stores[2] || '');
-            loaded4 = cleanStoreInput(stores[3] || '');
-          } else {
-            // Chỉ lấy các ID là TÊN SIÊU THỊ HỢP LỆ (loại trừ mã kho thuần số như "7981", "10528")
-            const validIds = sorted.map((d: any) => d.ten_sieu_thi || d.id).filter((id: string) => id && isValidStoreName(id));
-            loaded1 = cleanStoreInput(validIds[0] || '');
-            loaded2 = cleanStoreInput(validIds[1] || '');
-            loaded3 = cleanStoreInput(validIds[2] || '');
-            loaded4 = cleanStoreInput(validIds[3] || '');
-          }
-        }
+        if (bossMatched.length > 0) {
+          loaded1 = cleanStoreInput(bossMatched[0]?.tenSieuThi || '');
+          if (bossMatched[1]) loaded2 = cleanStoreInput(bossMatched[1]?.tenSieuThi || '');
+          if (bossMatched[2]) loaded3 = cleanStoreInput(bossMatched[2]?.tenSieuThi || '');
+          if (bossMatched[3]) loaded4 = cleanStoreInput(bossMatched[3]?.tenSieuThi || '');
+        } else {
+          // ƯU TIÊN 2: Nếu chưa có trong DS BOSS, mới tải từ bản ghi Supabase store
+          if (!error && data && data.length > 0) {
+            // Ưu tiên bản ghi cập nhật mới nhất (updated_at desc)
+            const sorted = [...data].sort((a: any, b: any) => {
+              const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+              const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+              return timeB - timeA;
+            });
 
-        // Dự phòng 1: Nếu chưa có trong store, kiểm tra tên siêu thị trong userProfile
-        if (!loaded1) {
-          const profStore = userProfile?.ten_sieu_thi || (userProfile as any)?.selected_store;
-          if (profStore && isValidStoreName(profStore)) {
-            loaded1 = profStore;
-          }
-        }
-
-        // Dự phòng 2: Kiểm tra tên kho trong bảng warehouses
-        if (!loaded1) {
-          try {
-            const { data: whData } = await supabase
-              .from('warehouses')
-              .select('ten_kho')
-              .eq('ma_kho', maKho.trim())
-              .maybeSingle();
-            if (whData?.ten_kho && isValidStoreName(whData.ten_kho)) {
-              loaded1 = whData.ten_kho;
+            const found = sorted.find((d: any) => d.declared_stores && Array.isArray(d.declared_stores) && d.declared_stores.length > 0);
+            if (found) {
+              const stores = (found as any).declared_stores;
+              loaded1 = cleanStoreInput(stores[0] || '');
+              loaded2 = cleanStoreInput(stores[1] || '');
+              loaded3 = cleanStoreInput(stores[2] || '');
+              loaded4 = cleanStoreInput(stores[3] || '');
+            } else {
+              // Chỉ lấy các ID là TÊN SIÊU THỊ HỢP LỆ (loại trừ mã kho thuần số như "7981", "10528", "Siêu thị 2323")
+              const validIds = sorted.map((d: any) => d.ten_sieu_thi || d.id).filter((id: string) => id && isValidStoreName(id) && !isPlaceholderStore(id));
+              loaded1 = cleanStoreInput(validIds[0] || '');
+              loaded2 = cleanStoreInput(validIds[1] || '');
+              loaded3 = cleanStoreInput(validIds[2] || '');
+              loaded4 = cleanStoreInput(validIds[3] || '');
             }
-          } catch {}
-        }
+          }
 
-        // Dự phòng 3: Nếu chưa có trong database nhưng có trong DS BOSS, tự động điền theo thứ tự trên xuống
-        if (!loaded1 && dsBossList.length > 0) {
-          const cleanTarget = maKho.trim().replace(/^0+/, '');
-          const matched = dsBossList.filter(r => String(r.maKho || '').trim().replace(/^0+/, '') === cleanTarget);
-          if (matched.length > 0) {
-            loaded1 = cleanStoreInput(matched[0]?.tenSieuThi || '');
-            if (!loaded2 && matched[1]) loaded2 = cleanStoreInput(matched[1]?.tenSieuThi || '');
-            if (!loaded3 && matched[2]) loaded3 = cleanStoreInput(matched[2]?.tenSieuThi || '');
-            if (!loaded4 && matched[3]) loaded4 = cleanStoreInput(matched[3]?.tenSieuThi || '');
+          // Dự phòng 1: Nếu chưa có trong store, kiểm tra tên siêu thị trong userProfile
+          if (!loaded1 || isPlaceholderStore(loaded1)) {
+            const profStore = userProfile?.ten_sieu_thi || (userProfile as any)?.selected_store;
+            if (profStore && isValidStoreName(profStore) && !isPlaceholderStore(profStore)) {
+              loaded1 = profStore;
+            } else {
+              loaded1 = '';
+            }
+          }
+
+          // Dự phòng 2: Kiểm tra tên kho trong bảng warehouses
+          if (!loaded1) {
+            try {
+              const { data: whData } = await supabase
+                .from('warehouses')
+                .select('ten_kho')
+                .eq('ma_kho', maKho.trim())
+                .maybeSingle();
+              if (whData?.ten_kho && isValidStoreName(whData.ten_kho) && !isPlaceholderStore(whData.ten_kho)) {
+                loaded1 = whData.ten_kho;
+              }
+            } catch {}
           }
         }
 
