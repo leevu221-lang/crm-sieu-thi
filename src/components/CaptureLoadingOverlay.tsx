@@ -59,7 +59,7 @@ export const CaptureLoadingOverlay: React.FC<CaptureLoadingOverlayProps> = ({
             <span>
               {progress.percent >= 100 
                 ? 'Đang nén file ZIP và bắt đầu tải về...' 
-                : 'Đang xử lý hình ảnh 2K song song tốc độ cao...'}
+                : 'Đang kết xuất & tối ưu hình ảnh siêu tốc (chống treo máy)...'}
             </span>
           </p>
         </div>
