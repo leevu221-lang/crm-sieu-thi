@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, Plus, Trash2, Save, Edit3, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, ArrowLeftRight, Camera, Download, Copy, Check, Lock, Unlock, History, Search, Filter, ArrowRight, Clock, User, Share2, Store } from 'lucide-react';
+import { CalendarDays, Plus, Trash2, Save, Edit3, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, ArrowLeftRight, Camera, Download, Copy, Check, Lock, Unlock, History, Search, Filter, ArrowRight, Clock, User, Share2, Store, FileSpreadsheet, ClipboardPaste, AlertCircle } from 'lucide-react';
 import { doc, onSnapshot, setDoc, runTransaction, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,7 +8,7 @@ import { useStore } from '../contexts/StoreContext';
 import * as htmlToImage from 'html-to-image';
 import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
 import { buildGuestShareUrl } from '../constants/routes';
-import { normalizeStoreId, isValidStoreName } from './RTST/utils';
+import { normalizeStoreId, isValidStoreName, removeAccents } from './RTST/utils';
 
 
 
@@ -1083,6 +1083,407 @@ const PGHistoryModal: React.FC<{
   return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 
+// ─── Import Excel Modal ───────────────────────────────────────────────────────
+interface ParsedImportRow {
+  pgId: string;
+  isExisting: boolean;
+  tenPgHang: string;
+  category: CategoryType;
+  sdtSup: string;
+  note: string;
+  shifts: ShiftType[];
+}
+
+const ImportExcelShiftModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  activeWeekIndex: number;
+  weeks: { dates: Date[] }[];
+  ictRoster: PGInfo[];
+  dtdlgdRoster: PGInfo[];
+  customShifts: string[];
+  onApply: (params: {
+    targetWeek: number | 'ALL';
+    updatedIctRoster: PGInfo[];
+    updatedDtdlgdRoster: PGInfo[];
+    parsedRows: ParsedImportRow[];
+  }) => void;
+}> = ({ isOpen, onClose, activeWeekIndex, weeks, ictRoster, dtdlgdRoster, customShifts, onApply }) => {
+  const [targetWeek, setTargetWeek] = useState<number | 'ALL'>(activeWeekIndex);
+  const [rawText, setRawText] = useState('');
+  const [parsedRows, setParsedRows] = useState<ParsedImportRow[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setTargetWeek(activeWeekIndex);
+      setRawText('');
+      setParsedRows([]);
+    }
+  }, [isOpen, activeWeekIndex]);
+
+  const detectCategoryByBrand = (name: string): CategoryType => {
+    const norm = removeAccents(name).toLowerCase();
+    const ictKeywords = ['realme', 'vivo', 'xiaomi', 'oppo', 'apple', 'iphone', 'samsung', 'honor', 'tecno', 'infinix', 'bphone', 'laptop', 'ict'];
+    for (const kw of ictKeywords) {
+      if (norm.includes(kw)) return 'ICT';
+    }
+    return 'DTDLGD';
+  };
+
+  const isPgMatch = (rosterName: string, inputName: string): boolean => {
+    const a = removeAccents(rosterName).toLowerCase().replace(/[^a-z0-9]/g, '');
+    const b = removeAccents(inputName).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!a || !b) return false;
+    return a === b || a.includes(b) || b.includes(a);
+  };
+
+  const normalizeShift = (raw: string): string => {
+    if (!raw) return '';
+    const trimmed = raw.trim();
+    const lower = removeAccents(trimmed).toLowerCase();
+    
+    // Check customShifts exact match first
+    const customMatch = customShifts.find(cs => cs.toLowerCase() === trimmed.toLowerCase());
+    if (customMatch) return customMatch;
+
+    if (lower === 'off' || lower === 'o' || lower === 'nghi' || lower === 'nghỉ') return 'OFF';
+    if (lower.includes('sang') || lower === 'cs' || lower === 's' || lower === '8-16' || lower === '8h-16h') return 'Ca sáng';
+    if (lower.includes('chieu') || lower === 'cc' || lower === 'c' || lower === '13-21' || lower === '13h-21h' || lower === '12-20' || lower === '12h-20h') return 'Ca Chiều';
+    if (lower.includes('gay') || lower === 'cg' || lower === 'g') return 'Ca Gãy';
+    if (lower.includes('full') || lower === 'cf' || lower === 'f' || lower === '8-20' || lower === '8h-20h' || lower === 'ca ca' || lower === 'all') return 'Ca Full';
+    if (lower.includes('khac') || lower === 'stk') return 'ST khác';
+    if (lower === '8h-20h' || lower === '8-20') return '8h-20h';
+    if (lower === '10h-20h' || lower === '10-20') return '10h-20h';
+    if (lower === '9h-20h' || lower === '9-20') return '9H-20H';
+    if (lower === '8h-16h' || lower === '8-16') return '8H-16H';
+    if (lower === '12h-20h' || lower === '12-20') return '12H-20H';
+    if (lower === '9h-19h' || lower === '9-19') return '9H-19H';
+
+    return trimmed;
+  };
+
+  const handleParse = (text: string) => {
+    setRawText(text);
+    if (!text.trim()) {
+      setParsedRows([]);
+      return;
+    }
+
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const rows: ParsedImportRow[] = [];
+
+    for (const line of lines) {
+      let cells = line.split('\t').map(c => c.trim());
+      if (cells.length === 1 && line.includes(',')) {
+        cells = line.split(',').map(c => c.trim());
+      }
+
+      const lineNorm = removeAccents(line).toLowerCase();
+      if (lineNorm.includes('ten pg') || (lineNorm.includes('stt') && lineNorm.includes('thu 2'))) {
+        continue;
+      }
+
+      let name = '';
+      let shiftCells: string[] = [];
+      let note = '';
+      let sdt = '';
+
+      // Pattern 1: cells[0] is index (1, 2, 3...)
+      if (/^\d+$/.test(cells[0]) && cells.length >= 8) {
+        name = cells[1];
+        shiftCells = cells.slice(2, 9);
+        if (cells[9]) note = cells[9];
+        if (cells[10]) sdt = cells[10];
+      } else if (cells.length >= 7) {
+        // Pattern 2: cells[0] is PG name
+        name = cells[0];
+        shiftCells = cells.slice(1, 8);
+        if (cells[8]) note = cells[8];
+        if (cells[9]) sdt = cells[9];
+      } else {
+        continue;
+      }
+
+      if (!name) continue;
+
+      const normalizedShifts: ShiftType[] = [];
+      for (let i = 0; i < 7; i++) {
+        normalizedShifts.push(normalizeShift(shiftCells[i] || ''));
+      }
+
+      // Match existing PG
+      let matchedPg = ictRoster.find(p => isPgMatch(p.tenPgHang, name));
+      let cat: CategoryType = 'ICT';
+      if (matchedPg) {
+        cat = 'ICT';
+      } else {
+        matchedPg = dtdlgdRoster.find(p => isPgMatch(p.tenPgHang, name));
+        if (matchedPg) {
+          cat = 'DTDLGD';
+        } else {
+          cat = detectCategoryByBrand(name);
+        }
+      }
+
+      rows.push({
+        pgId: matchedPg?.id || genId(),
+        isExisting: !!matchedPg,
+        tenPgHang: matchedPg?.tenPgHang || name,
+        category: matchedPg?.category || cat,
+        sdtSup: matchedPg?.sdtSup || sdt,
+        note: matchedPg?.note || note,
+        shifts: normalizedShifts
+      });
+    }
+
+    setParsedRows(rows);
+  };
+
+  const handleToggleCategory = (index: number) => {
+    setParsedRows(prev => prev.map((row, i) => {
+      if (i !== index) return row;
+      return {
+        ...row,
+        category: row.category === 'ICT' ? 'DTDLGD' : 'ICT'
+      };
+    }));
+  };
+
+  const handleApply = () => {
+    if (parsedRows.length === 0) {
+      alert('Vui lòng dán dữ liệu bảng phân ca từ Excel trước khi áp dụng.');
+      return;
+    }
+
+    const newIct = [...ictRoster];
+    const newDtdlgd = [...dtdlgdRoster];
+
+    parsedRows.forEach(row => {
+      if (!row.isExisting) {
+        const newPg: PGInfo = {
+          id: row.pgId,
+          tenPgHang: row.tenPgHang,
+          sdtSup: row.sdtSup,
+          note: row.note,
+          category: row.category
+        };
+        if (row.category === 'ICT') newIct.push(newPg);
+        else newDtdlgd.push(newPg);
+      }
+    });
+
+    onApply({
+      targetWeek,
+      updatedIctRoster: newIct,
+      updatedDtdlgdRoster: newDtdlgd,
+      parsedRows
+    });
+
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  const modalContent = (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 md:p-6" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-emerald-800 via-teal-800 to-cyan-900 text-white">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-emerald-500/20 rounded-xl text-emerald-300 border border-emerald-400/30">
+              <FileSpreadsheet size={22} />
+            </div>
+            <div>
+              <h2 className="text-base md:text-lg font-black uppercase tracking-wider flex items-center gap-2">
+                Dán Dữ Liệu Phân Ca Từ Excel / Quản Lý Phân Ca
+              </h2>
+              <p className="text-xs text-emerald-100/80">Copy trực tiếp bảng từ file Office 365 / Excel rồi dán (Ctrl + V) vào đây</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl text-emerald-100 hover:text-white hover:bg-white/10 transition-colors cursor-pointer">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 md:p-6 overflow-y-auto space-y-4 flex-1">
+          {/* Settings Row: Target week selector */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-slate-700 uppercase tracking-wide">Áp dụng cho:</span>
+              <select
+                value={targetWeek}
+                onChange={e => setTargetWeek(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-black text-emerald-800 shadow-xs cursor-pointer outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                {weeks.map((w, idx) => (
+                  <option key={idx} value={idx}>
+                    Tuần {idx + 1} ({fmtDate(w.dates[0])} → {fmtDate(w.dates[6])}) {idx === activeWeekIndex ? '★ (Đang xem)' : ''}
+                  </option>
+                ))}
+                <option value="ALL">Áp dụng cho TẤT CẢ các tuần trong tháng</option>
+              </select>
+            </div>
+
+            <div className="text-xs text-slate-500 font-medium">
+              Định dạng nhận diện: <span className="font-bold text-slate-700">Tên PG + 7 cột Thứ 2 → CN (+ Ghi chú + SĐT)</span>
+            </div>
+          </div>
+
+          {/* Paste Input Area */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-black text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                <ClipboardPaste size={14} className="text-emerald-600" />
+                Ô dán dữ liệu Excel / Trang tính:
+              </label>
+              {rawText && (
+                <button
+                  type="button"
+                  onClick={() => handleParse('')}
+                  className="text-xs text-rose-600 hover:text-rose-800 font-bold cursor-pointer"
+                >
+                  Xóa nội dung
+                </button>
+              )}
+            </div>
+            <textarea
+              rows={5}
+              value={rawText}
+              onChange={e => handleParse(e.target.value)}
+              placeholder={`Bấm Ctrl + V để dán bảng phân ca từ Excel hoặc Office 365 vào đây...\nVí dụ:\nNgọc Trâm - Realme\tCa Chiều\tCa sáng\tCa Full\tOFF\tCa Gãy\tCa Full\tCa Gãy\nThanh - Xiaomi\tCa sáng\tCa Chiều\tCa Full\tCa sáng\tCa Chiều\tCa Full\tCa Chiều\nTrung Tín - TCL\tOFF\tCa sáng\tCa Full\tCa Chiều\tCa Chiều\tCa Full\tCa sáng`}
+              className="w-full p-3 text-xs font-mono border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-y bg-slate-50/50"
+            />
+          </div>
+
+          {/* Live Preview of parsed rows */}
+          {parsedRows.length > 0 ? (
+            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+              <div className="px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-slate-800 uppercase">
+                    Xem trước kết quả nhận diện ({parsedRows.length} PG)
+                  </span>
+                  <span className="px-2 py-0.5 text-[11px] font-bold bg-emerald-100 text-emerald-800 rounded-full">
+                    {parsedRows.filter(r => r.category === 'ICT').length} ICT
+                  </span>
+                  <span className="px-2 py-0.5 text-[11px] font-bold bg-amber-100 text-amber-800 rounded-full">
+                    {parsedRows.filter(r => r.category === 'DTDLGD').length} ĐT-ĐL-GD
+                  </span>
+                </div>
+                <span className="text-[11.5px] text-slate-500 italic">
+                  💡 Bấm vào nút nhóm (ICT / ĐT-ĐL-GD) để đổi nhóm phân loại nếu cần.
+                </span>
+              </div>
+
+              <div className="overflow-x-auto max-h-[320px]">
+                <table className="w-full text-xs border-collapse">
+                  <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 z-10">
+                    <tr>
+                      <th className="px-2 py-2 text-center font-black text-slate-600 w-10">STT</th>
+                      <th className="px-3 py-2 text-left font-black text-slate-700 min-w-[170px]">TÊN PG HÃNG</th>
+                      <th className="px-2 py-2 text-center font-black text-slate-700 w-24">NHÓM</th>
+                      {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((d, i) => (
+                        <th key={i} className="px-1 py-2 text-center font-black text-slate-700 min-w-[85px]">{d}</th>
+                      ))}
+                      <th className="px-3 py-2 text-left font-black text-slate-600 min-w-[140px]">Ghi chú</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 bg-white">
+                    {parsedRows.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-2 py-2 text-center font-bold text-slate-500">{idx + 1}</td>
+                        <td className="px-3 py-2 font-bold text-slate-800">
+                          <div className="flex items-center gap-1.5">
+                            <span>{row.tenPgHang}</span>
+                            {row.isExisting ? (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-semibold border border-slate-200">Khớp sẵn</span>
+                            ) : (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">+ Mới</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCategory(idx)}
+                            className={`px-2 py-0.5 rounded text-[11px] font-black border transition-all cursor-pointer ${
+                              row.category === 'ICT'
+                                ? 'bg-yellow-100 text-yellow-900 border-yellow-300 hover:bg-yellow-200'
+                                : 'bg-green-100 text-green-900 border-green-300 hover:bg-green-200'
+                            }`}
+                            title="Nhấn để đổi giữa ICT và ĐT-ĐL-GD"
+                          >
+                            {row.category}
+                          </button>
+                        </td>
+                        {row.shifts.map((sVal, sIdx) => {
+                          const sStyle = getShiftStyle(sVal, customShifts);
+                          return (
+                            <td key={sIdx} className="px-1 py-1 text-center">
+                              {sVal ? (
+                                <span
+                                  style={{
+                                    backgroundColor: sStyle.bg,
+                                    color: sStyle.text,
+                                    border: `1px solid ${sStyle.border || sStyle.bg}`
+                                  }}
+                                  className="inline-block px-1.5 py-0.5 rounded text-[11px] font-bold whitespace-nowrap"
+                                >
+                                  {sVal}
+                                </span>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="px-3 py-2 text-slate-500 text-[11px] truncate max-w-[200px]" title={row.note}>
+                          {row.note || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : rawText.trim() ? (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2 font-medium">
+              <AlertCircle size={16} className="text-amber-600 shrink-0" />
+              Chưa nhận diện được hàng nào hợp lệ. Vui lòng kiểm tra lại bảng dữ liệu copy từ Excel (cần ít nhất cột Tên PG và các cột ca).
+            </div>
+          ) : null}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-black text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+          >
+            Hủy bỏ
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleApply}
+              disabled={parsedRows.length === 0}
+              className="flex items-center gap-1.5 px-5 py-2 text-xs font-black text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 rounded-xl shadow-md disabled:opacity-50 transition-all cursor-pointer"
+            >
+              <Check size={15} />
+              Áp dụng {parsedRows.length > 0 ? `(${parsedRows.length} PG)` : ''} vào{' '}
+              {targetWeek === 'ALL' ? 'Tất cả các tuần' : `Tuần ${Number(targetWeek) + 1}`}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
+};
+
 // ─── Main page ───────────────────────────────────────────────────────────────
 const LichLamViecPG: React.FC = () => {
   const { userProfile } = useAuth();
@@ -1329,6 +1730,7 @@ const LichLamViecPG: React.FC = () => {
   // History tracking state (Admin 43751 only)
   const [historyLogs, setHistoryLogs] = useState<PGHistoryRecord[]>([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showImportExcelModal, setShowImportExcelModal] = useState(false);
   const [historyFilterPg, setHistoryFilterPg] = useState<string>('ALL');
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -1718,6 +2120,48 @@ const LichLamViecPG: React.FC = () => {
     setAllWeekData(updated);
   };
 
+  const handleApplyImportExcel = ({
+    targetWeek: applyWeek,
+    updatedIctRoster,
+    updatedDtdlgdRoster,
+    parsedRows
+  }: {
+    targetWeek: number | 'ALL';
+    updatedIctRoster: PGInfo[];
+    updatedDtdlgdRoster: PGInfo[];
+    parsedRows: ParsedImportRow[];
+  }) => {
+    if (!editing) setEditing(true);
+
+    setIctRoster(updatedIctRoster);
+    setDtdlgdRoster(updatedDtdlgdRoster);
+
+    setAllWeekData(prev => {
+      const next = { ...prev };
+      const targetWeekKeys = applyWeek === 'ALL'
+        ? weeks.map((_, i) => `week${i + 1}`)
+        : [`week${Number(applyWeek) + 1}`];
+
+      targetWeekKeys.forEach(wKey => {
+        const curWk = next[wKey] || { ict: {}, dtdlgd: {} };
+        const curIct = { ...(curWk.ict || {}) };
+        const curDtdlgd = { ...(curWk.dtdlgd || {}) };
+
+        parsedRows.forEach(row => {
+          if (row.category === 'ICT') {
+            curIct[row.pgId] = { shifts: [...row.shifts] };
+          } else {
+            curDtdlgd[row.pgId] = { shifts: [...row.shifts] };
+          }
+        });
+
+        next[wKey] = { ict: curIct, dtdlgd: curDtdlgd };
+      });
+
+      return next;
+    });
+  };
+
 
   // ─── Month nav ─────────────────────────────────────────────────────────
   const prevMonth = () => { if (selectedMonth === 0) { setSelectedYear(y => y - 1); setSelectedMonth(11); } else setSelectedMonth(m => m - 1); };
@@ -1857,10 +2301,20 @@ const LichLamViecPG: React.FC = () => {
               )}
             </button>
             {canEdit && (
-              <button onClick={handleStartEdit}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 rounded-xl hover:bg-emerald-200 shadow-sm transition-all cursor-pointer">
-                <Edit3 size={15} /> Chỉnh sửa
-              </button>
+              <>
+                <button onClick={handleStartEdit}
+                  className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 rounded-xl hover:bg-emerald-200 shadow-sm transition-all cursor-pointer">
+                  <Edit3 size={15} /> Chỉnh sửa
+                </button>
+                <button onClick={() => {
+                  if (!editing) handleStartEdit();
+                  setShowImportExcelModal(true);
+                }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-teal-800 bg-teal-100 border border-teal-300 rounded-xl hover:bg-teal-200 shadow-sm transition-all cursor-pointer"
+                  title="Dán nhanh bảng phân ca từ Excel hoặc Office 365">
+                  <FileSpreadsheet size={15} /> Dán từ Excel
+                </button>
+              </>
             )}
             {is43751Admin && (
               <>
@@ -1902,6 +2356,14 @@ const LichLamViecPG: React.FC = () => {
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={handleCancelEdit} className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-slate-700 bg-slate-100 border border-slate-300 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer">
               <X size={15} /> Hủy
+            </button>
+            <button
+              onClick={() => setShowImportExcelModal(true)}
+              type="button"
+              className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-teal-800 bg-teal-50 border border-teal-300 rounded-xl hover:bg-teal-100 shadow-sm transition-all cursor-pointer"
+              title="Dán bảng phân ca từ Excel hoặc Office 365 vào tuần đang chọn"
+            >
+              <FileSpreadsheet size={15} /> Dán từ Excel
             </button>
             <button
               onClick={handleCopyCurrentWeekToAll}
@@ -1975,6 +2437,18 @@ const LichLamViecPG: React.FC = () => {
           customShifts={customShifts}
         />
       )}
+
+      {/* Import Excel Modal */}
+      <ImportExcelShiftModal
+        isOpen={showImportExcelModal}
+        onClose={() => setShowImportExcelModal(false)}
+        activeWeekIndex={activeWeek}
+        weeks={weeks}
+        ictRoster={ictRoster}
+        dtdlgdRoster={dtdlgdRoster}
+        customShifts={customShifts}
+        onApply={handleApplyImportExcel}
+      />
 
       {/* Image Preview Popup */}
       {previewImg && typeof document !== 'undefined' && createPortal(
