@@ -369,7 +369,7 @@ export const BossStoreTableModal: React.FC<BossStoreTableModalProps> = ({
             <table className="w-full text-left border-collapse text-xs table-fixed min-w-[1050px]">
               <colgroup>
                 <col className="w-14" />
-                <col className="w-24" />
+                <col className="w-28" />
                 <col className="w-80" />
                 <col className="w-80" />
                 <col className="w-80" />
@@ -489,8 +489,8 @@ export const BossStoreTableModal: React.FC<BossStoreTableModalProps> = ({
                       }`}
                     >
                       <td className="py-2.5 px-3 text-center text-slate-400 font-bold border-r border-slate-100">{stt}</td>
-                      <td className="py-2.5 px-3 text-center font-bold border-r border-slate-100">
-                        <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-black tracking-wide ${
+                      <td className="py-2.5 px-3 text-center font-bold border-r border-slate-100 whitespace-nowrap">
+                        <span className={`inline-block px-2.5 py-0.5 rounded text-[11px] font-black tracking-wide whitespace-nowrap font-mono ${
                           isMatchCurrent 
                             ? 'bg-amber-300 text-amber-950' 
                             : 'bg-slate-100 text-slate-800 border border-slate-200'

@@ -260,10 +260,17 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
         const row = jsonData[i];
         if (!Array.isArray(row) || row.length === 0) continue;
 
-        let rawMst = String(row[colIdxMst] ?? '').replace(/\.0+$/, '').trim();
+        let rawBase = String(row[colIdxBase] ?? '').trim();
         let rawTen = cleanStoreInput(String(row[colIdxSieuThi] ?? ''));
         let rawMstTen = String(row[colIdxMstSieuThi] ?? '').trim();
-        let rawBase = String(row[colIdxBase] ?? '').trim();
+
+        // Cột MST lấy từ cột BASE (lấy các ký tự trước dấu '-')
+        let rawMst = '';
+        if (rawBase && rawBase.includes('-')) {
+          rawMst = rawBase.split('-')[0].trim().replace(/\.0+$/, '');
+        } else if (colIdxMst !== -1) {
+          rawMst = String(row[colIdxMst] ?? '').replace(/\.0+$/, '').trim();
+        }
 
         // Bỏ qua nếu rỗng cả 4 cột
         if (!rawMst && !rawTen && !rawMstTen && !rawBase) continue;
