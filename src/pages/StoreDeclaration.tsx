@@ -189,51 +189,112 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
         throw new Error('File Excel rỗng!');
       }
 
-      // Tìm dòng tiêu đề (chứa 'MST', 'SIÊU THỊ', 'BASE', ...)
+      // Tìm dòng tiêu đề và xác định chính xác vị trí 4 cột: MST, SIÊU THỊ, MST + SIÊU THỊ, BASE
       let startRowIdx = 0;
-      let detectedHeaders: string[] = ['Cột A', 'MST (Cột B)', 'SIÊU THỊ (Cột C)', 'MST + SIÊU THỊ (Cột D)', 'BASE (Cột E)'];
+      let colIdxMst = -1;
+      let colIdxSieuThi = -1;
+      let colIdxMstSieuThi = -1;
+      let colIdxBase = -1;
+      const detectedHeaders: string[] = ['MST', 'SIÊU THỊ', 'MST + SIÊU THỊ', 'BASE'];
 
       for (let r = 0; r < Math.min(10, jsonData.length); r++) {
         const row = jsonData[r];
         if (!Array.isArray(row)) continue;
-        const colBStr = String(row[1] || '').toLowerCase().trim();
-        const colCStr = String(row[2] || '').toLowerCase().trim();
-        const rowAll = row.map((c) => String(c || '').toLowerCase().trim());
 
-        const isHeaderRow = colBStr === 'mst' || colCStr === 'siêu thị' || colCStr === 'sieu thi' ||
-                            rowAll.includes('mst') || rowAll.includes('base') ||
-                            rowAll.includes('mst + siêu thị') || rowAll.includes('mst + sieu thi');
+        let foundMst = -1;
+        let foundSieuThi = -1;
+        let foundMstSieuThi = -1;
+        let foundBase = -1;
 
-        if (isHeaderRow) {
-          detectedHeaders = row.map((c, i) => String(c || '').trim() || `Cột ${String.fromCharCode(65 + i)}`);
+        row.forEach((cell, idx) => {
+          const s = String(cell || '').trim().toLowerCase();
+          if (s === 'mst' || s === 'mã kho' || s === 'makho' || s === 'mã số') {
+            foundMst = idx;
+          } else if (s === 'mst + siêu thị' || s === 'mst + sieu thi' || s === 'mst+siêu thị' || s === 'mst+sieu thi') {
+            foundMstSieuThi = idx;
+          } else if ((s === 'siêu thị' || s === 'sieu thi' || s === 'tên siêu thị' || s === 'ten sieu thi') && !s.includes('+')) {
+            foundSieuThi = idx;
+          } else if (s === 'base' && !s.includes('tỉnh') && !s.includes('kênh')) {
+            foundBase = idx;
+          }
+        });
+
+        if (foundMst !== -1 || (foundSieuThi !== -1 && foundBase !== -1)) {
           startRowIdx = r + 1;
+          colIdxMst = foundMst;
+          colIdxSieuThi = foundSieuThi;
+          colIdxMstSieuThi = foundMstSieuThi;
+          colIdxBase = foundBase;
           break;
         }
       }
+
+      // Fallback nếu không thấy header cụ thể
+      if (colIdxMst === -1 || colIdxSieuThi === -1) {
+        const sampleRow = jsonData[startRowIdx] || jsonData[0] || [];
+        const cell0 = String(sampleRow[0] || '').trim();
+        const cell1 = String(sampleRow[1] || '').trim();
+
+        if (/^\d{2,7}$/.test(cell0)) {
+          colIdxMst = 0;
+          colIdxSieuThi = 1;
+          colIdxMstSieuThi = 2;
+          colIdxBase = 3;
+        } else if (/^\d{2,7}$/.test(cell1)) {
+          colIdxMst = 1;
+          colIdxSieuThi = 2;
+          colIdxMstSieuThi = 3;
+          colIdxBase = 4;
+        } else {
+          colIdxMst = 0;
+          colIdxSieuThi = 1;
+          colIdxMstSieuThi = 2;
+          colIdxBase = 3;
+        }
+      }
+      if (colIdxMstSieuThi === -1) colIdxMstSieuThi = colIdxSieuThi + 1;
+      if (colIdxBase === -1) colIdxBase = colIdxMstSieuThi + 1;
 
       const parsedRows: BossStoreItem[] = [];
       for (let i = startRowIdx; i < jsonData.length; i++) {
         const row = jsonData[i];
         if (!Array.isArray(row) || row.length === 0) continue;
 
-        // Đọc 4 cột B, C, D, E như Hình 1
-        const rawColB = String(row[1] ?? '').replace(/\.0+$/, '').trim(); // Cột B: MST (Mã kho)
-        const rawColC = cleanStoreInput(String(row[2] ?? ''));            // Cột C: SIÊU THỊ
-        const rawColD = String(row[3] ?? '').trim();                      // Cột D: MST + SIÊU THỊ
-        const rawColE = String(row[4] ?? '').trim();                      // Cột E: BASE
+        let rawMst = String(row[colIdxMst] ?? '').replace(/\.0+$/, '').trim();
+        let rawTen = cleanStoreInput(String(row[colIdxSieuThi] ?? ''));
+        let rawMstTen = String(row[colIdxMstSieuThi] ?? '').trim();
+        let rawBase = String(row[colIdxBase] ?? '').trim();
 
         // Bỏ qua nếu rỗng cả 4 cột
-        if (!rawColB && !rawColC && !rawColD && !rawColE) continue;
+        if (!rawMst && !rawTen && !rawMstTen && !rawBase) continue;
         // Bỏ qua nếu là dòng tiêu đề lặp lại
-        if (/^(mst|mã kho|kho|stt)$/i.test(rawColB) && /^(siêu thị|sieu thi|tên siêu thị)$/i.test(rawColC)) continue;
+        if (/^(mst|mã kho|kho|stt)$/i.test(rawMst) && /^(siêu thị|sieu thi|tên siêu thị)$/i.test(rawTen)) continue;
+
+        // Nếu rawMst có dạng "899 - ĐML_..." thì lấy 899
+        if (/^\d+[\s\-_]/.test(rawMst)) {
+          const match = rawMst.match(/^(\d+)/);
+          if (match) rawMst = match[1];
+        }
+
+        // Đảm bảo rawTen không bị lặp mã kho ở đầu nếu rawTen dạng "899 - ĐML..."
+        if (rawMst && rawTen.startsWith(`${rawMst} - `)) {
+          rawTen = cleanStoreInput(rawTen.replace(new RegExp(`^${rawMst}\\s*-\\s*`), ''));
+        }
+
+        if (!rawMstTen && rawMst && rawTen) {
+          rawMstTen = `${rawMst} - ${rawTen}`;
+        }
+        if (!rawBase) {
+          rawBase = rawMstTen || rawTen;
+        }
 
         parsedRows.push({
           id: `boss_${parsedRows.length + 1}_${Date.now()}_${i}`,
-          maKho: rawColB,
-          tenSieuThi: rawColC,
-          mstSieuThi: rawColD || (rawColB && rawColC ? `${rawColB} - ${rawColC}` : ''),
-          base: rawColE || rawColD || rawColC,
-          rawCells: row.map((c) => String(c ?? '').trim()),
+          maKho: rawMst,
+          tenSieuThi: rawTen,
+          mstSieuThi: rawMstTen,
+          base: rawBase,
+          rawCells: [rawMst, rawTen, rawMstTen, rawBase],
         });
       }
 
