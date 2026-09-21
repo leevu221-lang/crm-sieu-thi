@@ -1237,10 +1237,15 @@ export const useRTSTSharedData = (maKho?: string, isYcxDirty = localStorage.getI
           const batch = writeBatch(db);
           let count = 0;
           for (const [key, sData] of Object.entries(storeDataMap)) {
-            const sDocRef = doc(db, 'store', normalizeStoreId(sData.storeName));
+            const cleanId = normalizeStoreId(sData.storeName);
+            if (!cleanId || /^\d/.test(cleanId)) {
+              console.warn(`[useRTSTSharedData] Skipping invalid store doc ID: "${cleanId}" for "${sData.storeName}"`);
+              continue;
+            }
+            const sDocRef = doc(db, 'store', cleanId);
             batch.set(sDocRef, {
-              id: normalizeStoreId(sData.storeName),
-              ten_sieu_thi: sData.storeName,
+              id: cleanId,
+              ten_sieu_thi: cleanId,
               taget_doanh_thu: {
                 excelFileName: sData.excelFileName,
                 thuongStRows: sData.thuongStRows,

@@ -180,12 +180,24 @@ class FirebaseQueryBuilder {
           docId = String(item.username).trim();
         }
         
-        if (this.tableName === 'store' && docId) {
-          const strId = String(docId).trim();
-          if (/^\d+$/.test(strId) || !/[a-zA-ZÀ-ỹ]/.test(strId) || /(=>|!==|===|!=|==|[{}[\];$\\`"']|<[^>]*>)/.test(strId) || /[\r\n\t]/.test(strId) || strId.toUpperCase() === 'ALL' || strId.toUpperCase() === 'TỔNG') {
-            console.error(`[FirebaseAdapter.insert] REJECTED INVALID/NUMERIC STORE ID: "${strId}"`);
+        if (this.tableName === 'store') {
+          if (!docId) {
+            console.error(`[FirebaseAdapter.insert] REJECTED STORE DOC WITHOUT ID`);
             continue;
           }
+          let strId = String(docId).trim();
+          // Tự động gọt tiền tố số kho nếu có (VD "2187 - ĐML_..." -> "ĐML_...")
+          strId = strId.replace(/^\d+\s*[-–—]\s*(?=(ĐML|ĐMM|ĐMS|ĐMS3|TGD|AAR|BHX|MWG|SIÊU THỊ|CH|KHO)[_\s-])/i, '').trim();
+          strId = strId.replace(/^\d+\s*[-–—]\s*/, '').trim();
+          strId = strId.replace(/(Đường|Đ\.|Phố)\s*-\s*(\d+)/gi, '$1 $2').trim();
+
+          // TUYỆT ĐỐI KHÔNG TẠO DOCUMENT BẮT ĐẦU BẰNG SỐ TRÊN COLLECTION STORE
+          if (/^\d/.test(strId) || !/[a-zA-ZÀ-ỹ]/.test(strId) || /(=>|!==|===|!=|==|[{}[\];$\\`"']|<[^>]*>)/.test(strId) || /[\r\n\t]/.test(strId) || strId.toUpperCase() === 'ALL' || strId.toUpperCase() === 'TỔNG') {
+            console.error(`[FirebaseAdapter.insert] REJECTED INVALID/NUMERIC STORE ID: "${docId}" -> "${strId}"`);
+            continue;
+          }
+          docId = strId.normalize('NFC').toUpperCase().replace(/\//g, '-');
+          item.id = docId;
         }
         
         let docRef;
@@ -197,6 +209,10 @@ class FirebaseQueryBuilder {
             updated_at: serverTimestamp()
           }, { merge: true });
         } else {
+          if (this.tableName === 'store') {
+            console.error(`[FirebaseAdapter.insert] REJECTED AUTO-GENERATED ID FOR STORE COLLECTION`);
+            continue;
+          }
           docRef = await addDoc(collection(db, this.tableName), {
             ...item,
             created_at: serverTimestamp(),
@@ -260,12 +276,29 @@ class FirebaseQueryBuilder {
           }
         }
         
-        if (this.tableName === 'store' && id) {
-          const strId = String(id).trim();
-          if (/^\d+$/.test(strId) || !/[a-zA-ZÀ-ỹ]/.test(strId) || /(=>|!==|===|!=|==|[{}[\];$\\`"']|<[^>]*>)/.test(strId) || /[\r\n\t]/.test(strId) || strId.toUpperCase() === 'ALL' || strId.toUpperCase() === 'TỔNG') {
-            console.error(`[FirebaseAdapter.upsert] REJECTED INVALID/NUMERIC STORE ID: "${strId}"`);
+        if (this.tableName === 'store') {
+          if (!id) {
+            console.error(`[FirebaseAdapter.upsert] REJECTED STORE DOC WITHOUT ID`);
             continue;
           }
+          let strId = String(id).trim();
+          // Tự động gọt tiền tố số kho nếu có (VD "2187 - ĐML_..." -> "ĐML_...")
+          strId = strId.replace(/^\d+\s*[-–—]\s*(?=(ĐML|ĐMM|ĐMS|ĐMS3|TGD|AAR|BHX|MWG|SIÊU THỊ|CH|KHO)[_\s-])/i, '').trim();
+          strId = strId.replace(/^\d+\s*[-–—]\s*/, '').trim();
+          strId = strId.replace(/(Đường|Đ\.|Phố)\s*-\s*(\d+)/gi, '$1 $2').trim();
+
+          // TUYỆT ĐỐI KHÔNG TẠO DOCUMENT BẮT ĐẦU BẰNG SỐ TRÊN COLLECTION STORE
+          if (/^\d/.test(strId) || !/[a-zA-ZÀ-ỹ]/.test(strId) || /(=>|!==|===|!=|==|[{}[\];$\\`"']|<[^>]*>)/.test(strId) || /[\r\n\t]/.test(strId) || strId.toUpperCase() === 'ALL' || strId.toUpperCase() === 'TỔNG') {
+            console.error(`[FirebaseAdapter.upsert] REJECTED INVALID/NUMERIC STORE ID: "${id}" -> "${strId}"`);
+            continue;
+          }
+          id = strId.normalize('NFC').toUpperCase().replace(/\//g, '-');
+          item.id = id;
+        }
+
+        if (this.tableName === 'store' && !id) {
+          console.error(`[FirebaseAdapter.upsert] CANNOT CREATE UNNAMED STORE DOCUMENT`);
+          continue;
         }
 
         const docRef = id ? doc(db, this.tableName, safeDocId(id)) : doc(collection(db, this.tableName));

@@ -316,8 +316,15 @@ export const formatMarketName = (raw: string) => {
 
 export const isValidStoreName = (name: string): boolean => {
   if (!name || typeof name !== 'string') return false;
-  const trimmed = name.trim();
+  let trimmed = name.trim();
   if (trimmed.length === 0) return false;
+
+  // Tự động gọt tiền tố số kho nếu người dùng copy từ BI (VD: "2187 - ĐML_..." -> "ĐML_...")
+  trimmed = trimmed.replace(/^\d+\s*[-–—]\s*(?=(ĐML|ĐMM|ĐMS|ĐMS3|TGD|AAR|BHX|MWG|SIÊU THỊ|CH|KHO)[_\s-])/i, '').trim();
+  trimmed = trimmed.replace(/^\d+\s*[-–—]\s*/, '').trim();
+
+  // TUYỆT ĐỐI TỪ CHỐI TÊN BẮT ĐẦU BẰNG CHỮ SỐ (VD: 2187, 2187 - ...)
+  if (/^\d/.test(trimmed)) return false;
 
   // Reject pure numbers (e.g. "7981", "1841", "001") - these are warehouse codes (mã kho), NEVER supermarket names!
   if (/^\d+$/.test(trimmed)) return false;
@@ -363,7 +370,7 @@ export const isValidStoreName = (name: string): boolean => {
     upper.includes('DON VI:') ||
     upper.includes('COPY XONG')
   ) {
-    const hasStorePrefix = /^(ĐML|ĐMM|ĐMS|ĐMS3|TGD|AAR|BHX|MWG)[_\s-]|^\d+\s*[-–—]\s*/i.test(upper);
+    const hasStorePrefix = /^(ĐML|ĐMM|ĐMS|ĐMS3|TGD|AAR|BHX|MWG|SIÊU THỊ)[_\s-]/i.test(upper);
     if (!hasStorePrefix) return false;
   }
 
@@ -375,10 +382,24 @@ export const isValidStoreName = (name: string): boolean => {
  * Converts to UPPERCASE and trims whitespace so that "Láng Tròn" and "LÁNG TRÒN"
  * always map to the same row, preventing duplicate documents.
  * Slashes '/' are replaced with '-' so Firestore document paths remain valid.
+ * TUYỆT ĐỐI KHÔNG TẠO DOCUMENT BẮT ĐẦU BẰNG SỐ.
  */
 export const normalizeStoreId = (name: string): string => {
   if (!name || typeof name !== 'string') return '';
-  const trimmed = name.trim();
+  let trimmed = name.trim();
+
+  // Tự động chuẩn hóa & gọt bỏ tiền tố mã kho nếu người dùng hoặc dữ liệu BI chèn số kho vào (VD: "2187 - ĐML_..." -> "ĐML_...")
+  trimmed = trimmed.replace(/^\d+\s*[-–—]\s*(?=(ĐML|ĐMM|ĐMS|ĐMS3|TGD|AAR|BHX|MWG|SIÊU THỊ|CH|KHO)[_\s-])/i, '').trim();
+  trimmed = trimmed.replace(/^\d+\s*[-–—]\s*/, '').trim();
+  // Khắc phục lỗi dấu gạch nối chèn nhầm vào ngày/tháng/số nhà
+  trimmed = trimmed.replace(/(Đường|Đ\.|Phố)\s*-\s*(\d+)/gi, '$1 $2').trim();
+
+  // TUYỆT ĐỐI TỪ CHỐI BẤT KỲ TÊN NÀO BẮT ĐẦU BẰNG SỐ (VD: 2187, 2187...)
+  if (/^\d/.test(trimmed)) {
+    console.warn(`[normalizeStoreId] REJECTED NUMERIC STORE ID: "${name}" -> "${trimmed}"`);
+    return '';
+  }
+
   if (!isValidStoreName(trimmed)) {
     console.warn(`[normalizeStoreId] Rejected invalid store name: "${trimmed}"`);
     return '';
