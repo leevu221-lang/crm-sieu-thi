@@ -4,8 +4,8 @@ import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../contexts/StoreContext';
 import { 
-  Store, ArrowRight, Save, Loader2, Sparkles, Info, CheckCircle2, Copy, Check, X, ShieldCheck,
-  FileSpreadsheet, Eye
+  Store, ArrowRight, Save, Loader2, Info, CheckCircle2, Check, X,
+  FileSpreadsheet, Eye, Lock
 } from 'lucide-react';
 import { isValidStoreName, normalizeStoreId, formatMarketName } from './RTST/utils';
 import * as XLSX from 'xlsx';
@@ -31,7 +31,6 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const [copied, setCopied] = useState(false);
 
   // Tự động chuẩn hóa & gọt mã kho nếu người dùng copy cả "1841 - ĐML_CMA_CMA - 155A..." từ báo cáo BI
   const cleanStoreInput = (val: string): string => {
@@ -487,14 +486,6 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     }
   };
 
-  const handleCopyExample = (text: string) => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
   const handlePaste = (setter: (val: string) => void) => (e: React.ClipboardEvent<HTMLInputElement>) => {
     const text = e.clipboardData.getData('text');
     if (text) {
@@ -829,7 +820,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
         initial={{ opacity: 0, y: 24, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ type: 'spring', damping: 25, stiffness: 120 }}
-        className="w-full max-w-4xl bg-white rounded-[32px] shadow-2xl shadow-indigo-100/60 p-6 sm:p-8 md:p-10 border border-slate-100 relative overflow-hidden"
+        className="w-full max-w-xl bg-white rounded-[32px] shadow-2xl shadow-indigo-100/60 p-6 sm:p-8 md:p-9 border border-slate-100 relative overflow-hidden"
       >
         {/* Nút đóng cho tài khoản đã khai báo (bỏ qua nếu không muốn sửa) */}
         {!isNewUser && (
@@ -847,344 +838,308 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
         <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-50/70 rounded-full blur-3xl -z-10 pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-emerald-50/50 rounded-full blur-3xl -z-10 pointer-events-none" />
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-          {/* Cột trái: Hướng dẫn cú pháp chuẩn (5 cols) */}
-          <div className="lg:col-span-5 bg-gradient-to-br from-slate-50 to-slate-100/60 rounded-2xl p-6 border border-slate-200/70 flex flex-col justify-between relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600" />
-            
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-indigo-100/80 text-indigo-600 rounded-xl shadow-sm">
-                  <Sparkles size={20} className="animate-pulse" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider">
-                    Hướng dẫn khai báo
-                  </h2>
-                  <span className="text-[10.5px] font-bold text-slate-400">Đồng bộ dữ liệu báo cáo BI</span>
-                </div>
+        <div className="flex flex-col space-y-6">
+          <div>
+            <div className="text-center sm:text-left mb-5">
+              <div className="inline-flex p-3 bg-indigo-50 text-indigo-600 rounded-2xl mb-3 shadow-inner">
+                <Store size={26} strokeWidth={2.2} />
               </div>
+              <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight uppercase" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                Cấu hình tên siêu thị
+              </h1>
+              <p className="text-xs text-slate-500 font-bold tracking-wider uppercase mt-1">
+                Mã kho đăng nhập: <span className="text-indigo-600 font-black bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100">{maKho}</span>
+              </p>
+            </div>
 
-              <div className="space-y-5">
-                <div className="p-4 sm:p-5 bg-rose-50/60 rounded-2xl border border-rose-200/80 shadow-sm relative group hover:border-rose-300 transition-colors duration-300">
-                  <div className="absolute -top-3 left-4 bg-rose-600 text-white text-[10px] sm:text-xs font-black uppercase tracking-widest px-3 py-0.5 rounded-full flex items-center gap-1.5 shadow-sm">
-                    <Info size={12} className="shrink-0" />
-                    <span>Lưu ý quan trọng</span>
+            {/* Thông báo hướng dẫn: liên hệ admin 43751 để thay đổi tên siêu thị */}
+            <div className="mb-5 p-4 bg-amber-50/90 border border-amber-200/90 rounded-2xl flex items-start gap-3.5 text-amber-900 shadow-xs">
+              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                <Info size={18} className="stroke-[2.5]" />
+              </div>
+              <div className="text-xs sm:text-[13px] leading-relaxed font-bold">
+                <span className="font-black text-amber-950 block uppercase text-[10.5px] tracking-wider mb-0.5">
+                  Lưu ý cấu hình siêu thị
+                </span>
+                <span className="text-amber-900">
+                  Nếu cần thay đổi tên siêu thị trong cụm thì liên hệ admin <strong className="text-indigo-700 font-black px-1.5 py-0.5 bg-white border border-amber-200 rounded-md">43751</strong> để thay đổi.
+                </span>
+              </div>
+            </div>
+
+            {statusMessage && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className={`mb-5 p-4 rounded-2xl border flex items-start gap-3 text-sm font-black ${
+                  statusMessage.type === 'success' 
+                    ? 'bg-emerald-50 border-emerald-100 text-emerald-700' 
+                    : 'bg-rose-50 border-rose-100 text-rose-700'
+                }`}
+              >
+                {statusMessage.type === 'success' ? (
+                  <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5 animate-bounce">
+                    <Check size={13} className="text-emerald-600 font-black" />
                   </div>
-                  <p className="text-xs sm:text-sm font-black text-rose-800 leading-relaxed mt-1">
-                    Anh / chị vui lòng nhập đúng tên siêu thị trên BI hoặc mở BC Tổng Hợp copy tên siêu thị dán vào ạ.
-                  </p>
-                </div>
+                ) : (
+                  <div className="w-5 h-5 rounded-full bg-rose-100 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-xs font-black text-rose-600">!</span>
+                  </div>
+                )}
+                <p>{statusMessage.text}</p>
+              </motion.div>
+            )}
 
-                <div className="space-y-3">
-                  <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-wider pl-1">
-                    Cú pháp chuẩn trên BI
-                  </h3>
-                  <div className="p-4 bg-slate-900 text-slate-100 rounded-2xl font-mono text-[11px] sm:text-xs relative group overflow-hidden border border-slate-800 shadow-inner">
-                    <div className="flex justify-between items-center mb-2 text-[10px] text-slate-400 font-sans font-black uppercase tracking-wider">
-                      <span>Ví dụ mẫu chuẩn</span>
-                      <span className="text-emerald-400 flex items-center gap-1">
-                        <CheckCircle2 size={11} />
-                        Hợp lệ
-                      </span>
+            <div className="space-y-4">
+              {/* Siêu thị 1 */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center px-1">
+                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider">
+                    Siêu thị 1 <span className="text-indigo-500 font-black">*</span>
+                  </label>
+                  <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md uppercase">Cơ sở chính</span>
+                </div>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
+                    <Store size={18} />
+                  </div>
+                  <input
+                    type="text"
+                    value={store1}
+                    onChange={(e) => setStore1(e.target.value)}
+                    onPaste={handlePaste(setStore1)}
+                    readOnly={!is43751}
+                    className={`w-full pl-11 pr-10 py-3.5 border rounded-2xl font-bold transition-all shadow-inner text-xs sm:text-sm placeholder:text-slate-400 placeholder:font-normal ${
+                      !is43751
+                        ? 'bg-slate-100/70 border-slate-200 text-slate-700 cursor-default select-text'
+                        : 'bg-slate-50 border-slate-200 text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none'
+                    }`}
+                    placeholder={is43751 ? "Nhập hoặc dán tên siêu thị từ BI (VD: ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH)" : "Chưa có tên siêu thị (Liên hệ admin 43751)"}
+                  />
+                  {!is43751 ? (
+                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" title="Chỉ admin 43751 được thay đổi">
+                      <Lock size={15} />
                     </div>
-                    <code className="block text-indigo-300 font-sans font-black select-all whitespace-pre-wrap break-all leading-relaxed">
-                      ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH
-                    </code>
-                    
+                  ) : store1 ? (
                     <button
                       type="button"
-                      onClick={() => handleCopyExample('ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH')}
-                      className="absolute right-3 top-3 p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded-lg transition-colors border border-slate-700/60 cursor-pointer"
-                      title="Sao chép tên ví dụ"
+                      onClick={() => setStore1('')}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-200/60 transition-colors cursor-pointer"
+                      title="Xóa"
                     >
-                      {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                      <X size={14} />
                     </button>
-                    
-                    {copied && (
-                      <span className="absolute right-12 top-3.5 text-[9px] font-black text-emerald-400 bg-slate-800 px-2 py-0.5 rounded shadow border border-slate-700/40">
-                        Đã sao chép!
-                      </span>
-                    )}
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Siêu thị 2 */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wider ml-1">
+                  Siêu thị 2 <span className="text-[10.5px] font-normal text-slate-400 lowercase">(tùy chọn)</span>
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
+                    <Store size={18} />
                   </div>
+                  <input
+                    type="text"
+                    value={store2}
+                    onChange={(e) => setStore2(e.target.value)}
+                    onPaste={handlePaste(setStore2)}
+                    readOnly={!is43751}
+                    className={`w-full pl-11 pr-10 py-3.5 border rounded-2xl font-bold transition-all shadow-inner text-xs sm:text-sm placeholder:text-slate-400 placeholder:font-normal ${
+                      !is43751
+                        ? 'bg-slate-100/70 border-slate-200 text-slate-700 cursor-default select-text'
+                        : 'bg-slate-50 border-slate-200 text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none'
+                    }`}
+                    placeholder={is43751 ? "Tên siêu thị thứ 2 (nếu quản lý đa siêu thị)" : "Tên siêu thị thứ 2 (nếu có)"}
+                  />
+                  {!is43751 ? (
+                    store2 ? (
+                      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" title="Chỉ admin 43751 được thay đổi">
+                        <Lock size={15} />
+                      </div>
+                    ) : null
+                  ) : store2 ? (
+                    <button
+                      type="button"
+                      onClick={() => setStore2('')}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-200/60 transition-colors cursor-pointer"
+                      title="Xóa"
+                    >
+                      <X size={14} />
+                    </button>
+                  ) : null}
                 </div>
+              </div>
 
-                <div className="space-y-2.5">
-                  <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-wider pl-1">
-                    Quy tắc đồng bộ
-                  </h3>
-                  <ul className="space-y-2.5 text-[11.5px] font-black text-slate-500 leading-normal">
-                    <li className="flex items-start gap-2.5">
-                      <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0" />
-                      <span>Hệ thống tự động lọc bỏ tiền tố số kho nếu copy dán từ BI.</span>
-                    </li>
-                    <li className="flex items-start gap-2.5">
-                      <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0" />
-                      <span>Không tự ý viết tắt tên tỉnh thành hoặc địa chỉ cơ sở.</span>
-                    </li>
-                    <li className="flex items-start gap-2.5">
-                      <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full mt-1.5 shrink-0" />
-                      <span>Có thể quản lý cùng lúc từ 1 đến tối đa 4 siêu thị.</span>
-                    </li>
-                  </ul>
+              {/* Siêu thị 3 */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wider ml-1">
+                  Siêu thị 3 <span className="text-[10.5px] font-normal text-slate-400 lowercase">(tùy chọn)</span>
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
+                    <Store size={18} />
+                  </div>
+                  <input
+                    type="text"
+                    value={store3}
+                    onChange={(e) => setStore3(e.target.value)}
+                    onPaste={handlePaste(setStore3)}
+                    readOnly={!is43751}
+                    className={`w-full pl-11 pr-10 py-3.5 border rounded-2xl font-bold transition-all shadow-inner text-xs sm:text-sm placeholder:text-slate-400 placeholder:font-normal ${
+                      !is43751
+                        ? 'bg-slate-100/70 border-slate-200 text-slate-700 cursor-default select-text'
+                        : 'bg-slate-50 border-slate-200 text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none'
+                    }`}
+                    placeholder={is43751 ? "Tên siêu thị thứ 3 (nếu có)" : "Tên siêu thị thứ 3 (nếu có)"}
+                  />
+                  {!is43751 ? (
+                    store3 ? (
+                      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" title="Chỉ admin 43751 được thay đổi">
+                        <Lock size={15} />
+                      </div>
+                    ) : null
+                  ) : store3 ? (
+                    <button
+                      type="button"
+                      onClick={() => setStore3('')}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-200/60 transition-colors cursor-pointer"
+                      title="Xóa"
+                    >
+                      <X size={14} />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Siêu thị 4 */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wider ml-1">
+                  Siêu thị 4 <span className="text-[10.5px] font-normal text-slate-400 lowercase">(tùy chọn)</span>
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
+                    <Store size={18} />
+                  </div>
+                  <input
+                    type="text"
+                    value={store4}
+                    onChange={(e) => setStore4(e.target.value)}
+                    onPaste={handlePaste(setStore4)}
+                    readOnly={!is43751}
+                    className={`w-full pl-11 pr-10 py-3.5 border rounded-2xl font-bold transition-all shadow-inner text-xs sm:text-sm placeholder:text-slate-400 placeholder:font-normal ${
+                      !is43751
+                        ? 'bg-slate-100/70 border-slate-200 text-slate-700 cursor-default select-text'
+                        : 'bg-slate-50 border-slate-200 text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none'
+                    }`}
+                    placeholder={is43751 ? "Tên siêu thị thứ 4 (nếu có)" : "Tên siêu thị thứ 4 (nếu có)"}
+                  />
+                  {!is43751 ? (
+                    store4 ? (
+                      <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" title="Chỉ admin 43751 được thay đổi">
+                        <Lock size={15} />
+                      </div>
+                    ) : null
+                  ) : store4 ? (
+                    <button
+                      type="button"
+                      onClick={() => setStore4('')}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-200/60 transition-colors cursor-pointer"
+                      title="Xóa"
+                    >
+                      <X size={14} />
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-slate-200/60 flex items-center justify-between text-[10px] font-black text-slate-400 uppercase tracking-wider">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Đồng bộ máy chủ 24/7</span>
+            {/* DÀNH RIÊNG CHO USER 43751: Ô TẢI FILE EXCEL DS BOSS + BUTTON HIỂN THỊ DANH SÁCH BOSS */}
+            {is43751 && (
+              <div className="mt-5 p-4 bg-gradient-to-br from-indigo-50/80 via-purple-50/50 to-slate-50 border border-indigo-200/90 rounded-2xl shadow-sm">
+                <div className="flex items-center justify-between gap-2 mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 flex items-center gap-1 shadow-xs">
+                      👑 User 43751
+                    </span>
+                    <span className="text-xs font-black text-slate-800">
+                      Cấu hình DS BOSS ({dsBossList.length} siêu thị)
+                    </span>
+                  </div>
+                  {isUploadingBoss && (
+                    <span className="text-xs text-indigo-600 font-bold flex items-center gap-1.5 animate-pulse">
+                      <Loader2 size={13} className="animate-spin" /> Đang xử lý file...
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-[11px] font-bold text-slate-500 mb-3 leading-relaxed">
+                  Tải file Excel DS BOSS: Cột B (MST), Cột C (SIÊU THỊ), Cột D (MST + SIÊU THỊ), Cột E (BASE). Đối chiếu MST ({maKho}) để tự động điền Tên siêu thị vào form trên.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* Ô tải file Excel DS BOSS */}
+                  <label className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black cursor-pointer transition-all active:scale-95 shadow-sm shadow-indigo-200">
+                    <FileSpreadsheet size={16} />
+                    <span>Tải file Excel DS BOSS</span>
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls, .csv"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUploadBossExcel(file);
+                        e.target.value = '';
+                      }}
+                      className="hidden"
+                      disabled={isUploadingBoss}
+                    />
+                  </label>
+
+                  {/* Button hiển thị danh sách boss có thể sửa / xoá theo dòng */}
+                  <button
+                    type="button"
+                    onClick={() => setShowBossModal(true)}
+                    className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-white hover:bg-slate-100 text-indigo-700 hover:text-indigo-800 rounded-xl text-xs font-black cursor-pointer transition-all active:scale-95 border border-indigo-200 shadow-xs"
+                  >
+                    <Eye size={16} className="text-indigo-600" />
+                    <span>Hiển thị danh sách BOSS ({dsBossList.length})</span>
+                  </button>
+                </div>
+
+                {/* Trạng thái đối chiếu mã kho hiện tại nếu có trong DS BOSS */}
+                {matchedBossStores.length > 0 && (
+                  <div className="mt-3 pt-2.5 border-t border-indigo-100 flex items-center justify-between gap-2">
+                    <div className="text-[11.5px] font-bold text-slate-700 flex items-center gap-1.5 truncate">
+                      <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                      <span className="truncate">
+                        Khớp kho {maKho}: <strong className="text-indigo-700">{matchedBossStores[0]?.tenSieuThi}</strong>
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        applyAutoFill(true);
+                        setStatusMessage({
+                          type: 'success',
+                          text: `Đã điền "${matchedBossStores[0]?.tenSieuThi}" vào Siêu thị 1 ở form trên!`,
+                        });
+                      }}
+                      className="px-2.5 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 rounded-lg text-[10.5px] font-black uppercase transition-colors shrink-0 cursor-pointer"
+                      title="Điền lại tên siêu thị này vào form trên"
+                    >
+                      Điền lại vào Form
+                    </button>
+                  </div>
+                )}
               </div>
-              <ShieldCheck size={14} className="text-emerald-500" />
-            </div>
+            )}
           </div>
 
-          {/* Cột phải: Form nhập liệu 4 siêu thị (7 cols) */}
-          <div className="lg:col-span-7 flex flex-col justify-between space-y-6">
-            <div>
-              <div className="text-center lg:text-left mb-6">
-                <div className="inline-flex p-3 bg-indigo-50 text-indigo-600 rounded-2xl mb-3 shadow-inner">
-                  <Store size={26} strokeWidth={2.2} />
-                </div>
-                <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight uppercase">
-                  Cấu hình tên siêu thị
-                </h1>
-                <p className="text-xs text-slate-500 font-bold tracking-wider uppercase mt-1">
-                  Mã kho đăng nhập: <span className="text-indigo-600 font-black bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100">{maKho}</span>
-                </p>
-              </div>
-
-              {statusMessage && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  className={`mb-6 p-4 rounded-2xl border flex items-start gap-3 text-sm font-black ${
-                    statusMessage.type === 'success' 
-                      ? 'bg-emerald-50 border-emerald-100 text-emerald-700' 
-                      : 'bg-rose-50 border-rose-100 text-rose-700'
-                  }`}
-                >
-                  {statusMessage.type === 'success' ? (
-                    <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5 animate-bounce">
-                      <Check size={13} className="text-emerald-600 font-black" />
-                    </div>
-                  ) : (
-                    <div className="w-5 h-5 rounded-full bg-rose-100 flex items-center justify-center shrink-0 mt-0.5">
-                      <span className="text-xs font-black text-rose-600">!</span>
-                    </div>
-                  )}
-                  <p>{statusMessage.text}</p>
-                </motion.div>
-              )}
-
-              <div className="space-y-4">
-                {/* Siêu thị 1 */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center px-1">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider">
-                      Siêu thị 1 <span className="text-indigo-500 font-black">*</span>
-                    </label>
-                    <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md uppercase">Cơ sở chính</span>
-                  </div>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
-                      <Store size={18} />
-                    </div>
-                    <input
-                      type="text"
-                      value={store1}
-                      onChange={(e) => setStore1(e.target.value)}
-                      onPaste={handlePaste(setStore1)}
-                      className="w-full pl-11 pr-10 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-xs sm:text-sm placeholder:text-slate-400 placeholder:font-normal"
-                      placeholder="Nhập hoặc dán tên siêu thị từ BI (VD: ĐML_CMA_CMA - 155A NGUYỄN TẤT THÀNH)"
-                    />
-                    {store1 && (
-                      <button
-                        type="button"
-                        onClick={() => setStore1('')}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-200/60 transition-colors cursor-pointer"
-                        title="Xóa"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Siêu thị 2 */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider ml-1">
-                    Siêu thị 2 <span className="text-[10.5px] font-normal text-slate-400 lowercase">(tùy chọn)</span>
-                  </label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
-                      <Store size={18} />
-                    </div>
-                    <input
-                      type="text"
-                      value={store2}
-                      onChange={(e) => setStore2(e.target.value)}
-                      onPaste={handlePaste(setStore2)}
-                      className="w-full pl-11 pr-10 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-xs sm:text-sm placeholder:text-slate-400 placeholder:font-normal"
-                      placeholder="Tên siêu thị thứ 2 (nếu quản lý đa siêu thị)"
-                    />
-                    {store2 && (
-                      <button
-                        type="button"
-                        onClick={() => setStore2('')}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-200/60 transition-colors cursor-pointer"
-                        title="Xóa"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Siêu thị 3 */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider ml-1">
-                    Siêu thị 3 <span className="text-[10.5px] font-normal text-slate-400 lowercase">(tùy chọn)</span>
-                  </label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
-                      <Store size={18} />
-                    </div>
-                    <input
-                      type="text"
-                      value={store3}
-                      onChange={(e) => setStore3(e.target.value)}
-                      onPaste={handlePaste(setStore3)}
-                      className="w-full pl-11 pr-10 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-xs sm:text-sm placeholder:text-slate-400 placeholder:font-normal"
-                      placeholder="Tên siêu thị thứ 3 (nếu có)"
-                    />
-                    {store3 && (
-                      <button
-                        type="button"
-                        onClick={() => setStore3('')}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-200/60 transition-colors cursor-pointer"
-                        title="Xóa"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Siêu thị 4 */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-wider ml-1">
-                    Siêu thị 4 <span className="text-[10.5px] font-normal text-slate-400 lowercase">(tùy chọn)</span>
-                  </label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
-                      <Store size={18} />
-                    </div>
-                    <input
-                      type="text"
-                      value={store4}
-                      onChange={(e) => setStore4(e.target.value)}
-                      onPaste={handlePaste(setStore4)}
-                      className="w-full pl-11 pr-10 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner text-xs sm:text-sm placeholder:text-slate-400 placeholder:font-normal"
-                      placeholder="Tên siêu thị thứ 4 (nếu có)"
-                    />
-                    {store4 && (
-                      <button
-                        type="button"
-                        onClick={() => setStore4('')}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-200/60 transition-colors cursor-pointer"
-                        title="Xóa"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* DÀNH RIÊNG CHO USER 43751: Ô TẢI FILE EXCEL DS BOSS + BUTTON HIỂN THỊ DANH SÁCH BOSS */}
-              {is43751 && (
-                <div className="mt-5 p-4 bg-gradient-to-br from-indigo-50/80 via-purple-50/50 to-slate-50 border border-indigo-200/90 rounded-2xl shadow-sm">
-                  <div className="flex items-center justify-between gap-2 mb-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500 text-slate-950 flex items-center gap-1 shadow-xs">
-                        👑 User 43751
-                      </span>
-                      <span className="text-xs font-black text-slate-800">
-                        Cấu hình DS BOSS ({dsBossList.length} siêu thị)
-                      </span>
-                    </div>
-                    {isUploadingBoss && (
-                      <span className="text-xs text-indigo-600 font-bold flex items-center gap-1.5 animate-pulse">
-                        <Loader2 size={13} className="animate-spin" /> Đang xử lý file...
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="text-[11px] font-bold text-slate-500 mb-3 leading-relaxed">
-                    Tải file Excel DS BOSS: Cột B (MST), Cột C (SIÊU THỊ), Cột D (MST + SIÊU THỊ), Cột E (BASE). Đối chiếu MST ({maKho}) để tự động điền Tên siêu thị vào form trên.
-                  </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {/* Ô tải file Excel DS BOSS */}
-                    <label className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black cursor-pointer transition-all active:scale-95 shadow-sm shadow-indigo-200">
-                      <FileSpreadsheet size={16} />
-                      <span>Tải file Excel DS BOSS</span>
-                      <input
-                        type="file"
-                        accept=".xlsx, .xls, .csv"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleUploadBossExcel(file);
-                          e.target.value = '';
-                        }}
-                        className="hidden"
-                        disabled={isUploadingBoss}
-                      />
-                    </label>
-
-                    {/* Button hiển thị danh sách boss có thể sửa / xoá theo dòng */}
-                    <button
-                      type="button"
-                      onClick={() => setShowBossModal(true)}
-                      className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-white hover:bg-slate-100 text-indigo-700 hover:text-indigo-800 rounded-xl text-xs font-black cursor-pointer transition-all active:scale-95 border border-indigo-200 shadow-xs"
-                    >
-                      <Eye size={16} className="text-indigo-600" />
-                      <span>Hiển thị danh sách BOSS ({dsBossList.length})</span>
-                    </button>
-                  </div>
-
-                  {/* Trạng thái đối chiếu mã kho hiện tại nếu có trong DS BOSS */}
-                  {matchedBossStores.length > 0 && (
-                    <div className="mt-3 pt-2.5 border-t border-indigo-100 flex items-center justify-between gap-2">
-                      <div className="text-[11.5px] font-bold text-slate-700 flex items-center gap-1.5 truncate">
-                        <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
-                        <span className="truncate">
-                          Khớp kho {maKho}: <strong className="text-indigo-700">{matchedBossStores[0]?.tenSieuThi}</strong>
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          applyAutoFill(true);
-                          setStatusMessage({
-                            type: 'success',
-                            text: `Đã điền "${matchedBossStores[0]?.tenSieuThi}" vào Siêu thị 1 ở form trên!`,
-                          });
-                        }}
-                        className="px-2.5 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 rounded-lg text-[10.5px] font-black uppercase transition-colors shrink-0 cursor-pointer"
-                        title="Điền lại tên siêu thị này vào form trên"
-                      >
-                        Điền lại vào Form
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 pt-4">
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            {is43751 && (
               <button
                 type="button"
                 onClick={() => handleSave(true)}
@@ -1200,17 +1155,21 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                   </>
                 )}
               </button>
+            )}
 
-              <button
-                type="button"
-                onClick={handleSkipOrProceed}
-                disabled={isSaving}
-                className="flex-1 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-black flex items-center justify-center gap-2 transition-all active:scale-[0.98] tracking-wider uppercase text-xs border border-slate-200 cursor-pointer"
-              >
-                <span>Tiếp tục vào App</span>
-                <ArrowRight size={16} />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleSkipOrProceed}
+              disabled={isSaving}
+              className={`py-4 font-black flex items-center justify-center gap-2 transition-all active:scale-[0.98] tracking-wider uppercase text-xs cursor-pointer ${
+                is43751
+                  ? 'flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl border border-slate-200'
+                  : 'w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-lg shadow-indigo-200/60'
+              }`}
+            >
+              <span>Tiếp tục vào App</span>
+              <ArrowRight size={16} />
+            </button>
           </div>
         </div>
       </motion.div>
