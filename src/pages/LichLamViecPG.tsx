@@ -1704,6 +1704,21 @@ const LichLamViecPG: React.FC = () => {
     });
   };
 
+  const handleCopyCurrentWeekToAll = () => {
+    const curWkData = allWeekData[wk];
+    if (!curWkData) return;
+    if (!window.confirm(`Bạn có chắc muốn sao chép toàn bộ phân ca của Tuần ${activeWeek + 1} sang tất cả các tuần khác trong tháng này không?`)) {
+      return;
+    }
+    const updated: typeof allWeekData = { ...allWeekData };
+    weeks.forEach((_, idx) => {
+      const targetWk = `week${idx + 1}`;
+      updated[targetWk] = JSON.parse(JSON.stringify(curWkData));
+    });
+    setAllWeekData(updated);
+  };
+
+
   // ─── Month nav ─────────────────────────────────────────────────────────
   const prevMonth = () => { if (selectedMonth === 0) { setSelectedYear(y => y - 1); setSelectedMonth(11); } else setSelectedMonth(m => m - 1); };
   const nextMonth = () => { if (selectedMonth === 11) { setSelectedYear(y => y + 1); setSelectedMonth(0); } else setSelectedMonth(m => m + 1); };
@@ -1884,9 +1899,17 @@ const LichLamViecPG: React.FC = () => {
             )}
           </>
         ) : (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button onClick={handleCancelEdit} className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-slate-700 bg-slate-100 border border-slate-300 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer">
               <X size={15} /> Hủy
+            </button>
+            <button
+              onClick={handleCopyCurrentWeekToAll}
+              type="button"
+              title="Sao chép toàn bộ phân ca của tuần hiện tại sang tất cả các tuần khác trong tháng"
+              className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-teal-800 bg-teal-50 border border-teal-300 rounded-xl hover:bg-teal-100 shadow-sm transition-all cursor-pointer"
+            >
+              <Copy size={15} /> Sao chép Tuần {activeWeek + 1} sang tất cả các tuần
             </button>
             <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-5 py-2 text-[13px] font-black text-white bg-gradient-to-r from-green-600 to-emerald-700 rounded-xl hover:from-green-700 hover:to-emerald-800 shadow-md disabled:opacity-50 transition-all cursor-pointer">
               {saving ? <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" /> : <Save size={15} />}
