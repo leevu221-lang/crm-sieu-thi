@@ -123,13 +123,17 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     return () => unsubscribe();
   }, []);
 
-  // Lọc các siêu thị khớp mã kho Cột E với mã kho đăng nhập (giữ nguyên thứ tự trên xuống dưới từ file Excel)
+  // Lọc các siêu thị khớp mã kho Cột B (MST) hoặc Cột D/E với mã kho đăng nhập
   const matchedBossStores = useMemo(() => {
     if (!maKho || dsBossList.length === 0) return [];
     const cleanTarget = String(maKho).trim().replace(/^0+/, '');
     return dsBossList.filter((r) => {
       const rowKho = String(r.maKho || '').trim().replace(/^0+/, '');
-      return rowKho !== '' && rowKho === cleanTarget;
+      const d = String(r.mstSieuThi || '').trim();
+      const e = String(r.base || '').trim();
+      return (rowKho !== '' && rowKho === cleanTarget) ||
+             d.startsWith(`${cleanTarget} -`) || d.startsWith(`${maKho} -`) ||
+             e.startsWith(`${cleanTarget} -`) || e.startsWith(`${maKho} -`);
     });
   }, [dsBossList, maKho]);
 
@@ -165,7 +169,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     }
   }, [matchedBossStores]);
 
-  // Handler tải file Excel DS BOSS (chỉ 43751)
+  // Handler tải file Excel DS BOSS (chỉ 43751) - Đọc 4 cột B, C, D, E như Hình 1
   const handleUploadBossExcel = async (file: File) => {
     if (!is43751) {
       setStatusMessage({ type: 'error', text: 'Chỉ tài khoản Quản trị viên 43751 mới có quyền tải lên DS BOSS!' });
@@ -185,21 +189,20 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
         throw new Error('File Excel rỗng!');
       }
 
-      // Người dùng chỉ định: Cột E sẽ là shop 1 (Mã kho - index 4), Cột C là Tên siêu thị (index 2)
-      let colIndexKho = 4; // Cột E: Mã kho shop 1
-      let colIndexTen = 2; // Cột C: Tên siêu thị
+      // Tìm dòng tiêu đề (chứa 'MST', 'SIÊU THỊ', 'BASE', ...)
       let startRowIdx = 0;
-      let detectedHeaders: string[] = ['Cột A', 'Cột B', 'Tên Siêu Thị (Cột C)', 'Cột D', 'Mã Kho Shop 1 (Cột E)'];
+      let detectedHeaders: string[] = ['Cột A', 'MST (Cột B)', 'SIÊU THỊ (Cột C)', 'MST + SIÊU THỊ (Cột D)', 'BASE (Cột E)'];
 
-      // Kiểm tra 10 dòng đầu để bỏ qua dòng tiêu đề (nếu có)
       for (let r = 0; r < Math.min(10, jsonData.length); r++) {
         const row = jsonData[r];
         if (!Array.isArray(row)) continue;
-        const colCVal = String(row[2] || '').toLowerCase().trim();
-        const colEVal = String(row[4] || '').toLowerCase().trim();
+        const colBStr = String(row[1] || '').toLowerCase().trim();
+        const colCStr = String(row[2] || '').toLowerCase().trim();
+        const rowAll = row.map((c) => String(c || '').toLowerCase().trim());
 
-        const isHeaderRow = /^(mã kho|ma kho|kho|makho|shop|shop 1|cột e)/i.test(colEVal) ||
-                            /^(tên siêu thị|ten sieu thi|tên kho|ten kho|cột c|siêu thị)/i.test(colCVal);
+        const isHeaderRow = colBStr === 'mst' || colCStr === 'siêu thị' || colCStr === 'sieu thi' ||
+                            rowAll.includes('mst') || rowAll.includes('base') ||
+                            rowAll.includes('mst + siêu thị') || rowAll.includes('mst + sieu thi');
 
         if (isHeaderRow) {
           detectedHeaders = row.map((c, i) => String(c || '').trim() || `Cột ${String.fromCharCode(65 + i)}`);
@@ -213,24 +216,29 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
         const row = jsonData[i];
         if (!Array.isArray(row) || row.length === 0) continue;
 
-        // Ưu tiên đọc chính xác Cột E (index 4) và Cột C (index 2)
-        const rawKho = String(row[colIndexKho] ?? '').replace(/\.0+$/, '').trim();
-        const rawTen = cleanStoreInput(String(row[colIndexTen] ?? ''));
+        // Đọc 4 cột B, C, D, E như Hình 1
+        const rawColB = String(row[1] ?? '').replace(/\.0+$/, '').trim(); // Cột B: MST (Mã kho)
+        const rawColC = cleanStoreInput(String(row[2] ?? ''));            // Cột C: SIÊU THỊ
+        const rawColD = String(row[3] ?? '').trim();                      // Cột D: MST + SIÊU THỊ
+        const rawColE = String(row[4] ?? '').trim();                      // Cột E: BASE
 
-        if (!rawKho || !rawTen) continue;
-        if (/^(mã kho|ma kho|kho|makho|stt|shop|shop 1|cột e)$/i.test(rawKho)) continue;
-        if (/^(tên siêu thị|ten sieu thi|tên kho|stt|cột c)$/i.test(rawTen)) continue;
+        // Bỏ qua nếu rỗng cả 4 cột
+        if (!rawColB && !rawColC && !rawColD && !rawColE) continue;
+        // Bỏ qua nếu là dòng tiêu đề lặp lại
+        if (/^(mst|mã kho|kho|stt)$/i.test(rawColB) && /^(siêu thị|sieu thi|tên siêu thị)$/i.test(rawColC)) continue;
 
         parsedRows.push({
           id: `boss_${parsedRows.length + 1}_${Date.now()}_${i}`,
-          maKho: rawKho,
-          tenSieuThi: rawTen,
+          maKho: rawColB,
+          tenSieuThi: rawColC,
+          mstSieuThi: rawColD || (rawColB && rawColC ? `${rawColB} - ${rawColC}` : ''),
+          base: rawColE || rawColD || rawColC,
           rawCells: row.map((c) => String(c ?? '').trim()),
         });
       }
 
       if (parsedRows.length === 0) {
-        throw new Error('Không tìm thấy dòng dữ liệu nào hợp lệ có Cột E (Mã kho shop 1) và Cột C (Tên siêu thị)! Vui lòng kiểm tra lại file Excel.');
+        throw new Error('Không tìm thấy dòng dữ liệu nào hợp lệ trong các Cột B, C, D, E! Vui lòng kiểm tra lại file Excel.');
       }
 
       // Lưu vào Firebase Firestore
@@ -251,9 +259,17 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
       setDsBossList(parsedRows);
       setDsBossHeaders(detectedHeaders);
 
-      // Đối chiếu mã kho Cột E với mã kho đăng nhập để điền tên siêu thị Cột C vào form trên
+      // Đối chiếu mã kho Cột B (MST) với mã kho đăng nhập để điền tên siêu thị Cột C vào form trên
       const cleanCur = String(maKho).trim().replace(/^0+/, '');
-      const matchedCur = parsedRows.filter((r) => String(r.maKho).trim().replace(/^0+/, '') === cleanCur);
+      const matchedCur = parsedRows.filter((r) => {
+        const b = String(r.maKho || '').trim().replace(/^0+/, '');
+        const d = String(r.mstSieuThi || '').trim();
+        const e = String(r.base || '').trim();
+        return (b !== '' && b === cleanCur) || 
+               d.startsWith(`${cleanCur} -`) || d.startsWith(`${maKho} -`) ||
+               e.startsWith(`${cleanCur} -`) || e.startsWith(`${maKho} -`);
+      });
+
       if (matchedCur.length > 0) {
         const m1 = cleanStoreInput(matchedCur[0]?.tenSieuThi || '');
         const m2 = cleanStoreInput(matchedCur[1]?.tenSieuThi || '');
@@ -267,12 +283,12 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
 
         setStatusMessage({
           type: 'success',
-          text: `Đã nạp thành công ${parsedRows.length} siêu thị từ file DS BOSS! Đã đối chiếu mã kho ${maKho} (Cột E) và tự động điền "${m1}" (Cột C) vào Siêu thị 1 ở form trên.`,
+          text: `Đã nạp thành công ${parsedRows.length} siêu thị từ file DS BOSS! Đã đối chiếu mã kho ${maKho} (Cột B: MST) và tự động điền "${m1}" (Cột C) vào Siêu thị 1 ở form trên.`,
         });
       } else {
         setStatusMessage({
           type: 'success',
-          text: `Đã nạp thành công ${parsedRows.length} siêu thị từ file DS BOSS vào Firebase! (Mã kho đăng nhập ${maKho} chưa có trong Cột E của file này).`,
+          text: `Đã nạp thành công ${parsedRows.length} siêu thị từ file DS BOSS vào Firebase! (Mã kho đăng nhập ${maKho} chưa có trong Cột B: MST của file này).`,
         });
       }
     } catch (err: any) {
@@ -283,14 +299,20 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     }
   };
 
-  // Cập nhật 1 dòng dữ liệu DS BOSS (chỉ 43751)
-  const handleUpdateBossRow = async (id: string, newMaKho: string, newTenSieuThi: string) => {
+  // Cập nhật 1 dòng dữ liệu DS BOSS (chỉ 43751) - Hỗ trợ cả 4 cột B, C, D, E
+  const handleUpdateBossRow = async (id: string, newMaKho: string, newTenSieuThi: string, newMstSieuThi?: string, newBase?: string) => {
     if (!is43751) return;
     setIsUpdatingBoss(true);
     try {
       const cleanedTen = cleanStoreInput(newTenSieuThi);
       const updated = dsBossList.map((r) =>
-        r.id === id ? { ...r, maKho: newMaKho.trim(), tenSieuThi: cleanedTen } : r
+        r.id === id ? {
+          ...r,
+          maKho: newMaKho.trim(),
+          tenSieuThi: cleanedTen,
+          mstSieuThi: newMstSieuThi ? newMstSieuThi.trim() : (newMaKho.trim() && cleanedTen ? `${newMaKho.trim()} - ${cleanedTen}` : r.mstSieuThi),
+          base: newBase ? newBase.trim() : r.base,
+        } : r
       );
       setDsBossList(updated);
       localStorage.setItem('rtst_ds_boss_config', JSON.stringify({ headers: dsBossHeaders, rows: updated }));
@@ -334,15 +356,18 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     }
   };
 
-  // Thêm 1 dòng mới vào DS BOSS (chỉ 43751)
-  const handleAddBossRow = async (newMaKho: string, newTenSieuThi: string) => {
+  // Thêm 1 dòng mới vào DS BOSS (chỉ 43751) - Hỗ trợ cả 4 cột B, C, D, E
+  const handleAddBossRow = async (newMaKho: string, newTenSieuThi: string, newMstSieuThi?: string, newBase?: string) => {
     if (!is43751) return;
     setIsUpdatingBoss(true);
     try {
+      const cleanedTen = cleanStoreInput(newTenSieuThi);
       const newRow: BossStoreItem = {
         id: `boss_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         maKho: newMaKho.trim(),
-        tenSieuThi: cleanStoreInput(newTenSieuThi),
+        tenSieuThi: cleanedTen,
+        mstSieuThi: newMstSieuThi ? newMstSieuThi.trim() : (newMaKho.trim() && cleanedTen ? `${newMaKho.trim()} - ${cleanedTen}` : ''),
+        base: newBase ? newBase.trim() : '',
       };
       const updated = [newRow, ...dsBossList];
       setDsBossList(updated);
@@ -986,7 +1011,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                   </div>
 
                   <p className="text-[11px] font-bold text-slate-500 mb-3 leading-relaxed">
-                    Cột E (Mã kho Shop 1) đối chiếu với mã kho đăng nhập ({maKho}) để tự động điền tên siêu thị Cột C vào form trên.
+                    Tải file Excel DS BOSS: Cột B (MST), Cột C (SIÊU THỊ), Cột D (MST + SIÊU THỊ), Cột E (BASE). Đối chiếu MST ({maKho}) để tự động điền Tên siêu thị vào form trên.
                   </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
