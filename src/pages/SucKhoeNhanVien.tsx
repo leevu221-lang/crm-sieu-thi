@@ -5665,29 +5665,36 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-full mx-auto w-full relative overflow-hidden"
+                  className="bg-[#fafdfb] rounded-[32px] p-4 sm:p-6 shadow-xl shadow-emerald-900/5 border border-emerald-100 max-w-full mx-auto w-full relative overflow-hidden"
+                  style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}
                 >
                   {renderLoadingOverlay()}
                   
                   <div className="w-full">
+                    {/* Header Controls - Pastel Mint Theme */}
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
-                          <Clock size={20} />
+                        <div className="w-11 h-11 bg-[#e6f7ef] text-[#059669] border border-[#a7f3d0] rounded-2xl flex items-center justify-center shadow-xs">
+                          <Clock size={22} />
                         </div>
                         <div>
-                          <h3 style={{ fontFamily: 'var(--font-sans)', fontSize: '24px', fontWeight: '900' }} className="text-slate-800 uppercase tracking-widest font-sans font-black">LK TRẢ CHẬM NHÂN VIÊN</h3>
-                          <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">Dữ liệu hiệu quả trả góp từ Web BI ({parsedTraChamRows.length} nhân viên)</p>
+                          <h3 style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }} className="text-[#064e3b] uppercase tracking-tight text-[20px] sm:text-[24px] font-black">
+                            LK TRẢ CHẬM NHÂN VIÊN
+                          </h3>
+                          <p className="text-xs text-[#065f46]/80 font-bold uppercase tracking-wider mt-0.5" style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}>
+                            Dữ liệu hiệu quả trả góp từ Web BI ({parsedTraChamRows.length} nhân viên)
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         {traChamPartners.length > 0 && (
                           <button
                             onClick={() => setShowFullTraChamPartners(p => !p)}
-                            className={`no-capture flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer ${
+                            style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}
+                            className={`no-capture flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-xs active:scale-95 cursor-pointer border ${
                               showFullTraChamPartners
-                                ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300'
-                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                : 'bg-white text-[#065f46] hover:bg-emerald-50 border-[#a7f3d0]'
                             }`}
                           >
                             <LayoutGrid size={14} />
@@ -5697,102 +5704,149 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                         {parsedTraChamRows.length > 0 && (
                           <button
                             onClick={handleOpenTraChamComment}
-                            className="no-capture flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer"
+                            style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}
+                            className="no-capture flex items-center gap-1.5 px-4 py-2.5 bg-white hover:bg-emerald-50 text-[#065f46] border border-[#a7f3d0] rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-xs active:scale-95 cursor-pointer"
                           >
-                            <Sparkles size={14} className="animate-pulse" />
+                            <Sparkles size={14} className="text-emerald-500 animate-pulse" />
                             <span>NHẬN XÉT</span>
                           </button>
                         )}
                         <button
                           onClick={handleCaptureTraCham}
-                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer"
+                          style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}
+                          className="flex items-center gap-2 px-5 py-2.5 bg-[#059669] hover:bg-[#047857] text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer"
                         >
-                          <Camera size={15} /> CHỤP ẢNH BẢNG
+                          <Camera size={16} /> CHỤP ẢNH BẢNG
                         </button>
                       </div>
                     </div>
 
-
-
                     <div
                       ref={captureTraChamRef}
-                      className="bg-white rounded-2xl w-full border border-slate-200 overflow-hidden shadow-sm"
+                      className="bg-white rounded-[28px] w-full border-2 border-[#bbf7d0] overflow-hidden shadow-xs"
+                      style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}
                     >
                       {parsedTraChamRows.length > 0 ? (
                         <>
-                          {/* Header Banner - Emerald gradient */}
-                          <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] text-white p-3.5 sm:p-4 text-center flex flex-col items-center justify-center">
-                            <h2 className="text-[19px] sm:text-[23px] md:text-[26px] text-[#FEF08A] font-black uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
-                              TRẢ CHẬM NHÂN VIÊN
-                            </h2>
-                            <p className="text-[11px] sm:text-[12px] text-white/80 font-bold mt-1" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
-                              ⚡ Luỹ kế tháng &nbsp;||&nbsp; TGSD: {daysPassed}/{totalDays} &nbsp;||&nbsp; {parsedTraChamRows.length} Nhân viên
-                            </p>
+                          {/* Header Banner - Pastel Mint Gradient (Hình 2 Style) */}
+                          <div className="bg-gradient-to-r from-[#e6f7ef] via-[#edfbf4] to-[#e6f7ef] p-4 sm:p-5 text-center flex flex-col items-center justify-center border-b border-[#bbf7d0]">
+                            <div className="flex items-center justify-center gap-2.5">
+                              <span className="text-2xl drop-shadow-xs">📋</span>
+                              <h2 className="text-[20px] sm:text-[24px] md:text-[27px] text-[#064e3b] font-black uppercase tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}>
+                                TRẢ CHẬM NHÂN VIÊN
+                              </h2>
+                            </div>
+                            <div className="mt-2.5 inline-flex items-center gap-2 bg-white px-4 py-1.5 rounded-full border border-[#a7f3d0] shadow-2xs">
+                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                              <span className="text-[11.5px] sm:text-[12px] text-[#065f46] font-extrabold uppercase tracking-wide" style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}>
+                                Luỹ kế tháng &nbsp;•&nbsp; TGSD: {daysPassed}/{totalDays} &nbsp;•&nbsp; {parsedTraChamRows.length} Nhân viên
+                              </span>
+                            </div>
                           </div>
 
                           {/* Table */}
-                          <AutoFitTable minWidth={850} className="w-full">
-                            <table className="w-full border-collapse" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
+                          <AutoFitTable minWidth={showFullTraChamPartners ? 1050 : 800} className="w-full">
+                            <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #bbf7d0', fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}>
                               {showFullTraChamPartners && traChamPartners.length > 0 ? (
-                                <thead>
-                                  <tr className="h-[36px]">
-                                    <th rowSpan={2} className="bg-[#047857] text-white px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 w-[48px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
-                                    <th rowSpan={2} className="bg-[#047857] text-white px-3 py-1 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 min-w-[200px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
-                                    <th rowSpan={2} className="bg-[#047857] text-white px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 min-w-[110px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Thực</th>
-                                    <th rowSpan={2} className="bg-[#047857] text-white px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 min-w-[110px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Trả Chậm</th>
-                                    <th rowSpan={2} className="bg-[#047857] text-white px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 min-w-[85px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>% Trả Chậm</th>
-                                    {traChamPartners.map((p, pIdx) => (
-                                      <th key={pIdx} colSpan={2} className="bg-[#065f46] text-amber-200 px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
-                                        {p}
-                                      </th>
-                                    ))}
-                                    <th rowSpan={2} className="bg-[#047857] text-white px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider w-[65px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>XH</th>
-                                  </tr>
-                                  <tr className="h-[28px]">
-                                    {traChamPartners.map((p, pIdx) => (
+                                <>
+                                  <colgroup>
+                                    <col style={{ width: '48px' }} />
+                                    <col style={{ width: '220px' }} />
+                                    <col style={{ width: '120px' }} />
+                                    <col style={{ width: '120px' }} />
+                                    <col style={{ width: '95px' }} />
+                                    {traChamPartners.map((_, pIdx) => (
                                       <React.Fragment key={pIdx}>
-                                        <th className="bg-[#047857] text-white/90 px-1 py-0.5 text-center text-[10px] font-black uppercase tracking-wider border-r border-emerald-600/50 min-w-[80px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT</th>
-                                        <th className="bg-[#047857] text-white/90 px-1 py-0.5 text-center text-[10px] font-black uppercase tracking-wider border-r border-emerald-600/50 min-w-[60px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>%</th>
+                                        <col style={{ width: '90px' }} />
+                                        <col style={{ width: '65px' }} />
                                       </React.Fragment>
                                     ))}
-                                  </tr>
-                                </thead>
+                                    <col style={{ width: '65px' }} />
+                                  </colgroup>
+                                  <thead>
+                                    <tr className="h-[38px]">
+                                      <th rowSpan={2} className="bg-[#d1fae5] text-[#064e3b] px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">STT</th>
+                                      <th rowSpan={2} className="bg-[#d1fae5] text-[#064e3b] px-3 py-1 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">Nhân viên</th>
+                                      <th rowSpan={2} className="bg-[#d1fae5] text-[#064e3b] px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">DT Thực</th>
+                                      <th rowSpan={2} className="bg-[#d1fae5] text-[#064e3b] px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">DT Trả Chậm</th>
+                                      <th rowSpan={2} className="bg-[#d1fae5] text-[#064e3b] px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">% Trả Chậm</th>
+                                      {traChamPartners.map((p, pIdx) => (
+                                        <th key={pIdx} colSpan={2} className="bg-[#bbf7d0] text-[#065f46] px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0] whitespace-nowrap">
+                                          {p}
+                                        </th>
+                                      ))}
+                                      <th rowSpan={2} className="bg-[#d1fae5] text-[#064e3b] px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-b border-[#a7f3d0]">XH</th>
+                                    </tr>
+                                    <tr className="h-[28px]">
+                                      {traChamPartners.map((_, pIdx) => (
+                                        <React.Fragment key={pIdx}>
+                                          <th className="bg-[#e6f9f0] text-[#047857] px-1 py-0.5 text-center text-[10px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">DT</th>
+                                          <th className="bg-[#e6f9f0] text-[#047857] px-1 py-0.5 text-center text-[10px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">%</th>
+                                        </React.Fragment>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                </>
                               ) : (
-                                <thead>
-                                  <tr className="h-[40px]">
-                                    <th className="bg-[#047857] text-white px-2 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 w-[50px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
-                                    <th className="bg-[#047857] text-white px-3 py-0 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 min-w-[220px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
-                                    <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 w-[140px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Thực</th>
-                                    <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 w-[140px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Trả Chậm</th>
-                                    <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 w-[100px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>% Trả Chậm</th>
-                                    <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider w-[70px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>XH</th>
-                                  </tr>
-                                </thead>
+                                <>
+                                  <colgroup>
+                                    <col style={{ width: '55px' }} />
+                                    <col style={{ width: '260px' }} />
+                                    <col style={{ width: '145px' }} />
+                                    <col style={{ width: '145px' }} />
+                                    <col style={{ width: '115px' }} />
+                                    <col style={{ width: '70px' }} />
+                                  </colgroup>
+                                  <thead>
+                                    <tr className="h-[42px]">
+                                      <th className="bg-[#d1fae5] text-[#064e3b] px-2 py-0 text-center text-[11.5px] sm:text-[12.5px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">STT</th>
+                                      <th className="bg-[#d1fae5] text-[#064e3b] px-3 py-0 text-left text-[11.5px] sm:text-[12.5px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">Nhân viên</th>
+                                      <th className="bg-[#d1fae5] text-[#064e3b] px-1 py-0 text-center text-[11.5px] sm:text-[12.5px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">DT Thực</th>
+                                      <th className="bg-[#d1fae5] text-[#064e3b] px-1 py-0 text-center text-[11.5px] sm:text-[12.5px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">DT Trả Chậm</th>
+                                      <th className="bg-[#d1fae5] text-[#064e3b] px-1 py-0 text-center text-[11.5px] sm:text-[12.5px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">% Trả Chậm</th>
+                                      <th className="bg-[#d1fae5] text-[#064e3b] px-1 py-0 text-center text-[11.5px] sm:text-[12.5px] font-black uppercase tracking-wider border-b border-[#a7f3d0]">XH</th>
+                                    </tr>
+                                  </thead>
+                                </>
                               )}
                               <tbody>
                                 {parsedTraChamRows.map((row: any, i: number, arr: any[]) => {
                                   const threshold = Math.max(1, Math.ceil(arr.length * 0.2));
                                   const isTop = i < threshold;
                                   const isBottom = i >= arr.length - threshold && !isTop;
-                                  const rowBg = i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50';
-                                  const nameColor = isTop ? 'text-emerald-700' : isBottom ? 'text-rose-600' : 'text-slate-800';
+                                  const rowBg = i % 2 === 0 ? 'bg-white' : 'bg-[#f4fbf7]';
+                                  const nameColor = isTop ? 'text-[#065f46]' : isBottom ? 'text-rose-600' : 'text-slate-800';
 
                                   return (
-                                    <tr key={i} className={`${rowBg} hover:bg-slate-50 transition-colors h-[44px] border-b border-slate-100`}>
-                                      <td className="px-2 py-0 text-center font-black text-slate-500 text-[12px] sm:text-[13px] border-r border-slate-100" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                    <tr key={i} className={`${rowBg} hover:bg-emerald-50/70 transition-colors h-[44px] border-b border-[#e6f4ea]`}>
+                                      <td className="px-2 py-0 text-center font-bold text-[#059669] text-[12px] sm:text-[13px] border-r border-[#e6f4ea]">
                                         #{i + 1}
                                       </td>
-                                      <td className={`px-3 py-0 text-left font-black text-[12px] sm:text-[13px] border-r border-slate-100 truncate ${nameColor}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                      <td className={`px-3 py-0 text-left font-bold text-[12px] sm:text-[13px] border-r border-[#e6f4ea] truncate ${nameColor}`}>
                                         {(row.nhanVien || '').toUpperCase()}
                                       </td>
-                                      <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 text-slate-700 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                      <td className="px-1 py-0 text-center font-semibold text-[12px] sm:text-[13px] border-r border-[#e6f4ea] text-slate-700 whitespace-nowrap">
                                         {Math.round(row.totalRevenue).toLocaleString('vi-VN')}
                                       </td>
-                                      <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 text-slate-700 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                      <td className="px-1 py-0 text-center font-semibold text-[12px] sm:text-[13px] border-r border-[#e6f4ea] text-slate-700 whitespace-nowrap">
                                         {Math.round(row.installmentRevenue).toLocaleString('vi-VN')}
                                       </td>
-                                      <td className={`px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 whitespace-nowrap ${isTop ? 'text-emerald-600' : isBottom ? 'text-rose-600' : 'text-slate-700'}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
-                                        {row.percent.toFixed(1)}%
+                                      <td className="px-1 py-0 text-center border-r border-[#e6f4ea] whitespace-nowrap">
+                                        {row.percent > 0 ? (
+                                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] sm:text-[12px] font-extrabold border ${
+                                            isTop 
+                                              ? 'bg-[#dcfce7] text-[#065f46] border-[#a7f3d0]' 
+                                              : isBottom 
+                                                ? 'bg-rose-50 text-rose-600 border-rose-200' 
+                                                : 'bg-[#e6f9f0] text-[#065f46] border-[#a7f3d0]/60'
+                                          }`}>
+                                            {row.percent.toFixed(1)}%
+                                          </span>
+                                        ) : (
+                                          <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold text-rose-500 bg-rose-50 border border-rose-100">
+                                            0.0%
+                                          </span>
+                                        )}
                                       </td>
                                       {showFullTraChamPartners && traChamPartners.map((p, pIdx) => {
                                         const pd = row.partnerData?.[p];
@@ -5800,40 +5854,52 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                         const pct = pd?.percent || 0;
                                         return (
                                           <React.Fragment key={pIdx}>
-                                            <td className="px-1 py-0 text-center font-bold text-[11px] sm:text-[12px] border-r border-slate-100 text-slate-700 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                            <td className="px-1 py-0 text-center font-medium text-[11px] sm:text-[12px] border-r border-[#e6f4ea] text-slate-700 whitespace-nowrap">
                                               {dt > 0 ? Math.round(dt).toLocaleString('vi-VN') : <span className="text-slate-300 font-normal">—</span>}
                                             </td>
-                                            <td className={`px-1 py-0 text-center font-bold text-[11px] sm:text-[12px] border-r border-slate-100 whitespace-nowrap ${pct > 0 ? 'text-slate-700' : 'text-slate-300 font-normal'}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                            <td className={`px-1 py-0 text-center font-bold text-[11px] sm:text-[12px] border-r border-[#e6f4ea] whitespace-nowrap ${pct > 0 ? 'text-[#059669]' : 'text-slate-300 font-normal'}`}>
                                               {pct > 0 ? `${pct.toFixed(1)}%` : '—'}
                                             </td>
                                           </React.Fragment>
                                         );
                                       })}
-                                      <td className="px-1 py-0 text-center text-[11px] sm:text-[12px] font-black whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
-                                        {isTop && <span className="text-emerald-700">Top</span>}
-                                        {isBottom && <span className="text-rose-600">Bot</span>}
-                                        {!isTop && !isBottom && <span className="text-slate-300">-</span>}
+                                      <td className="px-1 py-0 text-center text-[11px] sm:text-[12px] font-black whitespace-nowrap">
+                                        {isTop && (
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#dcfce7] text-[#065f46] border border-[#a7f3d0]">
+                                            Top
+                                          </span>
+                                        )}
+                                        {isBottom && (
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200">
+                                            Bot
+                                          </span>
+                                        )}
+                                        {!isTop && !isBottom && <span className="text-slate-300 font-bold">—</span>}
                                       </td>
                                     </tr>
                                   );
                                 })}
                               </tbody>
                               <tfoot>
-                                <tr className="h-[44px] bg-[#047857] text-white">
-                                  <td colSpan={2} className="px-3 py-0 text-center font-black text-[12px] sm:text-[13px] uppercase tracking-widest border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                <tr className="h-[46px] bg-[#d1fae5] text-[#064e3b] border-t-2 border-[#6ee7b7]">
+                                  <td colSpan={2} className="px-3 py-0 text-center font-black text-[12px] sm:text-[13px] uppercase tracking-widest border-r border-[#a7f3d0]">
                                     Tổng
                                   </td>
-                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-[#a7f3d0] whitespace-nowrap text-[#064e3b]">
                                     {parsedTraChamRows.reduce((s: number, r: any) => s + Math.round(r.totalRevenue), 0).toLocaleString('vi-VN')}
                                   </td>
-                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-[#a7f3d0] whitespace-nowrap text-[#064e3b]">
                                     {parsedTraChamRows.reduce((s: number, r: any) => s + Math.round(r.installmentRevenue), 0).toLocaleString('vi-VN')}
                                   </td>
-                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-[#a7f3d0] whitespace-nowrap">
                                     {(() => {
                                       const totalRev = parsedTraChamRows.reduce((s: number, r: any) => s + r.totalRevenue, 0);
                                       const totalInst = parsedTraChamRows.reduce((s: number, r: any) => s + r.installmentRevenue, 0);
-                                      return totalRev > 0 ? ((totalInst / totalRev) * 100).toFixed(1) + '%' : '—';
+                                      return totalRev > 0 ? (
+                                        <span className="inline-block px-3 py-1 rounded-full bg-[#059669] text-white font-black text-[11.5px] sm:text-[12.5px] shadow-xs">
+                                          {((totalInst / totalRev) * 100).toFixed(1)}%
+                                        </span>
+                                      ) : '—';
                                     })()}
                                   </td>
                                   {showFullTraChamPartners && traChamPartners.map((p, pIdx) => {
@@ -5842,30 +5908,30 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                     const pctOfInst = totalInst > 0 ? ((totalPartnerDt / totalInst) * 100).toFixed(1) + '%' : '—';
                                     return (
                                       <React.Fragment key={pIdx}>
-                                        <td className="px-1 py-0 text-center font-black text-[11px] sm:text-[12px] border-r border-emerald-600/50 whitespace-nowrap text-amber-200" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        <td className="px-1 py-0 text-center font-black text-[11px] sm:text-[12px] border-r border-[#a7f3d0] whitespace-nowrap text-[#065f46]">
                                           {totalPartnerDt > 0 ? Math.round(totalPartnerDt).toLocaleString('vi-VN') : '—'}
                                         </td>
-                                        <td className="px-1 py-0 text-center font-black text-[11px] sm:text-[12px] border-r border-emerald-600/50 whitespace-nowrap text-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        <td className="px-1 py-0 text-center font-black text-[11px] sm:text-[12px] border-r border-[#a7f3d0] whitespace-nowrap text-[#047857]">
                                           {pctOfInst}
                                         </td>
                                       </React.Fragment>
                                     );
                                   })}
-                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>—</td>
+                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] text-[#064e3b]">—</td>
                                 </tr>
                               </tfoot>
                             </table>
                           </AutoFitTable>
                         </>
                       ) : (
-                        <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[32px] p-12 text-center">
-                          <Clock size={48} className="mx-auto text-slate-300 mb-4 animate-pulse" />
-                          <h3 className="text-lg font-black text-slate-400 uppercase tracking-widest">CHƯA CÓ DỮ LIỆU TRẢ CHẬM HỢP LỆ</h3>
-                          <p className="text-slate-400 text-sm font-medium mb-4">Vui lòng dán dữ liệu hiệu quả trả chậm của nhân viên tại trang <b>Khai Báo &gt; Cấu Hình Siêu Thị &gt; TRẢ GÓP NV</b>.</p>
+                        <div className="bg-[#f0fdf4] border-2 border-dashed border-[#a7f3d0] rounded-[28px] p-12 text-center" style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}>
+                          <Clock size={48} className="mx-auto text-emerald-400 mb-4 animate-pulse" />
+                          <h3 className="text-lg font-black text-[#064e3b] uppercase tracking-widest">CHƯA CÓ DỮ LIỆU TRẢ CHẬM HỢP LỆ</h3>
+                          <p className="text-[#065f46]/80 text-sm font-medium mb-4">Vui lòng dán dữ liệu hiệu quả trả chậm của nhân viên tại trang <b>Khai Báo &gt; Cấu Hình Siêu Thị &gt; TRẢ GÓP NV</b>.</p>
                           {effectiveTragopNv && effectiveTragopNv.trim().length > 0 && (
-                            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-left text-xs max-w-lg mx-auto">
-                              <p className="font-bold text-red-800 mb-1">Dữ liệu thô đang có trong cấu hình (không phân tích được):</p>
-                              <pre className="whitespace-pre-wrap font-mono text-[10px] text-red-700 max-h-32 overflow-y-auto bg-white p-2 rounded border border-red-100">{effectiveTragopNv}</pre>
+                            <div className="mt-4 p-4 bg-rose-50 border border-rose-200 rounded-xl text-left text-xs max-w-lg mx-auto">
+                              <p className="font-bold text-rose-800 mb-1">Dữ liệu thô đang có trong cấu hình (không phân tích được):</p>
+                              <pre className="whitespace-pre-wrap font-mono text-[10px] text-rose-700 max-h-32 overflow-y-auto bg-white p-2 rounded border border-rose-100">{effectiveTragopNv}</pre>
                             </div>
                           )}
                         </div>
