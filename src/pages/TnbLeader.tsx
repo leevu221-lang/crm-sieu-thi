@@ -15,6 +15,7 @@ import { CaptureLoadingOverlay } from '../components/CaptureLoadingOverlay';
 import { LineExportPanel } from '../components/LineExportPanel';
 import { cn, cleanCategoryName } from './RTST/utils';
 import { DEFAULT_TNB_LEADER_CATEGORIES } from '../hooks/useCategoryConfig';
+import { AutoFitTable } from '../components/AutoFitTable';
 
 // Helper function to linearly interpolate between two hex colors
 function interpolateColor(color1: string, color2: string, factor: number): string {
@@ -5214,7 +5215,7 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
                               </div>
 
                               {/* Modern Capsule Table - Square (Không bo cạnh) & Khoảng trắng phân cách */}
-                              <div className="overflow-x-auto w-full grow border border-slate-300 rounded-none shadow-xs">
+                              <AutoFitTable minWidth={550} className="w-full grow border border-slate-300 rounded-none shadow-xs">
                                 <table className="w-full table-fixed border-collapse bg-white text-[12.5px] sm:text-[16px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                                   <colgroup>
                                     <col style={{ width: '8%' }} />
@@ -5270,7 +5271,7 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
                                     </tr>
                                   </tbody>
                                 </table>
-                              </div>
+                              </AutoFitTable>
 
                               {/* Comment / Note Box (When Open) */}
                               {cardShowComment[nhItem] && (

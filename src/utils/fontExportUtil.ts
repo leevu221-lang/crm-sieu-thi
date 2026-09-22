@@ -152,13 +152,6 @@ export function getPreloadedFontCss(): string {
  */
 export async function ensureFontsReady(): Promise<boolean> {
   try {
-    // Fast path: If UTM Avo fonts are already confirmed loaded, return instantly in 0ms
-    if (typeof document !== 'undefined' && document.fonts) {
-      if (document.fonts.check('700 16px "UTM Avo"') && document.fonts.check('400 16px "UTM Avo"')) {
-        return true;
-      }
-    }
-
     // 1. Preload base64 font cache in background immediately
     const fontCachePromise = preloadFontDataCache().catch(() => '');
 

@@ -78,25 +78,72 @@ body {
   overflow-x: hidden;
 }
 
-/* Desktop: Zoom nhỏ lại 25% (zoom 75% = 0.75) chỉ áp dụng cho màn hình Desktop (>= 769px) */
-@media (min-width: 769px) {
+/* =========================================================================
+   RESPONSIVE DESIGN BREAKPOINTS SYSTEM
+   ~375px (Mobile) | ~768px (Tablet) | ~1024px (Laptop) | ~1440px+ (Large Desktop)
+   ========================================================================= */
+
+/* Mobile Small & Standard (~320px - ~480px, mốc ~375px) */
+@media (max-width: 480px) {
+  html {
+    font-size: 6.8px;
+  }
+  body, #root {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+}
+
+/* Mobile & Tablet Portrait (< 768px) */
+@media (max-width: 768px) {
+  body {
+    zoom: 1;
+    margin: 0;
+    padding: 0;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+  html {
+    font-size: 6.8px;
+  }
+}
+
+/* Tablet Portrait & Landscape (~768px - ~1023px, mốc ~768px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  body {
+    zoom: 0.85; /* Thu nhỏ 15% nhẹ nhàng cho tablet, chống lệch vỡ chữ */
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  html {
+    font-size: 6.6px;
+  }
+}
+
+/* Laptop & Desktop (~1024px - ~1439px, mốc ~1024px) */
+@media (min-width: 1024px) and (max-width: 1439px) {
   body {
     zoom: 0.75;
     width: 100%;
     margin: 0;
     padding: 0;
   }
+  html {
+    font-size: 6.45px;
+  }
 }
 
-/* Mobile: Không zoom (zoom: 1), auto responsive tự nhiên cho điện thoại */
-@media (max-width: 768px) {
+/* Large Desktop (>= 1440px, mốc ~1440px trở lên) */
+@media (min-width: 1440px) {
   body {
-    zoom: 1;
+    zoom: 0.75;
+    width: 100%;
     margin: 0;
     padding: 0;
   }
   html {
-    font-size: 6.8px;
+    font-size: 6.45px;
   }
 }
 
@@ -219,8 +266,8 @@ table td {
   /* Reduce table cell padding on mobile */
   table th,
   table td {
-    padding-left: 0.5rem !important;
-    padding-right: 0.5rem !important;
+    padding-left: 0.4rem !important;
+    padding-right: 0.4rem !important;
   }
 
   /* Ensure table containers scroll horizontally */
@@ -238,6 +285,32 @@ table td {
   .responsive-table-wrap table {
     min-width: max-content;
   }
+}
+
+/* =========================================================================
+   AUTOFIT TABLE SYSTEM (Tự động đo & co tỉ lệ vừa khít màn hình)
+   ========================================================================= */
+.autofit-table-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.autofit-table-container::-webkit-scrollbar {
+  height: 6px;
+}
+.autofit-table-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+.autofit-table-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.autofit-table-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 /* Styles for capturing screenshots - hide scrollbars and ensure full width */
@@ -278,6 +351,30 @@ body.capturing-screenshot .bg-slate-50,
 body.capturing-screenshot .overflow-x-auto {
   overflow: visible !important;
   display: block !important;
+}
+
+body.capturing-screenshot .autofit-table-container,
+.export-short-mode .autofit-table-container {
+  overflow: visible !important;
+  display: block !important;
+  width: auto !important;
+  max-width: none !important;
+}
+
+body.capturing-screenshot .autofit-sizing-box,
+.export-short-mode .autofit-sizing-box {
+  width: auto !important;
+  height: auto !important;
+  position: static !important;
+  max-width: none !important;
+}
+
+body.capturing-screenshot .autofit-content-box,
+.export-short-mode .autofit-content-box {
+  transform: none !important;
+  width: auto !important;
+  min-width: max-content !important;
+  position: static !important;
 }
 
 body.capturing-screenshot .overflow-hidden {

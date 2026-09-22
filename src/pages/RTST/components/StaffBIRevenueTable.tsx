@@ -7,6 +7,7 @@ import React from 'react';
 import { Camera } from 'lucide-react';
 import { StaffData } from '../types';
 import { cn, formatStaffName } from '../utils';
+import AutoFitTable from '../../../components/AutoFitTable';
 
 interface StaffBIRevenueTableProps {
   staffRankData: StaffData[];
@@ -67,7 +68,7 @@ const StaffBIRevenueTable: React.FC<StaffBIRevenueTableProps> = ({
       </div>
 
       <div ref={captureRef} className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
-        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
+        <AutoFitTable minWidth={650}>
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-900">
@@ -142,7 +143,7 @@ const StaffBIRevenueTable: React.FC<StaffBIRevenueTableProps> = ({
               })}
             </tbody>
           </table>
-        </div>
+        </AutoFitTable>
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import { Camera, Check, Calendar, Clock, MessageSquare } from 'lucide-react';
 import { CategoryData } from '../types';
 import { formatRealtimeDate, formatLuyKeDate, getWorkingDayProgress, getLuyKeProgress, cn } from '../utils';
 import { useNotification } from '../../../contexts/NotificationContext';
+import { AutoFitTable } from '../../../components/AutoFitTable';
 
 interface CategoryTableProps {
   categories: CategoryData[];
@@ -160,7 +161,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
               </span>
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <AutoFitTable minWidth={500} className="w-full">
             <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300 min-w-[500px]">
               <thead>
                 <tr className="text-slate-900 h-[40px]">
@@ -220,7 +221,7 @@ const CategoryTable: React.FC<CategoryTableProps> = ({
                 )}
               </tbody>
             </table>
-          </div>
+          </AutoFitTable>
         </div>
       </div>
     );

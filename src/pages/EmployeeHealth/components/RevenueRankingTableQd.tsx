@@ -3,6 +3,7 @@ import { Trophy, TrendingDown, Camera } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { StaffData } from '../../RTST/types';
 import { cn, formatCurrencyValue } from '../../RTST/utils';
+import AutoFitTable from '../../../components/AutoFitTable';
 
 interface RevenueRankingTableQdQProps {
   data: StaffData[];
@@ -271,7 +272,7 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
         </div>
 
         {/* Table Container */}
-        <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
+        <AutoFitTable minWidth={860}>
           <table className="w-full border-separate border-spacing-0 table-fixed bg-white text-[12px] sm:text-[14.5px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900, minWidth: '860px' }}>
             <colgroup>
               <col style={{ width: '45px' }} />
@@ -413,7 +414,7 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
               </tfoot>
             )}
           </table>
-        </div>
+        </AutoFitTable>
       </div>
     </div>
   );
