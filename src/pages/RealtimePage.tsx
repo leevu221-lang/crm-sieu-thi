@@ -4649,6 +4649,20 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         htmlEl.style.flexGrow = '0';
       });
 
+      // Expand and unwrap AutoFitTable elements to avoid shrunk capture
+      const autofitEls = element.querySelectorAll('.autofit-sizing-box, .autofit-content-box, .autofit-table-container, [data-autofit-sizing], [data-autofit-content], [data-autofit-container]');
+      autofitEls.forEach(el => {
+        const htmlEl = el as HTMLElement;
+        savedStyles.push({ el: htmlEl, cssText: htmlEl.style.cssText });
+        htmlEl.style.width = 'max-content';
+        htmlEl.style.minWidth = '100%';
+        htmlEl.style.maxWidth = 'none';
+        htmlEl.style.height = 'auto';
+        htmlEl.style.position = 'static';
+        htmlEl.style.overflow = 'visible';
+        htmlEl.style.transform = 'none';
+      });
+
       // Force all tables inside element to full natural width
       const allTables = element.querySelectorAll('table');
       allTables.forEach(t => {

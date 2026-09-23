@@ -12,6 +12,7 @@ import * as htmlToImage from 'html-to-image';
 import { domToPng, domToBlob } from 'modern-screenshot';
 import html2canvas from 'html2canvas';
 import { ensureFontsReady, EXPORT_FONT_STYLE, ensureSharedCaptureStyle, getPreloadedFontCss } from '../utils/fontExportUtil';
+import { prepareCloneForCapture } from '../utils/captureUtil';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -576,6 +577,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const framePadding = isCompactTab ? 16 : 20;
     const totalExportWidth = actualContentWidth + framePadding * 2;
     
+    // Add capturing-screenshot class to body
+    document.body.classList.add('capturing-screenshot');
+
     // Create a temporary container to hold the clone
     const tempContainer = document.createElement('div');
     tempContainer.style.position = 'absolute';
@@ -587,6 +591,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     tempContainer.style.zIndex = '-9999';
     tempContainer.style.pointerEvents = 'none';
     tempContainer.style.backgroundColor = '#ffffff';
+    (tempContainer.style as any).zoom = '1';
 
     // Frame wrapper to ensure zero shadow, seamless border and generous white padding
     const frameWrapper = document.createElement('div');
@@ -602,28 +607,16 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
     const clone = element.cloneNode(true) as HTMLElement;
 
-    // Hide buttons/controls inside the clone
-    const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, .capture-btn, input, select');
-    noCaptureElements.forEach(el => {
-      (el as HTMLElement).style.display = 'none';
-    });
-
-    // Triệt tiêu hoàn toàn bóng mờ (Zero-Shadow Export Rule)
-    const allElements = clone.querySelectorAll('*');
-    allElements.forEach(el => {
-      const htmlEl = el as HTMLElement;
-      if (htmlEl.style) {
-        htmlEl.style.boxShadow = 'none';
-        htmlEl.style.textShadow = 'none';
-        htmlEl.style.filter = 'none';
-      }
-      if (htmlEl.classList) {
-        Array.from(htmlEl.classList).forEach(cls => {
-          if (cls.startsWith('shadow') || cls.startsWith('drop-shadow')) {
-            htmlEl.classList.remove(cls);
-          }
-        });
-      }
+    // Use our comprehensive capture preparation:
+    // 1. Removes no-capture buttons
+    // 2. Strips all shadows (Zero-shadow rule)
+    // 3. Unwraps AutoFitTable (removes transform: scale, locked width/height)
+    // 4. Expands scroll containers
+    // 5. Removes sticky
+    // 6. Detects and preserves custom font (Plus Jakarta Sans, Lexend...)
+    const { detectedFont, isCustomFont } = prepareCloneForCapture(clone, element, {
+      preserveTableLayout: true,
+      defaultFont: "'UTM Avo', 'Inter', sans-serif"
     });
 
     if (!isCompactTab) {
@@ -648,7 +641,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       });
     }
 
-    // Set clone styling to take full layout unconstrained with UTM Avo Black font
+    // Set clone styling to take full layout unconstrained with faithful font
     clone.style.width = `${actualContentWidth}px`;
     clone.style.minWidth = `${actualContentWidth}px`;
     clone.style.maxWidth = `${actualContentWidth}px`;
@@ -660,20 +653,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     clone.style.boxSizing = 'border-box';
     clone.style.borderRadius = '0px';
     clone.style.boxShadow = 'none';
-    clone.style.fontFamily = "'UTM Avo', 'Inter', sans-serif";
-
-    // Make sure overflow wrappers in the clone are visible and fill full width
-    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
-    scrollContainers.forEach((el) => {
-      const htmlEl = el as HTMLElement;
-      htmlEl.style.overflow = 'visible';
-      htmlEl.style.width = '100%';
-      htmlEl.style.minWidth = '100%';
-      htmlEl.style.height = 'auto';
-      htmlEl.style.maxWidth = 'none';
-      htmlEl.style.maxHeight = 'none';
-      el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
-    });
+    clone.style.fontFamily = detectedFont;
 
     // Force all tables to stretch cleanly inside their parent card
     const tables = clone.querySelectorAll('table');
@@ -703,40 +683,25 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       }
     });
 
-    // Remove sticky positioning (causes rendering issues in capture)
-    const stickyEls = clone.querySelectorAll('.sticky, [style*="sticky"]');
-    stickyEls.forEach(el => {
-      (el as HTMLElement).style.position = 'relative';
-      (el as HTMLElement).style.left = 'auto';
-      (el as HTMLElement).style.zIndex = 'auto';
-    });
-
-    // Force hide all scrollbars in the captured image
-    const hideScrollbarStyle = document.createElement('style');
-    hideScrollbarStyle.innerHTML = `
-      *::-webkit-scrollbar {
-        display: none !important;
-        width: 0 !important;
-        height: 0 !important;
-      }
-      * {
-        -ms-overflow-style: none !important;
-        scrollbar-width: none !important;
-      }
-    `;
-    clone.appendChild(hideScrollbarStyle);
-
     frameWrapper.appendChild(clone);
     tempContainer.appendChild(frameWrapper);
     document.body.appendChild(tempContainer);
 
     try {
-      // ★ Ensure UTM Avo font is fully loaded before export
-      await ensureFontsReady();
+      if (!isCustomFont) {
+        // Ensure UTM Avo font is fully loaded before export
+        await ensureFontsReady();
+      }
       await new Promise(r => setTimeout(r, 200));
 
       const finalCaptureWidth = totalExportWidth;
       const finalCaptureHeight = frameWrapper.offsetHeight || frameWrapper.scrollHeight;
+
+      const fontOptions = isCustomFont ? {
+        fontFamily: detectedFont,
+        fontSmooth: 'always',
+        WebkitFontSmoothing: 'antialiased',
+      } : EXPORT_FONT_STYLE;
 
       const dataUrl = await htmlToImage.toPng(frameWrapper, {
         backgroundColor: '#ffffff',
@@ -750,12 +715,15 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
           transformOrigin: 'top left',
           width: `${finalCaptureWidth}px`,
           height: `${finalCaptureHeight}px`,
-          ...EXPORT_FONT_STYLE,
+          ...fontOptions,
         }
       });
       return dataUrl;
     } finally {
-      document.body.removeChild(tempContainer);
+      document.body.classList.remove('capturing-screenshot');
+      if (tempContainer.parentNode) {
+        tempContainer.parentNode.removeChild(tempContainer);
+      }
     }
   };
 
@@ -834,6 +802,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     frameWrapper.style.cssText = 'width:1120px;min-width:1120px;max-width:1120px;padding:20px;background-color:#ffffff;box-sizing:border-box;border-radius:24px;box-shadow:none;display:block;';
 
     const clone = element.cloneNode(true) as HTMLElement;
+    prepareCloneForCapture(clone, element, {
+      preserveTableLayout: true,
+      defaultFont: "'UTM Avo', 'Inter', sans-serif"
+    });
 
     // Physically purge non-capture elements (buttons, toolbars, inputs)
     clone.querySelectorAll('.no-capture, button, textarea, .capture-btn, input, select').forEach(el => el.remove());

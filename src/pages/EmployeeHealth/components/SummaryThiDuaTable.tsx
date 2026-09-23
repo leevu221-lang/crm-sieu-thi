@@ -11,6 +11,7 @@ import { useLuykeData } from '../../RTST/hooks/useLuykeData';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
 import AutoFitTable from '../../../components/AutoFitTable';
+import { prepareCloneForCapture } from '../../../utils/captureUtil';
 
 const removeAccentsLocal = (str: string): string => {
   return str
@@ -1184,6 +1185,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   const handleExport = async () => {
     if (tableRef.current) {
       setIsCapturing(true);
+      document.body.classList.add('capturing-screenshot');
       const originalElement = tableRef.current;
       
       // Create a temporary container to hold the clone
@@ -1196,13 +1198,14 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       container.style.overflow = 'visible';
       container.style.zIndex = '-9999';
       container.style.pointerEvents = 'none';
+      (container.style as any).zoom = '1';
       
       const clone = originalElement.cloneNode(true) as HTMLElement;
       
-      // Hide buttons/controls inside the clone
-      const noCaptureElements = clone.querySelectorAll('.no-capture, button');
-      noCaptureElements.forEach(el => {
-        (el as HTMLElement).style.display = 'none';
+      // Clean clone and unwrap AutoFitTable
+      prepareCloneForCapture(clone, originalElement, {
+        preserveTableLayout: false,
+        defaultFont: "'UTM Avo', 'Inter', sans-serif"
       });
       
       // Set clone styling to take full layout unconstrained
@@ -1215,32 +1218,6 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       clone.style.overflow = 'visible';
       clone.style.overflowX = 'visible';
       clone.style.overflowY = 'visible';
-      
-      // Make sure overflow wrappers in the clone are visible
-      const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
-      scrollContainers.forEach((el) => {
-        const htmlEl = el as HTMLElement;
-        htmlEl.style.overflow = 'visible';
-        htmlEl.style.overflowX = 'visible';
-        htmlEl.style.overflowY = 'visible';
-        htmlEl.style.width = 'auto';
-        htmlEl.style.height = 'auto';
-        htmlEl.style.maxWidth = 'none';
-        htmlEl.style.maxHeight = 'none';
-      });
-
-      // Clear any other inline overflow restrictions
-      const allCloneElements = clone.querySelectorAll('*');
-      allCloneElements.forEach(el => {
-        const htmlEl = el as HTMLElement;
-        if (htmlEl.style.overflow || htmlEl.style.overflowX || htmlEl.style.overflowY) {
-          htmlEl.style.overflow = 'visible';
-          htmlEl.style.overflowX = 'visible';
-          htmlEl.style.overflowY = 'visible';
-          htmlEl.style.maxWidth = 'none';
-          htmlEl.style.maxHeight = 'none';
-        }
-      });
 
       const originalTable = originalElement.querySelector('table');
       const table = clone.querySelector('table') as HTMLTableElement;
@@ -1282,7 +1259,10 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       } catch (err) {
         console.error('Export failed:', err);
       } finally {
-        document.body.removeChild(container);
+        document.body.classList.remove('capturing-screenshot');
+        if (container.parentNode) {
+          container.parentNode.removeChild(container);
+        }
         setIsCapturing(false);
       }
     }

@@ -318,6 +318,9 @@ body.capturing-screenshot {
   position: static !important;
   height: auto !important;
   overflow: visible !important;
+  zoom: 1 !important;
+  width: 100% !important;
+  min-width: 100% !important;
 }
 
 body.capturing-screenshot *::-webkit-scrollbar {

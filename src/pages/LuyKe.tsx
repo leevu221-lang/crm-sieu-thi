@@ -1882,6 +1882,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       const targetWidthPx = isThuongSt ? 1200 : (isSingleTable ? 1000 : 1850);
       const targetWidth = `${targetWidthPx}px`;
 
+      document.body.classList.add('capturing-screenshot');
       const tempContainer = document.createElement('div');
       tempContainer.style.position = 'fixed';
       tempContainer.style.top = '0';
@@ -1892,6 +1893,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       tempContainer.style.zIndex = '-9999';
       tempContainer.style.pointerEvents = 'none';
       tempContainer.style.overflow = 'visible';
+      (tempContainer.style as any).zoom = '1';
 
       const clone = element.cloneNode(true) as HTMLElement;
       clone.style.width = '100%';
@@ -1901,6 +1903,19 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       clone.style.padding = '0';
       clone.style.margin = '0 auto';
       clone.style.backgroundColor = '#ffffff';
+
+      // Unwrap AutoFitTable elements so they are never captured in a shrunk state
+      const autofitEls = clone.querySelectorAll('.autofit-sizing-box, .autofit-content-box, .autofit-table-container, [data-autofit-sizing], [data-autofit-content], [data-autofit-container]');
+      autofitEls.forEach(el => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.width = '100%';
+        htmlEl.style.minWidth = '100%';
+        htmlEl.style.maxWidth = 'none';
+        htmlEl.style.height = 'auto';
+        htmlEl.style.position = 'static';
+        htmlEl.style.overflow = 'visible';
+        htmlEl.style.transform = 'none';
+      });
 
       // Hide no-capture elements, buttons, and textareas
       clone.querySelectorAll('.no-capture, button, textarea, .screenshot-comment').forEach(el => {
@@ -2205,6 +2220,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     } catch (err) {
       console.error('Error capturing offscreen:', err);
     } finally {
+      document.body.classList.remove('capturing-screenshot');
       setIsCapturing(false);
     }
   };

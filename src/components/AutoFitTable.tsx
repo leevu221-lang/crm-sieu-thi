@@ -136,6 +136,7 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
     <div
       ref={containerRef}
       id={`autofit-${instanceId}`}
+      data-autofit-container="true"
       className={`autofit-table-container w-full overflow-x-auto relative ${className}`}
       style={{
         WebkitOverflowScrolling: 'touch',
@@ -144,6 +145,7 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
     >
       {isScaled ? (
         <div
+          data-autofit-sizing="true"
           className="autofit-sizing-box mx-auto"
           style={{
             width: `${Math.ceil(naturalDims.width * scale)}px`,
@@ -155,6 +157,7 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
         >
           <div
             ref={contentRef}
+            data-autofit-content="true"
             className="autofit-content-box"
             style={{
               width: `${naturalDims.width}px`,
@@ -170,7 +173,7 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
           </div>
         </div>
       ) : (
-        <div ref={contentRef} className="autofit-content-unscaled w-full">
+        <div ref={contentRef} data-autofit-unscaled="true" className="autofit-content-unscaled w-full">
           {children}
         </div>
       )}
