@@ -736,25 +736,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     }
   };
 
-  type CaptureStrategy = 'domToBlob' | 'domToPng' | 'htmlToImage' | 'html2canvas';
+  type CaptureStrategy = 'htmlToImage' | 'domToPng' | 'domToBlob' | 'html2canvas';
 
   const runCaptureStrategy = async (frameWrapper: HTMLElement, strategy: CaptureStrategy, scale: number = 1.25): Promise<Blob | string> => {
     const frameHeight = frameWrapper.offsetHeight || frameWrapper.scrollHeight || 1200;
-    if (strategy === 'domToPng') {
-      const dataUrl = await domToPng(frameWrapper, {
-        backgroundColor: '#ffffff',
-        scale: scale,
-        font: false,
-        width: 1120,
-        height: frameHeight,
-        features: {
-          removeControlCharacter: false,
-          removeAbnormalAttributes: false,
-        },
-      });
-      if (!dataUrl) throw new Error('domToPng produced no dataUrl');
-      return dataUrl;
-    }
     if (strategy === 'htmlToImage') {
       const blob = await htmlToImage.toBlob(frameWrapper, {
         backgroundColor: '#ffffff',
@@ -770,6 +755,24 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       if (!blob || blob.size === 0) throw new Error('htmlToImage produced no blob');
       return blob;
     }
+    if (strategy === 'domToPng') {
+      const dataUrl = await domToPng(frameWrapper, {
+        backgroundColor: '#ffffff',
+        scale: scale,
+        font: false,
+        width: 1120,
+        height: frameHeight,
+        drawImageInterval: 0,
+        features: {
+          copyScrollbar: false,
+          removeControlCharacter: false,
+          removeAbnormalAttributes: false,
+          fixSvgXmlDecode: false,
+        },
+      });
+      if (!dataUrl) throw new Error('domToPng produced no dataUrl');
+      return dataUrl;
+    }
     if (strategy === 'domToBlob') {
       const blob = await domToBlob(frameWrapper, {
         backgroundColor: '#ffffff',
@@ -777,9 +780,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         font: false,
         width: 1120,
         height: frameHeight,
+        drawImageInterval: 0,
         features: {
+          copyScrollbar: false,
           removeControlCharacter: false,
           removeAbnormalAttributes: false,
+          fixSvgXmlDecode: false,
         },
       });
       if (!blob || blob.size === 0) throw new Error('domToBlob produced empty blob');
@@ -824,7 +830,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     return { frameWrapper };
   };
 
-  const DEFAULT_CAPTURE_ORDER: CaptureStrategy[] = ['domToPng', 'domToBlob', 'htmlToImage', 'html2canvas'];
+  const DEFAULT_CAPTURE_ORDER: CaptureStrategy[] = ['htmlToImage', 'domToPng', 'html2canvas'];
 
   const captureSingleEmployeeCard = async (element: HTMLElement, order: CaptureStrategy[] = DEFAULT_CAPTURE_ORDER): Promise<Blob | string> => {
     const tempContainer = document.createElement('div');
@@ -858,44 +864,50 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
     // 1. Immediately activate capturing state & initialize progress counter
     setIsCapturing(true);
+    startCaptureSession();
     setBatchExportProgress({ current: 0, total: tables.length, percent: 0 });
 
     // 2. Yield control to browser paint cycle so React renders the loading overlay instantly (0ms lag)
-    await new Promise(resolve => setTimeout(resolve, 40));
+    await new Promise(resolve => setTimeout(resolve, 20));
 
     const startTime = Date.now();
 
-    // Isolated dual worker containers: Cuts export duration in half without memory spikes
-    const CONCURRENCY = Math.min(tables.length, 2);
+    // High-throughput balanced worker pool (3-4 workers for instant rendering)
+    const hwCores = typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency || 4) : 4;
+    const CONCURRENCY = Math.min(tables.length, Math.max(3, Math.min(4, hwCores)));
+
     const workerContainers: HTMLElement[] = [];
+    const fragment = document.createDocumentFragment();
     for (let w = 0; w < CONCURRENCY; w++) {
       const wc = document.createElement('div');
       wc.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:hidden;pointer-events:none;z-index:-9999;contain:strict;background:#ffffff;';
-      document.body.appendChild(wc);
+      fragment.appendChild(wc);
       workerContainers.push(wc);
     }
+    document.body.appendChild(fragment);
 
     try {
       await ensureFontsReady();
       ensureSharedCaptureStyle();
 
-      // Lazy metadata list: do not clone DOM upfront
+      // Pre-clone and prepare all card frames upfront in one fast pass (< 10ms)
       const preparedCards = tables.map((element, idx) => {
         const rawName = element.id.replace('employee-detail-', '').trim();
         const cleanName = rawName.replace(/[/\\?%*:|"<>]/g, '_');
-        return { idx, rawName, cleanName, element };
+        const { frameWrapper } = buildCaptureFrame(element);
+        return { idx, rawName, cleanName, frameWrapper };
       });
 
       const zip = new JSZip();
       const failedNames: string[] = [];
-      const order: CaptureStrategy[] = ['domToPng', 'domToBlob', 'htmlToImage', 'html2canvas'];
+      const order: CaptureStrategy[] = ['htmlToImage', 'domToPng', 'html2canvas'];
 
       const reportProgress = (current: number, total: number) => {
         const percent = Math.round((current / total) * 100);
         setBatchExportProgress({ current, total, percent });
       };
 
-      // Crisp 1.25x scale (1400px width): 50% fewer pixels than 1.75x, renders 3x faster, perfectly sharp for UTM Avo fonts
+      // Crisp 1.25x scale (1400px width): ultra fast, sharp UTM Avo fonts
       const isLowSpec = typeof navigator !== 'undefined' && (
         (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ||
         ((navigator as any).deviceMemory && (navigator as any).deviceMemory <= 4) ||
@@ -912,11 +924,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
           if (cardIdx >= preparedCards.length) break;
 
           const card = preparedCards[cardIdx];
-          const { idx, rawName, cleanName, element } = card;
+          const { idx, rawName, cleanName, frameWrapper } = card;
 
           try {
-            // Lazy frame generation: Only hold currently rendering card in worker DOM
-            const { frameWrapper } = buildCaptureFrame(element);
             workerContainer.replaceChildren(frameWrapper);
 
             let result: Blob | string | null = null;
@@ -927,7 +937,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                 result = await Promise.race([
                   runCaptureStrategy(frameWrapper, strategy, exportScale),
                   new Promise<never>((_, reject) =>
-                    setTimeout(() => reject(new Error(`${strategy} timed out after 2.5s`)), 2500)
+                    setTimeout(() => reject(new Error(`${strategy} timed out after 5s`)), 5000)
                   ),
                 ]);
                 if (result) break;
@@ -953,19 +963,15 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
             console.error(`[Export] FAILED for "${rawName}" (card ${idx + 1}/${preparedCards.length}):`, err);
             failedNames.push(rawName);
           } finally {
-            // Free worker DOM memory immediately
             workerContainer.replaceChildren();
             completedCount++;
             reportProgress(completedCount, preparedCards.length);
-
-            // Fast micro-yield to browser event loop via requestAnimationFrame + setTimeout (10ms)
-            // Allows React to paint progress bar and perform GC without stalling UI
-            await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 10)));
+            await new Promise(resolve => setTimeout(resolve, 5));
           }
         }
       };
 
-      // Execute 2 workers concurrently
+      // Execute workers concurrently
       await Promise.all(workerContainers.map(wc => runWorker(wc)));
 
       // Final progress update
@@ -991,6 +997,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       showNotification('Có lỗi xảy ra khi xuất ảnh hàng loạt!', 'error');
     } finally {
       workerContainers.forEach(wc => wc.remove());
+      endCaptureSession();
       setIsCapturing(false);
       setBatchExportProgress(null);
     }
