@@ -445,7 +445,7 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
   const captureElementHelper = async (element: HTMLElement) => {
     ensureSharedCaptureStyle();
     const tempContainer = document.createElement('div');
-    tempContainer.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:hidden;pointer-events:none;z-index:-9999;contain:strict;background:#ffffff;';
+    tempContainer.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:hidden;pointer-events:none;z-index:-9999;background:#ffffff;';
 
     // Frame wrapper to ensure 100% white background and no clipping
     const frameWrapper = document.createElement('div');
@@ -457,6 +457,23 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
     // Physically remove interactive & non-capture elements
     clone.querySelectorAll('.no-capture, button, textarea, .capture-btn, input, select').forEach(el => el.remove());
     clone.style.cssText = "width:100%;min-width:100%;max-width:100%;height:auto;margin:0;padding:0;background-color:transparent;display:block;box-sizing:border-box;box-shadow:none;font-family:'UTM Avo', 'Inter', sans-serif;opacity:1;transform:none;";
+
+    // Zero-Shadow Export per AGENTS.md rule
+    clone.querySelectorAll('*').forEach(el => {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.style) {
+        htmlEl.style.boxShadow = 'none';
+        htmlEl.style.textShadow = 'none';
+        htmlEl.style.filter = 'none';
+      }
+      if (htmlEl.classList) {
+        Array.from(htmlEl.classList).forEach(cls => {
+          if (cls.startsWith('shadow') || cls.startsWith('drop-shadow') || cls.startsWith('ring')) {
+            htmlEl.classList.remove(cls);
+          }
+        });
+      }
+    });
 
     frameWrapper.appendChild(clone);
     tempContainer.appendChild(frameWrapper);
@@ -474,9 +491,11 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
           font: false,
           width: 1120,
           height: frameHeight,
+          drawImageInterval: 20,
           features: {
             removeControlCharacter: true,
             removeAbnormalAttributes: true,
+            fixSvgXmlDecode: true,
           }
         });
       } catch (domErr) {

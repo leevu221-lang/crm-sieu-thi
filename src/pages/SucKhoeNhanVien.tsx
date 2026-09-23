@@ -758,28 +758,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     }
   };
 
-  type CaptureStrategy = 'domToBlob' | 'domToPng' | 'htmlToImage' | 'html2canvas';
+  type CaptureStrategy = 'htmlToImage' | 'domToPng' | 'html2canvas';
 
-  const runCaptureStrategy = async (frameWrapper: HTMLElement, strategy: CaptureStrategy, scale: number = 1.25): Promise<Blob | string> => {
+  const runCaptureStrategy = async (frameWrapper: HTMLElement, strategy: CaptureStrategy, scale: number = 1.75): Promise<Blob | string> => {
     const frameHeight = frameWrapper.offsetHeight || frameWrapper.scrollHeight || 1200;
-    if (strategy === 'domToPng') {
-      const dataUrl = await domToPng(frameWrapper, {
-        backgroundColor: '#ffffff',
-        scale: scale,
-        font: false,
-        width: 1120,
-        height: frameHeight,
-        drawImageInterval: 0,
-        features: {
-          copyScrollbar: false,
-          removeControlCharacter: false,
-          removeAbnormalAttributes: false,
-          fixSvgXmlDecode: false,
-        },
-      });
-      if (!dataUrl) throw new Error('domToPng produced no dataUrl');
-      return dataUrl;
-    }
     if (strategy === 'htmlToImage') {
       const blob = await htmlToImage.toBlob(frameWrapper, {
         backgroundColor: '#ffffff',
@@ -795,23 +777,23 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       if (!blob || blob.size === 0) throw new Error('htmlToImage produced no blob');
       return blob;
     }
-    if (strategy === 'domToBlob') {
-      const blob = await domToBlob(frameWrapper, {
+    if (strategy === 'domToPng') {
+      const dataUrl = await domToPng(frameWrapper, {
         backgroundColor: '#ffffff',
         scale: scale,
         font: false,
         width: 1120,
         height: frameHeight,
-        drawImageInterval: 0,
+        drawImageInterval: 20,
         features: {
           copyScrollbar: false,
-          removeControlCharacter: false,
-          removeAbnormalAttributes: false,
-          fixSvgXmlDecode: false,
+          removeControlCharacter: true,
+          removeAbnormalAttributes: true,
+          fixSvgXmlDecode: true,
         },
       });
-      if (!blob || blob.size === 0) throw new Error('domToBlob produced empty blob');
-      return blob;
+      if (!dataUrl) throw new Error('domToPng produced no dataUrl');
+      return dataUrl;
     }
     const canvas = await html2canvas(frameWrapper, {
       scale: scale,
@@ -830,8 +812,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   // Builds the capture-ready frame wrapper for an employee detail card.
   // Optimizations:
   // 1. Relies on globally injected shared UTM Avo stylesheet from ensureSharedCaptureStyle().
-  // 2. Avoids inserting redundant 300KB base64 font styles per card to eliminate SVG font re-decoding overhead.
-  // 3. Physically strips non-export nodes (.remove()) to reduce DOM serialization tree by ~40%.
+  // 2. Physically strips non-export nodes (.remove()) to reduce DOM serialization tree by ~40%.
+  // 3. Zero-Shadow Export rule per AGENTS.md.
   const buildCaptureFrame = (element: HTMLElement): { frameWrapper: HTMLElement } => {
     ensureSharedCaptureStyle();
     const frameWrapper = document.createElement('div');
@@ -844,15 +826,32 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     clone.querySelectorAll('.no-capture, button, textarea, .capture-btn, input, select').forEach(el => el.remove());
     clone.style.cssText = "width:100%;min-width:100%;max-width:100%;height:auto;margin:0;padding:0;background-color:transparent;display:block;box-sizing:border-box;box-shadow:none;font-family:'UTM Avo', 'Inter', sans-serif;opacity:1;transform:none;";
 
+    // Zero-Shadow Export per AGENTS.md rule
+    clone.querySelectorAll('*').forEach(el => {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.style) {
+        htmlEl.style.boxShadow = 'none';
+        htmlEl.style.textShadow = 'none';
+        htmlEl.style.filter = 'none';
+      }
+      if (htmlEl.classList) {
+        Array.from(htmlEl.classList).forEach(cls => {
+          if (cls.startsWith('shadow') || cls.startsWith('drop-shadow') || cls.startsWith('ring')) {
+            htmlEl.classList.remove(cls);
+          }
+        });
+      }
+    });
+
     frameWrapper.appendChild(clone);
     return { frameWrapper };
   };
 
-  const DEFAULT_CAPTURE_ORDER: CaptureStrategy[] = ['domToPng', 'htmlToImage', 'domToBlob', 'html2canvas'];
+  const DEFAULT_CAPTURE_ORDER: CaptureStrategy[] = ['htmlToImage', 'domToPng', 'html2canvas'];
 
   const captureSingleEmployeeCard = async (element: HTMLElement, order: CaptureStrategy[] = DEFAULT_CAPTURE_ORDER): Promise<Blob | string> => {
     const tempContainer = document.createElement('div');
-    tempContainer.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:hidden;pointer-events:none;z-index:-9999;contain:strict;background:#ffffff;';
+    tempContainer.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:hidden;pointer-events:none;z-index:-9999;background:#ffffff;';
     const { frameWrapper } = buildCaptureFrame(element);
     tempContainer.appendChild(frameWrapper);
     document.body.appendChild(tempContainer);
@@ -885,62 +884,67 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     setBatchExportProgress({ current: 0, total: tables.length, percent: 0 });
 
     // 2. Yield control to browser paint cycle so React renders the loading overlay instantly (0ms lag)
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await new Promise(resolve => setTimeout(resolve, 30));
 
     const startTime = Date.now();
 
-    // Dual-worker pool with zero main-thread contention (ensures immediate tick from 0% in <80ms)
-    const CONCURRENCY = Math.min(tables.length, 2);
+    // Balanced worker pool (2 workers on mobile / low-spec, up to 3 on desktop)
+    const hwCores = typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency || 4) : 4;
+    const CONCURRENCY = Math.min(tables.length, Math.max(2, Math.min(3, hwCores)));
+
     const workerContainers: HTMLElement[] = [];
+    const fragment = document.createDocumentFragment();
     for (let w = 0; w < CONCURRENCY; w++) {
       const wc = document.createElement('div');
-      wc.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:hidden;pointer-events:none;z-index:-9999;contain:strict;background:#ffffff;';
-      document.body.appendChild(wc);
+      wc.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:hidden;pointer-events:none;z-index:-9999;background:#ffffff;';
+      fragment.appendChild(wc);
       workerContainers.push(wc);
     }
+    document.body.appendChild(fragment);
 
     try {
       await ensureFontsReady();
       ensureSharedCaptureStyle();
 
-      // Lazy metadata list: do not clone DOM upfront
+      // Pre-clone and prepare all card frames upfront in one fast pass (< 10ms)
       const preparedCards = tables.map((element, idx) => {
         const rawName = element.id.replace('employee-detail-', '').trim();
         const cleanName = rawName.replace(/[/\\?%*:|"<>]/g, '_');
-        return { idx, rawName, cleanName, element };
+        const { frameWrapper } = buildCaptureFrame(element);
+        return { idx, rawName, cleanName, frameWrapper };
       });
 
       const zip = new JSZip();
       const failedNames: string[] = [];
-      const order: CaptureStrategy[] = ['domToPng', 'htmlToImage', 'domToBlob', 'html2canvas'];
+      const order: CaptureStrategy[] = ['htmlToImage', 'domToPng', 'html2canvas'];
 
       const reportProgress = (current: number, total: number) => {
         const percent = Math.round((current / total) * 100);
         setBatchExportProgress({ current, total, percent });
       };
 
-      // Crisp 1.25x scale (1400px width): Fast, razor-sharp UTM Avo text
-      const exportScale = 1.25;
+      // Crisp 1.5x scale (1680px width) delivers crystal clear UTM Avo font, ultra fast rendering, light memory
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+      const exportScale = isMobile ? 1.5 : 1.75;
 
-      let nextCardIdx = 0;
+      let currentIndex = 0;
       let completedCount = 0;
 
-      const runWorker = async (workerContainer: HTMLElement, workerId: number) => {
-        // Stagger worker start by 15ms so both workers do not trigger simultaneous style recalculation
-        if (workerId > 0) {
-          await new Promise(resolve => setTimeout(resolve, workerId * 15));
+      const runWorker = async (workerIndex: number) => {
+        const workerContainer = workerContainers[workerIndex];
+        if (workerIndex > 0) {
+          // Stagger worker start by 25ms so workers do not clash during initial compile
+          await new Promise(resolve => setTimeout(resolve, workerIndex * 25));
         }
 
-        while (nextCardIdx < preparedCards.length) {
-          const cardIdx = nextCardIdx++;
+        while (currentIndex < preparedCards.length) {
+          const cardIdx = currentIndex++;
           if (cardIdx >= preparedCards.length) break;
 
           const card = preparedCards[cardIdx];
-          const { idx, rawName, cleanName, element } = card;
+          const { idx, rawName, cleanName, frameWrapper } = card;
 
           try {
-            // Lazy frame generation: Only hold currently rendering card in worker DOM
-            const { frameWrapper } = buildCaptureFrame(element);
             workerContainer.replaceChildren(frameWrapper);
 
             let result: Blob | string | null = null;
@@ -951,7 +955,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                 result = await Promise.race([
                   runCaptureStrategy(frameWrapper, strategy, exportScale),
                   new Promise<never>((_, reject) =>
-                    setTimeout(() => reject(new Error(`${strategy} timed out after 1.5s`)), 1500)
+                    setTimeout(() => reject(new Error(`${strategy} timed out after 12s`)), 12000)
                   ),
                 ]);
                 if (result) break;
@@ -965,7 +969,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
               throw lastErr instanceof Error ? lastErr : new Error('Capture failed');
             }
 
-            // Directly append to JSZip without blocking JavaScript thread
+            // Directly append to JSZip
             const fileName = `ChiTiet_${String(idx + 1).padStart(2, '0')}_${cleanName}.png`;
             if (result instanceof Blob) {
               zip.file(fileName, result);
@@ -977,24 +981,24 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
             console.error(`[Export] FAILED for "${rawName}" (card ${idx + 1}/${preparedCards.length}):`, err);
             failedNames.push(rawName);
           } finally {
-            // Free worker DOM memory immediately
+            // Free worker container DOM memory immediately
             workerContainer.replaceChildren();
             completedCount++;
             reportProgress(completedCount, preparedCards.length);
 
-            // Fast micro-yield to browser event loop via requestAnimationFrame (0ms latency, paints progress bar smoothly)
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            // Micro-yield to browser event loop so progress bar updates smoothly on screen
+            await new Promise(resolve => setTimeout(resolve, 15));
           }
         }
       };
 
-      // Execute 2 workers concurrently with staggered startup
-      await Promise.all(workerContainers.map((wc, idx) => runWorker(wc, idx)));
+      // Execute workers concurrently
+      await Promise.all(workerContainers.map((_, idx) => runWorker(idx)));
 
       // Final progress update
       reportProgress(preparedCards.length, preparedCards.length);
 
-      // Instantaneous STORE compression (PNGs are already compressed)
+      // Fast STORE compression (images are already PNG compressed)
       const content = await zip.generateAsync({
         type: "blob",
         compression: "STORE"
