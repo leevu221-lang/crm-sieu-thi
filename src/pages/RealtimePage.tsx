@@ -90,7 +90,6 @@ import { useStore } from '../contexts/StoreContext';
 import { useRealtimeData } from './RTST/hooks/useRealtimeData';
 import { ImagePreviewModal } from '../components/ImagePreviewModal';
 import { CaptureLoadingOverlay } from '../components/CaptureLoadingOverlay';
-import { AutoFitTable } from '../components/AutoFitTable';
 import { ConfigNhomHangModal } from '../components/ConfigNhomHangModal';
 import { ConfigBaoHiemModal, BaoHiemRule } from '../components/ConfigBaoHiemModal';
 import { ConfigExclusionModal, ExclusionRule } from '../components/ConfigExclusionModal';
@@ -107,7 +106,6 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
 import { addWhiteBorderToDataUrl } from '../utils/imageBorderUtil';
-import { startCaptureSession, endCaptureSession } from '../utils/captureUtil';
 import { isValidStoreName, normalize, normalizeStoreId } from './RTST/utils';
 
 const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: boolean, onClick: () => void, icon: any, label: string, count?: number }) => (
@@ -2886,8 +2884,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const clone = element.cloneNode(true) as HTMLElement;
 
     try {
-      // Add screenshot classes to trigger global screenshot styles
-      startCaptureSession();
+      // Add the body class to trigger global screenshot styles
+      document.body.classList.add('capturing-screenshot');
 
       // 3. Preserve input values and convert inputs/textareas to styled text in the clone
       const origInputs = Array.from(element.querySelectorAll('input, textarea'));
@@ -3297,7 +3295,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       if (document.body.contains(tempContainer)) {
         document.body.removeChild(tempContainer);
       }
-      endCaptureSession();
+      document.body.classList.remove('capturing-screenshot');
     }
   };
 
@@ -4600,7 +4598,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
     try {
       setIsCapturing(true);
-      startCaptureSession();
+      document.body.classList.add('capturing-screenshot');
       if (document.fonts) {
         await document.fonts.ready;
       }
@@ -4649,20 +4647,6 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         htmlEl.style.minHeight = '0px';
         htmlEl.style.maxHeight = 'none';
         htmlEl.style.flexGrow = '0';
-      });
-
-      // Expand and unwrap AutoFitTable elements to avoid shrunk capture
-      const autofitEls = element.querySelectorAll('.autofit-sizing-box, .autofit-content-box, .autofit-table-container, [data-autofit-sizing], [data-autofit-content], [data-autofit-container]');
-      autofitEls.forEach(el => {
-        const htmlEl = el as HTMLElement;
-        savedStyles.push({ el: htmlEl, cssText: htmlEl.style.cssText });
-        htmlEl.style.width = 'max-content';
-        htmlEl.style.minWidth = '100%';
-        htmlEl.style.maxWidth = 'none';
-        htmlEl.style.height = 'auto';
-        htmlEl.style.position = 'static';
-        htmlEl.style.overflow = 'visible';
-        htmlEl.style.transform = 'none';
       });
 
       // Force all tables inside element to full natural width
@@ -4752,11 +4736,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         classes.forEach(c => el.classList.add(c));
       });
 
-      endCaptureSession();
+      document.body.classList.remove('capturing-screenshot');
       setPreviewImage(dataUrl);
     } catch (error) {
       console.error('Lỗi khi chụp ảnh direct:', error);
-      endCaptureSession();
+      document.body.classList.remove('capturing-screenshot');
     } finally {
       setIsCapturing(false);
     }
@@ -6106,17 +6090,17 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 </div>
                               )}
 
-                              <AutoFitTable minWidth={showOrangeCols ? (showLuykeColumn ? 560 : 495) : 410} className="w-full grow rounded-2xl border border-emerald-300/80">
-                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, minWidth: showOrangeCols ? (showLuykeColumn ? '560px' : '495px') : '410px' }}>
+                              <div className="overflow-x-auto w-full rounded-2xl border border-emerald-300/80">
+                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, minWidth: '600px' }}>
                                   <colgroup>
-                                    <col style={{ width: '38px' }} />
+                                    <col style={{ width: '40px' }} />
                                     <col style={{ width: 'auto' }} />
-                                    <col style={{ width: '62px' }} />
-                                    <col style={{ width: '54px' }} />
-                                    <col style={{ width: '54px' }} />
-                                    <col style={{ width: '54px' }} />
-                                    {showOrangeCols && showLuykeColumn && <col style={{ width: '64px' }} />}
-                                    {showOrangeCols && <col style={{ width: '70px' }} />}
+                                    <col style={{ width: '68px' }} />
+                                    <col style={{ width: '58px' }} />
+                                    <col style={{ width: '58px' }} />
+                                    <col style={{ width: '58px' }} />
+                                    {showOrangeCols && showLuykeColumn && <col style={{ width: '68px' }} />}
+                                    {showOrangeCols && <col style={{ width: '75px' }} />}
                                   </colgroup>
                                   <thead>
                                     <tr className="text-white h-[46px]">
@@ -6146,38 +6130,32 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         const remaining = cat.target - cat.revenue;
                                         const isEven = idx % 2 === 0;
                                         return (
-                                          <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors min-h-[40px] h-auto`}>
-                                            <td className={`px-1 py-1 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40 whitespace-nowrap overflow-hidden`}>{idx + 1}</td>
-                                            <td
-                                              className={`px-2 py-1 ${isUser43751 ? 'text-[14px]' : 'text-[12px] sm:text-[12.5px]'} font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 leading-snug tracking-tight whitespace-normal break-words cell-wrap-text overflow-hidden`}
-                                              style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'break-word' }}
-                                              title={cat.name}
-                                            >
-                                              {cat.name}
-                                            </td>
-                                            <td className={`px-1 py-1 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-slate-800 whitespace-nowrap overflow-hidden`}>{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
-                                            <td className={`px-1 py-1 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-r border-b border-emerald-100/90 text-emerald-700 whitespace-nowrap overflow-hidden`}>{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
-                                            <td className="px-0.5 py-1 text-center border-r border-b border-emerald-100/90 whitespace-nowrap overflow-hidden">
+                                          <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40`}>{idx + 1}</td>
+                                            <td className={`px-2 py-0.5 ${isUser43751 ? 'text-[14px]' : 'text-[12.5px]'} font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 leading-snug tracking-tight`} title={cat.name}>{cat.name}</td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-slate-800`}>{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-r border-b border-emerald-100/90 text-emerald-700`}>{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
+                                            <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
                                               <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black leading-none ${isUser43751 ? 'text-[12.5px] sm:text-[14px]' : 'text-[11.5px] sm:text-[13px]'} ${Math.round(cat.rate || 0) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
                                                 {Math.round(cat.rate || 0)}%
                                               </span>
                                             </td>
-                                            <td className={`px-1 py-1 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-rose-600 whitespace-nowrap overflow-hidden`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-rose-600`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
                                             {showOrangeCols && showLuykeColumn && (
-                                              <td className={`px-1 py-1 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-purple-700 whitespace-nowrap overflow-hidden`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                              <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-purple-700`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
                                             )}
                                             {showOrangeCols && (() => {
                                               const lkCat = luykeCatMap.get(lkKey);
-                                              if (!lkCat || lkCat.target === 0) return <td className={`px-1 py-1 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b border-emerald-100/90 text-slate-400 whitespace-nowrap overflow-hidden`}></td>;
+                                              if (!lkCat || lkCat.target === 0) return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b border-emerald-100/90 text-slate-400`}></td>;
                                               const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
-                                              return <td className={`px-1 py-1 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b border-emerald-100/90 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'} whitespace-nowrap overflow-hidden`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                              return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b border-emerald-100/90 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
                                             })()}
                                           </tr>
                                         );
                                       }))}
                                   </tbody>
                                 </table>
-                              </AutoFitTable>
+                              </div>
                             </div>
 
                             {/* Right Table: DTLK */}
@@ -6264,17 +6242,17 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 </div>
                               )}
 
-                              <AutoFitTable minWidth={showOrangeCols ? (showLuykeColumn ? 560 : 495) : 410} className="w-full grow rounded-2xl border border-emerald-300/80">
-                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, minWidth: showOrangeCols ? (showLuykeColumn ? '560px' : '495px') : '410px' }}>
+                              <div className="overflow-x-auto w-full rounded-2xl border border-emerald-300/80">
+                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, minWidth: '600px' }}>
                                   <colgroup>
-                                    <col style={{ width: '38px' }} />
+                                    <col style={{ width: '40px' }} />
                                     <col style={{ width: 'auto' }} />
-                                    <col style={{ width: '62px' }} />
-                                    <col style={{ width: '54px' }} />
-                                    <col style={{ width: '54px' }} />
-                                    <col style={{ width: '54px' }} />
-                                    {showOrangeCols && showLuykeColumn && <col style={{ width: '64px' }} />}
-                                    {showOrangeCols && <col style={{ width: '70px' }} />}
+                                    <col style={{ width: '68px' }} />
+                                    <col style={{ width: '58px' }} />
+                                    <col style={{ width: '58px' }} />
+                                    <col style={{ width: '58px' }} />
+                                    {showOrangeCols && showLuykeColumn && <col style={{ width: '68px' }} />}
+                                    {showOrangeCols && <col style={{ width: '75px' }} />}
                                   </colgroup>
                                   <thead>
                                     <tr className="text-white h-[46px]">
@@ -6304,38 +6282,32 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         const remaining = cat.target - cat.revenue;
                                         const isEven = idx % 2 === 0;
                                         return (
-                                          <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors min-h-[40px] h-auto`}>
-                                            <td className={`px-1 py-1 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40 whitespace-nowrap overflow-hidden`}>{idx + 1}</td>
-                                            <td
-                                              className={`px-2 py-1 ${isUser43751 ? 'text-[14px]' : 'text-[12px] sm:text-[12.5px]'} font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 leading-snug tracking-tight whitespace-normal break-words cell-wrap-text overflow-hidden`}
-                                              style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'break-word' }}
-                                              title={cat.name}
-                                            >
-                                              {cat.name}
-                                            </td>
-                                            <td className={`px-1 py-1 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-slate-800 whitespace-nowrap overflow-hidden`}>{Math.round(cat.target).toLocaleString()}</td>
-                                            <td className={`px-1 py-1 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-r border-b border-emerald-100/90 text-emerald-700 whitespace-nowrap overflow-hidden`}>{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
-                                            <td className="px-0.5 py-1 text-center border-r border-b border-emerald-100/90 whitespace-nowrap overflow-hidden">
+                                          <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40`}>{idx + 1}</td>
+                                            <td className={`px-2 py-0.5 ${isUser43751 ? 'text-[14px]' : 'text-[12.5px]'} font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 leading-snug tracking-tight`} title={cat.name}>{cat.name}</td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-slate-800`}>{Math.round(cat.target).toLocaleString()}</td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-r border-b border-emerald-100/90 text-emerald-700`}>{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                            <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
                                               <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black leading-none ${isUser43751 ? 'text-[12.5px] sm:text-[14px]' : 'text-[11.5px] sm:text-[13px]'} ${Math.round(cat.rate || 0) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
                                                 {Math.round(cat.rate || 0)}%
                                               </span>
                                             </td>
-                                            <td className={`px-1 py-1 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-rose-600 whitespace-nowrap overflow-hidden`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-rose-600`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
                                             {showOrangeCols && showLuykeColumn && (
-                                              <td className={`px-1 py-1 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-purple-700 whitespace-nowrap overflow-hidden`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                              <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-purple-700`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
                                             )}
                                             {showOrangeCols && (() => {
                                               const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
-                                              if (!lkCat || lkCat.target === 0) return <td className={`px-1 py-1 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b border-emerald-100/90 text-slate-400 whitespace-nowrap overflow-hidden`}></td>;
+                                              if (!lkCat || lkCat.target === 0) return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b border-emerald-100/90 text-slate-400`}></td>;
                                               const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
-                                              return <td className={`px-1 py-1 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b border-emerald-100/90 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'} whitespace-nowrap overflow-hidden`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                              return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b border-emerald-100/90 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
                                             })()}
                                           </tr>
                                         );
                                       }))}
                                   </tbody>
                                 </table>
-                              </AutoFitTable>
+                              </div>
                             </div>
                           </div>
                         </div>

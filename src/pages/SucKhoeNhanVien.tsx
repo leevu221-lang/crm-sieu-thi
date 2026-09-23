@@ -12,7 +12,6 @@ import * as htmlToImage from 'html-to-image';
 import { domToPng, domToBlob } from 'modern-screenshot';
 import html2canvas from 'html2canvas';
 import { ensureFontsReady, EXPORT_FONT_STYLE, ensureSharedCaptureStyle, getPreloadedFontCss } from '../utils/fontExportUtil';
-import { prepareCloneForCapture, startCaptureSession, endCaptureSession } from '../utils/captureUtil';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -565,29 +564,18 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
     const isCompactTab = isDoanhThuNvTab || isPhucVuTab || isBanKemTab || isTraChamTab;
 
-    // Detect natural desktop width from AutoFitTable if present
-    const autofitContent = element.querySelector('.autofit-content-box, [data-autofit-content]') as HTMLElement;
-    let autofitNaturalW = 0;
-    if (autofitContent) {
-      const styleW = parseInt(autofitContent.style.width || autofitContent.style.minWidth || '0', 10);
-      autofitNaturalW = styleW || 0;
-    }
-
     let compactWidth = 900;
     if (isDoanhThuNvTab) compactWidth = 900;
-    else if (isPhucVuTab) compactWidth = Math.max(860, sumColWidths > 0 ? sumColWidths + 20 : 860, autofitNaturalW);
-    else if (isBanKemTab) compactWidth = Math.max(840, sumColWidths > 0 ? sumColWidths + 20 : 840, autofitNaturalW);
-    else if (isTraChamTab) compactWidth = Math.max(800, sumColWidths > 0 ? sumColWidths + 20 : 800, autofitNaturalW);
+    else if (isPhucVuTab) compactWidth = Math.max(860, sumColWidths > 0 ? sumColWidths + 20 : 860);
+    else if (isBanKemTab) compactWidth = Math.max(840, sumColWidths > 0 ? sumColWidths + 20 : 840);
+    else if (isTraChamTab) compactWidth = Math.max(800, sumColWidths > 0 ? sumColWidths + 20 : 800);
 
     // Auto-fit content width: For compact tabs, lock to their designated width matching web layout.
     // For other tabs, Desktop base 980px or expand to exact sum of column widths / scrollWidth.
-    const actualContentWidth = isCompactTab ? compactWidth : Math.max(980, sumColWidths, autofitNaturalW, maxScrollWidth);
+    const actualContentWidth = isCompactTab ? compactWidth : Math.max(980, sumColWidths, maxScrollWidth);
     const framePadding = isCompactTab ? 16 : 20;
     const totalExportWidth = actualContentWidth + framePadding * 2;
     
-    // Add capturing-screenshot class to html and body
-    startCaptureSession();
-
     // Create a temporary container to hold the clone
     const tempContainer = document.createElement('div');
     tempContainer.style.position = 'absolute';
@@ -599,7 +587,6 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     tempContainer.style.zIndex = '-9999';
     tempContainer.style.pointerEvents = 'none';
     tempContainer.style.backgroundColor = '#ffffff';
-    (tempContainer.style as any).zoom = '1';
 
     // Frame wrapper to ensure zero shadow, seamless border and generous white padding
     const frameWrapper = document.createElement('div');
@@ -615,17 +602,28 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
     const clone = element.cloneNode(true) as HTMLElement;
 
-    // Use our comprehensive capture preparation:
-    // 1. Removes no-capture buttons
-    // 2. Strips all shadows (Zero-shadow rule)
-    // 3. Unwraps AutoFitTable (removes transform: scale, locked width/height)
-    // 4. Expands scroll containers
-    // 5. Removes sticky
-    // 6. Detects and preserves custom font (Plus Jakarta Sans, Lexend...)
-    const { detectedFont, isCustomFont } = prepareCloneForCapture(clone, element, {
-      preserveTableLayout: true,
-      targetWidth: actualContentWidth,
-      defaultFont: "'UTM Avo', 'Inter', sans-serif"
+    // Hide buttons/controls inside the clone
+    const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, .capture-btn, input, select');
+    noCaptureElements.forEach(el => {
+      (el as HTMLElement).style.display = 'none';
+    });
+
+    // Triệt tiêu hoàn toàn bóng mờ (Zero-Shadow Export Rule)
+    const allElements = clone.querySelectorAll('*');
+    allElements.forEach(el => {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.style) {
+        htmlEl.style.boxShadow = 'none';
+        htmlEl.style.textShadow = 'none';
+        htmlEl.style.filter = 'none';
+      }
+      if (htmlEl.classList) {
+        Array.from(htmlEl.classList).forEach(cls => {
+          if (cls.startsWith('shadow') || cls.startsWith('drop-shadow')) {
+            htmlEl.classList.remove(cls);
+          }
+        });
+      }
     });
 
     if (!isCompactTab) {
@@ -650,7 +648,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       });
     }
 
-    // Set clone styling to take full layout unconstrained with faithful font
+    // Set clone styling to take full layout unconstrained with UTM Avo Black font
     clone.style.width = `${actualContentWidth}px`;
     clone.style.minWidth = `${actualContentWidth}px`;
     clone.style.maxWidth = `${actualContentWidth}px`;
@@ -662,7 +660,20 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     clone.style.boxSizing = 'border-box';
     clone.style.borderRadius = '0px';
     clone.style.boxShadow = 'none';
-    clone.style.fontFamily = detectedFont;
+    clone.style.fontFamily = "'UTM Avo', 'Inter', sans-serif";
+
+    // Make sure overflow wrappers in the clone are visible and fill full width
+    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+    scrollContainers.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.overflow = 'visible';
+      htmlEl.style.width = '100%';
+      htmlEl.style.minWidth = '100%';
+      htmlEl.style.height = 'auto';
+      htmlEl.style.maxWidth = 'none';
+      htmlEl.style.maxHeight = 'none';
+      el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
+    });
 
     // Force all tables to stretch cleanly inside their parent card
     const tables = clone.querySelectorAll('table');
@@ -692,25 +703,40 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       }
     });
 
+    // Remove sticky positioning (causes rendering issues in capture)
+    const stickyEls = clone.querySelectorAll('.sticky, [style*="sticky"]');
+    stickyEls.forEach(el => {
+      (el as HTMLElement).style.position = 'relative';
+      (el as HTMLElement).style.left = 'auto';
+      (el as HTMLElement).style.zIndex = 'auto';
+    });
+
+    // Force hide all scrollbars in the captured image
+    const hideScrollbarStyle = document.createElement('style');
+    hideScrollbarStyle.innerHTML = `
+      *::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+      }
+      * {
+        -ms-overflow-style: none !important;
+        scrollbar-width: none !important;
+      }
+    `;
+    clone.appendChild(hideScrollbarStyle);
+
     frameWrapper.appendChild(clone);
     tempContainer.appendChild(frameWrapper);
     document.body.appendChild(tempContainer);
 
     try {
-      if (!isCustomFont) {
-        // Ensure UTM Avo font is fully loaded before export
-        await ensureFontsReady();
-      }
+      // ★ Ensure UTM Avo font is fully loaded before export
+      await ensureFontsReady();
       await new Promise(r => setTimeout(r, 200));
 
       const finalCaptureWidth = totalExportWidth;
       const finalCaptureHeight = frameWrapper.offsetHeight || frameWrapper.scrollHeight;
-
-      const fontOptions = isCustomFont ? {
-        fontFamily: detectedFont,
-        fontSmooth: 'always',
-        WebkitFontSmoothing: 'antialiased',
-      } : EXPORT_FONT_STYLE;
 
       const dataUrl = await htmlToImage.toPng(frameWrapper, {
         backgroundColor: '#ffffff',
@@ -724,22 +750,34 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
           transformOrigin: 'top left',
           width: `${finalCaptureWidth}px`,
           height: `${finalCaptureHeight}px`,
-          ...fontOptions,
+          ...EXPORT_FONT_STYLE,
         }
       });
       return dataUrl;
     } finally {
-      endCaptureSession();
-      if (tempContainer.parentNode) {
-        tempContainer.parentNode.removeChild(tempContainer);
-      }
+      document.body.removeChild(tempContainer);
     }
   };
 
-  type CaptureStrategy = 'htmlToImage' | 'domToPng' | 'domToBlob' | 'html2canvas';
+  type CaptureStrategy = 'domToBlob' | 'domToPng' | 'htmlToImage' | 'html2canvas';
 
   const runCaptureStrategy = async (frameWrapper: HTMLElement, strategy: CaptureStrategy, scale: number = 1.25): Promise<Blob | string> => {
     const frameHeight = frameWrapper.offsetHeight || frameWrapper.scrollHeight || 1200;
+    if (strategy === 'domToPng') {
+      const dataUrl = await domToPng(frameWrapper, {
+        backgroundColor: '#ffffff',
+        scale: scale,
+        font: false,
+        width: 1120,
+        height: frameHeight,
+        features: {
+          removeControlCharacter: false,
+          removeAbnormalAttributes: false,
+        },
+      });
+      if (!dataUrl) throw new Error('domToPng produced no dataUrl');
+      return dataUrl;
+    }
     if (strategy === 'htmlToImage') {
       const blob = await htmlToImage.toBlob(frameWrapper, {
         backgroundColor: '#ffffff',
@@ -755,24 +793,6 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       if (!blob || blob.size === 0) throw new Error('htmlToImage produced no blob');
       return blob;
     }
-    if (strategy === 'domToPng') {
-      const dataUrl = await domToPng(frameWrapper, {
-        backgroundColor: '#ffffff',
-        scale: scale,
-        font: false,
-        width: 1120,
-        height: frameHeight,
-        drawImageInterval: 0,
-        features: {
-          copyScrollbar: false,
-          removeControlCharacter: false,
-          removeAbnormalAttributes: false,
-          fixSvgXmlDecode: false,
-        },
-      });
-      if (!dataUrl) throw new Error('domToPng produced no dataUrl');
-      return dataUrl;
-    }
     if (strategy === 'domToBlob') {
       const blob = await domToBlob(frameWrapper, {
         backgroundColor: '#ffffff',
@@ -780,12 +800,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         font: false,
         width: 1120,
         height: frameHeight,
-        drawImageInterval: 0,
         features: {
-          copyScrollbar: false,
           removeControlCharacter: false,
           removeAbnormalAttributes: false,
-          fixSvgXmlDecode: false,
         },
       });
       if (!blob || blob.size === 0) throw new Error('domToBlob produced empty blob');
@@ -817,10 +834,6 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     frameWrapper.style.cssText = 'width:1120px;min-width:1120px;max-width:1120px;padding:20px;background-color:#ffffff;box-sizing:border-box;border-radius:24px;box-shadow:none;display:block;';
 
     const clone = element.cloneNode(true) as HTMLElement;
-    prepareCloneForCapture(clone, element, {
-      preserveTableLayout: true,
-      defaultFont: "'UTM Avo', 'Inter', sans-serif"
-    });
 
     // Physically purge non-capture elements (buttons, toolbars, inputs)
     clone.querySelectorAll('.no-capture, button, textarea, .capture-btn, input, select').forEach(el => el.remove());
@@ -830,7 +843,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     return { frameWrapper };
   };
 
-  const DEFAULT_CAPTURE_ORDER: CaptureStrategy[] = ['htmlToImage', 'domToPng', 'html2canvas'];
+  const DEFAULT_CAPTURE_ORDER: CaptureStrategy[] = ['domToPng', 'domToBlob', 'htmlToImage', 'html2canvas'];
 
   const captureSingleEmployeeCard = async (element: HTMLElement, order: CaptureStrategy[] = DEFAULT_CAPTURE_ORDER): Promise<Blob | string> => {
     const tempContainer = document.createElement('div');
@@ -864,50 +877,44 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
     // 1. Immediately activate capturing state & initialize progress counter
     setIsCapturing(true);
-    startCaptureSession();
     setBatchExportProgress({ current: 0, total: tables.length, percent: 0 });
 
     // 2. Yield control to browser paint cycle so React renders the loading overlay instantly (0ms lag)
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await new Promise(resolve => setTimeout(resolve, 40));
 
     const startTime = Date.now();
 
-    // High-throughput balanced worker pool (3-4 workers for instant rendering)
-    const hwCores = typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency || 4) : 4;
-    const CONCURRENCY = Math.min(tables.length, Math.max(3, Math.min(4, hwCores)));
-
+    // Isolated dual worker containers: Cuts export duration in half without memory spikes
+    const CONCURRENCY = Math.min(tables.length, 2);
     const workerContainers: HTMLElement[] = [];
-    const fragment = document.createDocumentFragment();
     for (let w = 0; w < CONCURRENCY; w++) {
       const wc = document.createElement('div');
       wc.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:hidden;pointer-events:none;z-index:-9999;contain:strict;background:#ffffff;';
-      fragment.appendChild(wc);
+      document.body.appendChild(wc);
       workerContainers.push(wc);
     }
-    document.body.appendChild(fragment);
 
     try {
       await ensureFontsReady();
       ensureSharedCaptureStyle();
 
-      // Pre-clone and prepare all card frames upfront in one fast pass (< 10ms)
+      // Lazy metadata list: do not clone DOM upfront
       const preparedCards = tables.map((element, idx) => {
         const rawName = element.id.replace('employee-detail-', '').trim();
         const cleanName = rawName.replace(/[/\\?%*:|"<>]/g, '_');
-        const { frameWrapper } = buildCaptureFrame(element);
-        return { idx, rawName, cleanName, frameWrapper };
+        return { idx, rawName, cleanName, element };
       });
 
       const zip = new JSZip();
       const failedNames: string[] = [];
-      const order: CaptureStrategy[] = ['htmlToImage', 'domToPng', 'html2canvas'];
+      const order: CaptureStrategy[] = ['domToPng', 'domToBlob', 'htmlToImage', 'html2canvas'];
 
       const reportProgress = (current: number, total: number) => {
         const percent = Math.round((current / total) * 100);
         setBatchExportProgress({ current, total, percent });
       };
 
-      // Crisp 1.25x scale (1400px width): ultra fast, sharp UTM Avo fonts
+      // Crisp 1.25x scale (1400px width): 50% fewer pixels than 1.75x, renders 3x faster, perfectly sharp for UTM Avo fonts
       const isLowSpec = typeof navigator !== 'undefined' && (
         (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ||
         ((navigator as any).deviceMemory && (navigator as any).deviceMemory <= 4) ||
@@ -924,9 +931,11 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
           if (cardIdx >= preparedCards.length) break;
 
           const card = preparedCards[cardIdx];
-          const { idx, rawName, cleanName, frameWrapper } = card;
+          const { idx, rawName, cleanName, element } = card;
 
           try {
+            // Lazy frame generation: Only hold currently rendering card in worker DOM
+            const { frameWrapper } = buildCaptureFrame(element);
             workerContainer.replaceChildren(frameWrapper);
 
             let result: Blob | string | null = null;
@@ -937,7 +946,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                 result = await Promise.race([
                   runCaptureStrategy(frameWrapper, strategy, exportScale),
                   new Promise<never>((_, reject) =>
-                    setTimeout(() => reject(new Error(`${strategy} timed out after 5s`)), 5000)
+                    setTimeout(() => reject(new Error(`${strategy} timed out after 2.5s`)), 2500)
                   ),
                 ]);
                 if (result) break;
@@ -963,15 +972,19 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
             console.error(`[Export] FAILED for "${rawName}" (card ${idx + 1}/${preparedCards.length}):`, err);
             failedNames.push(rawName);
           } finally {
+            // Free worker DOM memory immediately
             workerContainer.replaceChildren();
             completedCount++;
             reportProgress(completedCount, preparedCards.length);
-            await new Promise(resolve => setTimeout(resolve, 5));
+
+            // Fast micro-yield to browser event loop via requestAnimationFrame + setTimeout (10ms)
+            // Allows React to paint progress bar and perform GC without stalling UI
+            await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 10)));
           }
         }
       };
 
-      // Execute workers concurrently
+      // Execute 2 workers concurrently
       await Promise.all(workerContainers.map(wc => runWorker(wc)));
 
       // Final progress update
@@ -997,7 +1010,6 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       showNotification('Có lỗi xảy ra khi xuất ảnh hàng loạt!', 'error');
     } finally {
       workerContainers.forEach(wc => wc.remove());
-      endCaptureSession();
       setIsCapturing(false);
       setBatchExportProgress(null);
     }
@@ -5653,36 +5665,29 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="bg-[#fafdfb] rounded-[32px] p-4 sm:p-6 shadow-xl shadow-emerald-900/5 border border-emerald-100 max-w-full mx-auto w-full relative overflow-hidden"
-                  style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}
+                  className="bg-white rounded-[32px] p-6 shadow-xl shadow-slate-200/50 border border-slate-100 max-w-full mx-auto w-full relative overflow-hidden"
                 >
                   {renderLoadingOverlay()}
                   
                   <div className="w-full">
-                    {/* Header Controls - Pastel Mint Theme */}
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
                       <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 bg-[#e6f7ef] text-[#059669] border border-[#a7f3d0] rounded-2xl flex items-center justify-center shadow-xs">
-                          <Clock size={22} />
+                        <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
+                          <Clock size={20} />
                         </div>
                         <div>
-                          <h3 style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }} className="text-[#064e3b] uppercase tracking-tight text-[20px] sm:text-[24px] font-black">
-                            LK TRẢ CHẬM NHÂN VIÊN
-                          </h3>
-                          <p className="text-xs text-[#065f46]/80 font-bold uppercase tracking-wider mt-0.5" style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}>
-                            Dữ liệu hiệu quả trả góp từ Web BI ({parsedTraChamRows.length} nhân viên)
-                          </p>
+                          <h3 style={{ fontFamily: 'var(--font-sans)', fontSize: '24px', fontWeight: '900' }} className="text-slate-800 uppercase tracking-widest font-sans font-black">LK TRẢ CHẬM NHÂN VIÊN</h3>
+                          <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">Dữ liệu hiệu quả trả góp từ Web BI ({parsedTraChamRows.length} nhân viên)</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         {traChamPartners.length > 0 && (
                           <button
                             onClick={() => setShowFullTraChamPartners(p => !p)}
-                            style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}
-                            className={`no-capture flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-xs active:scale-95 cursor-pointer border ${
+                            className={`no-capture flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer ${
                               showFullTraChamPartners
-                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                : 'bg-white text-[#065f46] hover:bg-emerald-50 border-[#a7f3d0]'
+                                ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300'
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
                             }`}
                           >
                             <LayoutGrid size={14} />
@@ -5692,149 +5697,102 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                         {parsedTraChamRows.length > 0 && (
                           <button
                             onClick={handleOpenTraChamComment}
-                            style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}
-                            className="no-capture flex items-center gap-1.5 px-4 py-2.5 bg-white hover:bg-emerald-50 text-[#065f46] border border-[#a7f3d0] rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-xs active:scale-95 cursor-pointer"
+                            className="no-capture flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer"
                           >
-                            <Sparkles size={14} className="text-emerald-500 animate-pulse" />
+                            <Sparkles size={14} className="animate-pulse" />
                             <span>NHẬN XÉT</span>
                           </button>
                         )}
                         <button
                           onClick={handleCaptureTraCham}
-                          style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}
-                          className="flex items-center gap-2 px-5 py-2.5 bg-[#059669] hover:bg-[#047857] text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer"
+                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer"
                         >
-                          <Camera size={16} /> CHỤP ẢNH BẢNG
+                          <Camera size={15} /> CHỤP ẢNH BẢNG
                         </button>
                       </div>
                     </div>
 
+
+
                     <div
                       ref={captureTraChamRef}
-                      className="bg-white rounded-[28px] w-full border-2 border-[#bbf7d0] overflow-hidden shadow-xs"
-                      style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}
+                      className="bg-white rounded-2xl w-full border border-slate-200 overflow-hidden shadow-sm"
                     >
                       {parsedTraChamRows.length > 0 ? (
                         <>
-                          {/* Header Banner - Pastel Mint Gradient (Hình 2 Style) */}
-                          <div className="bg-gradient-to-r from-[#e6f7ef] via-[#edfbf4] to-[#e6f7ef] p-4 sm:p-5 text-center flex flex-col items-center justify-center border-b border-[#bbf7d0]">
-                            <div className="flex items-center justify-center gap-2.5">
-                              <span className="text-2xl drop-shadow-xs">📋</span>
-                              <h2 className="text-[20px] sm:text-[24px] md:text-[27px] text-[#064e3b] font-black uppercase tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}>
-                                TRẢ CHẬM NHÂN VIÊN
-                              </h2>
-                            </div>
-                            <div className="mt-2.5 inline-flex items-center gap-2 bg-white px-4 py-1.5 rounded-full border border-[#a7f3d0] shadow-2xs">
-                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
-                              <span className="text-[11.5px] sm:text-[12px] text-[#065f46] font-extrabold uppercase tracking-wide" style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}>
-                                Luỹ kế tháng &nbsp;•&nbsp; TGSD: {daysPassed}/{totalDays} &nbsp;•&nbsp; {parsedTraChamRows.length} Nhân viên
-                              </span>
-                            </div>
+                          {/* Header Banner - Emerald gradient */}
+                          <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] text-white p-3.5 sm:p-4 text-center flex flex-col items-center justify-center">
+                            <h2 className="text-[19px] sm:text-[23px] md:text-[26px] text-[#FEF08A] font-black uppercase tracking-tight" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
+                              TRẢ CHẬM NHÂN VIÊN
+                            </h2>
+                            <p className="text-[11px] sm:text-[12px] text-white/80 font-bold mt-1" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
+                              ⚡ Luỹ kế tháng &nbsp;||&nbsp; TGSD: {daysPassed}/{totalDays} &nbsp;||&nbsp; {parsedTraChamRows.length} Nhân viên
+                            </p>
                           </div>
 
                           {/* Table */}
-                          <AutoFitTable minWidth={showFullTraChamPartners ? 1050 : 800} className="w-full">
-                            <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #bbf7d0', fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}>
+                          <AutoFitTable minWidth={850} className="w-full">
+                            <table className="w-full border-collapse" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
                               {showFullTraChamPartners && traChamPartners.length > 0 ? (
-                                <>
-                                  <colgroup>
-                                    <col style={{ width: '48px' }} />
-                                    <col style={{ width: '240px' }} />
-                                    <col style={{ width: '120px' }} />
-                                    <col style={{ width: '120px' }} />
-                                    <col style={{ width: '95px' }} />
-                                    {traChamPartners.map((_, pIdx) => (
+                                <thead>
+                                  <tr className="h-[36px]">
+                                    <th rowSpan={2} className="bg-[#047857] text-white px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 w-[48px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
+                                    <th rowSpan={2} className="bg-[#047857] text-white px-3 py-1 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 min-w-[200px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
+                                    <th rowSpan={2} className="bg-[#047857] text-white px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 min-w-[110px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Thực</th>
+                                    <th rowSpan={2} className="bg-[#047857] text-white px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 min-w-[110px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Trả Chậm</th>
+                                    <th rowSpan={2} className="bg-[#047857] text-white px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 min-w-[85px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>% Trả Chậm</th>
+                                    {traChamPartners.map((p, pIdx) => (
+                                      <th key={pIdx} colSpan={2} className="bg-[#065f46] text-amber-200 px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        {p}
+                                      </th>
+                                    ))}
+                                    <th rowSpan={2} className="bg-[#047857] text-white px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider w-[65px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>XH</th>
+                                  </tr>
+                                  <tr className="h-[28px]">
+                                    {traChamPartners.map((p, pIdx) => (
                                       <React.Fragment key={pIdx}>
-                                        <col style={{ width: '90px' }} />
-                                        <col style={{ width: '65px' }} />
+                                        <th className="bg-[#047857] text-white/90 px-1 py-0.5 text-center text-[10px] font-black uppercase tracking-wider border-r border-emerald-600/50 min-w-[80px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT</th>
+                                        <th className="bg-[#047857] text-white/90 px-1 py-0.5 text-center text-[10px] font-black uppercase tracking-wider border-r border-emerald-600/50 min-w-[60px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>%</th>
                                       </React.Fragment>
                                     ))}
-                                    <col style={{ width: '65px' }} />
-                                  </colgroup>
-                                  <thead>
-                                    <tr className="h-[38px]">
-                                      <th rowSpan={2} className="bg-[#d1fae5] text-[#064e3b] px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">STT</th>
-                                      <th rowSpan={2} className="bg-[#d1fae5] text-[#064e3b] px-3 py-1 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">Nhân viên</th>
-                                      <th rowSpan={2} className="bg-[#d1fae5] text-[#064e3b] px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">DT Thực</th>
-                                      <th rowSpan={2} className="bg-[#d1fae5] text-[#064e3b] px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">DT Trả Chậm</th>
-                                      <th rowSpan={2} className="bg-[#d1fae5] text-[#064e3b] px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">% Trả Chậm</th>
-                                      {traChamPartners.map((p, pIdx) => (
-                                        <th key={pIdx} colSpan={2} className="bg-[#bbf7d0] text-[#065f46] px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0] whitespace-nowrap">
-                                          {p}
-                                        </th>
-                                      ))}
-                                      <th rowSpan={2} className="bg-[#d1fae5] text-[#064e3b] px-2 py-1 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-b border-[#a7f3d0]">XH</th>
-                                    </tr>
-                                    <tr className="h-[28px]">
-                                      {traChamPartners.map((_, pIdx) => (
-                                        <React.Fragment key={pIdx}>
-                                          <th className="bg-[#e6f9f0] text-[#047857] px-1 py-0.5 text-center text-[10px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">DT</th>
-                                          <th className="bg-[#e6f9f0] text-[#047857] px-1 py-0.5 text-center text-[10px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">%</th>
-                                        </React.Fragment>
-                                      ))}
-                                    </tr>
-                                  </thead>
-                                </>
+                                  </tr>
+                                </thead>
                               ) : (
-                                <>
-                                  <colgroup>
-                                    <col style={{ width: '55px' }} />
-                                    <col style={{ width: '260px' }} />
-                                    <col style={{ width: '145px' }} />
-                                    <col style={{ width: '145px' }} />
-                                    <col style={{ width: '115px' }} />
-                                    <col style={{ width: '70px' }} />
-                                  </colgroup>
-                                  <thead>
-                                    <tr className="h-[42px]">
-                                      <th className="bg-[#d1fae5] text-[#064e3b] px-2 py-0 text-center text-[11.5px] sm:text-[12.5px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">STT</th>
-                                      <th className="bg-[#d1fae5] text-[#064e3b] px-3 py-0 text-left text-[11.5px] sm:text-[12.5px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">Nhân viên</th>
-                                      <th className="bg-[#d1fae5] text-[#064e3b] px-1 py-0 text-center text-[11.5px] sm:text-[12.5px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">DT Thực</th>
-                                      <th className="bg-[#d1fae5] text-[#064e3b] px-1 py-0 text-center text-[11.5px] sm:text-[12.5px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">DT Trả Chậm</th>
-                                      <th className="bg-[#d1fae5] text-[#064e3b] px-1 py-0 text-center text-[11.5px] sm:text-[12.5px] font-black uppercase tracking-wider border-r border-b border-[#a7f3d0]">% Trả Chậm</th>
-                                      <th className="bg-[#d1fae5] text-[#064e3b] px-1 py-0 text-center text-[11.5px] sm:text-[12.5px] font-black uppercase tracking-wider border-b border-[#a7f3d0]">XH</th>
-                                    </tr>
-                                  </thead>
-                                </>
+                                <thead>
+                                  <tr className="h-[40px]">
+                                    <th className="bg-[#047857] text-white px-2 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 w-[50px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>STT</th>
+                                    <th className="bg-[#047857] text-white px-3 py-0 text-left text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 min-w-[220px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>Nhân viên</th>
+                                    <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 w-[140px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Thực</th>
+                                    <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 w-[140px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>DT Trả Chậm</th>
+                                    <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider border-r border-emerald-600/50 w-[100px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>% Trả Chậm</th>
+                                    <th className="bg-[#047857] text-white px-1 py-0 text-center text-[11px] sm:text-[12px] font-black uppercase tracking-wider w-[70px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>XH</th>
+                                  </tr>
+                                </thead>
                               )}
                               <tbody>
                                 {parsedTraChamRows.map((row: any, i: number, arr: any[]) => {
                                   const threshold = Math.max(1, Math.ceil(arr.length * 0.2));
                                   const isTop = i < threshold;
                                   const isBottom = i >= arr.length - threshold && !isTop;
-                                  const rowBg = i % 2 === 0 ? 'bg-white' : 'bg-[#f4fbf7]';
-                                  const nameColor = isTop ? 'text-[#065f46]' : isBottom ? 'text-rose-600' : 'text-slate-800';
+                                  const rowBg = i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50';
+                                  const nameColor = isTop ? 'text-emerald-700' : isBottom ? 'text-rose-600' : 'text-slate-800';
 
                                   return (
-                                    <tr key={i} className={`${rowBg} hover:bg-emerald-50/70 transition-colors h-[44px] border-b border-[#e6f4ea]`}>
-                                      <td className="px-2 py-0 text-center font-bold text-[#059669] text-[12px] sm:text-[13px] border-r border-[#e6f4ea]">
+                                    <tr key={i} className={`${rowBg} hover:bg-slate-50 transition-colors h-[44px] border-b border-slate-100`}>
+                                      <td className="px-2 py-0 text-center font-black text-slate-500 text-[12px] sm:text-[13px] border-r border-slate-100" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                         #{i + 1}
                                       </td>
-                                      <td className={`px-3 py-0 text-left font-bold text-[12px] sm:text-[13px] border-r border-[#e6f4ea] whitespace-nowrap ${nameColor}`}>
+                                      <td className={`px-3 py-0 text-left font-black text-[12px] sm:text-[13px] border-r border-slate-100 truncate ${nameColor}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                         {(row.nhanVien || '').toUpperCase()}
                                       </td>
-                                      <td className="px-1 py-0 text-center font-semibold text-[12px] sm:text-[13px] border-r border-[#e6f4ea] text-slate-700 whitespace-nowrap">
+                                      <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 text-slate-700 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                         {Math.round(row.totalRevenue).toLocaleString('vi-VN')}
                                       </td>
-                                      <td className="px-1 py-0 text-center font-semibold text-[12px] sm:text-[13px] border-r border-[#e6f4ea] text-slate-700 whitespace-nowrap">
+                                      <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 text-slate-700 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                         {Math.round(row.installmentRevenue).toLocaleString('vi-VN')}
                                       </td>
-                                      <td className="px-1 py-0 text-center border-r border-[#e6f4ea] whitespace-nowrap">
-                                        {row.percent > 0 ? (
-                                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] sm:text-[12px] font-extrabold border ${
-                                            isTop 
-                                              ? 'bg-[#dcfce7] text-[#065f46] border-[#a7f3d0]' 
-                                              : isBottom 
-                                                ? 'bg-rose-50 text-rose-600 border-rose-200' 
-                                                : 'bg-[#e6f9f0] text-[#065f46] border-[#a7f3d0]/60'
-                                          }`}>
-                                            {row.percent.toFixed(1)}%
-                                          </span>
-                                        ) : (
-                                          <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold text-rose-500 bg-rose-50 border border-rose-100">
-                                            0.0%
-                                          </span>
-                                        )}
+                                      <td className={`px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-slate-100 whitespace-nowrap ${isTop ? 'text-emerald-600' : isBottom ? 'text-rose-600' : 'text-slate-700'}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        {row.percent.toFixed(1)}%
                                       </td>
                                       {showFullTraChamPartners && traChamPartners.map((p, pIdx) => {
                                         const pd = row.partnerData?.[p];
@@ -5842,52 +5800,40 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                         const pct = pd?.percent || 0;
                                         return (
                                           <React.Fragment key={pIdx}>
-                                            <td className="px-1 py-0 text-center font-medium text-[11px] sm:text-[12px] border-r border-[#e6f4ea] text-slate-700 whitespace-nowrap">
+                                            <td className="px-1 py-0 text-center font-bold text-[11px] sm:text-[12px] border-r border-slate-100 text-slate-700 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                               {dt > 0 ? Math.round(dt).toLocaleString('vi-VN') : <span className="text-slate-300 font-normal">—</span>}
                                             </td>
-                                            <td className={`px-1 py-0 text-center font-bold text-[11px] sm:text-[12px] border-r border-[#e6f4ea] whitespace-nowrap ${pct > 0 ? 'text-[#059669]' : 'text-slate-300 font-normal'}`}>
+                                            <td className={`px-1 py-0 text-center font-bold text-[11px] sm:text-[12px] border-r border-slate-100 whitespace-nowrap ${pct > 0 ? 'text-slate-700' : 'text-slate-300 font-normal'}`} style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                               {pct > 0 ? `${pct.toFixed(1)}%` : '—'}
                                             </td>
                                           </React.Fragment>
                                         );
                                       })}
-                                      <td className="px-1 py-0 text-center text-[11px] sm:text-[12px] font-black whitespace-nowrap">
-                                        {isTop && (
-                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[#dcfce7] text-[#065f46] border border-[#a7f3d0]">
-                                            Top
-                                          </span>
-                                        )}
-                                        {isBottom && (
-                                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200">
-                                            Bot
-                                          </span>
-                                        )}
-                                        {!isTop && !isBottom && <span className="text-slate-300 font-bold">—</span>}
+                                      <td className="px-1 py-0 text-center text-[11px] sm:text-[12px] font-black whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                        {isTop && <span className="text-emerald-700">Top</span>}
+                                        {isBottom && <span className="text-rose-600">Bot</span>}
+                                        {!isTop && !isBottom && <span className="text-slate-300">-</span>}
                                       </td>
                                     </tr>
                                   );
                                 })}
                               </tbody>
                               <tfoot>
-                                <tr className="h-[46px] bg-[#d1fae5] text-[#064e3b] border-t-2 border-[#6ee7b7]">
-                                  <td colSpan={2} className="px-3 py-0 text-center font-black text-[12px] sm:text-[13px] uppercase tracking-widest border-r border-[#a7f3d0]">
+                                <tr className="h-[44px] bg-[#047857] text-white">
+                                  <td colSpan={2} className="px-3 py-0 text-center font-black text-[12px] sm:text-[13px] uppercase tracking-widest border-r border-emerald-600/50" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                     Tổng
                                   </td>
-                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-[#a7f3d0] whitespace-nowrap text-[#064e3b]">
+                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                     {parsedTraChamRows.reduce((s: number, r: any) => s + Math.round(r.totalRevenue), 0).toLocaleString('vi-VN')}
                                   </td>
-                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-[#a7f3d0] whitespace-nowrap text-[#064e3b]">
+                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                     {parsedTraChamRows.reduce((s: number, r: any) => s + Math.round(r.installmentRevenue), 0).toLocaleString('vi-VN')}
                                   </td>
-                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-[#a7f3d0] whitespace-nowrap">
+                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] border-r border-emerald-600/50 whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                     {(() => {
                                       const totalRev = parsedTraChamRows.reduce((s: number, r: any) => s + r.totalRevenue, 0);
                                       const totalInst = parsedTraChamRows.reduce((s: number, r: any) => s + r.installmentRevenue, 0);
-                                      return totalRev > 0 ? (
-                                        <span className="inline-block px-3 py-1 rounded-full bg-[#059669] text-white font-black text-[11.5px] sm:text-[12.5px] shadow-xs">
-                                          {((totalInst / totalRev) * 100).toFixed(1)}%
-                                        </span>
-                                      ) : '—';
+                                      return totalRev > 0 ? ((totalInst / totalRev) * 100).toFixed(1) + '%' : '—';
                                     })()}
                                   </td>
                                   {showFullTraChamPartners && traChamPartners.map((p, pIdx) => {
@@ -5896,30 +5842,30 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                     const pctOfInst = totalInst > 0 ? ((totalPartnerDt / totalInst) * 100).toFixed(1) + '%' : '—';
                                     return (
                                       <React.Fragment key={pIdx}>
-                                        <td className="px-1 py-0 text-center font-black text-[11px] sm:text-[12px] border-r border-[#a7f3d0] whitespace-nowrap text-[#065f46]">
+                                        <td className="px-1 py-0 text-center font-black text-[11px] sm:text-[12px] border-r border-emerald-600/50 whitespace-nowrap text-amber-200" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                           {totalPartnerDt > 0 ? Math.round(totalPartnerDt).toLocaleString('vi-VN') : '—'}
                                         </td>
-                                        <td className="px-1 py-0 text-center font-black text-[11px] sm:text-[12px] border-r border-[#a7f3d0] whitespace-nowrap text-[#047857]">
+                                        <td className="px-1 py-0 text-center font-black text-[11px] sm:text-[12px] border-r border-emerald-600/50 whitespace-nowrap text-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                           {pctOfInst}
                                         </td>
                                       </React.Fragment>
                                     );
                                   })}
-                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px] text-[#064e3b]">—</td>
+                                  <td className="px-1 py-0 text-center font-black text-[12px] sm:text-[13px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>—</td>
                                 </tr>
                               </tfoot>
                             </table>
                           </AutoFitTable>
                         </>
                       ) : (
-                        <div className="bg-[#f0fdf4] border-2 border-dashed border-[#a7f3d0] rounded-[28px] p-12 text-center" style={{ fontFamily: "'Plus Jakarta Sans', 'Lexend', sans-serif" }}>
-                          <Clock size={48} className="mx-auto text-emerald-400 mb-4 animate-pulse" />
-                          <h3 className="text-lg font-black text-[#064e3b] uppercase tracking-widest">CHƯA CÓ DỮ LIỆU TRẢ CHẬM HỢP LỆ</h3>
-                          <p className="text-[#065f46]/80 text-sm font-medium mb-4">Vui lòng dán dữ liệu hiệu quả trả chậm của nhân viên tại trang <b>Khai Báo &gt; Cấu Hình Siêu Thị &gt; TRẢ GÓP NV</b>.</p>
+                        <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[32px] p-12 text-center">
+                          <Clock size={48} className="mx-auto text-slate-300 mb-4 animate-pulse" />
+                          <h3 className="text-lg font-black text-slate-400 uppercase tracking-widest">CHƯA CÓ DỮ LIỆU TRẢ CHẬM HỢP LỆ</h3>
+                          <p className="text-slate-400 text-sm font-medium mb-4">Vui lòng dán dữ liệu hiệu quả trả chậm của nhân viên tại trang <b>Khai Báo &gt; Cấu Hình Siêu Thị &gt; TRẢ GÓP NV</b>.</p>
                           {effectiveTragopNv && effectiveTragopNv.trim().length > 0 && (
-                            <div className="mt-4 p-4 bg-rose-50 border border-rose-200 rounded-xl text-left text-xs max-w-lg mx-auto">
-                              <p className="font-bold text-rose-800 mb-1">Dữ liệu thô đang có trong cấu hình (không phân tích được):</p>
-                              <pre className="whitespace-pre-wrap font-mono text-[10px] text-rose-700 max-h-32 overflow-y-auto bg-white p-2 rounded border border-rose-100">{effectiveTragopNv}</pre>
+                            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-left text-xs max-w-lg mx-auto">
+                              <p className="font-bold text-red-800 mb-1">Dữ liệu thô đang có trong cấu hình (không phân tích được):</p>
+                              <pre className="whitespace-pre-wrap font-mono text-[10px] text-red-700 max-h-32 overflow-y-auto bg-white p-2 rounded border border-red-100">{effectiveTragopNv}</pre>
                             </div>
                           )}
                         </div>

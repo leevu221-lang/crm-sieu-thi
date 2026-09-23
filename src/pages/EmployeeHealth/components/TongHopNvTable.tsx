@@ -9,7 +9,6 @@ import { parseStaffMatrixDataRefined } from './SummaryThiDuaTable';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
 import AutoFitTable from '../../../components/AutoFitTable';
-import { prepareCloneForCapture, startCaptureSession, endCaptureSession } from '../../../utils/captureUtil';
 
 import { CategoryConfigItem } from '../../../hooks/useCategoryConfig';
 
@@ -467,9 +466,12 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
   const handleCapture = async () => {
     if (!captureRef.current) return;
     setIsCapturing(true);
-    startCaptureSession();
 
     const originalElement = captureRef.current;
+    const tableContainer = originalElement.querySelector('.overflow-x-auto');
+    // originalElement has p-4 (16px padding on all sides, total 32px)
+    const contentWidth = Math.max(originalElement.scrollWidth - 32, tableContainer ? tableContainer.scrollWidth : 0);
+    const contentHeight = Math.max(originalElement.scrollHeight - 32, tableContainer ? tableContainer.scrollHeight : 0);
     
     // Exact desktop width 1280px to guarantee all employee names fit 100% without truncation
     const actualWidth = 1280;
@@ -483,13 +485,32 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
     container.style.height = 'auto';
     container.style.zIndex = '-9999';
     container.style.pointerEvents = 'none';
-    (container.style as any).zoom = '1';
     
     const clone = originalElement.cloneNode(true) as HTMLElement;
     
-    prepareCloneForCapture(clone, originalElement, {
-      defaultFont: "'UTM Avo', 'Inter', sans-serif",
-      preserveTableLayout: true
+    // Hide buttons/controls inside the clone
+    const noCaptureElements = clone.querySelectorAll('.no-capture, button');
+    noCaptureElements.forEach(el => {
+      (el as HTMLElement).style.display = 'none';
+    });
+
+    // Zero shadow export
+    const allElements = clone.querySelectorAll('*');
+    allElements.forEach(el => {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.style) {
+        htmlEl.style.boxShadow = 'none';
+        htmlEl.style.textShadow = 'none';
+        htmlEl.style.filter = 'none';
+      }
+      if (htmlEl.classList) {
+        htmlEl.classList.remove('truncate');
+        Array.from(htmlEl.classList).forEach(cls => {
+          if (cls.startsWith('shadow') || cls.startsWith('drop-shadow')) {
+            htmlEl.classList.remove(cls);
+          }
+        });
+      }
     });
     
     // Set clone styling to take full layout unconstrained
@@ -504,6 +525,18 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
     clone.style.boxSizing = 'border-box';
     clone.style.borderRadius = '24px';
     clone.style.boxShadow = 'none';
+    
+    // Make sure overflow wrappers in the clone are visible and fill full width
+    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+    scrollContainers.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.overflow = 'visible';
+      htmlEl.style.width = '100%';
+      htmlEl.style.height = 'auto';
+      htmlEl.style.maxWidth = 'none';
+      htmlEl.style.maxHeight = 'none';
+      el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
+    });
 
     // Force all tables to stretch 100% cleanly inside their parent card with exact desktop column widths
     const tables = clone.querySelectorAll('table');
@@ -531,6 +564,19 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
       }
     });
 
+    // Force hide all scrollbars in the captured image
+    const hideScrollbarStyle = document.createElement('style');
+    hideScrollbarStyle.innerHTML = `
+      *::-webkit-scrollbar {
+        display: none !important;
+      }
+      * {
+        -ms-overflow-style: none !important;
+        scrollbar-width: none !important;
+      }
+    `;
+    clone.appendChild(hideScrollbarStyle);
+
     container.appendChild(clone);
     document.body.appendChild(container);
 
@@ -554,10 +600,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
     } catch (err) {
       console.error('Error capturing:', err);
     } finally {
-      endCaptureSession();
-      if (container.parentNode) {
-        container.parentNode.removeChild(container);
-      }
+      document.body.removeChild(container);
       setIsCapturing(false);
     }
   };

@@ -6,7 +6,6 @@ import { domToPng } from 'modern-screenshot';
 import html2canvas from 'html2canvas';
 import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
 import { ensureFontsReady, EXPORT_FONT_STYLE, ensureSharedCaptureStyle, getPreloadedFontCss } from '../../../utils/fontExportUtil';
-import { prepareCloneForCapture, startCaptureSession, endCaptureSession } from '../../../utils/captureUtil';
 import { parseCategoryData } from '../../RTST/utils';
 import { cn } from '../../RTST/utils';
 import { CategoryData, StaffMatrixData } from '../../RTST/types';
@@ -446,10 +445,8 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
 
   const captureElementHelper = async (element: HTMLElement) => {
     ensureSharedCaptureStyle();
-    startCaptureSession();
     const tempContainer = document.createElement('div');
     tempContainer.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:hidden;pointer-events:none;z-index:-9999;contain:strict;background:#ffffff;';
-    (tempContainer.style as any).zoom = '1';
 
     // Frame wrapper to ensure 100% white background and no clipping
     const frameWrapper = document.createElement('div');
@@ -457,11 +454,6 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
     frameWrapper.style.cssText = 'width:1120px;min-width:1120px;max-width:1120px;padding:20px;background-color:#ffffff;box-sizing:border-box;border-radius:24px;box-shadow:none;display:block;';
 
     const clone = element.cloneNode(true) as HTMLElement;
-
-    prepareCloneForCapture(clone, element, {
-      preserveTableLayout: true,
-      defaultFont: "'UTM Avo', 'Inter', sans-serif"
-    });
 
     // Physically remove interactive & non-capture elements
     clone.querySelectorAll('.no-capture, button, textarea, .capture-btn, input, select').forEach(el => el.remove());
@@ -517,7 +509,6 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
       }
       return dataUrl;
     } finally {
-      endCaptureSession();
       tempContainer.remove();
     }
   };

@@ -10,7 +10,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useLuykeData } from '../../RTST/hooks/useLuykeData';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
-import { prepareCloneForCapture, startCaptureSession, endCaptureSession } from '../../../utils/captureUtil';
+import AutoFitTable from '../../../components/AutoFitTable';
 
 const removeAccentsLocal = (str: string): string => {
   return str
@@ -1184,7 +1184,6 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   const handleExport = async () => {
     if (tableRef.current) {
       setIsCapturing(true);
-      startCaptureSession();
       const originalElement = tableRef.current;
       
       // Create a temporary container to hold the clone
@@ -1197,14 +1196,13 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       container.style.overflow = 'visible';
       container.style.zIndex = '-9999';
       container.style.pointerEvents = 'none';
-      (container.style as any).zoom = '1';
       
       const clone = originalElement.cloneNode(true) as HTMLElement;
       
-      // Clean clone and unwrap AutoFitTable
-      prepareCloneForCapture(clone, originalElement, {
-        preserveTableLayout: false,
-        defaultFont: "'UTM Avo', 'Inter', sans-serif"
+      // Hide buttons/controls inside the clone
+      const noCaptureElements = clone.querySelectorAll('.no-capture, button');
+      noCaptureElements.forEach(el => {
+        (el as HTMLElement).style.display = 'none';
       });
       
       // Set clone styling to take full layout unconstrained
@@ -1217,6 +1215,32 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       clone.style.overflow = 'visible';
       clone.style.overflowX = 'visible';
       clone.style.overflowY = 'visible';
+      
+      // Make sure overflow wrappers in the clone are visible
+      const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+      scrollContainers.forEach((el) => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.overflow = 'visible';
+        htmlEl.style.overflowX = 'visible';
+        htmlEl.style.overflowY = 'visible';
+        htmlEl.style.width = 'auto';
+        htmlEl.style.height = 'auto';
+        htmlEl.style.maxWidth = 'none';
+        htmlEl.style.maxHeight = 'none';
+      });
+
+      // Clear any other inline overflow restrictions
+      const allCloneElements = clone.querySelectorAll('*');
+      allCloneElements.forEach(el => {
+        const htmlEl = el as HTMLElement;
+        if (htmlEl.style.overflow || htmlEl.style.overflowX || htmlEl.style.overflowY) {
+          htmlEl.style.overflow = 'visible';
+          htmlEl.style.overflowX = 'visible';
+          htmlEl.style.overflowY = 'visible';
+          htmlEl.style.maxWidth = 'none';
+          htmlEl.style.maxHeight = 'none';
+        }
+      });
 
       const originalTable = originalElement.querySelector('table');
       const table = clone.querySelector('table') as HTMLTableElement;
@@ -1258,10 +1282,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       } catch (err) {
         console.error('Export failed:', err);
       } finally {
-        endCaptureSession();
-        if (container.parentNode) {
-          container.parentNode.removeChild(container);
-        }
+        document.body.removeChild(container);
         setIsCapturing(false);
       }
     }
@@ -1386,18 +1407,8 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       </div>
 
       {/* ═══ Table ═══ */}
-      <div 
-        className="w-full overflow-x-auto rounded-2xl border border-slate-200/80 shadow-xs"
-        style={{ WebkitOverflowScrolling: 'touch' }}
-      >
-        <table 
-          className="w-full border-collapse table-fixed" 
-          style={{ 
-            minWidth: `${Math.max(980, 510 + (visibleCategories?.length || 0) * 80)}px`, 
-            border: '1px solid #e2e8f0', 
-            fontWeight: 900 
-          }}
-        >
+      <AutoFitTable minWidth={Math.max(900, 510 + (visibleCategories?.length || 0) * 80)}>
+        <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
           <thead>
             <tr className="text-slate-900 h-[85px]">
               <th 
@@ -1544,7 +1555,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
             })}
           </tbody>
         </table>
-      </div>
+      </AutoFitTable>
 
       {/* Comment Modal - Orange gradient design with template tabs */}
       {isCommentOpen && ReactDOM.createPortal(

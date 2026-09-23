@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useCallback, useId } from 'react';
 
 export interface AutoFitTableProps {
   children: React.ReactNode;
-  /** Giới hạn mức thu nhỏ tối thiểu, mặc định 0.38 (38%) để bảo toàn độ sắc nét và chống mất chữ trên mobile */
+  /** Giới hạn mức thu nhỏ tối thiểu, mặc định 0.55 (55%) */
   minScale?: number;
   /** Độ rộng tự nhiên cố định gợi ý (px), ví dụ: 1450 cho bảng lịch PG, 1000 cho bảng thưởng */
   minWidth?: number;
@@ -16,7 +16,7 @@ export interface AutoFitTableProps {
 
 export const AutoFitTable: React.FC<AutoFitTableProps> = ({
   children,
-  minScale = 0.38,
+  minScale = 0.55,
   minWidth: explicitMinWidth,
   className = '',
   style = {},
@@ -39,7 +39,6 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
     if (
       typeof document !== 'undefined' &&
       (document.body.classList.contains('capturing-screenshot') ||
-       document.documentElement.classList.contains('capturing-screenshot') ||
        document.body.classList.contains('export-short-mode'))
     ) {
       setScale(1);
@@ -78,7 +77,7 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
       return;
     }
 
-    // Tính tỉ lệ thu nhỏ vừa khít với chiều rộng container
+    // Tính tỉ lệ thu nhỏ, sàn tối thiểu là minScale (0.55)
     const rawScale = containerWidth / naturalW;
     const targetScale = Math.max(minScale, Math.min(1, rawScale));
 
@@ -121,49 +120,41 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
     return () => cancelAnimationFrame(rafId);
   }, [children, explicitMinWidth, calculateFit]);
 
-  // Quan sát thay đổi class trên body hoặc documentElement (capturing-screenshot)
+  // Quan sát thay đổi class trên body (capturing-screenshot)
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const observer = new MutationObserver(() => {
       calculateFit();
     });
     observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
   }, [calculateFit]);
 
   const isScaled = !disabled && scale < 1 && naturalDims !== null;
-  const containerW = containerRef.current?.clientWidth || 0;
-  const rawScale = (containerW > 0 && naturalDims && naturalDims.width > 0) ? (containerW / naturalDims.width) : 1;
-  const isFullyFitted = isScaled && scale <= rawScale + 0.02;
 
   return (
     <div
       ref={containerRef}
       id={`autofit-${instanceId}`}
-      data-autofit-container="true"
-      className={`autofit-table-container w-full relative ${className}`}
+      className={`autofit-table-container w-full overflow-x-auto relative ${className}`}
       style={{
-        overflowX: isFullyFitted ? 'hidden' : 'auto',
         WebkitOverflowScrolling: 'touch',
         ...style,
       }}
     >
       {isScaled ? (
         <div
-          data-autofit-sizing="true"
           className="autofit-sizing-box mx-auto"
           style={{
-            width: `${Math.min(containerW || 9999, Math.round(naturalDims.width * scale))}px`,
-            height: `${Math.round(naturalDims.height * scale)}px`,
+            width: `${Math.ceil(naturalDims.width * scale)}px`,
+            height: `${Math.ceil(naturalDims.height * scale)}px`,
             position: 'relative',
             overflow: 'visible',
-            maxWidth: '100%',
+            maxWidth: 'none',
           }}
         >
           <div
             ref={contentRef}
-            data-autofit-content="true"
             className="autofit-content-box"
             style={{
               width: `${naturalDims.width}px`,
@@ -179,7 +170,7 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
           </div>
         </div>
       ) : (
-        <div ref={contentRef} data-autofit-unscaled="true" className="autofit-content-unscaled w-full">
+        <div ref={contentRef} className="autofit-content-unscaled w-full">
           {children}
         </div>
       )}
