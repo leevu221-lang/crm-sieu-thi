@@ -3340,6 +3340,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     gdMln: true,
     gdNcom: true,
     gdNchien: true,
+    gdNoiChao: true,
     gdQuat: true,
     gdQdh: true
   });
@@ -3357,7 +3358,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         if (docSnap.exists()) {
           const data = docSnap.data();
           if (data.khaiThacSettings) {
-            setShowKhaiThacCols(prev => ({ ...prev, ...data.khaiThacSettings }));
+            setShowKhaiThacCols(prev => ({ 
+              ...prev, 
+              ...data.khaiThacSettings,
+              gdNoiChao: data.khaiThacSettings.gdNoiChao !== undefined ? data.khaiThacSettings.gdNoiChao : true
+            }));
           }
         }
       } catch (err) {
@@ -3848,6 +3853,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       gdMlnQty: number;
       gdNcomQty: number;
       gdNchienQty: number;
+      gdNoiChaoQty: number;
       gdQuatQty: number;
       gdQdhQty: number;
       dtThuc: number;
@@ -3946,6 +3952,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           gdMlnQty: 0,
           gdNcomQty: 0,
           gdNchienQty: 0,
+          gdNoiChaoQty: 0,
           gdQuatQty: 0,
           gdQdhQty: 0,
           dtThuc: 0,
@@ -4057,18 +4064,44 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
       const rawSmallCatVal = idxSmallCat !== -1 ? removeAccents(String(row[idxSmallCat] || '')).trim().toUpperCase() : '';
       const isMln = nSmall === 'MLN' || rawSmallCatVal === 'MLN';
-      const isNcom = nSmall === 'N.CƠM' || nSmall === 'NC NẮP RỜI' || nSmall === 'NC Đ.TỬ';
-      const isNchien = nSmall === 'N.CHIÊN';
-      const isQuat = nSmall === 'QUẠT';
-      const isQdh = nSmall === 'QĐH';
+      const isNcom = nSmall === 'N.CƠM' || nSmall === 'NC NẮP RỜI' || nSmall === 'NC Đ.TỬ' ||
+        normCatUpper.includes('NOI COM') || normProdUpper.includes('NOI COM') || normProdUpper.includes('N.COM') || normProdUpper.includes('NC N');
+      const isNchien = nSmall === 'N.CHIÊN' ||
+        normCatUpper.includes('NOI CHIEN') || normProdUpper.includes('NOI CHIEN') || normProdUpper.includes('N.CHIEN');
+      const isQuat = nSmall === 'QUẠT' || rawSmallCatVal === 'QUAT';
+      const isQdh = nSmall === 'QĐH' || rawSmallCatVal === 'QDH';
+
+      const isNoiChao = !isNcom && !isNchien && (
+        category.includes('3265') ||
+        category.includes('3263') ||
+        normCatUpper.includes('CHAO') ||
+        normCatUpper.includes('BO NOI') ||
+        (normCatUpper.includes('NOI') && !normCatUpper.includes('NOI COM') && !normCatUpper.includes('NOI CHIEN')) ||
+        nSmall.includes('CHẢO') ||
+        nSmall.includes('BỘ NỒI') ||
+        (nSmall.includes('NỒI') && !nSmall.includes('CƠM') && !nSmall.includes('CHIÊN')) ||
+        rawSmallCatVal.includes('CHAO') ||
+        rawSmallCatVal.includes('BO NOI') ||
+        (rawSmallCatVal.includes('NOI') && !rawSmallCatVal.includes('COM') && !rawSmallCatVal.includes('CHIEN')) ||
+        normProdUpper.startsWith('CHAO ') ||
+        normProdUpper.includes(' CHAO ') ||
+        normProdUpper === 'CHAO' ||
+        normProdUpper.startsWith('BO NOI') ||
+        normProdUpper.includes(' BO NOI') ||
+        normProdUpper.startsWith('NOI ') ||
+        normProdUpper.includes(' NOI ') ||
+        normProdUpper.startsWith('QUANH ') ||
+        normProdUpper.includes(' QUANH ')
+      );
 
       if (isMln) item.gdMlnQty += qty;
       if (isNcom) item.gdNcomQty += qty;
       if (isNchien) item.gdNchienQty += qty;
+      if (isNoiChao) item.gdNoiChaoQty += qty;
       if (isQuat) item.gdQuatQty += qty;
       if (isQdh) item.gdQdhQty += qty;
 
-      if (isMln || isNcom || isNchien || isQuat) {
+      if (isMln || isNcom || isNchien || isNoiChao || isQuat) {
         if (nhomLarge !== 'DCNB') {
           item.gdQty += qty;
           item.gdRev += revenue;
@@ -4135,6 +4168,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         return (showKhaiThacCols.gdMln ? item.gdMlnQty : 0) +
           (showKhaiThacCols.gdNcom ? item.gdNcomQty : 0) +
           (showKhaiThacCols.gdNchien ? item.gdNchienQty : 0) +
+          (showKhaiThacCols.gdNoiChao ? item.gdNoiChaoQty : 0) +
           (showKhaiThacCols.gdQuat ? item.gdQuatQty : 0) +
           (showKhaiThacCols.gdQdh ? item.gdQdhQty : 0);
       };
@@ -7699,6 +7733,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 { key: 'gdMln', label: 'SL MLN' },
                                 { key: 'gdNcom', label: 'SL NCƠM' },
                                 { key: 'gdNchien', label: 'SL NCHIÊN' },
+                                { key: 'gdNoiChao', label: 'SL NỒI/CHẢO' },
                                 { key: 'gdQuat', label: 'SL Q.GIÓ' },
                                 { key: 'gdQdh', label: 'SL QĐH' }
                               ].map(btn => {
@@ -7770,7 +7805,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               <th colSpan={(showKhaiThacCols.pkCam ? 1 : 0) + (showKhaiThacCols.pkLoa ? 1 : 0) + (showKhaiThacCols.pkPin ? 1 : 0) + (showKhaiThacCols.pkTn ? 1 : 0) + (showKhaiThacCols.pkDenMt ? 1 : 0)} className="py-1 px-3 text-center text-[#be123c] bg-[#ffe4e6] border-r border-slate-200/50 font-black text-[13px] border-b border-rose-100">PHỤ KIỆN</th>
                             )}
                             {showKhaiThacCols.giaDung && (
-                              <th colSpan={(showKhaiThacCols.gdMln ? 1 : 0) + (showKhaiThacCols.gdNcom ? 1 : 0) + (showKhaiThacCols.gdNchien ? 1 : 0) + (showKhaiThacCols.gdQuat ? 1 : 0) + (showKhaiThacCols.gdQdh ? 1 : 0)} className="py-1 px-3 text-center text-[#0e7490] bg-[#ecfeff] border-r border-slate-200/50 font-black text-[13px] border-b border-cyan-100">GIA DỤNG</th>
+                              <th colSpan={(showKhaiThacCols.gdMln ? 1 : 0) + (showKhaiThacCols.gdNcom ? 1 : 0) + (showKhaiThacCols.gdNchien ? 1 : 0) + (showKhaiThacCols.gdNoiChao ? 1 : 0) + (showKhaiThacCols.gdQuat ? 1 : 0) + (showKhaiThacCols.gdQdh ? 1 : 0)} className="py-1 px-3 text-center text-[#0e7490] bg-[#ecfeff] border-r border-slate-200/50 font-black text-[13px] border-b border-cyan-100">GIA DỤNG</th>
                             )}
                           </tr>
                           <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[11px] font-black uppercase">
@@ -7851,6 +7886,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 {showKhaiThacCols.gdMln && renderKhaiThacHeader('gdMlnQty', 'SL MLN', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-16')}
                                 {showKhaiThacCols.gdNcom && renderKhaiThacHeader('gdNcomQty', 'SL NCƠM', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-18')}
                                 {showKhaiThacCols.gdNchien && renderKhaiThacHeader('gdNchienQty', 'SL NCHIÊN', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-20')}
+                                {showKhaiThacCols.gdNoiChao && renderKhaiThacHeader('gdNoiChaoQty', 'SL NỒI/CHẢO', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-24')}
                                 {showKhaiThacCols.gdQuat && renderKhaiThacHeader('gdQuatQty', 'SL Q.GIÓ', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-16')}
                                 {showKhaiThacCols.gdQdh && renderKhaiThacHeader('gdQdhQty', 'SL QĐH', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-16')}
                               </>
@@ -8036,6 +8072,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                       {showKhaiThacCols.gdMln && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdMlnQty)}</td>}
                                       {showKhaiThacCols.gdNcom && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdNcomQty)}</td>}
                                       {showKhaiThacCols.gdNchien && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdNchienQty)}</td>}
+                                      {showKhaiThacCols.gdNoiChao && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdNoiChaoQty)}</td>}
                                       {showKhaiThacCols.gdQuat && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdQuatQty)}</td>}
                                       {showKhaiThacCols.gdQdh && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdQdhQty)}</td>}
                                     </>
@@ -8104,6 +8141,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               const totalGdMlnQty = staffKhaiThacStats.reduce((s, x) => s + x.gdMlnQty, 0);
                               const totalGdNcomQty = staffKhaiThacStats.reduce((s, x) => s + x.gdNcomQty, 0);
                               const totalGdNchienQty = staffKhaiThacStats.reduce((s, x) => s + x.gdNchienQty, 0);
+                              const totalGdNoiChaoQty = staffKhaiThacStats.reduce((s, x) => s + (x.gdNoiChaoQty || 0), 0);
                               const totalGdQuatQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQuatQty, 0);
                               const totalGdQdhQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQdhQty, 0);
 
@@ -8242,6 +8280,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                       {showKhaiThacCols.gdMln && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdMlnQty)}</td>}
                                       {showKhaiThacCols.gdNcom && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdNcomQty)}</td>}
                                       {showKhaiThacCols.gdNchien && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdNchienQty)}</td>}
+                                      {showKhaiThacCols.gdNoiChao && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdNoiChaoQty)}</td>}
                                       {showKhaiThacCols.gdQuat && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdQuatQty)}</td>}
                                       {showKhaiThacCols.gdQdh && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdQdhQty)}</td>}
                                     </>
