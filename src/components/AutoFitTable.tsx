@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useCallback, useId } from 'react';
 
 export interface AutoFitTableProps {
   children: React.ReactNode;
-  /** Giới hạn mức thu nhỏ tối thiểu, mặc định 0.20 (20%) để vừa khít màn hình mobile */
+  /** Giới hạn mức thu nhỏ tối thiểu, mặc định 0.38 (38%) để bảo toàn độ sắc nét và chống mất chữ trên mobile */
   minScale?: number;
   /** Độ rộng tự nhiên cố định gợi ý (px), ví dụ: 1450 cho bảng lịch PG, 1000 cho bảng thưởng */
   minWidth?: number;
@@ -16,7 +16,7 @@ export interface AutoFitTableProps {
 
 export const AutoFitTable: React.FC<AutoFitTableProps> = ({
   children,
-  minScale = 0.20,
+  minScale = 0.38,
   minWidth: explicitMinWidth,
   className = '',
   style = {},

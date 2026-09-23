@@ -5739,7 +5739,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                 <>
                                   <colgroup>
                                     <col style={{ width: '48px' }} />
-                                    <col style={{ width: '220px' }} />
+                                    <col style={{ width: '240px' }} />
                                     <col style={{ width: '120px' }} />
                                     <col style={{ width: '120px' }} />
                                     <col style={{ width: '95px' }} />
@@ -5810,7 +5810,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                       <td className="px-2 py-0 text-center font-bold text-[#059669] text-[12px] sm:text-[13px] border-r border-[#e6f4ea]">
                                         #{i + 1}
                                       </td>
-                                      <td className={`px-3 py-0 text-left font-bold text-[12px] sm:text-[13px] border-r border-[#e6f4ea] truncate ${nameColor}`}>
+                                      <td className={`px-3 py-0 text-left font-bold text-[12px] sm:text-[13px] border-r border-[#e6f4ea] whitespace-nowrap ${nameColor}`}>
                                         {(row.nhanVien || '').toUpperCase()}
                                       </td>
                                       <td className="px-1 py-0 text-center font-semibold text-[12px] sm:text-[13px] border-r border-[#e6f4ea] text-slate-700 whitespace-nowrap">

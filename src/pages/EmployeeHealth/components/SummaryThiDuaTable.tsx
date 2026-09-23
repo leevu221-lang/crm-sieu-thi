@@ -10,7 +10,6 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useLuykeData } from '../../RTST/hooks/useLuykeData';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
-import AutoFitTable from '../../../components/AutoFitTable';
 import { prepareCloneForCapture, startCaptureSession, endCaptureSession } from '../../../utils/captureUtil';
 
 const removeAccentsLocal = (str: string): string => {
@@ -1387,8 +1386,18 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       </div>
 
       {/* ═══ Table ═══ */}
-      <AutoFitTable minWidth={Math.max(900, 510 + (visibleCategories?.length || 0) * 80)}>
-        <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
+      <div 
+        className="w-full overflow-x-auto rounded-2xl border border-slate-200/80 shadow-xs"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        <table 
+          className="w-full border-collapse table-fixed" 
+          style={{ 
+            minWidth: `${Math.max(980, 510 + (visibleCategories?.length || 0) * 80)}px`, 
+            border: '1px solid #e2e8f0', 
+            fontWeight: 900 
+          }}
+        >
           <thead>
             <tr className="text-slate-900 h-[85px]">
               <th 
@@ -1535,7 +1544,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
             })}
           </tbody>
         </table>
-      </AutoFitTable>
+      </div>
 
       {/* Comment Modal - Orange gradient design with template tabs */}
       {isCommentOpen && ReactDOM.createPortal(

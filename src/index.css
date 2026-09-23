@@ -318,6 +318,12 @@ table td {
   box-sizing: border-box !important;
 }
 
+.autofit-content-box th,
+.autofit-content-box td {
+  box-sizing: border-box !important;
+  overflow: visible !important;
+}
+
 /* Styles for capturing screenshots - hide scrollbars and ensure full width */
 html.capturing-screenshot,
 body.capturing-screenshot {
