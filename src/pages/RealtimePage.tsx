@@ -3777,7 +3777,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     console.log('[KhaiThac] idxRevenue:', idxRevenue, '| Header:', headers[idxRevenue]);
     const idxCategory = findIdx(['nhóm hàng', 'tên nhóm hàng', 'ngành hàng', 'nhóm ngành hàng'], -1);
     const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ'], -1);
-    const idxHinhThucXuat = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
+    const idxHinhThucXuat = findIdx(['hình thức xuất', 'hinh thuc xuat', 'htx', 'loại hình thức xuất', 'loai hinh thuc xuat', 'loại ycx', 'loai ycx', 'loại yêu cầu', 'loai yeu cau', 'phân loại ycx', 'phan loai ycx', 'hình thức', 'hinh thuc'], -1);
     const idxNhaSanXuat = findIdx(['nhà sản xuất', 'nha san xuat', 'nhà sx', 'nha sx', 'hãng sản xuất', 'hãng sx', 'brand'], -1);
     const idxProduct = (() => {
       const exact = headers.findIndex(h => h.toLowerCase() === 'tên sản phẩm');
@@ -3894,6 +3894,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
       const brandVal = idxNhaSanXuat !== -1 ? String(row[idxNhaSanXuat] || '').trim().toUpperCase() : '';
       const isVieONRow = (brandVal === 'VIEON' || category.toUpperCase().includes('VIEON') || productName.toUpperCase().includes('VIEON') || ['V1', 'V2', 'V3', 'V4'].includes(pClass) || normProdUpper.includes('VIEON') || normCatUpper.includes('VIEON')) && pClass !== 'Mango' && pClass !== 'Icall' && !normProdUpper.includes('MANGO') && !normProdUpper.includes('ICALL');
+
+      const rawHtx = idxHinhThucXuat !== -1 ? String(row[idxHinhThucXuat] || '').trim() : '';
+      const normHtx = removeAccents(rawHtx).toLowerCase();
+      const isXuatBanHang = idxHinhThucXuat === -1 || normHtx.includes('xuat ban hang') || normHtx.startsWith('xuat ban');
 
       const rawQty = idxQty !== -1 ? Math.round(parseFloat(String(row[idxQty] || '1').replace(/,/g, '')) || 0) : 1;
       const qty = rawQty > 0 ? rawQty : 1;
@@ -4018,8 +4022,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           item.pkDenMtQty += qty;
         }
       } else if (nhomLarge === 'DCNB') {
-        item.gdQty += qty;
-        item.gdRev += revenue;
+        if (isXuatBanHang) {
+          item.gdQty += qty;
+          item.gdRev += revenue;
+        }
       }
 
       // Phân tích Gia dụng từ nhóm nhỏ (YCX RT) độc lập
@@ -4071,7 +4077,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       const isQuat = nSmall === 'QUẠT' || rawSmallCatVal === 'QUAT';
       const isQdh = nSmall === 'QĐH' || rawSmallCatVal === 'QDH';
 
-      const isNoiChao = !isNcom && !isNchien && (
+      const isNoiChao = isXuatBanHang && !isNcom && !isNchien && (
         category.includes('3265') ||
         category.includes('3263') ||
         normCatUpper.includes('CHAO') ||
@@ -4116,8 +4122,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         item.dtThuc += revenue;
       }
 
-      const htx = idxHinhThucXuat !== -1 ? String(row[idxHinhThucXuat] || '').toLowerCase() : '';
-      const isTraGop = htx.includes('trả góp');
+      const isTraGop = normHtx.includes('tra gop') || normHtx.includes('trả góp');
       if (isTraGop) {
         item.dtTraGop += revenue;
       }
