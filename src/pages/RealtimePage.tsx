@@ -3897,7 +3897,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
       const rawHtx = idxHinhThucXuat !== -1 ? String(row[idxHinhThucXuat] || '').trim() : '';
       const normHtx = removeAccents(rawHtx).toLowerCase();
-      const isXuatBanHang = idxHinhThucXuat === -1 || normHtx.includes('xuat ban hang') || normHtx.startsWith('xuat ban');
+      const isXuatBanHang = idxHinhThucXuat !== -1
+        ? ((normHtx.includes('xuat ban hang') || normHtx.startsWith('xuat ban')) &&
+           !normHtx.includes('khuyen mai') &&
+           !normHtx.includes('qua tang') &&
+           !normHtx.includes('bao hanh') &&
+           !normHtx.includes('tra hang') &&
+           !normHtx.includes('chuyen kho'))
+        : (!normHtx.includes('khuyen mai') && !normHtx.includes('qua tang'));
 
       const rawQty = idxQty !== -1 ? Math.round(parseFloat(String(row[idxQty] || '1').replace(/,/g, '')) || 0) : 1;
       const qty = rawQty > 0 ? rawQty : 1;
@@ -4069,35 +4076,68 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       }
 
       const rawSmallCatVal = idxSmallCat !== -1 ? removeAccents(String(row[idxSmallCat] || '')).trim().toUpperCase() : '';
-      const isMln = nSmall === 'MLN' || rawSmallCatVal === 'MLN';
-      const isNcom = nSmall === 'N.CƠM' || nSmall === 'NC NẮP RỜI' || nSmall === 'NC Đ.TỬ' ||
+      const isRiceCooker = nSmall === 'N.CƠM' || nSmall === 'NC NẮP RỜI' || nSmall === 'NC Đ.TỬ' ||
         normCatUpper.includes('NOI COM') || normProdUpper.includes('NOI COM') || normProdUpper.includes('N.COM') || normProdUpper.includes('NC N');
-      const isNchien = nSmall === 'N.CHIÊN' ||
+      const isAirFryer = nSmall === 'N.CHIÊN' ||
         normCatUpper.includes('NOI CHIEN') || normProdUpper.includes('NOI CHIEN') || normProdUpper.includes('N.CHIEN');
-      const isQuat = nSmall === 'QUẠT' || rawSmallCatVal === 'QUAT';
-      const isQdh = nSmall === 'QĐH' || rawSmallCatVal === 'QDH';
 
-      const isNoiChao = isXuatBanHang && !isNcom && !isNchien && (
+      const isDienGiaDung =
+        category.includes('4151') || // Áp suất/lẩu/chiên/nướng
+        category.includes('1982') || // Nồi cơm
+        category.includes('4150') || // Lò vi sóng/nướng
+        normCatUpper.includes('AP SUAT') ||
+        normCatUpper.includes('LAU') ||
+        normCatUpper.includes('NOI COM') ||
+        normCatUpper.includes('NOI CHIEN') ||
+        normCatUpper.includes('DIEN GIA DUNG') ||
+        normProdUpper.includes('LAU DIEN') ||
+        normProdUpper.includes('LAU DA NANG') ||
+        normProdUpper.includes('NOI LAU') ||
+        normProdUpper.includes('NAU CHAM') ||
+        normProdUpper.includes('AP SUAT') ||
+        normProdUpper.includes('TIET TRUNG') ||
+        normProdUpper.includes('CHUNG YEN') ||
+        normProdUpper.includes('NOI HAM') ||
+        normProdUpper.includes('NOI DIEN');
+
+      const isMln = isXuatBanHang && (nSmall === 'MLN' || rawSmallCatVal === 'MLN');
+      const isNcom = isXuatBanHang && isRiceCooker;
+      const isNchien = isXuatBanHang && isAirFryer;
+      const isQuat = isXuatBanHang && (nSmall === 'QUẠT' || rawSmallCatVal === 'QUAT');
+      const isQdh = isXuatBanHang && (nSmall === 'QĐH' || rawSmallCatVal === 'QDH');
+
+      const isNoiChao = isXuatBanHang && !isRiceCooker && !isAirFryer && !isDienGiaDung && (
         category.includes('3265') ||
         category.includes('3263') ||
+        prodCode.includes('3263') ||
+        prodCode.includes('3265') ||
         normCatUpper.includes('CHAO') ||
         normCatUpper.includes('BO NOI') ||
-        (normCatUpper.includes('NOI') && !normCatUpper.includes('NOI COM') && !normCatUpper.includes('NOI CHIEN')) ||
+        (normCatUpper.includes('NOI') && !normCatUpper.includes('NOI COM') && !normCatUpper.includes('NOI CHIEN') && !normCatUpper.includes('AP SUAT') && !normCatUpper.includes('LAU')) ||
         nSmall.includes('CHẢO') ||
         nSmall.includes('BỘ NỒI') ||
-        (nSmall.includes('NỒI') && !nSmall.includes('CƠM') && !nSmall.includes('CHIÊN')) ||
+        (nSmall.includes('NỒI') && !nSmall.includes('CƠM') && !nSmall.includes('CHIÊN') && !nSmall.includes('LẨU') && !nSmall.includes('CHẬM') && !nSmall.includes('ÁP SUẤT')) ||
         rawSmallCatVal.includes('CHAO') ||
         rawSmallCatVal.includes('BO NOI') ||
-        (rawSmallCatVal.includes('NOI') && !rawSmallCatVal.includes('COM') && !rawSmallCatVal.includes('CHIEN')) ||
+        (rawSmallCatVal.includes('NOI') && !rawSmallCatVal.includes('COM') && !rawSmallCatVal.includes('CHIEN') && !rawSmallCatVal.includes('LAU') && !rawSmallCatVal.includes('CHAM') && !rawSmallCatVal.includes('AP SUAT')) ||
         normProdUpper.startsWith('CHAO ') ||
         normProdUpper.includes(' CHAO ') ||
         normProdUpper === 'CHAO' ||
         normProdUpper.startsWith('BO NOI') ||
         normProdUpper.includes(' BO NOI') ||
-        normProdUpper.startsWith('NOI ') ||
-        normProdUpper.includes(' NOI ') ||
+        normProdUpper.startsWith('NOI INOX') ||
+        normProdUpper.includes(' NOI INOX') ||
+        normProdUpper.startsWith('NOI NHOM') ||
+        normProdUpper.includes(' NOI NHOM') ||
+        normProdUpper.startsWith('NOI DAT') ||
+        normProdUpper.startsWith('NOI SU') ||
+        normProdUpper.startsWith('NOI CANH') ||
+        normProdUpper.startsWith('NOI LUOC GA') ||
         normProdUpper.startsWith('QUANH ') ||
-        normProdUpper.includes(' QUANH ')
+        normProdUpper.includes(' QUANH ') ||
+        normProdUpper === 'QUANH' ||
+        (normProdUpper.startsWith('NOI ') && !normProdUpper.includes('NON BAO HIEM')) ||
+        (normProdUpper.includes(' NOI ') && !normProdUpper.includes('NON BAO HIEM'))
       );
 
       if (isMln) item.gdMlnQty += qty;
