@@ -9,6 +9,7 @@ import * as htmlToImage from 'html-to-image';
 import { domToPng } from 'modern-screenshot';
 import html2canvas from 'html2canvas';
 import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
+import { startCaptureSession, endCaptureSession } from '../utils/captureUtil';
 import { 
   RefreshCw, ShoppingBag, TrendingUp, Camera, LayoutGrid, Activity, Globe, ChevronDown, Zap, Upload, Trash2, 
   HelpCircle, FileSpreadsheet, X, AlertCircle, Trophy, Target, BarChart3, CreditCard, Calendar, ArrowUpRight, 
@@ -1882,7 +1883,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       const targetWidthPx = isThuongSt ? 1200 : (isSingleTable ? 1000 : 1850);
       const targetWidth = `${targetWidthPx}px`;
 
-      document.body.classList.add('capturing-screenshot');
+      startCaptureSession();
       const tempContainer = document.createElement('div');
       tempContainer.style.position = 'fixed';
       tempContainer.style.top = '0';
@@ -2220,7 +2221,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     } catch (err) {
       console.error('Error capturing offscreen:', err);
     } finally {
-      document.body.classList.remove('capturing-screenshot');
+      endCaptureSession();
       setIsCapturing(false);
     }
   };

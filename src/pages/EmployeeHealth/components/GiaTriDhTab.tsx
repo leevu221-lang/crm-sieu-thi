@@ -42,6 +42,7 @@ import { useStore } from '../../../contexts/StoreContext';
 import { normalizeStoreId, cn } from '../../RTST/utils';
 import { StaffRevenueData } from '../../../types';
 import { ensureFontsReady } from '../../../utils/fontExportUtil';
+import { prepareCloneForCapture, startCaptureSession, endCaptureSession } from '../../../utils/captureUtil';
 
 export const BOOKMARKLET_AUTO_COPY_5_CAP = `javascript:(function(){(async function(){let l=document.getElementById("tm-lbl");if(l)return;let b=document.createElement("div");b.style.cssText="position:fixed;bottom:30px;right:30px;z-index:99999999;background:linear-gradient(135deg,rgb(234,88,12),rgb(249,115,22));color:white;padding:14px 24px;border-radius:9999px;font-weight:900;font-size:14px;box-shadow:0 12px 28px rgba(0,0,0,0.5);font-family:sans-serif;cursor:pointer;";b.innerHTML="⚡ <span id='tm-lbl'>ĐANG MỞ CÁC CẤP [+]...</span>";document.body.appendChild(b);let lb=document.getElementById("tm-lbl");for(let lvl=1;lvl<=6;lvl++){let pls=[];document.querySelectorAll("table tr td:first-child, table tr td:nth-child(2)").forEach(c=>{let t=c.innerText?c.innerText.trim():"";if(t==="+"||t.startsWith("+ ")||t==="➕"||t==="▶"||t==="►"){if(!pls.includes(c))pls.push(c)}else{c.querySelectorAll("span,i,a,div,button").forEach(ic=>{let st=ic.innerText?ic.innerText.trim():"";if((st==="+"||st==="➕"||ic.classList.contains("fa-plus")||ic.classList.contains("k-plus"))&&!pls.includes(ic))pls.push(ic)})}});if(pls.length===0)break;if(lb)lb.innerText="ĐANG MỞ CẤP "+lvl+"/6...";for(let el of pls){try{el.scrollIntoView({block:"nearest"});el.click();el.dispatchEvent(new MouseEvent("mousedown",{bubbles:true}));el.dispatchEvent(new MouseEvent("mouseup",{bubbles:true}))}catch(e){}}await new Promise(r=>setTimeout(r,350))}if(lb)lb.innerText="ĐANG COPY DỮ LIỆU...";await new Promise(r=>setTimeout(r,400));let s=window.getSelection(),rg=document.createRange();rg.selectNodeContents(document.body);s.removeAllRanges();s.addRange(rg);let txt=s.toString()||document.body.innerText;if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(txt).catch(()=>{})}document.execCommand("copy");s.removeAllRanges();if(lb)lb.innerText="✓ ĐÃ COPY XONG 5 CẤP!";b.style.background="linear-gradient(135deg,rgb(16,185,129),rgb(5,150,105))";setTimeout(()=>b.remove(),3000);alert("✅ ĐÃ COPY XONG TOÀN BỘ 5 CẤP!\\nBây giờ bạn chỉ cần quay lại CRM và bấm [Dán] (Ctrl+V).");})();})();`;
 
@@ -544,13 +545,10 @@ function buildDynamicGroupedTree(initialRows: TreeRow[], hierarchyOrder: Hierarc
 // Tối ưu chức năng xuất ảnh: Auto thu gọn độ rộng bảng vừa khít dữ liệu (Zero-shadow, Zero-Scrollbar, HD 2.5x)
 const captureElementHelper = async (element: HTMLElement): Promise<string> => {
   const htmlToImage = await import('html-to-image');
+  startCaptureSession();
   await ensureFontsReady();
 
   const clone = element.cloneNode(true) as HTMLElement;
-  const noCaptureElements = clone.querySelectorAll('.no-capture, button, textarea, .capture-btn, input, select');
-  noCaptureElements.forEach(el => {
-    (el as HTMLElement).style.display = 'none';
-  });
 
   // Triệt tiêu hoàn toàn bóng mờ (Zero-Shadow Export Rule)
   const allElements = clone.querySelectorAll('*');
@@ -710,6 +708,7 @@ const captureElementHelper = async (element: HTMLElement): Promise<string> => {
     });
     return dataUrl;
   } finally {
+    endCaptureSession();
     document.body.removeChild(tempContainer);
   }
 };

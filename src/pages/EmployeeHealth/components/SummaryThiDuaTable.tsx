@@ -11,7 +11,7 @@ import { useLuykeData } from '../../RTST/hooks/useLuykeData';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
 import AutoFitTable from '../../../components/AutoFitTable';
-import { prepareCloneForCapture } from '../../../utils/captureUtil';
+import { prepareCloneForCapture, startCaptureSession, endCaptureSession } from '../../../utils/captureUtil';
 
 const removeAccentsLocal = (str: string): string => {
   return str
@@ -1185,7 +1185,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   const handleExport = async () => {
     if (tableRef.current) {
       setIsCapturing(true);
-      document.body.classList.add('capturing-screenshot');
+      startCaptureSession();
       const originalElement = tableRef.current;
       
       // Create a temporary container to hold the clone
@@ -1259,7 +1259,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       } catch (err) {
         console.error('Export failed:', err);
       } finally {
-        document.body.classList.remove('capturing-screenshot');
+        endCaptureSession();
         if (container.parentNode) {
           container.parentNode.removeChild(container);
         }

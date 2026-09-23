@@ -106,6 +106,7 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
 import { addWhiteBorderToDataUrl } from '../utils/imageBorderUtil';
+import { startCaptureSession, endCaptureSession } from '../utils/captureUtil';
 import { isValidStoreName, normalize, normalizeStoreId } from './RTST/utils';
 
 const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: boolean, onClick: () => void, icon: any, label: string, count?: number }) => (
@@ -2884,8 +2885,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const clone = element.cloneNode(true) as HTMLElement;
 
     try {
-      // Add the body class to trigger global screenshot styles
-      document.body.classList.add('capturing-screenshot');
+      // Add screenshot classes to trigger global screenshot styles
+      startCaptureSession();
 
       // 3. Preserve input values and convert inputs/textareas to styled text in the clone
       const origInputs = Array.from(element.querySelectorAll('input, textarea'));
@@ -3295,7 +3296,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       if (document.body.contains(tempContainer)) {
         document.body.removeChild(tempContainer);
       }
-      document.body.classList.remove('capturing-screenshot');
+      endCaptureSession();
     }
   };
 
@@ -4598,7 +4599,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
     try {
       setIsCapturing(true);
-      document.body.classList.add('capturing-screenshot');
+      startCaptureSession();
       if (document.fonts) {
         await document.fonts.ready;
       }
@@ -4750,11 +4751,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         classes.forEach(c => el.classList.add(c));
       });
 
-      document.body.classList.remove('capturing-screenshot');
+      endCaptureSession();
       setPreviewImage(dataUrl);
     } catch (error) {
       console.error('Lỗi khi chụp ảnh direct:', error);
-      document.body.classList.remove('capturing-screenshot');
+      endCaptureSession();
     } finally {
       setIsCapturing(false);
     }

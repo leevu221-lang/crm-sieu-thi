@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { Camera, ChevronDown, Check, Search, X, Plus, Layers, Sparkles, Copy } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
 import { ensureFontsReady, EXPORT_FONT_STYLE } from '../../../utils/fontExportUtil';
+import { startCaptureSession, endCaptureSession } from '../../../utils/captureUtil';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { cn } from '../../RTST/utils';
@@ -570,6 +571,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   }, []);
 
   const captureElementHelper = useCallback(async (element: HTMLElement, customCount?: number) => {
+    startCaptureSession();
     const isGridAll = element.id === 'all-categories-container';
     const count = typeof customCount === 'number' ? customCount : selectedCategories.length;
     const isMultiTable = isGridAll && count > 1;
@@ -799,6 +801,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
       });
       return dataUrl;
     } finally {
+      endCaptureSession();
       document.body.removeChild(tempContainer);
     }
   }, [selectedCategories.length]);

@@ -6,7 +6,7 @@ import { domToPng } from 'modern-screenshot';
 import html2canvas from 'html2canvas';
 import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
 import { ensureFontsReady, EXPORT_FONT_STYLE, ensureSharedCaptureStyle, getPreloadedFontCss } from '../../../utils/fontExportUtil';
-import { prepareCloneForCapture } from '../../../utils/captureUtil';
+import { prepareCloneForCapture, startCaptureSession, endCaptureSession } from '../../../utils/captureUtil';
 import { parseCategoryData } from '../../RTST/utils';
 import { cn } from '../../RTST/utils';
 import { CategoryData, StaffMatrixData } from '../../RTST/types';
@@ -446,7 +446,7 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
 
   const captureElementHelper = async (element: HTMLElement) => {
     ensureSharedCaptureStyle();
-    document.body.classList.add('capturing-screenshot');
+    startCaptureSession();
     const tempContainer = document.createElement('div');
     tempContainer.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:1120px;overflow:hidden;pointer-events:none;z-index:-9999;contain:strict;background:#ffffff;';
     (tempContainer.style as any).zoom = '1';
@@ -517,7 +517,7 @@ const EmployeeDetailTable: React.FC<EmployeeDetailTableProps> = ({
       }
       return dataUrl;
     } finally {
-      document.body.classList.remove('capturing-screenshot');
+      endCaptureSession();
       tempContainer.remove();
     }
   };

@@ -12,7 +12,7 @@ import * as htmlToImage from 'html-to-image';
 import { domToPng, domToBlob } from 'modern-screenshot';
 import html2canvas from 'html2canvas';
 import { ensureFontsReady, EXPORT_FONT_STYLE, ensureSharedCaptureStyle, getPreloadedFontCss } from '../utils/fontExportUtil';
-import { prepareCloneForCapture } from '../utils/captureUtil';
+import { prepareCloneForCapture, startCaptureSession, endCaptureSession } from '../utils/captureUtil';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -565,20 +565,28 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
     const isCompactTab = isDoanhThuNvTab || isPhucVuTab || isBanKemTab || isTraChamTab;
 
+    // Detect natural desktop width from AutoFitTable if present
+    const autofitContent = element.querySelector('.autofit-content-box, [data-autofit-content]') as HTMLElement;
+    let autofitNaturalW = 0;
+    if (autofitContent) {
+      const styleW = parseInt(autofitContent.style.width || autofitContent.style.minWidth || '0', 10);
+      autofitNaturalW = styleW || 0;
+    }
+
     let compactWidth = 900;
     if (isDoanhThuNvTab) compactWidth = 900;
-    else if (isPhucVuTab) compactWidth = Math.max(860, sumColWidths > 0 ? sumColWidths + 20 : 860);
-    else if (isBanKemTab) compactWidth = Math.max(840, sumColWidths > 0 ? sumColWidths + 20 : 840);
-    else if (isTraChamTab) compactWidth = Math.max(800, sumColWidths > 0 ? sumColWidths + 20 : 800);
+    else if (isPhucVuTab) compactWidth = Math.max(860, sumColWidths > 0 ? sumColWidths + 20 : 860, autofitNaturalW);
+    else if (isBanKemTab) compactWidth = Math.max(840, sumColWidths > 0 ? sumColWidths + 20 : 840, autofitNaturalW);
+    else if (isTraChamTab) compactWidth = Math.max(800, sumColWidths > 0 ? sumColWidths + 20 : 800, autofitNaturalW);
 
     // Auto-fit content width: For compact tabs, lock to their designated width matching web layout.
     // For other tabs, Desktop base 980px or expand to exact sum of column widths / scrollWidth.
-    const actualContentWidth = isCompactTab ? compactWidth : Math.max(980, sumColWidths, maxScrollWidth);
+    const actualContentWidth = isCompactTab ? compactWidth : Math.max(980, sumColWidths, autofitNaturalW, maxScrollWidth);
     const framePadding = isCompactTab ? 16 : 20;
     const totalExportWidth = actualContentWidth + framePadding * 2;
     
-    // Add capturing-screenshot class to body
-    document.body.classList.add('capturing-screenshot');
+    // Add capturing-screenshot class to html and body
+    startCaptureSession();
 
     // Create a temporary container to hold the clone
     const tempContainer = document.createElement('div');
@@ -616,6 +624,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     // 6. Detects and preserves custom font (Plus Jakarta Sans, Lexend...)
     const { detectedFont, isCustomFont } = prepareCloneForCapture(clone, element, {
       preserveTableLayout: true,
+      targetWidth: actualContentWidth,
       defaultFont: "'UTM Avo', 'Inter', sans-serif"
     });
 
@@ -720,7 +729,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       });
       return dataUrl;
     } finally {
-      document.body.classList.remove('capturing-screenshot');
+      endCaptureSession();
       if (tempContainer.parentNode) {
         tempContainer.parentNode.removeChild(tempContainer);
       }

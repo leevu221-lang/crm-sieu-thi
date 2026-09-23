@@ -85,10 +85,10 @@ body {
 
 /* Mobile Small & Standard (~320px - ~480px, mốc ~375px) */
 @media (max-width: 480px) {
-  html {
+  html:not(.capturing-screenshot) {
     font-size: 6.8px;
   }
-  body, #root {
+  body:not(.capturing-screenshot), #root {
     max-width: 100vw;
     overflow-x: hidden;
   }
@@ -96,14 +96,14 @@ body {
 
 /* Mobile & Tablet Portrait (< 768px) */
 @media (max-width: 768px) {
-  body {
+  body:not(.capturing-screenshot) {
     zoom: 1;
     margin: 0;
     padding: 0;
     max-width: 100vw;
     overflow-x: hidden;
   }
-  html {
+  html:not(.capturing-screenshot) {
     font-size: 6.8px;
   }
 }
@@ -258,14 +258,14 @@ table td {
 
 /* All tables on mobile: prevent text wrap, ensure horizontal scroll */
 @media (max-width: 768px) {
-  table th,
-  table td {
+  body:not(.capturing-screenshot) table th,
+  body:not(.capturing-screenshot) table td {
     white-space: nowrap !important;
   }
 
-  /* Reduce table cell padding on mobile */
-  table th,
-  table td {
+  /* Reduce table cell padding on mobile for regular tables */
+  body:not(.capturing-screenshot) table:not(.autofit-content-box table) th,
+  body:not(.capturing-screenshot) table:not(.autofit-content-box table) td {
     padding-left: 0.4rem !important;
     padding-right: 0.4rem !important;
   }
@@ -313,7 +313,13 @@ table td {
   background: #94a3b8;
 }
 
+.autofit-content-box table {
+  table-layout: fixed !important;
+  box-sizing: border-box !important;
+}
+
 /* Styles for capturing screenshots - hide scrollbars and ensure full width */
+html.capturing-screenshot,
 body.capturing-screenshot {
   position: static !important;
   height: auto !important;
@@ -321,6 +327,7 @@ body.capturing-screenshot {
   zoom: 1 !important;
   width: 100% !important;
   min-width: 100% !important;
+  font-size: 6.45px !important;
 }
 
 body.capturing-screenshot *::-webkit-scrollbar {

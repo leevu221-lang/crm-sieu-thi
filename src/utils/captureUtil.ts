@@ -153,15 +153,48 @@ export function prepareCloneForCapture(
     htmlTable.style.width = '100%';
     htmlTable.style.minWidth = '100%';
     htmlTable.style.maxWidth = 'none';
+
+    // Đảm bảo các ô th, td trong ảnh chụp giữ nguyên padding và font gốc, không bị co rút theo mobile
+    const cells = htmlTable.querySelectorAll('th, td');
+    cells.forEach(c => {
+      const cell = c as HTMLElement;
+      cell.style.boxSizing = 'border-box';
+      cell.style.whiteSpace = 'nowrap';
+    });
   });
 
-  // 8. Style ẩn toàn bộ thanh cuộn trong ảnh chụp
+  if (options.targetWidth && options.targetWidth > 0) {
+    clone.style.width = `${options.targetWidth}px`;
+    clone.style.minWidth = `${options.targetWidth}px`;
+    clone.style.maxWidth = `${options.targetWidth}px`;
+  }
+
+  // 8. Style ẩn toàn bộ thanh cuộn trong ảnh chụp và bảo vệ padding chuẩn desktop
   const hideScrollStyle = document.createElement('style');
   hideScrollStyle.innerHTML = `
     *::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
     * { -ms-overflow-style: none !important; scrollbar-width: none !important; }
+    table { table-layout: fixed !important; width: 100% !important; }
   `;
   clone.appendChild(hideScrollStyle);
 
   return { detectedFont: activeFont, isCustomFont };
+}
+
+/**
+ * Bắt đầu phiên chụp ảnh màn hình: chuyển trạng thái DOM sang chế độ export chuẩn desktop
+ */
+export function startCaptureSession(): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.classList.add('capturing-screenshot');
+  document.body.classList.add('capturing-screenshot');
+}
+
+/**
+ * Kết thúc phiên chụp ảnh màn hình: phục hồi lại DOM bình thường
+ */
+export function endCaptureSession(): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.classList.remove('capturing-screenshot');
+  document.body.classList.remove('capturing-screenshot');
 }

@@ -9,7 +9,7 @@ import { parseStaffMatrixDataRefined } from './SummaryThiDuaTable';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
 import AutoFitTable from '../../../components/AutoFitTable';
-import { prepareCloneForCapture } from '../../../utils/captureUtil';
+import { prepareCloneForCapture, startCaptureSession, endCaptureSession } from '../../../utils/captureUtil';
 
 import { CategoryConfigItem } from '../../../hooks/useCategoryConfig';
 
@@ -467,7 +467,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
   const handleCapture = async () => {
     if (!captureRef.current) return;
     setIsCapturing(true);
-    document.body.classList.add('capturing-screenshot');
+    startCaptureSession();
 
     const originalElement = captureRef.current;
     
@@ -554,7 +554,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
     } catch (err) {
       console.error('Error capturing:', err);
     } finally {
-      document.body.classList.remove('capturing-screenshot');
+      endCaptureSession();
       if (container.parentNode) {
         container.parentNode.removeChild(container);
       }
