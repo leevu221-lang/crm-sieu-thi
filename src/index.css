@@ -256,11 +256,21 @@ table td {
    RESPONSIVE TABLE SYSTEM - Mobile First
    ======================================== */
 
-/* All tables on mobile: prevent text wrap, ensure horizontal scroll */
+/* All tables on mobile: prevent text wrap by default, but allow cells with whitespace-normal or cell-wrap-text */
 @media (max-width: 768px) {
-  body:not(.capturing-screenshot) table th,
-  body:not(.capturing-screenshot) table td {
+  body:not(.capturing-screenshot) table th:not(.whitespace-normal):not(.cell-wrap-text),
+  body:not(.capturing-screenshot) table td:not(.whitespace-normal):not(.cell-wrap-text) {
     white-space: nowrap !important;
+  }
+
+  body:not(.capturing-screenshot) table th.whitespace-normal,
+  body:not(.capturing-screenshot) table td.whitespace-normal,
+  body:not(.capturing-screenshot) table th.cell-wrap-text,
+  body:not(.capturing-screenshot) table td.cell-wrap-text,
+  body:not(.capturing-screenshot) .cell-wrap-text {
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
   }
 
   /* Reduce table cell padding on mobile for regular tables */
@@ -321,7 +331,16 @@ table td {
 .autofit-content-box th,
 .autofit-content-box td {
   box-sizing: border-box !important;
-  overflow: visible !important;
+  overflow: hidden;
+}
+
+.autofit-content-box th.whitespace-normal,
+.autofit-content-box td.whitespace-normal,
+.autofit-content-box th.cell-wrap-text,
+.autofit-content-box td.cell-wrap-text {
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
 }
 
 /* Styles for capturing screenshots - hide scrollbars and ensure full width */
