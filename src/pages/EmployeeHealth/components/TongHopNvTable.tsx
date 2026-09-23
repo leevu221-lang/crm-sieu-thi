@@ -8,7 +8,6 @@ import { cleanCategoryName } from './EmployeeDetailTable';
 import { parseStaffMatrixDataRefined } from './SummaryThiDuaTable';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay';
-import AutoFitTable from '../../../components/AutoFitTable';
 
 import { CategoryConfigItem } from '../../../hooks/useCategoryConfig';
 
@@ -673,7 +672,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
         </div>
 
         {/* Table Container with Emerald borders */}
-        <AutoFitTable minWidth={1105}>
+        <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
           <table className="w-full border-separate border-spacing-0 table-fixed bg-white text-[12px] sm:text-[14px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", minWidth: '1105px' }}>
             <colgroup>
               <col style={{ width: '55px' }} />
@@ -883,7 +882,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
               </tfoot>
             )}
           </table>
-        </AutoFitTable>
+        </div>
       </div>
       {/* Capture Loading Overlay */}
       <CaptureLoadingOverlay isLoading={isCapturing} />

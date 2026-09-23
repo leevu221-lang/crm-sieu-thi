@@ -11,7 +11,6 @@ import { cn } from '../../RTST/utils';
 import { CategoryData, StaffMatrixData } from '../../RTST/types';
 import { parseStaffMatrixDataRefined } from './SummaryThiDuaTable';
 import { extractStaffNameAndId } from '../utils/staffParserHelper';
-import AutoFitTable from '../../../components/AutoFitTable';
 
 export const removeAccents = (str: string): string => {
   return str
@@ -120,7 +119,7 @@ const SectionTable: React.FC<{
           ⚡ ĐẠT: {reachedCount}/{rowData.length} || {rowData.length > 0 ? ((reachedCount / rowData.length) * 100).toFixed(0) : 0}%
         </span>
       </div>
-      <AutoFitTable minWidth={535}>
+      <div className="overflow-x-auto w-full bg-white">
         <table className="w-full border-separate border-spacing-0 table-fixed bg-white text-[12px] sm:text-[14px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
           <colgroup>
             <col style={{ width: '6%' }} />
@@ -208,7 +207,7 @@ const SectionTable: React.FC<{
             })}
           </tbody>
         </table>
-      </AutoFitTable>
+      </div>
 
       {/* Comment Popup - Redesigned like FORM NHẬN XÉT reference */}
       {activeComment && (

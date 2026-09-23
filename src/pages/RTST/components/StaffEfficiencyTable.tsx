@@ -7,7 +7,6 @@ import React from 'react';
 import { Camera, Calendar, Clock } from 'lucide-react';
 import { YcxStaffData } from '../types';
 import { formatRealtimeDate, getWorkingDayProgress, cn, formatStaffName } from '../utils';
-import AutoFitTable from '../../../components/AutoFitTable';
 
 interface StaffEfficiencyTableProps {
   ycxStaffData: YcxStaffData[];
@@ -53,7 +52,7 @@ const StaffEfficiencyTable: React.FC<StaffEfficiencyTableProps> = ({
         </button>
       </div>
       <div ref={captureRef} className="p-4 bg-white">
-        <AutoFitTable minWidth={1200}>
+        <div className="overflow-x-auto border border-slate-300 bg-white scrollbar-thin scrollbar-thumb-slate-300">
           <table className="w-full text-left border-collapse border border-slate-300 min-w-[1200px]">
             <thead>
               <tr className="border-b border-slate-300 bg-white">
@@ -270,7 +269,7 @@ const StaffEfficiencyTable: React.FC<StaffEfficiencyTableProps> = ({
               )}
             </tbody>
           </table>
-        </AutoFitTable>
+        </div>
       </div>
     </div>
   );

@@ -4,7 +4,6 @@ import {
   X, Search, Plus, Trash2, Edit2, Check, Loader2, 
   FileSpreadsheet, ArrowLeft, ArrowRight, Store, AlertCircle
 } from 'lucide-react';
-import { AutoFitTable } from './AutoFitTable';
 
 export interface BossStoreItem {
   id: string;
@@ -367,8 +366,7 @@ export const BossStoreTableModal: React.FC<BossStoreTableModalProps> = ({
               <p className="font-bold text-sm">Không tìm thấy siêu thị nào khớp với từ khóa!</p>
             </div>
           ) : (
-            <AutoFitTable minWidth={1050} className="w-full">
-              <table className="w-full text-left border-collapse text-xs table-fixed min-w-[1050px]">
+            <table className="w-full text-left border-collapse text-xs table-fixed min-w-[1050px]">
               <colgroup>
                 <col className="w-14" />
                 <col className="w-28" />
@@ -539,8 +537,7 @@ export const BossStoreTableModal: React.FC<BossStoreTableModalProps> = ({
                   );
                 })}
               </tbody>
-              </table>
-            </AutoFitTable>
+            </table>
           )}
         </div>
 

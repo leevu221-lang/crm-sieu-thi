@@ -7,7 +7,6 @@ import React from 'react';
 import { Camera, CheckCircle2, XCircle } from 'lucide-react';
 import { StaffMatrixData, CategoryData } from '../types';
 import { cn } from '../utils';
-import AutoFitTable from '../../../components/AutoFitTable';
 
 interface StaffMatrixTableProps {
   staffMatrix: StaffMatrixData[];
@@ -45,7 +44,7 @@ const StaffMatrixTable: React.FC<StaffMatrixTableProps> = ({
       </div>
 
       <div ref={captureRef} className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
-        <AutoFitTable minWidth={Math.max(650, 250 + dtCategories.length * 100)}>
+        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-900">
@@ -106,7 +105,7 @@ const StaffMatrixTable: React.FC<StaffMatrixTableProps> = ({
               ))}
             </tbody>
           </table>
-        </AutoFitTable>
+        </div>
       </div>
     </div>
   );

@@ -34,7 +34,6 @@ import { normalize, isKhoLuuDong, cleanNum } from './RTST/utils';
 import BcDtNganhHang from './BcDtNganhHang';
 import SSGBoss from './SSGBoss';
 import ClusterReportTab from './ClusterReportTab';
-import { AutoFitTable } from '../components/AutoFitTable';
 
 const getCategoryGroup = (name: string): 'yellow' | 'green' | 'blue' => {
   const normalized = name.toLowerCase().trim();
@@ -2694,7 +2693,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                           </div>
                         )}
 
-                        <AutoFitTable minWidth={464} className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
+                        <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
                           <table className="w-full border-separate border-spacing-0 table-fixed" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                             <colgroup>
                               <col style={{ width: '44px' }} />
@@ -2775,7 +2774,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                               )}
                             </tbody>
                           </table>
-                        </AutoFitTable>
+                        </div>
                       </div>
 
                       {/* Right Table: DTLK */}
@@ -2870,7 +2869,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                           </div>
                         )}
 
-                        <AutoFitTable minWidth={464} className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
+                        <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
                           <table className="w-full border-separate border-spacing-0 table-fixed" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                             <colgroup>
                               <col style={{ width: '44px' }} />
@@ -2951,7 +2950,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                               )}
                             </tbody>
                           </table>
-                        </AutoFitTable>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3463,7 +3462,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                       </div>
 
                       {/* Modern Capsule Table */}
-                      <AutoFitTable minWidth={744} className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
+                      <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
                         <table className="w-full border-separate border-spacing-0 table-fixed" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                           <colgroup>
                             <col style={{ width: '44px' }} />
@@ -3517,7 +3516,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                             )}
                           </tbody>
                         </table>
-                      </AutoFitTable>
+                      </div>
                     </div>
                   </div>
                 )}

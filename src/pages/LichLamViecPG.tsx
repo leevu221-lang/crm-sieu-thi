@@ -9,7 +9,6 @@ import * as htmlToImage from 'html-to-image';
 import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
 import { buildGuestShareUrl } from '../constants/routes';
 import { normalizeStoreId, isValidStoreName, removeAccents } from './RTST/utils';
-import { AutoFitTable } from '../components/AutoFitTable';
 
 
 
@@ -662,7 +661,7 @@ const ScheduleTable: React.FC<{
   const dayNotes: Record<number, string> = { 3: '(ưu tiên\nca chiều)', 6: '(ưu tiên\nca chiều)' };
 
   return (
-    <AutoFitTable minWidth={1450} className="mb-6">
+    <div className="mb-6 w-full overflow-x-auto no-scrollbar max-w-full" style={{ WebkitOverflowScrolling: 'touch' }}>
       <div style={{ minWidth: 1450, width: 'max-content' }} className="pb-2">
         <div className="text-center py-4 font-utm-avo font-black text-2xl sm:text-[25px] tracking-wider uppercase w-full"
           style={{
@@ -885,7 +884,7 @@ const ScheduleTable: React.FC<{
         </div>
       )}
       </div>
-    </AutoFitTable>
+    </div>
   );
 };
 
@@ -1377,7 +1376,7 @@ const ImportExcelShiftModal: React.FC<{
                 </span>
               </div>
 
-              <AutoFitTable minWidth={700} className="max-h-[320px]">
+              <div className="overflow-x-auto max-h-[320px]">
                 <table className="w-full text-xs border-collapse">
                   <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 z-10">
                     <tr>
@@ -1446,7 +1445,7 @@ const ImportExcelShiftModal: React.FC<{
                     ))}
                   </tbody>
                 </table>
-              </AutoFitTable>
+              </div>
             </div>
           ) : rawText.trim() ? (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2 font-medium">

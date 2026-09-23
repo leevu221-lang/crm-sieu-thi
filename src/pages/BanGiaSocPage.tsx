@@ -7,7 +7,6 @@ import { useNotification } from '../contexts/NotificationContext';
 import { useRealtimeData } from './RTST/hooks/useRealtimeData';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
-import { AutoFitTable } from '../components/AutoFitTable';
 
 interface ParsedItem {
   id: string;
@@ -272,7 +271,7 @@ export const BanGiaSocPage: React.FC = () => {
             </div>
           </div>
           
-          <AutoFitTable minWidth={600} className="w-full">
+          <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-100 text-[10px] text-slate-500 uppercase tracking-widest">
@@ -307,7 +306,7 @@ export const BanGiaSocPage: React.FC = () => {
                 ))}
               </tbody>
             </table>
-          </AutoFitTable>
+          </div>
         </motion.div>
       )}
     </div>

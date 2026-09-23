@@ -8,7 +8,6 @@ import {
   ClipboardPaste, FileSpreadsheet, FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import AutoFitTable from '../components/AutoFitTable';
 
 // CSV and Date parsing helpers
 const parseCsvLine = (line: string): string[] => {
@@ -878,7 +877,7 @@ const SinhNhatNv: React.FC = () => {
                 </p>
               </div>
             ) : (
-              <AutoFitTable minWidth={620}>
+              <div className="overflow-x-auto no-scrollbar">
                 <table className="w-full text-left border-collapse table-auto">
                   <thead>
                     <tr className="border-b border-slate-100">
@@ -956,7 +955,7 @@ const SinhNhatNv: React.FC = () => {
                     })}
                   </tbody>
                 </table>
-              </AutoFitTable>
+              </div>
             )}
           </div>
         </div>

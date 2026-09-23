@@ -7,7 +7,6 @@ import React from 'react';
 import { Trophy, Camera, UserMinus, UserPlus } from 'lucide-react';
 import { cn, formatStaffName } from '../utils';
 import { StaffData } from '../types';
-import AutoFitTable from '../../../components/AutoFitTable';
 
 interface StaffRankTableProps {
   staffRankData: StaffData[];
@@ -56,7 +55,7 @@ const StaffRankTable: React.FC<StaffRankTableProps> = ({
       </div>
 
       <div ref={captureRef} className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
-        <AutoFitTable minWidth={600}>
+        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-900">
@@ -141,7 +140,7 @@ const StaffRankTable: React.FC<StaffRankTableProps> = ({
               })}
             </tbody>
           </table>
-        </AutoFitTable>
+        </div>
       </div>
     </div>
   );

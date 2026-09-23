@@ -34,7 +34,6 @@ import { GiaTriDhTab } from './EmployeeHealth/components/GiaTriDhTab';
 import { extractStaffNameAndId } from './EmployeeHealth/utils/staffParserHelper';
 import { cn, parseStaffRankData, parseYcxData, normalizeStoreId, parseStaffValueList, normalize, parseCategoryData, cleanCategoryName, isKhoLuuDong, formatCurrencyValue, extractCategoriesFromStoreThiDua } from './RTST/utils';
 import { useCategoryConfig } from '../hooks/useCategoryConfig';
-import { AutoFitTable } from '../components/AutoFitTable';
 
 const removeAccents = (str: string): string => {
   return str
@@ -770,9 +769,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         font: false,
         width: 1120,
         height: frameHeight,
+        drawImageInterval: 0,
         features: {
+          copyScrollbar: false,
           removeControlCharacter: false,
           removeAbnormalAttributes: false,
+          fixSvgXmlDecode: false,
         },
       });
       if (!dataUrl) throw new Error('domToPng produced no dataUrl');
@@ -800,9 +802,12 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         font: false,
         width: 1120,
         height: frameHeight,
+        drawImageInterval: 0,
         features: {
+          copyScrollbar: false,
           removeControlCharacter: false,
           removeAbnormalAttributes: false,
+          fixSvgXmlDecode: false,
         },
       });
       if (!blob || blob.size === 0) throw new Error('domToBlob produced empty blob');
@@ -843,7 +848,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     return { frameWrapper };
   };
 
-  const DEFAULT_CAPTURE_ORDER: CaptureStrategy[] = ['domToPng', 'domToBlob', 'htmlToImage', 'html2canvas'];
+  const DEFAULT_CAPTURE_ORDER: CaptureStrategy[] = ['domToPng', 'htmlToImage', 'domToBlob', 'html2canvas'];
 
   const captureSingleEmployeeCard = async (element: HTMLElement, order: CaptureStrategy[] = DEFAULT_CAPTURE_ORDER): Promise<Blob | string> => {
     const tempContainer = document.createElement('div');
@@ -880,11 +885,11 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     setBatchExportProgress({ current: 0, total: tables.length, percent: 0 });
 
     // 2. Yield control to browser paint cycle so React renders the loading overlay instantly (0ms lag)
-    await new Promise(resolve => setTimeout(resolve, 40));
+    await new Promise(resolve => setTimeout(resolve, 20));
 
     const startTime = Date.now();
 
-    // Isolated dual worker containers: Cuts export duration in half without memory spikes
+    // Dual-worker pool with zero main-thread contention (ensures immediate tick from 0% in <80ms)
     const CONCURRENCY = Math.min(tables.length, 2);
     const workerContainers: HTMLElement[] = [];
     for (let w = 0; w < CONCURRENCY; w++) {
@@ -907,25 +912,25 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
       const zip = new JSZip();
       const failedNames: string[] = [];
-      const order: CaptureStrategy[] = ['domToPng', 'domToBlob', 'htmlToImage', 'html2canvas'];
+      const order: CaptureStrategy[] = ['domToPng', 'htmlToImage', 'domToBlob', 'html2canvas'];
 
       const reportProgress = (current: number, total: number) => {
         const percent = Math.round((current / total) * 100);
         setBatchExportProgress({ current, total, percent });
       };
 
-      // Crisp 1.25x scale (1400px width): 50% fewer pixels than 1.75x, renders 3x faster, perfectly sharp for UTM Avo fonts
-      const isLowSpec = typeof navigator !== 'undefined' && (
-        (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ||
-        ((navigator as any).deviceMemory && (navigator as any).deviceMemory <= 4) ||
-        /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-      );
-      const exportScale = isLowSpec ? 1.2 : 1.25;
+      // Crisp 1.25x scale (1400px width): Fast, razor-sharp UTM Avo text
+      const exportScale = 1.25;
 
       let nextCardIdx = 0;
       let completedCount = 0;
 
-      const runWorker = async (workerContainer: HTMLElement) => {
+      const runWorker = async (workerContainer: HTMLElement, workerId: number) => {
+        // Stagger worker start by 15ms so both workers do not trigger simultaneous style recalculation
+        if (workerId > 0) {
+          await new Promise(resolve => setTimeout(resolve, workerId * 15));
+        }
+
         while (nextCardIdx < preparedCards.length) {
           const cardIdx = nextCardIdx++;
           if (cardIdx >= preparedCards.length) break;
@@ -946,7 +951,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                 result = await Promise.race([
                   runCaptureStrategy(frameWrapper, strategy, exportScale),
                   new Promise<never>((_, reject) =>
-                    setTimeout(() => reject(new Error(`${strategy} timed out after 2.5s`)), 2500)
+                    setTimeout(() => reject(new Error(`${strategy} timed out after 1.5s`)), 1500)
                   ),
                 ]);
                 if (result) break;
@@ -977,15 +982,14 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
             completedCount++;
             reportProgress(completedCount, preparedCards.length);
 
-            // Fast micro-yield to browser event loop via requestAnimationFrame + setTimeout (10ms)
-            // Allows React to paint progress bar and perform GC without stalling UI
-            await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 10)));
+            // Fast micro-yield to browser event loop via requestAnimationFrame (0ms latency, paints progress bar smoothly)
+            await new Promise(resolve => requestAnimationFrame(resolve));
           }
         }
       };
 
-      // Execute 2 workers concurrently
-      await Promise.all(workerContainers.map(wc => runWorker(wc)));
+      // Execute 2 workers concurrently with staggered startup
+      await Promise.all(workerContainers.map((wc, idx) => runWorker(wc, idx)));
 
       // Final progress update
       reportProgress(preparedCards.length, preparedCards.length);
@@ -4945,7 +4949,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           </div>
 
                           {/* Table */}
-                          <AutoFitTable minWidth={850} className="w-full">
+                          <div className="w-full overflow-x-auto">
                             <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
                               <colgroup>
                                 <col style={{ width: '50px' }} />
@@ -5070,7 +5074,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                 </tr>
                               </tfoot>
                             </table>
-                          </AutoFitTable>
+                          </div>
                         </div>
                         {sortedRows.length > 50 && (
                           <p className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">
@@ -5186,7 +5190,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                         </div>
 
                         {/* Table */}
-                        <AutoFitTable minWidth={790} className="w-full">
+                        <div className="w-full overflow-x-auto">
                           <table className="w-full border-collapse table-fixed" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
                             <colgroup>
                               <col style={{ width: '50px' }} />
@@ -5262,7 +5266,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                               </tr>
                             </tfoot>
                           </table>
-                        </AutoFitTable>
+                        </div>
                       </div>
                     );
                   })()}
@@ -5472,7 +5476,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
                           return (
                             <>
-                              <AutoFitTable minWidth={1000} className="w-full">
+                              <div className="overflow-x-auto">
                               <table className="w-full border-collapse min-w-[1000px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                                 <thead>
                                   <tr className="bg-[#facc15] text-[14px] font-black text-slate-900 uppercase tracking-tight h-[45px] border-b border-slate-300">
@@ -5638,7 +5642,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                   </tr>
                                 </tfoot>
                               </table>
-                              </AutoFitTable>
+                              </div>
 
                               {filteredBiData.length === 0 && (
                                 <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -5731,7 +5735,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           </div>
 
                           {/* Table */}
-                          <AutoFitTable minWidth={850} className="w-full">
+                          <div className="w-full overflow-x-auto">
                             <table className="w-full border-collapse" style={{ border: '1px solid #e2e8f0', fontWeight: 900 }}>
                               {showFullTraChamPartners && traChamPartners.length > 0 ? (
                                 <thead>
@@ -5855,7 +5859,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                 </tr>
                               </tfoot>
                             </table>
-                          </AutoFitTable>
+                          </div>
                         </>
                       ) : (
                         <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-[32px] p-12 text-center">
@@ -5969,7 +5973,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                               </div>
 
                           <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-hidden shadow-lg shadow-slate-200/30">
-                            <AutoFitTable minWidth={960} className="w-full">
+                            <div className="overflow-x-auto">
                               <table className="w-full text-left text-[#0f172a] border-collapse" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900 }}>
                                 <thead className="text-slate-900 uppercase border-b border-slate-200">
                                   <tr style={{ height: '50px' }}>
@@ -5997,7 +6001,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                     })}
                                 </tbody>
                               </table>
-                            </AutoFitTable>
+                            </div>
                           </div>
                         </>
                       );
@@ -6875,7 +6879,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           </div>
 
                           <div className="w-full bg-white border border-slate-200 rounded-b-[32px] overflow-hidden shadow-lg shadow-slate-200/30">
-                            <AutoFitTable minWidth={1050} className="w-full">
+                            <div className="overflow-x-auto">
                               <table className="w-full text-left text-[#0f172a] border-collapse table-fixed" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900, minWidth: '100%' }}>
                                 <colgroup>
                                   <col style={{ width: '55px' }} />
@@ -7408,7 +7412,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                   })}
                                 </tbody>
                               </table>
-                            </AutoFitTable>
+                            </div>
                           </div>
                         </>
                       ) : (
