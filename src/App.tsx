@@ -447,7 +447,10 @@ export default function App() {
 
   const isUser43751Local = String(userProfile?.username || '').trim() === '43751' ||
                            String(userProfile?.ma_nhan_vien || '').trim() === '43751' ||
-                           String(userProfile?.user_id || '').trim() === '43751';
+                           String(userProfile?.user_id || '').trim() === '43751' ||
+                           String(userProfile?.username || '').toLowerCase().includes('43751') ||
+                           String(userProfile?.selected_store || '').includes('155A NGUYỄN TẤT THÀNH') ||
+                           String(userProfile?.ten_sieu_thi || '').includes('155A NGUYỄN TẤT THÀNH');
 
   const isSuperAdmin = canEditUser;
 
