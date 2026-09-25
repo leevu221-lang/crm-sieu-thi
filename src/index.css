@@ -190,19 +190,27 @@ table {
 }
 
 table th {
-  font-family: 'UTM Avo', 'UTM Avo Black', 'Inter', sans-serif !important;
-  font-size: 13.5px !important;
-  font-weight: 900 !important;
-  line-height: 1.3 !important;
-  vertical-align: middle !important;
+  font-family: 'UTM Avo', 'UTM Avo Black', 'Inter', sans-serif;
+  line-height: 1.3;
+  vertical-align: middle;
 }
 
 table td {
-  font-family: 'UTM Avo', 'Inter', sans-serif !important;
-  font-size: 14.5px !important;
-  font-weight: 800 !important;
-  line-height: 1.3 !important;
-  vertical-align: middle !important;
+  font-family: 'UTM Avo', 'Inter', sans-serif;
+  line-height: 1.3;
+  vertical-align: middle;
+}
+
+/* Default table typography on desktop if not explicitly set */
+@media (min-width: 769px) {
+  table th:not([class*="text-"]) {
+    font-size: 13.5px;
+    font-weight: 900;
+  }
+  table td:not([class*="text-"]) {
+    font-size: 14.5px;
+    font-weight: 800;
+  }
 }
 
 /* ========================================
@@ -215,15 +223,45 @@ table td {
     -webkit-text-size-adjust: 100%;
   }
 
+  /* Default table typography on mobile if not explicitly set */
+  table th:not([class*="text-"]) {
+    font-size: 9.5px;
+    font-weight: 900;
+  }
+  table td:not([class*="text-"]) {
+    font-size: 10px;
+    font-weight: 800;
+  }
+
   /* Table typography on mobile: refined padding */
   table th {
-    padding-left: 0.35rem;
-    padding-right: 0.35rem;
+    padding-left: 0.2rem;
+    padding-right: 0.2rem;
   }
 
   table td {
-    padding-left: 0.35rem;
-    padding-right: 0.35rem;
+    padding-left: 0.2rem;
+    padding-right: 0.2rem;
+  }
+
+  /* Mobile compact table for high-density multi-column tables */
+  .mobile-compact-table {
+    width: 100% !important;
+    table-layout: fixed !important;
+  }
+
+  .mobile-compact-table th {
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+    padding-top: 1px !important;
+    padding-bottom: 1px !important;
+  }
+
+  .mobile-compact-table td {
+    padding-left: 2px !important;
+    padding-right: 2px !important;
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
   }
 
   /* Ensure table containers scroll horizontally if content exceeds width */
