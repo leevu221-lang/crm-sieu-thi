@@ -77,7 +77,9 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
 
   const isUser43751 = String(userProfile?.username || '').trim() === '43751' ||
                       String(userProfile?.ma_nhan_vien || '').trim() === '43751' ||
-                      String(userProfile?.user_id || '').trim() === '43751';
+                      String(userProfile?.user_id || '').trim() === '43751' ||
+                      String(userProfile?.username || '').toLowerCase().includes('43751') ||
+                      (typeof window !== 'undefined' && (localStorage.getItem('rtst_ma_kho') === '43751' || localStorage.getItem('selected_store')?.includes('155A NGUYỄN TẤT THÀNH')));
 
   const { currentStoreId, activeRealtimeTab, activeLuyKeTab, activeHealthTab, activeToolHoTroTab, activeTienIchTab } = useStore();
 
@@ -158,15 +160,15 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
 
   return (
     <header className="relative bg-white/95 backdrop-blur-xl border-b border-[#BAE6FD]/80 shadow-[0_4px_20px_-2px_rgba(2,132,199,0.06)] z-40 transition-all w-full">
-      <div className="w-full px-3 sm:px-4">
-        <div className="flex items-center justify-between gap-3 h-[52px]">
+      <div className="w-full px-2 sm:px-4">
+        <div className="flex items-center justify-between gap-1.5 sm:gap-3 h-[52px]">
 
           {/* ─── Left: Sidebar Toggle (mobile) + Store Name ─── */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
             {/* Mobile hamburger → toggle sidebar drawer */}
             <button
               onClick={onToggleSidebar}
-              className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+              className="md:hidden w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
               title="Menu"
             >
               <Menu size={18} />
@@ -174,14 +176,14 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
 
             {/* Prominent Store Name */}
             {availableMarkets.length > 0 && (
-              <div ref={dropdownRef} className="relative">
+              <div ref={dropdownRef} className="relative min-w-0">
                 <button
                   onClick={() => setStoreDropdownOpen(!storeDropdownOpen)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#0284C7] via-[#0EA5E9] to-[#38BDF8] hover:from-[#0369A1] hover:to-[#0284C7] border border-sky-300/80 rounded-xl text-[14px] font-black text-white transition-all cursor-pointer whitespace-nowrap shadow-md shadow-sky-500/20 active:scale-95"
+                  className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-[#0284C7] via-[#0EA5E9] to-[#38BDF8] hover:from-[#0369A1] hover:to-[#0284C7] border border-sky-300/80 rounded-xl text-xs sm:text-[14px] font-black text-white transition-all cursor-pointer whitespace-nowrap shadow-md shadow-sky-500/20 active:scale-95 max-w-full"
                 >
-                  <Store size={18} className="text-sky-100 shrink-0" />
-                  <span className="truncate max-w-[200px] sm:max-w-[400px] uppercase tracking-[0.03em]">{currentMarketLabel}</span>
-                  <ChevronDown size={16} className={`text-sky-100 transition-transform duration-200 ${storeDropdownOpen ? 'rotate-180' : ''}`} />
+                  <Store size={16} className="text-sky-100 shrink-0 sm:w-[18px] sm:h-[18px]" />
+                  <span className="truncate max-w-[105px] sm:max-w-[320px] md:max-w-[420px] uppercase tracking-[0.02em] sm:tracking-[0.03em]">{currentMarketLabel}</span>
+                  <ChevronDown size={14} className={`text-sky-100 shrink-0 sm:w-4 sm:h-4 transition-transform duration-200 ${storeDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 <AnimatePresence>
@@ -191,7 +193,7 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -4, scale: 0.98 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute top-full mt-1.5 left-0 w-max min-w-[220px] max-w-[360px] bg-white border border-slate-200 rounded-xl shadow-xl shadow-slate-200/50 py-1.5 z-[100] max-h-[320px] overflow-y-auto"
+                      className="absolute top-full mt-1.5 left-0 w-max min-w-[220px] max-w-[calc(100vw-32px)] sm:max-w-[360px] bg-white border border-slate-200 rounded-xl shadow-xl shadow-slate-200/50 py-1.5 z-[100] max-h-[320px] overflow-y-auto"
                     >
                       {/* All Markets */}
                       <button
@@ -243,13 +245,13 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
           </div>
 
           {/* ─── Right: Share Button + Clock + User Profile ─── */}
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* Share Guest Link Button */}
             <button
               onClick={handleShareLink}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer border ${
+              className={`flex items-center justify-center gap-1.5 w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer border ${
                 copiedLink 
-                  ? 'bg-sky-50 text-sky-700 border-sky-300 ring-2 ring-sky-200 font-extrabold' 
+                  ? 'bg-sky-50 text-sky-700 border-sky-300 ring-2 ring-sky-200 font-extrabold sm:px-3' 
                   : 'bg-gradient-to-r from-sky-50 to-blue-50 hover:from-sky-100 hover:to-blue-100 text-sky-700 border-sky-200'
               }`}
               title={`Chia sẻ link trực tiếp trang này cho Khách xem dữ liệu Kho ${userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}`}
@@ -257,7 +259,7 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
               {copiedLink ? (
                 <>
                   <Check size={14} className="text-sky-600 shrink-0" />
-                  <span className="text-[11px] font-black">Đã chép link Kho {userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}!</span>
+                  <span className="hidden sm:inline text-[11px] font-black">Đã chép link Kho {userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}!</span>
                 </>
               ) : (
                 <>
@@ -271,7 +273,7 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
             {isUser43751 && setShowSubscriptionForce && (
               <button
                 onClick={() => setShowSubscriptionForce(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer border bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-700 border-amber-200 hover:shadow-md hover:shadow-amber-100"
+                className="flex items-center justify-center gap-1.5 w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer border bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-700 border-amber-200 hover:shadow-md hover:shadow-amber-100"
                 title="Đăng ký & gia hạn gói cước sử dụng"
               >
                 <Crown size={14} className="text-amber-500 shrink-0" />
@@ -289,14 +291,14 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
             <div ref={userDropdownRef} className="relative">
               <button
                 onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                className="flex items-center gap-2 pl-1 pr-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full transition-all cursor-pointer"
+                className="flex items-center gap-1.5 p-0.5 sm:pl-1 sm:pr-2.5 sm:py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full transition-all cursor-pointer"
               >
                 {/* Avatar */}
                 <div className="relative shrink-0">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#38BDF8] to-[#0284C7] text-white flex items-center justify-center font-black text-[10px] shadow-sm shadow-sky-500/20">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-[#38BDF8] to-[#0284C7] text-white flex items-center justify-center font-black text-[9.5px] sm:text-[10px] shadow-sm shadow-sky-500/20">
                     {String(userProfile?.username || '43').slice(0, 4).toUpperCase()}
                   </div>
-                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-sky-400 border-[1.5px] border-white" />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-sky-400 border-[1.5px] border-white" />
                 </div>
                 {/* Name + Role */}
                 <div className="hidden sm:block text-left min-w-0">
@@ -307,7 +309,7 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                     {canEditUser ? 'admin' : (userProfile?.role || 'member')}
                   </div>
                 </div>
-                <ChevronDown size={13} className={`text-slate-400 transition-transform ${userDropdownOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown size={13} className={`hidden sm:inline text-slate-400 transition-transform ${userDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {/* User Dropdown Menu */}
