@@ -357,6 +357,79 @@ body.capturing-screenshot .capturing-target table {
   min-width: max-content !important;
 }
 
+/* Force Desktop Typography and Column Layout during Screenshot Capture on Mobile/Desktop */
+body.capturing-screenshot .mobile-compact-table {
+  font-size: 14px !important;
+}
+
+body.capturing-screenshot table th,
+body.capturing-screenshot .mobile-compact-table th {
+  font-size: 13.5px !important;
+  font-weight: 900 !important;
+  line-height: 1.25 !important;
+  height: 42px !important;
+  padding: 6px 4px !important;
+}
+
+body.capturing-screenshot table td,
+body.capturing-screenshot .mobile-compact-table td {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  line-height: 1.25 !important;
+  height: 38px !important;
+  padding: 6px 4px !important;
+}
+
+body.capturing-screenshot table td div,
+body.capturing-screenshot table td span {
+  font-size: 13.5px !important;
+  line-height: 1.25 !important;
+}
+
+body.capturing-screenshot table td span[class*="rounded"] {
+  font-size: 13px !important;
+  padding: 2px 7px !important;
+  font-weight: 900 !important;
+}
+
+body.capturing-screenshot [class*="from-[#0284C7]"] h2,
+body.capturing-screenshot [class*="from-[#1E40AF]"] h2,
+body.capturing-screenshot [class*="from-[#047857]"] h2,
+body.capturing-screenshot .bg-gradient-to-r h2,
+body.capturing-screenshot .banner-title {
+  font-size: 26px !important;
+  line-height: 1.25 !important;
+  font-weight: 900 !important;
+}
+
+body.capturing-screenshot [class*="from-[#0284C7]"] > div,
+body.capturing-screenshot [class*="from-[#1E40AF]"] > div,
+body.capturing-screenshot [class*="from-[#047857]"] > div,
+body.capturing-screenshot .bg-gradient-to-r > div {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+}
+
+body.capturing-screenshot [class*="from-[#0284C7]"] > div *,
+body.capturing-screenshot [class*="from-[#1E40AF]"] > div *,
+body.capturing-screenshot [class*="from-[#047857]"] > div *,
+body.capturing-screenshot .bg-gradient-to-r > div * {
+  font-size: 13px !important;
+}
+
+body.capturing-screenshot col.w-\[24px\] { width: 44px !important; }
+body.capturing-screenshot col.w-\[34px\] { width: 66px !important; }
+body.capturing-screenshot col.w-\[30px\] { width: 58px !important; }
+body.capturing-screenshot col.w-\[36px\] { width: 62px !important; }
+body.capturing-screenshot col.w-\[38px\] { width: 76px !important; }
+
+body.capturing-screenshot .grid-cols-1.xl\:grid-cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  display: grid !important;
+  gap: 24px !important;
+}
+
 /* Sidebar Smooth Scrollbar */
 .sidebar-custom-scroll {
   scrollbar-width: thin;

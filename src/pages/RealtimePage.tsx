@@ -2916,6 +2916,127 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     };
   }, [rawYcxRows, filteredRawYcxRows, selectedStaffs, compareMode, drillLevels, drillFilterStore, selectedDrillGroups, drillFilterNhomSmall, drillFilterBrand, drillFilterStaff, drillFilterProduct, drillFilterTrangThaiSP, customNhomSmallMap, customBaoHiemRules]);
 
+  // Helper to force desktop layout, column widths, and large clear typography on any element or clone
+  const applyDesktopScreenshotStyles = (root: HTMLElement) => {
+    // 1. Remove mobile compact class
+    root.querySelectorAll('.mobile-compact-table').forEach(el => {
+      el.classList.remove('mobile-compact-table');
+    });
+
+    // 2. Banner Titles: Force 26px font size, UTM Avo, bold, white, centered
+    root.querySelectorAll('[class*="from-[#0284C7]"] h2, [class*="from-[#1E40AF]"] h2, [class*="from-[#047857]"] h2, .bg-gradient-to-r h2').forEach(h2 => {
+      const el = h2 as HTMLElement;
+      el.style.setProperty('font-size', '26px', 'important');
+      el.style.setProperty('font-weight', '900', 'important');
+      el.style.setProperty('line-height', '1.25', 'important');
+      el.style.setProperty('color', '#ffffff', 'important');
+      el.style.setProperty('font-family', "'UTM Avo', sans-serif", 'important');
+      el.style.setProperty('display', 'block', 'important');
+      el.style.setProperty('text-align', 'center', 'important');
+    });
+
+    // 3. Banner Subtitles: Force 13px font size, bold, white, nowrap
+    root.querySelectorAll('[class*="from-[#0284C7]"] > div, [class*="from-[#1E40AF]"] > div, [class*="from-[#047857]"] > div, .bg-gradient-to-r > div').forEach(sub => {
+      const htmlSub = sub as HTMLElement;
+      htmlSub.style.setProperty('font-size', '13px', 'important');
+      htmlSub.style.setProperty('font-weight', '700', 'important');
+      htmlSub.style.setProperty('white-space', 'nowrap', 'important');
+      htmlSub.style.setProperty('color', '#ffffff', 'important');
+      htmlSub.querySelectorAll('span, div').forEach(child => {
+        const htmlChild = child as HTMLElement;
+        htmlChild.style.setProperty('font-size', '13px', 'important');
+        htmlChild.style.setProperty('white-space', 'nowrap', 'important');
+        htmlChild.style.setProperty('color', '#ffffff', 'important');
+      });
+    });
+
+    // 4. Force Table Headers (th): Desktop typography (13.5px, font-black, height 42px, comfortable padding)
+    root.querySelectorAll('table th').forEach(th => {
+      const htmlTh = th as HTMLElement;
+      htmlTh.style.setProperty('font-size', '13.5px', 'important');
+      htmlTh.style.setProperty('font-weight', '900', 'important');
+      htmlTh.style.setProperty('line-height', '1.25', 'important');
+      htmlTh.style.setProperty('height', '42px', 'important');
+      htmlTh.style.setProperty('padding', '6px 4px', 'important');
+      htmlTh.style.setProperty('box-sizing', 'border-box', 'important');
+      htmlTh.style.setProperty('font-family', "'UTM Avo', sans-serif", 'important');
+    });
+
+    // 5. Force Table Cells (td): Desktop typography (14px, font-extrabold, height 38px, comfortable padding)
+    root.querySelectorAll('table td').forEach(td => {
+      const htmlTd = td as HTMLElement;
+      htmlTd.style.setProperty('font-size', '14px', 'important');
+      htmlTd.style.setProperty('font-weight', '800', 'important');
+      htmlTd.style.setProperty('line-height', '1.25', 'important');
+      htmlTd.style.setProperty('height', '38px', 'important');
+      htmlTd.style.setProperty('padding', '6px 4px', 'important');
+      htmlTd.style.setProperty('box-sizing', 'border-box', 'important');
+      htmlTd.style.setProperty('font-family', "'UTM Avo', sans-serif", 'important');
+    });
+
+    // 6. Force Inner Divs & Spans in td (e.g. Category Names)
+    root.querySelectorAll('table td div, table td span').forEach(el => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.setProperty('font-size', '13.5px', 'important');
+      htmlEl.style.setProperty('line-height', '1.25', 'important');
+      if (htmlEl.classList.contains('line-clamp-2') || htmlEl.classList.contains('break-words')) {
+        htmlEl.style.setProperty('font-size', '13.5px', 'important');
+        htmlEl.style.setProperty('line-height', '1.25', 'important');
+        htmlEl.style.setProperty('font-weight', '900', 'important');
+      }
+    });
+
+    // 7. Force %HT Badges
+    root.querySelectorAll('table td span[class*="rounded"]').forEach(el => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.setProperty('font-size', '13px', 'important');
+      htmlEl.style.setProperty('padding', '2px 8px', 'important');
+      htmlEl.style.setProperty('font-weight', '900', 'important');
+      htmlEl.style.setProperty('display', 'inline-flex', 'important');
+      htmlEl.style.setProperty('align-items', 'center', 'important');
+      htmlEl.style.setProperty('justify-content', 'center', 'important');
+    });
+
+    // 8. Force Category Table Columns to Desktop Widths (STT=44px, NGÀNH HÀNG=260px, etc.)
+    root.querySelectorAll('table').forEach(table => {
+      const cols = table.querySelectorAll('colgroup col');
+      if (cols.length >= 6 && cols.length <= 8) {
+        const desktopColWidths = cols.length === 8 
+          ? [44, 260, 66, 58, 62, 58, 66, 76]
+          : cols.length === 7 
+          ? [44, 270, 70, 62, 66, 62, 80]
+          : [44, 300, 75, 65, 70, 65];
+
+        cols.forEach((col, idx) => {
+          const htmlCol = col as HTMLElement;
+          if (desktopColWidths[idx]) {
+            htmlCol.style.setProperty('width', `${desktopColWidths[idx]}px`, 'important');
+            htmlCol.setAttribute('width', `${desktopColWidths[idx]}`);
+          }
+        });
+      }
+    });
+
+    // 9. Force Categories Grid to 2 Columns Side by Side
+    root.querySelectorAll('.grid-cols-1.xl\\:grid-cols-2, [class*="grid-cols-1"][class*="xl:grid-cols-2"]').forEach(g => {
+      const htmlG = g as HTMLElement;
+      htmlG.style.setProperty('display', 'grid', 'important');
+      htmlG.style.setProperty('grid-template-columns', 'repeat(2, minmax(0, 1fr))', 'important');
+      htmlG.style.setProperty('gap', '24px', 'important');
+      htmlG.style.setProperty('width', '100%', 'important');
+      htmlG.style.setProperty('align-items', 'start', 'important');
+    });
+
+    // 10. Force Stats Cards Grid to 6 Columns in 1 Row
+    root.querySelectorAll('.grid-cols-2.md\\:grid-cols-3.lg\\:grid-cols-3.xl\\:grid-cols-6, .grid-cols-2.sm\\:grid-cols-3.lg\\:grid-cols-6, [class*="grid-cols-2"][class*="grid-cols-6"]').forEach(g => {
+      const htmlG = g as HTMLElement;
+      htmlG.style.setProperty('display', 'grid', 'important');
+      htmlG.style.setProperty('grid-template-columns', 'repeat(6, minmax(0, 1fr))', 'important');
+      htmlG.style.setProperty('gap', '20px', 'important');
+      htmlG.style.setProperty('width', '100%', 'important');
+    });
+  };
+
   const captureOffscreenHelper = async (
     element: HTMLElement,
     options: {
@@ -3022,94 +3143,35 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         }
       });
 
-      // Calculate exact inner container width for tables
-      const framePadding = options.isOverview ? 64 : 40;
-      const targetWidthVal = parseInt(options.width || '780') || 780;
-      const innerCardWidth = targetWidthVal - framePadding;
-      const cardInnerPadding = 32; // 16px padding on left/right of captureRef
-      const exactTablePixelWidth = innerCardWidth - cardInnerPadding;
+      // Apply desktop screenshot styling to the entire clone (typography, headers, category column widths)
+      applyDesktopScreenshotStyles(clone);
 
-      // Fixed column widths: STT=46px, TIÊU CHÍ/NGÀNH HÀNG=350px, rest distributed evenly
-      const sttWidth = 46;
-      const nameColWidth = 350; // Cố định 350px cho cột TIÊU CHÍ & NGÀNH HÀNG
-      const remainingWidth = exactTablePixelWidth - sttWidth - nameColWidth;
-      const dataColWidth = Math.floor(remainingWidth / 4);
-      const lastDataColWidth = remainingWidth - (dataColWidth * 3); // Absorb rounding
-
-      const colWidths = [
-        sttWidth,        // STT: 46px
-        nameColWidth,    // TIÊU CHÍ / NGÀNH HÀNG: 350px (cố định)
-        dataColWidth,    // MỤC TIÊU
-        dataColWidth,    // THỰC HIỆN
-        dataColWidth,    // HOÀN THÀNH
-        lastDataColWidth // C.LẠI
-      ];
-
-      // Ensure all tables inside the clone strictly respect exact fixed width and column widths
-      // Using cssText with !important to absolutely override any CSS class or computed style
       const allTables = clone.querySelectorAll('table');
       allTables.forEach(t => {
         const htmlTable = t as HTMLElement;
         htmlTable.style.zoom = '1';
-        if (options.isTableOnly) {
-          // Force table width with !important
-          htmlTable.style.cssText += `; width: ${exactTablePixelWidth}px !important; min-width: ${exactTablePixelWidth}px !important; max-width: ${exactTablePixelWidth}px !important; display: table !important; table-layout: fixed !important; box-sizing: border-box !important;`;
-
-          // Force table's parent wrapper with !important
-          const parent = htmlTable.parentElement;
-          if (parent) {
-            parent.style.cssText += `; width: ${exactTablePixelWidth}px !important; min-width: ${exactTablePixelWidth}px !important; max-width: ${exactTablePixelWidth}px !important; box-sizing: border-box !important; overflow: hidden !important; display: block !important;`;
-          }
-
-          // Apply exact pixel width to each col in colgroup with !important
-          const cols = htmlTable.querySelectorAll('colgroup col');
-          cols.forEach((c, idx) => {
-            if (colWidths[idx]) {
-              const htmlCol = c as HTMLElement;
-              htmlCol.style.cssText += `; width: ${colWidths[idx]}px !important;`;
-              htmlCol.setAttribute('width', `${colWidths[idx]}`);
-            }
-          });
-
-          // Apply exact pixel width to each header th with !important
-          const ths = htmlTable.querySelectorAll('thead tr th');
-          ths.forEach((th, idx) => {
-            if (colWidths[idx]) {
-              const htmlTh = th as HTMLElement;
-              htmlTh.style.cssText += `; width: ${colWidths[idx]}px !important; min-width: ${colWidths[idx]}px !important; max-width: ${colWidths[idx]}px !important; box-sizing: border-box !important; overflow: hidden !important;`;
-            }
-          });
-
-          // Apply exact pixel width to EVERY td in tbody rows with !important
-          const bodyRows = htmlTable.querySelectorAll('tbody tr');
-          bodyRows.forEach(row => {
-            const tds = row.querySelectorAll('td');
-            tds.forEach((td, idx) => {
-              if (colWidths[idx]) {
-                const htmlTd = td as HTMLElement;
-                htmlTd.style.cssText += `; width: ${colWidths[idx]}px !important; min-width: ${colWidths[idx]}px !important; max-width: ${colWidths[idx]}px !important; box-sizing: border-box !important; overflow: hidden !important;`;
-              }
-            });
-          });
-        } else {
-          htmlTable.style.width = '100%';
-          htmlTable.style.minWidth = '100%';
-          htmlTable.style.maxWidth = '100%';
-          htmlTable.style.tableLayout = 'fixed';
-        }
+        htmlTable.style.width = '100%';
+        htmlTable.style.minWidth = '100%';
+        htmlTable.style.maxWidth = '100%';
+        htmlTable.style.tableLayout = 'fixed';
+        htmlTable.style.borderCollapse = 'separate';
+        htmlTable.style.boxSizing = 'border-box';
       });
 
-      // Ensure all category name containers in tables truncate properly
-      const categorySpans = clone.querySelectorAll('span.truncate');
+      // Ensure all category name containers in tables truncate properly without wrapping awkwardly
+      const categorySpans = clone.querySelectorAll('span.truncate, td div.line-clamp-2');
       categorySpans.forEach(s => {
         const htmlS = s as HTMLElement;
         htmlS.style.overflow = 'hidden';
         htmlS.style.textOverflow = 'ellipsis';
-        htmlS.style.whiteSpace = 'nowrap';
-        htmlS.style.maxWidth = '290px';
-        htmlS.style.display = 'inline-block';
-        htmlS.style.verticalAlign = 'middle';
+        htmlS.style.whiteSpace = 'normal';
+        htmlS.style.display = '-webkit-box';
+        htmlS.style.webkitLineClamp = '2';
+        htmlS.style.webkitBoxOrient = 'vertical';
+        htmlS.style.lineHeight = '1.25';
       });
+
+
 
       // 5. Force desktop layout configurations if overview
       if (options.isOverview) {
@@ -3189,7 +3251,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       const tableContainers = clone.querySelectorAll('.overflow-x-auto, [class*="overflow-x-"]');
       tableContainers.forEach(tc => {
         const htmlTc = tc as HTMLElement;
-        htmlTc.style.width = options.isTableOnly ? 'max-content' : '100%';
+        htmlTc.style.width = '100%';
         htmlTc.style.overflow = 'visible';
         htmlTc.style.boxSizing = 'border-box';
       });
@@ -3197,44 +3259,23 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       const tables = clone.querySelectorAll('table');
       tables.forEach(table => {
         const htmlTable = table as HTMLTableElement;
-        if (options.isTableOnly) {
-          htmlTable.style.width = 'max-content';
-          htmlTable.style.minWidth = 'max-content';
-          htmlTable.style.maxWidth = 'none';
-          htmlTable.style.tableLayout = 'auto';
-          htmlTable.style.borderCollapse = 'collapse';
-          // Remove colgroup col width constraints so auto-layout sizes columns by content
-          const colEls = htmlTable.querySelectorAll('colgroup col');
-          colEls.forEach(col => {
-            (col as HTMLElement).style.width = 'auto';
-            (col as HTMLElement).style.minWidth = 'auto';
-          });
-        } else {
-          htmlTable.style.width = '100%';
-          htmlTable.style.tableLayout = 'fixed';
-        }
+        htmlTable.style.width = '100%';
+        htmlTable.style.minWidth = '100%';
+        htmlTable.style.tableLayout = 'fixed';
         htmlTable.style.boxSizing = 'border-box';
 
         const cells = htmlTable.querySelectorAll('th, td');
         cells.forEach(cell => {
           const htmlCell = cell as HTMLElement;
           htmlCell.style.boxSizing = 'border-box';
-          if (options.isTableOnly) {
-            htmlCell.style.whiteSpace = 'nowrap';
-            htmlCell.style.overflow = 'visible';
-            htmlCell.style.textOverflow = 'clip';
-            htmlCell.style.width = 'auto';
-            htmlCell.style.minWidth = 'auto';
-            htmlCell.style.maxWidth = 'none';
-            htmlCell.style.paddingLeft = '14px';
-            htmlCell.style.paddingRight = '14px';
-          } else {
-            htmlCell.style.whiteSpace = 'nowrap';
-            htmlCell.style.overflow = 'hidden';
-            htmlCell.style.textOverflow = 'ellipsis';
-          }
+          htmlCell.style.whiteSpace = 'nowrap';
+          htmlCell.style.overflow = 'hidden';
+          htmlCell.style.textOverflow = 'ellipsis';
         });
       });
+
+      // Re-apply desktop styling to ensure complete coverage on all cells, headers, badges, and banners
+      applyDesktopScreenshotStyles(clone);
 
       // Ensure StatCard badges & titles never wrap on screenshot export
       const statBadges = clone.querySelectorAll('.stat-card-badge, [class*="rounded-full"]');
@@ -3316,9 +3357,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       frameWrapper.style.backgroundColor = options.backgroundColor || '#ffffff';
       frameWrapper.style.borderRadius = options.isOverview ? '32px' : '24px';
       frameWrapper.style.boxSizing = 'border-box';
-      frameWrapper.style.width = options.width || '780px';
-      frameWrapper.style.minWidth = options.minWidth || '780px';
-      frameWrapper.style.maxWidth = options.width || '780px';
+      frameWrapper.style.width = options.width || '820px';
+      frameWrapper.style.minWidth = options.minWidth || options.width || '820px';
+      frameWrapper.style.maxWidth = options.width || '820px';
       frameWrapper.style.overflow = 'hidden';
       frameWrapper.style.boxShadow = 'none';
 
@@ -3337,7 +3378,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       await new Promise(resolve => setTimeout(resolve, 250));
 
       const rect = frameWrapper.getBoundingClientRect();
-      const targetWidthNum = parseInt(options.width || '780') || 780;
+      const targetWidthNum = parseInt(options.width || '820') || 820;
       const exactWidth = options.isTableOnly ? targetWidthNum : Math.ceil(Math.max(rect.width, frameWrapper.offsetWidth, 100));
       const exactHeight = Math.ceil(Math.max(rect.height, frameWrapper.scrollHeight, frameWrapper.offsetHeight, 100));
 
@@ -4749,11 +4790,20 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       // Save original styles for element and all ancestors up to body
       const savedStyles: { el: HTMLElement; cssText: string }[] = [];
       
+      // Save styles of elements before applying desktop styles
+      const styleNodes = element.querySelectorAll('table, th, td, td div, td span, colgroup col, h2, h3, [class*="from-[#0284C7]"] > div, [class*="from-[#1E40AF]"] > div, [class*="from-[#047857]"] > div, .bg-gradient-to-r > div');
+      styleNodes.forEach(sn => {
+        savedStyles.push({ el: sn as HTMLElement, cssText: (sn as HTMLElement).style.cssText });
+      });
+
+      // Apply desktop styles (typography, headers, category column widths, banner title/subtitle)
+      applyDesktopScreenshotStyles(element);
+
       // Save and expand element itself
       savedStyles.push({ el: element, cssText: element.style.cssText });
       element.style.maxWidth = 'none';
       element.style.width = 'max-content';
-      element.style.minWidth = 'max-content';
+      element.style.minWidth = '820px';
       element.style.height = 'auto';
       element.style.minHeight = '0px';
       element.style.maxHeight = 'none';
@@ -4844,8 +4894,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       // Let browser reflow to compute full natural dimensions
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      // Measure FULL content dimensions after expansion
-      const fullWidth = Math.ceil(Math.max(element.scrollWidth, element.offsetWidth, element.getBoundingClientRect().width));
+      // Measure FULL content dimensions after expansion (ensure at least 820px desktop width)
+      const minTargetWidth = 820;
+      const fullWidth = Math.max(minTargetWidth, Math.ceil(Math.max(element.scrollWidth, element.offsetWidth, element.getBoundingClientRect().width)));
       const fullHeight = Math.ceil(Math.max(element.scrollHeight, element.offsetHeight, element.getBoundingClientRect().height));
       
       // Set explicit pixel dimensions on target element
@@ -4888,12 +4939,31 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     }
   };
 
-  const captureElement = async (ref: React.RefObject<HTMLDivElement | null>, _filename: string) => {
-    return captureDirectHelper(ref);
+  const captureElement = async (ref: React.RefObject<HTMLDivElement | null>, filename: string) => {
+    if (!ref.current) return;
+    try {
+      setIsCapturing(true);
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const isCategoryTable = filename.includes('NganhHang') || filename.includes('Category') || filename.includes('SL') || filename.includes('DT');
+      const targetWidth = isCategoryTable ? '820px' : `${Math.max(ref.current.scrollWidth || 1100, 1100)}px`;
+      const dataUrl = await captureOffscreenHelper(ref.current, {
+        width: targetWidth,
+        minWidth: targetWidth,
+        backgroundColor: '#ffffff',
+        isOverview: false,
+        isTableOnly: false
+      });
+      setPreviewImage(dataUrl);
+    } catch (error) {
+      console.error('Lỗi khi chụp ảnh offscreen, fallback sang direct:', error);
+      return captureDirectHelper(ref);
+    } finally {
+      setIsCapturing(false);
+    }
   };
 
   const captureElementDirect = async (ref: React.RefObject<HTMLDivElement | null>) => {
-    return captureDirectHelper(ref);
+    return captureElement(ref, 'table_export');
   };
 
   const captureOverview = async () => {
