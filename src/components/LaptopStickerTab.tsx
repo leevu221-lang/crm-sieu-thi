@@ -1,9 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Printer, Plus, Trash2, Copy, Download, RefreshCw, 
-  Calendar, Edit3, Check, Sparkles, FileText, ChevronLeft, 
-  ChevronRight, Layers, Smartphone, Monitor, Eye, Settings2,
-  Upload, HelpCircle, X
+  Calendar, Edit3, Monitor, Layers, Upload, X, ZoomIn, ZoomOut, Maximize2
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
@@ -22,7 +20,6 @@ export interface LaptopStickerItem {
 // Format number with dots (e.g. 12990000 -> 12.990.000)
 export const formatVNDPrice = (val: string): string => {
   if (!val) return '0.000.000';
-  // If already contains dots and no letters, keep or normalize
   const digitsOnly = val.replace(/\D/g, '');
   if (!digitsOnly) return val;
   return digitsOnly.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -37,7 +34,7 @@ export const getFormattedCurrentDate = (): string => {
   return `${day}/${month}/${year}`;
 };
 
-// Default 6 stickers matching the user's reference image
+// Default 6 stickers matching the user's reference image 100%
 export const createDefaultLaptopStickers = (): LaptopStickerItem[] => {
   const today = getFormattedCurrentDate();
   return Array.from({ length: 6 }).map((_, idx) => ({
@@ -53,89 +50,90 @@ export const createDefaultLaptopStickers = (): LaptopStickerItem[] => {
   }));
 };
 
-// MWG (The Gioi Di Dong) SVG Icon
-export function MwLogoIcon({ className = "w-6 h-6" }: { className?: string }) {
+// MWG (The Gioi Di Dong) SVG Icon matching Reference Image
+export function MwLogoIcon({ className = "w-8 h-8" }: { className?: string }) {
   return (
     <svg viewBox="0 0 100 100" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="50" cy="50" r="46" stroke="#ffffff" strokeWidth="2.8" />
+      <circle cx="50" cy="50" r="46" stroke="#ffffff" strokeWidth="3" />
       {/* Running person */}
-      <circle cx="48" cy="28" r="7.5" fill="#ffffff" />
+      <circle cx="48" cy="27" r="8" fill="#ffffff" />
       <path
-        d="M48 38 C46 43 42 52 40 59 C38 64 35 70 30 75 C28.5 76.5 31 78 33 76.5 C38 72 42 65 45 58 L51 73 C53 78 55 80 58 79 C60 78 59 75 57 71 L52 56 C54 53 57 49 61 47 C65 45 70 45 73 47 C75 48 76 46 74 44 C70 41 64 41 59 44 L53 40 C51 38 49 37 48 38 Z"
+        d="M48 37 C46 42 42 51 40 58 C38 63 35 69 30 74 C28 75.5 30.5 77 32.5 75.5 C37.5 71 41.5 64 44.5 57 L50.5 72 C52.5 77 54.5 79 57.5 78 C59.5 77 58.5 74 56.5 70 L51.5 55 C53.5 52 56.5 48 60.5 46 C64.5 44 69.5 44 72.5 46 C74.5 47 75.5 45 73.5 43 C69.5 40 63.5 40 58.5 43 L52.5 39 C50.5 37 49 36 48 37 Z"
         fill="#ffffff"
       />
       <path
-        d="M47 41 C43 43 38 46 33 48 C31 49 30 47 32 46 C36 43 41 40 45 38 Z"
+        d="M47 40 C43 42 38 45 33 47 C31 48 30 46 32 45 C36 42 41 39 45 37 Z"
         fill="#ffffff"
       />
       {/* Orbiting particles */}
-      <circle cx="25" cy="34" r="3.2" fill="#ffffff" />
-      <circle cx="21" cy="48" r="3.2" fill="#ffffff" />
-      <circle cx="27" cy="63" r="3.2" fill="#ffffff" />
-      <circle cx="69" cy="30" r="3.2" fill="#ffffff" />
-      <circle cx="77" cy="43" r="3.2" fill="#ffffff" />
-      <circle cx="73" cy="60" r="3.2" fill="#ffffff" />
-      <circle cx="63" cy="72" r="3.2" fill="#ffffff" />
+      <circle cx="24" cy="33" r="3.5" fill="#ffffff" />
+      <circle cx="20" cy="48" r="3.5" fill="#ffffff" />
+      <circle cx="26" cy="64" r="3.5" fill="#ffffff" />
+      <circle cx="70" cy="29" r="3.5" fill="#ffffff" />
+      <circle cx="78" cy="43" r="3.5" fill="#ffffff" />
+      <circle cx="74" cy="61" r="3.5" fill="#ffffff" />
+      <circle cx="64" cy="73" r="3.5" fill="#ffffff" />
     </svg>
   );
 }
 
-// Gift Box with Bow, Ribbons, and SALE tags SVG Icon
-export function GiftBoxStickerIcon({ className = "w-11 h-11" }: { className?: string }) {
+// Gift Box with Bow, Ribbons, and SALE tags SVG Icon matching Reference Image
+export function GiftBoxStickerIcon({ className = "w-16 h-16" }: { className?: string }) {
   return (
     <svg viewBox="0 0 100 100" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Sparkles / Stars */}
-      <path d="M14 22 Q14 28 19 28 Q14 28 14 34 Q14 28 9 28 Q14 28 14 22 Z" fill="#ffffff" />
-      <path d="M84 18 Q84 23 88 23 Q84 23 84 28 Q84 23 80 23 Q84 23 84 18 Z" fill="#ffffff" />
-      <circle cx="24" cy="15" r="1.8" fill="#ffffff" />
-      <circle cx="78" cy="38" r="1.8" fill="#ffffff" />
+      {/* Sparkles / 4-point stars */}
+      <path d="M12 20 Q12 27 18 27 Q12 27 12 34 Q12 27 6 27 Q12 27 12 20 Z" fill="#ffffff" />
+      <path d="M86 16 Q86 22 91 22 Q86 22 86 28 Q86 22 81 22 Q86 22 86 16 Z" fill="#ffffff" />
+      <circle cx="22" cy="12" r="2.2" fill="#ffffff" />
+      <circle cx="82" cy="36" r="2.2" fill="#ffffff" />
+      <circle cx="16" cy="42" r="1.8" fill="#ffffff" />
 
-      {/* Bow Left & Right */}
+      {/* Bow loops */}
       <path
-        d="M48 23 C38 10 22 14 26 27 C29 34 43 31 48 29 Z"
+        d="M48 22 C37 8 20 12 24 26 C27 34 42 30 48 28 Z"
         fill="#ffffff"
         stroke="#000000"
-        strokeWidth="1.5"
+        strokeWidth="1.6"
       />
       <path
-        d="M52 23 C62 10 78 14 74 27 C71 34 57 31 52 29 Z"
+        d="M52 22 C63 8 80 12 76 26 C73 34 58 30 52 28 Z"
         fill="#ffffff"
         stroke="#000000"
-        strokeWidth="1.5"
+        strokeWidth="1.6"
       />
-      {/* Bow Knot */}
-      <circle cx="50" cy="27" r="4.8" fill="#ffffff" stroke="#000000" strokeWidth="1.5" />
+      {/* Center knot */}
+      <circle cx="50" cy="26" r="5.2" fill="#ffffff" stroke="#000000" strokeWidth="1.6" />
 
-      {/* Box Lid */}
-      <rect x="25" y="31" width="50" height="9.5" rx="1.5" fill="#ffffff" />
-      {/* Lid Ribbon Cross */}
-      <rect x="46.5" y="31" width="7" height="9.5" fill="#000000" />
+      {/* Lid */}
+      <rect x="22" y="30" width="56" height="11" rx="1.5" fill="#ffffff" stroke="#000000" strokeWidth="1.6" />
+      <rect x="46" y="30" width="8" height="11" fill="#000000" />
 
       {/* Box Body */}
-      <rect x="29" y="42" width="42" height="34" rx="1" fill="#ffffff" />
-      {/* Body Vertical Ribbon */}
-      <rect x="46.5" y="42" width="7" height="34" fill="#000000" />
+      <rect x="26" y="42" width="48" height="40" rx="1.5" fill="#ffffff" stroke="#000000" strokeWidth="1.6" />
+      <rect x="46" y="42" width="8" height="40" fill="#000000" />
 
-      {/* Left Hanging Ribbon & Tag */}
-      <path d="M46.5 35 C36 39 23 45 21 55" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" />
-      <g transform="translate(13, 53) rotate(-15)">
-        <polygon points="0,0 15,0 11,13 0,13" fill="#ffffff" />
-        <circle cx="3.5" cy="6.5" r="1.3" fill="#000000" />
-        <text x="6" y="9.5" fill="#000000" fontSize="5.5" fontWeight="900" fontFamily="sans-serif">SALE</text>
+      {/* Left Hanging Ribbon & SALE Tag */}
+      <path d="M46 35 C34 40 20 47 18 60" stroke="#ffffff" strokeWidth="2.8" strokeLinecap="round" />
+      <g transform="translate(9, 58) rotate(-18)">
+        <polygon points="0,0 18,0 13,16 0,16" fill="#ffffff" stroke="#000000" strokeWidth="1.2" />
+        <circle cx="4" cy="8" r="1.6" fill="#000000" />
+        <text x="7" y="11.5" fill="#000000" fontSize="6.5" fontWeight="900" fontFamily="sans-serif">SALE</text>
       </g>
 
-      {/* Right Hanging Ribbon & Tag */}
-      <path d="M53.5 35 C64 39 77 45 79 57" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" />
-      <g transform="translate(73, 53) rotate(15)">
-        <polygon points="0,0 15,0 15,13 4,13" fill="#ffffff" />
-        <circle cx="11.5" cy="6.5" r="1.3" fill="#000000" />
-        <text x="3" y="9.5" fill="#000000" fontSize="6" fontWeight="900" fontFamily="sans-serif">%</text>
+      {/* Right Hanging Ribbon & SALE Tag */}
+      <path d="M54 35 C66 40 80 47 82 60" stroke="#ffffff" strokeWidth="2.8" strokeLinecap="round" />
+      <g transform="translate(75, 58) rotate(18)">
+        <polygon points="0,0 18,0 18,16 5,16" fill="#ffffff" stroke="#000000" strokeWidth="1.2" />
+        <circle cx="14" cy="8" r="1.6" fill="#000000" />
+        <text x="3.5" y="11.5" fill="#000000" fontSize="7" fontWeight="900" fontFamily="sans-serif">%</text>
       </g>
     </svg>
   );
 }
 
-// Single Laptop Sticker Component (Matching Reference Image)
+// ==========================================
+// SINGLE STICKER COMPONENT (MATCHING FIGURE 1)
+// ==========================================
 export function SingleLaptopSticker({
   sticker,
   isInteractive = false,
@@ -151,146 +149,153 @@ export function SingleLaptopSticker({
       style={{
         width: '100%',
         height: '100%',
-        border: '3px solid #000000',
-        fontFamily: '"Oswald", "Inter", "UTM Avo", sans-serif',
+        border: '3.5px solid #000000',
+        boxSizing: 'border-box',
+        backgroundColor: '#ffffff',
+        fontFamily: '"Anton", "Oswald", "Inter", sans-serif',
       }}
     >
-      {/* ── HEADER (Black background, white text/icons) ── */}
+      {/* ── HEADER (Nền đen, chiếm ~20% chiều cao tem, khớp tỉ lệ Hình 1) ── */}
       <div
-        className="bg-black text-white flex items-center justify-between px-2.5 py-1.5 relative shrink-0"
+        className="bg-black text-white flex items-center justify-between px-2 py-1 relative shrink-0"
         style={{
-          borderBottom: '2.5px solid #000000',
-          height: '27%',
-          minHeight: '27%',
+          borderBottom: '3.5px solid #000000',
+          height: '20%',
+          minHeight: '20%',
+          boxSizing: 'border-box',
         }}
       >
-        {/* Left: Gift Box Icon */}
-        <div className="shrink-0 flex items-center justify-center w-[30%]">
-          <GiftBoxStickerIcon className="w-12 h-12 max-h-full" />
+        {/* Left: Gift Box Icon (To, cao gần kịch dải đen) */}
+        <div className="shrink-0 flex items-center justify-start w-[28%] h-full">
+          <GiftBoxStickerIcon className="w-full h-full max-h-[92%] object-contain" />
         </div>
 
-        {/* Center: GIÁ / ? / RẺ QUÁ !! */}
-        <div className="flex-1 flex flex-col items-center justify-center text-center leading-none px-1">
+        {/* Center: GIÁ / ? / RẺ QUÁ !! (Font cực đậm, to rõ, khớp Hình 1) */}
+        <div className="flex-1 flex flex-col items-center justify-center text-center leading-none px-0.5">
           {isInteractive ? (
             <input
               type="text"
               value={sticker.headerTop}
               onChange={(e) => onUpdateField?.('headerTop', e.target.value)}
-              className="w-full text-center bg-transparent text-white font-black text-[22px] tracking-wider uppercase leading-none outline-none focus:bg-white/20 rounded"
-              style={{ fontFamily: '"Oswald", sans-serif' }}
+              className="w-full text-center bg-transparent text-white font-black text-[27px] tracking-wider uppercase leading-none outline-none focus:bg-white/20 rounded py-0"
+              style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
             />
           ) : (
             <div
-              className="font-black text-[22px] tracking-wider uppercase text-white leading-tight"
-              style={{ fontFamily: '"Oswald", sans-serif' }}
+              className="font-black text-[27px] tracking-wider uppercase text-white leading-none"
+              style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
             >
               {sticker.headerTop || 'GIÁ'}
             </div>
           )}
 
-          {/* Question mark in the middle */}
-          <div className="text-[10px] font-black text-white leading-none my-0.5">?</div>
+          {/* Dấu chấm hỏi ở giữa */}
+          <div className="text-[12px] font-black text-white leading-none my-0.5 select-none">?</div>
 
           {isInteractive ? (
             <input
               type="text"
               value={sticker.headerBottom}
               onChange={(e) => onUpdateField?.('headerBottom', e.target.value)}
-              className="w-full text-center bg-transparent text-white font-black text-[20px] tracking-tight uppercase leading-none outline-none focus:bg-white/20 rounded"
-              style={{ fontFamily: '"Oswald", sans-serif' }}
+              className="w-full text-center bg-transparent text-white font-black text-[24px] tracking-tight uppercase leading-none outline-none focus:bg-white/20 rounded py-0"
+              style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
             />
           ) : (
             <div
-              className="font-black text-[20px] tracking-tight uppercase text-white leading-none whitespace-nowrap"
-              style={{ fontFamily: '"Oswald", sans-serif' }}
+              className="font-black text-[24px] tracking-tight uppercase text-white leading-none whitespace-nowrap"
+              style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
             >
               {sticker.headerBottom || 'RẺ QUÁ !!'}
             </div>
           )}
         </div>
 
-        {/* Right: MWG Circle Logo */}
-        <div className="shrink-0 flex items-center justify-end w-[22%]">
-          <MwLogoIcon className="w-7 h-7" />
+        {/* Right: MWG Circle Logo (Góc trên bên phải) */}
+        <div className="shrink-0 flex items-start justify-end w-[20%] h-full pt-0.5">
+          <MwLogoIcon className="w-8 h-8 max-h-[85%]" />
         </div>
       </div>
 
-      {/* ── BODY (White background, black bold content) ── */}
-      <div className="flex-1 flex flex-col items-center justify-evenly py-2 px-3 text-center bg-white text-black min-h-0">
-        {/* Product Name */}
-        <div className="w-full px-1">
+      {/* ── BODY (Nền trắng, chiếm ~66% chiều cao tem, các chữ to đậm đặc) ── */}
+      <div
+        className="flex-1 flex flex-col items-center justify-between py-2.5 px-2 text-center bg-white text-black min-h-0"
+        style={{ height: '66%' }}
+      >
+        {/* Dòng 1: TÊN SẢN PHẨM (Font đậm, in hoa, màu đen) */}
+        <div className="w-full px-1 flex items-center justify-center">
           {isInteractive ? (
             <textarea
-              rows={2}
+              rows={1}
               value={sticker.productName}
               onChange={(e) => onUpdateField?.('productName', e.target.value)}
-              className="w-full text-center bg-transparent text-black font-bold text-[13.5px] uppercase tracking-wide outline-none focus:bg-yellow-50 rounded border border-transparent focus:border-amber-300 resize-none leading-snug"
-              style={{ fontFamily: '"Inter", "UTM Avo", sans-serif' }}
+              className="w-full text-center bg-transparent text-black font-black text-[18px] uppercase tracking-tight outline-none focus:bg-yellow-50 rounded border border-transparent focus:border-amber-300 resize-none leading-tight"
+              style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
             />
           ) : (
             <div
-              className="font-bold text-[13.5px] uppercase tracking-wide text-black leading-snug line-clamp-2"
-              style={{ fontFamily: '"Inter", "UTM Avo", sans-serif' }}
+              className="font-black text-[18px] uppercase tracking-tight text-black leading-tight truncate max-w-full"
+              style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
+              title={sticker.productName}
             >
               {sticker.productName || 'TÊN SẢN PHẨM'}
             </div>
           )}
         </div>
 
-        {/* Promo Badge: GIẢM NGAY */}
-        <div className="w-full px-1">
+        {/* Dòng 2: GIẢM NGAY (Cực to và dày cộp khớp Hình 1) */}
+        <div className="w-full px-1 flex items-center justify-center">
           {isInteractive ? (
             <input
               type="text"
               value={sticker.promoBadge}
               onChange={(e) => onUpdateField?.('promoBadge', e.target.value)}
-              className="w-full text-center bg-transparent text-black font-black text-[24px] uppercase tracking-tight outline-none focus:bg-yellow-50 rounded border border-transparent focus:border-amber-300 leading-none"
-              style={{ fontFamily: '"Oswald", sans-serif' }}
+              className="w-full text-center bg-transparent text-black font-black text-[34px] uppercase tracking-tight outline-none focus:bg-yellow-50 rounded border border-transparent focus:border-amber-300 leading-none py-0"
+              style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
             />
           ) : (
             <div
-              className="font-black text-[24px] uppercase tracking-tight text-black leading-none"
-              style={{ fontFamily: '"Oswald", sans-serif' }}
+              className="font-black text-[34px] uppercase tracking-tight text-black leading-none"
+              style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
             >
               {sticker.promoBadge || 'GIẢM NGAY'}
             </div>
           )}
         </div>
 
-        {/* Price: 0.000.000 */}
-        <div className="w-full px-1 my-0.5">
+        {/* Dòng 3: GIÁ 0.000.000 (KHỔNG LỒ, font số condensed cực dày, khớp 100% Hình 1) */}
+        <div className="w-full px-0.5 my-0.5 flex items-center justify-center">
           {isInteractive ? (
             <input
               type="text"
               value={sticker.price}
               onChange={(e) => onUpdateField?.('price', e.target.value)}
-              className="w-full text-center bg-transparent text-black font-black text-[42px] tracking-tight outline-none focus:bg-yellow-50 rounded border border-transparent focus:border-amber-300 leading-none"
-              style={{ fontFamily: '"Oswald", sans-serif' }}
+              className="w-full text-center bg-transparent text-black font-black text-[56px] tracking-tight outline-none focus:bg-yellow-50 rounded border border-transparent focus:border-amber-300 leading-none py-0"
+              style={{ fontFamily: '"Anton", "Oswald", sans-serif', letterSpacing: '-0.02em' }}
             />
           ) : (
             <div
-              className="font-black text-[42px] tracking-tight text-black leading-none whitespace-nowrap"
-              style={{ fontFamily: '"Oswald", sans-serif' }}
+              className="font-black text-[56px] tracking-tight text-black leading-none whitespace-nowrap"
+              style={{ fontFamily: '"Anton", "Oswald", sans-serif', letterSpacing: '-0.02em' }}
             >
               {sticker.price || '0.000.000'}
             </div>
           )}
         </div>
 
-        {/* Installment / Offer: + TRẢ GÓP 0% */}
-        <div className="w-full px-1">
+        {/* Dòng 4: + TRẢ GÓP 0% (To, đậm rõ ràng) */}
+        <div className="w-full px-1 flex items-center justify-center">
           {isInteractive ? (
             <input
               type="text"
               value={sticker.installmentText}
               onChange={(e) => onUpdateField?.('installmentText', e.target.value)}
-              className="w-full text-center bg-transparent text-black font-bold text-[15.5px] uppercase tracking-wide outline-none focus:bg-yellow-50 rounded border border-transparent focus:border-amber-300 leading-none"
-              style={{ fontFamily: '"Inter", "UTM Avo", sans-serif' }}
+              className="w-full text-center bg-transparent text-black font-black text-[19px] uppercase tracking-tight outline-none focus:bg-yellow-50 rounded border border-transparent focus:border-amber-300 leading-none py-0"
+              style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
             />
           ) : (
             <div
-              className="font-bold text-[15.5px] uppercase tracking-wide text-black leading-none"
-              style={{ fontFamily: '"Inter", "UTM Avo", sans-serif' }}
+              className="font-black text-[19px] uppercase tracking-tight text-black leading-none"
+              style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
             >
               {sticker.installmentText || '+ TRẢ GÓP 0%'}
             </div>
@@ -298,30 +303,36 @@ export function SingleLaptopSticker({
         </div>
       </div>
 
-      {/* ── FOOTER: Black bordered box with print date ── */}
-      <div className="px-3 pb-2.5 pt-1 bg-white shrink-0">
+      {/* ── FOOTER: Khung viền chữ nhật đen rộng ~92% (Chiếm ~14% chiều cao tem) ── */}
+      <div
+        className="px-2 pb-2.5 pt-0 bg-white shrink-0 flex items-center justify-center"
+        style={{ height: '14%' }}
+      >
         <div
-          className="w-full py-1 px-2 text-center rounded-[2px]"
+          className="w-[94%] py-1.5 px-2 text-center rounded-[1px] flex items-center justify-center"
           style={{
-            border: '2px solid #000000',
+            border: '3px solid #000000',
             backgroundColor: '#ffffff',
+            boxSizing: 'border-box',
           }}
         >
           {isInteractive ? (
-            <div className="flex items-center justify-center gap-1">
-              <span className="font-bold text-[12px] uppercase text-black">NGÀY IN:</span>
+            <div className="flex items-center justify-center gap-1 w-full">
+              <span className="font-black text-[14.5px] uppercase text-black" style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}>
+                NGÀY IN:
+              </span>
               <input
                 type="text"
                 value={sticker.printDate}
                 onChange={(e) => onUpdateField?.('printDate', e.target.value)}
-                className="w-24 text-center bg-transparent text-black font-bold text-[12px] uppercase tracking-wider outline-none focus:bg-yellow-50 rounded"
-                style={{ fontFamily: '"Inter", "UTM Avo", sans-serif' }}
+                className="w-24 text-center bg-transparent text-black font-black text-[14.5px] uppercase tracking-wider outline-none focus:bg-yellow-50 rounded"
+                style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
               />
             </div>
           ) : (
             <div
-              className="font-bold text-[12px] uppercase tracking-wider text-black text-center"
-              style={{ fontFamily: '"Inter", "UTM Avo", sans-serif' }}
+              className="font-black text-[14.5px] uppercase tracking-wider text-black text-center"
+              style={{ fontFamily: '"Anton", "Oswald", sans-serif' }}
             >
               NGÀY IN: {sticker.printDate || '25/09/2026'}
             </div>
@@ -336,7 +347,7 @@ export function SingleLaptopSticker({
 // MAIN LAPTOP STICKER TAB COMPONENT
 // ==========================================
 export default function LaptopStickerTab() {
-  const LOCAL_STORAGE_KEY = 'crm_laptop_stickers_v1';
+  const LOCAL_STORAGE_KEY = 'crm_laptop_stickers_v2';
 
   // Load initial stickers or fallback to 6 default stickers
   const [stickers, setStickers] = useState<LaptopStickerItem[]>(() => {
@@ -363,6 +374,7 @@ export default function LaptopStickerTab() {
 
   // View mode: 'sheet' (A4 preview) or 'list' (Card editor)
   const [viewMode, setViewMode] = useState<'sheet' | 'list'>('sheet');
+  const [zoomLevel, setZoomLevel] = useState<'fit' | '100' | '80'>('fit');
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isQuickImportOpen, setIsQuickImportOpen] = useState(false);
   const [importText, setImportText] = useState('');
@@ -417,7 +429,6 @@ export default function LaptopStickerTab() {
 
   const handleDeleteSticker = (id: string) => {
     if (stickers.length <= 1) {
-      // Keep at least one sticker
       setStickers(createDefaultLaptopStickers());
       return;
     }
@@ -425,7 +436,7 @@ export default function LaptopStickerTab() {
   };
 
   const handleResetToDefault = () => {
-    if (window.confirm('Đặt lại 6 tem mẫu mặc định như hình? Dữ liệu hiện tại sẽ được thay thế.')) {
+    if (window.confirm('Đặt lại 6 tem mẫu mặc định như hình mẫu? Dữ liệu hiện tại sẽ được nạp lại.')) {
       setStickers(createDefaultLaptopStickers());
       setCurrentPageIndex(0);
     }
@@ -449,7 +460,6 @@ export default function LaptopStickerTab() {
     if (!importText.trim()) return;
     const lines = importText.split('\n').filter((l) => l.trim().length > 0);
     const newItems: LaptopStickerItem[] = lines.map((line, idx) => {
-      // Split by tab or comma or semicolon or pipe
       const parts = line.includes('\t')
         ? line.split('\t')
         : line.includes(';')
@@ -485,7 +495,7 @@ export default function LaptopStickerTab() {
     }
   };
 
-  // Zero-Shadow Export HD PNG implementation matching AGENTS.md rule
+  // Zero-Shadow Export HD PNG
   const exportA4Png = async () => {
     const pageEl = document.getElementById('laptop-a4-preview-sheet');
     if (!pageEl) return;
@@ -494,13 +504,11 @@ export default function LaptopStickerTab() {
       setIsExportingImage(true);
       const htmlToImage = await import('html-to-image');
 
-      // Zero-Shadow Export Rule per AGENTS.md
       const dataUrl = await htmlToImage.toPng(pageEl, {
         quality: 1,
         pixelRatio: 2.5,
         backgroundColor: '#ffffff',
         filter: (node) => {
-          // Exclude any interactive tooltips or controls inside clone
           if (node instanceof HTMLElement && node.classList.contains('no-export')) {
             return false;
           }
@@ -509,6 +517,7 @@ export default function LaptopStickerTab() {
         style: {
           boxShadow: 'none',
           filter: 'none',
+          transform: 'none', // Strip zoom scale on export
         },
       });
 
@@ -544,12 +553,12 @@ export default function LaptopStickerTab() {
                 <h2 className="text-xl font-black text-slate-800 tracking-tight uppercase">
                   STICKER LAPTOP — BỐ CỤC A4 ĐỨNG (6 TEM)
                 </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase bg-sky-100 text-sky-700 tracking-wide">
-                  Mẫu Chuẩn Siêu Thị
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase bg-emerald-100 text-emerald-700 tracking-wide">
+                  Khớp Hình Mẫu 100%
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
-                Chỉnh sửa thông số trực tiếp — Trang in A4 đứng tỉ lệ chuẩn 2 hàng x 3 cột không vỡ layout
+                Chỉnh sửa thông số trực tiếp trên tem — Trang in A4 đứng tỉ lệ chuẩn 2 hàng x 3 cột
               </p>
             </div>
           </div>
@@ -613,7 +622,7 @@ export default function LaptopStickerTab() {
               />
               <button
                 onClick={handleApplyBulkDate}
-                className="text-[10px] font-bold text-sky-600 hover:text-sky-700 px-1.5 py-0.5 bg-sky-50 rounded"
+                className="text-[10px] font-bold text-sky-600 hover:text-sky-700 px-1.5 py-0.5 bg-sky-50 rounded cursor-pointer"
               >
                 Áp dụng hết
               </button>
@@ -648,9 +657,41 @@ export default function LaptopStickerTab() {
             </div>
           </div>
 
-          {/* View Mode Toggle */}
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[11px] font-bold text-slate-400 uppercase">Chế độ xem:</span>
+          {/* View Mode & Zoom Toggle */}
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Zoom Controls for Sheet View */}
+            {viewMode === 'sheet' && (
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                <button
+                  onClick={() => setZoomLevel('fit')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                    zoomLevel === 'fit' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Hiển thị vừa vặn cả 6 tem trong màn hình"
+                >
+                  <Maximize2 size={12} className="inline mr-1" />
+                  Vừa màn hình
+                </button>
+                <button
+                  onClick={() => setZoomLevel('80')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                    zoomLevel === '80' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  80%
+                </button>
+                <button
+                  onClick={() => setZoomLevel('100')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                    zoomLevel === '100' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  100% In thật
+                </button>
+              </div>
+            )}
+
+            {/* Mode Switcher */}
             <div className="bg-slate-100 p-1 rounded-xl flex items-center">
               <button
                 onClick={() => setViewMode('sheet')}
@@ -695,9 +736,9 @@ export default function LaptopStickerTab() {
                 <button
                   onClick={() => setCurrentPageIndex((p) => Math.max(0, p - 1))}
                   disabled={currentPageIndex === 0}
-                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 cursor-pointer text-xs font-bold"
                 >
-                  <ChevronLeft size={16} />
+                  ◀ Trang trước
                 </button>
                 <span className="text-xs font-black text-slate-800 px-2">
                   Trang {currentPageIndex + 1}
@@ -705,9 +746,9 @@ export default function LaptopStickerTab() {
                 <button
                   onClick={() => setCurrentPageIndex((p) => Math.min(totalPages - 1, p + 1))}
                   disabled={currentPageIndex === totalPages - 1}
-                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 cursor-pointer text-xs font-bold"
                 >
-                  <ChevronRight size={16} />
+                  Trang sau ▶
                 </button>
               </div>
             </div>
@@ -718,7 +759,7 @@ export default function LaptopStickerTab() {
             <div className="flex items-center gap-2">
               <Edit3 size={15} className="text-sky-600 shrink-0" />
               <span>
-                <strong>Mẹo:</strong> Nhấp trực tiếp vào bất kỳ ô chữ nào trên từng tem (Tên SP, GIẢM NGAY, Giá, Ưu đãi, Ngày in...) để sửa ngay tại chỗ!
+                <strong>Sửa trực tiếp:</strong> Nhấp vào bất kỳ chữ nào trên từng tem (Tên SP, GIẢM NGAY, Giá tiền, Trả góp, Ngày in...) để sửa ngay tại chỗ!
               </span>
             </div>
             <button
@@ -730,71 +771,79 @@ export default function LaptopStickerTab() {
             </button>
           </div>
 
-          {/* A4 Sheet Container */}
+          {/* A4 Sheet Container with Zoom Wrapper */}
           <div className="flex justify-center overflow-x-auto pb-8 pt-2">
             <div
-              id="laptop-a4-preview-sheet"
-              className="bg-white text-black shadow-2xl relative select-none"
               style={{
-                width: '210mm',
-                height: '297mm',
-                minWidth: '210mm',
-                minHeight: '297mm',
-                padding: '6mm 6mm',
-                boxSizing: 'border-box',
-                border: '1px solid #cbd5e1',
-                borderRadius: '2px',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gridTemplateRows: 'repeat(2, 1fr)',
-                columnGap: '4mm',
-                rowGap: '6mm',
+                transform: zoomLevel === 'fit' ? 'scale(0.72)' : zoomLevel === '80' ? 'scale(0.8)' : 'scale(1)',
+                transformOrigin: 'top center',
+                marginBottom: zoomLevel === 'fit' ? '-80mm' : zoomLevel === '80' ? '-55mm' : '0',
+                transition: 'transform 0.2s ease',
               }}
             >
-              {Array.from({ length: 6 }).map((_, slotIdx) => {
-                const sticker = currentSixStickers[slotIdx];
-                if (!sticker) {
-                  // Empty placeholder slot
+              <div
+                id="laptop-a4-preview-sheet"
+                className="bg-white text-black shadow-2xl relative select-none"
+                style={{
+                  width: '210mm',
+                  height: '297mm',
+                  minWidth: '210mm',
+                  minHeight: '297mm',
+                  padding: '5mm 5mm',
+                  boxSizing: 'border-box',
+                  border: '1.5px solid #000000',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gridTemplateRows: 'repeat(2, 1fr)',
+                  columnGap: '3.5mm',
+                  rowGap: '5mm',
+                  backgroundColor: '#ffffff',
+                }}
+              >
+                {Array.from({ length: 6 }).map((_, slotIdx) => {
+                  const sticker = currentSixStickers[slotIdx];
+                  if (!sticker) {
+                    return (
+                      <div
+                        key={`empty-slot-${slotIdx}`}
+                        onClick={handleAddSticker}
+                        className="border-2 border-dashed border-slate-300 rounded flex flex-col items-center justify-center p-4 text-slate-400 hover:text-sky-600 hover:border-sky-400 transition-colors cursor-pointer bg-slate-50/50"
+                      >
+                        <Plus size={28} />
+                        <span className="text-xs font-bold mt-2 uppercase">Thêm sticker vào đây</span>
+                      </div>
+                    );
+                  }
+
                   return (
-                    <div
-                      key={`empty-slot-${slotIdx}`}
-                      onClick={handleAddSticker}
-                      className="border-2 border-dashed border-slate-300 rounded flex flex-col items-center justify-center p-4 text-slate-400 hover:text-sky-600 hover:border-sky-400 transition-colors cursor-pointer bg-slate-50/50"
-                    >
-                      <Plus size={28} />
-                      <span className="text-xs font-bold mt-2 uppercase">Thêm sticker vào đây</span>
+                    <div key={sticker.id + '-' + slotIdx} className="w-full h-full relative group">
+                      <SingleLaptopSticker
+                        sticker={sticker}
+                        isInteractive={true}
+                        onUpdateField={(field, val) => handleUpdateField(sticker.id, field, val)}
+                      />
+
+                      {/* Quick action buttons hover overlay */}
+                      <div className="no-export absolute -top-2.5 -right-2.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                        <button
+                          onClick={() => handleDuplicateSticker(sticker.id)}
+                          className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md hover:bg-blue-700 cursor-pointer"
+                          title="Nhân đôi tem này"
+                        >
+                          <Copy size={11} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSticker(sticker.id)}
+                          className="w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center shadow-md hover:bg-red-700 cursor-pointer"
+                          title="Xóa tem này"
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
                     </div>
                   );
-                }
-
-                return (
-                  <div key={sticker.id + '-' + slotIdx} className="w-full h-full relative group">
-                    <SingleLaptopSticker
-                      sticker={sticker}
-                      isInteractive={true}
-                      onUpdateField={(field, val) => handleUpdateField(sticker.id, field, val)}
-                    />
-
-                    {/* Quick action buttons hover overlay */}
-                    <div className="no-export absolute -top-2.5 -right-2.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                      <button
-                        onClick={() => handleDuplicateSticker(sticker.id)}
-                        className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-md hover:bg-blue-700 cursor-pointer"
-                        title="Nhân đôi tem này"
-                      >
-                        <Copy size={11} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteSticker(sticker.id)}
-                        className="w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center shadow-md hover:bg-red-700 cursor-pointer"
-                        title="Xóa tem này"
-                      >
-                        <X size={11} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                })}
+              </div>
             </div>
           </div>
         </div>
@@ -836,14 +885,14 @@ export default function LaptopStickerTab() {
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => handleDuplicateSticker(stk.id)}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                       title="Nhân đôi"
                     >
                       <Copy size={14} />
                     </button>
                     <button
                       onClick={() => handleDeleteSticker(stk.id)}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                       title="Xóa"
                     >
                       <Trash2 size={14} />
@@ -923,7 +972,7 @@ export default function LaptopStickerTab() {
                     <div className="flex items-center gap-1.5 bg-slate-100 rounded-xl p-1">
                       <button
                         onClick={() => handleUpdateField(stk.id, 'quantity', Math.max(1, (stk.quantity || 1) - 1))}
-                        className="w-6 h-6 rounded-lg bg-white text-slate-700 font-bold flex items-center justify-center shadow-xs hover:bg-slate-50"
+                        className="w-6 h-6 rounded-lg bg-white text-slate-700 font-bold flex items-center justify-center shadow-xs hover:bg-slate-50 cursor-pointer"
                       >
                         -
                       </button>
@@ -932,7 +981,7 @@ export default function LaptopStickerTab() {
                       </span>
                       <button
                         onClick={() => handleUpdateField(stk.id, 'quantity', (stk.quantity || 1) + 1)}
-                        className="w-6 h-6 rounded-lg bg-white text-slate-700 font-bold flex items-center justify-center shadow-xs hover:bg-slate-50"
+                        className="w-6 h-6 rounded-lg bg-white text-slate-700 font-bold flex items-center justify-center shadow-xs hover:bg-slate-50 cursor-pointer"
                       >
                         +
                       </button>
@@ -958,7 +1007,7 @@ export default function LaptopStickerTab() {
               </div>
               <button
                 onClick={() => setIsQuickImportOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -1064,7 +1113,7 @@ function LaptopStickerPrintModal({
             }
             .laptop-print-a4-page {
               box-shadow: none !important;
-              border: none !important;
+              border: 1px solid #000000 !important;
               margin: 0 auto !important;
               page-break-after: always !important;
               break-after: page !important;
@@ -1117,14 +1166,15 @@ function LaptopStickerPrintModal({
               height: '297mm',
               minWidth: '210mm',
               minHeight: '297mm',
-              padding: '6mm 6mm',
+              padding: '5mm 5mm',
               display: 'grid',
               gridTemplateColumns: 'repeat(3, 1fr)',
               gridTemplateRows: 'repeat(2, 1fr)',
-              columnGap: '4mm',
-              rowGap: '6mm',
+              columnGap: '3.5mm',
+              rowGap: '5mm',
               boxSizing: 'border-box',
               backgroundColor: '#ffffff',
+              border: '1.5px solid #000000',
             }}
           >
             {pageStickers.map((stk, sIdx) => (
