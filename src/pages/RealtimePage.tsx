@@ -6114,68 +6114,68 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                     {isV2Active ? (
                       /* ===== V2 GRADIENT CATEGORY UI ===== */
                       <>
-                        <div className="flex flex-wrap items-center justify-end gap-2.5 no-capture">
+                        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2.5 no-capture">
                           <button
                             onClick={() => setShowTargetCols(!showTargetCols)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 cursor-pointer ${showTargetCols
+                            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-[9.5px] sm:text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 cursor-pointer ${showTargetCols
                               ? (isEffective43751
                                   ? 'bg-gradient-to-r from-[#38BDF8] via-[#0EA5E9] to-[#0284C7] text-white border-transparent shadow-md shadow-sky-500/25'
                                   : 'bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] text-white border-transparent shadow-md shadow-emerald-500/25')
                               : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 shadow-xs'
                               }`}
                           >
-                            <div className={`w-2 h-2 rounded-full ${showTargetCols ? 'bg-white' : 'bg-slate-400'}`}></div>
+                            <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${showTargetCols ? 'bg-white' : 'bg-slate-400'}`}></div>
                             TARGET · REAL · %HT · C.LẠI
                           </button>
                           <button
                             onClick={() => setShowOrangeCols(!showOrangeCols)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 cursor-pointer ${showOrangeCols
+                            className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-[9.5px] sm:text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 cursor-pointer ${showOrangeCols
                               ? (isEffective43751
                                   ? 'bg-gradient-to-r from-[#38BDF8] to-[#0284C7] text-white border-transparent shadow-md shadow-sky-500/25'
                                   : 'bg-gradient-to-r from-[#3B82F6] via-[#6366F1] to-[#818CF8] text-white border-transparent shadow-md shadow-blue-500/25')
                               : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 shadow-xs'
                               }`}
                           >
-                            <div className={`w-2 h-2 rounded-full ${showOrangeCols ? 'bg-white' : 'bg-slate-400'}`}></div>
+                            <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${showOrangeCols ? 'bg-white' : 'bg-slate-400'}`}></div>
                             LUỸ KẾ · MỤC TIÊU
                           </button>
                           <button
                             onClick={() => setIsCategoryFilterModalOpen(true)}
-                            className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-[11px] sm:text-[12px] font-black uppercase tracking-wider transition-all duration-300 active:scale-95 cursor-pointer border shadow-sm ${
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-[9.5px] sm:text-[11px] md:text-[12px] font-black uppercase tracking-wider transition-all duration-300 active:scale-95 cursor-pointer border shadow-sm ${
                               (hiddenCatsSL.length > 0 || hiddenCatsDT.length > 0)
                                 ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300 ring-2 ring-rose-400/20'
                                 : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
                             }`}
                             title="Bộ lọc ẩn/hiện ngành hàng SL & DT (Chỉ áp dụng cho Tổng quan)"
                           >
-                            <Filter size={14} className={hiddenCatsSL.length > 0 || hiddenCatsDT.length > 0 ? 'text-rose-600' : 'text-slate-500'} />
+                            <Filter size={13} className={hiddenCatsSL.length > 0 || hiddenCatsDT.length > 0 ? 'text-rose-600' : 'text-slate-500'} />
                             <span>ẨN/HIỆN NGÀNH HÀNG</span>
                             {(hiddenCatsSL.length > 0 || hiddenCatsDT.length > 0) && (
-                              <span className="bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-2xs">
+                              <span className="bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full shadow-2xs">
                                 Ẩn {hiddenCatsSL.length + hiddenCatsDT.length}
                               </span>
                             )}
                           </button>
                           <button
                             onClick={generateCategoryComment}
-                            className={`flex items-center gap-2 px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-wider text-white transition-all duration-300 active:scale-95 cursor-pointer ${
+                            className={`flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-5 sm:py-2 rounded-full text-[9.5px] sm:text-[11px] font-black uppercase tracking-wider text-white transition-all duration-300 active:scale-95 cursor-pointer ${
                               isEffective43751
                                 ? 'bg-gradient-to-r from-[#38BDF8] via-[#0EA5E9] to-[#0284C7] hover:from-[#0EA5E9] hover:to-[#0369A1] shadow-md shadow-sky-500/25 border border-sky-400/30'
                                 : 'bg-gradient-to-r from-[#059669] via-[#0D9488] to-[#0284C7] hover:from-[#047857] hover:to-[#0284C7] shadow-md shadow-teal-500/25 border border-teal-400/30'
                             }`}
                           >
-                            <MessageSquare size={14} className="text-white shrink-0" />
+                            <MessageSquare size={13} className="text-white shrink-0" />
                             <span>NHẬN XÉT</span>
                           </button>
                           <button
                             onClick={captureCategories}
-                            className={`flex items-center gap-2 px-6 py-2 rounded-full text-white text-[12px] font-black uppercase tracking-wider transition-all duration-300 active:scale-95 no-capture cursor-pointer ${
+                            className={`flex items-center gap-1.5 sm:gap-2 px-3.5 py-1.5 sm:px-6 sm:py-2 rounded-full text-white text-[10px] sm:text-[12px] font-black uppercase tracking-wider transition-all duration-300 active:scale-95 no-capture cursor-pointer ${
                               isEffective43751
                                 ? 'bg-gradient-to-r from-[#38BDF8] to-[#0284C7] hover:from-[#0EA5E9] hover:to-[#0369A1] shadow-md shadow-sky-500/25'
                                 : 'bg-gradient-to-r from-[#059669] to-[#10B981] hover:from-[#047857] hover:to-[#059669] shadow-md shadow-emerald-500/25'
                             }`}
                           >
-                            <Camera size={15} />
+                            <Camera size={14} />
                             <span>Chụp ảnh</span>
                           </button>
                         </div>
@@ -6185,7 +6185,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             {/* Left Table: SLLK */}
                             <div
                               ref={categorySLRef}
-                              className={`bg-white/95 rounded-2xl overflow-hidden min-w-0 flex flex-col p-2 sm:p-2.5 self-start h-auto ${
+                              className={`bg-white/95 rounded-2xl overflow-hidden min-w-0 flex flex-col p-1.5 sm:p-2.5 self-start h-auto ${
                                 isEffective43751
                                   ? 'border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)]'
                                   : 'border border-slate-200 shadow-sm'
@@ -6197,13 +6197,13 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   isEffective43751
                                     ? 'bg-gradient-to-r from-[#0284C7] via-[#0EA5E9] to-[#38BDF8] shadow-sky-500/20'
                                     : 'bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] shadow-emerald-500/20'
-                                } p-4 rounded-2xl text-white relative shrink-0 mb-2.5 shadow-md`}
+                                } p-2.5 sm:p-4 rounded-xl sm:rounded-2xl text-white relative shrink-0 mb-2 sm:mb-2.5 shadow-md`}
                               >
                                 <div className="flex flex-col items-center justify-center text-center">
-                                  <h2 className="text-[23px] sm:text-[27px] font-black text-white uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                  <h2 className="text-[17px] sm:text-[23px] md:text-[27px] font-black text-white uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                     NGÀNH HÀNG (SL)
                                   </h2>
-                                  <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-2 mt-1.5 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                  <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-1.5 sm:gap-2 mt-1 sm:mt-1.5 text-[10px] sm:text-xs md:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                                     <span className="flex items-center gap-1 whitespace-nowrap">
                                       ⚡ Realtime: {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} - {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
                                     </span>
@@ -6220,12 +6220,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                     setCategoryFilterActiveTab('SL');
                                     setIsCategoryFilterModalOpen(true);
                                   }}
-                                  className="no-capture absolute right-12 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                                  className="no-capture absolute right-9 sm:right-12 top-2 sm:top-3 p-1.5 sm:p-2 bg-white/20 hover:bg-white/30 rounded-lg sm:rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
                                   title="Bộ lọc ẩn/hiện ngành hàng SL"
                                 >
-                                  <Filter size={16} />
+                                  <Filter size={14} className="sm:w-4 sm:h-4" />
                                   {hiddenCatsSL.length > 0 && (
-                                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
+                                    <span className="absolute -top-1 -right-1 min-w-[14px] sm:min-w-[16px] h-3.5 sm:h-4 px-1 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black rounded-full flex items-center justify-center border border-white">
                                       {hiddenCatsSL.length}
                                     </span>
                                   )}
@@ -6234,10 +6234,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 {/* Camera Capture Button */}
                                 <button
                                   onClick={() => captureElement(categorySLRef, 'NganhHang_SL_Realtime')}
-                                  className="no-capture absolute right-3 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                                  className="no-capture absolute right-2 sm:right-3 top-2 sm:top-3 p-1.5 sm:p-2 bg-white/20 hover:bg-white/30 rounded-lg sm:rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
                                   title="Chụp ảnh bảng Ngành hàng SL"
                                 >
-                                  <Camera size={16} />
+                                  <Camera size={14} className="sm:w-4 sm:h-4" />
                                 </button>
                               </div>
 
@@ -6279,28 +6279,28 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 </div>
                               )}
 
-                              <div className={`overflow-x-auto w-full rounded-2xl border ${isEffective43751 ? 'border-sky-300/80' : 'border-emerald-200/80'}`}>
-                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, minWidth: '600px' }}>
+                              <div className={`overflow-x-auto w-full rounded-xl sm:rounded-2xl border ${isEffective43751 ? 'border-sky-300/80' : 'border-emerald-200/80'}`}>
+                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white min-w-[340px] md:min-w-[600px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                   <colgroup>
-                                    <col style={{ width: '40px' }} />
-                                    <col style={{ width: 'auto' }} />
-                                    <col style={{ width: '68px' }} />
-                                    <col style={{ width: '58px' }} />
-                                    <col style={{ width: '58px' }} />
-                                    <col style={{ width: '58px' }} />
-                                    {showOrangeCols && showLuykeColumn && <col style={{ width: '68px' }} />}
-                                    {showOrangeCols && <col style={{ width: '75px' }} />}
+                                    <col className="w-[30px] sm:w-[36px] md:w-[40px]" />
+                                    <col className="w-auto" />
+                                    <col className="w-[48px] sm:w-[58px] md:w-[68px]" />
+                                    <col className="w-[42px] sm:w-[50px] md:w-[58px]" />
+                                    <col className="w-[46px] sm:w-[52px] md:w-[58px]" />
+                                    <col className="w-[44px] sm:w-[50px] md:w-[58px]" />
+                                    {showOrangeCols && showLuykeColumn && <col className="w-[50px] sm:w-[60px] md:w-[68px]" />}
+                                    {showOrangeCols && <col className="w-[56px] sm:w-[66px] md:w-[75px]" />}
                                   </colgroup>
                                   <thead>
-                                    <tr className="text-white h-[46px]">
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>STT</th>
-                                      <th className={`px-2.5 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-left border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-emerald-500 bg-[#059669]'} whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>TARGET</th>
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>REAL</th>
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-emerald-500 bg-[#059669]'} whitespace-nowrap overflow-hidden`}>%HT</th>
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>C.LẠI</th>
-                                      {showOrangeCols && showLuykeColumn && <th className={`px-1 py-0 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-emerald-500 bg-[#064E3B]'} leading-tight whitespace-nowrap overflow-hidden`}>LK<br />C.LẠI</th>}
-                                      {showOrangeCols && <th className={`px-1 py-0 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase text-center border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-emerald-500 bg-[#064E3B]'} leading-tight whitespace-nowrap overflow-hidden`}>M.TIÊU<br />/ NGÀY</th>}
+                                    <tr className="text-white h-[36px] sm:h-[42px] md:h-[46px]">
+                                      <th className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>STT</th>
+                                      <th className={`px-1.5 sm:px-2.5 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-black uppercase text-left border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-emerald-500 bg-[#059669]'} whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
+                                      <th className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[10.5px] sm:text-[12px] md:text-[13.5px]' : 'text-[9.5px] sm:text-[11px] md:text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>TARGET</th>
+                                      <th className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[10.5px] sm:text-[12px] md:text-[13.5px]' : 'text-[9.5px] sm:text-[11px] md:text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>REAL</th>
+                                      <th className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[10.5px] sm:text-[12px] md:text-[13.5px]' : 'text-[9.5px] sm:text-[11px] md:text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-emerald-500 bg-[#059669]'} whitespace-nowrap overflow-hidden`}>%HT</th>
+                                      <th className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[10.5px] sm:text-[12px] md:text-[13.5px]' : 'text-[9.5px] sm:text-[11px] md:text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>C.LẠI</th>
+                                      {showOrangeCols && showLuykeColumn && <th className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[9px] sm:text-[10.5px] md:text-[11.5px]' : 'text-[8.5px] sm:text-[9.5px] md:text-[10px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-emerald-500 bg-[#064E3B]'} leading-tight whitespace-nowrap overflow-hidden`}>LK<br />C.LẠI</th>}
+                                      {showOrangeCols && <th className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[9px] sm:text-[10.5px] md:text-[11.5px]' : 'text-[8.5px] sm:text-[9.5px] md:text-[10px]'} font-black uppercase text-center border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-emerald-500 bg-[#064E3B]'} leading-tight whitespace-nowrap overflow-hidden`}>M.TIÊU<br />/ NGÀY</th>}
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -6319,25 +6319,25 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         const remaining = cat.target - cat.revenue;
                                         const isEven = idx % 2 === 0;
                                         return (
-                                          <tr key={idx} className={`${isEven ? 'bg-white' : (isEffective43751 ? 'bg-sky-50/25' : 'bg-emerald-50/20')} ${isEffective43751 ? 'hover:bg-sky-50/70' : 'hover:bg-emerald-50/70'} transition-colors h-[40px]`}>
-                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 bg-sky-50/40' : 'border-emerald-100/90 bg-emerald-50/40'}`}>{idx + 1}</td>
-                                            <td className={`px-2 py-0.5 ${isUser43751 ? 'text-[14px]' : 'text-[12.5px]'} font-black uppercase border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-900 leading-snug tracking-tight`} title={cat.name}>{cat.name}</td>
-                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-800`}>{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
-                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-emerald-100/90 text-emerald-700'}`}>{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
-                                            <td className={`px-0.5 py-0 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} whitespace-nowrap`}>
-                                              <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black leading-none ${isUser43751 ? 'text-[12.5px] sm:text-[14px]' : 'text-[11.5px] sm:text-[13px]'} ${Math.round(cat.rate || 0) >= 100 ? (isEffective43751 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-emerald-100 text-emerald-800') : 'bg-rose-100 text-rose-600'}`}>
+                                          <tr key={idx} className={`${isEven ? 'bg-white' : (isEffective43751 ? 'bg-sky-50/25' : 'bg-emerald-50/20')} ${isEffective43751 ? 'hover:bg-sky-50/70' : 'hover:bg-emerald-50/70'} transition-colors h-[32px] sm:h-[36px] md:h-[40px]`}>
+                                            <td className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-black text-slate-700 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 bg-sky-50/40' : 'border-emerald-100/90 bg-emerald-50/40'} overflow-hidden`}>{idx + 1}</td>
+                                            <td className={`px-1.5 sm:px-2 py-0.5 ${isUser43751 ? 'text-[11px] sm:text-[12.5px] md:text-[14px]' : 'text-[10px] sm:text-[11.5px] md:text-[12.5px]'} font-black uppercase border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-900 leading-snug tracking-tight truncate max-w-0 overflow-hidden`} title={cat.name}>{cat.name}</td>
+                                            <td className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-800 overflow-hidden`}>{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
+                                            <td className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-black text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-emerald-100/90 text-emerald-700'} overflow-hidden`}>{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
+                                            <td className={`px-0.5 py-0 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} whitespace-nowrap overflow-hidden`}>
+                                              <span className={`inline-flex items-center justify-center px-1 sm:px-1.5 py-0.5 rounded-md font-black leading-none ${isUser43751 ? 'text-[10px] sm:text-[12.5px] md:text-[14px]' : 'text-[9.5px] sm:text-[11.5px] md:text-[13px]'} ${Math.round(cat.rate || 0) >= 100 ? (isEffective43751 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-emerald-100 text-emerald-800') : 'bg-rose-100 text-rose-600'}`}>
                                                 {Math.round(cat.rate || 0)}%
                                               </span>
                                             </td>
-                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-rose-600`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
+                                            <td className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-rose-600 overflow-hidden`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
                                             {showOrangeCols && showLuykeColumn && (
-                                              <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-blue-700' : 'border-emerald-100/90 text-purple-700'}`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                              <td className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-blue-700' : 'border-emerald-100/90 text-purple-700'} overflow-hidden`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
                                             )}
                                             {showOrangeCols && (() => {
                                               const lkCat = luykeCatMap.get(lkKey);
-                                              if (!lkCat || lkCat.target === 0) return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-400`}></td>;
+                                              if (!lkCat || lkCat.target === 0) return <td className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-400 overflow-hidden`}></td>;
                                               const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
-                                              return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} ${mucTieu > 0 ? 'text-rose-600' : (isEffective43751 ? 'text-sky-700' : 'text-emerald-600')}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                              return <td className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} overflow-hidden ${mucTieu > 0 ? 'text-rose-600' : (isEffective43751 ? 'text-sky-700' : 'text-emerald-600')}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
                                             })()}
                                           </tr>
                                         );
@@ -6350,7 +6350,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             {/* Right Table: DTLK */}
                             <div
                               ref={categoryDTRef}
-                              className={`bg-white/95 rounded-2xl overflow-hidden min-w-0 flex flex-col p-2 sm:p-2.5 self-start h-auto ${
+                              className={`bg-white/95 rounded-2xl overflow-hidden min-w-0 flex flex-col p-1.5 sm:p-2.5 self-start h-auto ${
                                 isEffective43751
                                   ? 'border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)]'
                                   : 'border border-slate-200 shadow-sm'
@@ -6362,13 +6362,13 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   isEffective43751
                                     ? 'bg-gradient-to-r from-[#0284C7] via-[#0EA5E9] to-[#38BDF8] shadow-sky-500/20'
                                     : 'bg-gradient-to-r from-[#1E40AF] via-[#2563EB] to-[#3B82F6] shadow-blue-500/20'
-                                } p-4 rounded-2xl text-white relative shrink-0 mb-2.5 shadow-md`}
+                                } p-2.5 sm:p-4 rounded-xl sm:rounded-2xl text-white relative shrink-0 mb-2 sm:mb-2.5 shadow-md`}
                               >
                                 <div className="flex flex-col items-center justify-center text-center">
-                                  <h2 className="text-[23px] sm:text-[27px] font-black text-white uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                  <h2 className="text-[17px] sm:text-[23px] md:text-[27px] font-black text-white uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                     NGÀNH HÀNG (DT)
                                   </h2>
-                                  <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-2 mt-1.5 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                  <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-1.5 sm:gap-2 mt-1 sm:mt-1.5 text-[10px] sm:text-xs md:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                                     <span className="flex items-center gap-1 whitespace-nowrap">
                                       ⚡ Realtime: {lastUpdated ? lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} - {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
                                     </span>
@@ -6385,12 +6385,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                     setCategoryFilterActiveTab('DT');
                                     setIsCategoryFilterModalOpen(true);
                                   }}
-                                  className="no-capture absolute right-12 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                                  className="no-capture absolute right-9 sm:right-12 top-2 sm:top-3 p-1.5 sm:p-2 bg-white/20 hover:bg-white/30 rounded-lg sm:rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
                                   title="Bộ lọc ẩn/hiện ngành hàng DT"
                                 >
-                                  <Filter size={16} />
+                                  <Filter size={14} className="sm:w-4 sm:h-4" />
                                   {hiddenCatsDT.length > 0 && (
-                                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
+                                    <span className="absolute -top-1 -right-1 min-w-[14px] sm:min-w-[16px] h-3.5 sm:h-4 px-1 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black rounded-full flex items-center justify-center border border-white">
                                       {hiddenCatsDT.length}
                                     </span>
                                   )}
@@ -6399,10 +6399,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 {/* Camera Capture Button */}
                                 <button
                                   onClick={() => captureElement(categoryDTRef, 'NganhHang_DT_Realtime')}
-                                  className="no-capture absolute right-3 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                                  className="no-capture absolute right-2 sm:right-3 top-2 sm:top-3 p-1.5 sm:p-2 bg-white/20 hover:bg-white/30 rounded-lg sm:rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
                                   title="Chụp ảnh bảng Ngành hàng DT"
                                 >
-                                  <Camera size={16} />
+                                  <Camera size={14} className="sm:w-4 sm:h-4" />
                                 </button>
                               </div>
 
@@ -6444,28 +6444,28 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 </div>
                               )}
 
-                              <div className={`overflow-x-auto w-full rounded-2xl border ${isEffective43751 ? 'border-sky-300/80' : 'border-blue-300/80'}`}>
-                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, minWidth: '600px' }}>
+                              <div className={`overflow-x-auto w-full rounded-xl sm:rounded-2xl border ${isEffective43751 ? 'border-sky-300/80' : 'border-blue-300/80'}`}>
+                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white min-w-[340px] md:min-w-[600px]" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                   <colgroup>
-                                    <col style={{ width: '40px' }} />
-                                    <col style={{ width: 'auto' }} />
-                                    <col style={{ width: '68px' }} />
-                                    <col style={{ width: '58px' }} />
-                                    <col style={{ width: '58px' }} />
-                                    <col style={{ width: '58px' }} />
-                                    {showOrangeCols && showLuykeColumn && <col style={{ width: '68px' }} />}
-                                    {showOrangeCols && <col style={{ width: '75px' }} />}
+                                    <col className="w-[30px] sm:w-[36px] md:w-[40px]" />
+                                    <col className="w-auto" />
+                                    <col className="w-[48px] sm:w-[58px] md:w-[68px]" />
+                                    <col className="w-[42px] sm:w-[50px] md:w-[58px]" />
+                                    <col className="w-[46px] sm:w-[52px] md:w-[58px]" />
+                                    <col className="w-[44px] sm:w-[50px] md:w-[58px]" />
+                                    {showOrangeCols && showLuykeColumn && <col className="w-[50px] sm:w-[60px] md:w-[68px]" />}
+                                    {showOrangeCols && <col className="w-[56px] sm:w-[66px] md:w-[75px]" />}
                                   </colgroup>
                                   <thead>
-                                    <tr className="text-white h-[46px]">
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>STT</th>
-                                      <th className={`px-2.5 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-left border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-blue-500 bg-[#2563EB]'} whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>TARGET</th>
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>REAL</th>
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-blue-500 bg-[#2563EB]'} whitespace-nowrap overflow-hidden`}>%HT</th>
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>C.LẠI</th>
-                                      {showOrangeCols && showLuykeColumn && <th className={`px-1 py-0 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-blue-500 bg-[#1E3A8A]'} leading-tight whitespace-nowrap overflow-hidden`}>LK<br />C.LẠI</th>}
-                                      {showOrangeCols && <th className={`px-1 py-0 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase text-center border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-blue-500 bg-[#1E3A8A]'} leading-tight whitespace-nowrap overflow-hidden`}>M.TIÊU<br />/ NGÀY</th>}
+                                    <tr className="text-white h-[36px] sm:h-[42px] md:h-[46px]">
+                                      <th className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>STT</th>
+                                      <th className={`px-1.5 sm:px-2.5 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-black uppercase text-left border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-blue-500 bg-[#2563EB]'} whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
+                                      <th className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[10.5px] sm:text-[12px] md:text-[13.5px]' : 'text-[9.5px] sm:text-[11px] md:text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>TARGET</th>
+                                      <th className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[10.5px] sm:text-[12px] md:text-[13.5px]' : 'text-[9.5px] sm:text-[11px] md:text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>REAL</th>
+                                      <th className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[10.5px] sm:text-[12px] md:text-[13.5px]' : 'text-[9.5px] sm:text-[11px] md:text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-blue-500 bg-[#2563EB]'} whitespace-nowrap overflow-hidden`}>%HT</th>
+                                      <th className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[10.5px] sm:text-[12px] md:text-[13.5px]' : 'text-[9.5px] sm:text-[11px] md:text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>C.LẠI</th>
+                                      {showOrangeCols && showLuykeColumn && <th className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[9px] sm:text-[10.5px] md:text-[11.5px]' : 'text-[8.5px] sm:text-[9.5px] md:text-[10px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-blue-500 bg-[#1E3A8A]'} leading-tight whitespace-nowrap overflow-hidden`}>LK<br />C.LẠI</th>}
+                                      {showOrangeCols && <th className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[9px] sm:text-[10.5px] md:text-[11.5px]' : 'text-[8.5px] sm:text-[9.5px] md:text-[10px]'} font-black uppercase text-center border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-blue-500 bg-[#1E3A8A]'} leading-tight whitespace-nowrap overflow-hidden`}>M.TIÊU<br />/ NGÀY</th>}
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -6484,25 +6484,25 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         const remaining = cat.target - cat.revenue;
                                         const isEven = idx % 2 === 0;
                                         return (
-                                          <tr key={idx} className={`${isEven ? 'bg-white' : (isEffective43751 ? 'bg-sky-50/25' : 'bg-blue-50/25')} ${isEffective43751 ? 'hover:bg-sky-50/70' : 'hover:bg-blue-50/70'} transition-colors h-[40px]`}>
-                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 bg-sky-50/40' : 'border-blue-100/90 bg-blue-50/40'}`}>{idx + 1}</td>
-                                            <td className={`px-2 py-0.5 ${isUser43751 ? 'text-[14px]' : 'text-[12.5px]'} font-black uppercase border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-900 leading-snug tracking-tight`} title={cat.name}>{cat.name}</td>
-                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-800`}>{Math.round(cat.target).toLocaleString()}</td>
-                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-blue-100/90 text-blue-700'}`}>{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
-                                            <td className={`px-0.5 py-0 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} whitespace-nowrap`}>
-                                              <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black leading-none ${isUser43751 ? 'text-[12.5px] sm:text-[14px]' : 'text-[11.5px] sm:text-[13px]'} ${Math.round(cat.rate || 0) >= 100 ? (isEffective43751 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-blue-100 text-blue-800 border border-blue-200/60') : 'bg-rose-100 text-rose-600'}`}>
+                                          <tr key={idx} className={`${isEven ? 'bg-white' : (isEffective43751 ? 'bg-sky-50/25' : 'bg-blue-50/25')} ${isEffective43751 ? 'hover:bg-sky-50/70' : 'hover:bg-blue-50/70'} transition-colors h-[32px] sm:h-[36px] md:h-[40px]`}>
+                                            <td className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-black text-slate-700 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 bg-sky-50/40' : 'border-blue-100/90 bg-blue-50/40'} overflow-hidden`}>{idx + 1}</td>
+                                            <td className={`px-1.5 sm:px-2 py-0.5 ${isUser43751 ? 'text-[11px] sm:text-[12.5px] md:text-[14px]' : 'text-[10px] sm:text-[11.5px] md:text-[12.5px]'} font-black uppercase border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-900 leading-snug tracking-tight truncate max-w-0 overflow-hidden`} title={cat.name}>{cat.name}</td>
+                                            <td className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-800 overflow-hidden`}>{Math.round(cat.target).toLocaleString()}</td>
+                                            <td className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-black text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-blue-100/90 text-blue-700'} overflow-hidden`}>{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                            <td className={`px-0.5 py-0 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} whitespace-nowrap overflow-hidden`}>
+                                              <span className={`inline-flex items-center justify-center px-1 sm:px-1.5 py-0.5 rounded-md font-black leading-none ${isUser43751 ? 'text-[10px] sm:text-[12.5px] md:text-[14px]' : 'text-[9.5px] sm:text-[11.5px] md:text-[13px]'} ${Math.round(cat.rate || 0) >= 100 ? (isEffective43751 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-blue-100 text-blue-800 border border-blue-200/60') : 'bg-rose-100 text-rose-600'}`}>
                                                 {Math.round(cat.rate || 0)}%
                                               </span>
                                             </td>
-                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-rose-600`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
+                                            <td className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-rose-600 overflow-hidden`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
                                             {showOrangeCols && showLuykeColumn && (
-                                              <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-blue-100/90 text-indigo-700'}`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                              <td className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-blue-100/90 text-indigo-700'} overflow-hidden`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
                                             )}
                                             {showOrangeCols && (() => {
                                               const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
-                                              if (!lkCat || lkCat.target === 0) return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-400`}></td>;
+                                              if (!lkCat || lkCat.target === 0) return <td className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-400 overflow-hidden`}></td>;
                                               const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
-                                              return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} ${mucTieu > 0 ? 'text-rose-600' : (isEffective43751 ? 'text-sky-700' : 'text-blue-700')}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                              return <td className={`px-0.5 sm:px-1 py-0 ${isUser43751 ? 'text-[11px] sm:text-[13px] md:text-[14.5px]' : 'text-[10px] sm:text-[11.5px] md:text-[13px]'} font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} overflow-hidden ${mucTieu > 0 ? 'text-rose-600' : (isEffective43751 ? 'text-sky-700' : 'text-blue-700')}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
                                             })()}
                                           </tr>
                                         );
