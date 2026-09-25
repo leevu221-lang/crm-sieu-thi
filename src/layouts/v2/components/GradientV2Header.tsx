@@ -157,7 +157,7 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
   const CurrentMarketIcon = getMarketIcon(marketFilter);
 
   return (
-    <header className="relative bg-white/95 backdrop-blur-xl border-b border-slate-200/80 z-40 transition-all w-full">
+    <header className="relative bg-white/95 backdrop-blur-xl border-b border-[#BAE6FD]/80 shadow-[0_4px_20px_-2px_rgba(2,132,199,0.06)] z-40 transition-all w-full">
       <div className="w-full px-3 sm:px-4">
         <div className="flex items-center justify-between gap-3 h-[52px]">
 
@@ -177,11 +177,11 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
               <div ref={dropdownRef} className="relative">
                 <button
                   onClick={() => setStoreDropdownOpen(!storeDropdownOpen)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 border border-emerald-400/80 rounded-xl text-[14px] font-black text-white transition-all cursor-pointer whitespace-nowrap shadow-md shadow-emerald-500/20 active:scale-95"
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#0284C7] via-[#0EA5E9] to-[#38BDF8] hover:from-[#0369A1] hover:to-[#0284C7] border border-sky-300/80 rounded-xl text-[14px] font-black text-white transition-all cursor-pointer whitespace-nowrap shadow-md shadow-sky-500/20 active:scale-95"
                 >
-                  <Store size={18} className="text-emerald-100 shrink-0" />
+                  <Store size={18} className="text-sky-100 shrink-0" />
                   <span className="truncate max-w-[200px] sm:max-w-[400px] uppercase tracking-[0.03em]">{currentMarketLabel}</span>
-                  <ChevronDown size={16} className={`text-emerald-200 transition-transform duration-200 ${storeDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={16} className={`text-sky-100 transition-transform duration-200 ${storeDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 <AnimatePresence>
@@ -198,15 +198,15 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                         onClick={() => { setMarketFilter('ALL'); setStoreDropdownOpen(false); }}
                         className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer
                           ${marketFilter === 'ALL'
-                            ? 'bg-emerald-50 text-emerald-700 font-extrabold'
+                            ? 'bg-sky-50 text-sky-700 font-extrabold'
                             : 'text-slate-600 hover:bg-slate-50'
                           }
                         `}
                       >
-                        <LayoutGrid size={14} className={marketFilter === 'ALL' ? 'text-emerald-600' : 'text-slate-400'} />
+                        <LayoutGrid size={14} className={marketFilter === 'ALL' ? 'text-sky-600' : 'text-slate-400'} />
                         <span>TẤT CẢ</span>
                         {marketFilter === 'ALL' && (
-                          <div className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          <div className="ml-auto w-1.5 h-1.5 rounded-full bg-sky-500" />
                         )}
                       </button>
 
@@ -222,15 +222,15 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                             onClick={() => { setMarketFilter(m.name); setStoreDropdownOpen(false); }}
                             className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer
                               ${isActive
-                                ? 'bg-emerald-50 text-emerald-700 font-extrabold'
+                                ? 'bg-sky-50 text-sky-700 font-extrabold'
                                 : 'text-slate-600 hover:bg-slate-50'
                               }
                             `}
                           >
-                            <Icon size={14} className={isActive ? 'text-emerald-600' : 'text-slate-400'} />
+                            <Icon size={14} className={isActive ? 'text-sky-600' : 'text-slate-400'} />
                             <span className="truncate">{m.name}</span>
                             {isActive && (
-                              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0" />
                             )}
                           </button>
                         );
@@ -249,19 +249,19 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
               onClick={handleShareLink}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer border ${
                 copiedLink 
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 ring-2 ring-emerald-200 font-extrabold' 
-                  : 'bg-gradient-to-r from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 text-emerald-700 border-emerald-200'
+                  ? 'bg-sky-50 text-sky-700 border-sky-300 ring-2 ring-sky-200 font-extrabold' 
+                  : 'bg-gradient-to-r from-sky-50 to-blue-50 hover:from-sky-100 hover:to-blue-100 text-sky-700 border-sky-200'
               }`}
               title={`Chia sẻ link trực tiếp trang này cho Khách xem dữ liệu Kho ${userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}`}
             >
               {copiedLink ? (
                 <>
-                  <Check size={14} className="text-emerald-600 shrink-0" />
+                  <Check size={14} className="text-sky-600 shrink-0" />
                   <span className="text-[11px] font-black">Đã chép link Kho {userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}!</span>
                 </>
               ) : (
                 <>
-                  <Share2 size={14} className="text-emerald-600 shrink-0" />
+                  <Share2 size={14} className="text-sky-600 shrink-0" />
                   <span className="hidden sm:inline text-[11px] font-black tracking-wide">CHIA SẺ LINK</span>
                 </>
               )}
@@ -281,7 +281,7 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
 
             {/* Live Clock */}
             <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200 text-slate-600 rounded-full text-[11px] font-bold tracking-tight whitespace-nowrap">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
               <span>{liveClockStr}</span>
             </div>
 
@@ -293,10 +293,10 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
               >
                 {/* Avatar */}
                 <div className="relative shrink-0">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#6366F1] to-[#7C3AED] text-white flex items-center justify-center font-black text-[10px] shadow-sm">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#38BDF8] to-[#0284C7] text-white flex items-center justify-center font-black text-[10px] shadow-sm shadow-sky-500/20">
                     {String(userProfile?.username || '43').slice(0, 4).toUpperCase()}
                   </div>
-                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-[1.5px] border-white" />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-sky-400 border-[1.5px] border-white" />
                 </div>
                 {/* Name + Role */}
                 <div className="hidden sm:block text-left min-w-0">
@@ -324,10 +324,10 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                     <div className="px-3.5 py-2.5 border-b border-slate-100">
                       <div className="flex items-center gap-2.5">
                         <div className="relative shrink-0">
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#6366F1] to-[#7C3AED] text-white flex items-center justify-center font-black text-[11px] shadow-md shadow-indigo-200/40">
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#38BDF8] to-[#0284C7] text-white flex items-center justify-center font-black text-[11px] shadow-md shadow-sky-200/40">
                             {String(userProfile?.username || '43').slice(0, 4).toUpperCase()}
                           </div>
-                          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white" />
+                          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-sky-400 border-2 border-white" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="text-[13px] font-black text-slate-800 truncate leading-tight">

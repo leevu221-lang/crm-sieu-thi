@@ -30,32 +30,33 @@ import { useStore } from '../../../contexts/StoreContext';
 
 /* ── Design Tokens ── */
 const COLORS = {
-  bg: '#FAFBFF',
+  bg: '#F0F7FF',
   surface: '#FFFFFF',
-  // Main Tab: Emerald Green when active
-  mainActive: '#059669',
-  mainActiveBg: '#ECFDF5',
-  mainActiveBorder: '#10B981',
-  mainActiveText: '#065F46',
-  mainActiveSub: '#059669',
-  mainHover: '#F0FDF4',
+  // Main Tab: Pastel Blue when active
+  mainActive: '#0284C7',
+  mainActiveBg: '#F0F9FF',
+  mainActiveBorder: '#38BDF8',
+  mainActiveText: '#0369A1',
+  mainActiveSub: '#0EA5E9',
+  mainHover: '#F0F7FF',
+  primaryHover: '#E0F2FE',
 
-  // Sub Tab: Yellow / Amber when active
-  subActive: '#D97706',
-  subActiveBg: '#FEF3C7',
-  subActiveBorder: '#F59E0B',
-  subActiveText: '#92400E',
-  subActiveDot: '#D97706',
-  subHover: '#FFFBEB',
+  // Sub Tab: Pastel Sky / Cerulean Blue when active
+  subActive: '#0284C7',
+  subActiveBg: '#E0F2FE',
+  subActiveBorder: '#0EA5E9',
+  subActiveText: '#0369A1',
+  subActiveDot: '#38BDF8',
+  subHover: '#F0F9FF',
 
-  textPrimary: '#172033',
-  textSecondary: '#64748B',
-  textMuted: '#94A3B8',
-  border: '#E8ECF4',
-  borderLight: '#F0F2F7',
-  badgeHot: { bg: '#FFF1F2', text: '#E11D48' },
-  badgeMoi: { bg: '#EEF1FF', text: '#4F46E5' },
-  online: '#10B981',
+  textPrimary: '#0F172A',
+  textSecondary: '#475569',
+  textMuted: '#64748B',
+  border: '#BAE6FD',
+  borderLight: '#E0F2FE',
+  badgeHot: { bg: '#EFF6FF', text: '#0284C7' },
+  badgeMoi: { bg: '#E0F2FE', text: '#0284C7' },
+  online: '#38BDF8',
 };
 
 interface NavItem {
@@ -218,24 +219,24 @@ const SubMenuItem: React.FC<{
     )}
     {isActive && (
       <div className="ml-auto flex items-center gap-1.5 shrink-0 pl-1">
-        {/* Animated dynamic radar pulse beacon in high-contrast Emerald Green */}
+        {/* Animated dynamic radar pulse beacon in high-contrast Pastel Blue */}
         <span className="relative flex h-2.5 w-2.5 items-center justify-center">
           <span
             className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-85"
-            style={{ backgroundColor: '#10B981' }}
+            style={{ backgroundColor: '#38BDF8' }}
           />
           <span
-            className="relative inline-flex rounded-full h-2 w-2 shadow-[0_0_8px_rgba(16,185,129,0.9)]"
-            style={{ backgroundColor: '#059669' }}
+            className="relative inline-flex rounded-full h-2 w-2 shadow-[0_0_8px_rgba(56,189,248,0.9)]"
+            style={{ backgroundColor: '#0284C7' }}
           />
         </span>
-        {/* Animated sparkling micro-icon in vibrant Emerald */}
+        {/* Animated sparkling micro-icon in vibrant Pastel Blue */}
         <motion.div
           animate={{ scale: [1, 1.3, 1], rotate: [0, 15, -15, 0] }}
           transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
           className="flex items-center justify-center"
         >
-          <Sparkles size={13} className="text-emerald-600 fill-emerald-500" />
+          <Sparkles size={13} className="text-sky-500 fill-sky-400" />
         </motion.div>
       </div>
     )}
@@ -333,8 +334,8 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
               <div
                 className="w-[42px] h-[42px] rounded-[12px] flex items-center justify-center shrink-0"
                 style={{
-                  background: 'linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)',
-                  boxShadow: '0 2px 8px rgba(79,70,229,0.25)',
+                  background: 'linear-gradient(135deg, #38BDF8 0%, #0284C7 100%)',
+                  boxShadow: '0 4px 12px rgba(2,132,199,0.3)',
                 }}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -392,8 +393,8 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                 onClick={onToggle}
                 className="w-[46px] h-[46px] rounded-[12px] flex items-center justify-center transition-all duration-200 active:scale-90 cursor-pointer shrink-0"
                 style={{
-                  background: 'linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)',
-                  boxShadow: '0 2px 8px rgba(79,70,229,0.25)',
+                  background: 'linear-gradient(135deg, #38BDF8 0%, #0284C7 100%)',
+                  boxShadow: '0 4px 12px rgba(2,132,199,0.3)',
                 }}
                 title="Mở rộng menu"
               >
@@ -452,7 +453,7 @@ export const GradientV2Sidebar: React.FC<GradientV2SidebarProps> = ({
                             borderLeft: expanded
                               ? (isActive ? `3.5px solid ${COLORS.mainActiveBorder}` : '3.5px solid transparent')
                               : 'none',
-                            boxShadow: (expanded && isActive) ? '0 1px 6px rgba(16,185,129,0.14)' : 'none',
+                            boxShadow: (expanded && isActive) ? '0 1px 6px rgba(56,189,248,0.2)' : 'none',
                             justifyContent: expanded ? 'flex-start' : 'center',
                           }}
                           onMouseEnter={(e) => {

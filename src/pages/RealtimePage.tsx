@@ -8,7 +8,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   ResponsiveContainer,
   Cell,
   PieChart,
@@ -102,7 +102,7 @@ import { UnexportedOrdersTable } from './RTST/components/UnexportedOrdersTable';
 import { BanGiaSocTab } from './RTST/components/BanGiaSocTab';
 import { MucTieuNgayTab } from './RTST/components/MucTieuNgayTab';
 import { RealDoanhThuNvTab } from './RTST/components/RealDoanhThuNvTab';
-import * as Tooltip from '@radix-ui/react-tooltip';
+import * as RadixTooltip from '@radix-ui/react-tooltip';
 import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
 import { addWhiteBorderToDataUrl } from '../utils/imageBorderUtil';
@@ -126,34 +126,94 @@ const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: bool
   </button>
 );
 
-const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0, isLarge = false, isColored = false }: any) => {
-  const colorMap: any = {
-    indigo: 'text-[#2563EB] bg-blue-50',
-    emerald: 'text-emerald-600 bg-emerald-50',
-    amber: 'text-amber-600 bg-amber-50',
-    rose: 'text-rose-600 bg-rose-50',
-    slate: 'text-slate-600 bg-slate-50',
-    blue: 'text-blue-600 bg-blue-50',
-    orange: 'text-orange-600 bg-orange-50'
-  };
+const pastelColorMap: Record<string, { bg: string; text: string; border: string }> = {
+  rose: { bg: 'bg-[#E0F2FE]', text: 'text-[#0284C7]', border: 'border-[#BAE6FD]' },       // Target: Sky blue
+  indigo: { bg: 'bg-[#CFFAFE]', text: 'text-[#0891B2]', border: 'border-[#A5F3FC]' },     // Doanh thu: Cyan
+  emerald: { bg: 'bg-[#D1FAE5]', text: 'text-[#059669]', border: 'border-[#A7F3D0]' },    // %HT: Mint emerald
+  amber: { bg: 'bg-[#EDE9FE]', text: 'text-[#6D28D9]', border: 'border-[#DDD6FE]' },      // Trả góp: Soft lavender purple
+  orange: { bg: 'bg-[#FFEDD5]', text: 'text-[#C2410C]', border: 'border-[#FED7AA]' },     // % QĐ: Soft peach orange
+  blue: { bg: 'bg-[#E0E7FF]', text: 'text-[#4338CA]', border: 'border-[#C7D2FE]' },       // Thu hộ: Soft indigo blue
+  slate: { bg: 'bg-[#F1F5F9]', text: 'text-[#475569]', border: 'border-[#E2E8F0]' }
+};
 
-  const bgMap: any = {
-    indigo: 'bg-gradient-to-br from-[#2563EB] via-[#6366F1] to-[#7C3AED] text-white shadow-lg shadow-indigo-500/20 border-white/30',
-    emerald: 'bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 text-white shadow-lg shadow-emerald-500/20 border-white/30',
-    amber: 'bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 text-white shadow-lg shadow-amber-500/20 border-white/30',
-    rose: 'bg-gradient-to-br from-rose-600 via-pink-600 to-rose-700 text-white shadow-lg shadow-rose-500/20 border-white/30',
-    slate: 'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 text-white shadow-lg shadow-slate-500/20 border-white/30',
-    blue: 'bg-gradient-to-br from-blue-600 via-indigo-600 to-cyan-600 text-white shadow-lg shadow-blue-500/20 border-white/30',
-    orange: 'bg-gradient-to-br from-orange-500 via-amber-500 to-rose-500 text-white shadow-lg shadow-orange-500/20 border-white/30'
-  };
+const colorMapTraditional: any = {
+  indigo: 'text-[#2563EB] bg-blue-50',
+  emerald: 'text-emerald-600 bg-emerald-50',
+  amber: 'text-amber-600 bg-amber-50',
+  rose: 'text-rose-600 bg-rose-50',
+  slate: 'text-slate-600 bg-slate-50',
+  blue: 'text-blue-600 bg-blue-50',
+  orange: 'text-orange-600 bg-orange-50'
+};
 
+const bgMapTraditional: any = {
+  indigo: 'bg-gradient-to-br from-[#2563EB] via-[#6366F1] to-[#7C3AED] text-white shadow-lg shadow-indigo-500/20 border-white/30',
+  emerald: 'bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 text-white shadow-lg shadow-emerald-500/20 border-white/30',
+  amber: 'bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 text-white shadow-lg shadow-amber-500/20 border-white/30',
+  rose: 'bg-gradient-to-br from-rose-600 via-pink-600 to-rose-700 text-white shadow-lg shadow-rose-500/20 border-white/30',
+  slate: 'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 text-white shadow-lg shadow-slate-500/20 border-white/30',
+  blue: 'bg-gradient-to-br from-blue-600 via-indigo-600 to-cyan-600 text-white shadow-lg shadow-blue-500/20 border-white/30',
+  orange: 'bg-gradient-to-br from-orange-500 via-amber-500 to-rose-500 text-white shadow-lg shadow-orange-500/20 border-white/30'
+};
+
+const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0, isLarge = false, isColored = false, isUser43751 = false }: any) => {
+  // Pastel Theme for User 43751
+  if (isUser43751) {
+    const theme = pastelColorMap[color] || { bg: 'bg-[#E0F2FE]', text: 'text-[#0284C7]', border: 'border-[#BAE6FD]' };
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay, duration: 0.4 }}
+        className={`bg-white/95 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_35px_-5px_rgba(2,132,199,0.14)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between h-full group ${isLarge ? 'md:col-span-2' : ''}`}
+        style={{ fontFamily: "'UTM Avo', sans-serif" }}
+      >
+        <div className="flex items-center gap-3 mb-2 min-w-0">
+          <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 ${theme.bg} ${theme.text} shadow-2xs transition-transform group-hover:scale-105 border border-white/60`}>
+            <Icon size={20} strokeWidth={2.4} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-1">
+              <span
+                className="stat-card-title text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider truncate block"
+                title={title}
+              >
+                {title}
+              </span>
+              {trend !== undefined && (
+                <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8.5px] sm:text-[9px] font-black shrink-0 ${trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                  {trend > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+                  {Math.abs(trend)}%
+                </div>
+              )}
+            </div>
+            <div
+              className="font-bold text-[20px] xs:text-[22px] sm:text-[25px] md:text-[28px] lg:text-[30px] tracking-tight text-[#0F172A] leading-tight font-oswald truncate mt-0.5"
+              style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700 }}
+            >
+              {value}
+            </div>
+          </div>
+        </div>
+
+        {subValue && (
+          <div className="text-[10px] sm:text-[11px] font-medium text-slate-400 truncate pt-1 border-t border-slate-100/60 mt-auto">
+            {subValue}
+          </div>
+        )}
+      </motion.div>
+    );
+  }
+
+  // Traditional Theme for Other Users
   if (isColored) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay, duration: 0.4 }}
-        className={`${bgMap[color] || 'bg-white'} p-3.5 sm:p-5 rounded-2xl md:rounded-3xl border transition-all duration-300 flex flex-col justify-between h-full hover:scale-[1.02] shadow-lg`}
+        className={`${bgMapTraditional[color] || 'bg-white'} p-3.5 sm:p-5 rounded-2xl md:rounded-3xl border transition-all duration-300 flex flex-col justify-between h-full hover:scale-[1.02] shadow-lg ${isLarge ? 'md:col-span-2' : ''}`}
         style={{ fontFamily: "'UTM Avo', sans-serif" }}
       >
         <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3 flex-nowrap min-w-0">
@@ -188,10 +248,7 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
             {value}
           </div>
           {subValue && (
-            <div
-              className="mt-0.5 sm:mt-1 text-[9px] sm:text-[10px] font-bold text-white/80 truncate whitespace-nowrap"
-              style={{ fontFamily: "'UTM Avo', sans-serif", whiteSpace: 'nowrap' }}
-            >
+            <div className="text-[10px] sm:text-[11px] font-medium text-white/80 whitespace-nowrap mt-1 truncate">
               {subValue}
             </div>
           )}
@@ -205,28 +262,26 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.4 }}
-      className={`bg-white p-3.5 sm:p-5 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm transition-all duration-300 flex flex-col justify-between ${isLarge ? 'md:col-span-2' : ''}`}
+      className={`bg-white p-3.5 sm:p-5 rounded-2xl md:rounded-3xl border border-slate-200/80 shadow-sm flex flex-col justify-between h-full hover:shadow-md transition-shadow ${isLarge ? 'md:col-span-2' : ''}`}
       style={{ fontFamily: "'UTM Avo', sans-serif" }}
     >
-      <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
-        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 ${colorMap[color] || 'bg-slate-50 text-slate-600'}`}>
-          <Icon size={16} strokeWidth={2.5} />
+      <div className="flex items-center justify-between mb-3">
+        <span className="stat-card-title text-[11px] sm:text-[12px] font-black text-slate-500 uppercase tracking-wider truncate">
+          {title}
+        </span>
+        <div className={`p-2 rounded-xl ${colorMapTraditional[color] || 'text-indigo-600 bg-indigo-50'} shadow-2xs`}>
+          <Icon size={18} />
         </div>
-        <h3 className="text-[9.5px] xs:text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-wider leading-tight truncate">{title}</h3>
-        {trend !== undefined && (
-          <div className={`flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold ml-auto shrink-0 ${trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-            {trend > 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-            {Math.abs(trend)}%
-          </div>
-        )}
       </div>
-
       <div>
-        <div className="font-bold text-[26.4px] xs:text-[31.2px] sm:text-[40.8px] md:text-[48px] lg:text-[55.2px] tracking-tight text-slate-800 leading-none py-0.5 sm:py-1 font-oswald truncate" style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700 }}>
+        <div
+          className="font-bold text-[22px] sm:text-[28px] md:text-[32px] tracking-tight text-slate-850 font-oswald truncate"
+          style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700 }}
+        >
           {value}
         </div>
         {subValue && (
-          <div className="mt-0.5 sm:mt-1 text-[10px] sm:text-[11px] font-medium text-slate-400 truncate" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+          <div className="text-[10px] sm:text-[11px] font-medium text-slate-400 mt-1 truncate">
             {subValue}
           </div>
         )}
@@ -1214,6 +1269,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   const isUser43751 = String(userProfile?.username || '').trim() === '43751' || 
                       String(userProfile?.ma_nhan_vien || '').trim() === '43751' || 
                       String(userProfile?.user_id || '').trim() === '43751';
+  const isEffective43751 = isUser43751 || isUser43751Local;
   const [isProcessingData, setIsProcessingData] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const { showNotification } = useNotification();
@@ -3199,10 +3255,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         htmlNum.style.whiteSpace = 'nowrap';
       });
 
-      // Explicitly style ONLY emerald table banner headers with yellow text
-      clone.querySelectorAll('.bg-gradient-to-r h2, [class*="from-[#047857]"] h2').forEach(h2 => {
+      // Explicitly style pastel blue table banner headers with crisp white text
+      clone.querySelectorAll('.bg-gradient-to-r h2, [class*="from-[#0284C7]"] h2, [class*="from-[#1E40AF]"] h2, [class*="from-[#047857]"] h2').forEach(h2 => {
         const el = h2 as HTMLElement;
-        el.style.color = '#FEF08A';
+        el.style.color = '#ffffff';
         el.style.fontFamily = "'UTM Avo', sans-serif";
         el.style.fontWeight = '900';
         el.style.fontSize = '26px';
@@ -3224,15 +3280,15 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           el.style.width = '100%';
           el.style.background = 'none';
           (el.style as any).webkitTextFillColor = '#0f172a';
-        } else if (!el.closest('.bg-gradient-to-r') && !el.closest('[class*="from-[#047857]"]')) {
+        } else if (!el.closest('.bg-gradient-to-r') && !el.closest('[class*="from-[#0284C7]"]') && !el.closest('[class*="from-[#1E40AF]"]') && !el.closest('[class*="from-[#047857]"]')) {
           el.style.color = '#0f172a'; // Pure black text-slate-900
           el.style.fontFamily = "'UTM Avo', sans-serif";
           el.style.fontWeight = '900';
         }
       });
 
-      // Ensure subtitle lines in emerald banners are white and visible
-      clone.querySelectorAll('.bg-gradient-to-r span, .bg-gradient-to-r p, .bg-gradient-to-r div, [class*="from-[#047857]"] span').forEach(node => {
+      // Ensure subtitle lines in banners are white and visible
+      clone.querySelectorAll('.bg-gradient-to-r span, .bg-gradient-to-r p, .bg-gradient-to-r div, [class*="from-[#0284C7]"] span, [class*="from-[#1E40AF]"] span, [class*="from-[#047857]"] span').forEach(node => {
         const el = node as HTMLElement;
         if (el.textContent && (el.textContent.includes('Luỹ kế:') || el.textContent.includes('Realtime:') || el.textContent.includes('ĐẠT') || el.textContent.includes('TGSD'))) {
           el.style.color = '#ffffff';
@@ -5479,12 +5535,27 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                   exit={{ opacity: 0 }}
                   className="space-y-6"
                   ref={overviewRef}
+                  style={isEffective43751 ? {
+                    backgroundColor: '#F0F7FF',
+                    backgroundImage: `
+                      radial-gradient(circle at 10% 15%, rgba(224, 242, 254, 0.7) 0%, transparent 40%),
+                      radial-gradient(circle at 90% 85%, rgba(186, 230, 253, 0.5) 0%, transparent 45%),
+                      radial-gradient(circle at 50% 50%, rgba(240, 249, 255, 0.9) 0%, #f8fafc 100%)
+                    `,
+                    backgroundAttachment: 'fixed',
+                    borderRadius: '1.5rem',
+                    padding: '0.75rem',
+                  } : undefined}
                 >
                   {/* Greeting & Birthday Banner */}
                   <motion.div
                     initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="no-capture relative overflow-hidden bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-indigo-100/90 shadow-[0_4px_25px_-4px_rgba(79,70,229,0.08)] space-y-4"
+                    className={`no-capture relative overflow-hidden bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl ${
+                      isEffective43751
+                        ? 'border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)]'
+                        : 'border border-indigo-100/90 shadow-[0_4px_25px_-4px_rgba(79,70,229,0.08)]'
+                    } space-y-4`}
                   >
                     {/* Ambient glow blobs */}
                     <div className="absolute -top-12 -right-12 w-48 h-48 bg-gradient-to-br from-indigo-200/35 via-purple-100/25 to-transparent rounded-full blur-2xl pointer-events-none" />
@@ -5493,13 +5564,13 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                     <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3.5">
                       <div className="flex items-center gap-3.5">
                         {/* Time Avatar Badge */}
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-700 text-white flex items-center justify-center text-2xl shadow-md shadow-indigo-500/25 shrink-0 border border-white/50">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#38BDF8] via-[#0EA5E9] to-[#0284C7] text-white flex items-center justify-center text-2xl shadow-md shadow-sky-500/25 shrink-0 border border-white/50">
                           {greetingData.icon}
                         </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200/70 text-[10.5px] font-extrabold uppercase tracking-wider text-indigo-700 shadow-2xs">
-                              <Sparkles size={11} className="text-indigo-500 animate-pulse" />
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-50 border border-sky-200/70 text-[10.5px] font-extrabold uppercase tracking-wider text-sky-700 shadow-2xs">
+                              <Sparkles size={11} className="text-sky-500 animate-pulse" />
                               LỜI CHÀO HỆ THỐNG
                             </span>
                             {userProfile?.storeCode && (
@@ -5510,7 +5581,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           </div>
                           <h2 className="text-xl sm:text-2xl md:text-[25px] font-black text-slate-850 tracking-tight mt-0.5">
                             {greeting},{' '}
-                            <span className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-600 bg-clip-text text-transparent">
+                            <span className="bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
                               {userProfile?.username?.split(' ')[0] || 'Bạn'}
                             </span>{' '}
                             👋
@@ -5523,9 +5594,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                       {isAdmin && (
                         <button
                           onClick={() => setIsEditingAnnounce(prev => !prev)}
-                          className="self-start md:self-auto inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white hover:bg-indigo-50/70 border border-slate-200 hover:border-indigo-200 text-slate-700 hover:text-indigo-600 transition-all font-bold text-xs shadow-2xs hover:shadow-xs cursor-pointer shrink-0"
+                          className="self-start md:self-auto inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50/70 border border-slate-200 hover:border-sky-200 text-slate-700 hover:text-sky-600 transition-all font-bold text-xs shadow-2xs hover:shadow-xs cursor-pointer shrink-0"
                         >
-                          <Edit3 size={13} className="text-indigo-600" />
+                          <Edit3 size={13} className="text-sky-600" />
                           <span>{isEditingAnnounce ? 'Đóng chỉnh sửa' : 'Chỉnh sửa thông báo'}</span>
                         </button>
                       )}
@@ -5846,17 +5917,17 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                         )}
 
                         {todayBirthdays.length > 0 && (
-                          <div className="flex items-start gap-3.5 bg-gradient-to-r from-rose-500/10 via-pink-50/60 to-rose-500/10 border border-rose-200/80 p-3.5 sm:p-4 rounded-2xl overflow-hidden shadow-2xs">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 text-white flex items-center justify-center text-lg shadow-md shadow-rose-500/25 shrink-0 border border-white/60">
+                          <div className="flex items-start gap-3.5 bg-gradient-to-r from-sky-500/10 via-blue-50/60 to-sky-500/10 border border-sky-200/90 p-3.5 sm:p-4 rounded-2xl overflow-hidden shadow-2xs">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#38BDF8] to-[#0284C7] text-white flex items-center justify-center text-lg shadow-md shadow-sky-500/25 shrink-0 border border-white/60">
                               🎂
                             </div>
                             <div className="flex-1 space-y-1">
                               <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
-                                <span className="text-rose-600 font-black">Hôm nay sinh nhật:</span>
-                                <span className="bg-rose-100/90 border border-rose-200 text-rose-700 px-2.5 py-0.5 rounded-md font-black text-xs">
+                                <span className="text-sky-700 font-black">Hôm nay sinh nhật:</span>
+                                <span className="bg-sky-100/90 border border-sky-200 text-sky-800 px-2.5 py-0.5 rounded-md font-black text-xs">
                                   {todayBirthdays.join(', ')}
                                 </span>
-                                <span className="text-rose-600 font-black">! 🎉</span>
+                                <span className="text-sky-600 font-black">! 🎉</span>
                               </p>
                               <p className="text-[11.5px] text-slate-500 font-medium">
                                 Hãy gửi lời chúc hoặc gửi kèm một món quà/lời chúc ý nghĩa đến nhân viên nhé!
@@ -5866,17 +5937,17 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                         )}
 
                         {tomorrowBirthdays.length > 0 && (
-                          <div className="flex items-start gap-3.5 bg-gradient-to-r from-indigo-500/10 via-violet-50/60 to-indigo-500/10 border border-indigo-200/80 p-3.5 sm:p-4 rounded-2xl overflow-hidden shadow-2xs">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center text-lg shadow-md shadow-indigo-500/25 shrink-0 border border-white/60">
+                          <div className="flex items-start gap-3.5 bg-gradient-to-r from-blue-500/10 via-indigo-50/60 to-blue-500/10 border border-blue-200/80 p-3.5 sm:p-4 rounded-2xl overflow-hidden shadow-2xs">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#60A5FA] to-[#3B82F6] text-white flex items-center justify-center text-lg shadow-md shadow-blue-500/25 shrink-0 border border-white/60">
                               🎁
                             </div>
                             <div className="flex-1 space-y-1">
                               <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
-                                <span className="text-indigo-600 font-black">Ngày mai sinh nhật:</span>
-                                <span className="bg-indigo-100/90 border border-indigo-200 text-indigo-700 px-2.5 py-0.5 rounded-md font-black text-xs">
+                                <span className="text-blue-700 font-black">Ngày mai sinh nhật:</span>
+                                <span className="bg-blue-100/90 border border-blue-200 text-blue-800 px-2.5 py-0.5 rounded-md font-black text-xs">
                                   {tomorrowBirthdays.join(', ')}
                                 </span>
-                                <span className="text-indigo-600 font-black">! ✨</span>
+                                <span className="text-blue-600 font-black">! ✨</span>
                               </p>
                               <p className="text-[11.5px] text-slate-500 font-medium">
                                 Hãy chuẩn bị những lời chúc hoặc món quà bất ngờ cho đồng nghiệp vào ngày mai nhé!
@@ -5921,25 +5992,29 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           : Math.round(parsedMarket.percentHT || 0);
 
                         return (
-                          <div key={mIdx} className="relative overflow-hidden bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-indigo-100/90 shadow-[0_4px_25px_-4px_rgba(79,70,229,0.08)] space-y-4">
+                          <div key={mIdx} className={`relative overflow-hidden ${
+                            isEffective43751
+                              ? 'bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] space-y-4'
+                              : 'bg-white p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-slate-200/80 shadow-sm space-y-4'
+                          }`}>
                             {/* Ambient background glow */}
-                            <div className="absolute -top-10 -right-10 w-44 h-44 bg-gradient-to-br from-indigo-200/30 to-transparent rounded-full blur-2xl pointer-events-none" />
-                            <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-gradient-to-tr from-emerald-100/30 to-transparent rounded-full blur-2xl pointer-events-none" />
+                            <div className="absolute -top-10 -right-10 w-44 h-44 bg-gradient-to-br from-sky-200/30 to-transparent rounded-full blur-2xl pointer-events-none" />
+                            <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-gradient-to-tr from-blue-100/30 to-transparent rounded-full blur-2xl pointer-events-none" />
 
                             {/* Header: Supermarket Banner */}
                             <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 pb-3.5 border-b border-slate-100/80">
                               <div className="flex items-center gap-3.5">
                                 {/* 3D Gradient Store Icon Box */}
-                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-600 text-white flex items-center justify-center text-xl shadow-md shadow-emerald-500/25 shrink-0 border border-white/50">
+                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#38BDF8] via-[#0EA5E9] to-[#0284C7] text-white flex items-center justify-center text-xl shadow-[0_4px_14px_-2px_rgba(2,132,199,0.35)] shrink-0 border border-white/50">
                                   <Store size={22} strokeWidth={2.2} />
                                 </div>
                                 <div>
                                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/80 text-[10.5px] font-extrabold uppercase tracking-wider text-emerald-700 shadow-2xs">
-                                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-50 border border-sky-200/80 text-[10.5px] font-extrabold uppercase tracking-wider text-sky-700 shadow-2xs">
+                                      <span className="w-2 h-2 rounded-full bg-sky-500 animate-ping inline-block" />
                                       ĐANG HOẠT ĐỘNG
                                     </span>
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200/70 text-[10.5px] font-extrabold uppercase tracking-wider text-indigo-700">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-blue-50 border border-blue-200/70 text-[10.5px] font-extrabold uppercase tracking-wider text-blue-700">
                                       ⚡ BÁO CÁO REALTIME NGÀY
                                     </span>
                                     {lastUpdated && (
@@ -5949,7 +6024,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                     )}
                                   </div>
                                   <h3 className="text-lg sm:text-xl md:text-2xl font-black text-slate-850 tracking-tight uppercase flex items-center gap-2">
-                                    <span className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-800 bg-clip-text text-transparent">
+                                    <span className="bg-gradient-to-r from-slate-900 via-sky-950 to-slate-800 bg-clip-text text-transparent">
                                       {declaredMarket.name}
                                     </span>
                                   </h3>
@@ -5957,7 +6032,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               </div>
                               <button
                                 onClick={captureOverview}
-                                className="no-capture inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 active:scale-95 shrink-0 cursor-pointer w-full sm:w-auto self-start sm:self-auto border border-white/20"
+                                className={`no-capture inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all hover:-translate-y-0.5 active:translate-y-0 shrink-0 cursor-pointer w-full sm:w-auto self-start sm:self-auto ${
+                                  isEffective43751
+                                    ? 'bg-gradient-to-r from-[#38BDF8] via-[#0EA5E9] to-[#0284C7] hover:from-[#0EA5E9] hover:to-[#0369A1] text-white shadow-[0_4px_14px_-2px_rgba(2,132,199,0.35)] hover:shadow-[0_6px_20px_-2px_rgba(2,132,199,0.45)] border border-white/20'
+                                    : 'bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white shadow-md shadow-indigo-100'
+                                }`}
                               >
                                 <Camera size={16} />
                                 <span>Chụp tổng quan</span>
@@ -5971,6 +6050,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 icon={Target}
                                 color="rose"
                                 isColored={true}
+                                isUser43751={isEffective43751}
                               />
                               <StatCard
                                 title="DOANH THU QUY ĐỔI"
@@ -5979,6 +6059,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 icon={TrendingUp}
                                 color="indigo"
                                 isColored={true}
+                                isUser43751={isEffective43751}
                               />
                               <StatCard
                                 title="%HT"
@@ -5987,6 +6068,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 icon={Activity}
                                 color="emerald"
                                 isColored={true}
+                                isUser43751={isEffective43751}
                               />
                               <StatCard
                                 title="Tỷ Trọng Trả Góp"
@@ -5995,6 +6077,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 icon={ShoppingBag}
                                 color="amber"
                                 isColored={true}
+                                isUser43751={isEffective43751}
                               />
                               <StatCard
                                 title="% QĐ"
@@ -6009,6 +6092,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 icon={TrendingUp}
                                 color="orange"
                                 isColored={true}
+                                isUser43751={isEffective43751}
                               />
                               <StatCard
                                 title="Lượt Bill Thu Hộ"
@@ -6017,6 +6101,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 icon={CreditCard}
                                 color="blue"
                                 isColored={true}
+                                isUser43751={isEffective43751}
                               />
                             </div>
                           </div>
@@ -6033,7 +6118,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           <button
                             onClick={() => setShowTargetCols(!showTargetCols)}
                             className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 cursor-pointer ${showTargetCols
-                              ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-transparent shadow-md shadow-orange-500/20'
+                              ? (isEffective43751
+                                  ? 'bg-gradient-to-r from-[#38BDF8] via-[#0EA5E9] to-[#0284C7] text-white border-transparent shadow-md shadow-sky-500/25'
+                                  : 'bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] text-white border-transparent shadow-md shadow-emerald-500/25')
                               : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 shadow-xs'
                               }`}
                           >
@@ -6043,7 +6130,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           <button
                             onClick={() => setShowOrangeCols(!showOrangeCols)}
                             className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase transition-all duration-300 border active:scale-95 cursor-pointer ${showOrangeCols
-                              ? 'bg-gradient-to-r from-[#7C3AED] to-[#EC4899] text-white border-transparent shadow-md shadow-purple-500/20'
+                              ? (isEffective43751
+                                  ? 'bg-gradient-to-r from-[#38BDF8] to-[#0284C7] text-white border-transparent shadow-md shadow-sky-500/25'
+                                  : 'bg-gradient-to-r from-[#3B82F6] via-[#6366F1] to-[#818CF8] text-white border-transparent shadow-md shadow-blue-500/25')
                               : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100 shadow-xs'
                               }`}
                           >
@@ -6069,14 +6158,22 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           </button>
                           <button
                             onClick={generateCategoryComment}
-                            className="flex items-center gap-2 px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-wider bg-gradient-to-r from-[#2563EB] via-[#4F46E5] to-[#7C3AED] hover:from-[#1D4ED8] hover:via-[#4338CA] hover:to-[#6D28D9] text-white shadow-md shadow-indigo-500/25 transition-all duration-300 active:scale-95 cursor-pointer border border-indigo-400/30"
+                            className={`flex items-center gap-2 px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-wider text-white transition-all duration-300 active:scale-95 cursor-pointer ${
+                              isEffective43751
+                                ? 'bg-gradient-to-r from-[#38BDF8] via-[#0EA5E9] to-[#0284C7] hover:from-[#0EA5E9] hover:to-[#0369A1] shadow-md shadow-sky-500/25 border border-sky-400/30'
+                                : 'bg-gradient-to-r from-[#059669] via-[#0D9488] to-[#0284C7] hover:from-[#047857] hover:to-[#0284C7] shadow-md shadow-teal-500/25 border border-teal-400/30'
+                            }`}
                           >
                             <MessageSquare size={14} className="text-white shrink-0" />
                             <span>NHẬN XÉT</span>
                           </button>
                           <button
                             onClick={captureCategories}
-                            className="flex items-center gap-2 px-6 py-2 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-[12px] font-black uppercase tracking-wider shadow-md shadow-emerald-500/25 transition-all duration-300 active:scale-95 no-capture cursor-pointer"
+                            className={`flex items-center gap-2 px-6 py-2 rounded-full text-white text-[12px] font-black uppercase tracking-wider transition-all duration-300 active:scale-95 no-capture cursor-pointer ${
+                              isEffective43751
+                                ? 'bg-gradient-to-r from-[#38BDF8] to-[#0284C7] hover:from-[#0EA5E9] hover:to-[#0369A1] shadow-md shadow-sky-500/25'
+                                : 'bg-gradient-to-r from-[#059669] to-[#10B981] hover:from-[#047857] hover:to-[#059669] shadow-md shadow-emerald-500/25'
+                            }`}
                           >
                             <Camera size={15} />
                             <span>Chụp ảnh</span>
@@ -6086,11 +6183,24 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                         <div ref={categoriesRef} className="w-full">
                           <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 items-start">
                             {/* Left Table: SLLK */}
-                            <div ref={categorySLRef} className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden min-w-0 flex flex-col p-2 sm:p-2.5 shadow-sm self-start h-auto">
-                              {/* Unified Emerald Gradient Header Banner */}
-                              <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 rounded-2xl text-white relative shrink-0 mb-2.5">
+                            <div
+                              ref={categorySLRef}
+                              className={`bg-white/95 rounded-2xl overflow-hidden min-w-0 flex flex-col p-2 sm:p-2.5 self-start h-auto ${
+                                isEffective43751
+                                  ? 'border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)]'
+                                  : 'border border-slate-200 shadow-sm'
+                              }`}
+                            >
+                              {/* Header Banner */}
+                              <div
+                                className={`${
+                                  isEffective43751
+                                    ? 'bg-gradient-to-r from-[#0284C7] via-[#0EA5E9] to-[#38BDF8] shadow-sky-500/20'
+                                    : 'bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] shadow-emerald-500/20'
+                                } p-4 rounded-2xl text-white relative shrink-0 mb-2.5 shadow-md`}
+                              >
                                 <div className="flex flex-col items-center justify-center text-center">
-                                  <h2 className="text-[23px] sm:text-[27px] font-black text-[#FEF08A] uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                  <h2 className="text-[23px] sm:text-[27px] font-black text-white uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                     NGÀNH HÀNG (SL)
                                   </h2>
                                   <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-2 mt-1.5 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
@@ -6164,12 +6274,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                     value={sllkComment}
                                     onChange={(e) => setSllkComment(e.target.value)}
                                     placeholder="Nhập nhận xét cho bảng SLLK..."
-                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-emerald-500/20 resize-none min-h-[60px] screenshot-comment"
+                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-sky-500/20 resize-none min-h-[60px] screenshot-comment"
                                   />
                                 </div>
                               )}
 
-                              <div className="overflow-x-auto w-full rounded-2xl border border-emerald-300/80">
+                              <div className={`overflow-x-auto w-full rounded-2xl border ${isEffective43751 ? 'border-sky-300/80' : 'border-emerald-200/80'}`}>
                                 <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, minWidth: '600px' }}>
                                   <colgroup>
                                     <col style={{ width: '40px' }} />
@@ -6183,14 +6293,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   </colgroup>
                                   <thead>
                                     <tr className="text-white h-[46px]">
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>STT</th>
-                                      <th className={`px-2.5 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>TARGET</th>
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>REAL</th>
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden`}>%HT</th>
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>C.LẠI</th>
-                                      {showOrangeCols && showLuykeColumn && <th className={`px-1 py-0 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#065F46] leading-tight whitespace-nowrap overflow-hidden`}>LK<br />C.LẠI</th>}
-                                      {showOrangeCols && <th className={`px-1 py-0 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase text-center border-b border-emerald-600 bg-[#065F46] leading-tight whitespace-nowrap overflow-hidden`}>M.TIÊU<br />/ NGÀY</th>}
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>STT</th>
+                                      <th className={`px-2.5 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-left border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-emerald-500 bg-[#059669]'} whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>TARGET</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>REAL</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-emerald-500 bg-[#059669]'} whitespace-nowrap overflow-hidden`}>%HT</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>C.LẠI</th>
+                                      {showOrangeCols && showLuykeColumn && <th className={`px-1 py-0 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-emerald-500 bg-[#064E3B]'} leading-tight whitespace-nowrap overflow-hidden`}>LK<br />C.LẠI</th>}
+                                      {showOrangeCols && <th className={`px-1 py-0 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase text-center border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-emerald-500 bg-[#064E3B]'} leading-tight whitespace-nowrap overflow-hidden`}>M.TIÊU<br />/ NGÀY</th>}
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -6209,25 +6319,25 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         const remaining = cat.target - cat.revenue;
                                         const isEven = idx % 2 === 0;
                                         return (
-                                          <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
-                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40`}>{idx + 1}</td>
-                                            <td className={`px-2 py-0.5 ${isUser43751 ? 'text-[14px]' : 'text-[12.5px]'} font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 leading-snug tracking-tight`} title={cat.name}>{cat.name}</td>
-                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-slate-800`}>{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
-                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-r border-b border-emerald-100/90 text-emerald-700`}>{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
-                                            <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
-                                              <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black leading-none ${isUser43751 ? 'text-[12.5px] sm:text-[14px]' : 'text-[11.5px] sm:text-[13px]'} ${Math.round(cat.rate || 0) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
+                                          <tr key={idx} className={`${isEven ? 'bg-white' : (isEffective43751 ? 'bg-sky-50/25' : 'bg-emerald-50/20')} ${isEffective43751 ? 'hover:bg-sky-50/70' : 'hover:bg-emerald-50/70'} transition-colors h-[40px]`}>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 bg-sky-50/40' : 'border-emerald-100/90 bg-emerald-50/40'}`}>{idx + 1}</td>
+                                            <td className={`px-2 py-0.5 ${isUser43751 ? 'text-[14px]' : 'text-[12.5px]'} font-black uppercase border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-900 leading-snug tracking-tight`} title={cat.name}>{cat.name}</td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-800`}>{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-emerald-100/90 text-emerald-700'}`}>{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
+                                            <td className={`px-0.5 py-0 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} whitespace-nowrap`}>
+                                              <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black leading-none ${isUser43751 ? 'text-[12.5px] sm:text-[14px]' : 'text-[11.5px] sm:text-[13px]'} ${Math.round(cat.rate || 0) >= 100 ? (isEffective43751 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-emerald-100 text-emerald-800') : 'bg-rose-100 text-rose-600'}`}>
                                                 {Math.round(cat.rate || 0)}%
                                               </span>
                                             </td>
-                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-rose-600`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-rose-600`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
                                             {showOrangeCols && showLuykeColumn && (
-                                              <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-purple-700`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                              <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-blue-700' : 'border-emerald-100/90 text-purple-700'}`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
                                             )}
                                             {showOrangeCols && (() => {
                                               const lkCat = luykeCatMap.get(lkKey);
-                                              if (!lkCat || lkCat.target === 0) return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b border-emerald-100/90 text-slate-400`}></td>;
+                                              if (!lkCat || lkCat.target === 0) return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-400`}></td>;
                                               const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
-                                              return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b border-emerald-100/90 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                              return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} ${mucTieu > 0 ? 'text-rose-600' : (isEffective43751 ? 'text-sky-700' : 'text-emerald-600')}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
                                             })()}
                                           </tr>
                                         );
@@ -6238,11 +6348,24 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             </div>
 
                             {/* Right Table: DTLK */}
-                            <div ref={categoryDTRef} className="bg-white rounded-2xl border border-slate-200/90 overflow-hidden min-w-0 flex flex-col p-2 sm:p-2.5 shadow-sm self-start h-auto">
-                              {/* Unified Emerald Gradient Header Banner */}
-                              <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 rounded-2xl text-white relative shrink-0 mb-2.5">
+                            <div
+                              ref={categoryDTRef}
+                              className={`bg-white/95 rounded-2xl overflow-hidden min-w-0 flex flex-col p-2 sm:p-2.5 self-start h-auto ${
+                                isEffective43751
+                                  ? 'border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)]'
+                                  : 'border border-slate-200 shadow-sm'
+                              }`}
+                            >
+                              {/* Header Banner */}
+                              <div
+                                className={`${
+                                  isEffective43751
+                                    ? 'bg-gradient-to-r from-[#0284C7] via-[#0EA5E9] to-[#38BDF8] shadow-sky-500/20'
+                                    : 'bg-gradient-to-r from-[#1E40AF] via-[#2563EB] to-[#3B82F6] shadow-blue-500/20'
+                                } p-4 rounded-2xl text-white relative shrink-0 mb-2.5 shadow-md`}
+                              >
                                 <div className="flex flex-col items-center justify-center text-center">
-                                  <h2 className="text-[23px] sm:text-[27px] font-black text-[#FEF08A] uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                  <h2 className="text-[23px] sm:text-[27px] font-black text-white uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                                     NGÀNH HÀNG (DT)
                                   </h2>
                                   <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-2 mt-1.5 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
@@ -6316,12 +6439,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                     value={dtlkComment}
                                     onChange={(e) => setDtlkComment(e.target.value)}
                                     placeholder="Nhập nhận xét cho bảng DTLK..."
-                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-emerald-500/20 resize-none min-h-[60px] screenshot-comment"
+                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-sky-500/20 resize-none min-h-[60px] screenshot-comment"
                                   />
                                 </div>
                               )}
 
-                              <div className="overflow-x-auto w-full rounded-2xl border border-emerald-300/80">
+                              <div className={`overflow-x-auto w-full rounded-2xl border ${isEffective43751 ? 'border-sky-300/80' : 'border-blue-300/80'}`}>
                                 <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900, minWidth: '600px' }}>
                                   <colgroup>
                                     <col style={{ width: '40px' }} />
@@ -6335,14 +6458,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   </colgroup>
                                   <thead>
                                     <tr className="text-white h-[46px]">
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>STT</th>
-                                      <th className={`px-2.5 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>TARGET</th>
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>REAL</th>
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden`}>%HT</th>
-                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden`}>C.LẠI</th>
-                                      {showOrangeCols && showLuykeColumn && <th className={`px-1 py-0 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase text-center border-r border-b border-emerald-600 bg-[#065F46] leading-tight whitespace-nowrap overflow-hidden`}>LK<br />C.LẠI</th>}
-                                      {showOrangeCols && <th className={`px-1 py-0 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase text-center border-b border-emerald-600 bg-[#065F46] leading-tight whitespace-nowrap overflow-hidden`}>M.TIÊU<br />/ NGÀY</th>}
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>STT</th>
+                                      <th className={`px-2.5 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase text-left border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-blue-500 bg-[#2563EB]'} whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>TARGET</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>REAL</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-blue-500 bg-[#2563EB]'} whitespace-nowrap overflow-hidden`}>%HT</th>
+                                      <th className={`px-1 py-0 ${isUser43751 ? 'text-[13.5px]' : 'text-[12px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>C.LẠI</th>
+                                      {showOrangeCols && showLuykeColumn && <th className={`px-1 py-0 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-blue-500 bg-[#1E3A8A]'} leading-tight whitespace-nowrap overflow-hidden`}>LK<br />C.LẠI</th>}
+                                      {showOrangeCols && <th className={`px-1 py-0 ${isUser43751 ? 'text-[11.5px]' : 'text-[10px]'} font-black uppercase text-center border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-blue-500 bg-[#1E3A8A]'} leading-tight whitespace-nowrap overflow-hidden`}>M.TIÊU<br />/ NGÀY</th>}
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -6361,25 +6484,25 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         const remaining = cat.target - cat.revenue;
                                         const isEven = idx % 2 === 0;
                                         return (
-                                          <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
-                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40`}>{idx + 1}</td>
-                                            <td className={`px-2 py-0.5 ${isUser43751 ? 'text-[14px]' : 'text-[12.5px]'} font-black uppercase border-r border-b border-emerald-100/90 text-slate-900 leading-snug tracking-tight`} title={cat.name}>{cat.name}</td>
-                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-slate-800`}>{Math.round(cat.target).toLocaleString()}</td>
-                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-r border-b border-emerald-100/90 text-emerald-700`}>{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
-                                            <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
-                                              <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black leading-none ${isUser43751 ? 'text-[12.5px] sm:text-[14px]' : 'text-[11.5px] sm:text-[13px]'} ${Math.round(cat.rate || 0) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
+                                          <tr key={idx} className={`${isEven ? 'bg-white' : (isEffective43751 ? 'bg-sky-50/25' : 'bg-blue-50/25')} ${isEffective43751 ? 'hover:bg-sky-50/70' : 'hover:bg-blue-50/70'} transition-colors h-[40px]`}>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-700 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 bg-sky-50/40' : 'border-blue-100/90 bg-blue-50/40'}`}>{idx + 1}</td>
+                                            <td className={`px-2 py-0.5 ${isUser43751 ? 'text-[14px]' : 'text-[12.5px]'} font-black uppercase border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-900 leading-snug tracking-tight`} title={cat.name}>{cat.name}</td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-800`}>{Math.round(cat.target).toLocaleString()}</td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-blue-100/90 text-blue-700'}`}>{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                            <td className={`px-0.5 py-0 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} whitespace-nowrap`}>
+                                              <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black leading-none ${isUser43751 ? 'text-[12.5px] sm:text-[14px]' : 'text-[11.5px] sm:text-[13px]'} ${Math.round(cat.rate || 0) >= 100 ? (isEffective43751 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-blue-100 text-blue-800 border border-blue-200/60') : 'bg-rose-100 text-rose-600'}`}>
                                                 {Math.round(cat.rate || 0)}%
                                               </span>
                                             </td>
-                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-rose-600`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
+                                            <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-rose-600`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
                                             {showOrangeCols && showLuykeColumn && (
-                                              <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b border-emerald-100/90 text-purple-700`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                              <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-blue-100/90 text-indigo-700'}`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
                                             )}
                                             {showOrangeCols && (() => {
                                               const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
-                                              if (!lkCat || lkCat.target === 0) return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b border-emerald-100/90 text-slate-400`}></td>;
+                                              if (!lkCat || lkCat.target === 0) return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-400`}></td>;
                                               const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
-                                              return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b border-emerald-100/90 ${mucTieu > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                              return <td className={`px-1 py-0 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} ${mucTieu > 0 ? 'text-rose-600' : (isEffective43751 ? 'text-sky-700' : 'text-blue-700')}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
                                             })()}
                                           </tr>
                                         );
@@ -9221,7 +9344,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
             style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}
           >
             {/* Header Banner */}
-            <div className="flex items-center justify-between px-5 sm:px-6 py-4 bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] text-white shrink-0">
+            <div className={`flex items-center justify-between px-5 sm:px-6 py-4 ${
+              isEffective43751
+                ? 'bg-gradient-to-r from-[#0284C7] via-[#0EA5E9] to-[#38BDF8]'
+                : 'bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981]'
+            } text-white shrink-0`}>
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white backdrop-blur-xs">
                   <Filter size={18} />
@@ -9230,7 +9357,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                   <h3 className="text-[14.5px] sm:text-[16px] font-black text-white uppercase tracking-wide">
                     Bộ Lọc Ẩn Ngành Hàng
                   </h3>
-                  <p className="text-[10.5px] text-emerald-100 font-medium">
+                  <p className={`text-[10.5px] ${isEffective43751 ? 'text-sky-100' : 'text-emerald-100'} font-medium`}>
                     Áp dụng riêng cho BC NGÀY &gt; TỔNG QUAN • Tự động lưu &amp; đồng bộ Firebase
                   </p>
                 </div>
@@ -9251,7 +9378,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                   onClick={() => setCategoryFilterActiveTab('SL')}
                   className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${
                     categoryFilterActiveTab === 'SL'
-                      ? 'bg-gradient-to-r from-[#047857] to-[#10B981] text-white border-emerald-600 shadow-sm'
+                      ? (isEffective43751
+                          ? 'bg-gradient-to-r from-[#0284C7] to-[#38BDF8] text-white border-sky-600 shadow-sm'
+                          : 'bg-gradient-to-r from-[#047857] to-[#10B981] text-white border-emerald-600 shadow-sm')
                       : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
                   }`}
                 >
@@ -9272,7 +9401,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                   onClick={() => setCategoryFilterActiveTab('DT')}
                   className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${
                     categoryFilterActiveTab === 'DT'
-                      ? 'bg-gradient-to-r from-[#047857] to-[#10B981] text-white border-emerald-600 shadow-sm'
+                      ? (isEffective43751
+                          ? 'bg-gradient-to-r from-[#0284C7] to-[#38BDF8] text-white border-sky-600 shadow-sm'
+                          : 'bg-gradient-to-r from-[#047857] to-[#10B981] text-white border-emerald-600 shadow-sm')
                       : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
                   }`}
                 >
@@ -9451,7 +9582,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                   }
                   saveCategoryFilterToFirebase(hiddenCatsSLRef.current, hiddenCatsDTRef.current);
                 }}
-                className="px-6 py-2 bg-gradient-to-r from-[#047857] to-[#10B981] hover:from-[#036348] hover:to-[#059669] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer"
+                className={`px-6 py-2 ${
+                  isEffective43751
+                    ? 'bg-gradient-to-r from-[#38BDF8] to-[#0284C7] hover:from-[#0EA5E9] hover:to-[#0369A1] shadow-sky-600/20'
+                    : 'bg-gradient-to-r from-[#047857] to-[#10B981] hover:from-[#036348] hover:to-[#059669] shadow-emerald-600/20'
+                } text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer`}
               >
                 Xác nhận & Hoàn tất
               </button>

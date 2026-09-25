@@ -135,7 +135,17 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
   }, [mobileDrawerOpen]);
 
   return (
-    <div className="min-h-screen min-h-[100dvh] w-full flex items-stretch bg-[#F8FAFC] font-sans relative overflow-x-hidden text-[#0F172A] selection:bg-[#7C3AED] selection:text-white">
+    <div
+      className="min-h-screen min-h-[100dvh] w-full flex items-stretch bg-[#F0F7FF] font-sans relative overflow-x-hidden text-[#0F172A] selection:bg-[#0284C7] selection:text-white"
+      style={{
+        backgroundImage: `
+          radial-gradient(circle at 10% 15%, rgba(224, 242, 254, 0.7) 0%, transparent 40%),
+          radial-gradient(circle at 90% 85%, rgba(186, 230, 253, 0.5) 0%, transparent 45%),
+          radial-gradient(circle at 50% 50%, rgba(240, 249, 255, 0.9) 0%, #f8fafc 100%)
+        `,
+        backgroundAttachment: 'fixed',
+      }}
+    >
 
       {/* ── Desktop Sidebar (Ẩn trong chế độ Link Chia Sẻ / Khách) ── */}
       {!isShareOrGuest && (
@@ -271,17 +281,17 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
 
         {/* Footer (Ẩn khi mở từ link chia sẻ) */}
         {!isShareOrGuest && (
-          <footer className="relative z-10 w-full border-t border-slate-200/80 bg-white/90 backdrop-blur-md px-2 sm:px-3 md:px-[15px] py-4 sm:py-5 pb-24 md:pb-5 print:hidden">
+          <footer className="relative z-10 w-full border-t border-[#BAE6FD]/70 bg-white/90 backdrop-blur-md px-2 sm:px-3 md:px-[15px] py-4 sm:py-5 pb-24 md:pb-5 print:hidden">
             <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
-                <span className="bg-gradient-to-r from-[#6366F1] to-[#7C3AED] bg-clip-text text-transparent font-black">CRM SIÊU THỊ</span>
+                <span className="bg-gradient-to-r from-[#0284C7] to-[#0EA5E9] bg-clip-text text-transparent font-black">CRM SIÊU THỊ</span>
                 <span className="text-slate-300">•</span>
-                <span className="bg-gradient-to-r from-[#6366F1] to-[#7C3AED] text-white text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider shadow-sm">
+                <span className="bg-gradient-to-r from-[#38BDF8] to-[#0284C7] text-white text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider shadow-sm">
                   V2 Enterprise
                 </span>
               </div>
               <div className="text-xs text-slate-500 font-semibold">
-                Độc quyền Quản trị viên <span className="font-black text-[#6366F1]">{userProfile?.username || '43751'}</span> — Thiết kế bởi <span className="font-black text-[#0F172A]">Linh Vũ</span>
+                Độc quyền Quản trị viên <span className="font-black text-[#0284C7]">{userProfile?.username || '43751'}</span> — Thiết kế bởi <span className="font-black text-[#0F172A]">Linh Vũ</span>
               </div>
             </div>
           </footer>
@@ -399,14 +409,14 @@ const MobileSidebarContent: React.FC<{
                     onClick={() => setCurrentPage(item.id)}
                     className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-[14px] transition-all cursor-pointer"
                     style={{
-                      backgroundColor: isActive ? '#ECFDF5' : 'transparent',
-                      borderLeft: isActive ? '3.5px solid #10B981' : '3px solid transparent',
-                      boxShadow: isActive ? '0 1px 6px rgba(16,185,129,0.14)' : 'none',
+                      backgroundColor: isActive ? '#F0F9FF' : 'transparent',
+                      borderLeft: isActive ? '3.5px solid #38BDF8' : '3px solid transparent',
+                      boxShadow: isActive ? '0 1px 6px rgba(56,189,248,0.18)' : 'none',
                     }}
                   >
                     <div
                       className="shrink-0 flex items-center justify-center"
-                      style={{ color: isActive ? '#059669' : '#8190AA' }}
+                      style={{ color: isActive ? '#0284C7' : '#8190AA' }}
                     >
                       <Icon size={21} strokeWidth={isActive ? 2.3 : 1.7} />
                     </div>
@@ -414,7 +424,7 @@ const MobileSidebarContent: React.FC<{
                       <div className="flex items-center gap-1.5">
                         <span
                           className="text-[15px] font-extrabold leading-tight truncate"
-                          style={{ color: isActive ? '#065F46' : '#172033' }}
+                          style={{ color: isActive ? '#0369A1' : '#172033' }}
                         >
                           {item.label}
                         </span>
@@ -426,7 +436,7 @@ const MobileSidebarContent: React.FC<{
                       </div>
                       <div
                         className="text-[12px] font-medium leading-tight mt-[1px] truncate"
-                        style={{ color: isActive ? '#059669' : '#8190AA' }}
+                        style={{ color: isActive ? '#0EA5E9' : '#8190AA' }}
                       >
                         {meta.subtitle}
                       </div>
@@ -435,8 +445,8 @@ const MobileSidebarContent: React.FC<{
                       <span
                         className="shrink-0 text-[10px] font-extrabold uppercase tracking-[0.06em] px-[7px] py-[2px] rounded-[5px] leading-[15px]"
                         style={{
-                          backgroundColor: meta.badgeType === 'hot' ? '#FFF1F2' : '#EEF1FF',
-                          color: meta.badgeType === 'hot' ? '#E11D48' : '#4F46E5',
+                          backgroundColor: meta.badgeType === 'hot' ? '#EFF6FF' : '#E0F2FE',
+                          color: meta.badgeType === 'hot' ? '#2563EB' : '#0284C7',
                         }}
                       >
                         {meta.badge}
