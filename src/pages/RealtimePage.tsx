@@ -3050,6 +3050,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       const allTables = clone.querySelectorAll('table');
       allTables.forEach(t => {
         const htmlTable = t as HTMLElement;
+        htmlTable.style.zoom = '1';
         if (options.isTableOnly) {
           // Force table width with !important
           htmlTable.style.cssText += `; width: ${exactTablePixelWidth}px !important; min-width: ${exactTablePixelWidth}px !important; max-width: ${exactTablePixelWidth}px !important; display: table !important; table-layout: fixed !important; box-sizing: border-box !important;`;
@@ -3795,9 +3796,54 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   const [expandedCERows, setExpandedCERows] = useState<Record<string, boolean>>({});
   const [expandedCrossSellingStaff, setExpandedCrossSellingStaff] = useState<Record<string, boolean>>({});
 
+  const slTableWrapRef = useRef<HTMLDivElement>(null);
+  const dtTableWrapRef = useRef<HTMLDivElement>(null);
+  const [mobileTableScale, setMobileTableScale] = useState<number>(1);
+  const [isMobileScreen, setIsMobileScreen] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  );
 
+  // Auto zoom category tables dynamically on mobile to prevent any text spillover or clipping
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
 
+    const updateTableScale = () => {
+      const isMob = window.innerWidth < 768;
+      setIsMobileScreen(isMob);
+      if (!isMob) {
+        setMobileTableScale(1);
+        return;
+      }
+      const naturalWidth = showOrangeCols ? (showLuykeColumn ? 580 : 524) : 502;
+      const wrapEl = slTableWrapRef.current || dtTableWrapRef.current || categorySLRef.current;
+      const availableWidth = wrapEl ? wrapEl.clientWidth : (window.innerWidth - 24);
+      if (availableWidth > 0 && availableWidth < naturalWidth) {
+        const scale = Math.min(1, Math.max(0.48, availableWidth / naturalWidth));
+        setMobileTableScale(Number(scale.toFixed(3)));
+      } else {
+        setMobileTableScale(1);
+      }
+    };
 
+    updateTableScale();
+    const timer = setTimeout(updateTableScale, 120);
+
+    window.addEventListener('resize', updateTableScale);
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      const target = slTableWrapRef.current || categorySLRef.current;
+      if (target) {
+        ro = new ResizeObserver(() => updateTableScale());
+        ro.observe(target);
+      }
+    }
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', updateTableScale);
+      if (ro) ro.disconnect();
+    };
+  }, [showOrangeCols, showLuykeColumn]);
   const staffKhaiThacStats = useMemo(() => {
     if (rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return [];
 
@@ -6287,28 +6333,28 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 </div>
                               )}
 
-                              <div className={`overflow-x-auto w-full rounded-xl sm:rounded-2xl border ${isEffective43751 ? 'border-sky-300/80' : 'border-emerald-200/80'}`}>
-                                <table className={`w-full border-separate border-spacing-0 table-fixed bg-white ${showOrangeCols ? 'min-w-[390px] sm:min-w-[480px]' : 'min-w-[300px] sm:min-w-[360px]'} md:min-w-[600px]`} style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                              <div ref={slTableWrapRef} className={`overflow-x-auto w-full rounded-xl sm:rounded-2xl border ${isEffective43751 ? 'border-sky-300/80' : 'border-emerald-200/80'}`}>
+                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', sans-serif", width: isMobileScreen ? `${showOrangeCols ? (showLuykeColumn ? 580 : 524) : 502}px` : '100%', minWidth: isMobileScreen ? `${showOrangeCols ? (showLuykeColumn ? 580 : 524) : 502}px` : (showOrangeCols ? '580px' : '500px'), zoom: isMobileScreen ? mobileTableScale : 1 }}>
                                   <colgroup>
-                                    <col className="w-[28px] sm:w-[36px] md:w-[40px]" />
-                                    <col className="w-[125px] sm:w-[190px] md:w-auto" />
-                                    <col className="w-[42px] sm:w-[58px] md:w-[68px]" />
-                                    <col className="w-[36px] sm:w-[50px] md:w-[58px]" />
-                                    <col className="w-[40px] sm:w-[52px] md:w-[58px]" />
-                                    <col className="w-[36px] sm:w-[50px] md:w-[58px]" />
-                                    {showOrangeCols && showLuykeColumn && <col className="w-[42px] sm:w-[60px] md:w-[68px]" />}
-                                    {showOrangeCols && <col className="w-[44px] sm:w-[66px] md:w-[75px]" />}
+                                    <col style={{ width: isMobileScreen ? '38px' : '40px' }} />
+                                    <col style={{ width: isMobileScreen ? (showOrangeCols ? '210px' : '230px') : 'auto' }} />
+                                    <col style={{ width: isMobileScreen ? (showOrangeCols ? '56px' : '64px') : '64px' }} />
+                                    <col style={{ width: isMobileScreen ? (showOrangeCols ? '50px' : '56px') : '56px' }} />
+                                    <col style={{ width: isMobileScreen ? (showOrangeCols ? '54px' : '60px') : '58px' }} />
+                                    <col style={{ width: isMobileScreen ? (showOrangeCols ? '50px' : '54px') : '56px' }} />
+                                    {showOrangeCols && showLuykeColumn && <col style={{ width: isMobileScreen ? '56px' : '64px' }} />}
+                                    {showOrangeCols && <col style={{ width: isMobileScreen ? '66px' : '72px' }} />}
                                   </colgroup>
                                   <thead>
-                                    <tr className="text-white h-[32px] sm:h-[42px] md:h-[46px]">
-                                      <th className={`px-0.5 sm:px-1 py-0 text-[8.5px] sm:text-[13px] md:text-[14.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>STT</th>
-                                      <th className={`px-1 sm:px-2.5 py-0 text-[9px] sm:text-[13px] md:text-[14.5px] font-black uppercase text-left border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-emerald-500 bg-[#059669]'} whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
-                                      <th className={`px-0.5 sm:px-1 py-0 text-[8px] sm:text-[12px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>TARGET</th>
-                                      <th className={`px-0.5 sm:px-1 py-0 text-[8px] sm:text-[12px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>REAL</th>
-                                      <th className={`px-0.5 sm:px-1 py-0 text-[8px] sm:text-[12px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-emerald-500 bg-[#059669]'} whitespace-nowrap overflow-hidden`}>%HT</th>
-                                      <th className={`px-0.5 sm:px-1 py-0 text-[8px] sm:text-[12px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>C.LẠI</th>
-                                      {showOrangeCols && showLuykeColumn && <th className={`px-0.5 sm:px-1 py-0 text-[7.5px] sm:text-[10.5px] md:text-[11.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-emerald-500 bg-[#064E3B]'} leading-tight whitespace-nowrap overflow-hidden`}>LK<br />C.LẠI</th>}
-                                      {showOrangeCols && <th className={`px-0.5 sm:px-1 py-0 text-[7.5px] sm:text-[10.5px] md:text-[11.5px] font-black uppercase text-center border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-emerald-500 bg-[#064E3B]'} leading-tight whitespace-nowrap overflow-hidden`}>M.TIÊU<br />/ NGÀY</th>}
+                                    <tr className="text-white h-[38px] sm:h-[42px] md:h-[46px]">
+                                      <th className={`px-1 py-0 text-[12px] sm:text-[13px] md:text-[14.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>STT</th>
+                                      <th className={`px-2 py-0 text-[12px] sm:text-[13px] md:text-[14.5px] font-black uppercase text-left border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-emerald-500 bg-[#059669]'} whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
+                                      <th className={`px-1 py-0 text-[11.5px] sm:text-[12px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>TARGET</th>
+                                      <th className={`px-1 py-0 text-[11.5px] sm:text-[12px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>REAL</th>
+                                      <th className={`px-1 py-0 text-[11.5px] sm:text-[12px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-emerald-500 bg-[#059669]'} whitespace-nowrap overflow-hidden`}>%HT</th>
+                                      <th className={`px-1 py-0 text-[11.5px] sm:text-[12px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>C.LẠI</th>
+                                      {showOrangeCols && showLuykeColumn && <th className={`px-0.5 py-0 text-[10.5px] sm:text-[11px] md:text-[12px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-emerald-500 bg-[#064E3B]'} leading-tight overflow-hidden`}>LK<br />C.LẠI</th>}
+                                      {showOrangeCols && <th className={`px-0.5 py-0 text-[10.5px] sm:text-[11px] md:text-[12px] font-black uppercase text-center border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-emerald-500 bg-[#064E3B]'} leading-tight overflow-hidden`}>M.TIÊU<br />/ NGÀY</th>}
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -6327,29 +6373,29 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         const remaining = cat.target - cat.revenue;
                                         const isEven = idx % 2 === 0;
                                         return (
-                                          <tr key={idx} className={`${isEven ? 'bg-white' : (isEffective43751 ? 'bg-sky-50/25' : 'bg-emerald-50/20')} ${isEffective43751 ? 'hover:bg-sky-50/70' : 'hover:bg-emerald-50/70'} transition-colors h-auto min-h-[30px] sm:min-h-[38px] md:h-[40px]`}>
-                                            <td className={`px-0.5 sm:px-1 py-0.5 sm:py-1 text-[8.5px] sm:text-[13px] md:text-[14.5px] font-black text-slate-700 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 bg-sky-50/40' : 'border-emerald-100/90 bg-emerald-50/40'} overflow-hidden`}>{idx + 1}</td>
-                                            <td className={`px-1 sm:px-2 py-0.5 sm:py-1 text-[9px] sm:text-[12.5px] md:text-[14px] font-black uppercase border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-900 leading-[1.15] tracking-tight overflow-hidden`} title={cat.name}>
-                                              <div className="line-clamp-2 break-words leading-[1.15] overflow-hidden" title={cat.name}>
+                                          <tr key={idx} className={`${isEven ? 'bg-white' : (isEffective43751 ? 'bg-sky-50/25' : 'bg-emerald-50/20')} ${isEffective43751 ? 'hover:bg-sky-50/70' : 'hover:bg-emerald-50/70'} transition-colors min-h-[38px] h-auto`}>
+                                            <td className={`px-1 py-1 text-[13px] sm:text-[13.5px] md:text-[14.5px] font-black text-slate-700 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 bg-sky-50/40' : 'border-emerald-100/90 bg-emerald-50/40'} whitespace-nowrap overflow-hidden`}>{idx + 1}</td>
+                                            <td className={`px-2 py-1 text-[12.5px] sm:text-[13px] md:text-[14px] font-black uppercase border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-900 leading-[1.2] tracking-tight overflow-hidden`} title={cat.name}>
+                                              <div className="line-clamp-2 break-words leading-[1.2] text-left" title={cat.name}>
                                                 {cat.name}
                                               </div>
                                             </td>
-                                            <td className={`px-0.5 sm:px-1 py-0.5 sm:py-1 text-[9px] sm:text-[13px] md:text-[14.5px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-800 overflow-hidden`}>{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
-                                            <td className={`px-0.5 sm:px-1 py-0.5 sm:py-1 text-[9px] sm:text-[13px] md:text-[14.5px] font-black text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-emerald-100/90 text-emerald-700'} overflow-hidden`}>{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
-                                            <td className={`px-0.5 py-0.5 sm:py-1 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} whitespace-nowrap overflow-hidden`}>
-                                              <span className={`inline-flex items-center justify-center px-0.5 sm:px-1.5 py-0.5 rounded sm:rounded-md font-black leading-none text-[8px] sm:text-[12.5px] md:text-[14px] ${Math.round(cat.rate || 0) >= 100 ? (isEffective43751 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-emerald-100 text-emerald-800') : 'bg-rose-100 text-rose-600'}`}>
+                                            <td className={`px-1 py-1 text-[13px] sm:text-[13.5px] md:text-[14.5px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-800 whitespace-nowrap overflow-hidden`}>{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
+                                            <td className={`px-1 py-1 text-[13px] sm:text-[13.5px] md:text-[14.5px] font-black text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-emerald-100/90 text-emerald-700'} whitespace-nowrap overflow-hidden`}>{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
+                                            <td className={`px-1 py-1 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} whitespace-nowrap overflow-hidden`}>
+                                              <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded font-black leading-none text-[12px] sm:text-[12.5px] md:text-[13.5px] ${Math.round(cat.rate || 0) >= 100 ? (isEffective43751 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-emerald-100 text-emerald-800') : 'bg-rose-100 text-rose-600'}`}>
                                                 {Math.round(cat.rate || 0)}%
                                               </span>
                                             </td>
-                                            <td className={`px-0.5 sm:px-1 py-0.5 sm:py-1 text-[9px] sm:text-[13px] md:text-[14.5px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-rose-600 overflow-hidden`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
+                                            <td className={`px-1 py-1 text-[13px] sm:text-[13.5px] md:text-[14.5px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-rose-600 whitespace-nowrap overflow-hidden`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
                                             {showOrangeCols && showLuykeColumn && (
-                                              <td className={`px-0.5 sm:px-1 py-0.5 sm:py-1 text-[8.5px] sm:text-[13px] md:text-[14.5px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-blue-700' : 'border-emerald-100/90 text-purple-700'} overflow-hidden`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                              <td className={`px-1 py-1 text-[13px] sm:text-[13.5px] md:text-[14.5px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-blue-700' : 'border-emerald-100/90 text-purple-700'} whitespace-nowrap overflow-hidden`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
                                             )}
                                             {showOrangeCols && (() => {
                                               const lkCat = luykeCatMap.get(lkKey);
-                                              if (!lkCat || lkCat.target === 0) return <td className={`px-0.5 sm:px-1 py-0.5 sm:py-1 text-[8.5px] sm:text-[13px] md:text-[14.5px] font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-400 overflow-hidden`}></td>;
+                                              if (!lkCat || lkCat.target === 0) return <td className={`px-1 py-1 text-[13px] sm:text-[13.5px] md:text-[14.5px] font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-400 whitespace-nowrap overflow-hidden`}></td>;
                                               const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
-                                              return <td className={`px-0.5 sm:px-1 py-0.5 sm:py-1 text-[8.5px] sm:text-[13px] md:text-[14.5px] font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} overflow-hidden ${mucTieu > 0 ? 'text-rose-600' : (isEffective43751 ? 'text-sky-700' : 'text-emerald-600')}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                              return <td className={`px-1 py-1 text-[13px] sm:text-[13.5px] md:text-[14.5px] font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} whitespace-nowrap overflow-hidden ${mucTieu > 0 ? 'text-rose-600' : (isEffective43751 ? 'text-sky-700' : 'text-emerald-600')}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
                                             })()}
                                           </tr>
                                         );
@@ -6456,28 +6502,28 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 </div>
                               )}
 
-                              <div className={`overflow-x-auto w-full rounded-xl sm:rounded-2xl border ${isEffective43751 ? 'border-sky-300/80' : 'border-blue-300/80'}`}>
-                                <table className={`w-full border-separate border-spacing-0 table-fixed bg-white ${showOrangeCols ? 'min-w-[390px] sm:min-w-[480px]' : 'min-w-[300px] sm:min-w-[360px]'} md:min-w-[600px]`} style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                              <div ref={dtTableWrapRef} className={`overflow-x-auto w-full rounded-xl sm:rounded-2xl border ${isEffective43751 ? 'border-sky-300/80' : 'border-blue-300/80'}`}>
+                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white" style={{ fontFamily: "'UTM Avo', sans-serif", width: isMobileScreen ? `${showOrangeCols ? (showLuykeColumn ? 580 : 524) : 502}px` : '100%', minWidth: isMobileScreen ? `${showOrangeCols ? (showLuykeColumn ? 580 : 524) : 502}px` : (showOrangeCols ? '580px' : '500px'), zoom: isMobileScreen ? mobileTableScale : 1 }}>
                                   <colgroup>
-                                    <col className="w-[28px] sm:w-[36px] md:w-[40px]" />
-                                    <col className="w-[125px] sm:w-[190px] md:w-auto" />
-                                    <col className="w-[42px] sm:w-[58px] md:w-[68px]" />
-                                    <col className="w-[36px] sm:w-[50px] md:w-[58px]" />
-                                    <col className="w-[40px] sm:w-[52px] md:w-[58px]" />
-                                    <col className="w-[36px] sm:w-[50px] md:w-[58px]" />
-                                    {showOrangeCols && showLuykeColumn && <col className="w-[42px] sm:w-[60px] md:w-[68px]" />}
-                                    {showOrangeCols && <col className="w-[44px] sm:w-[66px] md:w-[75px]" />}
+                                    <col style={{ width: isMobileScreen ? '38px' : '40px' }} />
+                                    <col style={{ width: isMobileScreen ? (showOrangeCols ? '210px' : '230px') : 'auto' }} />
+                                    <col style={{ width: isMobileScreen ? (showOrangeCols ? '56px' : '64px') : '64px' }} />
+                                    <col style={{ width: isMobileScreen ? (showOrangeCols ? '50px' : '56px') : '56px' }} />
+                                    <col style={{ width: isMobileScreen ? (showOrangeCols ? '54px' : '60px') : '58px' }} />
+                                    <col style={{ width: isMobileScreen ? (showOrangeCols ? '50px' : '54px') : '56px' }} />
+                                    {showOrangeCols && showLuykeColumn && <col style={{ width: isMobileScreen ? '56px' : '64px' }} />}
+                                    {showOrangeCols && <col style={{ width: isMobileScreen ? '66px' : '72px' }} />}
                                   </colgroup>
                                   <thead>
-                                    <tr className="text-white h-[32px] sm:h-[42px] md:h-[46px]">
-                                      <th className={`px-0.5 sm:px-1 py-0 text-[8.5px] sm:text-[13px] md:text-[14.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>STT</th>
-                                      <th className={`px-1 sm:px-2.5 py-0 text-[9px] sm:text-[13px] md:text-[14.5px] font-black uppercase text-left border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-blue-500 bg-[#2563EB]'} whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
-                                      <th className={`px-0.5 sm:px-1 py-0 text-[8px] sm:text-[12px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>TARGET</th>
-                                      <th className={`px-0.5 sm:px-1 py-0 text-[8px] sm:text-[12px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>REAL</th>
-                                      <th className={`px-0.5 sm:px-1 py-0 text-[8px] sm:text-[12px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-blue-500 bg-[#2563EB]'} whitespace-nowrap overflow-hidden`}>%HT</th>
-                                      <th className={`px-0.5 sm:px-1 py-0 text-[8px] sm:text-[12px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>C.LẠI</th>
-                                      {showOrangeCols && showLuykeColumn && <th className={`px-0.5 sm:px-1 py-0 text-[7.5px] sm:text-[10.5px] md:text-[11.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-blue-500 bg-[#1E3A8A]'} leading-tight whitespace-nowrap overflow-hidden`}>LK<br />C.LẠI</th>}
-                                      {showOrangeCols && <th className={`px-0.5 sm:px-1 py-0 text-[7.5px] sm:text-[10.5px] md:text-[11.5px] font-black uppercase text-center border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-blue-500 bg-[#1E3A8A]'} leading-tight whitespace-nowrap overflow-hidden`}>M.TIÊU<br />/ NGÀY</th>}
+                                    <tr className="text-white h-[38px] sm:h-[42px] md:h-[46px]">
+                                      <th className={`px-1 py-0 text-[12px] sm:text-[13px] md:text-[14.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>STT</th>
+                                      <th className={`px-2 py-0 text-[12px] sm:text-[13px] md:text-[14.5px] font-black uppercase text-left border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-blue-500 bg-[#2563EB]'} whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
+                                      <th className={`px-1 py-0 text-[11.5px] sm:text-[12px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>TARGET</th>
+                                      <th className={`px-1 py-0 text-[11.5px] sm:text-[12px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>REAL</th>
+                                      <th className={`px-1 py-0 text-[11.5px] sm:text-[12px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-blue-500 bg-[#2563EB]'} whitespace-nowrap overflow-hidden`}>%HT</th>
+                                      <th className={`px-1 py-0 text-[11.5px] sm:text-[12px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>C.LẠI</th>
+                                      {showOrangeCols && showLuykeColumn && <th className={`px-0.5 py-0 text-[10.5px] sm:text-[11px] md:text-[12px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-blue-500 bg-[#1E3A8A]'} leading-tight overflow-hidden`}>LK<br />C.LẠI</th>}
+                                      {showOrangeCols && <th className={`px-0.5 py-0 text-[10.5px] sm:text-[11px] md:text-[12px] font-black uppercase text-center border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-blue-500 bg-[#1E3A8A]'} leading-tight overflow-hidden`}>M.TIÊU<br />/ NGÀY</th>}
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -6496,29 +6542,29 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         const remaining = cat.target - cat.revenue;
                                         const isEven = idx % 2 === 0;
                                         return (
-                                          <tr key={idx} className={`${isEven ? 'bg-white' : (isEffective43751 ? 'bg-sky-50/25' : 'bg-blue-50/25')} ${isEffective43751 ? 'hover:bg-sky-50/70' : 'hover:bg-blue-50/70'} transition-colors h-auto min-h-[30px] sm:min-h-[38px] md:h-[40px]`}>
-                                            <td className={`px-0.5 sm:px-1 py-0.5 sm:py-1 text-[8.5px] sm:text-[13px] md:text-[14.5px] font-black text-slate-700 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 bg-sky-50/40' : 'border-blue-100/90 bg-blue-50/40'} overflow-hidden`}>{idx + 1}</td>
-                                            <td className={`px-1 sm:px-2 py-0.5 sm:py-1 text-[9px] sm:text-[12.5px] md:text-[14px] font-black uppercase border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-900 leading-[1.15] tracking-tight overflow-hidden`} title={cat.name}>
-                                              <div className="line-clamp-2 break-words leading-[1.15] overflow-hidden" title={cat.name}>
+                                          <tr key={idx} className={`${isEven ? 'bg-white' : (isEffective43751 ? 'bg-sky-50/25' : 'bg-blue-50/25')} ${isEffective43751 ? 'hover:bg-sky-50/70' : 'hover:bg-blue-50/70'} transition-colors min-h-[38px] h-auto`}>
+                                            <td className={`px-1 py-1 text-[13px] sm:text-[13.5px] md:text-[14.5px] font-black text-slate-700 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 bg-sky-50/40' : 'border-blue-100/90 bg-blue-50/40'} whitespace-nowrap overflow-hidden`}>{idx + 1}</td>
+                                            <td className={`px-2 py-1 text-[12.5px] sm:text-[13px] md:text-[14px] font-black uppercase border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-900 leading-[1.2] tracking-tight overflow-hidden`} title={cat.name}>
+                                              <div className="line-clamp-2 break-words leading-[1.2] text-left" title={cat.name}>
                                                 {cat.name}
                                               </div>
                                             </td>
-                                            <td className={`px-0.5 sm:px-1 py-0.5 sm:py-1 text-[9px] sm:text-[13px] md:text-[14.5px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-800 overflow-hidden`}>{Math.round(cat.target).toLocaleString()}</td>
-                                            <td className={`px-0.5 sm:px-1 py-0.5 sm:py-1 text-[9px] sm:text-[13px] md:text-[14.5px] font-black text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-blue-100/90 text-blue-700'} overflow-hidden`}>{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
-                                            <td className={`px-0.5 py-0.5 sm:py-1 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} whitespace-nowrap overflow-hidden`}>
-                                              <span className={`inline-flex items-center justify-center px-0.5 sm:px-1.5 py-0.5 rounded sm:rounded-md font-black leading-none text-[8px] sm:text-[12.5px] md:text-[14px] ${Math.round(cat.rate || 0) >= 100 ? (isEffective43751 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-blue-100 text-blue-800 border border-blue-200/60') : 'bg-rose-100 text-rose-600'}`}>
+                                            <td className={`px-1 py-1 text-[13px] sm:text-[13.5px] md:text-[14.5px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-800 whitespace-nowrap overflow-hidden`}>{Math.round(cat.target).toLocaleString()}</td>
+                                            <td className={`px-1 py-1 text-[13px] sm:text-[13.5px] md:text-[14.5px] font-black text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-blue-100/90 text-blue-700'} whitespace-nowrap overflow-hidden`}>{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                            <td className={`px-1 py-1 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} whitespace-nowrap overflow-hidden`}>
+                                              <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded font-black leading-none text-[12px] sm:text-[12.5px] md:text-[13.5px] ${Math.round(cat.rate || 0) >= 100 ? (isEffective43751 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-blue-100 text-blue-800 border border-blue-200/60') : 'bg-rose-100 text-rose-600'}`}>
                                                 {Math.round(cat.rate || 0)}%
                                               </span>
                                             </td>
-                                            <td className={`px-0.5 sm:px-1 py-0.5 sm:py-1 text-[9px] sm:text-[13px] md:text-[14.5px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-rose-600 overflow-hidden`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
+                                            <td className={`px-1 py-1 text-[13px] sm:text-[13.5px] md:text-[14.5px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-rose-600 whitespace-nowrap overflow-hidden`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
                                             {showOrangeCols && showLuykeColumn && (
-                                              <td className={`px-0.5 sm:px-1 py-0.5 sm:py-1 text-[8.5px] sm:text-[13px] md:text-[14.5px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-blue-100/90 text-indigo-700'} overflow-hidden`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
+                                              <td className={`px-1 py-1 text-[13px] sm:text-[13.5px] md:text-[14.5px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-blue-100/90 text-indigo-700'} whitespace-nowrap overflow-hidden`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
                                             )}
                                             {showOrangeCols && (() => {
                                               const lkCat = luykeCatMap.get(lkKey) || luykeCatMap.get(`${cat.name.trim().toUpperCase()}_ALL`);
-                                              if (!lkCat || lkCat.target === 0) return <td className={`px-0.5 sm:px-1 py-0.5 sm:py-1 text-[8.5px] sm:text-[13px] md:text-[14.5px] font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-400 overflow-hidden`}></td>;
+                                              if (!lkCat || lkCat.target === 0) return <td className={`px-1 py-1 text-[13px] sm:text-[13.5px] md:text-[14.5px] font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-400 whitespace-nowrap overflow-hidden`}></td>;
                                               const mucTieu = Math.round((lkCat.target / mucTieu100Info.totalDaysInMonth) * mucTieu100Info.daysPassed - lkCat.revenue);
-                                              return <td className={`px-0.5 sm:px-1 py-0.5 sm:py-1 text-[8.5px] sm:text-[13px] md:text-[14.5px] font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} overflow-hidden ${mucTieu > 0 ? 'text-rose-600' : (isEffective43751 ? 'text-sky-700' : 'text-blue-700')}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
+                                              return <td className={`px-1 py-1 text-[13px] sm:text-[13.5px] md:text-[14.5px] font-black text-center border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} whitespace-nowrap overflow-hidden ${mucTieu > 0 ? 'text-rose-600' : (isEffective43751 ? 'text-sky-700' : 'text-blue-700')}`}>{mucTieu > 0 ? Math.round(mucTieu).toLocaleString() : ''}</td>;
                                             })()}
                                           </tr>
                                         );
