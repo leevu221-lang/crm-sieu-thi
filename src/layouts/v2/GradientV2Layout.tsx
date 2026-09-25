@@ -273,7 +273,7 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
         )}
 
         {/* Page Content */}
-        <main className="flex-1 relative z-10 w-full py-1.5 sm:py-2 pb-20 md:pb-6 px-1 sm:px-1.5 md:px-2">
+        <main className="flex-1 relative z-10 w-full py-1.5 sm:py-2 pb-28 md:pb-6 px-1 sm:px-1.5 md:px-2">
           <div className="w-full min-w-0">
             {children}
           </div>
