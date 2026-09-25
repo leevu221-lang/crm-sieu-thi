@@ -19,6 +19,7 @@ import PhanCaTuanTable from '../components/PhanCaTuanTable';
 import BienBanTinhTrangHangHoa from '../components/BienBanTinhTrangHangHoa';
 import BaoGiaCongTyModal from '../components/BaoGiaCongTyModal';
 import StickerTemplateTab from '../components/StickerTemplateTab';
+import LaptopStickerTab from '../components/LaptopStickerTab';
 import InventoryManagement from '../components/InventoryManagement';
 import { RoadshowManagement } from '../components/RoadshowManagement';
 import BbkqTab from '../components/BbkqTab';
@@ -2964,6 +2965,17 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           >
             <span className="text-lg">🏷️</span> ĐỒNG GIÁ 100K
           </button>
+
+          <button
+            onClick={() => setActiveTab('sticker-laptop')}
+            className={`flex items-center gap-2.5 py-3 px-6 rounded-full text-sm font-extrabold uppercase tracking-wide transition-all border-2 shadow-sm shrink-0 whitespace-nowrap cursor-pointer ${
+              activeTab === 'sticker-laptop'
+                ? 'border-sky-500 bg-sky-50 text-sky-700 ring-2 ring-sky-400/50'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700'
+            }`}
+          >
+            <span className="text-lg">💻</span> LAPTOP
+          </button>
         </div>
       </div>
     );
@@ -2990,7 +3002,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 activeTab === 'sticker-ce' ||
                 activeTab === 'sticker-mln' ||
                 activeTab === 'sticker-gvgs' ||
-                activeTab === 'sticker-dcnb'
+                activeTab === 'sticker-dcnb' ||
+                activeTab === 'sticker-laptop'
               ));
             const Icon = item.icon;
             return (
@@ -3555,7 +3568,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               </motion.div>
             )}
 
-            {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event' || activeTab === 'sticker' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dcnb') && (
+            {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event' || activeTab === 'sticker' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dcnb' || activeTab === 'sticker-laptop') && (
               <motion.div
                 key={activeTab}
                 initial={{ opacity: 0, x: 20 }}
@@ -3563,8 +3576,11 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
-                {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dcnb') && renderSubTabs()}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dcnb' || activeTab === 'sticker-laptop') && renderSubTabs()}
+                {activeTab === 'sticker-laptop' ? (
+                  <LaptopStickerTab />
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Column */}
               {activeTab !== 'sticker-dcnb' && activeTab !== 'sticker-event-dmx' && (
                 <div className="col-span-1 space-y-6">
@@ -5242,6 +5258,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 )}
               </div>
               </div>
+            )}
             </motion.div>
           )}
 
