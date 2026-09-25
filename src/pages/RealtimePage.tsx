@@ -166,30 +166,30 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay, duration: 0.4 }}
-        className={`bg-white/95 backdrop-blur-md p-2.5 sm:p-4 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_35px_-5px_rgba(2,132,199,0.14)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between h-full group ${isLarge ? 'md:col-span-2' : ''}`}
+        className={`bg-white/95 backdrop-blur-md p-2.5 sm:p-3.5 md:p-4 lg:p-4.5 xl:p-5 2xl:p-6 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_35px_-5px_rgba(2,132,199,0.16)] hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between h-full min-h-[82px] sm:min-h-[96px] md:min-h-[108px] lg:min-h-[116px] xl:min-h-[126px] group ${isLarge ? 'md:col-span-2' : ''}`}
         style={{ fontFamily: "'UTM Avo', sans-serif" }}
       >
-        <div className="flex items-center gap-2 sm:gap-3 mb-1.5 sm:mb-2 min-w-0">
-          <div className={`w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-2xl flex items-center justify-center shrink-0 ${theme.bg} ${theme.text} shadow-2xs transition-transform group-hover:scale-105 border border-white/60`}>
-            <Icon size={16} strokeWidth={2.4} className="sm:w-5 sm:h-5" />
+        <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 lg:gap-3.5 xl:gap-4 mb-1 sm:mb-1.5 min-w-0">
+          <div className={`w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 lg:w-13 lg:h-13 xl:w-14 xl:h-14 2xl:w-15 2xl:h-15 rounded-xl sm:rounded-2xl lg:rounded-[20px] 2xl:rounded-2xl flex items-center justify-center shrink-0 ${theme.bg} ${theme.text} shadow-2xs transition-transform group-hover:scale-105 border border-white/70`}>
+            <Icon size={16} strokeWidth={2.4} className="sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-6.5 lg:h-6.5 xl:w-7 xl:h-7" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-1">
               <span
-                className="stat-card-title text-[9px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-tight leading-tight line-clamp-2 block"
+                className="stat-card-title text-[9px] sm:text-[10.5px] md:text-[11.5px] lg:text-[12.5px] xl:text-[13.5px] 2xl:text-[14px] font-black text-slate-500 uppercase tracking-tight leading-tight line-clamp-2 block"
                 title={title}
               >
                 {title}
               </span>
               {trend !== undefined && (
-                <div className={`flex items-center gap-0.5 px-1 sm:px-1.5 py-0.5 rounded-full text-[8px] sm:text-[9px] font-black shrink-0 ${trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                  {trend > 0 ? <ArrowUpRight size={9} /> : <ArrowDownRight size={9} />}
+                <div className={`flex items-center gap-0.5 px-1 sm:px-1.5 md:px-2 py-0.5 rounded-full text-[8px] sm:text-[9px] md:text-[10px] font-black shrink-0 ${trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                  {trend > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
                   {Math.abs(trend)}%
                 </div>
               )}
             </div>
             <div
-              className="font-bold text-[18px] xs:text-[20px] sm:text-[25px] md:text-[28px] lg:text-[30px] tracking-tight text-[#0F172A] leading-tight font-oswald truncate mt-0.5"
+              className="font-bold text-[19px] xs:text-[22px] sm:text-[26px] md:text-[32px] lg:text-[36px] xl:text-[42px] 2xl:text-[46px] tracking-tight text-[#0F172A] leading-tight font-oswald truncate mt-0.5 md:mt-1"
               style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700 }}
             >
               {value}
@@ -198,7 +198,7 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
         </div>
 
         {subValue && (
-          <div className="text-[9.5px] sm:text-[11px] font-medium text-slate-400 truncate pt-1 border-t border-slate-100/60 mt-auto">
+          <div className="text-[9.5px] sm:text-[11px] md:text-[12px] font-medium text-slate-400 truncate pt-1 border-t border-slate-100/60 mt-auto">
             {subValue}
           </div>
         )}
@@ -213,15 +213,15 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay, duration: 0.4 }}
-        className={`${bgMapTraditional[color] || 'bg-white'} p-3.5 sm:p-5 rounded-2xl md:rounded-3xl border transition-all duration-300 flex flex-col justify-between h-full hover:scale-[1.02] shadow-lg ${isLarge ? 'md:col-span-2' : ''}`}
+        className={`${bgMapTraditional[color] || 'bg-white'} p-3 sm:p-4 md:p-5 lg:p-5.5 xl:p-6 rounded-2xl md:rounded-3xl border transition-all duration-300 flex flex-col justify-between h-full min-h-[86px] sm:min-h-[96px] md:min-h-[110px] lg:min-h-[120px] hover:scale-[1.02] shadow-lg ${isLarge ? 'md:col-span-2' : ''}`}
         style={{ fontFamily: "'UTM Avo', sans-serif" }}
       >
         <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3 flex-nowrap min-w-0">
           <div
-            className="stat-card-badge inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[8px] sm:text-[9.5px] font-black uppercase tracking-wider bg-white/20 backdrop-blur-md text-white border border-white/20 whitespace-nowrap shrink-0 max-w-full"
+            className="stat-card-badge inline-flex items-center gap-1 sm:gap-1.5 md:gap-2 px-2 sm:px-2.5 md:px-3 py-0.5 sm:py-1 rounded-full text-[8px] sm:text-[9.5px] md:text-[11px] lg:text-[12px] font-black uppercase tracking-wider bg-white/20 backdrop-blur-md text-white border border-white/20 whitespace-nowrap shrink-0 max-w-full"
             style={{ whiteSpace: 'nowrap' }}
           >
-            <Icon size={12} strokeWidth={2.5} className="shrink-0 text-white" />
+            <Icon size={12} strokeWidth={2.5} className="shrink-0 text-white sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 lg:w-4.5 lg:h-4.5" />
             <span
               className="stat-card-title whitespace-nowrap leading-none truncate text-white"
               style={{ whiteSpace: 'nowrap', wordBreak: 'keep-all', color: '#ffffff' }}
@@ -231,7 +231,7 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
           </div>
           {trend !== undefined && (
             <div
-              className="flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[8.5px] sm:text-[9px] font-black bg-white/25 backdrop-blur-md ml-auto shrink-0 border border-white/20 whitespace-nowrap text-white"
+              className="flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[8.5px] sm:text-[9px] md:text-[10px] font-black bg-white/25 backdrop-blur-md ml-auto shrink-0 border border-white/20 whitespace-nowrap text-white"
               style={{ whiteSpace: 'nowrap' }}
             >
               {trend > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
@@ -242,13 +242,13 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
 
         <div>
           <div
-            className="font-bold text-[24px] xs:text-[29px] sm:text-[36px] md:text-[44px] lg:text-[48px] tracking-tight whitespace-nowrap drop-shadow-sm leading-none py-0.5 sm:py-1 text-white font-oswald truncate"
+            className="font-bold text-[24px] xs:text-[29px] sm:text-[36px] md:text-[44px] lg:text-[48px] xl:text-[52px] tracking-tight whitespace-nowrap drop-shadow-sm leading-none py-0.5 sm:py-1 text-white font-oswald truncate"
             style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700, whiteSpace: 'nowrap' }}
           >
             {value}
           </div>
           {subValue && (
-            <div className="text-[10px] sm:text-[11px] font-medium text-white/80 whitespace-nowrap mt-1 truncate">
+            <div className="text-[10px] sm:text-[11px] md:text-[12px] font-medium text-white/80 whitespace-nowrap mt-1 truncate">
               {subValue}
             </div>
           )}
@@ -262,26 +262,26 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.4 }}
-      className={`bg-white p-3.5 sm:p-5 rounded-2xl md:rounded-3xl border border-slate-200/80 shadow-sm flex flex-col justify-between h-full hover:shadow-md transition-shadow ${isLarge ? 'md:col-span-2' : ''}`}
+      className={`bg-white p-3 sm:p-4 md:p-5 lg:p-5.5 xl:p-6 rounded-2xl md:rounded-3xl border border-slate-200/80 shadow-sm flex flex-col justify-between h-full min-h-[86px] sm:min-h-[96px] md:min-h-[110px] lg:min-h-[120px] hover:shadow-md transition-shadow ${isLarge ? 'md:col-span-2' : ''}`}
       style={{ fontFamily: "'UTM Avo', sans-serif" }}
     >
       <div className="flex items-center justify-between mb-3">
-        <span className="stat-card-title text-[11px] sm:text-[12px] font-black text-slate-500 uppercase tracking-wider truncate">
+        <span className="stat-card-title text-[10px] sm:text-[11px] md:text-[12px] lg:text-[13px] xl:text-[14px] font-black text-slate-500 uppercase tracking-wider truncate">
           {title}
         </span>
-        <div className={`p-2 rounded-xl ${colorMapTraditional[color] || 'text-indigo-600 bg-indigo-50'} shadow-2xs`}>
-          <Icon size={18} />
+        <div className={`p-2 md:p-2.5 lg:p-3 rounded-xl lg:rounded-2xl ${colorMapTraditional[color] || 'text-indigo-600 bg-indigo-50'} shadow-2xs`}>
+          <Icon size={18} className="md:w-5 md:h-5 lg:w-6 lg:h-6" />
         </div>
       </div>
       <div>
         <div
-          className="font-bold text-[22px] sm:text-[28px] md:text-[32px] tracking-tight text-slate-850 font-oswald truncate"
+          className="font-bold text-[22px] sm:text-[28px] md:text-[34px] lg:text-[38px] xl:text-[44px] tracking-tight text-slate-850 font-oswald truncate"
           style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700 }}
         >
           {value}
         </div>
         {subValue && (
-          <div className="text-[10px] sm:text-[11px] font-medium text-slate-400 mt-1 truncate">
+          <div className="text-[10px] sm:text-[11px] md:text-[12px] font-medium text-slate-400 mt-1 truncate">
             {subValue}
           </div>
         )}
@@ -6071,8 +6071,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                         return (
                           <div key={mIdx} className={`relative overflow-hidden ${
                             isEffective43751
-                              ? 'bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] space-y-4'
-                              : 'bg-white p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-slate-200/80 shadow-sm space-y-4'
+                              ? 'bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 lg:p-7 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] space-y-4 md:space-y-5.5'
+                              : 'bg-white p-4 sm:p-5 md:p-6 lg:p-7 rounded-2xl md:rounded-3xl border border-slate-200/80 shadow-sm space-y-4 md:space-y-5.5'
                           }`}>
                             {/* Ambient background glow */}
                             <div className="absolute -top-10 -right-10 w-44 h-44 bg-gradient-to-br from-sky-200/30 to-transparent rounded-full blur-2xl pointer-events-none" />
@@ -6119,7 +6119,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 <span>Chụp tổng quan</span>
                               </button>
                             </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 md:gap-3.5 lg:gap-4.5 xl:gap-5">
                               <StatCard
                                 title="TARGET QĐ"
                                 value={formatCurrencyUnit(dailyTargetQD)}
