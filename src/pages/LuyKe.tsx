@@ -192,6 +192,71 @@ const StatCard: React.FC<{
   );
 };
 
+const StatCard43751: React.FC<{
+  title: string;
+  value: string | number;
+  subValue?: string;
+  icon: any;
+  trend?: number;
+  colorCode: string;
+  delay?: number;
+}> = ({ title, value, subValue, icon: Icon, trend, colorCode, delay = 0 }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.15 }}
+      className="p-3.5 sm:p-4 rounded-xl border border-white/20 shadow-md relative overflow-hidden flex flex-col justify-between text-white"
+      style={{
+        fontFamily: "'UTM Avo', sans-serif",
+        backgroundColor: colorCode,
+        borderRadius: '12px'
+      }}
+    >
+      <div className="flex items-center gap-1.5 mb-2 sm:mb-2.5 flex-nowrap min-w-0">
+        <div
+          className="stat-card-badge inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider bg-white/20 backdrop-blur-md text-white border border-white/20 whitespace-nowrap shrink-0 max-w-full"
+          style={{ whiteSpace: 'nowrap' }}
+        >
+          <Icon size={12} strokeWidth={2.5} className="shrink-0 text-white" />
+          <span
+            className="stat-card-title whitespace-nowrap leading-none truncate text-white"
+            style={{ whiteSpace: 'nowrap', wordBreak: 'keep-all', color: '#ffffff' }}
+          >
+            {title}
+          </span>
+        </div>
+        {trend !== undefined && (
+          <div
+            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8.5px] font-black bg-white/25 ml-auto shrink-0 border border-white/20 whitespace-nowrap text-white"
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            {trend > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+            {Math.abs(trend)}%
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div
+          className="font-black text-[24px] xs:text-[28px] sm:text-[32px] md:text-[36px] lg:text-[40px] tracking-tight whitespace-nowrap drop-shadow-sm leading-none py-0.5 text-white font-oswald truncate"
+          style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 900, whiteSpace: 'nowrap' }}
+        >
+          {value}
+        </div>
+        {subValue && (
+          <div
+            className="mt-1 text-[9.5px] font-bold text-white/80 truncate whitespace-nowrap"
+            style={{ fontFamily: "'UTM Avo', sans-serif", whiteSpace: 'nowrap' }}
+          >
+            {subValue}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
 const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean, pageHiddenState?: Record<string, boolean> }> = ({ pageMaintenanceState = {}, isUser43751Local = false, pageHiddenState = {} }) => {
   const { userProfile } = useAuth();
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -202,7 +267,27 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
   }, [availableMarkets]);
   const [maKho, setMaKho] = useState(() => userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '');
 
-  const is43751 = isUser43751Local || String(userProfile?.username).trim() === '43751' || String(userProfile?.ma_nhan_vien).trim() === '43751' || String(userProfile?.user_id).trim() === '43751';
+  const is43751 = useMemo(() => {
+    if (isUser43751Local) return true;
+    const upUsername = String(userProfile?.username || '').trim();
+    const upMnv = String(userProfile?.ma_nhan_vien || '').trim();
+    const upId = String(userProfile?.user_id || '').trim();
+    if (upUsername === '43751' || upMnv === '43751' || upId === '43751') return true;
+    try {
+      const stored = localStorage.getItem('user_profile') || localStorage.getItem('userProfile') || localStorage.getItem('currentUser');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (
+          String(parsed?.username || '').trim() === '43751' ||
+          String(parsed?.ma_nhan_vien || '').trim() === '43751' ||
+          String(parsed?.user_id || '').trim() === '43751'
+        ) return true;
+      }
+    } catch (e) {}
+    const directUser = localStorage.getItem('username') || localStorage.getItem('user');
+    if (String(directUser || '').trim() === '43751') return true;
+    return false;
+  }, [userProfile, isUser43751Local]);
 
 
 
@@ -1969,7 +2054,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
           el.style.width = '100%';
           el.style.background = 'none';
           (el.style as any).webkitTextFillColor = '#0f172a';
-        } else if (!el.closest('.bg-gradient-to-r') && !el.closest('[class*="from-[#047857]"]')) {
+        } else if (!el.closest('.bg-gradient-to-r') && !el.closest('[class*="from-[#047857]"]') && !el.closest('[class*="bg-[#047857]"]')) {
           el.style.color = '#0f172a'; // Pure black text-slate-900
           el.style.fontFamily = "'UTM Avo', sans-serif";
           el.style.fontWeight = '900';
@@ -1977,12 +2062,12 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       });
 
       // Ensure subtitle lines in emerald banners are white and visible
-      clone.querySelectorAll('.bg-gradient-to-r span, .bg-gradient-to-r p, .bg-gradient-to-r div, [class*="from-[#047857]"] span').forEach(node => {
+      clone.querySelectorAll('.bg-gradient-to-r span, .bg-gradient-to-r p, .bg-gradient-to-r div, [class*="from-[#047857]"] span, [class*="bg-[#047857]"] span, [class*="bg-[#047857]"] h2').forEach(node => {
         const el = node as HTMLElement;
-        if (el.textContent && (el.textContent.includes('Luỹ kế:') || el.textContent.includes('Realtime:') || el.textContent.includes('ĐẠT') || el.textContent.includes('TGSD'))) {
+        if (el.textContent && (el.textContent.includes('Luỹ kế:') || el.textContent.includes('Realtime:') || el.textContent.includes('ĐẠT') || el.textContent.includes('TGSD') || el.textContent.includes('TG&D') || el.textContent.includes('NGÀNH HÀNG'))) {
           el.style.color = '#ffffff';
           el.style.fontFamily = "'UTM Avo', sans-serif";
-          el.style.fontWeight = '700';
+          el.style.fontWeight = el.tagName === 'H2' ? '900' : '700';
         }
       });
 
@@ -2426,7 +2511,95 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                       }
                     }
 
-                    return (
+                    return is43751 ? (
+                      <div key={market.name || mIdx} className="relative overflow-hidden bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-slate-200/90 shadow-[0_4px_25px_-4px_rgba(79,70,229,0.06)] space-y-4">
+                        {/* Ambient background glow */}
+                        <div className="absolute -top-10 -right-10 w-44 h-44 bg-gradient-to-br from-indigo-200/30 to-transparent rounded-full blur-2xl pointer-events-none" />
+                        <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-gradient-to-tr from-emerald-100/30 to-transparent rounded-full blur-2xl pointer-events-none" />
+
+                        {/* Store Header with address & Camera - 43751 Upgraded */}
+                        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 pb-3.5 border-b border-slate-100">
+                          <div className="flex items-center gap-3.5">
+                            {/* Store Icon Box */}
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center text-xl shadow-md shadow-emerald-500/20 shrink-0 border border-white/40">
+                              <Store size={22} strokeWidth={2.2} />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/80 text-[11px] font-black uppercase tracking-wider text-emerald-700 shadow-2xs">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block shrink-0" />
+                                  🟢 ĐANG HOẠT ĐỘNG
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full bg-indigo-50 border border-indigo-200/80 text-[11px] font-black uppercase tracking-wider text-indigo-700">
+                                  📊 BÁO CÁO LUỸ KẾ THÁNG
+                                </span>
+                              </div>
+                              <div className="flex items-baseline gap-2 flex-wrap">
+                                <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight uppercase" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                  {market.name}
+                                </h2>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-extrabold uppercase border border-slate-200">
+                                  LŨY KẾ THÁNG
+                                </span>
+                                {storeAddress && storeAddress !== 'LUỸ KẾ THÁNG' && (
+                                  <span className="text-xs font-semibold text-slate-400">
+                                    • {storeAddress}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => captureElement(captureRefs.fullDashboard, 'TongQuan_LuyKe')}
+                            className="no-capture inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 active:scale-95 cursor-pointer w-full sm:w-auto self-start sm:self-auto border border-white/20"
+                          >
+                            <Camera size={16} />
+                            <span>Chụp tổng quan</span>
+                          </button>
+                        </div>
+
+                        {/* 6 Hero Stats Cards (1 hàng ngang đều nhau, bo góc rounded-xl / 12px, đổ bóng nhẹ, chữ cực lớn font-black) */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-3.5">
+                          <StatCard43751
+                            title="TARGET QĐ"
+                            value={formatCurrencyUnit(displayTargetQD)}
+                            icon={Target}
+                            colorCode="#be123c"
+                          />
+                          <StatCard43751
+                            title="DOANH THU QUY ĐỔI"
+                            value={formatCurrencyUnit(actualVirtual)}
+                            icon={TrendingUp}
+                            colorCode="#3730a3"
+                          />
+                          <StatCard43751
+                            title="% HT"
+                            value={`${percentHTVal}%`}
+                            icon={BarChart3}
+                            colorCode="#047857"
+                          />
+                          <StatCard43751
+                            title="TỶ TRỌNG TRẢ GÓP"
+                            value={`${installmentRate}%`}
+                            icon={Calendar}
+                            colorCode="#c2410c"
+                          />
+                          <StatCard43751
+                            title="% QĐ"
+                            value={`${percentQDVal >= 0 ? `+${percentQDVal.toFixed(1)}%` : `${percentQDVal.toFixed(1)}%`}`}
+                            icon={Zap}
+                            colorCode="#ea580c"
+                          />
+                          <StatCard43751
+                            title="% HT TARGET DỰ KIẾN"
+                            value={`${Math.round(lnttVal)}%`}
+                            icon={CreditCard}
+                            colorCode="#1d4ed8"
+                          />
+                        </div>
+                      </div>
+                    ) : (
                       <div key={market.name || mIdx} className="relative overflow-hidden bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-indigo-100/90 shadow-[0_4px_25px_-4px_rgba(79,70,229,0.08)] space-y-4">
                         {/* Ambient background glow */}
                         <div className="absolute -top-10 -right-10 w-44 h-44 bg-gradient-to-br from-indigo-200/30 to-transparent rounded-full blur-2xl pointer-events-none" />
@@ -2600,359 +2773,733 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                     </div>
 
                     {/* 2 Tables Grid */}
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 sm:gap-4">
-                      {/* Left Table: SLLK */}
-                      <div ref={captureRefs.categorySL} className="bg-white rounded-3xl border border-slate-200/90 overflow-hidden min-w-0 flex flex-col p-3.5 shadow-sm">
-                        {/* Unified Emerald Gradient Header Banner */}
-                        <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 rounded-2xl text-white relative shrink-0 mb-2.5">
-                          <div className="flex flex-col items-center justify-center text-center">
-                            <h2 className="text-[23px] sm:text-[27px] font-black text-[#FEF08A] uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
-                              NGÀNH HÀNG (SL)
-                            </h2>
-                            <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-2 mt-1.5 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
-                              <span className="flex items-center gap-1 whitespace-nowrap">
-                                ⚡ Luỹ kế: {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
-                              </span>
-                              <span className="opacity-70">||</span>
-                              <span className="text-white font-extrabold whitespace-nowrap">
-                                ĐẠT : {visibleCategoriesSL.filter((c: any) => {
-                                  let rate = 0;
-                                  if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
-                                  return Math.round(rate) >= 100;
-                                }).length}/{visibleCategoriesSL.length}
-                              </span>
-                              <span className="opacity-70">||</span>
-                              <span className="text-emerald-100 font-bold whitespace-nowrap">
-                                TGSD: {daysPassed}/{totalDays}
-                              </span>
+                    {is43751 ? (
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 sm:gap-4">
+                        {/* Left Table: SLLK (User 43751 Upgraded) */}
+                        <div ref={captureRefs.categorySL} className="bg-white rounded-2xl border border-slate-200 overflow-hidden min-w-0 flex flex-col p-3 sm:p-3.5 shadow-sm">
+                          {/* Retail Dark Green Header Banner */}
+                          <div className="bg-[#047857] p-3 sm:p-3.5 rounded-xl text-white relative shrink-0 mb-2.5">
+                            <div className="flex flex-col items-center justify-center text-center">
+                              <h2 className="text-[20px] sm:text-[24px] md:text-[26px] font-black text-white uppercase tracking-wider leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                NGÀNH HÀNG (SL)
+                              </h2>
+                              <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-2 mt-1 text-xs sm:text-[13px] font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                <span className="flex items-center gap-1 whitespace-nowrap">
+                                  ⚡ Luỹ kế: {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                                </span>
+                                <span className="opacity-70">||</span>
+                                <span className="text-white font-extrabold whitespace-nowrap">
+                                  ĐẠT: {visibleCategoriesSL.filter((c: any) => {
+                                    let rate = 0;
+                                    if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
+                                    return Math.round(rate) >= 100;
+                                  }).length}/{visibleCategoriesSL.length}
+                                </span>
+                                <span className="opacity-70">||</span>
+                                <span className="text-emerald-100 font-bold whitespace-nowrap">
+                                  TG&D: {daysPassed}/{totalDays}
+                                </span>
+                              </div>
                             </div>
+
+                            {/* Filter Button next to Camera */}
+                            <button
+                              onClick={() => {
+                                setCategoryFilterActiveTab('SL');
+                                setIsCategoryFilterModalOpen(true);
+                              }}
+                              className="no-capture absolute right-12 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                              title="Bộ lọc ẩn/hiện ngành hàng SL"
+                            >
+                              <Filter size={16} />
+                              {hiddenCatsSL.length > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
+                                  {hiddenCatsSL.length}
+                                </span>
+                              )}
+                            </button>
+
+                            {/* Camera Capture Button */}
+                            <button
+                              onClick={() => captureElement(captureRefs.categorySL, 'NganhHang_SL_LuyKe')}
+                              className="no-capture absolute right-3 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                              title="Chụp ảnh bảng Ngành hàng SL"
+                            >
+                              <Camera size={16} />
+                            </button>
                           </div>
 
-                          {/* Filter Button next to Camera */}
-                          <button
-                            onClick={() => {
-                              setCategoryFilterActiveTab('SL');
-                              setIsCategoryFilterModalOpen(true);
-                            }}
-                            className="no-capture absolute right-12 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
-                            title="Bộ lọc ẩn/hiện ngành hàng SL"
-                          >
-                            <Filter size={16} />
-                            {hiddenCatsSL.length > 0 && (
-                              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
-                                {hiddenCatsSL.length}
-                              </span>
-                            )}
-                          </button>
+                          {hiddenCatsSL.length > 0 && (
+                            <div className="no-capture px-3 py-1.5 bg-rose-50 border border-rose-200/80 rounded-xl text-[11px] font-bold text-rose-700 flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-1.5">
+                                <EyeOff size={13} className="text-rose-500" />
+                                <span>Đang ẩn <strong>{hiddenCatsSL.length}</strong> ngành hàng SL</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    setCategoryFilterActiveTab('SL');
+                                    setIsCategoryFilterModalOpen(true);
+                                  }}
+                                  className="underline hover:text-rose-900 cursor-pointer"
+                                >
+                                  Chỉnh sửa
+                                </button>
+                                <span>•</span>
+                                <button
+                                  onClick={showAllCategoriesSL}
+                                  className="hover:text-rose-900 cursor-pointer font-black"
+                                >
+                                  Hiện tất cả
+                                </button>
+                              </div>
+                            </div>
+                          )}
 
-                          {/* Camera Capture Button */}
-                          <button
-                            onClick={() => captureElement(captureRefs.categorySL, 'NganhHang_SL_LuyKe')}
-                            className="no-capture absolute right-3 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
-                            title="Chụp ảnh bảng Ngành hàng SL"
-                          >
-                            <Camera size={16} />
-                          </button>
+                          {showSllkComment && (
+                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl mb-2 no-capture">
+                              <textarea
+                                value={sllkComment}
+                                onChange={(e) => setSllkComment(e.target.value)}
+                                placeholder="Nhập nhận xét cho bảng SLLK..."
+                                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-emerald-500/20 resize-none min-h-[50px] screenshot-comment"
+                              />
+                            </div>
+                          )}
+
+                          <div className="overflow-x-auto w-full grow rounded-xl border border-[#e2e8f0]">
+                            <table className="w-full border-separate border-spacing-0 table-fixed" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                              <colgroup>
+                                <col style={{ width: '44px' }} />
+                                <col style={{ width: 'auto' }} />
+                                <col style={{ width: '68px' }} />
+                                <col style={{ width: '68px' }} />
+                                <col style={{ width: '64px' }} />
+                                <col style={{ width: '70px' }} />
+                              </colgroup>
+                              <thead>
+                                <tr className="text-white h-[38px]">
+                                  <th className="px-1 py-0 text-[13px] sm:text-[14px] font-black uppercase text-center border-r border-b border-[#036348] bg-[#047857]">STT</th>
+                                  <th className="px-2.5 py-0 text-[13px] sm:text-[14px] font-black uppercase text-left border-r border-b border-[#036348] bg-[#047857]">NGÀNH HÀNG</th>
+                                  <th className="px-1 py-0 text-[12.5px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-[#036348] bg-[#047857]">TARGET</th>
+                                  <th className="px-1 py-0 text-[12.5px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-[#036348] bg-[#047857]">LUỸ KẾ</th>
+                                  <th 
+                                    onClick={() => setSortModeSL(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
+                                    className={`px-1 py-0 text-[12.5px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-[#036348] cursor-pointer select-none transition-colors ${
+                                      sortModeSL.startsWith('HT') ? 'bg-[#035940] hover:bg-[#024a35]' : 'bg-[#047857] hover:bg-[#036348]'
+                                    }`}
+                                    title="Bấm để sắp xếp %HT (Giảm dần / Tăng dần)"
+                                  >
+                                    <div className="flex items-center justify-center gap-0.5">
+                                      <span>%HT</span>
+                                      <span className="text-[10px] opacity-90">{sortModeSL === 'HT_DESC' ? '▼' : (sortModeSL === 'HT_ASC' ? '▲' : '⇅')}</span>
+                                    </div>
+                                  </th>
+                                  <th 
+                                    onClick={() => setSortModeSL(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
+                                    className={`px-1 py-0 text-[12.5px] sm:text-[13.5px] font-black uppercase text-center border-b border-[#036348] cursor-pointer select-none transition-colors ${
+                                      sortModeSL.startsWith('CONLAI') ? 'bg-amber-700 hover:bg-amber-800' : 'bg-[#047857] hover:bg-[#036348]'
+                                    }`}
+                                    title="Bấm để sắp xếp theo C.LẠI (Còn lại nhiều nhất / ít nhất)"
+                                  >
+                                    <div className="flex items-center justify-center gap-0.5">
+                                      <span>C.LẠI</span>
+                                      <span className="text-[10px] opacity-90">{sortModeSL === 'CONLAI_DESC' ? '▼' : (sortModeSL === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
+                                    </div>
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {visibleCategoriesSL.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={6} className="py-8 text-center text-xs font-bold text-slate-500 bg-white">
+                                      Tất cả ngành hàng SL đang bị ẩn bởi bộ lọc.
+                                      <button
+                                        onClick={showAllCategoriesSL}
+                                        className="ml-2 text-emerald-600 hover:text-emerald-700 underline font-black cursor-pointer"
+                                      >
+                                        Hiện lại tất cả
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  sortCategoryList(visibleCategoriesSL, sortModeSL).map((cat: any, idx: number) => {
+                                    let rate = 0;
+                                    if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
+                                    const remaining = cat.target - cat.revenue;
+                                    const isAchieved = Math.round(rate) >= 100;
+                                    const isEven = idx % 2 === 0;
+                                    return (
+                                      <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-slate-50/60'} hover:bg-emerald-50/40 transition-colors h-[36px]`}>
+                                        <td className="px-1 py-0 text-[13px] sm:text-[14px] font-black text-slate-600 text-center border-r border-b border-[#e2e8f0] bg-slate-50/40">{idx + 1}</td>
+                                        <td className={`px-2.5 py-0 text-[13px] sm:text-[13.5px] font-black uppercase border-r border-b border-[#e2e8f0] truncate tracking-tight ${!isAchieved ? 'text-[#dc2626]' : 'text-slate-900'}`} title={cat.name}>
+                                          {cat.name}
+                                        </td>
+                                        <td className="px-1 py-0 text-[13px] sm:text-[14px] font-bold text-center border-r border-b border-[#e2e8f0] text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
+                                        <td className="px-1 py-0 text-[13px] sm:text-[14px] font-black text-center border-r border-b border-[#e2e8f0] text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                        <td className="px-0.5 py-0 text-center border-r border-b border-[#e2e8f0] whitespace-nowrap">
+                                          {isAchieved ? (
+                                            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full font-black text-[12px] sm:text-[13px] leading-none bg-emerald-100 text-[#15803d]">
+                                              {Math.round(rate)}%
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full font-black text-[12px] sm:text-[13px] leading-none bg-rose-100 text-[#dc2626]">
+                                              {Math.round(rate)}%
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className={`px-1 py-0 text-[13px] sm:text-[14px] font-black text-center border-b border-[#e2e8f0] ${sortModeSL.startsWith('CONLAI') ? 'bg-amber-50/50' : ''} text-[#dc2626]`}>
+                                          {isAchieved ? "" : (remaining > 0 ? Math.round(remaining).toLocaleString() : "")}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
 
-                        {hiddenCatsSL.length > 0 && (
-                          <div className="no-capture px-3 py-1.5 bg-rose-50 border border-rose-200/80 rounded-xl text-[11px] font-bold text-rose-700 flex items-center justify-between mb-2.5">
-                            <div className="flex items-center gap-1.5">
-                              <EyeOff size={13} className="text-rose-500" />
-                              <span>Đang ẩn <strong>{hiddenCatsSL.length}</strong> ngành hàng SL</span>
+                        {/* Right Table: DTLK (User 43751 Upgraded) */}
+                        <div ref={captureRefs.categoryDT} className="bg-white rounded-2xl border border-slate-200 overflow-hidden min-w-0 flex flex-col p-3 sm:p-3.5 shadow-sm">
+                          {/* Retail Dark Green Header Banner */}
+                          <div className="bg-[#047857] p-3 sm:p-3.5 rounded-xl text-white relative shrink-0 mb-2.5">
+                            <div className="flex flex-col items-center justify-center text-center">
+                              <h2 className="text-[20px] sm:text-[24px] md:text-[26px] font-black text-white uppercase tracking-wider leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                NGÀNH HÀNG (DT)
+                              </h2>
+                              <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-2 mt-1 text-xs sm:text-[13px] font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                <span className="flex items-center gap-1 whitespace-nowrap">
+                                  ⚡ Luỹ kế: {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                                </span>
+                                <span className="opacity-70">||</span>
+                                <span className="text-white font-extrabold whitespace-nowrap">
+                                  ĐẠT: {visibleCategoriesDT.filter((c: any) => {
+                                    let rate = 0;
+                                    if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
+                                    return Math.round(rate) >= 100;
+                                  }).length}/{visibleCategoriesDT.length}
+                                </span>
+                                <span className="opacity-70">||</span>
+                                <span className="text-emerald-100 font-bold whitespace-nowrap">
+                                  TG&D: {daysPassed}/{totalDays}
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => {
-                                  setCategoryFilterActiveTab('SL');
-                                  setIsCategoryFilterModalOpen(true);
-                                }}
-                                className="underline hover:text-rose-900 cursor-pointer"
-                              >
-                                Chỉnh sửa
-                              </button>
-                              <span>•</span>
-                              <button
-                                onClick={showAllCategoriesSL}
-                                className="hover:text-rose-900 cursor-pointer font-black"
-                              >
-                                Hiện tất cả
-                              </button>
-                            </div>
-                          </div>
-                        )}
 
-                        {showSllkComment && (
-                          <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl mb-2.5 no-capture">
-                            <textarea
-                              value={sllkComment}
-                              onChange={(e) => setSllkComment(e.target.value)}
-                              placeholder="Nhập nhận xét cho bảng SLLK..."
-                              className="w-full p-3 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-emerald-500/20 resize-none min-h-[60px] screenshot-comment"
-                            />
-                          </div>
-                        )}
-
-                        <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
-                          <table className="w-full border-separate border-spacing-0 table-fixed" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
-                            <colgroup>
-                              <col style={{ width: '44px' }} />
-                              <col style={{ width: 'auto' }} />
-                              <col style={{ width: '68px' }} />
-                              <col style={{ width: '68px' }} />
-                              <col style={{ width: '62px' }} />
-                              <col style={{ width: '72px' }} />
-                            </colgroup>
-                            <thead>
-                              <tr className="text-white h-[46px]">
-                                <th className="px-1 py-0 text-[14.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">STT</th>
-                                <th className="px-2.5 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669]">NGÀNH HÀNG</th>
-                                <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">TARGET</th>
-                                <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">LUỸ KẾ</th>
-                                <th 
-                                  onClick={() => setSortModeSL(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
-                                  className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 cursor-pointer select-none transition-colors ${
-                                    sortModeSL.startsWith('HT') ? 'bg-[#035940] hover:bg-[#024a35]' : 'bg-[#059669] hover:bg-[#047857]'
-                                  }`}
-                                  title="Bấm để sắp xếp %HT (Giảm dần / Tăng dần)"
-                                >
-                                  <div className="flex items-center justify-center gap-0.5">
-                                    <span>%HT</span>
-                                    <span className="text-[10.5px] opacity-90">{sortModeSL === 'HT_DESC' ? '▼' : (sortModeSL === 'HT_ASC' ? '▲' : '⇅')}</span>
-                                  </div>
-                                </th>
-                                <th 
-                                  onClick={() => setSortModeSL(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
-                                  className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-b border-emerald-600 cursor-pointer select-none transition-colors ${
-                                    sortModeSL.startsWith('CONLAI') ? 'bg-amber-700 hover:bg-amber-800' : 'bg-[#047857] hover:bg-[#036348]'
-                                  }`}
-                                  title="Bấm để sắp xếp theo C.LẠI (Còn lại nhiều nhất / ít nhất)"
-                                >
-                                  <div className="flex items-center justify-center gap-0.5">
-                                    <span>C.LẠI</span>
-                                    <span className="text-[10.5px] opacity-90">{sortModeSL === 'CONLAI_DESC' ? '▼' : (sortModeSL === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
-                                  </div>
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {visibleCategoriesSL.length === 0 ? (
-                                <tr>
-                                  <td colSpan={6} className="py-8 text-center text-xs font-bold text-slate-500 bg-white">
-                                    Tất cả ngành hàng SL đang bị ẩn bởi bộ lọc.
-                                    <button
-                                      onClick={showAllCategoriesSL}
-                                      className="ml-2 text-emerald-600 hover:text-emerald-700 underline font-black cursor-pointer"
-                                    >
-                                      Hiện lại tất cả
-                                    </button>
-                                  </td>
-                                </tr>
-                              ) : (
-                                sortCategoryList(visibleCategoriesSL, sortModeSL).map((cat: any, idx: number) => {
-                                  let rate = 0;
-                                  if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
-                                  const remaining = cat.target - cat.revenue;
-                                  const isEven = idx % 2 === 0;
-                                  return (
-                                    <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
-                                      <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
-                                      <td className={`px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 truncate tracking-tight ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>{cat.name}</td>
-                                      <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
-                                      <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
-                                      <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
-                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
-                                          {Math.round(rate)}%
-                                        </span>
-                                      </td>
-                                      <td className={`px-1 py-0 text-[14.5px] font-bold text-center border-b border-emerald-100/90 ${sortModeSL.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600`}>
-                                        {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
-                                      </td>
-                                    </tr>
-                                  );
-                                })
+                            {/* Filter Button next to Camera */}
+                            <button
+                              onClick={() => {
+                                setCategoryFilterActiveTab('DT');
+                                setIsCategoryFilterModalOpen(true);
+                              }}
+                              className="no-capture absolute right-12 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                              title="Bộ lọc ẩn/hiện ngành hàng DT"
+                            >
+                              <Filter size={16} />
+                              {hiddenCatsDT.length > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
+                                  {hiddenCatsDT.length}
+                                </span>
                               )}
-                            </tbody>
-                          </table>
+                            </button>
+
+                            {/* Camera Capture Button */}
+                            <button
+                              onClick={() => captureElement(captureRefs.categoryDT, 'NganhHang_DT_LuyKe')}
+                              className="no-capture absolute right-3 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                              title="Chụp ảnh bảng Ngành hàng DT"
+                            >
+                              <Camera size={16} />
+                            </button>
+                          </div>
+
+                          {hiddenCatsDT.length > 0 && (
+                            <div className="no-capture px-3 py-1.5 bg-rose-50 border border-rose-200/80 rounded-xl text-[11px] font-bold text-rose-700 flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-1.5">
+                                <EyeOff size={13} className="text-rose-500" />
+                                <span>Đang ẩn <strong>{hiddenCatsDT.length}</strong> ngành hàng DT</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    setCategoryFilterActiveTab('DT');
+                                    setIsCategoryFilterModalOpen(true);
+                                  }}
+                                  className="underline hover:text-rose-900 cursor-pointer"
+                                >
+                                  Chỉnh sửa
+                                </button>
+                                <span>•</span>
+                                <button
+                                  onClick={showAllCategoriesDT}
+                                  className="hover:text-rose-900 cursor-pointer font-black"
+                                >
+                                  Hiện tất cả
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {showDtlkComment && (
+                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl mb-2 no-capture">
+                              <textarea
+                                value={dtlkComment}
+                                onChange={(e) => setDtlkComment(e.target.value)}
+                                placeholder="Nhập nhận xét cho bảng DTLK..."
+                                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-emerald-500/20 resize-none min-h-[50px] screenshot-comment"
+                              />
+                            </div>
+                          )}
+
+                          <div className="overflow-x-auto w-full grow rounded-xl border border-[#e2e8f0]">
+                            <table className="w-full border-separate border-spacing-0 table-fixed" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                              <colgroup>
+                                <col style={{ width: '44px' }} />
+                                <col style={{ width: 'auto' }} />
+                                <col style={{ width: '68px' }} />
+                                <col style={{ width: '68px' }} />
+                                <col style={{ width: '64px' }} />
+                                <col style={{ width: '70px' }} />
+                              </colgroup>
+                              <thead>
+                                <tr className="text-white h-[38px]">
+                                  <th className="px-1 py-0 text-[13px] sm:text-[14px] font-black uppercase text-center border-r border-b border-[#036348] bg-[#047857]">STT</th>
+                                  <th className="px-2.5 py-0 text-[13px] sm:text-[14px] font-black uppercase text-left border-r border-b border-[#036348] bg-[#047857]">NGÀNH HÀNG</th>
+                                  <th className="px-1 py-0 text-[12.5px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-[#036348] bg-[#047857]">TARGET</th>
+                                  <th className="px-1 py-0 text-[12.5px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-[#036348] bg-[#047857]">LUỸ KẾ</th>
+                                  <th 
+                                    onClick={() => setSortModeDT(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
+                                    className={`px-1 py-0 text-[12.5px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-[#036348] cursor-pointer select-none transition-colors ${
+                                      sortModeDT.startsWith('HT') ? 'bg-[#035940] hover:bg-[#024a35]' : 'bg-[#047857] hover:bg-[#036348]'
+                                    }`}
+                                    title="Bấm để sắp xếp %HT (Giảm dần / Tăng dần)"
+                                  >
+                                    <div className="flex items-center justify-center gap-0.5">
+                                      <span>%HT</span>
+                                      <span className="text-[10px] opacity-90">{sortModeDT === 'HT_DESC' ? '▼' : (sortModeDT === 'HT_ASC' ? '▲' : '⇅')}</span>
+                                    </div>
+                                  </th>
+                                  <th 
+                                    onClick={() => setSortModeDT(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
+                                    className={`px-1 py-0 text-[12.5px] sm:text-[13.5px] font-black uppercase text-center border-b border-[#036348] cursor-pointer select-none transition-colors ${
+                                      sortModeDT.startsWith('CONLAI') ? 'bg-amber-700 hover:bg-amber-800' : 'bg-[#047857] hover:bg-[#036348]'
+                                    }`}
+                                    title="Bấm để sắp xếp theo C.LẠI (Còn lại nhiều nhất / ít nhất)"
+                                  >
+                                    <div className="flex items-center justify-center gap-0.5">
+                                      <span>C.LẠI</span>
+                                      <span className="text-[10px] opacity-90">{sortModeDT === 'CONLAI_DESC' ? '▼' : (sortModeDT === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
+                                    </div>
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {visibleCategoriesDT.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={6} className="py-8 text-center text-xs font-bold text-slate-500 bg-white">
+                                      Tất cả ngành hàng DT đang bị ẩn bởi bộ lọc.
+                                      <button
+                                        onClick={showAllCategoriesDT}
+                                        className="ml-2 text-emerald-600 hover:text-emerald-700 underline font-black cursor-pointer"
+                                      >
+                                        Hiện lại tất cả
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  sortCategoryList(visibleCategoriesDT, sortModeDT).map((cat: any, idx: number) => {
+                                    let rate = 0;
+                                    if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
+                                    const remaining = cat.target - cat.revenue;
+                                    const isAchieved = Math.round(rate) >= 100;
+                                    const isEven = idx % 2 === 0;
+                                    return (
+                                      <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-slate-50/60'} hover:bg-emerald-50/40 transition-colors h-[36px]`}>
+                                        <td className="px-1 py-0 text-[13px] sm:text-[14px] font-black text-slate-600 text-center border-r border-b border-[#e2e8f0] bg-slate-50/40">{idx + 1}</td>
+                                        <td className={`px-2.5 py-0 text-[13px] sm:text-[13.5px] font-black uppercase border-r border-b border-[#e2e8f0] truncate tracking-tight ${!isAchieved ? 'text-[#dc2626]' : 'text-slate-900'}`} title={cat.name}>
+                                          {cat.name}
+                                        </td>
+                                        <td className="px-1 py-0 text-[13px] sm:text-[14px] font-bold text-center border-r border-b border-[#e2e8f0] text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
+                                        <td className="px-1 py-0 text-[13px] sm:text-[14px] font-black text-center border-r border-b border-[#e2e8f0] text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                        <td className="px-0.5 py-0 text-center border-r border-b border-[#e2e8f0] whitespace-nowrap">
+                                          {isAchieved ? (
+                                            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full font-black text-[12px] sm:text-[13px] leading-none bg-emerald-100 text-[#15803d]">
+                                              {Math.round(rate)}%
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full font-black text-[12px] sm:text-[13px] leading-none bg-rose-100 text-[#dc2626]">
+                                              {Math.round(rate)}%
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className={`px-1 py-0 text-[13px] sm:text-[14px] font-black text-center border-b border-[#e2e8f0] ${sortModeDT.startsWith('CONLAI') ? 'bg-amber-50/50' : ''} text-[#dc2626]`}>
+                                          {isAchieved ? "" : (remaining > 0 ? Math.round(remaining).toLocaleString() : "")}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
                       </div>
-
-                      {/* Right Table: DTLK */}
-                      <div ref={captureRefs.categoryDT} className="bg-white rounded-3xl border border-slate-200/90 overflow-hidden min-w-0 flex flex-col p-3.5 shadow-sm">
-                        {/* Unified Emerald Gradient Header Banner */}
-                        <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 rounded-2xl text-white relative shrink-0 mb-2.5">
-                          <div className="flex flex-col items-center justify-center text-center">
-                            <h2 className="text-[23px] sm:text-[27px] font-black text-[#FEF08A] uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
-                              NGÀNH HÀNG (DT)
-                            </h2>
-                            <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-2 mt-1.5 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
-                              <span className="flex items-center gap-1 whitespace-nowrap">
-                                ⚡ Luỹ kế: {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
-                              </span>
-                              <span className="opacity-70">||</span>
-                              <span className="text-white font-extrabold whitespace-nowrap">
-                                ĐẠT : {visibleCategoriesDT.filter((c: any) => {
-                                  let rate = 0;
-                                  if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
-                                  return Math.round(rate) >= 100;
-                                }).length}/{visibleCategoriesDT.length}
-                              </span>
-                              <span className="opacity-70">||</span>
-                              <span className="text-emerald-100 font-bold whitespace-nowrap">
-                                TGSD: {daysPassed}/{totalDays}
-                              </span>
+                    ) : (
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 sm:gap-4">
+                        {/* Left Table: SLLK */}
+                        <div ref={captureRefs.categorySL} className="bg-white rounded-3xl border border-slate-200/90 overflow-hidden min-w-0 flex flex-col p-3.5 shadow-sm">
+                          {/* Unified Emerald Gradient Header Banner */}
+                          <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 rounded-2xl text-white relative shrink-0 mb-2.5">
+                            <div className="flex flex-col items-center justify-center text-center">
+                              <h2 className="text-[23px] sm:text-[27px] font-black text-[#FEF08A] uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                NGÀNH HÀNG (SL)
+                              </h2>
+                              <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-2 mt-1.5 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                <span className="flex items-center gap-1 whitespace-nowrap">
+                                  ⚡ Luỹ kế: {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                                </span>
+                                <span className="opacity-70">||</span>
+                                <span className="text-white font-extrabold whitespace-nowrap">
+                                  ĐẠT : {visibleCategoriesSL.filter((c: any) => {
+                                    let rate = 0;
+                                    if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
+                                    return Math.round(rate) >= 100;
+                                  }).length}/{visibleCategoriesSL.length}
+                                </span>
+                                <span className="opacity-70">||</span>
+                                <span className="text-emerald-100 font-bold whitespace-nowrap">
+                                  TGSD: {daysPassed}/{totalDays}
+                                </span>
+                              </div>
                             </div>
+
+                            {/* Filter Button next to Camera */}
+                            <button
+                              onClick={() => {
+                                setCategoryFilterActiveTab('SL');
+                                setIsCategoryFilterModalOpen(true);
+                              }}
+                              className="no-capture absolute right-12 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                              title="Bộ lọc ẩn/hiện ngành hàng SL"
+                            >
+                              <Filter size={16} />
+                              {hiddenCatsSL.length > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
+                                  {hiddenCatsSL.length}
+                                </span>
+                              )}
+                            </button>
+
+                            {/* Camera Capture Button */}
+                            <button
+                              onClick={() => captureElement(captureRefs.categorySL, 'NganhHang_SL_LuyKe')}
+                              className="no-capture absolute right-3 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                              title="Chụp ảnh bảng Ngành hàng SL"
+                            >
+                              <Camera size={16} />
+                            </button>
                           </div>
 
-                          {/* Filter Button next to Camera */}
-                          <button
-                            onClick={() => {
-                              setCategoryFilterActiveTab('DT');
-                              setIsCategoryFilterModalOpen(true);
-                            }}
-                            className="no-capture absolute right-12 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
-                            title="Bộ lọc ẩn/hiện ngành hàng DT"
-                          >
-                            <Filter size={16} />
-                            {hiddenCatsDT.length > 0 && (
-                              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
-                                {hiddenCatsDT.length}
-                              </span>
-                            )}
-                          </button>
+                          {hiddenCatsSL.length > 0 && (
+                            <div className="no-capture px-3 py-1.5 bg-rose-50 border border-rose-200/80 rounded-xl text-[11px] font-bold text-rose-700 flex items-center justify-between mb-2.5">
+                              <div className="flex items-center gap-1.5">
+                                <EyeOff size={13} className="text-rose-500" />
+                                <span>Đang ẩn <strong>{hiddenCatsSL.length}</strong> ngành hàng SL</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    setCategoryFilterActiveTab('SL');
+                                    setIsCategoryFilterModalOpen(true);
+                                  }}
+                                  className="underline hover:text-rose-900 cursor-pointer"
+                                >
+                                  Chỉnh sửa
+                                </button>
+                                <span>•</span>
+                                <button
+                                  onClick={showAllCategoriesSL}
+                                  className="hover:text-rose-900 cursor-pointer font-black"
+                                >
+                                  Hiện tất cả
+                                </button>
+                              </div>
+                            </div>
+                          )}
 
-                          {/* Camera Capture Button */}
-                          <button
-                            onClick={() => captureElement(captureRefs.categoryDT, 'NganhHang_DT_LuyKe')}
-                            className="no-capture absolute right-3 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
-                            title="Chụp ảnh bảng Ngành hàng DT"
-                          >
-                            <Camera size={16} />
-                          </button>
+                          {showSllkComment && (
+                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl mb-2.5 no-capture">
+                              <textarea
+                                value={sllkComment}
+                                onChange={(e) => setSllkComment(e.target.value)}
+                                placeholder="Nhập nhận xét cho bảng SLLK..."
+                                className="w-full p-3 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-emerald-500/20 resize-none min-h-[60px] screenshot-comment"
+                              />
+                            </div>
+                          )}
+
+                          <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
+                            <table className="w-full border-separate border-spacing-0 table-fixed" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                              <colgroup>
+                                <col style={{ width: '44px' }} />
+                                <col style={{ width: 'auto' }} />
+                                <col style={{ width: '68px' }} />
+                                <col style={{ width: '68px' }} />
+                                <col style={{ width: '62px' }} />
+                                <col style={{ width: '72px' }} />
+                              </colgroup>
+                              <thead>
+                                <tr className="text-white h-[46px]">
+                                  <th className="px-1 py-0 text-[14.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">STT</th>
+                                  <th className="px-2.5 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669]">NGÀNH HÀNG</th>
+                                  <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">TARGET</th>
+                                  <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">LUỸ KẾ</th>
+                                  <th 
+                                    onClick={() => setSortModeSL(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
+                                    className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 cursor-pointer select-none transition-colors ${
+                                      sortModeSL.startsWith('HT') ? 'bg-[#035940] hover:bg-[#024a35]' : 'bg-[#059669] hover:bg-[#047857]'
+                                    }`}
+                                    title="Bấm để sắp xếp %HT (Giảm dần / Tăng dần)"
+                                  >
+                                    <div className="flex items-center justify-center gap-0.5">
+                                      <span>%HT</span>
+                                      <span className="text-[10.5px] opacity-90">{sortModeSL === 'HT_DESC' ? '▼' : (sortModeSL === 'HT_ASC' ? '▲' : '⇅')}</span>
+                                    </div>
+                                  </th>
+                                  <th 
+                                    onClick={() => setSortModeSL(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
+                                    className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-b border-emerald-600 cursor-pointer select-none transition-colors ${
+                                      sortModeSL.startsWith('CONLAI') ? 'bg-amber-700 hover:bg-amber-800' : 'bg-[#047857] hover:bg-[#036348]'
+                                    }`}
+                                    title="Bấm để sắp xếp theo C.LẠI (Còn lại nhiều nhất / ít nhất)"
+                                  >
+                                    <div className="flex items-center justify-center gap-0.5">
+                                      <span>C.LẠI</span>
+                                      <span className="text-[10.5px] opacity-90">{sortModeSL === 'CONLAI_DESC' ? '▼' : (sortModeSL === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
+                                    </div>
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {visibleCategoriesSL.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={6} className="py-8 text-center text-xs font-bold text-slate-500 bg-white">
+                                      Tất cả ngành hàng SL đang bị ẩn bởi bộ lọc.
+                                      <button
+                                        onClick={showAllCategoriesSL}
+                                        className="ml-2 text-emerald-600 hover:text-emerald-700 underline font-black cursor-pointer"
+                                      >
+                                        Hiện lại tất cả
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  sortCategoryList(visibleCategoriesSL, sortModeSL).map((cat: any, idx: number) => {
+                                    let rate = 0;
+                                    if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
+                                    const remaining = cat.target - cat.revenue;
+                                    const isEven = idx % 2 === 0;
+                                    return (
+                                      <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
+                                        <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
+                                        <td className={`px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 truncate tracking-tight ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>{cat.name}</td>
+                                        <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
+                                        <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                        <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
+                                          <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
+                                            {Math.round(rate)}%
+                                          </span>
+                                        </td>
+                                        <td className={`px-1 py-0 text-[14.5px] font-bold text-center border-b border-emerald-100/90 ${sortModeSL.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600`}>
+                                          {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
 
-                        {hiddenCatsDT.length > 0 && (
-                          <div className="no-capture px-3 py-1.5 bg-rose-50 border border-rose-200/80 rounded-xl text-[11px] font-bold text-rose-700 flex items-center justify-between mb-2.5">
-                            <div className="flex items-center gap-1.5">
-                              <EyeOff size={13} className="text-rose-500" />
-                              <span>Đang ẩn <strong>{hiddenCatsDT.length}</strong> ngành hàng DT</span>
+                        {/* Right Table: DTLK */}
+                        <div ref={captureRefs.categoryDT} className="bg-white rounded-3xl border border-slate-200/90 overflow-hidden min-w-0 flex flex-col p-3.5 shadow-sm">
+                          {/* Unified Emerald Gradient Header Banner */}
+                          <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 rounded-2xl text-white relative shrink-0 mb-2.5">
+                            <div className="flex flex-col items-center justify-center text-center">
+                              <h2 className="text-[23px] sm:text-[27px] font-black text-[#FEF08A] uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                                NGÀNH HÀNG (DT)
+                              </h2>
+                              <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-2 mt-1.5 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                <span className="flex items-center gap-1 whitespace-nowrap">
+                                  ⚡ Luỹ kế: {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                                </span>
+                                <span className="opacity-70">||</span>
+                                <span className="text-white font-extrabold whitespace-nowrap">
+                                  ĐẠT : {visibleCategoriesDT.filter((c: any) => {
+                                    let rate = 0;
+                                    if (c.target > 0 && daysPassed > 0) rate = (((c.revenue / daysPassed) * totalDays) / c.target) * 100;
+                                    return Math.round(rate) >= 100;
+                                  }).length}/{visibleCategoriesDT.length}
+                                </span>
+                                <span className="opacity-70">||</span>
+                                <span className="text-emerald-100 font-bold whitespace-nowrap">
+                                  TGSD: {daysPassed}/{totalDays}
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => {
-                                  setCategoryFilterActiveTab('DT');
-                                  setIsCategoryFilterModalOpen(true);
-                                }}
-                                className="underline hover:text-rose-900 cursor-pointer"
-                              >
-                                Chỉnh sửa
-                              </button>
-                              <span>•</span>
-                              <button
-                                onClick={showAllCategoriesDT}
-                                className="hover:text-rose-900 cursor-pointer font-black"
-                              >
-                                Hiện tất cả
-                              </button>
-                            </div>
-                          </div>
-                        )}
 
-                        {showDtlkComment && (
-                          <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl mb-2.5 no-capture">
-                            <textarea
-                              value={dtlkComment}
-                              onChange={(e) => setDtlkComment(e.target.value)}
-                              placeholder="Nhập nhận xét cho bảng DTLK..."
-                              className="w-full p-3 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-emerald-500/20 resize-none min-h-[60px] screenshot-comment"
-                            />
-                          </div>
-                        )}
-
-                        <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
-                          <table className="w-full border-separate border-spacing-0 table-fixed" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
-                            <colgroup>
-                              <col style={{ width: '44px' }} />
-                              <col style={{ width: 'auto' }} />
-                              <col style={{ width: '68px' }} />
-                              <col style={{ width: '68px' }} />
-                              <col style={{ width: '62px' }} />
-                              <col style={{ width: '72px' }} />
-                            </colgroup>
-                            <thead>
-                              <tr className="text-white h-[46px]">
-                                <th className="px-1 py-0 text-[14.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">STT</th>
-                                <th className="px-2.5 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669]">NGÀNH HÀNG</th>
-                                <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">TARGET</th>
-                                <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">LUỸ KẾ</th>
-                                <th 
-                                  onClick={() => setSortModeDT(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
-                                  className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 cursor-pointer select-none transition-colors ${
-                                    sortModeDT.startsWith('HT') ? 'bg-[#035940] hover:bg-[#024a35]' : 'bg-[#059669] hover:bg-[#047857]'
-                                  }`}
-                                  title="Bấm để sắp xếp %HT (Giảm dần / Tăng dần)"
-                                >
-                                  <div className="flex items-center justify-center gap-0.5">
-                                    <span>%HT</span>
-                                    <span className="text-[10.5px] opacity-90">{sortModeDT === 'HT_DESC' ? '▼' : (sortModeDT === 'HT_ASC' ? '▲' : '⇅')}</span>
-                                  </div>
-                                </th>
-                                <th 
-                                  onClick={() => setSortModeDT(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
-                                  className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-b border-emerald-600 cursor-pointer select-none transition-colors ${
-                                    sortModeDT.startsWith('CONLAI') ? 'bg-amber-700 hover:bg-amber-800' : 'bg-[#047857] hover:bg-[#036348]'
-                                  }`}
-                                  title="Bấm để sắp xếp theo C.LẠI (Còn lại nhiều nhất / ít nhất)"
-                                >
-                                  <div className="flex items-center justify-center gap-0.5">
-                                    <span>C.LẠI</span>
-                                    <span className="text-[10.5px] opacity-90">{sortModeDT === 'CONLAI_DESC' ? '▼' : (sortModeDT === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
-                                  </div>
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {visibleCategoriesDT.length === 0 ? (
-                                <tr>
-                                  <td colSpan={6} className="py-8 text-center text-xs font-bold text-slate-500 bg-white">
-                                    Tất cả ngành hàng DT đang bị ẩn bởi bộ lọc.
-                                    <button
-                                      onClick={showAllCategoriesDT}
-                                      className="ml-2 text-emerald-600 hover:text-emerald-700 underline font-black cursor-pointer"
-                                    >
-                                      Hiện lại tất cả
-                                    </button>
-                                  </td>
-                                </tr>
-                              ) : (
-                                sortCategoryList(visibleCategoriesDT, sortModeDT).map((cat: any, idx: number) => {
-                                  let rate = 0;
-                                  if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
-                                  const remaining = cat.target - cat.revenue;
-                                  const isEven = idx % 2 === 0;
-                                  return (
-                                    <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
-                                      <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
-                                      <td className={`px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 truncate tracking-tight ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>{cat.name}</td>
-                                      <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
-                                      <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
-                                      <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
-                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
-                                          {Math.round(rate)}%
-                                        </span>
-                                      </td>
-                                      <td className={`px-1 py-0 text-[14.5px] font-bold text-center border-b border-emerald-100/90 ${sortModeDT.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600`}>
-                                        {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
-                                      </td>
-                                    </tr>
-                                  );
-                                })
+                            {/* Filter Button next to Camera */}
+                            <button
+                              onClick={() => {
+                                setCategoryFilterActiveTab('DT');
+                                setIsCategoryFilterModalOpen(true);
+                              }}
+                              className="no-capture absolute right-12 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                              title="Bộ lọc ẩn/hiện ngành hàng DT"
+                            >
+                              <Filter size={16} />
+                              {hiddenCatsDT.length > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
+                                  {hiddenCatsDT.length}
+                                </span>
                               )}
-                            </tbody>
-                          </table>
+                            </button>
+
+                            {/* Camera Capture Button */}
+                            <button
+                              onClick={() => captureElement(captureRefs.categoryDT, 'NganhHang_DT_LuyKe')}
+                              className="no-capture absolute right-3 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                              title="Chụp ảnh bảng Ngành hàng DT"
+                            >
+                              <Camera size={16} />
+                            </button>
+                          </div>
+
+                          {hiddenCatsDT.length > 0 && (
+                            <div className="no-capture px-3 py-1.5 bg-rose-50 border border-rose-200/80 rounded-xl text-[11px] font-bold text-rose-700 flex items-center justify-between mb-2.5">
+                              <div className="flex items-center gap-1.5">
+                                <EyeOff size={13} className="text-rose-500" />
+                                <span>Đang ẩn <strong>{hiddenCatsDT.length}</strong> ngành hàng DT</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    setCategoryFilterActiveTab('DT');
+                                    setIsCategoryFilterModalOpen(true);
+                                  }}
+                                  className="underline hover:text-rose-900 cursor-pointer"
+                                >
+                                  Chỉnh sửa
+                                </button>
+                                <span>•</span>
+                                <button
+                                  onClick={showAllCategoriesDT}
+                                  className="hover:text-rose-900 cursor-pointer font-black"
+                                >
+                                  Hiện tất cả
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {showDtlkComment && (
+                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl mb-2.5 no-capture">
+                              <textarea
+                                value={dtlkComment}
+                                onChange={(e) => setDtlkComment(e.target.value)}
+                                placeholder="Nhập nhận xét cho bảng DTLK..."
+                                className="w-full p-3 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-emerald-500/20 resize-none min-h-[60px] screenshot-comment"
+                              />
+                            </div>
+                          )}
+
+                          <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
+                            <table className="w-full border-separate border-spacing-0 table-fixed" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                              <colgroup>
+                                <col style={{ width: '44px' }} />
+                                <col style={{ width: 'auto' }} />
+                                <col style={{ width: '68px' }} />
+                                <col style={{ width: '68px' }} />
+                                <col style={{ width: '62px' }} />
+                                <col style={{ width: '72px' }} />
+                              </colgroup>
+                              <thead>
+                                <tr className="text-white h-[46px]">
+                                  <th className="px-1 py-0 text-[14.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">STT</th>
+                                  <th className="px-2.5 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669]">NGÀNH HÀNG</th>
+                                  <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">TARGET</th>
+                                  <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">LUỸ KẾ</th>
+                                  <th 
+                                    onClick={() => setSortModeDT(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
+                                    className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 cursor-pointer select-none transition-colors ${
+                                      sortModeDT.startsWith('HT') ? 'bg-[#035940] hover:bg-[#024a35]' : 'bg-[#059669] hover:bg-[#047857]'
+                                    }`}
+                                    title="Bấm để sắp xếp %HT (Giảm dần / Tăng dần)"
+                                  >
+                                    <div className="flex items-center justify-center gap-0.5">
+                                      <span>%HT</span>
+                                      <span className="text-[10.5px] opacity-90">{sortModeDT === 'HT_DESC' ? '▼' : (sortModeDT === 'HT_ASC' ? '▲' : '⇅')}</span>
+                                    </div>
+                                  </th>
+                                  <th 
+                                    onClick={() => setSortModeDT(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
+                                    className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-b border-emerald-600 cursor-pointer select-none transition-colors ${
+                                      sortModeDT.startsWith('CONLAI') ? 'bg-amber-700 hover:bg-amber-800' : 'bg-[#047857] hover:bg-[#036348]'
+                                    }`}
+                                    title="Bấm để sắp xếp theo C.LẠI (Còn lại nhiều nhất / ít nhất)"
+                                  >
+                                    <div className="flex items-center justify-center gap-0.5">
+                                      <span>C.LẠI</span>
+                                      <span className="text-[10.5px] opacity-90">{sortModeDT === 'CONLAI_DESC' ? '▼' : (sortModeDT === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
+                                    </div>
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {visibleCategoriesDT.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={6} className="py-8 text-center text-xs font-bold text-slate-500 bg-white">
+                                      Tất cả ngành hàng DT đang bị ẩn bởi bộ lọc.
+                                      <button
+                                        onClick={showAllCategoriesDT}
+                                        className="ml-2 text-emerald-600 hover:text-emerald-700 underline font-black cursor-pointer"
+                                      >
+                                        Hiện lại tất cả
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  sortCategoryList(visibleCategoriesDT, sortModeDT).map((cat: any, idx: number) => {
+                                    let rate = 0;
+                                    if (cat.target > 0 && daysPassed > 0) rate = (((cat.revenue / daysPassed) * totalDays) / cat.target) * 100;
+                                    const remaining = cat.target - cat.revenue;
+                                    const isEven = idx % 2 === 0;
+                                    return (
+                                      <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
+                                        <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
+                                        <td className={`px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 truncate tracking-tight ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>{cat.name}</td>
+                                        <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
+                                        <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                        <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
+                                          <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
+                                            {Math.round(rate)}%
+                                          </span>
+                                        </td>
+                                        <td className={`px-1 py-0 text-[14.5px] font-bold text-center border-b border-emerald-100/90 ${sortModeDT.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600`}>
+                                          {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </motion.div>
