@@ -6288,16 +6288,16 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               )}
 
                               <div className={`overflow-x-auto w-full rounded-xl sm:rounded-2xl border ${isEffective43751 ? 'border-sky-300/80' : 'border-emerald-200/80'}`}>
-                                <table className={`w-full border-separate border-spacing-0 table-fixed bg-white ${showOrangeCols ? 'min-w-[344px] sm:min-w-[480px]' : 'min-w-[270px] sm:min-w-[360px]'} md:min-w-[600px]`} style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                <table className={`w-full border-separate border-spacing-0 table-fixed bg-white ${showOrangeCols ? 'min-w-[390px] sm:min-w-[480px]' : 'min-w-[300px] sm:min-w-[360px]'} md:min-w-[600px]`} style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                                   <colgroup>
-                                    <col className="w-[22px] sm:w-[36px] md:w-[40px]" />
-                                    <col className="w-[110px] sm:w-[190px] md:w-auto" />
-                                    <col className="w-[36px] sm:w-[58px] md:w-[68px]" />
-                                    <col className="w-[32px] sm:w-[50px] md:w-[58px]" />
-                                    <col className="w-[38px] sm:w-[52px] md:w-[58px]" />
-                                    <col className="w-[32px] sm:w-[50px] md:w-[58px]" />
-                                    {showOrangeCols && showLuykeColumn && <col className="w-[36px] sm:w-[60px] md:w-[68px]" />}
-                                    {showOrangeCols && <col className="w-[38px] sm:w-[66px] md:w-[75px]" />}
+                                    <col className="w-[28px] sm:w-[36px] md:w-[40px]" />
+                                    <col className="w-[125px] sm:w-[190px] md:w-auto" />
+                                    <col className="w-[42px] sm:w-[58px] md:w-[68px]" />
+                                    <col className="w-[36px] sm:w-[50px] md:w-[58px]" />
+                                    <col className="w-[40px] sm:w-[52px] md:w-[58px]" />
+                                    <col className="w-[36px] sm:w-[50px] md:w-[58px]" />
+                                    {showOrangeCols && showLuykeColumn && <col className="w-[42px] sm:w-[60px] md:w-[68px]" />}
+                                    {showOrangeCols && <col className="w-[44px] sm:w-[66px] md:w-[75px]" />}
                                   </colgroup>
                                   <thead>
                                     <tr className="text-white h-[32px] sm:h-[42px] md:h-[46px]">
@@ -6457,16 +6457,16 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               )}
 
                               <div className={`overflow-x-auto w-full rounded-xl sm:rounded-2xl border ${isEffective43751 ? 'border-sky-300/80' : 'border-blue-300/80'}`}>
-                                <table className={`w-full border-separate border-spacing-0 table-fixed bg-white ${showOrangeCols ? 'min-w-[344px] sm:min-w-[480px]' : 'min-w-[270px] sm:min-w-[360px]'} md:min-w-[600px]`} style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                <table className={`w-full border-separate border-spacing-0 table-fixed bg-white ${showOrangeCols ? 'min-w-[390px] sm:min-w-[480px]' : 'min-w-[300px] sm:min-w-[360px]'} md:min-w-[600px]`} style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                                   <colgroup>
-                                    <col className="w-[22px] sm:w-[36px] md:w-[40px]" />
-                                    <col className="w-[110px] sm:w-[190px] md:w-auto" />
-                                    <col className="w-[36px] sm:w-[58px] md:w-[68px]" />
-                                    <col className="w-[32px] sm:w-[50px] md:w-[58px]" />
-                                    <col className="w-[38px] sm:w-[52px] md:w-[58px]" />
-                                    <col className="w-[32px] sm:w-[50px] md:w-[58px]" />
-                                    {showOrangeCols && showLuykeColumn && <col className="w-[36px] sm:w-[60px] md:w-[68px]" />}
-                                    {showOrangeCols && <col className="w-[38px] sm:w-[66px] md:w-[75px]" />}
+                                    <col className="w-[28px] sm:w-[36px] md:w-[40px]" />
+                                    <col className="w-[125px] sm:w-[190px] md:w-auto" />
+                                    <col className="w-[42px] sm:w-[58px] md:w-[68px]" />
+                                    <col className="w-[36px] sm:w-[50px] md:w-[58px]" />
+                                    <col className="w-[40px] sm:w-[52px] md:w-[58px]" />
+                                    <col className="w-[36px] sm:w-[50px] md:w-[58px]" />
+                                    {showOrangeCols && showLuykeColumn && <col className="w-[42px] sm:w-[60px] md:w-[68px]" />}
+                                    {showOrangeCols && <col className="w-[44px] sm:w-[66px] md:w-[75px]" />}
                                   </colgroup>
                                   <thead>
                                     <tr className="text-white h-[32px] sm:h-[42px] md:h-[46px]">

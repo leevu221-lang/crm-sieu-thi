@@ -209,18 +209,25 @@ table td {
    RESPONSIVE TABLE SYSTEM - Mobile First
    ======================================== */
 
-/* All tables on mobile: prevent text wrap, ensure horizontal scroll */
+/* All tables on mobile: auto zoom nhỏ lại vừa vặn màn hình mobile */
 @media (max-width: 768px) {
-  table th,
-  table td {
+  table {
+    zoom: 0.78;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Table typography on mobile: refined font size, no oversized text */
+  table th {
+    font-size: 11px !important;
+    padding-left: 0.35rem !important;
+    padding-right: 0.35rem !important;
     white-space: nowrap !important;
   }
 
-  /* Reduce table cell padding on mobile */
-  table th,
   table td {
-    padding-left: 0.5rem !important;
-    padding-right: 0.5rem !important;
+    font-size: 11.5px !important;
+    padding-left: 0.35rem !important;
+    padding-right: 0.35rem !important;
   }
 
   /* Ensure table containers scroll horizontally */
