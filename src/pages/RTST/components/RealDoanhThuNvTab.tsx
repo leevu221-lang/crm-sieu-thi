@@ -1093,37 +1093,37 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
 
         {/* The Exact 7 Columns Table */}
         <div className="w-full overflow-x-auto">
-          <table className="w-full text-center border-collapse table-fixed" style={{ minWidth: '850px', width: '100%', tableLayout: 'fixed' }}>
+          <table className="w-full text-center border-collapse table-fixed" style={{ minWidth: '770px', width: '100%', tableLayout: 'fixed' }}>
             <colgroup>
-              <col style={{ width: '56px' }} />
-              <col style={{ width: '260px' }} />
+              <col style={{ width: '54px' }} />
+              <col style={{ width: '240px' }} />
+              <col style={{ width: '90px' }} />
               <col style={{ width: '100px' }} />
-              <col style={{ width: '110px' }} />
-              <col style={{ width: '95px' }} />
-              <col style={{ width: '110px' }} />
-              <col style={{ width: '110px' }} />
+              <col style={{ width: '85px' }} />
+              <col style={{ width: '100px' }} />
+              <col style={{ width: '100px' }} />
             </colgroup>
             <thead>
               <tr className="bg-[#006b4b] text-white text-[11px] sm:text-xs font-black uppercase tracking-wider">
-                <th style={{ width: '56px' }} className="py-3.5 px-2 w-[56px] border-r border-[#00573d]/40">
+                <th style={{ width: '54px' }} className="py-3.5 px-2 w-[54px] border-r border-[#00573d]/40">
                   STT
                 </th>
-                <th style={{ width: '260px' }} className="py-3.5 px-4 text-left w-[260px] min-w-[260px] border-r border-[#00573d]/40">
+                <th style={{ width: '240px' }} className="py-3.5 px-4 text-left w-[240px] min-w-[240px] border-r border-[#00573d]/40">
                   NHÂN VIÊN
                 </th>
-                <th style={{ width: '100px' }} className="py-3.5 px-2 sm:px-3 w-[100px] border-r border-[#00573d]/40">
+                <th style={{ width: '90px' }} className="py-3.5 px-2 sm:px-3 w-[90px] border-r border-[#00573d]/40">
                   DT. THỰC
                 </th>
-                <th style={{ width: '110px' }} className="py-3.5 px-2 sm:px-3 w-[110px] border-r border-[#00573d]/40">
+                <th style={{ width: '100px' }} className="py-3.5 px-2 sm:px-3 w-[100px] border-r border-[#00573d]/40">
                   DT. QUY ĐỔI
                 </th>
-                <th style={{ width: '95px' }} className="py-3.5 px-2 sm:px-3 w-[95px] border-r border-[#00573d]/40">
+                <th style={{ width: '85px' }} className="py-3.5 px-2 sm:px-3 w-[85px] border-r border-[#00573d]/40">
                   HQ.QĐ
                 </th>
-                <th style={{ width: '110px' }} className="py-3.5 px-2 sm:px-3 w-[110px] border-r border-[#00573d]/40">
+                <th style={{ width: '100px' }} className="py-3.5 px-2 sm:px-3 w-[100px] border-r border-[#00573d]/40">
                   DT TRẢ GÓP
                 </th>
-                <th style={{ width: '110px' }} className="py-3.5 px-3 w-[110px]">
+                <th style={{ width: '100px' }} className="py-3.5 px-3 w-[100px]">
                   % TRẢ GÓP
                 </th>
               </tr>

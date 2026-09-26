@@ -3019,8 +3019,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       const isCatTable = headerTexts.some(t => t.includes('NGÀNH HÀNG') || t.includes('TIÊU CHÍ')) || Boolean(table.closest('#chi-tiet-nganh-hang-capture-wrapper'));
 
       if (isStaffTable && cols.length === 7) {
-        // Realtime Doanh Thu NV Table: STT(56), NHÂN VIÊN(260), DT.THỰC(100), DT.QUY ĐỔI(110), HQ.QĐ(95), DT TRẢ GÓP(110), % TRẢ GÓP(110)
-        const staffColWidths = [56, 260, 100, 110, 95, 110, 110];
+        // Realtime Doanh Thu NV Table: STT(54), NHÂN VIÊN(240), DT.THỰC(90), DT.QUY ĐỔI(100), HQ.QĐ(85), DT TRẢ GÓP(100), % TRẢ GÓP(100)
+        const staffColWidths = [54, 240, 90, 100, 85, 100, 100];
         cols.forEach((col, idx) => {
           const htmlCol = col as HTMLElement;
           if (staffColWidths[idx]) {
@@ -3417,9 +3417,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       frameWrapper.style.borderRadius = options.isOverview ? '32px' : '24px';
       frameWrapper.style.boxSizing = 'border-box';
       frameWrapper.style.width = options.width || '820px';
+      frameWrapper.style.width = 'max-content';
       frameWrapper.style.minWidth = options.minWidth || options.width || '820px';
-      frameWrapper.style.maxWidth = options.width || '820px';
-      frameWrapper.style.overflow = 'hidden';
+      frameWrapper.style.maxWidth = 'none';
+      frameWrapper.style.overflow = 'visible';
       frameWrapper.style.boxShadow = 'none';
 
       frameWrapper.appendChild(clone);
@@ -3438,8 +3439,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
       const rect = frameWrapper.getBoundingClientRect();
       const targetWidthNum = parseInt(options.width || '820') || 820;
-      const exactWidth = options.isTableOnly ? targetWidthNum : Math.ceil(Math.max(rect.width, frameWrapper.offsetWidth, 100));
-      const exactHeight = Math.ceil(Math.max(rect.height, frameWrapper.scrollHeight, frameWrapper.offsetHeight, 100));
+      const exactWidth = options.isTableOnly ? targetWidthNum : Math.ceil(Math.max(rect.width, frameWrapper.offsetWidth, clone.scrollWidth + 40, targetWidthNum));
+      const exactHeight = Math.ceil(Math.max(rect.height, frameWrapper.scrollHeight, frameWrapper.offsetHeight, clone.scrollHeight + 40, 100));
 
       // 9. Capture the image using domToPng from the off-screen frameWrapper element with 3x scale for crisp sharpness
       const dataUrl = await domToPng(frameWrapper, {
@@ -5003,15 +5004,22 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     try {
       setIsCapturing(true);
       await new Promise(resolve => setTimeout(resolve, 50));
+      const isOverview = filename.includes('Overview') || filename.includes('TongQuan') || filename.includes('Dashboard');
       const isCategoryTable = filename.includes('NganhHang') || filename.includes('Category') || filename.includes('SL') || filename.includes('DT');
-      const isRealDThuNv = filename.includes('Realtime_DThu_Qui_Doi') || filename.includes('DoanhThu_NV') || filename.includes('DThu_Qui_Doi');
-      const targetWidth = isCategoryTable ? '820px' : isRealDThuNv ? '880px' : `${Math.max(ref.current.scrollWidth || 1100, 1100)}px`;
+
+      // For standalone tables (e.g. Real D.Thu NV, Staff Tables, etc.), ALWAYS use captureDirectHelper (the proven method from v30-v46)
+      // which dynamically measures 100% natural content dimensions without clipping any rightmost columns!
+      if (!isOverview && !isCategoryTable) {
+        return await captureDirectHelper(ref);
+      }
+
+      const targetWidth = isOverview ? '1850px' : '820px';
       const dataUrl = await captureOffscreenHelper(ref.current, {
         width: targetWidth,
         minWidth: targetWidth,
         backgroundColor: '#ffffff',
-        isOverview: false,
-        isTableOnly: false
+        isOverview: isOverview,
+        isTableOnly: isCategoryTable
       });
       setPreviewImage(dataUrl);
     } catch (error) {
