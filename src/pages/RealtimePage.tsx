@@ -3009,10 +3009,26 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       htmlEl.style.setProperty('justify-content', 'center', 'important');
     });
 
-    // 8. Force Category Table Columns to Desktop Widths (STT=44px, NGÀNH HÀNG=260px, etc.)
+    // 8. Force Table Columns to Desktop Widths (preserving generous width for NHÂN VIÊN)
     root.querySelectorAll('table').forEach(table => {
       const cols = table.querySelectorAll('colgroup col');
-      if (cols.length >= 6 && cols.length <= 8) {
+      if (cols.length === 0) return;
+
+      const headerTexts = Array.from(table.querySelectorAll('th')).map(th => (th.textContent || '').trim().toUpperCase());
+      const isStaffTable = headerTexts.some(t => t.includes('NHÂN VIÊN'));
+      const isCatTable = headerTexts.some(t => t.includes('NGÀNH HÀNG') || t.includes('TIÊU CHÍ')) || Boolean(table.closest('#chi-tiet-nganh-hang-capture-wrapper'));
+
+      if (isStaffTable && cols.length === 7) {
+        // Realtime Doanh Thu NV Table: STT(56), NHÂN VIÊN(260), DT.THỰC(100), DT.QUY ĐỔI(110), HQ.QĐ(95), DT TRẢ GÓP(110), % TRẢ GÓP(110)
+        const staffColWidths = [56, 260, 100, 110, 95, 110, 110];
+        cols.forEach((col, idx) => {
+          const htmlCol = col as HTMLElement;
+          if (staffColWidths[idx]) {
+            htmlCol.style.setProperty('width', `${staffColWidths[idx]}px`, 'important');
+            htmlCol.setAttribute('width', `${staffColWidths[idx]}`);
+          }
+        });
+      } else if (isCatTable && cols.length >= 6 && cols.length <= 8) {
         const desktopColWidths = cols.length === 8 
           ? [44, 260, 66, 58, 62, 58, 66, 76]
           : cols.length === 7 
@@ -3025,6 +3041,28 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
             htmlCol.style.setProperty('width', `${desktopColWidths[idx]}px`, 'important');
             htmlCol.setAttribute('width', `${desktopColWidths[idx]}`);
           }
+        });
+      }
+    });
+
+    // 8b. Ensure Employee Names are NEVER truncated or clipped on screenshot export
+    root.querySelectorAll('table').forEach(table => {
+      const ths = Array.from(table.querySelectorAll('th'));
+      const staffColIdx = ths.findIndex(th => (th.textContent || '').trim().toUpperCase().includes('NHÂN VIÊN'));
+      if (staffColIdx >= 0) {
+        table.querySelectorAll(`tbody tr > td:nth-child(${staffColIdx + 1})`).forEach(td => {
+          const htmlTd = td as HTMLElement;
+          htmlTd.style.setProperty('overflow', 'visible', 'important');
+          htmlTd.style.setProperty('text-overflow', 'clip', 'important');
+          htmlTd.style.setProperty('white-space', 'nowrap', 'important');
+          htmlTd.style.setProperty('min-width', '240px', 'important');
+          htmlTd.querySelectorAll('*').forEach(child => {
+            const htmlChild = child as HTMLElement;
+            htmlChild.style.setProperty('overflow', 'visible', 'important');
+            htmlChild.style.setProperty('text-overflow', 'clip', 'important');
+            htmlChild.style.setProperty('white-space', 'nowrap', 'important');
+            htmlChild.style.setProperty('max-width', 'none', 'important');
+          });
         });
       }
     });
@@ -3276,13 +3314,22 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         htmlTable.style.tableLayout = 'fixed';
         htmlTable.style.boxSizing = 'border-box';
 
+        const ths = Array.from(htmlTable.querySelectorAll('th'));
+        const staffColIdx = ths.findIndex(th => (th.textContent || '').trim().toUpperCase().includes('NHÂN VIÊN'));
+
         const cells = htmlTable.querySelectorAll('th, td');
         cells.forEach(cell => {
           const htmlCell = cell as HTMLElement;
           htmlCell.style.boxSizing = 'border-box';
           htmlCell.style.whiteSpace = 'nowrap';
-          htmlCell.style.overflow = 'hidden';
-          htmlCell.style.textOverflow = 'ellipsis';
+          const isStaffCell = staffColIdx >= 0 && htmlCell.matches(`td:nth-child(${staffColIdx + 1})`);
+          if (isStaffCell) {
+            htmlCell.style.overflow = 'visible';
+            htmlCell.style.textOverflow = 'clip';
+          } else {
+            htmlCell.style.overflow = 'hidden';
+            htmlCell.style.textOverflow = 'ellipsis';
+          }
         });
       });
 
@@ -4957,7 +5004,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       setIsCapturing(true);
       await new Promise(resolve => setTimeout(resolve, 50));
       const isCategoryTable = filename.includes('NganhHang') || filename.includes('Category') || filename.includes('SL') || filename.includes('DT');
-      const targetWidth = isCategoryTable ? '820px' : `${Math.max(ref.current.scrollWidth || 1100, 1100)}px`;
+      const isRealDThuNv = filename.includes('Realtime_DThu_Qui_Doi') || filename.includes('DoanhThu_NV') || filename.includes('DThu_Qui_Doi');
+      const targetWidth = isCategoryTable ? '820px' : isRealDThuNv ? '880px' : `${Math.max(ref.current.scrollWidth || 1100, 1100)}px`;
       const dataUrl = await captureOffscreenHelper(ref.current, {
         width: targetWidth,
         minWidth: targetWidth,

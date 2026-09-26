@@ -1093,28 +1093,37 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
 
         {/* The Exact 7 Columns Table */}
         <div className="w-full overflow-x-auto">
-          <table className="w-full text-center border-collapse">
+          <table className="w-full text-center border-collapse table-fixed" style={{ minWidth: '850px', width: '100%', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '56px' }} />
+              <col style={{ width: '260px' }} />
+              <col style={{ width: '100px' }} />
+              <col style={{ width: '110px' }} />
+              <col style={{ width: '95px' }} />
+              <col style={{ width: '110px' }} />
+              <col style={{ width: '110px' }} />
+            </colgroup>
             <thead>
               <tr className="bg-[#006b4b] text-white text-[11px] sm:text-xs font-black uppercase tracking-wider">
-                <th className="py-3.5 px-2 w-14 sm:w-16 border-r border-[#00573d]/40">
+                <th style={{ width: '56px' }} className="py-3.5 px-2 w-[56px] border-r border-[#00573d]/40">
                   STT
                 </th>
-                <th className="py-3.5 px-4 text-left min-w-[170px] sm:min-w-[200px] border-r border-[#00573d]/40">
+                <th style={{ width: '260px' }} className="py-3.5 px-4 text-left w-[260px] min-w-[260px] border-r border-[#00573d]/40">
                   NHÂN VIÊN
                 </th>
-                <th className="py-3.5 px-2 sm:px-3 min-w-[75px] border-r border-[#00573d]/40">
+                <th style={{ width: '100px' }} className="py-3.5 px-2 sm:px-3 w-[100px] border-r border-[#00573d]/40">
                   DT. THỰC
                 </th>
-                <th className="py-3.5 px-2 sm:px-3 min-w-[85px] border-r border-[#00573d]/40">
+                <th style={{ width: '110px' }} className="py-3.5 px-2 sm:px-3 w-[110px] border-r border-[#00573d]/40">
                   DT. QUY ĐỔI
                 </th>
-                <th className="py-3.5 px-2 sm:px-3 min-w-[80px] border-r border-[#00573d]/40">
+                <th style={{ width: '95px' }} className="py-3.5 px-2 sm:px-3 w-[95px] border-r border-[#00573d]/40">
                   HQ.QĐ
                 </th>
-                <th className="py-3.5 px-2 sm:px-3 min-w-[85px] border-r border-[#00573d]/40">
+                <th style={{ width: '110px' }} className="py-3.5 px-2 sm:px-3 w-[110px] border-r border-[#00573d]/40">
                   DT TRẢ GÓP
                 </th>
-                <th className="py-3.5 px-3 min-w-[95px]">
+                <th style={{ width: '110px' }} className="py-3.5 px-3 w-[110px]">
                   % TRẢ GÓP
                 </th>
               </tr>
@@ -1142,13 +1151,13 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                     </td>
 
                     {/* NHÂN VIÊN: Bold Uppercase Name with Quick Hide Option */}
-                    <td className="py-3 sm:py-3.5 px-4 text-left font-black tracking-tight text-[13px] sm:text-[14px]">
-                      <div className="flex items-center justify-between gap-1.5">
-                        <span className={
+                    <td className="py-3 sm:py-3.5 px-4 text-left font-black tracking-tight text-[13px] sm:text-[14px] overflow-visible whitespace-nowrap">
+                      <div className="flex items-center justify-between gap-1.5 overflow-visible whitespace-nowrap">
+                        <span className={`whitespace-nowrap overflow-visible ${
                           isTop ? "text-[#00825e]" :
                           isBottom ? "text-[#e11d48]" :
                           "text-[#0f172a]"
-                        }>
+                        }`}>
                           {staff.name}
                         </span>
 
