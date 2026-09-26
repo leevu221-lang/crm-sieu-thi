@@ -6936,6 +6936,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                     userProfile={userProfile}
                     luykeProcessedData={luykeProcessedData}
                     dailyTargetQD={activeStoreDailyTargetQD}
+                    isUser43751={isEffective43751}
                   />
                 </motion.div>
               )}
