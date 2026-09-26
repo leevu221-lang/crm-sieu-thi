@@ -2918,6 +2918,18 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
   // Helper to force desktop layout, column widths, and large clear typography on any element or clone
   const applyDesktopScreenshotStyles = (root: HTMLElement) => {
+    // 0. Force desktop zoom = 1 on root and all child elements/tables
+    root.style.setProperty('zoom', '1', 'important');
+    root.querySelectorAll('*').forEach(el => {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.style && htmlEl.style.zoom) {
+        htmlEl.style.setProperty('zoom', '1', 'important');
+      }
+    });
+    root.querySelectorAll('table, .mobile-auto-zoom').forEach(el => {
+      (el as HTMLElement).style.setProperty('zoom', '1', 'important');
+    });
+
     // 1. Remove mobile compact class
     root.querySelectorAll('.mobile-compact-table').forEach(el => {
       el.classList.remove('mobile-compact-table');

@@ -215,33 +215,35 @@ table td {
 
 /* ========================================
    RESPONSIVE TABLE SYSTEM - Mobile First
+   Auto zoom tables on mobile to eliminate oversized typography and clipping
    ======================================== */
 
 /* All tables on mobile: auto responsive scaling */
 @media (max-width: 768px) {
-  table {
+  table:not(.no-mobile-zoom) {
+    zoom: 0.84;
     -webkit-text-size-adjust: 100%;
   }
 
   /* Default table typography on mobile if not explicitly set */
   table th:not([class*="text-"]) {
-    font-size: 9.5px;
+    font-size: 10px;
     font-weight: 900;
   }
   table td:not([class*="text-"]) {
-    font-size: 10px;
+    font-size: 10.5px;
     font-weight: 800;
   }
 
   /* Table typography on mobile: refined padding */
   table th {
-    padding-left: 0.2rem;
-    padding-right: 0.2rem;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
   }
 
   table td {
-    padding-left: 0.2rem;
-    padding-right: 0.2rem;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
   }
 
   /* Mobile compact table for high-density multi-column tables */
@@ -281,6 +283,28 @@ table td {
   }
 }
 
+/* Smartphone breakpoint: standard screens (e.g. iPhone 12/13/14/15, Samsung Galaxy) */
+@media (max-width: 480px) {
+  table:not(.no-mobile-zoom) {
+    zoom: 0.78;
+  }
+
+  .mobile-auto-zoom {
+    zoom: 0.78;
+  }
+}
+
+/* Compact phone breakpoint: small screens (e.g. iPhone SE, 320px-380px) */
+@media (max-width: 380px) {
+  table:not(.no-mobile-zoom) {
+    zoom: 0.72;
+  }
+
+  .mobile-auto-zoom {
+    zoom: 0.72;
+  }
+}
+
 /* Styles for capturing screenshots - hide scrollbars and ensure full width */
 body.capturing-screenshot {
   position: static !important;
@@ -288,7 +312,10 @@ body.capturing-screenshot {
   overflow: visible !important;
 }
 
-body.capturing-screenshot table {
+body.capturing-screenshot table,
+body.capturing-screenshot table *,
+body.capturing-screenshot .mobile-auto-zoom,
+body.capturing-screenshot [style*="zoom"] {
   zoom: 1 !important;
 }
 

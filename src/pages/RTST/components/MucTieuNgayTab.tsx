@@ -713,7 +713,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
       {/* ── Main Report Export Container ── */}
       <div 
         ref={captureRef}
-        className={`bg-white rounded-3xl border ${theme.cardBorder} p-4 sm:p-5 shadow-sm space-y-3.5 w-full max-w-[760px] mx-auto box-border`}
+        className={`bg-white rounded-3xl border ${theme.cardBorder} p-2.5 sm:p-5 shadow-sm space-y-3.5 w-full max-w-[760px] mx-auto box-border`}
         style={{ fontFamily: "'UTM Avo', sans-serif", width: '100%', maxWidth: '760px' }}
       >
         {/* Top Header Card */}
