@@ -3417,10 +3417,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       frameWrapper.style.borderRadius = options.isOverview ? '32px' : '24px';
       frameWrapper.style.boxSizing = 'border-box';
       frameWrapper.style.width = options.width || '820px';
-      frameWrapper.style.width = 'max-content';
       frameWrapper.style.minWidth = options.minWidth || options.width || '820px';
-      frameWrapper.style.maxWidth = 'none';
-      frameWrapper.style.overflow = 'visible';
+      frameWrapper.style.maxWidth = options.width || '820px';
+      frameWrapper.style.overflow = 'hidden';
       frameWrapper.style.boxShadow = 'none';
 
       frameWrapper.appendChild(clone);
@@ -3439,8 +3438,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
       const rect = frameWrapper.getBoundingClientRect();
       const targetWidthNum = parseInt(options.width || '820') || 820;
-      const exactWidth = options.isTableOnly ? targetWidthNum : Math.ceil(Math.max(rect.width, frameWrapper.offsetWidth, clone.scrollWidth + 40, targetWidthNum));
-      const exactHeight = Math.ceil(Math.max(rect.height, frameWrapper.scrollHeight, frameWrapper.offsetHeight, clone.scrollHeight + 40, 100));
+      const exactWidth = options.isTableOnly ? targetWidthNum : Math.ceil(Math.max(rect.width, frameWrapper.offsetWidth, 100));
+      const exactHeight = Math.ceil(Math.max(rect.height, frameWrapper.scrollHeight, frameWrapper.offsetHeight, 100));
 
       // 9. Capture the image using domToPng from the off-screen frameWrapper element with 3x scale for crisp sharpness
       const dataUrl = await domToPng(frameWrapper, {
@@ -5515,7 +5514,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         const dataUrl = await captureOffscreenHelper(categoriesRef.current, {
           width: '1850px',
           minWidth: '1850px',
-          backgroundColor: '#f8fafc',
+          backgroundColor: isEffective43751 ? '#F0F7FF' : '#f8fafc',
           isOverview: true
         });
         setPreviewImage(dataUrl);
