@@ -3477,6 +3477,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     dongHo: true,
     phuKien: true,
     giaDung: true,
+    colTong: true,
     smartphone: true,
     smfIphone: true,
     smfSamsung: true,
@@ -3524,7 +3525,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
               ...prev, 
               ...data.khaiThacSettings,
               gdNoiChao: data.khaiThacSettings.gdNoiChao !== undefined ? data.khaiThacSettings.gdNoiChao : true,
-              gdDcnb: data.khaiThacSettings.gdDcnb !== undefined ? data.khaiThacSettings.gdDcnb : true
+              gdDcnb: data.khaiThacSettings.gdDcnb !== undefined ? data.khaiThacSettings.gdDcnb : true,
+              colTong: data.khaiThacSettings.colTong !== undefined ? data.khaiThacSettings.colTong : true
             }));
           }
         }
@@ -3897,6 +3899,71 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   const [expandedStaff, setExpandedStaff] = useState<Record<string, boolean>>({});
   const [expandedCERows, setExpandedCERows] = useState<Record<string, boolean>>({});
   const [expandedCrossSellingStaff, setExpandedCrossSellingStaff] = useState<Record<string, boolean>>({});
+
+  const getRowTotalVisibleQty = useCallback((item: any) => {
+    let total = 0;
+
+    // 1. SP CHÍNH
+    if (showKhaiThacCols.spChinh) {
+      if (showKhaiThacCols.spcSmf) total += (item.spcSmfQty || 0);
+      if (showKhaiThacCols.spcLap) total += (item.spcLapQty || 0);
+      if (showKhaiThacCols.spcTab) total += (item.spcTabQty || 0);
+      if (showKhaiThacCols.spcTivi) total += (item.spcTiviQty || 0);
+      if (showKhaiThacCols.spcMl) total += (item.spcMlQty || 0);
+      if (showKhaiThacCols.spcTl) total += (item.spcTlQty || 0);
+      if (showKhaiThacCols.spcMg) total += (item.spcMgQty || 0);
+    }
+
+    // 2. SMARTPHONE
+    if (showKhaiThacCols.smartphone) {
+      if (showKhaiThacCols.smfIphone) total += (item.smfIphoneQty || 0);
+      if (showKhaiThacCols.smfSamsung) total += (item.smfSamsungQty || 0);
+      if (showKhaiThacCols.smfOppo) total += (item.smfOppoQty || 0);
+      if (showKhaiThacCols.smfVivo) total += (item.smfVivoQty || 0);
+      if (showKhaiThacCols.smfRealme) total += (item.smfRealmeQty || 0);
+      if (showKhaiThacCols.smfXiaomi) total += (item.smfXiaomiQty || 0);
+      if (showKhaiThacCols.smfHonor) total += (item.smfHonorQty || 0);
+      if (showKhaiThacCols.smfMotorola) total += (item.smfMotorolaQty || 0);
+    }
+
+    // 3. DỊCH VỤ
+    if (showKhaiThacCols.sim) {
+      total += (item.simQty || 0);
+    }
+    if (showKhaiThacCols.baoHiem) {
+      if (showKhaiThacCols.vasBh) total += (item.bhQty || 0);
+      if (showKhaiThacCols.vasVieon) total += (item.vieonQty || 0);
+      if (showKhaiThacCols.vasMangoIcall) total += (item.mangoIcallQty || 0);
+    }
+
+    // 4. ĐỒNG HỒ
+    if (showKhaiThacCols.dongHo) {
+      total += (item.dhDhttQty || 0);
+      total += (item.dhWearQty || 0);
+    }
+
+    // 5. PHỤ KIỆN
+    if (showKhaiThacCols.phuKien) {
+      if (showKhaiThacCols.pkCam) total += (item.pkCamQty || 0);
+      if (showKhaiThacCols.pkLoa) total += (item.pkLoaQty || 0);
+      if (showKhaiThacCols.pkPin) total += (item.pkPinQty || 0);
+      if (showKhaiThacCols.pkTn) total += (item.pkTnQty || 0);
+      if (showKhaiThacCols.pkDenMt) total += (item.pkDenMtQty || 0);
+    }
+
+    // 6. GIA DỤNG
+    if (showKhaiThacCols.giaDung) {
+      if (showKhaiThacCols.gdMln) total += (item.gdMlnQty || 0);
+      if (showKhaiThacCols.gdNcom) total += (item.gdNcomQty || 0);
+      if (showKhaiThacCols.gdNchien) total += (item.gdNchienQty || 0);
+      if (showKhaiThacCols.gdNoiChao) total += (item.gdNoiChaoQty || 0);
+      if (showKhaiThacCols.gdDcnb) total += (item.gdDcnbQty || 0);
+      if (showKhaiThacCols.gdQuat) total += (item.gdQuatQty || 0);
+      if (showKhaiThacCols.gdQdh) total += (item.gdQdhQty || 0);
+    }
+
+    return total;
+  }, [showKhaiThacCols]);
 
 
   const staffKhaiThacStats = useMemo(() => {
@@ -4461,6 +4528,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         } else if (khaiThacSortField === 'gdTotalQty') {
           valA = getVisibleGdTotalQty(a);
           valB = getVisibleGdTotalQty(b);
+        } else if (khaiThacSortField === 'rowTotalVisibleQty') {
+          valA = getRowTotalVisibleQty(a);
+          valB = getRowTotalVisibleQty(b);
         } else {
           // Standard numeric fields
           valA = (a[khaiThacSortField as keyof typeof a] as number) || 0;
@@ -4472,7 +4542,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     }
 
     return filteredStats;
-  }, [rawYcxRows, filteredRawYcxRows, drillFilterStaff, showKhaiThacCols, khaiThacSortField, khaiThacSortAsc]);
+  }, [rawYcxRows, filteredRawYcxRows, drillFilterStaff, showKhaiThacCols, khaiThacSortField, khaiThacSortAsc, getRowTotalVisibleQty]);
 
   const crossSellingStats = useMemo(() => {
     if (rawYcxRows.length <= 1 || filteredRawYcxRows.length === 0) return [];
@@ -7931,7 +8001,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             { key: 'sim', label: 'SIM', icon: '📡', activeBg: 'bg-amber-50', activeText: 'text-[#b45309]', activeBorder: 'border-amber-300' },
                             { key: 'dongHo', label: 'ĐỒNG HỒ', icon: '⌚', activeBg: 'bg-purple-50', activeText: 'text-[#6b21a8]', activeBorder: 'border-purple-300' },
                             { key: 'phuKien', label: 'PHỤ KIỆN', icon: '🎧', activeBg: 'bg-rose-50', activeText: 'text-[#be123c]', activeBorder: 'border-rose-300' },
-                            { key: 'giaDung', label: 'GIA DỤNG', icon: '🏠', activeBg: 'bg-cyan-50', activeText: 'text-[#0e7490]', activeBorder: 'border-cyan-300' }
+                            { key: 'giaDung', label: 'GIA DỤNG', icon: '🏠', activeBg: 'bg-cyan-50', activeText: 'text-[#0e7490]', activeBorder: 'border-cyan-300' },
+                            { key: 'colTong', label: 'CỘT TỔNG', icon: '🔢', activeBg: 'bg-emerald-50', activeText: 'text-[#047857]', activeBorder: 'border-emerald-300' }
                           ].map(btn => {
                             const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
                             return (
@@ -8162,6 +8233,20 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             {showKhaiThacCols.giaDung && (
                               <th colSpan={(showKhaiThacCols.gdMln ? 1 : 0) + (showKhaiThacCols.gdNcom ? 1 : 0) + (showKhaiThacCols.gdNchien ? 1 : 0) + (showKhaiThacCols.gdNoiChao ? 1 : 0) + (showKhaiThacCols.gdDcnb ? 1 : 0) + (showKhaiThacCols.gdQuat ? 1 : 0) + (showKhaiThacCols.gdQdh ? 1 : 0)} className="py-1 px-3 text-center text-[#0e7490] bg-[#ecfeff] border-r border-slate-200/50 font-black text-[13px] border-b border-cyan-100">GIA DỤNG</th>
                             )}
+                            {showKhaiThacCols.colTong && (
+                              <th
+                                rowSpan={2}
+                                onClick={() => handleKhaiThacSort('rowTotalVisibleQty')}
+                                className="py-2.5 px-3 text-center bg-emerald-50 text-[#047857] border-l-2 border-emerald-300 min-w-[75px] font-black text-[13px] align-middle cursor-pointer select-none hover:bg-emerald-100 transition-colors"
+                              >
+                                <div className="flex items-center justify-center gap-0.5">
+                                  <span>TỔNG</span>
+                                  <span className={`text-[10px] ${khaiThacSortField === 'rowTotalVisibleQty' ? 'text-emerald-700 font-extrabold' : 'text-slate-400'}`}>
+                                    {khaiThacSortField === 'rowTotalVisibleQty' ? (khaiThacSortAsc ? '▲' : '▼') : '⇅'}
+                                  </span>
+                                </div>
+                              </th>
+                            )}
                           </tr>
                           <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[11px] font-black uppercase">
                             {showKhaiThacCols.doanhThu && (
@@ -8330,6 +8415,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             };
                             return staffKhaiThacStats.length > 0 ? staffKhaiThacStats.map((item, idx) => {
                               const visibleSpChinhTotalQty = getVisibleSpChinhQty(item);
+                              const rowTotal = getRowTotalVisibleQty(item);
 
                               return (
                                 <tr key={item.staffName} className="border-b border-slate-100/70 hover:bg-slate-50/80 transition-colors h-10">
@@ -8434,6 +8520,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                       {showKhaiThacCols.gdQdh && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdQdhQty)}</td>}
                                     </>
                                   )}
+                                  {showKhaiThacCols.colTong && (
+                                    <td className="py-2 px-3 text-center text-[13.5px] font-black text-[#047857] bg-emerald-50/40 border-l-2 border-emerald-300">
+                                      {formatVal(rowTotal)}
+                                    </td>
+                                  )}
                                 </tr>
                               );
                             }) : (
@@ -8502,6 +8593,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               const totalGdDcnbQty = staffKhaiThacStats.reduce((s, x) => s + (x.gdDcnbQty || 0), 0);
                               const totalGdQuatQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQuatQty, 0);
                               const totalGdQdhQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQdhQty, 0);
+                              const grandTotalVisibleQty = staffKhaiThacStats.reduce((s, x) => s + getRowTotalVisibleQty(x), 0);
 
                               const formatFooterVal = (val: number) => {
                                 return val === 0 ? <span className="text-slate-300">-</span> : val.toLocaleString('vi-VN');
@@ -8643,6 +8735,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                       {showKhaiThacCols.gdQuat && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdQuatQty)}</td>}
                                       {showKhaiThacCols.gdQdh && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdQdhQty)}</td>}
                                     </>
+                                  )}
+                                  {showKhaiThacCols.colTong && (
+                                    <td className="py-2 px-3 text-center text-[14px] text-[#047857] font-black bg-emerald-100/70 border-l-2 border-emerald-400">
+                                      {formatFooterVal(grandTotalVisibleQty)}
+                                    </td>
                                   )}
                                 </tr>
                               );
