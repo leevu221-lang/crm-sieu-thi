@@ -8088,7 +8088,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 { key: 'gdNcom', label: 'SL NCƠM' },
                                 { key: 'gdNchien', label: 'SL NCHIÊN' },
                                 { key: 'gdNoiChao', label: 'SL NỒI/CHẢO' },
-                                { key: 'gdDcnb', label: 'SL DCNB' },
+                                { key: 'gdDcnb', label: 'SL DCNB #' },
                                 { key: 'gdQuat', label: 'SL Q.GIÓ' },
                                 { key: 'gdQdh', label: 'SL QĐH' }
                               ].map(btn => {
@@ -8242,7 +8242,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 {showKhaiThacCols.gdNcom && renderKhaiThacHeader('gdNcomQty', 'SL NCƠM', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-18')}
                                 {showKhaiThacCols.gdNchien && renderKhaiThacHeader('gdNchienQty', 'SL NCHIÊN', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-20')}
                                 {showKhaiThacCols.gdNoiChao && renderKhaiThacHeader('gdNoiChaoQty', 'SL NỒI/CHẢO', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-24')}
-                                {showKhaiThacCols.gdDcnb && renderKhaiThacHeader('gdDcnbQty', 'SL DCNB', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-20')}
+                                {showKhaiThacCols.gdDcnb && renderKhaiThacHeader('gdDcnbQty', 'SL DCNB #', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-24')}
                                 {showKhaiThacCols.gdQuat && renderKhaiThacHeader('gdQuatQty', 'SL Q.GIÓ', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-16')}
                                 {showKhaiThacCols.gdQdh && renderKhaiThacHeader('gdQdhQty', 'SL QĐH', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-16')}
                               </>
