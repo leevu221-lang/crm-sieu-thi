@@ -3502,6 +3502,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     gdNcom: true,
     gdNchien: true,
     gdNoiChao: true,
+    gdDcnb: true,
     gdQuat: true,
     gdQdh: true
   });
@@ -3522,7 +3523,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
             setShowKhaiThacCols(prev => ({ 
               ...prev, 
               ...data.khaiThacSettings,
-              gdNoiChao: data.khaiThacSettings.gdNoiChao !== undefined ? data.khaiThacSettings.gdNoiChao : true
+              gdNoiChao: data.khaiThacSettings.gdNoiChao !== undefined ? data.khaiThacSettings.gdNoiChao : true,
+              gdDcnb: data.khaiThacSettings.gdDcnb !== undefined ? data.khaiThacSettings.gdDcnb : true
             }));
           }
         }
@@ -4013,6 +4015,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       gdNcomQty: number;
       gdNchienQty: number;
       gdNoiChaoQty: number;
+      gdDcnbQty: number;
       gdQuatQty: number;
       gdQdhQty: number;
       dtThuc: number;
@@ -4123,6 +4126,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           gdNcomQty: 0,
           gdNchienQty: 0,
           gdNoiChaoQty: 0,
+          gdDcnbQty: 0,
           gdQuatQty: 0,
           gdQdhQty: 0,
           dtThuc: 0,
@@ -4299,14 +4303,42 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         (normProdUpper.includes(' NOI ') && !normProdUpper.includes('NON BAO HIEM'))
       );
 
+      const isDcnb = isXuatBanHang && !isNoiChao && !isRiceCooker && !isAirFryer && !isDienGiaDung && !isMln && !isQuat && !isQdh && (
+        nhomLarge === 'DCNB' ||
+        category.includes('3241') ||
+        category.includes('3187') ||
+        category.includes('3185') ||
+        category.includes('2999') ||
+        category.includes('3240') ||
+        category.includes('4302') ||
+        category.includes('1034') ||
+        prodCode.includes('3241') ||
+        prodCode.includes('3187') ||
+        prodCode.includes('3185') ||
+        prodCode.includes('2999') ||
+        prodCode.includes('3240') ||
+        prodCode.includes('4302') ||
+        prodCode.includes('1034') ||
+        normCatUpper.includes('DUNG CU NHA BEP') ||
+        normCatUpper.includes('DCNB') ||
+        normCatUpper.includes('DAO/KEO/THOT') ||
+        normCatUpper.includes('BINH/LY/CA') ||
+        normCatUpper.includes('VE SINH NHA CUA') ||
+        normCatUpper.includes('HOP/HU') ||
+        normCatUpper.includes('NON BAO HIEM') ||
+        nSmall.includes('DCNB') ||
+        rawSmallCatVal.includes('DCNB')
+      );
+
       if (isMln) item.gdMlnQty += qty;
       if (isNcom) item.gdNcomQty += qty;
       if (isNchien) item.gdNchienQty += qty;
       if (isNoiChao) item.gdNoiChaoQty += qty;
+      if (isDcnb) item.gdDcnbQty += qty;
       if (isQuat) item.gdQuatQty += qty;
       if (isQdh) item.gdQdhQty += qty;
 
-      if (isMln || isNcom || isNchien || isNoiChao || isQuat) {
+      if (isMln || isNcom || isNchien || isNoiChao || isDcnb || isQuat || isQdh) {
         if (nhomLarge !== 'DCNB') {
           item.gdQty += qty;
           item.gdRev += revenue;
@@ -4373,6 +4405,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           (showKhaiThacCols.gdNcom ? item.gdNcomQty : 0) +
           (showKhaiThacCols.gdNchien ? item.gdNchienQty : 0) +
           (showKhaiThacCols.gdNoiChao ? item.gdNoiChaoQty : 0) +
+          (showKhaiThacCols.gdDcnb ? item.gdDcnbQty : 0) +
           (showKhaiThacCols.gdQuat ? item.gdQuatQty : 0) +
           (showKhaiThacCols.gdQdh ? item.gdQdhQty : 0);
       };
@@ -8055,6 +8088,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 { key: 'gdNcom', label: 'SL NCƠM' },
                                 { key: 'gdNchien', label: 'SL NCHIÊN' },
                                 { key: 'gdNoiChao', label: 'SL NỒI/CHẢO' },
+                                { key: 'gdDcnb', label: 'SL DCNB' },
                                 { key: 'gdQuat', label: 'SL Q.GIÓ' },
                                 { key: 'gdQdh', label: 'SL QĐH' }
                               ].map(btn => {
@@ -8126,7 +8160,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               <th colSpan={(showKhaiThacCols.pkCam ? 1 : 0) + (showKhaiThacCols.pkLoa ? 1 : 0) + (showKhaiThacCols.pkPin ? 1 : 0) + (showKhaiThacCols.pkTn ? 1 : 0) + (showKhaiThacCols.pkDenMt ? 1 : 0)} className="py-1 px-3 text-center text-[#be123c] bg-[#ffe4e6] border-r border-slate-200/50 font-black text-[13px] border-b border-rose-100">PHỤ KIỆN</th>
                             )}
                             {showKhaiThacCols.giaDung && (
-                              <th colSpan={(showKhaiThacCols.gdMln ? 1 : 0) + (showKhaiThacCols.gdNcom ? 1 : 0) + (showKhaiThacCols.gdNchien ? 1 : 0) + (showKhaiThacCols.gdNoiChao ? 1 : 0) + (showKhaiThacCols.gdQuat ? 1 : 0) + (showKhaiThacCols.gdQdh ? 1 : 0)} className="py-1 px-3 text-center text-[#0e7490] bg-[#ecfeff] border-r border-slate-200/50 font-black text-[13px] border-b border-cyan-100">GIA DỤNG</th>
+                              <th colSpan={(showKhaiThacCols.gdMln ? 1 : 0) + (showKhaiThacCols.gdNcom ? 1 : 0) + (showKhaiThacCols.gdNchien ? 1 : 0) + (showKhaiThacCols.gdNoiChao ? 1 : 0) + (showKhaiThacCols.gdDcnb ? 1 : 0) + (showKhaiThacCols.gdQuat ? 1 : 0) + (showKhaiThacCols.gdQdh ? 1 : 0)} className="py-1 px-3 text-center text-[#0e7490] bg-[#ecfeff] border-r border-slate-200/50 font-black text-[13px] border-b border-cyan-100">GIA DỤNG</th>
                             )}
                           </tr>
                           <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[11px] font-black uppercase">
@@ -8208,6 +8242,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 {showKhaiThacCols.gdNcom && renderKhaiThacHeader('gdNcomQty', 'SL NCƠM', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-18')}
                                 {showKhaiThacCols.gdNchien && renderKhaiThacHeader('gdNchienQty', 'SL NCHIÊN', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-20')}
                                 {showKhaiThacCols.gdNoiChao && renderKhaiThacHeader('gdNoiChaoQty', 'SL NỒI/CHẢO', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-24')}
+                                {showKhaiThacCols.gdDcnb && renderKhaiThacHeader('gdDcnbQty', 'SL DCNB', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-20')}
                                 {showKhaiThacCols.gdQuat && renderKhaiThacHeader('gdQuatQty', 'SL Q.GIÓ', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-16')}
                                 {showKhaiThacCols.gdQdh && renderKhaiThacHeader('gdQdhQty', 'SL QĐH', 'text-[#0e7490]', 'bg-[#ecfeff]', 'w-16')}
                               </>
@@ -8394,6 +8429,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                       {showKhaiThacCols.gdNcom && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdNcomQty)}</td>}
                                       {showKhaiThacCols.gdNchien && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdNchienQty)}</td>}
                                       {showKhaiThacCols.gdNoiChao && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdNoiChaoQty)}</td>}
+                                      {showKhaiThacCols.gdDcnb && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdDcnbQty)}</td>}
                                       {showKhaiThacCols.gdQuat && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdQuatQty)}</td>}
                                       {showKhaiThacCols.gdQdh && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0e7490] border-r border-slate-200/50">{formatVal(item.gdQdhQty)}</td>}
                                     </>
@@ -8463,6 +8499,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               const totalGdNcomQty = staffKhaiThacStats.reduce((s, x) => s + x.gdNcomQty, 0);
                               const totalGdNchienQty = staffKhaiThacStats.reduce((s, x) => s + x.gdNchienQty, 0);
                               const totalGdNoiChaoQty = staffKhaiThacStats.reduce((s, x) => s + (x.gdNoiChaoQty || 0), 0);
+                              const totalGdDcnbQty = staffKhaiThacStats.reduce((s, x) => s + (x.gdDcnbQty || 0), 0);
                               const totalGdQuatQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQuatQty, 0);
                               const totalGdQdhQty = staffKhaiThacStats.reduce((s, x) => s + x.gdQdhQty, 0);
 
@@ -8602,6 +8639,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                       {showKhaiThacCols.gdNcom && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdNcomQty)}</td>}
                                       {showKhaiThacCols.gdNchien && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdNchienQty)}</td>}
                                       {showKhaiThacCols.gdNoiChao && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdNoiChaoQty)}</td>}
+                                      {showKhaiThacCols.gdDcnb && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdDcnbQty)}</td>}
                                       {showKhaiThacCols.gdQuat && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdQuatQty)}</td>}
                                       {showKhaiThacCols.gdQdh && <td className="py-2 px-2 text-center text-[13px] text-[#0e7490] font-black border-r border-slate-200/50">{formatFooterVal(totalGdQdhQty)}</td>}
                                     </>
