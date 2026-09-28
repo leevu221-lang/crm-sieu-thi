@@ -120,6 +120,17 @@ const parseNumericValue = (val: any): number => {
   return parseFloat(str) || 0;
 };
 
+const pastelColorMap: Record<string, { bg: string; text: string; border: string }> = {
+  rose: { bg: 'bg-[#E0F2FE]', text: 'text-[#0284C7]', border: 'border-[#BAE6FD]' },       // Target: Sky blue
+  indigo: { bg: 'bg-[#CFFAFE]', text: 'text-[#0891B2]', border: 'border-[#A5F3FC]' },     // Doanh thu: Cyan
+  emerald: { bg: 'bg-[#D1FAE5]', text: 'text-[#059669]', border: 'border-[#A7F3D0]' },    // %HT: Mint emerald
+  amber: { bg: 'bg-[#EDE9FE]', text: 'text-[#6D28D9]', border: 'border-[#DDD6FE]' },      // Trả góp: Soft lavender purple
+  orange: { bg: 'bg-[#FFEDD5]', text: 'text-[#C2410C]', border: 'border-[#FED7AA]' },     // % QĐ: Soft peach orange
+  blue: { bg: 'bg-[#E0E7FF]', text: 'text-[#4338CA]', border: 'border-[#C7D2FE]' },       // Thu hộ / LNTT: Soft indigo blue
+  slate: { bg: 'bg-[#F1F5F9]', text: 'text-[#475569]', border: 'border-[#E2E8F0]' },
+  default: { bg: 'bg-[#E0F2FE]', text: 'text-[#0284C7]', border: 'border-[#BAE6FD]' }
+};
+
 const StatCard: React.FC<{
   title: string;
   value: string | number;
@@ -130,64 +141,49 @@ const StatCard: React.FC<{
   delay?: number;
   isLarge?: boolean;
 }> = ({ title, value, subValue, icon: Icon, trend, color = 'default', delay = 0, isLarge = false }) => {
-  const gradientMap: Record<string, string> = {
-    rose: 'bg-gradient-to-br from-[#E11D48] via-[#E11D48] to-[#BE123C] text-white shadow-rose-500/20 border-rose-400/30',
-    indigo: 'bg-gradient-to-br from-[#4F46E5] via-[#4338CA] to-[#3730A3] text-white shadow-indigo-500/20 border-indigo-400/30',
-    emerald: 'bg-gradient-to-br from-[#059669] via-[#047857] to-[#065F46] text-white shadow-emerald-500/20 border-emerald-400/30',
-    amber: 'bg-gradient-to-br from-[#F97316] via-[#EA580C] to-[#C2410C] text-white shadow-orange-500/20 border-orange-400/30',
-    orange: 'bg-gradient-to-br from-[#F97316] via-[#FB923C] to-[#F59E0B] text-white shadow-amber-500/20 border-amber-400/30',
-    blue: 'bg-gradient-to-br from-[#2563EB] via-[#1D4ED8] to-[#1E40AF] text-white shadow-blue-500/20 border-blue-400/30',
-    default: 'bg-gradient-to-br from-[#1E293B] via-[#0F172A] to-[#020617] text-white shadow-slate-900/20 border-slate-700/30'
-  };
+  const theme = pastelColorMap[color] || pastelColorMap.default;
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 4 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.15 }}
-      className={`p-3.5 sm:p-5 rounded-2xl md:rounded-3xl border shadow-lg relative overflow-hidden flex flex-col justify-between ${gradientMap[color]} ${isLarge ? 'md:col-span-2' : ''}`}
+      transition={{ delay, duration: 0.3 }}
+      className={`bg-white/95 backdrop-blur-md p-2.5 sm:p-3.5 md:p-4 lg:p-4.5 xl:p-5 2xl:p-6 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_35px_-5px_rgba(2,132,199,0.16)] hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between h-full min-h-[82px] sm:min-h-[96px] md:min-h-[108px] lg:min-h-[116px] xl:min-h-[126px] group ${isLarge ? 'md:col-span-2' : ''}`}
       style={{ fontFamily: "'UTM Avo', sans-serif" }}
     >
-      <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3 flex-nowrap min-w-0">
-        <div
-          className="stat-card-badge inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[8px] sm:text-[9.5px] font-black uppercase tracking-wider bg-white/20 backdrop-blur-md text-white border border-white/20 whitespace-nowrap shrink-0 max-w-full"
-          style={{ whiteSpace: 'nowrap' }}
-        >
-          <Icon size={12} strokeWidth={2.5} className="shrink-0 text-white" />
-          <span
-            className="stat-card-title whitespace-nowrap leading-none truncate text-white"
-            style={{ whiteSpace: 'nowrap', wordBreak: 'keep-all', color: '#ffffff' }}
-          >
-            {title}
-          </span>
+      <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 lg:gap-3.5 xl:gap-4 mb-1 sm:mb-1.5 min-w-0">
+        <div className={`w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 lg:w-13 lg:h-13 xl:w-14 xl:h-14 2xl:w-15 2xl:h-15 rounded-xl sm:rounded-2xl lg:rounded-[20px] 2xl:rounded-2xl flex items-center justify-center shrink-0 ${theme.bg} ${theme.text} shadow-2xs transition-transform group-hover:scale-105 border border-white/70`}>
+          <Icon size={16} strokeWidth={2.4} className="sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-6.5 lg:h-6.5 xl:w-7 xl:h-7" />
         </div>
-        {trend !== undefined && (
-          <div
-            className="flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[8.5px] sm:text-[9px] font-black bg-white/25 backdrop-blur-md ml-auto shrink-0 border border-white/20 whitespace-nowrap text-white"
-            style={{ whiteSpace: 'nowrap' }}
-          >
-            {trend > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
-            {Math.abs(trend)}%
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-1">
+            <span
+              className="stat-card-title text-[9px] sm:text-[10.5px] md:text-[11.5px] lg:text-[12.5px] xl:text-[13.5px] 2xl:text-[14px] font-black text-slate-500 uppercase tracking-tight leading-tight line-clamp-2 block"
+              title={title}
+            >
+              {title}
+            </span>
+            {trend !== undefined && (
+              <div className={`flex items-center gap-0.5 px-1 sm:px-1.5 md:px-2 py-0.5 rounded-full text-[8px] sm:text-[9px] md:text-[10px] font-black shrink-0 ${trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                {trend > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+                {Math.abs(trend)}%
+              </div>
+            )}
           </div>
-        )}
+          <div
+            className="font-bold text-[19px] xs:text-[22px] sm:text-[26px] md:text-[32px] lg:text-[36px] xl:text-[42px] 2xl:text-[46px] tracking-tight text-[#0F172A] leading-tight font-oswald truncate mt-0.5 md:mt-1"
+            style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700 }}
+          >
+            {value}
+          </div>
+        </div>
       </div>
 
-      <div>
-        <div
-          className="font-bold text-[24px] xs:text-[29px] sm:text-[36px] md:text-[44px] lg:text-[48px] tracking-tight whitespace-nowrap drop-shadow-sm leading-none py-0.5 sm:py-1 text-white font-oswald truncate"
-          style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700, whiteSpace: 'nowrap' }}
-        >
-          {value}
+      {subValue && (
+        <div className="text-[9.5px] sm:text-[11px] md:text-[12px] font-medium text-slate-400 truncate pt-1 border-t border-slate-100/60 mt-auto">
+          {subValue}
         </div>
-        {subValue && (
-          <div
-            className="mt-0.5 sm:mt-1 text-[9px] sm:text-[10px] font-bold text-white/80 truncate whitespace-nowrap"
-            style={{ fontFamily: "'UTM Avo', sans-serif", whiteSpace: 'nowrap' }}
-          >
-            {subValue}
-          </div>
-        )}
-      </div>
+      )}
     </motion.div>
   );
 };
@@ -2344,6 +2340,17 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
                 className="space-y-6"
+                style={{
+                  backgroundColor: '#F0F7FF',
+                  backgroundImage: `
+                    radial-gradient(circle at 10% 15%, rgba(224, 242, 254, 0.7) 0%, transparent 40%),
+                    radial-gradient(circle at 90% 85%, rgba(186, 230, 253, 0.5) 0%, transparent 45%),
+                    radial-gradient(circle at 50% 50%, rgba(240, 249, 255, 0.9) 0%, #f8fafc 100%)
+                  `,
+                  backgroundAttachment: 'fixed',
+                  borderRadius: '1.5rem',
+                  padding: '0.75rem',
+                }}
               >
                 {/* Store Selector Pills */}
                 {filteredMarkets.length > 1 && (
@@ -2351,7 +2358,9 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                     <button 
                       onClick={() => setMarketFilter('ALL')}
                       className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase transition-all shadow-sm ${
-                        marketFilter === 'ALL' ? "bg-slate-900 text-white shadow-md shadow-slate-900/20" : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
+                        marketFilter === 'ALL' 
+                          ? "bg-slate-900 text-white shadow-md shadow-slate-900/20" 
+                          : "bg-white/90 text-slate-600 hover:bg-white border border-sky-100/90 shadow-xs"
                       }`}
                     >
                       TẤT CẢ SIÊU THỊ
@@ -2361,7 +2370,9 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                         key={i}
                         onClick={() => setMarketFilter(m.name)}
                         className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase transition-all shadow-sm ${
-                          marketFilter === m.name ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20" : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
+                          marketFilter === m.name 
+                            ? "bg-gradient-to-r from-[#0284C7] via-[#0EA5E9] to-[#38BDF8] text-white shadow-md shadow-sky-500/25 border border-sky-300/40" 
+                            : "bg-white/90 text-slate-600 hover:bg-white border border-sky-100/90 shadow-xs"
                         }`}
                       >
                         {m.name}
@@ -2427,30 +2438,30 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                     }
 
                     return (
-                      <div key={market.name || mIdx} className="relative overflow-hidden bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 rounded-2xl md:rounded-3xl border border-indigo-100/90 shadow-[0_4px_25px_-4px_rgba(79,70,229,0.08)] space-y-4">
+                      <div key={market.name || mIdx} className="relative overflow-hidden bg-white/95 backdrop-blur-md p-4 sm:p-5 md:p-6 lg:p-7 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] space-y-4 md:space-y-5">
                         {/* Ambient background glow */}
-                        <div className="absolute -top-10 -right-10 w-44 h-44 bg-gradient-to-br from-indigo-200/30 to-transparent rounded-full blur-2xl pointer-events-none" />
-                        <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-gradient-to-tr from-emerald-100/30 to-transparent rounded-full blur-2xl pointer-events-none" />
+                        <div className="absolute -top-10 -right-10 w-44 h-44 bg-gradient-to-br from-sky-200/30 to-transparent rounded-full blur-2xl pointer-events-none" />
+                        <div className="absolute -bottom-10 -left-10 w-44 h-44 bg-gradient-to-tr from-blue-100/30 to-transparent rounded-full blur-2xl pointer-events-none" />
 
                         {/* Store Header with address & Camera */}
                         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 pb-3.5 border-b border-slate-100/80">
                           <div className="flex items-center gap-3.5">
                             {/* 3D Gradient Store Icon Box */}
-                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-600 text-white flex items-center justify-center text-xl shadow-md shadow-emerald-500/25 shrink-0 border border-white/50">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#38BDF8] via-[#0EA5E9] to-[#0284C7] text-white flex items-center justify-center text-xl shadow-[0_4px_14px_-2px_rgba(2,132,199,0.35)] shrink-0 border border-white/50">
                               <Store size={22} strokeWidth={2.2} />
                             </div>
                             <div>
                               <div className="flex items-center gap-2 flex-wrap mb-1">
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/80 text-[10.5px] font-extrabold uppercase tracking-wider text-emerald-700 shadow-2xs">
-                                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-50 border border-sky-200/80 text-[10.5px] font-extrabold uppercase tracking-wider text-sky-700 shadow-2xs">
+                                  <span className="w-2 h-2 rounded-full bg-sky-500 animate-ping inline-block" />
                                   ĐANG HOẠT ĐỘNG
                                 </span>
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200/70 text-[10.5px] font-extrabold uppercase tracking-wider text-indigo-700">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-blue-50 border border-blue-200/70 text-[10.5px] font-extrabold uppercase tracking-wider text-blue-700">
                                   📊 BÁO CÁO LUỸ KẾ THÁNG
                                 </span>
                               </div>
                               <h2 className="text-lg sm:text-xl md:text-2xl font-black text-slate-850 tracking-tight uppercase flex items-center gap-2 flex-wrap">
-                                <span className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-800 bg-clip-text text-transparent">{market.name}</span>
+                                <span className="bg-gradient-to-r from-slate-900 via-sky-950 to-slate-800 bg-clip-text text-transparent">{market.name}</span>
                                 {storeAddress && <span className="text-xs font-bold text-slate-400 font-normal">| {storeAddress}</span>}
                               </h2>
                             </div>
@@ -2458,7 +2469,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
 
                           <button
                             onClick={() => captureElement(captureRefs.fullDashboard, 'TongQuan_LuyKe')}
-                            className="no-capture inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 active:scale-95 cursor-pointer w-full sm:w-auto self-start sm:self-auto border border-white/20"
+                            className="no-capture inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-[#38BDF8] via-[#0EA5E9] to-[#0284C7] hover:from-[#0EA5E9] hover:to-[#0369A1] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-[0_4px_14px_-2px_rgba(2,132,199,0.35)] hover:shadow-[0_6px_20px_-2px_rgba(2,132,199,0.45)] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer w-full sm:w-auto self-start sm:self-auto border border-white/20"
                           >
                             <Camera size={16} />
                             <span>Chụp tổng quan</span>
@@ -2466,7 +2477,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                         </div>
 
                         {/* 6 Gradient StatCards */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 md:gap-3.5 lg:gap-4.5 xl:gap-5">
                           <StatCard
                             title="TARGET QĐ"
                             value={formatCurrencyUnit(displayTargetQD)}
@@ -2512,8 +2523,8 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                     {/* Pill Actions & Sort Controls (Hidden on screenshot export) */}
                     <div className="flex flex-wrap items-center justify-between gap-2.5 no-capture">
                       {/* Quick Sort Category Controls */}
-                      <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-2xl border border-slate-200 shadow-2xs flex-wrap">
-                        <span className="text-[11px] font-black uppercase text-slate-500 px-2 hidden sm:inline">
+                      <div className="flex items-center gap-1.5 bg-white/80 backdrop-blur-md p-1 rounded-2xl border border-sky-100 shadow-xs flex-wrap">
+                        <span className="text-[11px] font-black uppercase text-sky-800/80 px-2 hidden sm:inline">
                           SẮP XẾP:
                         </span>
                         <button
@@ -2523,8 +2534,8 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                           }}
                           className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                             sortModeSL === 'HT_DESC' && sortModeDT === 'HT_DESC'
-                              ? 'bg-emerald-600 text-white shadow-xs'
-                              : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                              ? 'bg-gradient-to-r from-[#0284C7] to-[#0EA5E9] text-white shadow-xs'
+                              : 'text-slate-600 hover:text-sky-900 hover:bg-sky-50/60'
                           }`}
                           title="Sắp xếp theo % hoàn thành cao nhất"
                         >
@@ -2537,8 +2548,8 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                           }}
                           className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                             sortModeSL === 'CONLAI_DESC' && sortModeDT === 'CONLAI_DESC'
-                              ? 'bg-rose-600 text-white shadow-xs'
-                              : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                              ? 'bg-rose-500 text-white shadow-xs'
+                              : 'text-slate-600 hover:text-rose-700 hover:bg-rose-50/50'
                           }`}
                           title="Sắp xếp theo số lượng/doanh thu Còn Lại cần đạt nhiều nhất"
                         >
@@ -2551,8 +2562,8 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                           }}
                           className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                             sortModeSL === 'CONLAI_ASC' && sortModeDT === 'CONLAI_ASC'
-                              ? 'bg-amber-600 text-white shadow-xs'
-                              : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                              ? 'bg-amber-500 text-white shadow-xs'
+                              : 'text-slate-600 hover:text-amber-700 hover:bg-amber-50/50'
                           }`}
                           title="Sắp xếp theo Còn Lại tăng dần (Đã đạt / thiếu ít lên trước)"
                         >
@@ -2566,11 +2577,11 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                           className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-[11px] sm:text-[12px] font-black uppercase tracking-wider transition-all duration-300 active:scale-95 cursor-pointer border shadow-sm ${
                             (hiddenCatsSL.length > 0 || hiddenCatsDT.length > 0)
                               ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300 ring-2 ring-rose-400/20'
-                              : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                              : 'bg-white hover:bg-sky-50/50 text-slate-700 border-sky-100'
                           }`}
                           title="Bộ lọc ẩn/hiện ngành hàng SL & DT (Chỉ áp dụng cho Tổng quan)"
                         >
-                          <Filter size={14} className={hiddenCatsSL.length > 0 || hiddenCatsDT.length > 0 ? 'text-rose-600' : 'text-slate-500'} />
+                          <Filter size={14} className={hiddenCatsSL.length > 0 || hiddenCatsDT.length > 0 ? 'text-rose-600' : 'text-sky-600'} />
                           <span>ẨN/HIỆN NGÀNH HÀNG</span>
                           {(hiddenCatsSL.length > 0 || hiddenCatsDT.length > 0) && (
                             <span className="bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-2xs">
@@ -2581,7 +2592,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
 
                         <button
                           onClick={handleOpenCategoryCommentModal}
-                          className="flex items-center gap-2 px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-wider bg-gradient-to-r from-[#2563EB] via-[#4F46E5] to-[#7C3AED] hover:from-[#1D4ED8] hover:via-[#4338CA] hover:to-[#6D28D9] text-white shadow-md shadow-indigo-500/25 transition-all duration-300 active:scale-95 cursor-pointer border border-indigo-400/30"
+                          className="flex items-center gap-2 px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-wider bg-gradient-to-r from-[#0284C7] via-[#0EA5E9] to-[#38BDF8] hover:from-[#0369A1] hover:to-[#0284C7] text-white shadow-md shadow-sky-500/20 transition-all duration-300 active:scale-95 cursor-pointer border border-sky-300/30"
                           title="Nhận xét doanh thu & ngành hàng luỹ kế"
                         >
                           <MessageSquare size={14} className="text-white shrink-0" />
@@ -2590,7 +2601,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
 
                         <button
                           onClick={() => captureElement(captureRefs.category, 'NganhHang_LuyKe')}
-                          className="flex items-center gap-2 px-6 py-2 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-[12px] font-black uppercase tracking-wider shadow-md shadow-emerald-500/25 transition-all duration-300 active:scale-95 cursor-pointer"
+                          className="flex items-center gap-2 px-6 py-2 rounded-full bg-gradient-to-r from-[#0284C7] via-[#0EA5E9] to-[#38BDF8] hover:from-[#0369A1] hover:to-[#0284C7] text-white text-[12px] font-black uppercase tracking-wider shadow-md shadow-sky-500/25 transition-all duration-300 active:scale-95 cursor-pointer border border-sky-300/30"
                           title="Chụp ảnh 2 bảng Ngành hàng"
                         >
                           <Camera size={15} />
@@ -2602,14 +2613,14 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                     {/* 2 Tables Grid */}
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 sm:gap-4">
                       {/* Left Table: SLLK */}
-                      <div ref={captureRefs.categorySL} className="bg-white rounded-3xl border border-slate-200/90 overflow-hidden min-w-0 flex flex-col p-3.5 shadow-sm">
-                        {/* Unified Emerald Gradient Header Banner */}
-                        <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 rounded-2xl text-white relative shrink-0 mb-2.5">
+                      <div ref={captureRefs.categorySL} className="bg-white/95 backdrop-blur-md rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] overflow-hidden min-w-0 flex flex-col p-2 sm:p-3.5">
+                        {/* Unified Sky Blue Gradient Header Banner */}
+                        <div className="bg-gradient-to-r from-[#0284C7] via-[#0EA5E9] to-[#38BDF8] p-2.5 sm:p-4 rounded-xl sm:rounded-2xl text-white relative shrink-0 mb-2 sm:mb-2.5 shadow-md shadow-sky-500/20">
                           <div className="flex flex-col items-center justify-center text-center">
-                            <h2 className="text-[23px] sm:text-[27px] font-black text-[#FEF08A] uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                            <h2 className="text-[17px] sm:text-[23px] md:text-[27px] font-black text-white uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                               NGÀNH HÀNG (SL)
                             </h2>
-                            <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-2 mt-1.5 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                            <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-1.5 sm:gap-2 mt-1 sm:mt-1.5 text-[10px] sm:text-xs md:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                               <span className="flex items-center gap-1 whitespace-nowrap">
                                 ⚡ Luỹ kế: {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
                               </span>
@@ -2622,7 +2633,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                 }).length}/{visibleCategoriesSL.length}
                               </span>
                               <span className="opacity-70">||</span>
-                              <span className="text-emerald-100 font-bold whitespace-nowrap">
+                              <span className="text-sky-100 font-bold whitespace-nowrap">
                                 TGSD: {daysPassed}/{totalDays}
                               </span>
                             </div>
@@ -2634,12 +2645,12 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                               setCategoryFilterActiveTab('SL');
                               setIsCategoryFilterModalOpen(true);
                             }}
-                            className="no-capture absolute right-12 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                            className="no-capture absolute right-10 sm:right-12 top-2 sm:top-3 p-1.5 sm:p-2 bg-white/20 hover:bg-white/30 rounded-lg sm:rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
                             title="Bộ lọc ẩn/hiện ngành hàng SL"
                           >
-                            <Filter size={16} />
+                            <Filter size={15} className="sm:w-4 sm:h-4" />
                             {hiddenCatsSL.length > 0 && (
-                              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
+                              <span className="absolute -top-1 -right-1 min-w-[15px] sm:min-w-[16px] h-3.5 sm:h-4 px-1 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black rounded-full flex items-center justify-center border border-white">
                                 {hiddenCatsSL.length}
                               </span>
                             )}
@@ -2648,10 +2659,10 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                           {/* Camera Capture Button */}
                           <button
                             onClick={() => captureElement(captureRefs.categorySL, 'NganhHang_SL_LuyKe')}
-                            className="no-capture absolute right-3 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                            className="no-capture absolute right-2 sm:right-3 top-2 sm:top-3 p-1.5 sm:p-2 bg-white/20 hover:bg-white/30 rounded-lg sm:rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
                             title="Chụp ảnh bảng Ngành hàng SL"
                           >
-                            <Camera size={16} />
+                            <Camera size={15} className="sm:w-4 sm:h-4" />
                           </button>
                         </div>
 
@@ -2688,13 +2699,13 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                               value={sllkComment}
                               onChange={(e) => setSllkComment(e.target.value)}
                               placeholder="Nhập nhận xét cho bảng SLLK..."
-                              className="w-full p-3 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-emerald-500/20 resize-none min-h-[60px] screenshot-comment"
+                              className="w-full p-3 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-sky-500/20 resize-none min-h-[60px] screenshot-comment"
                             />
                           </div>
                         )}
 
-                        <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
-                          <table className="w-full border-separate border-spacing-0 table-fixed" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                        <div className="overflow-x-auto w-full grow rounded-xl sm:rounded-2xl border border-sky-300/80">
+                          <table className="w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                             <colgroup>
                               <col style={{ width: '44px' }} />
                               <col style={{ width: 'auto' }} />
@@ -2704,33 +2715,33 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                               <col style={{ width: '72px' }} />
                             </colgroup>
                             <thead>
-                              <tr className="text-white h-[46px]">
-                                <th className="px-1 py-0 text-[14.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">STT</th>
-                                <th className="px-2.5 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669]">NGÀNH HÀNG</th>
-                                <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">TARGET</th>
-                                <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">LUỸ KẾ</th>
+                              <tr className="text-white h-[38px] sm:h-[46px]">
+                                <th className="px-1 py-0 text-[11px] sm:text-[14.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7]">STT</th>
+                                <th className="px-2.5 py-0 text-[11px] sm:text-[14.5px] font-black uppercase text-left border-r border-b border-sky-500 bg-[#0369A1]">NGÀNH HÀNG</th>
+                                <th className="px-1 py-0 text-[10px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7]">TARGET</th>
+                                <th className="px-1 py-0 text-[10px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7]">LUỸ KẾ</th>
                                 <th 
                                   onClick={() => setSortModeSL(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
-                                  className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 cursor-pointer select-none transition-colors ${
-                                    sortModeSL.startsWith('HT') ? 'bg-[#035940] hover:bg-[#024a35]' : 'bg-[#059669] hover:bg-[#047857]'
+                                  className={`px-1 py-0 text-[10px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 cursor-pointer select-none transition-colors ${
+                                    sortModeSL.startsWith('HT') ? 'bg-[#075985] hover:bg-[#0c4a6e]' : 'bg-[#0369A1] hover:bg-[#0284C7]'
                                   }`}
                                   title="Bấm để sắp xếp %HT (Giảm dần / Tăng dần)"
                                 >
                                   <div className="flex items-center justify-center gap-0.5">
                                     <span>%HT</span>
-                                    <span className="text-[10.5px] opacity-90">{sortModeSL === 'HT_DESC' ? '▼' : (sortModeSL === 'HT_ASC' ? '▲' : '⇅')}</span>
+                                    <span className="text-[9px] sm:text-[10.5px] opacity-90">{sortModeSL === 'HT_DESC' ? '▼' : (sortModeSL === 'HT_ASC' ? '▲' : '⇅')}</span>
                                   </div>
                                 </th>
                                 <th 
                                   onClick={() => setSortModeSL(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
-                                  className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-b border-emerald-600 cursor-pointer select-none transition-colors ${
-                                    sortModeSL.startsWith('CONLAI') ? 'bg-amber-700 hover:bg-amber-800' : 'bg-[#047857] hover:bg-[#036348]'
+                                  className={`px-1 py-0 text-[10px] sm:text-[13.5px] font-black uppercase text-center border-b border-sky-500 cursor-pointer select-none transition-colors ${
+                                    sortModeSL.startsWith('CONLAI') ? 'bg-amber-600 hover:bg-amber-700' : 'bg-[#0284C7] hover:bg-[#0369A1]'
                                   }`}
                                   title="Bấm để sắp xếp theo C.LẠI (Còn lại nhiều nhất / ít nhất)"
                                 >
                                   <div className="flex items-center justify-center gap-0.5">
                                     <span>C.LẠI</span>
-                                    <span className="text-[10.5px] opacity-90">{sortModeSL === 'CONLAI_DESC' ? '▼' : (sortModeSL === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
+                                    <span className="text-[9px] sm:text-[10.5px] opacity-90">{sortModeSL === 'CONLAI_DESC' ? '▼' : (sortModeSL === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
                                   </div>
                                 </th>
                               </tr>
@@ -2742,7 +2753,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                     Tất cả ngành hàng SL đang bị ẩn bởi bộ lọc.
                                     <button
                                       onClick={showAllCategoriesSL}
-                                      className="ml-2 text-emerald-600 hover:text-emerald-700 underline font-black cursor-pointer"
+                                      className="ml-2 text-sky-600 hover:text-sky-700 underline font-black cursor-pointer"
                                     >
                                       Hiện lại tất cả
                                     </button>
@@ -2755,17 +2766,17 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                   const remaining = cat.target - cat.revenue;
                                   const isEven = idx % 2 === 0;
                                   return (
-                                    <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
-                                      <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
-                                      <td className={`px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 truncate tracking-tight ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>{cat.name}</td>
-                                      <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
-                                      <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
-                                      <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
-                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
+                                    <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-sky-50/25'} hover:bg-sky-50/70 transition-colors h-[32px] sm:h-[40px]`}>
+                                      <td className="px-1 py-0 text-[11px] sm:text-[14.5px] font-black text-slate-700 text-center border-r border-b border-sky-100/90 bg-sky-50/40">{idx + 1}</td>
+                                      <td className={`px-2.5 py-0 text-[10.5px] sm:text-[14px] font-black uppercase border-r border-b border-sky-100/90 truncate tracking-tight ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>{cat.name}</td>
+                                      <td className="px-1 py-0 text-[11px] sm:text-[14.5px] font-bold text-center border-r border-b border-sky-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
+                                      <td className="px-1 py-0 text-[11px] sm:text-[14.5px] font-black text-center border-r border-b border-sky-100/90 text-sky-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                      <td className="px-0.5 py-0 text-center border-r border-b border-sky-100/90 whitespace-nowrap">
+                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-rose-100 text-rose-600'}`}>
                                           {Math.round(rate)}%
                                         </span>
                                       </td>
-                                      <td className={`px-1 py-0 text-[14.5px] font-bold text-center border-b border-emerald-100/90 ${sortModeSL.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600`}>
+                                      <td className={`px-1 py-0 text-[11px] sm:text-[14.5px] font-bold text-center border-b border-sky-100/90 ${sortModeSL.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600`}>
                                         {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
                                       </td>
                                     </tr>
@@ -2778,14 +2789,14 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                       </div>
 
                       {/* Right Table: DTLK */}
-                      <div ref={captureRefs.categoryDT} className="bg-white rounded-3xl border border-slate-200/90 overflow-hidden min-w-0 flex flex-col p-3.5 shadow-sm">
-                        {/* Unified Emerald Gradient Header Banner */}
-                        <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 rounded-2xl text-white relative shrink-0 mb-2.5">
+                      <div ref={captureRefs.categoryDT} className="bg-white/95 backdrop-blur-md rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] overflow-hidden min-w-0 flex flex-col p-2 sm:p-3.5">
+                        {/* Unified Sky Blue Gradient Header Banner */}
+                        <div className="bg-gradient-to-r from-[#0284C7] via-[#0EA5E9] to-[#38BDF8] p-2.5 sm:p-4 rounded-xl sm:rounded-2xl text-white relative shrink-0 mb-2 sm:mb-2.5 shadow-md shadow-sky-500/20">
                           <div className="flex flex-col items-center justify-center text-center">
-                            <h2 className="text-[23px] sm:text-[27px] font-black text-[#FEF08A] uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                            <h2 className="text-[17px] sm:text-[23px] md:text-[27px] font-black text-white uppercase tracking-wide drop-shadow-sm leading-tight" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                               NGÀNH HÀNG (DT)
                             </h2>
-                            <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-2 mt-1.5 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                            <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-1.5 sm:gap-2 mt-1 sm:mt-1.5 text-[10px] sm:text-xs md:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                               <span className="flex items-center gap-1 whitespace-nowrap">
                                 ⚡ Luỹ kế: {new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
                               </span>
@@ -2798,7 +2809,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                 }).length}/{visibleCategoriesDT.length}
                               </span>
                               <span className="opacity-70">||</span>
-                              <span className="text-emerald-100 font-bold whitespace-nowrap">
+                              <span className="text-sky-100 font-bold whitespace-nowrap">
                                 TGSD: {daysPassed}/{totalDays}
                               </span>
                             </div>
@@ -2810,12 +2821,12 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                               setCategoryFilterActiveTab('DT');
                               setIsCategoryFilterModalOpen(true);
                             }}
-                            className="no-capture absolute right-12 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                            className="no-capture absolute right-10 sm:right-12 top-2 sm:top-3 p-1.5 sm:p-2 bg-white/20 hover:bg-white/30 rounded-lg sm:rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
                             title="Bộ lọc ẩn/hiện ngành hàng DT"
                           >
-                            <Filter size={16} />
+                            <Filter size={15} className="sm:w-4 sm:h-4" />
                             {hiddenCatsDT.length > 0 && (
-                              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border border-white">
+                              <span className="absolute -top-1 -right-1 min-w-[15px] sm:min-w-[16px] h-3.5 sm:h-4 px-1 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black rounded-full flex items-center justify-center border border-white">
                                 {hiddenCatsDT.length}
                               </span>
                             )}
@@ -2824,10 +2835,10 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                           {/* Camera Capture Button */}
                           <button
                             onClick={() => captureElement(captureRefs.categoryDT, 'NganhHang_DT_LuyKe')}
-                            className="no-capture absolute right-3 top-3 p-2 bg-white/20 hover:bg-white/30 rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
+                            className="no-capture absolute right-2 sm:right-3 top-2 sm:top-3 p-1.5 sm:p-2 bg-white/20 hover:bg-white/30 rounded-lg sm:rounded-xl text-white backdrop-blur-md transition-all cursor-pointer border border-white/25 active:scale-95"
                             title="Chụp ảnh bảng Ngành hàng DT"
                           >
-                            <Camera size={16} />
+                            <Camera size={15} className="sm:w-4 sm:h-4" />
                           </button>
                         </div>
 
@@ -2864,13 +2875,13 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                               value={dtlkComment}
                               onChange={(e) => setDtlkComment(e.target.value)}
                               placeholder="Nhập nhận xét cho bảng DTLK..."
-                              className="w-full p-3 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-emerald-500/20 resize-none min-h-[60px] screenshot-comment"
+                              className="w-full p-3 bg-white border border-slate-200 rounded-xl text-[11px] font-medium text-slate-600 focus:ring-2 focus:ring-sky-500/20 resize-none min-h-[60px] screenshot-comment"
                             />
                           </div>
                         )}
 
-                        <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
-                          <table className="w-full border-separate border-spacing-0 table-fixed" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+                        <div className="overflow-x-auto w-full grow rounded-xl sm:rounded-2xl border border-sky-300/80">
+                          <table className="w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                             <colgroup>
                               <col style={{ width: '44px' }} />
                               <col style={{ width: 'auto' }} />
@@ -2880,33 +2891,33 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                               <col style={{ width: '72px' }} />
                             </colgroup>
                             <thead>
-                              <tr className="text-white h-[46px]">
-                                <th className="px-1 py-0 text-[14.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">STT</th>
-                                <th className="px-2.5 py-0 text-[14.5px] font-black uppercase text-left border-r border-b border-emerald-600 bg-[#059669]">NGÀNH HÀNG</th>
-                                <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">TARGET</th>
-                                <th className="px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 bg-[#047857]">LUỸ KẾ</th>
+                              <tr className="text-white h-[38px] sm:h-[46px]">
+                                <th className="px-1 py-0 text-[11px] sm:text-[14.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7]">STT</th>
+                                <th className="px-2.5 py-0 text-[11px] sm:text-[14.5px] font-black uppercase text-left border-r border-b border-sky-500 bg-[#0369A1]">NGÀNH HÀNG</th>
+                                <th className="px-1 py-0 text-[10px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7]">TARGET</th>
+                                <th className="px-1 py-0 text-[10px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7]">LUỸ KẾ</th>
                                 <th 
                                   onClick={() => setSortModeDT(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
-                                  className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-r border-b border-emerald-600 cursor-pointer select-none transition-colors ${
-                                    sortModeDT.startsWith('HT') ? 'bg-[#035940] hover:bg-[#024a35]' : 'bg-[#059669] hover:bg-[#047857]'
+                                  className={`px-1 py-0 text-[10px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 cursor-pointer select-none transition-colors ${
+                                    sortModeDT.startsWith('HT') ? 'bg-[#075985] hover:bg-[#0c4a6e]' : 'bg-[#0369A1] hover:bg-[#0284C7]'
                                   }`}
                                   title="Bấm để sắp xếp %HT (Giảm dần / Tăng dần)"
                                 >
                                   <div className="flex items-center justify-center gap-0.5">
                                     <span>%HT</span>
-                                    <span className="text-[10.5px] opacity-90">{sortModeDT === 'HT_DESC' ? '▼' : (sortModeDT === 'HT_ASC' ? '▲' : '⇅')}</span>
+                                    <span className="text-[9px] sm:text-[10.5px] opacity-90">{sortModeDT === 'HT_DESC' ? '▼' : (sortModeDT === 'HT_ASC' ? '▲' : '⇅')}</span>
                                   </div>
                                 </th>
                                 <th 
                                   onClick={() => setSortModeDT(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
-                                  className={`px-1 py-0 text-[13.5px] font-black uppercase text-center border-b border-emerald-600 cursor-pointer select-none transition-colors ${
-                                    sortModeDT.startsWith('CONLAI') ? 'bg-amber-700 hover:bg-amber-800' : 'bg-[#047857] hover:bg-[#036348]'
+                                  className={`px-1 py-0 text-[10px] sm:text-[13.5px] font-black uppercase text-center border-b border-sky-500 cursor-pointer select-none transition-colors ${
+                                    sortModeDT.startsWith('CONLAI') ? 'bg-amber-600 hover:bg-amber-700' : 'bg-[#0284C7] hover:bg-[#0369A1]'
                                   }`}
                                   title="Bấm để sắp xếp theo C.LẠI (Còn lại nhiều nhất / ít nhất)"
                                 >
                                   <div className="flex items-center justify-center gap-0.5">
                                     <span>C.LẠI</span>
-                                    <span className="text-[10.5px] opacity-90">{sortModeDT === 'CONLAI_DESC' ? '▼' : (sortModeDT === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
+                                    <span className="text-[9px] sm:text-[10.5px] opacity-90">{sortModeDT === 'CONLAI_DESC' ? '▼' : (sortModeDT === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
                                   </div>
                                 </th>
                               </tr>
@@ -2918,7 +2929,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                     Tất cả ngành hàng DT đang bị ẩn bởi bộ lọc.
                                     <button
                                       onClick={showAllCategoriesDT}
-                                      className="ml-2 text-emerald-600 hover:text-emerald-700 underline font-black cursor-pointer"
+                                      className="ml-2 text-sky-600 hover:text-sky-700 underline font-black cursor-pointer"
                                     >
                                       Hiện lại tất cả
                                     </button>
@@ -2931,17 +2942,17 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                   const remaining = cat.target - cat.revenue;
                                   const isEven = idx % 2 === 0;
                                   return (
-                                    <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-emerald-50/20'} hover:bg-emerald-50/70 transition-colors h-[40px]`}>
-                                      <td className="px-1 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-emerald-100/90 bg-emerald-50/40">{idx + 1}</td>
-                                      <td className={`px-2.5 py-0 text-[14px] font-black uppercase border-r border-b border-emerald-100/90 truncate tracking-tight ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>{cat.name}</td>
-                                      <td className="px-1 py-0 text-[14.5px] font-bold text-center border-r border-b border-emerald-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
-                                      <td className="px-1 py-0 text-[14.5px] font-black text-center border-r border-b border-emerald-100/90 text-emerald-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
-                                      <td className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
-                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[12px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-600'}`}>
+                                    <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-sky-50/25'} hover:bg-sky-50/70 transition-colors h-[32px] sm:h-[40px]`}>
+                                      <td className="px-1 py-0 text-[11px] sm:text-[14.5px] font-black text-slate-700 text-center border-r border-b border-sky-100/90 bg-sky-50/40">{idx + 1}</td>
+                                      <td className={`px-2.5 py-0 text-[10.5px] sm:text-[14px] font-black uppercase border-r border-b border-sky-100/90 truncate tracking-tight ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>{cat.name}</td>
+                                      <td className="px-1 py-0 text-[11px] sm:text-[14.5px] font-bold text-center border-r border-b border-sky-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
+                                      <td className="px-1 py-0 text-[11px] sm:text-[14.5px] font-black text-center border-r border-b border-sky-100/90 text-sky-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                      <td className="px-0.5 py-0 text-center border-r border-b border-sky-100/90 whitespace-nowrap">
+                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-rose-100 text-rose-600'}`}>
                                           {Math.round(rate)}%
                                         </span>
                                       </td>
-                                      <td className={`px-1 py-0 text-[14.5px] font-bold text-center border-b border-emerald-100/90 ${sortModeDT.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600`}>
+                                      <td className={`px-1 py-0 text-[11px] sm:text-[14.5px] font-bold text-center border-b border-sky-100/90 ${sortModeDT.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600`}>
                                         {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
                                       </td>
                                     </tr>
