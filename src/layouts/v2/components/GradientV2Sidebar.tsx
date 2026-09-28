@@ -26,6 +26,7 @@ import {
   Sparkles,
   Target,
   QrCode,
+  CalendarCheck,
 } from 'lucide-react';
 import { useStore } from '../../../contexts/StoreContext';
 
@@ -131,6 +132,7 @@ const TOOLHOTRO_SUBS = [
 ];
 
 const TIENICH_SUBS = [
+  { id: 'phan-ca-hc', label: 'Phân Ca Hành Chính', icon: CalendarCheck },
   { id: 'phan-ca-thang', label: 'Phân Ca Tháng', icon: Users },
   { id: 'phan-ca-tuan', label: 'Phân Ca Tuần', icon: UploadCloud },
   { id: 'tuong-tac-line', label: 'Tương Tác LINE', icon: MessageSquare },

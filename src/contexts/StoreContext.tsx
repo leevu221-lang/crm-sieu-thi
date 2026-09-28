@@ -186,9 +186,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       }
       const saved = localStorage.getItem('crm_active_tienich_tab');
       if (saved && saved !== 'quay-so') return saved;
-      return 'phan-ca-thang';
+      return 'phan-ca-hc';
     } catch {
-      return 'phan-ca-thang';
+      return 'phan-ca-hc';
     }
   });
   const [activeLuyKeTab, setActiveLuyKeTabRaw] = useState<'summary' | 'cum' | 'efficiency' | 'thuong_st' | 'bcdtnh' | 'ssg_boss'>(() =>

@@ -10,10 +10,12 @@ import {
   Sparkles,
   ChevronRight,
   MessageSquare,
-  QrCode
+  QrCode,
+  CalendarCheck
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../contexts/StoreContext';
+import PhanCaHanhChinhTab from './TienIch/components/PhanCaHanhChinhTab';
 import PhanCaTable from '../components/PhanCaTable';
 import PhanCaTuanTable from '../components/PhanCaTuanTable';
 import BienBanTinhTrangHangHoa from '../components/BienBanTinhTrangHangHoa';
@@ -40,6 +42,7 @@ export default function TienIch({ pageMaintenanceState = {}, isUser43751Local = 
   const isAdmin = userProfile?.username === '43751';
 
   const menuItems = [
+    { id: 'phan-ca-hc', label: 'PHÂN CA HÀNH CHÍNH', icon: CalendarCheck, color: 'text-sky-500' },
     { id: 'phan-ca-thang', label: 'PHÂN CA THÁNG', icon: Users, color: 'text-purple-500' },
     { id: 'phan-ca-tuan', label: 'PHÂN CA TUẦN', icon: UploadCloud, color: 'text-orange-500' },
     { id: 'tuong-tac-line', label: 'TƯƠNG TÁC LINE', icon: MessageSquare, color: 'text-emerald-500' },
@@ -112,6 +115,18 @@ export default function TienIch({ pageMaintenanceState = {}, isUser43751Local = 
           </div>
         ) : (
           <AnimatePresence mode="wait">
+            {activeTab === 'phan-ca-hc' && (
+              <motion.div
+                key="phan-ca-hc"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <PhanCaHanhChinhTab />
+              </motion.div>
+            )}
+
             {activeTab === 'phan-ca-thang' && (
               <motion.div
                 key="phan-ca-thang"
