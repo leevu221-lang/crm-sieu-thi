@@ -49,7 +49,7 @@ export interface QrProductItem {
 }
 
 export interface QrPrintConfig {
-  layoutCols: '2' | '3' | '4'; // 2, 3 hoặc 4 cột trên trang A4
+  layoutCols: '2' | '3' | '4' | '5'; // 2, 3, 4 hoặc 5 cột trên trang A4
   qrSize: number; // Kích thước QR (px)
   fontSize: number; // Cỡ chữ tên sản phẩm (px)
   showCodeText: boolean; // Hiển thị số mã SP bên dưới QR
@@ -282,6 +282,7 @@ export const InQrSpTab: React.FC = () => {
   const itemsPerPage = useMemo(() => {
     if (config.layoutCols === '2') return 8; // 2 cột x 4 hàng = 8
     if (config.layoutCols === '4') return 24; // 4 cột x 6 hàng = 24
+    if (config.layoutCols === '5') return 35; // 5 cột x 7 hàng = 35 (chuẩn A4 tem vuông)
     return 15; // 3 cột x 5 hàng = 15 (mặc định)
   }, [config.layoutCols]);
 
@@ -570,15 +571,27 @@ export const InQrSpTab: React.FC = () => {
         ? 'border border-slate-300'
         : 'border-0';
 
+    const is5Cols = config.layoutCols === '5';
+    const effectiveQrSize = is5Cols ? Math.min(config.qrSize, 72) : config.qrSize;
+
     return (
       <div
         key={`${item.id}_${index}`}
-        className={`qr-item-card relative bg-white flex flex-col items-center justify-between p-2.5 rounded-lg transition-all ${borderClass} ${
+        className={`qr-item-card relative bg-white flex flex-col items-center justify-between ${
+          is5Cols ? 'p-1.5' : 'p-2.5'
+        } rounded-lg transition-all ${borderClass} ${
           isPrintMode ? 'break-inside-avoid' : 'hover:shadow-md'
         }`}
         style={{
           boxSizing: 'border-box',
-          minHeight: config.layoutCols === '2' ? '64mm' : config.layoutCols === '4' ? '44mm' : '52mm',
+          minHeight:
+            config.layoutCols === '2'
+              ? '64mm'
+              : config.layoutCols === '4'
+              ? '44mm'
+              : config.layoutCols === '5'
+              ? '36.5mm'
+              : '52mm',
         }}
       >
         {/* Đường cắt kéo trang trí nếu viền nét đứt (chỉ hiển thị xem trước) */}
@@ -591,24 +604,24 @@ export const InQrSpTab: React.FC = () => {
 
         {/* Tiêu đề cửa hàng / thương hiệu */}
         {config.showStoreName && (
-          <div className="w-full text-center pb-1 border-b border-slate-100">
-            <span className="text-[9px] font-black uppercase text-slate-600 tracking-wider">
+          <div className="w-full text-center pb-0.5 border-b border-slate-100">
+            <span className={`${is5Cols ? 'text-[8px]' : 'text-[9px]'} font-black uppercase text-slate-600 tracking-wider truncate block`}>
               {config.storeNameText || currentStoreId || 'ĐIỆN MÁY XANH'}
             </span>
           </div>
         )}
 
         {/* Khối Mã QR */}
-        <div className="flex-1 flex items-center justify-center py-1">
-          <div className="p-1 bg-white rounded">
+        <div className="flex-1 flex items-center justify-center py-0.5">
+          <div className="p-0.5 bg-white rounded">
             <QRCode
               value={item.productCode}
-              size={config.qrSize}
+              size={effectiveQrSize}
               level="M"
               style={{
                 height: 'auto',
                 maxWidth: '100%',
-                width: `${config.qrSize}px`,
+                width: `${effectiveQrSize}px`,
                 display: 'block',
               }}
             />
@@ -616,10 +629,12 @@ export const InQrSpTab: React.FC = () => {
         </div>
 
         {/* Khối Thông tin bên dưới QR */}
-        <div className={`w-full flex flex-col pt-1 ${config.textAlign === 'center' ? 'items-center text-center' : 'items-start text-left'}`}>
+        <div className={`w-full flex flex-col pt-0.5 ${config.textAlign === 'center' ? 'items-center text-center' : 'items-start text-left'}`}>
           {/* Mã sản phẩm */}
           {config.showCodeText && (
-            <div className="font-mono font-black text-slate-900 tracking-wider text-[11.5px] sm:text-[12.5px] leading-tight select-all">
+            <div className={`font-mono font-black text-slate-900 tracking-wider leading-tight select-all ${
+              is5Cols ? 'text-[10px]' : 'text-[11.5px] sm:text-[12.5px]'
+            }`}>
               {item.productCode}
             </div>
           )}
@@ -627,8 +642,10 @@ export const InQrSpTab: React.FC = () => {
           {/* Tên sản phẩm */}
           {config.showProductName && (
             <div
-              className="font-bold text-slate-800 line-clamp-2 mt-0.5 leading-snug w-full"
-              style={{ fontSize: `${config.fontSize}px` }}
+              className={`font-bold text-slate-800 line-clamp-2 mt-0.5 leading-snug w-full ${
+                is5Cols ? 'text-[9.5px]' : ''
+              }`}
+              style={{ fontSize: is5Cols ? `${Math.min(config.fontSize, 10.5)}px` : `${config.fontSize}px` }}
               title={item.productName}
             >
               {item.productName}
@@ -637,7 +654,7 @@ export const InQrSpTab: React.FC = () => {
 
           {/* IMEI (nếu có và bật) */}
           {config.showImei && item.imei && (
-            <div className="text-[9px] text-slate-500 font-medium mt-0.5 line-clamp-1">
+            <div className={`${is5Cols ? 'text-[8px]' : 'text-[9px]'} text-slate-500 font-medium mt-0.5 line-clamp-1`}>
               IMEI: <span className="font-mono font-bold text-slate-700">{item.imei}</span>
             </div>
           )}
@@ -653,7 +670,11 @@ export const InQrSpTab: React.FC = () => {
         ? 'grid-cols-2'
         : config.layoutCols === '4'
         ? 'grid-cols-4'
+        : config.layoutCols === '5'
+        ? 'grid-cols-5'
         : 'grid-cols-3';
+
+    const gapClass = config.layoutCols === '5' ? 'gap-2' : 'gap-3';
 
     return (
       <div
@@ -677,13 +698,13 @@ export const InQrSpTab: React.FC = () => {
               <span>Trang {pageIdx + 1} / {totalPages}</span>
             </div>
             <span className="text-[11px] text-slate-400">
-              {pageItems.length} tem / trang ({config.layoutCols} cột)
+              {pageItems.length} tem / trang ({config.layoutCols} cột x {config.layoutCols === '2' ? 4 : config.layoutCols === '4' ? 6 : config.layoutCols === '5' ? 7 : 5} hàng)
             </span>
           </div>
         )}
 
         {/* Lưới các con tem */}
-        <div className={`grid ${gridColsClass} gap-3 h-full`}>
+        <div className={`grid ${gridColsClass} ${gapClass} h-full`}>
           {pageItems.map((item, idx) => renderQrSticker(item, idx, isPrintMode))}
         </div>
       </div>
@@ -987,10 +1008,11 @@ export const InQrSpTab: React.FC = () => {
                     <Layers size={13} className="text-sky-600" />
                     Bố cục in trên trang A4:
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
                       { id: '3', label: '3 cột x 5 hàng', sub: '15 tem / trang', rec: true },
                       { id: '4', label: '4 cột x 6 hàng', sub: '24 tem / trang', rec: false },
+                      { id: '5', label: '5 cột x 7 hàng', sub: '35 tem / trang', rec: false },
                       { id: '2', label: '2 cột x 4 hàng', sub: '8 tem / trang', rec: false },
                     ].map(opt => (
                       <button
