@@ -241,6 +241,7 @@ export default function UserManagement({ onBack }: UserManagementProps) {
           packageDays: isEditing.packageDays || null,
           phone: isEditing.phone || null,
           isDemo: isEditing.isDemo ?? false,
+          declarationCompleted: false,
           created_at: new Date().toISOString()
         };
 

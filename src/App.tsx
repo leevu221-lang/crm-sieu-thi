@@ -15,6 +15,7 @@ import { trackUserPing } from './services/accessTracker';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { GradientV2Layout } from './layouts/v2/GradientV2Layout';
+import { isValidStoreName } from './pages/RTST/utils';
 
 // Core Primary Pages statically imported for instantaneous 0ms tab switching
 import NewRealtimePage from './pages/RealtimePage';
@@ -141,7 +142,16 @@ export default function App() {
     if (String(userProfile.username).trim() === '43751') return false;
     
     // Explicitly check for false, meaning the user registered but hasn't completed declaration yet.
-    return userProfile.declarationCompleted === false;
+    if (userProfile.declarationCompleted === false) return true;
+
+    // Also require declaration if not marked completed and user has no valid store name or placeholder store name
+    if (userProfile.declarationCompleted !== true) {
+      const st = userProfile.ten_sieu_thi || userProfile.selected_store;
+      if (!st || !isValidStoreName(st) || /^siêu\s*thị\s*\d+/i.test(st)) {
+        return true;
+      }
+    }
+    return false;
   }, [userProfile]);
   const { fontSize, setFontSize, fontFamily, setFontFamily } = useSettings();
   const { marketFilter, setMarketFilter, availableMarkets, activeRealtimeTab, activeToolHoTroTab, activeTienIchTab, activeLuyKeTab, activeHealthTab, currentStoreId } = useStore();

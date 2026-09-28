@@ -603,7 +603,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     }
 
     loadDeclaredStores();
-  }, [maKho, userProfile?.ten_sieu_thi]);
+  }, [maKho, userProfile?.ten_sieu_thi, dsBossList.length]);
 
   const handleSave = async (shouldProceed = true) => {
     if (!maKho) return;

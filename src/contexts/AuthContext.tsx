@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { UserProfile } from '../types';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { trackUserPing } from '../services/accessTracker';
-import { localYcxDb, isValidStoreName } from '../pages/RTST/utils';
+import { localYcxDb, isValidStoreName, normalizeStoreId } from '../pages/RTST/utils';
 import { URL_PAGE_MAP, isGuestShareLink } from '../constants/routes';
 import { clearAllGlobalCaches } from '../services/globalCacheRegistry';
 
@@ -329,6 +329,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const firstValid = sorted.find((r: any) => isValidStoreName(r.ten_sieu_thi || r.id));
             if (firstValid) storeName = firstValid.ten_sieu_thi || firstValid.id;
           }
+        }
+      }
+
+      if (!storeName) {
+        // Fallback: Check DS BOSS config (from localStorage or Firestore app_settings/ds_boss_config)
+        try {
+          let bossRows: any[] = [];
+          const cachedBoss = localStorage.getItem('rtst_ds_boss_config');
+          if (cachedBoss) {
+            try {
+              const parsed = JSON.parse(cachedBoss);
+              if (Array.isArray(parsed?.rows)) bossRows = parsed.rows;
+            } catch {}
+          }
+          if (bossRows.length === 0) {
+            const bossSnap = await getDoc(doc(db, 'app_settings', 'ds_boss_config'));
+            if (bossSnap.exists() && Array.isArray(bossSnap.data()?.rows)) {
+              bossRows = bossSnap.data()?.rows;
+            }
+          }
+          const cleanTarget = String(maKho).trim().replace(/^0+/, '');
+          const matched = bossRows.filter((r: any) => {
+            const rowKho = String(r.maKho || '').trim().replace(/^0+/, '');
+            const d = String(r.mstSieuThi || '').trim();
+            const e = String(r.base || '').trim();
+            return (rowKho !== '' && rowKho === cleanTarget) ||
+                   d.startsWith(`${cleanTarget} -`) || d.startsWith(`${maKho} -`) ||
+                   e.startsWith(`${cleanTarget} -`) || e.startsWith(`${maKho} -`);
+          });
+          if (matched.length > 0) {
+            const s1 = matched[0]?.tenSieuThi?.trim();
+            if (s1 && isValidStoreName(s1)) {
+              storeName = s1;
+              const declaredStores = matched.map((m: any) => m.tenSieuThi?.trim()).filter((n: string) => n && isValidStoreName(n));
+              // Auto-provision store documents in background so documents are created according to declared names
+              for (const stName of declaredStores) {
+                const normId = normalizeStoreId(stName);
+                if (normId) {
+                  supabase.from('store').upsert({
+                    id: normId,
+                    warehouse_code: String(maKho).trim(),
+                    ten_sieu_thi: stName,
+                    declared_stores: declaredStores,
+                  }, { onConflict: 'id' }).then().catch(() => {});
+                }
+              }
+            }
+          }
+        } catch (bossErr) {
+          console.warn('[AuthContext] Error checking DS BOSS fallback:', bossErr);
         }
       }
 
