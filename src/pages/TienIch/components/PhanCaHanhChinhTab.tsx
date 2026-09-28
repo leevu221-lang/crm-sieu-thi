@@ -47,13 +47,107 @@ const DEFAULT_STAFF_G2 = ['THẮM', 'MY', 'PHÚC', 'ĐẠI', 'LÂM Ý'];
 const DAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'] as const;
 type DayType = typeof DAYS[number];
 
-const WEEKS = ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4'] as const;
-type WeekType = typeof WEEKS[number];
+export const DEFAULT_WEEKS = ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4'] as const;
+export type WeekType = string;
 
-const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => {
+export const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => {
   const m = String(i + 1).padStart(2, '0');
   return `THÁNG ${m}`;
 });
+
+/**
+ * Lấy danh sách các tuần thực tế của một tháng theo lịch dương
+ * (Tháng có thể có 4, 5 hoặc 6 tuần tùy theo số thứ Hai trong tháng)
+ */
+export function getWeeksForMonth(monthName: string, year = 2026): string[] {
+  const mMatch = String(monthName || '').match(/\d+/);
+  const monthNum = mMatch ? parseInt(mMatch[0], 10) : 9;
+
+  const firstDay = new Date(year, monthNum - 1, 1);
+  const dayOfWeek = firstDay.getDay(); // 0: CN, 1: T2, 2: T3...
+  const diff = (dayOfWeek === 0) ? -6 : (1 - dayOfWeek);
+  const mondayWeek1 = new Date(year, monthNum - 1, 1 + diff);
+
+  const lastDateOfMonth = new Date(year, monthNum, 0); // e.g. 30/9, 31/10
+  const diffDays = Math.floor((lastDateOfMonth.getTime() - mondayWeek1.getTime()) / (1000 * 60 * 60 * 24));
+  const weekCount = Math.min(6, Math.max(4, Math.floor(diffDays / 7) + 1));
+
+  return Array.from({ length: weekCount }, (_, i) => `Tuần ${i + 1}`);
+}
+
+/**
+ * Lấy ngày thứ Hai đại diện cho tuần theo định dạng chuẩn YYYY-MM-DD
+ */
+export function getWeekMondayDate(monthName: string, weekName: string, year = 2026): string {
+  const mMatch = String(monthName || '').match(/\d+/);
+  const monthNum = mMatch ? parseInt(mMatch[0], 10) : 9;
+
+  const wMatch = String(weekName || '').match(/\d+/);
+  const weekIdx = wMatch ? Math.max(0, parseInt(wMatch[0], 10) - 1) : 0;
+
+  const firstDay = new Date(year, monthNum - 1, 1);
+  const dayOfWeek = firstDay.getDay();
+  const diff = (dayOfWeek === 0) ? -6 : (1 - dayOfWeek);
+  const mondayWeek1 = new Date(year, monthNum - 1, 1 + diff);
+
+  const curMonday = new Date(year, mondayWeek1.getMonth(), mondayWeek1.getDate() + (weekIdx * 7));
+  const y = curMonday.getFullYear();
+  const m = String(curMonday.getMonth() + 1).padStart(2, '0');
+  const d = String(curMonday.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Tìm tuần ở tháng khác có cùng khoảng thời gian (cùng ngày thứ Hai)
+ * Ví dụ: Tuần 5 - THÁNG 09 (28/09 -> 04/10) trùng với Tuần 1 - THÁNG 10 (28/09 -> 04/10)
+ */
+export function findMatchingWeek(targetMonth: string, targetWeek: string, year = 2026): { month: string; week: string } | null {
+  if (!targetWeek || targetWeek === 'all') return null;
+  const targetMonday = getWeekMondayDate(targetMonth, targetWeek, year);
+
+  for (const m of MONTH_OPTIONS) {
+    if (m === targetMonth) continue;
+    const weeksOfM = getWeeksForMonth(m, year);
+    for (const w of weeksOfM) {
+      if (getWeekMondayDate(m, w, year) === targetMonday) {
+        return { month: m, week: w };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Đồng bộ tất cả các tuần trùng lặp giữa các tháng trong bảng dữ liệu schedule
+ */
+export function syncOverlappingWeeksInSchedule(sched: Record<string, any>, year = 2026): Record<string, any> {
+  const next = JSON.parse(JSON.stringify(sched || {}));
+  MONTH_OPTIONS.forEach(m => {
+    const weeks = getWeeksForMonth(m, year);
+    weeks.forEach(w => {
+      const matching = findMatchingWeek(m, w, year);
+      if (matching) {
+        const curWeekData = next[m]?.[w];
+        const matWeekData = next[matching.month]?.[matching.week];
+        const hasCur = curWeekData && Object.values(curWeekData).some((shifts: any) => 
+          shifts && Object.values(shifts).some((s: any) => typeof s === 'string' && s.trim() !== '')
+        );
+        const hasMat = matWeekData && Object.values(matWeekData).some((shifts: any) => 
+          shifts && Object.values(shifts).some((s: any) => typeof s === 'string' && s.trim() !== '')
+        );
+
+        if (hasCur && !hasMat) {
+          if (!next[matching.month]) next[matching.month] = {};
+          next[matching.month][matching.week] = JSON.parse(JSON.stringify(curWeekData));
+        } else if (hasMat && !hasCur) {
+          if (!next[m]) next[m] = {};
+          next[m][w] = JSON.parse(JSON.stringify(matWeekData));
+        }
+      }
+    });
+  });
+  return next;
+}
 
 // 6 Slot xoay ca chuẩn theo Ca Mẫu Tuần 1 (Nhóm 1 - 6 nhân viên)
 const GROUP1_SLOTS: Record<DayType, string>[] = [
@@ -93,7 +187,7 @@ type StampType = 'none' | 'TN' | 'KHO' | 'HC' | 'x' | 'CLEAR';
 /**
  * Tính toán ngày theo định dạng DD/MM cho các thứ (T2 -> CN) trong tuần
  */
-function getWeekDates(monthName: string, weekName: string, year = new Date().getFullYear()): Record<DayType, string> {
+function getWeekDates(monthName: string, weekName: string, year = 2026): Record<DayType, string> {
   const mMatch = String(monthName || '').match(/\d+/);
   const monthNum = mMatch ? parseInt(mMatch[0], 10) : (new Date().getMonth() + 1);
 
@@ -122,17 +216,18 @@ function getWeekDates(monthName: string, weekName: string, year = new Date().get
 }
 
 /**
- * Sinh ma trận 4 tuần xoay tua cân bằng tuyệt đối
+ * Sinh ma trận xoay tua cân bằng tuyệt đối cho tất cả các tuần trong tháng
  */
-function generateBalanced4WeeksSchedule(g1Staff: string[], g2Staff: string[]) {
+function generateBalancedScheduleForMonth(monthName: string, g1Staff: string[], g2Staff: string[], year = 2026) {
   const result: Record<string, Record<string, Record<DayType, string>>> = {};
-  
-  WEEKS.forEach((wName, wIdx) => {
+  const weeks = getWeeksForMonth(monthName, year);
+
+  weeks.forEach((wName, wIdx) => {
     result[wName] = {};
 
     // Nhóm 1
     g1Staff.forEach((staff, sIdx) => {
-      const permRow = GROUP1_PERMUTATIONS[wIdx] || GROUP1_PERMUTATIONS[0];
+      const permRow = GROUP1_PERMUTATIONS[wIdx % GROUP1_PERMUTATIONS.length];
       const slotIdx = permRow[sIdx % permRow.length];
       const slot = GROUP1_SLOTS[slotIdx] || null;
       result[wName][staff] = {} as Record<DayType, string>;
@@ -143,7 +238,7 @@ function generateBalanced4WeeksSchedule(g1Staff: string[], g2Staff: string[]) {
 
     // Nhóm 2
     g2Staff.forEach((staff, sIdx) => {
-      const permRow = GROUP2_PERMUTATIONS[wIdx] || GROUP2_PERMUTATIONS[0];
+      const permRow = GROUP2_PERMUTATIONS[wIdx % GROUP2_PERMUTATIONS.length];
       const slotIdx = permRow[sIdx % permRow.length];
       const slot = GROUP2_SLOTS[slotIdx] || null;
       result[wName][staff] = {} as Record<DayType, string>;
@@ -186,7 +281,26 @@ export function PhanCaHanhChinhTab() {
     const currentM = new Date().getMonth() + 1;
     return `THÁNG ${String(currentM).padStart(2, '0')}`;
   });
-  const [currentWeek, setCurrentWeek] = useState<string>('Tuần 1'); // 'Tuần 1' | 'Tuần 2' | 'Tuần 3' | 'Tuần 4' | 'all'
+
+  // Danh sách các tuần thực tế của tháng hiện tại (4, 5 hoặc 6 tuần)
+  const currentMonthWeeks = useMemo(() => {
+    return getWeeksForMonth(currentMonth);
+  }, [currentMonth]);
+
+  const [currentWeek, setCurrentWeek] = useState<string>('Tuần 1');
+
+  // Đảm bảo currentWeek luôn hợp lệ với số tuần của currentMonth
+  useEffect(() => {
+    if (currentWeek !== 'all' && !currentMonthWeeks.includes(currentWeek)) {
+      setCurrentWeek('Tuần 1');
+    }
+  }, [currentMonthWeeks, currentWeek]);
+
+  // Thông tin tuần trùng với tháng khác (nếu có)
+  const matchingInfo = useMemo(() => {
+    if (currentWeek === 'all') return null;
+    return findMatchingWeek(currentMonth, currentWeek);
+  }, [currentMonth, currentWeek]);
 
   // Staff Groups
   const [staffG1, setStaffG1] = useState<string[]>(DEFAULT_STAFF_G1);
@@ -294,7 +408,8 @@ export function PhanCaHanhChinhTab() {
             setStaffG2(hcData.staffGroup2);
           }
           if (hcData.schedule && typeof hcData.schedule === 'object') {
-            setSchedule(hcData.schedule);
+            const synced = syncOverlappingWeeksInSchedule(hcData.schedule);
+            setSchedule(synced);
           }
           if (hcData.updatedAt) {
             setLastSavedTime(typeof hcData.updatedAt === 'string' ? hcData.updatedAt : 'vừa xong');
@@ -310,13 +425,16 @@ export function PhanCaHanhChinhTab() {
           const pcData = phanCaSnap.data();
           if (pcData.staffGroup1 && Array.isArray(pcData.staffGroup1)) setStaffG1(pcData.staffGroup1);
           if (pcData.staffGroup2 && Array.isArray(pcData.staffGroup2)) setStaffG2(pcData.staffGroup2);
-          if (pcData.schedule && typeof pcData.schedule === 'object') setSchedule(pcData.schedule);
+          if (pcData.schedule && typeof pcData.schedule === 'object') {
+            const synced = syncOverlappingWeeksInSchedule(pcData.schedule);
+            setSchedule(synced);
+          }
           return;
         }
       } catch (e) {}
 
-      // Nếu siêu thị này chưa có lịch, khởi tạo template 4 tuần chuẩn
-      const initialBalanced = generateBalanced4WeeksSchedule(DEFAULT_STAFF_G1, DEFAULT_STAFF_G2);
+      // Nếu siêu thị này chưa có lịch, khởi tạo template chuẩn
+      const initialBalanced = generateBalancedScheduleForMonth(currentMonth, DEFAULT_STAFF_G1, DEFAULT_STAFF_G2);
       setStaffG1(DEFAULT_STAFF_G1);
       setStaffG2(DEFAULT_STAFF_G2);
       setSchedule(prev => {
@@ -324,7 +442,8 @@ export function PhanCaHanhChinhTab() {
         const newSched: Record<string, any> = {};
         MONTH_OPTIONS.forEach(m => {
           newSched[m] = {};
-          WEEKS.forEach(w => {
+          const mWeeks = getWeeksForMonth(m);
+          mWeeks.forEach(w => {
             newSched[m][w] = {};
             [...DEFAULT_STAFF_G1, ...DEFAULT_STAFF_G2].forEach(st => {
               newSched[m][w][st] = { T2: '', T3: '', T4: '', T5: '', T6: '', T7: '', CN: '' };
@@ -332,7 +451,7 @@ export function PhanCaHanhChinhTab() {
           });
         });
         newSched[currentMonth] = initialBalanced;
-        return newSched;
+        return syncOverlappingWeeksInSchedule(newSched);
       });
     }, (err) => {
       console.error('Firestore onSnapshot error phan_ca_hc:', err);
@@ -369,10 +488,13 @@ export function PhanCaHanhChinhTab() {
     setSyncStatus('syncing');
 
     try {
+      const syncedSchedule = syncOverlappingWeeksInSchedule(schedule);
+      setSchedule(syncedSchedule);
+
       const schedulePayload = {
         staffGroup1: staffG1,
         staffGroup2: staffG2,
-        schedule,
+        schedule: syncedSchedule,
         updatedAt: new Date().toISOString(),
         updatedBy: userProfile?.username || userProfile?.full_name || 'user'
       };
@@ -400,7 +522,7 @@ export function PhanCaHanhChinhTab() {
       const nowTime = new Date().toLocaleTimeString('vi-VN');
       setLastSavedTime(nowTime);
       localStorage.setItem(`PHAN_CA_HC_LAST_SAVED_${storeDocId}`, nowTime);
-      saveToLocal(schedule);
+      saveToLocal(syncedSchedule);
 
       setSyncStatus('synced');
       showToast(`Đã lưu thành công cho siêu thị: ${activeStoreName}!`, 'success');
@@ -467,13 +589,38 @@ export function PhanCaHanhChinhTab() {
   // CELL INTERACTION & STAMP BRUSH
   // ==========================================================================
 
-  // Ma trận phân ca tháng hiện tại (tự động kế thừa mẫu xoay tua 4 tuần cân bằng tuyệt đối nếu tháng chưa có dữ liệu)
+  // Ma trận phân ca tháng hiện tại (tự động kế thừa mẫu xoay tua & đồng bộ tuần trùng giữa các tháng)
   const activeMonthSchedule = useMemo(() => {
-    if (schedule[currentMonth] && Object.keys(schedule[currentMonth]).length > 0) {
-      return schedule[currentMonth];
-    }
-    return generateBalanced4WeeksSchedule(staffG1, staffG2);
-  }, [schedule, currentMonth, staffG1, staffG2]);
+    const fallbackTemplate = generateBalancedScheduleForMonth(currentMonth, staffG1, staffG2);
+    const result: Record<string, Record<string, Record<DayType, string>>> = {};
+
+    currentMonthWeeks.forEach(w => {
+      // 1. Kiểm tra nếu tháng hiện tại đã có dữ liệu cho tuần này
+      const currentWeekData = schedule[currentMonth]?.[w];
+      const hasCurrentData = currentWeekData && Object.values(currentWeekData).some(shifts => 
+        shifts && Object.values(shifts).some(s => typeof s === 'string' && s.trim() !== '')
+      );
+
+      // 2. Kiểm tra nếu tuần này trùng với một tuần ở tháng khác (ví dụ: Tuần 1 T10 trùng Tuần 5 T9)
+      const matching = findMatchingWeek(currentMonth, w);
+      const matchingWeekData = matching ? schedule[matching.month]?.[matching.week] : null;
+      const hasMatchingData = matchingWeekData && Object.values(matchingWeekData).some(shifts => 
+        shifts && Object.values(shifts).some(s => typeof s === 'string' && s.trim() !== '')
+      );
+
+      if (hasCurrentData) {
+        result[w] = currentWeekData;
+      } else if (hasMatchingData && matchingWeekData) {
+        // Tự động đồng bộ dữ liệu từ tuần trùng ở tháng kia sang!
+        result[w] = matchingWeekData;
+      } else {
+        // Fallback: template cân bằng
+        result[w] = fallbackTemplate[w] || {};
+      }
+    });
+
+    return result;
+  }, [schedule, currentMonth, currentMonthWeeks, staffG1, staffG2]);
 
   const handleCellClick = (staff: string, day: DayType, weekName: string) => {
     const currentShift = activeMonthSchedule[weekName]?.[staff]?.[day] || '';
@@ -520,6 +667,23 @@ export function PhanCaHanhChinhTab() {
           ...next[currentMonth][weekName][staff],
           [day]: newShift
         };
+
+        // Đồng bộ 2 chiều nếu tuần này trùng với tuần ở tháng khác
+        const matching = findMatchingWeek(currentMonth, weekName);
+        if (matching) {
+          if (!next[matching.month]) next[matching.month] = {};
+          else next[matching.month] = { ...next[matching.month] };
+          if (!next[matching.month][matching.week]) next[matching.month][matching.week] = {};
+          else next[matching.month][matching.week] = { ...next[matching.month][matching.week] };
+          if (!next[matching.month][matching.week][staff]) next[matching.month][matching.week][staff] = {} as Record<DayType, string>;
+          else next[matching.month][matching.week][staff] = { ...next[matching.month][matching.week][staff] };
+
+          next[matching.month][matching.week][staff] = {
+            ...next[matching.month][matching.week][staff],
+            [day]: newShift
+          };
+        }
+
         saveToLocal(next);
         return next;
       });
@@ -539,7 +703,7 @@ export function PhanCaHanhChinhTab() {
       return;
     }
 
-    const targetWeek = currentWeek === 'all' ? 'Tuần 1' : currentWeek;
+    const targetWeek = currentWeek === 'all' ? currentMonthWeeks[0] : currentWeek;
     let appliedCount = 0;
 
     setSchedule(prev => {
@@ -574,6 +738,20 @@ export function PhanCaHanhChinhTab() {
       });
 
       next[currentMonth][targetWeek][assignStaff] = staffShifts;
+
+      // Đồng bộ 2 chiều nếu targetWeek trùng với tuần tháng khác
+      const matching = findMatchingWeek(currentMonth, targetWeek);
+      if (matching) {
+        if (!next[matching.month]) next[matching.month] = {};
+        else next[matching.month] = { ...next[matching.month] };
+        if (!next[matching.month][matching.week]) next[matching.month][matching.week] = {};
+        else next[matching.month][matching.week] = { ...next[matching.month][matching.week] };
+        if (!next[matching.month][matching.week][assignStaff]) next[matching.month][matching.week][assignStaff] = {} as Record<DayType, string>;
+        else next[matching.month][matching.week][assignStaff] = { ...next[matching.month][matching.week][assignStaff] };
+
+        next[matching.month][matching.week][assignStaff] = { ...staffShifts };
+      }
+
       if (appliedCount > 0) {
         saveToLocal(next);
       }
@@ -593,17 +771,20 @@ export function PhanCaHanhChinhTab() {
   // ==========================================================================
 
   const balancedPreview = useMemo(() => {
-    return generateBalanced4WeeksSchedule(staffG1, staffG2);
-  }, [staffG1, staffG2]);
+    return generateBalancedScheduleForMonth(currentMonth, staffG1, staffG2);
+  }, [currentMonth, staffG1, staffG2]);
 
   const handleApplyAutoRotate = () => {
     setSchedule(prev => {
-      const next = { ...prev };
+      let next = { ...prev };
       if (!next[currentMonth]) next[currentMonth] = {};
 
-      WEEKS.forEach(wName => {
+      currentMonthWeeks.forEach(wName => {
         next[currentMonth][wName] = JSON.parse(JSON.stringify(balancedPreview[wName]));
       });
+
+      // Tự động đồng bộ các tuần trùng sang các tháng liên kết
+      next = syncOverlappingWeeksInSchedule(next);
 
       saveToLocal(next);
       return next;
@@ -611,7 +792,7 @@ export function PhanCaHanhChinhTab() {
 
     setUnsavedChangesCount(c => c + 25);
     setShowAutoRotateModal(false);
-    showToast(`⚡ Đã tự động xoay tua 4 tuần cân bằng tuyệt đối cho ${currentMonth}! Nhớ bấm "Lưu Lên Hệ Thống".`, 'success');
+    showToast(`⚡ Đã tự động xoay tua các tuần cân bằng tuyệt đối cho ${currentMonth}! Nhớ bấm "Lưu Lên Hệ Thống".`, 'success');
   };
 
   // ==========================================================================
@@ -908,7 +1089,7 @@ export function PhanCaHanhChinhTab() {
     let tnCount = 0;
     let khoCount = 0;
 
-    const targetWeeks = currentWeek === 'all' ? WEEKS : [currentWeek];
+    const targetWeeks = currentWeek === 'all' ? currentMonthWeeks : [currentWeek];
 
     targetWeeks.forEach(w => {
       const weekData = activeMonthSchedule[w] || {};
@@ -923,7 +1104,7 @@ export function PhanCaHanhChinhTab() {
     });
 
     return { tnCount, khoCount };
-  }, [activeMonthSchedule, currentWeek, allStaff]);
+  }, [activeMonthSchedule, currentWeek, allStaff, currentMonthWeeks]);
 
   // Current week dates mapping
   const currentWeekDates = useMemo(() => {
@@ -1118,19 +1299,28 @@ export function PhanCaHanhChinhTab() {
 
         {/* Week Tabs */}
         <div className="flex items-center overflow-x-auto no-scrollbar gap-1.5 p-1 bg-slate-100/80 rounded-2xl border border-slate-200/60">
-          {WEEKS.map(w => (
-            <button
-              key={w}
-              onClick={() => setCurrentWeek(w)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-black tracking-wide whitespace-nowrap transition-all cursor-pointer ${
-                currentWeek === w
-                  ? 'bg-sky-600 text-white shadow-sm shadow-sky-600/30'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-              }`}
-            >
-              {w}
-            </button>
-          ))}
+          {currentMonthWeeks.map(w => {
+            const match = findMatchingWeek(currentMonth, w);
+            return (
+              <button
+                key={w}
+                onClick={() => setCurrentWeek(w)}
+                className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black tracking-wide whitespace-nowrap transition-all cursor-pointer ${
+                  currentWeek === w
+                    ? 'bg-sky-600 text-white shadow-sm shadow-sky-600/30'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+                title={match ? `Trùng với ${match.week} (${match.month}) - Tự động đồng bộ 2 chiều` : undefined}
+              >
+                <span>{w}</span>
+                {match && (
+                  <span className={`w-2 h-2 rounded-full ${
+                    currentWeek === w ? 'bg-amber-300 ring-2 ring-sky-700' : 'bg-amber-500'
+                  }`} />
+                )}
+              </button>
+            );
+          })}
           <button
             onClick={() => setCurrentWeek('all')}
             className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black tracking-wide whitespace-nowrap transition-all cursor-pointer ${
@@ -1164,7 +1354,7 @@ export function PhanCaHanhChinhTab() {
             className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200 text-sky-700 text-xs font-black hover:from-sky-100 hover:to-blue-100 hover:border-sky-300 transition-all shadow-2xs active:scale-95 cursor-pointer"
           >
             <Sparkles size={15} className="text-sky-600" />
-            <span>⚡ Xoay Tua KHO & TN Tự Động (4 Tuần)</span>
+            <span>⚡ Xoay Tua KHO & TN Tự Động ({currentMonthWeeks.length} Tuần)</span>
           </button>
         </div>
 
@@ -1402,8 +1592,33 @@ export function PhanCaHanhChinhTab() {
 
         {/* SINGLE WEEK VIEW */}
         {currentWeek !== 'all' ? (
-          <div className="overflow-x-auto no-scrollbar rounded-2xl border border-slate-200/80">
-            <table className="w-full text-center border-collapse table-fixed min-w-[850px]">
+          <div className="space-y-4">
+            {/* Overlap Week Sync Banner (Hidden on export) */}
+            {matchingInfo && (
+              <div className="export-no-print flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200/80 text-amber-900 text-xs shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <span className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black shadow-xs shrink-0">
+                    <Sparkles size={16} />
+                  </span>
+                  <div>
+                    <p className="font-black text-amber-950">
+                      Tuần này ({currentWeekDates['T2']} – {currentWeekDates['CN']}) trùng với{' '}
+                      <span className="text-sky-700 underline font-extrabold">{matchingInfo.week} của {matchingInfo.month}</span>
+                    </p>
+                    <p className="text-[11px] text-amber-700/90 font-medium mt-0.5">
+                      Mọi ca trực bạn chấm hoặc chỉnh sửa ở tuần này sẽ tự động đồng bộ 2 chiều sang {matchingInfo.week} ({matchingInfo.month}).
+                    </p>
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white border border-amber-300 text-amber-800 text-[11px] font-black uppercase tracking-wider shadow-2xs shrink-0 self-start sm:self-center">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Đồng bộ 2 chiều
+                </span>
+              </div>
+            )}
+
+            <div className="overflow-x-auto no-scrollbar rounded-2xl border border-slate-200/80">
+              <table className="w-full text-center border-collapse table-fixed min-w-[850px]">
               <colgroup>
                 <col className="w-12" />
                 <col className="w-40" />
@@ -1545,19 +1760,27 @@ export function PhanCaHanhChinhTab() {
               </tbody>
             </table>
           </div>
-        ) : (
-          /* ALL WEEKS (CẢ THÁNG) VIEW */
-          <div className="space-y-8">
-            {WEEKS.map(wName => {
-              const weekDates = getWeekDates(currentMonth, wName);
-              return (
-                <div key={wName} className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-                  <div className="bg-gradient-to-r from-sky-50 to-blue-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
-                    <span className="text-xs font-black text-sky-800 uppercase tracking-wide flex items-center gap-1.5">
-                      <CalendarCheck size={14} className="text-sky-600" />
-                      {wName} - {currentMonth} ({weekDates['T2']} - {weekDates['CN']})
+        </div>
+      ) : (
+        /* ALL WEEKS (CẢ THÁNG) VIEW */
+        <div className="space-y-8">
+          {currentMonthWeeks.map(wName => {
+            const weekDates = getWeekDates(currentMonth, wName);
+            const match = findMatchingWeek(currentMonth, wName);
+            return (
+              <div key={wName} className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                <div className="bg-gradient-to-r from-sky-50 to-blue-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+                  <span className="text-xs font-black text-sky-800 uppercase tracking-wide flex items-center gap-1.5">
+                    <CalendarCheck size={14} className="text-sky-600" />
+                    {wName} - {currentMonth} ({weekDates['T2']} - {weekDates['CN']})
+                  </span>
+                  {match && (
+                    <span className="export-no-print px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1 shadow-2xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                      Trùng {match.week} ({match.month}) • Tự đồng bộ
                     </span>
-                  </div>
+                  )}
+                </div>
 
                   <div className="overflow-x-auto no-scrollbar">
                     <table className="w-full text-center border-collapse table-fixed min-w-[850px]">
@@ -1846,7 +2069,7 @@ export function PhanCaHanhChinhTab() {
                       : 'border-transparent text-slate-500 hover:text-slate-700'
                   }`}
                 >
-                  Chi Tiết Phân Ca 4 Tuần
+                  Chi Tiết Phân Ca {currentMonthWeeks.length} Tuần
                 </button>
               </div>
 
@@ -1859,10 +2082,9 @@ export function PhanCaHanhChinhTab() {
                         <th className="py-2.5 px-2">STT</th>
                         <th className="py-2.5 px-3 text-left">Nhân Viên</th>
                         <th className="py-2.5 px-2">Nhóm</th>
-                        <th className="py-2.5 px-2">Tuần 1</th>
-                        <th className="py-2.5 px-2">Tuần 2</th>
-                        <th className="py-2.5 px-2">Tuần 3</th>
-                        <th className="py-2.5 px-2">Tuần 4</th>
+                        {currentMonthWeeks.map(w => (
+                          <th key={w} className="py-2.5 px-2">{w}</th>
+                        ))}
                         <th className="py-2.5 px-2 bg-purple-50 text-purple-700">Tổng TN</th>
                         <th className="py-2.5 px-2 bg-amber-50 text-amber-700">Tổng KHO</th>
                         <th className="py-2.5 px-2 bg-sky-50 text-sky-700">Tổng Ca</th>
@@ -1875,7 +2097,7 @@ export function PhanCaHanhChinhTab() {
                         let totalTN = 0, totalKHO = 0;
                         const weekStats: string[] = [];
 
-                        WEEKS.forEach(w => {
+                        currentMonthWeeks.forEach(w => {
                           let wTN = 0, wKHO = 0;
                           DAYS.forEach(d => {
                             const val = balancedPreview[w]?.[staff]?.[d];
@@ -1931,7 +2153,7 @@ export function PhanCaHanhChinhTab() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {WEEKS.map(w => (
+                      {currentMonthWeeks.map(w => (
                         <React.Fragment key={w}>
                           <tr className="bg-sky-50/70 font-black text-sky-800 text-left">
                             <td colSpan={11} className="py-2 px-3">{w.toUpperCase()}</td>
@@ -1984,7 +2206,7 @@ export function PhanCaHanhChinhTab() {
                   className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 text-white text-xs font-black shadow-md shadow-sky-500/25 hover:from-sky-600 hover:to-blue-700 transition-all cursor-pointer"
                 >
                   <Sparkles size={15} />
-                  <span>Áp Dụng Xoay Tua 4 Tuần Vào Lịch</span>
+                  <span>Áp Dụng Xoay Tua {currentMonthWeeks.length} Tuần Vào Lịch</span>
                 </button>
               </div>
             </div>
