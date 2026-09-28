@@ -156,21 +156,6 @@ const bgMapTraditional: any = {
   orange: 'bg-gradient-to-br from-orange-500 via-amber-500 to-rose-500 text-white shadow-lg shadow-orange-500/20 border-white/30'
 };
 
-const getValueFontSizeRT = (val: string | number) => {
-  const str = String(val ?? '').trim();
-  const len = str.length;
-  if (len <= 3) {
-    return 'text-[22px] sm:text-[25px] md:text-[28px] lg:text-[30px] xl:text-[34px]';
-  }
-  if (len <= 5) {
-    return 'text-[19px] sm:text-[21px] md:text-[24px] lg:text-[25px] xl:text-[28px]';
-  }
-  if (len <= 7) {
-    return 'text-[17px] sm:text-[19px] md:text-[21px] lg:text-[22px] xl:text-[24px]';
-  }
-  return 'text-[15px] sm:text-[17px] md:text-[18.5px] lg:text-[19.5px] xl:text-[21.5px]';
-};
-
 const AutoZoomTextRT: React.FC<{
   value: string | number;
   className?: string;
@@ -187,8 +172,8 @@ const AutoZoomTextRT: React.FC<{
 
       if (containerWidth > 0 && textWidth > 0) {
         if (textWidth > containerWidth) {
-          const ratio = (containerWidth / textWidth) * 0.96;
-          const finalScale = Math.max(0.5, ratio);
+          const ratio = (containerWidth / textWidth) * 0.98;
+          const finalScale = Math.max(0.65, ratio);
           setScale(finalScale);
           textRef.current.style.transform = `scale(${finalScale})`;
         } else {
@@ -243,39 +228,44 @@ const StatCard = ({ title, value, subValue, icon: Icon, color, trend, delay = 0,
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay, duration: 0.4 }}
-        className={`bg-white/95 backdrop-blur-md p-2 sm:p-2.5 md:p-3 lg:p-3 xl:p-3.5 2xl:p-4 rounded-xl sm:rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_35px_-5px_rgba(2,132,199,0.16)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between h-full min-h-[76px] sm:min-h-[86px] md:min-h-[96px] lg:min-h-[102px] xl:min-h-[110px] group ${isLarge ? 'md:col-span-2' : ''}`}
+        className={`bg-white/95 backdrop-blur-md p-3 sm:p-3.5 md:p-4 lg:p-4.5 xl:p-5 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_35px_-5px_rgba(2,132,199,0.16)] hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between h-full min-h-[92px] sm:min-h-[102px] md:min-h-[112px] lg:min-h-[120px] xl:min-h-[128px] group ${isLarge ? 'md:col-span-2' : ''}`}
         style={{ fontFamily: "'UTM Avo', sans-serif" }}
       >
-        <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 lg:gap-2.5 xl:gap-3 mb-0.5 sm:mb-1 min-w-0">
-          <div className={`w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-10.5 lg:h-10.5 xl:w-11 xl:h-11 rounded-lg sm:rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 ${theme.bg} ${theme.text} shadow-2xs transition-transform group-hover:scale-105 border border-white/70`}>
-            <Icon size={15} strokeWidth={2.4} className="sm:w-4 sm:h-4 md:w-4.5 md:h-4.5 lg:w-5 lg:h-5 xl:w-5.5 xl:h-5.5" />
+        {/* Top Badge: Icon + Title */}
+        <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3 flex-nowrap min-w-0">
+          <div
+            className={`stat-card-badge inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.2 rounded-full text-[8.5px] sm:text-[9.5px] md:text-[10.5px] lg:text-[11.5px] font-black uppercase tracking-wider ${theme.bg} ${theme.text} border ${theme.border} shadow-2xs whitespace-nowrap shrink-0 max-w-full`}
+          >
+            <Icon size={13} strokeWidth={2.6} className="shrink-0 sm:w-3.5 sm:h-3.5" />
+            <span
+              className="stat-card-title whitespace-nowrap leading-none truncate"
+              title={title}
+            >
+              {title}
+            </span>
           </div>
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <div className="flex items-center justify-between gap-1">
-              <span
-                className="stat-card-title text-[8.5px] sm:text-[9.5px] md:text-[10px] lg:text-[10.5px] xl:text-[11.5px] 2xl:text-[12px] font-black text-slate-500 uppercase tracking-tight leading-tight line-clamp-2 block"
-                title={title}
-              >
-                {title}
-              </span>
-              {trend !== undefined && (
-                <div className={`flex items-center gap-0.5 px-1 sm:px-1.5 py-0.2 rounded-full text-[7.5px] sm:text-[8.5px] md:text-[9px] font-black shrink-0 ${trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                  {trend > 0 ? <ArrowUpRight size={9} /> : <ArrowDownRight size={9} />}
-                  {Math.abs(trend)}%
-                </div>
-              )}
+          {trend !== undefined && (
+            <div
+              className={`flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-[8.5px] md:text-[9px] font-black ml-auto shrink-0 border border-white/60 whitespace-nowrap ${
+                trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+              }`}
+            >
+              {trend > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+              {Math.abs(trend)}%
             </div>
-            <div className="mt-0.5 md:mt-1">
-              <AutoZoomTextRT
-                value={value}
-                className={`font-bold tracking-tight text-[#0F172A] leading-none font-oswald ${getValueFontSizeRT(value)}`}
-              />
-            </div>
-          </div>
+          )}
+        </div>
+
+        {/* Main Big Number Row - Takes 100% of card width */}
+        <div className="pt-0.5 sm:pt-1">
+          <AutoZoomTextRT
+            value={value}
+            className="font-bold text-[28px] xs:text-[32px] sm:text-[36px] md:text-[40px] lg:text-[42px] xl:text-[46px] 2xl:text-[50px] tracking-tight text-[#0F172A] leading-none font-oswald"
+          />
         </div>
 
         {subValue && (
-          <div className="text-[8.5px] sm:text-[9.5px] md:text-[10.5px] font-medium text-slate-400 truncate pt-1 border-t border-slate-100/60 mt-auto">
+          <div className="text-[9px] sm:text-[10px] md:text-[11px] font-medium text-slate-400 truncate pt-1.5 border-t border-slate-100/60 mt-auto">
             {subValue}
           </div>
         )}
