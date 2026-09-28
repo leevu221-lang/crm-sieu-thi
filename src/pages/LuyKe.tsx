@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import * as htmlToImage from 'html-to-image';
 import { domToPng } from 'modern-screenshot';
@@ -131,6 +131,83 @@ const pastelColorMap: Record<string, { bg: string; text: string; border: string 
   default: { bg: 'bg-[#E0F2FE]', text: 'text-[#0284C7]', border: 'border-[#BAE6FD]' }
 };
 
+const getValueFontSize = (val: string | number) => {
+  const str = String(val ?? '').trim();
+  const len = str.length;
+  if (len <= 3) {
+    return 'text-[22px] sm:text-[25px] md:text-[28px] lg:text-[30px] xl:text-[34px]';
+  }
+  if (len <= 5) {
+    return 'text-[19px] sm:text-[21px] md:text-[24px] lg:text-[25px] xl:text-[28px]';
+  }
+  if (len <= 7) {
+    return 'text-[17px] sm:text-[19px] md:text-[21px] lg:text-[22px] xl:text-[24px]';
+  }
+  return 'text-[15px] sm:text-[17px] md:text-[18.5px] lg:text-[19.5px] xl:text-[21.5px]';
+};
+
+const AutoZoomText: React.FC<{
+  value: string | number;
+  className?: string;
+}> = ({ value, className = '' }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [scale, setScale] = useState<number>(1);
+
+  const calculateScale = useCallback(() => {
+    if (containerRef.current && textRef.current) {
+      textRef.current.style.transform = 'none';
+      const containerWidth = containerRef.current.clientWidth;
+      const textWidth = textRef.current.scrollWidth;
+
+      if (containerWidth > 0 && textWidth > 0) {
+        if (textWidth > containerWidth) {
+          const ratio = (containerWidth / textWidth) * 0.96;
+          const finalScale = Math.max(0.5, ratio);
+          setScale(finalScale);
+          textRef.current.style.transform = `scale(${finalScale})`;
+        } else {
+          setScale(1);
+          textRef.current.style.transform = 'none';
+        }
+      }
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    calculateScale();
+    const handleResize = () => calculateScale();
+    window.addEventListener('resize', handleResize);
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      ro = new ResizeObserver(() => calculateScale());
+      ro.observe(containerRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (ro) ro.disconnect();
+    };
+  }, [value, calculateScale]);
+
+  return (
+    <div ref={containerRef} className="w-full overflow-hidden flex items-baseline min-w-0">
+      <span
+        ref={textRef}
+        className={`whitespace-nowrap inline-block ${className}`}
+        style={{
+          transformOrigin: 'left center',
+          whiteSpace: 'nowrap',
+          wordBreak: 'keep-all',
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+};
+
 const StatCard: React.FC<{
   title: string;
   value: string | number;
@@ -148,39 +225,39 @@ const StatCard: React.FC<{
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.3 }}
-      className={`bg-white/95 backdrop-blur-md p-2.5 sm:p-3.5 md:p-4 lg:p-4.5 xl:p-5 2xl:p-6 rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_35px_-5px_rgba(2,132,199,0.16)] hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between h-full min-h-[82px] sm:min-h-[96px] md:min-h-[108px] lg:min-h-[116px] xl:min-h-[126px] group ${isLarge ? 'md:col-span-2' : ''}`}
+      className={`bg-white/95 backdrop-blur-md p-2 sm:p-2.5 md:p-3 lg:p-3 xl:p-3.5 2xl:p-4 rounded-xl sm:rounded-2xl md:rounded-3xl border border-[#BAE6FD]/80 shadow-[0_10px_30px_-5px_rgba(2,132,199,0.08),0_4px_6px_-2px_rgba(0,0,0,0.03)] hover:shadow-[0_20px_35px_-5px_rgba(2,132,199,0.16)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between h-full min-h-[76px] sm:min-h-[86px] md:min-h-[96px] lg:min-h-[102px] xl:min-h-[110px] group ${isLarge ? 'md:col-span-2' : ''}`}
       style={{ fontFamily: "'UTM Avo', sans-serif" }}
     >
-      <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 lg:gap-3.5 xl:gap-4 mb-1 sm:mb-1.5 min-w-0">
-        <div className={`w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 lg:w-13 lg:h-13 xl:w-14 xl:h-14 2xl:w-15 2xl:h-15 rounded-xl sm:rounded-2xl lg:rounded-[20px] 2xl:rounded-2xl flex items-center justify-center shrink-0 ${theme.bg} ${theme.text} shadow-2xs transition-transform group-hover:scale-105 border border-white/70`}>
-          <Icon size={16} strokeWidth={2.4} className="sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-6.5 lg:h-6.5 xl:w-7 xl:h-7" />
+      <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 lg:gap-2.5 xl:gap-3 mb-0.5 sm:mb-1 min-w-0">
+        <div className={`w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 lg:w-10.5 lg:h-10.5 xl:w-11 xl:h-11 rounded-lg sm:rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 ${theme.bg} ${theme.text} shadow-2xs transition-transform group-hover:scale-105 border border-white/70`}>
+          <Icon size={15} strokeWidth={2.4} className="sm:w-4 sm:h-4 md:w-4.5 md:h-4.5 lg:w-5 lg:h-5 xl:w-5.5 xl:h-5.5" />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 overflow-hidden">
           <div className="flex items-center justify-between gap-1">
             <span
-              className="stat-card-title text-[9px] sm:text-[10.5px] md:text-[11.5px] lg:text-[12.5px] xl:text-[13.5px] 2xl:text-[14px] font-black text-slate-500 uppercase tracking-tight leading-tight line-clamp-2 block"
+              className="stat-card-title text-[8.5px] sm:text-[9.5px] md:text-[10px] lg:text-[10.5px] xl:text-[11.5px] 2xl:text-[12px] font-black text-slate-500 uppercase tracking-tight leading-tight line-clamp-2 block"
               title={title}
             >
               {title}
             </span>
             {trend !== undefined && (
-              <div className={`flex items-center gap-0.5 px-1 sm:px-1.5 md:px-2 py-0.5 rounded-full text-[8px] sm:text-[9px] md:text-[10px] font-black shrink-0 ${trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                {trend > 0 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+              <div className={`flex items-center gap-0.5 px-1 sm:px-1.5 py-0.2 rounded-full text-[7.5px] sm:text-[8.5px] md:text-[9px] font-black shrink-0 ${trend > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                {trend > 0 ? <ArrowUpRight size={9} /> : <ArrowDownRight size={9} />}
                 {Math.abs(trend)}%
               </div>
             )}
           </div>
-          <div
-            className="font-bold text-[19px] xs:text-[22px] sm:text-[26px] md:text-[32px] lg:text-[36px] xl:text-[42px] 2xl:text-[46px] tracking-tight text-[#0F172A] leading-tight font-oswald truncate mt-0.5 md:mt-1"
-            style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700 }}
-          >
-            {value}
+          <div className="mt-0.5 md:mt-1">
+            <AutoZoomText
+              value={value}
+              className={`font-bold tracking-tight text-[#0F172A] leading-none font-oswald ${getValueFontSize(value)}`}
+            />
           </div>
         </div>
       </div>
 
       {subValue && (
-        <div className="text-[9.5px] sm:text-[11px] md:text-[12px] font-medium text-slate-400 truncate pt-1 border-t border-slate-100/60 mt-auto">
+        <div className="text-[8.5px] sm:text-[9.5px] md:text-[10.5px] font-medium text-slate-400 truncate pt-1 border-t border-slate-100/60 mt-auto">
           {subValue}
         </div>
       )}
