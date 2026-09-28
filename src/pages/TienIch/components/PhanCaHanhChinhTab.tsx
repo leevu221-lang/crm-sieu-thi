@@ -25,7 +25,8 @@ import {
   FileSpreadsheet,
   X,
   Layers,
-  CalendarCheck
+  CalendarCheck,
+  Store
 } from 'lucide-react';
 import { db } from '../../../firebaseConfig';
 import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
@@ -155,12 +156,28 @@ function generateBalanced4WeeksSchedule(g1Staff: string[], g2Staff: string[]) {
 
 export function PhanCaHanhChinhTab() {
   const { userProfile } = useAuth();
-  const { currentStoreId } = useStore();
+  const { currentStoreId, setCurrentStoreId, availableStores } = useStore();
 
-  const storeId = useMemo(() => {
-    const raw = currentStoreId || userProfile?.ma_kho || '43751';
-    return normalizeStoreId(raw);
-  }, [currentStoreId, userProfile?.ma_kho]);
+  // 1. Tên siêu thị đang chọn hiển thị cho người dùng
+  const activeStoreName = useMemo(() => {
+    if (currentStoreId && currentStoreId !== 'ALL' && currentStoreId.trim()) {
+      return currentStoreId.trim();
+    }
+    if (userProfile?.ten_sieu_thi && userProfile.ten_sieu_thi.trim()) {
+      return userProfile.ten_sieu_thi.trim();
+    }
+    if (availableStores && availableStores.length > 0) {
+      return availableStores[0].name.trim();
+    }
+    return userProfile?.ma_kho || '43751';
+  }, [currentStoreId, userProfile, availableStores]);
+
+  // 2. ID tài liệu Firestore đại diện cho siêu thị đang chọn
+  const storeDocId = useMemo(() => {
+    const norm = normalizeStoreId(activeStoreName);
+    if (norm) return norm.replace(/\//g, '-');
+    return activeStoreName.trim().toUpperCase().replace(/[\/\s]+/g, '_');
+  }, [activeStoreName]);
 
   // Current Month & Week
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -183,7 +200,7 @@ export function PhanCaHanhChinhTab() {
   const [isSaving, setIsSaving] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle');
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(() => {
-    return localStorage.getItem(`PHAN_CA_HC_LAST_SAVED_${storeId}`) || null;
+    return localStorage.getItem(`PHAN_CA_HC_LAST_SAVED_${storeDocId}`) || null;
   });
 
   // Modals
@@ -236,14 +253,14 @@ export function PhanCaHanhChinhTab() {
   }, [allStaff, assignStaff]);
 
   // ==========================================================================
-  // FIREBASE FIRESTORE SYNC & LOCAL CACHE
+  // FIREBASE FIRESTORE SYNC & LOCAL CACHE THEO SIÊU THỊ ĐANG CHỌN
   // ==========================================================================
 
-  const cacheKey = `PHAN_CA_HC_DATA_${storeId}`;
+  const cacheKey = `PHAN_CA_HC_DATA_${storeDocId}`;
 
   // 1. Initial Load from LocalStorage + Setup Firestore onSnapshot Listener
   useEffect(() => {
-    if (!storeId) return;
+    if (!storeDocId) return;
 
     // Load LocalStorage immediately for instant UX
     try {
@@ -258,58 +275,77 @@ export function PhanCaHanhChinhTab() {
       console.warn('Lỗi đọc cache local phan_ca_hc:', e);
     }
 
-    // Set up Firestore onSnapshot listener (realtime sync, minimal read counts)
+    // Set up Firestore onSnapshot listener for the chosen supermarket
     setSyncStatus('syncing');
-    const docRef = doc(db, 'phan_ca_hc', storeId);
+    const storeDocRef = doc(db, 'store', storeDocId);
 
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+    const unsubscribe = onSnapshot(storeDocRef, async (docSnap) => {
       setSyncStatus('synced');
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data.staffGroup1 && Array.isArray(data.staffGroup1)) {
-          setStaffG1(data.staffGroup1);
+        const hcData = data.phan_ca_hc || data.data_phan_ca_hc;
+        if (hcData) {
+          if (hcData.staffGroup1 && Array.isArray(hcData.staffGroup1)) {
+            setStaffG1(hcData.staffGroup1);
+          }
+          if (hcData.staffGroup2 && Array.isArray(hcData.staffGroup2)) {
+            setStaffG2(hcData.staffGroup2);
+          }
+          if (hcData.schedule && typeof hcData.schedule === 'object') {
+            setSchedule(hcData.schedule);
+          }
+          if (hcData.updatedAt) {
+            setLastSavedTime(typeof hcData.updatedAt === 'string' ? hcData.updatedAt : 'vừa xong');
+          }
+          return;
         }
-        if (data.staffGroup2 && Array.isArray(data.staffGroup2)) {
-          setStaffG2(data.staffGroup2);
+      }
+
+      // Fallback: nếu document trong 'store' chưa có phan_ca_hc, thử kiểm tra 'phan_ca_hc' collection
+      try {
+        const phanCaSnap = await getDoc(doc(db, 'phan_ca_hc', storeDocId));
+        if (phanCaSnap.exists()) {
+          const pcData = phanCaSnap.data();
+          if (pcData.staffGroup1 && Array.isArray(pcData.staffGroup1)) setStaffG1(pcData.staffGroup1);
+          if (pcData.staffGroup2 && Array.isArray(pcData.staffGroup2)) setStaffG2(pcData.staffGroup2);
+          if (pcData.schedule && typeof pcData.schedule === 'object') setSchedule(pcData.schedule);
+          return;
         }
-        if (data.schedule && typeof data.schedule === 'object') {
-          setSchedule(data.schedule);
-        }
-        if (data.updatedAt) {
-          const time = data.updatedAt?.toDate ? data.updatedAt.toDate().toLocaleTimeString('vi-VN') : 'vừa xong';
-          setLastSavedTime(time);
-        }
-      } else {
-        // If document doesn't exist yet, populate with initial balanced template
-        const initialBalanced = generateBalanced4WeeksSchedule(DEFAULT_STAFF_G1, DEFAULT_STAFF_G2);
-        setSchedule(prev => {
-          if (Object.keys(prev).length > 0) return prev;
-          const newSched: Record<string, any> = {};
-          MONTH_OPTIONS.forEach(m => {
-            newSched[m] = {};
-            WEEKS.forEach(w => {
-              newSched[m][w] = {};
-              [...DEFAULT_STAFF_G1, ...DEFAULT_STAFF_G2].forEach(st => {
-                newSched[m][w][st] = { T2: '', T3: '', T4: '', T5: '', T6: '', T7: '', CN: '' };
-              });
+      } catch (e) {}
+
+      // Nếu siêu thị này chưa có lịch, khởi tạo template 4 tuần chuẩn
+      const initialBalanced = generateBalanced4WeeksSchedule(DEFAULT_STAFF_G1, DEFAULT_STAFF_G2);
+      setStaffG1(DEFAULT_STAFF_G1);
+      setStaffG2(DEFAULT_STAFF_G2);
+      setSchedule(prev => {
+        if (Object.keys(prev).length > 0) return prev;
+        const newSched: Record<string, any> = {};
+        MONTH_OPTIONS.forEach(m => {
+          newSched[m] = {};
+          WEEKS.forEach(w => {
+            newSched[m][w] = {};
+            [...DEFAULT_STAFF_G1, ...DEFAULT_STAFF_G2].forEach(st => {
+              newSched[m][w][st] = { T2: '', T3: '', T4: '', T5: '', T6: '', T7: '', CN: '' };
             });
           });
-          newSched[currentMonth] = initialBalanced;
-          return newSched;
         });
-      }
+        newSched[currentMonth] = initialBalanced;
+        return newSched;
+      });
     }, (err) => {
       console.error('Firestore onSnapshot error phan_ca_hc:', err);
       setSyncStatus('error');
     });
 
     return () => unsubscribe();
-  }, [storeId]);
+  }, [storeDocId]);
 
   // Save to LocalStorage whenever schedule or staff changes
   const saveToLocal = (newSchedule: typeof schedule, g1 = staffG1, g2 = staffG2) => {
     try {
       localStorage.setItem(cacheKey, JSON.stringify({
+        storeName: activeStoreName,
+        storeDocId,
         staffGroup1: g1,
         staffGroup2: g2,
         schedule: newSchedule,
@@ -320,10 +356,10 @@ export function PhanCaHanhChinhTab() {
     }
   };
 
-  // Save directly to Firebase Firestore
+  // Save directly to Firebase Firestore for the selected supermarket
   const handleSaveToFirebase = async () => {
-    if (!storeId) {
-      showToast('Không xác định được mã siêu thị!', 'error');
+    if (!storeDocId) {
+      showToast('Không xác định được siêu thị đang chọn!', 'error');
       return;
     }
 
@@ -331,26 +367,41 @@ export function PhanCaHanhChinhTab() {
     setSyncStatus('syncing');
 
     try {
-      const docRef = doc(db, 'phan_ca_hc', storeId);
-      const payload = {
-        storeId,
+      const schedulePayload = {
         staffGroup1: staffG1,
         staffGroup2: staffG2,
         schedule,
-        updatedAt: serverTimestamp(),
+        updatedAt: new Date().toISOString(),
         updatedBy: userProfile?.username || userProfile?.full_name || 'user'
       };
 
-      await setDoc(docRef, payload, { merge: true });
+      // 1. Lưu trực tiếp vào document của siêu thị trong collection 'store'
+      const storeDocRef = doc(db, 'store', storeDocId);
+      await setDoc(storeDocRef, {
+        ten_sieu_thi: activeStoreName,
+        warehouse_code: userProfile?.ma_kho || '',
+        updated_at: serverTimestamp(),
+        phan_ca_hc: schedulePayload
+      }, { merge: true });
+
+      // 2. Đồng thời lưu mirror vào collection 'phan_ca_hc' theo storeDocId
+      const phanCaDocRef = doc(db, 'phan_ca_hc', storeDocId);
+      await setDoc(phanCaDocRef, {
+        storeId: storeDocId,
+        storeName: activeStoreName,
+        warehouse_code: userProfile?.ma_kho || '',
+        ...schedulePayload,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
 
       setUnsavedChangesCount(0);
       const nowTime = new Date().toLocaleTimeString('vi-VN');
       setLastSavedTime(nowTime);
-      localStorage.setItem(`PHAN_CA_HC_LAST_SAVED_${storeId}`, nowTime);
+      localStorage.setItem(`PHAN_CA_HC_LAST_SAVED_${storeDocId}`, nowTime);
       saveToLocal(schedule);
 
       setSyncStatus('synced');
-      showToast('Đã lưu thành công lên Firebase!', 'success');
+      showToast(`Đã lưu thành công cho siêu thị: ${activeStoreName}!`, 'success');
     } catch (err: any) {
       console.error('Lỗi lưu Firebase phan_ca_hc:', err);
       setSyncStatus('error');
@@ -364,19 +415,39 @@ export function PhanCaHanhChinhTab() {
   const handleSyncNow = async () => {
     setSyncStatus('syncing');
     try {
-      const docRef = doc(db, 'phan_ca_hc', storeId);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.staffGroup1) setStaffG1(data.staffGroup1);
-        if (data.staffGroup2) setStaffG2(data.staffGroup2);
-        if (data.schedule) setSchedule(data.schedule);
-        setUnsavedChangesCount(0);
-        showToast('Đã làm mới dữ liệu từ Firebase!', 'success');
-      } else {
-        showToast('Chưa có dữ liệu trên Firebase cho siêu thị này', 'info');
+      const storeDocRef = doc(db, 'store', storeDocId);
+      const storeSnap = await getDoc(storeDocRef);
+      let found = false;
+
+      if (storeSnap.exists()) {
+        const data = storeSnap.data();
+        const hcData = data.phan_ca_hc || data.data_phan_ca_hc;
+        if (hcData) {
+          if (hcData.staffGroup1) setStaffG1(hcData.staffGroup1);
+          if (hcData.staffGroup2) setStaffG2(hcData.staffGroup2);
+          if (hcData.schedule) setSchedule(hcData.schedule);
+          found = true;
+        }
       }
+
+      if (!found) {
+        const pcSnap = await getDoc(doc(db, 'phan_ca_hc', storeDocId));
+        if (pcSnap.exists()) {
+          const pcData = pcSnap.data();
+          if (pcData.staffGroup1) setStaffG1(pcData.staffGroup1);
+          if (pcData.staffGroup2) setStaffG2(pcData.staffGroup2);
+          if (pcData.schedule) setSchedule(pcData.schedule);
+          found = true;
+        }
+      }
+
+      setUnsavedChangesCount(0);
       setSyncStatus('synced');
+      if (found) {
+        showToast(`Đã làm mới dữ liệu từ Firebase cho siêu thị ${activeStoreName}!`, 'success');
+      } else {
+        showToast(`Chưa có dữ liệu trên Firebase cho siêu thị ${activeStoreName}`, 'info');
+      }
     } catch (e: any) {
       setSyncStatus('error');
       showToast('Lỗi đồng bộ: ' + e.message, 'error');
@@ -673,11 +744,11 @@ export function PhanCaHanhChinhTab() {
 
       const imgUrl = canvas.toDataURL('image/png');
       const filename = mode === 'month' 
-        ? `Bang_Phan_Ca_Ca_Thang_${currentMonth}_${storeId}.png`
-        : `Bang_Phan_Ca_${currentWeek}_${currentMonth}_${storeId}.png`;
+        ? `Bang_Phan_Ca_Ca_Thang_${currentMonth}_${storeDocId}.png`
+        : `Bang_Phan_Ca_${currentWeek}_${currentMonth}_${storeDocId}.png`;
       const title = mode === 'month'
-        ? `Ảnh Phân Ca Cả Tháng: ${currentMonth} - Siêu Thị ${storeId}`
-        : `Ảnh Phân Ca: ${currentWeek} - ${currentMonth} - Siêu Thị ${storeId}`;
+        ? `Ảnh Phân Ca Cả Tháng: ${currentMonth} - Siêu Thị ${activeStoreName}`
+        : `Ảnh Phân Ca: ${currentWeek} - ${currentMonth} - Siêu Thị ${activeStoreName}`;
 
       setExportedImageUrl(imgUrl);
       setExportedFileName(filename);
@@ -761,14 +832,39 @@ export function PhanCaHanhChinhTab() {
                   Firebase Realtime
                 </span>
               </div>
-              <p className="text-xs text-slate-500 font-bold mt-0.5 flex items-center gap-2">
-                <span>Siêu thị: <strong className="text-sky-700">{storeId}</strong></span>
+              <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-slate-500 font-bold">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-500 font-bold flex items-center gap-1">
+                    <Store size={14} className="text-sky-600" /> Siêu thị:
+                  </span>
+                  {availableStores && availableStores.length > 1 ? (
+                    <div className="relative inline-block">
+                      <select
+                        value={activeStoreName}
+                        onChange={(e) => setCurrentStoreId(e.target.value)}
+                        className="appearance-none bg-white hover:bg-slate-50 text-sky-800 font-black text-xs px-3 py-1 pr-7 rounded-xl border border-sky-300 shadow-2xs cursor-pointer outline-hidden uppercase tracking-wide transition-all"
+                        title="Chọn siêu thị để xem và lưu phân ca"
+                      >
+                        {availableStores.map(s => (
+                          <option key={s.name} value={s.name} className="text-slate-800 font-bold normal-case">
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown size={13} className="text-sky-600 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-black bg-sky-100 text-sky-800 border border-sky-200">
+                      <span className="uppercase tracking-wide">{activeStoreName}</span>
+                    </span>
+                  )}
+                </div>
                 <span>•</span>
                 <span className="flex items-center gap-1">
                   <span className={`w-2 h-2 rounded-full ${syncStatus === 'synced' ? 'bg-emerald-500 animate-pulse' : syncStatus === 'syncing' ? 'bg-amber-500 animate-spin' : 'bg-slate-400'}`}></span>
                   {syncStatus === 'synced' ? 'Đã đồng bộ Firestore' : syncStatus === 'syncing' ? 'Đang đồng bộ...' : 'Sẵn sàng'}
                 </span>
-              </p>
+              </div>
             </div>
           </div>
 
@@ -1141,7 +1237,7 @@ export function PhanCaHanhChinhTab() {
                 }
               </h2>
               <p className="text-xs text-slate-400 font-bold mt-0.5 flex items-center gap-2">
-                <span>Cửa hàng / Siêu thị: <strong className="text-sky-700">{storeId}</strong></span>
+                <span>Cửa hàng / Siêu thị: <strong className="text-sky-700">{activeStoreName}</strong></span>
                 <span>•</span>
                 <span>Đồng bộ: {new Date().toLocaleDateString('vi-VN')}</span>
                 <span>•</span>
