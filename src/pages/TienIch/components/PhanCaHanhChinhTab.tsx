@@ -33,6 +33,8 @@ import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/fires
 import { useAuth } from '../../../contexts/AuthContext';
 import { useStore } from '../../../contexts/StoreContext';
 import { normalizeStoreId } from '../../RTST/utils';
+import * as htmlToImage from 'html-to-image';
+import { ensureFontsReady, EXPORT_FONT_STYLE } from '../../../utils/fontExportUtil';
 import html2canvas from 'html2canvas';
 
 // ==========================================================================
@@ -465,8 +467,16 @@ export function PhanCaHanhChinhTab() {
   // CELL INTERACTION & STAMP BRUSH
   // ==========================================================================
 
+  // Ma trận phân ca tháng hiện tại (tự động kế thừa mẫu xoay tua 4 tuần cân bằng tuyệt đối nếu tháng chưa có dữ liệu)
+  const activeMonthSchedule = useMemo(() => {
+    if (schedule[currentMonth] && Object.keys(schedule[currentMonth]).length > 0) {
+      return schedule[currentMonth];
+    }
+    return generateBalanced4WeeksSchedule(staffG1, staffG2);
+  }, [schedule, currentMonth, staffG1, staffG2]);
+
   const handleCellClick = (staff: string, day: DayType, weekName: string) => {
-    const currentShift = schedule[currentMonth]?.[weekName]?.[staff]?.[day] || '';
+    const currentShift = activeMonthSchedule[weekName]?.[staff]?.[day] || '';
     let newShift = currentShift;
 
     if (activeStamp !== 'none') {
@@ -490,9 +500,21 @@ export function PhanCaHanhChinhTab() {
     if (newShift !== currentShift) {
       setSchedule(prev => {
         const next = { ...prev };
-        if (!next[currentMonth]) next[currentMonth] = {};
-        if (!next[currentMonth][weekName]) next[currentMonth][weekName] = {};
-        if (!next[currentMonth][weekName][staff]) next[currentMonth][weekName][staff] = {} as Record<DayType, string>;
+        if (!next[currentMonth]) {
+          next[currentMonth] = JSON.parse(JSON.stringify(activeMonthSchedule));
+        } else {
+          next[currentMonth] = { ...next[currentMonth] };
+        }
+        if (!next[currentMonth][weekName]) {
+          next[currentMonth][weekName] = {};
+        } else {
+          next[currentMonth][weekName] = { ...next[currentMonth][weekName] };
+        }
+        if (!next[currentMonth][weekName][staff]) {
+          next[currentMonth][weekName][staff] = {} as Record<DayType, string>;
+        } else {
+          next[currentMonth][weekName][staff] = { ...next[currentMonth][weekName][staff] };
+        }
 
         next[currentMonth][weekName][staff] = {
           ...next[currentMonth][weekName][staff],
@@ -522,9 +544,21 @@ export function PhanCaHanhChinhTab() {
 
     setSchedule(prev => {
       const next = { ...prev };
-      if (!next[currentMonth]) next[currentMonth] = {};
-      if (!next[currentMonth][targetWeek]) next[currentMonth][targetWeek] = {};
-      if (!next[currentMonth][targetWeek][assignStaff]) next[currentMonth][targetWeek][assignStaff] = {} as Record<DayType, string>;
+      if (!next[currentMonth]) {
+        next[currentMonth] = JSON.parse(JSON.stringify(activeMonthSchedule));
+      } else {
+        next[currentMonth] = { ...next[currentMonth] };
+      }
+      if (!next[currentMonth][targetWeek]) {
+        next[currentMonth][targetWeek] = {};
+      } else {
+        next[currentMonth][targetWeek] = { ...next[currentMonth][targetWeek] };
+      }
+      if (!next[currentMonth][targetWeek][assignStaff]) {
+        next[currentMonth][targetWeek][assignStaff] = {} as Record<DayType, string>;
+      } else {
+        next[currentMonth][targetWeek][assignStaff] = { ...next[currentMonth][targetWeek][assignStaff] };
+      }
 
       const staffShifts = { ...(next[currentMonth][targetWeek][assignStaff] || {}) };
 
@@ -701,48 +735,142 @@ export function PhanCaHanhChinhTab() {
 
     if (mode === 'month' && currentWeek !== 'all') {
       setCurrentWeek('all');
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise(r => setTimeout(r, 350));
     } else if (mode === 'week' && currentWeek === 'all') {
       setCurrentWeek('Tuần 1');
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise(r => setTimeout(r, 350));
     }
 
-    showToast('📸 Đang tạo ảnh chất lượng cao...', 'info');
+    showToast('📸 Đang chuẩn bị xuất ảnh sắc nét...', 'info');
+
+    const captureEl = exportAreaRef.current;
+    if (!captureEl) return;
+
+    const targetWidth = 1280; // Chiều rộng cố định desktop chuẩn xuất ảnh, không bị cắt ngang
+
+    // Tạo container ảo off-screen độc lập
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'fixed';
+    tempContainer.style.top = '-9999px';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.width = `${targetWidth}px`;
+    tempContainer.style.zIndex = '-9999';
+    tempContainer.style.opacity = '1';
+    tempContainer.style.pointerEvents = 'none';
+
+    // Bọc frameWrapper nền trắng chuẩn theo project rules
+    const frameWrapper = document.createElement('div');
+    frameWrapper.style.width = `${targetWidth}px`;
+    frameWrapper.style.backgroundColor = '#ffffff';
+    frameWrapper.style.padding = '24px';
+    frameWrapper.style.boxSizing = 'border-box';
+    frameWrapper.style.borderRadius = '24px';
+    frameWrapper.style.border = '1px solid #e2e8f0';
+    frameWrapper.style.boxShadow = 'none';
+
+    // Nhân bản cây DOM
+    const clone = captureEl.cloneNode(true) as HTMLElement;
+    clone.style.width = '100%';
+    clone.style.maxWidth = 'none';
+    clone.style.boxSizing = 'border-box';
+    clone.style.borderRadius = '0';
+    clone.style.border = 'none';
+    clone.style.padding = '0';
+    clone.style.margin = '0';
+    clone.style.boxShadow = 'none';
+
+    // 1. Gỡ bỏ triệt để các nút bấm thao tác trong clone
+    const buttonsToRemove = clone.querySelectorAll('.export-no-print, button, input, select');
+    buttonsToRemove.forEach(el => el.remove());
+
+    // 2. Chèn bộ nhãn chú thích in ấn vào góc phải tiêu đề của clone
+    const headerRight = clone.querySelector('.export-header-right');
+    if (headerRight) {
+      headerRight.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <span style="display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; background: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff;">TN: Thu Ngân</span>
+          <span style="display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">KHO: Phụ Kho</span>
+          <span style="display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;">HC: Hành Chính</span>
+          <span style="display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; background: #ffe4e6; color: #e11d48; border: 1px solid #fecdd3;">x: Nghỉ Off</span>
+        </div>
+      `;
+    }
+
+    // 3. Mở rộng toàn bộ container overflow để bảng hiển thị 100% không bị cắt thanh cuộn
+    clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, [class*="overflow"]').forEach(el => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.overflow = 'visible';
+      htmlEl.style.width = '100%';
+      htmlEl.style.maxWidth = 'none';
+      htmlEl.style.height = 'auto';
+      htmlEl.classList.remove('overflow-x-auto', 'overflow-y-auto', 'no-scrollbar');
+    });
+
+    // 4. Khóa cố định bảng biểu 100% tableLayout fixed
+    clone.querySelectorAll('table').forEach(tbl => {
+      const htmlTable = tbl as HTMLElement;
+      htmlTable.style.width = '100%';
+      htmlTable.style.minWidth = '100%';
+      htmlTable.style.tableLayout = 'fixed';
+      htmlTable.style.borderCollapse = 'collapse';
+      htmlTable.style.boxSizing = 'border-box';
+    });
+
+    // 5. Zero-Shadow Export: Triệt tiêu toàn bộ bóng mờ chống loang lổ viền đen
+    clone.querySelectorAll('*').forEach(el => {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.style) {
+        htmlEl.style.boxShadow = 'none';
+        htmlEl.style.textShadow = 'none';
+        htmlEl.style.filter = 'none';
+      }
+    });
+
+    frameWrapper.appendChild(clone);
+    tempContainer.appendChild(frameWrapper);
+    document.body.appendChild(tempContainer);
 
     try {
-      const captureEl = exportAreaRef.current;
-      
-      // Temporarily hide action buttons during capture
-      const actionButtons = captureEl.querySelectorAll('.export-no-print');
-      actionButtons.forEach(el => (el as HTMLElement).style.display = 'none');
+      await ensureFontsReady();
+      await new Promise(r => setTimeout(r, 200));
 
-      // Small delay for DOM settling
-      await new Promise(r => setTimeout(r, 120));
+      const finalHeight = frameWrapper.offsetHeight || frameWrapper.scrollHeight || 1000;
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+      const exportPixelRatio = isMobile ? 1.5 : 2;
 
-      const canvas = await html2canvas(captureEl, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        windowWidth: 1440,
-        onclone: (clonedDoc) => {
-          // Zero-shadow export rule: remove shadows in cloned DOM
-          const allEls = clonedDoc.querySelectorAll('*');
-          allEls.forEach(el => {
-            const htmlEl = el as HTMLElement;
-            if (htmlEl.style) {
-              htmlEl.style.boxShadow = 'none';
-              htmlEl.style.textShadow = 'none';
-              htmlEl.style.filter = 'none';
-            }
-          });
-        }
-      });
+      let imgUrl = '';
+      try {
+        imgUrl = await htmlToImage.toPng(frameWrapper, {
+          backgroundColor: '#ffffff',
+          pixelRatio: exportPixelRatio,
+          skipFonts: false,
+          width: targetWidth,
+          height: finalHeight,
+          cacheBust: true,
+          style: {
+            transform: 'scale(1)',
+            transformOrigin: 'top left',
+            width: `${targetWidth}px`,
+            height: `${finalHeight}px`,
+            ...EXPORT_FONT_STYLE
+          }
+        });
+      } catch (imageErr) {
+        console.warn('htmlToImage toPng error, falling back to html2canvas on frameWrapper:', imageErr);
+        const canvas = await html2canvas(frameWrapper, {
+          scale: exportPixelRatio,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          width: targetWidth,
+          height: finalHeight,
+          windowWidth: targetWidth,
+          scrollX: 0,
+          scrollY: 0,
+        });
+        imgUrl = canvas.toDataURL('image/png');
+      }
 
-      // Restore action buttons
-      actionButtons.forEach(el => (el as HTMLElement).style.display = '');
-
-      const imgUrl = canvas.toDataURL('image/png');
       const filename = mode === 'month' 
         ? `Bang_Phan_Ca_Ca_Thang_${currentMonth}_${storeDocId}.png`
         : `Bang_Phan_Ca_${currentWeek}_${currentMonth}_${storeDocId}.png`;
@@ -765,6 +893,10 @@ export function PhanCaHanhChinhTab() {
     } catch (err: any) {
       console.error('Lỗi xuất ảnh:', err);
       showToast('Lỗi khi xuất ảnh: ' + (err.message || 'Thử lại sau'), 'error');
+    } finally {
+      if (document.body.contains(tempContainer)) {
+        document.body.removeChild(tempContainer);
+      }
     }
   };
 
@@ -779,7 +911,7 @@ export function PhanCaHanhChinhTab() {
     const targetWeeks = currentWeek === 'all' ? WEEKS : [currentWeek];
 
     targetWeeks.forEach(w => {
-      const weekData = schedule[currentMonth]?.[w] || {};
+      const weekData = activeMonthSchedule[w] || {};
       allStaff.forEach(staff => {
         const shifts = weekData[staff] || {};
         DAYS.forEach(d => {
@@ -791,7 +923,7 @@ export function PhanCaHanhChinhTab() {
     });
 
     return { tnCount, khoCount };
-  }, [schedule, currentMonth, currentWeek, allStaff]);
+  }, [activeMonthSchedule, currentWeek, allStaff]);
 
   // Current week dates mapping
   const currentWeekDates = useMemo(() => {
@@ -1247,22 +1379,24 @@ export function PhanCaHanhChinhTab() {
           </div>
 
           {/* Export Action Buttons */}
-          <div className="flex items-center gap-2 export-no-print">
-            <button
-              onClick={() => handleExportImage('week')}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 text-xs font-black transition-all cursor-pointer active:scale-95"
-            >
-              <Camera size={15} />
-              <span>Xuất Ảnh Tuần</span>
-            </button>
+          <div className="flex items-center gap-2 export-header-right">
+            <div className="flex items-center gap-2 export-no-print">
+              <button
+                onClick={() => handleExportImage('week')}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 text-xs font-black transition-all cursor-pointer active:scale-95"
+              >
+                <Camera size={15} />
+                <span>Xuất Ảnh Tuần</span>
+              </button>
 
-            <button
-              onClick={() => handleExportImage('month')}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 text-white text-xs font-black hover:from-sky-600 hover:to-blue-700 shadow-sm shadow-sky-500/20 transition-all cursor-pointer active:scale-95"
-            >
-              <Download size={15} />
-              <span>Xuất Ảnh Cả Tháng</span>
-            </button>
+              <button
+                onClick={() => handleExportImage('month')}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 text-white text-xs font-black hover:from-sky-600 hover:to-blue-700 shadow-sm shadow-sky-500/20 transition-all cursor-pointer active:scale-95"
+              >
+                <Download size={15} />
+                <span>Xuất Ảnh Cả Tháng</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1308,7 +1442,7 @@ export function PhanCaHanhChinhTab() {
                   </td>
                 </tr>
                 {staffG1.map((staff, idx) => {
-                  const staffShifts = schedule[currentMonth]?.[currentWeek]?.[staff] || {};
+                  const staffShifts = activeMonthSchedule[currentWeek]?.[staff] || {};
                   let tn = 0, kho = 0, off = 0;
                   DAYS.forEach(d => {
                     const v = String(staffShifts[d] || '').toUpperCase();
@@ -1362,7 +1496,7 @@ export function PhanCaHanhChinhTab() {
                   </td>
                 </tr>
                 {staffG2.map((staff, idx) => {
-                  const staffShifts = schedule[currentMonth]?.[currentWeek]?.[staff] || {};
+                  const staffShifts = activeMonthSchedule[currentWeek]?.[staff] || {};
                   let tn = 0, kho = 0, off = 0;
                   DAYS.forEach(d => {
                     const v = String(staffShifts[d] || '').toUpperCase();
@@ -1460,7 +1594,7 @@ export function PhanCaHanhChinhTab() {
                           </td>
                         </tr>
                         {staffG1.map((staff, idx) => {
-                          const staffShifts = schedule[currentMonth]?.[wName]?.[staff] || {};
+                          const staffShifts = activeMonthSchedule[wName]?.[staff] || {};
                           let tn = 0, kho = 0, off = 0;
                           DAYS.forEach(d => {
                             const v = String(staffShifts[d] || '').toUpperCase();
@@ -1502,7 +1636,7 @@ export function PhanCaHanhChinhTab() {
                           </td>
                         </tr>
                         {staffG2.map((staff, idx) => {
-                          const staffShifts = schedule[currentMonth]?.[wName]?.[staff] || {};
+                          const staffShifts = activeMonthSchedule[wName]?.[staff] || {};
                           let tn = 0, kho = 0, off = 0;
                           DAYS.forEach(d => {
                             const v = String(staffShifts[d] || '').toUpperCase();
