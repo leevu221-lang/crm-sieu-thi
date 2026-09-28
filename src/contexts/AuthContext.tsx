@@ -5,6 +5,7 @@ import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/fire
 import { db } from '../firebaseConfig';
 import { trackUserPing } from '../services/accessTracker';
 import { localYcxDb, isValidStoreName, normalizeStoreId } from '../pages/RTST/utils';
+import { syncConfiguredStoreDocument, getConfiguredStoresFromBoss } from '../services/storeSync';
 import { URL_PAGE_MAP, isGuestShareLink } from '../constants/routes';
 import { clearAllGlobalCaches } from '../services/globalCacheRegistry';
 
@@ -363,23 +364,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (s1 && isValidStoreName(s1)) {
               storeName = s1;
               const declaredStores = matched.map((m: any) => m.tenSieuThi?.trim()).filter((n: string) => n && isValidStoreName(n));
-              // Auto-provision store documents in background so documents are created according to declared names
-              for (const stName of declaredStores) {
-                const normId = normalizeStoreId(stName);
-                if (normId) {
-                  supabase.from('store').upsert({
-                    id: normId,
-                    warehouse_code: String(maKho).trim(),
-                    ten_sieu_thi: stName,
-                    declared_stores: declaredStores,
-                  }, { onConflict: 'id' }).then().catch(() => {});
-                }
-              }
+              // Dò lại trong Firebase: nếu chưa có tên siêu thị giống cấu hình thì tạo document mới, nếu có rồi thì bỏ qua!
+              await syncConfiguredStoreDocument(maKho, declaredStores);
             }
           }
         } catch (bossErr) {
           console.warn('[AuthContext] Error checking DS BOSS fallback:', bossErr);
         }
+      }
+
+      // Dò lại trong Firebase: nếu có cấu hình siêu thị từ BOSS cho mã kho này, đảm bảo có document trong Firebase
+      const bossConfigured = getConfiguredStoresFromBoss(maKho);
+      if (bossConfigured.length > 0) {
+        if (!storeName && bossConfigured[0]) storeName = bossConfigured[0];
+        await syncConfiguredStoreDocument(maKho, bossConfigured);
       }
 
       // If warehouse didn't exist in warehouses table and we found a valid storeName, auto-save to warehouses

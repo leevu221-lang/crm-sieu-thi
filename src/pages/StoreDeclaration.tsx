@@ -8,6 +8,7 @@ import {
   FileSpreadsheet, Eye, Lock
 } from 'lucide-react';
 import { isValidStoreName, normalizeStoreId, formatMarketName } from './RTST/utils';
+import { cleanStoreInput, isPlaceholderStore, syncConfiguredStoreDocument } from '../services/storeSync';
 import * as XLSX from 'xlsx';
 import { db } from '../firebaseConfig';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
@@ -31,16 +32,6 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-
-  // Tự động chuẩn hóa & gọt mã kho nếu người dùng copy cả "1841 - ĐML_CMA_CMA - 155A..." từ báo cáo BI
-  const cleanStoreInput = (val: string): string => {
-    if (!val) return '';
-    let cleaned = val.trim();
-    cleaned = cleaned.replace(/^\d+\s*[-–—]\s*(?=(ĐML|ĐMM|ĐMS|ĐMS3|TGD|AAR|BHX|MWG)[_\s-])/i, '').trim();
-    // Khắc phục lỗi dấu gạch nối chèn nhầm vào ngày/tháng/số nhà (ví dụ "Đường -19/5" -> "Đường 19/5")
-    cleaned = cleaned.replace(/(Đường|Đ\.|Phố)\s*-\s*(\d+)/gi, '$1 $2').trim();
-    return cleaned;
-  };
 
   // Phân quyền: CHỈ hiển thị tính năng DS BOSS cho User 43751
   const is43751 = useMemo(() => {
@@ -136,16 +127,6 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     });
   }, [dsBossList, maKho]);
 
-  // Helper kiểm tra xem giá trị có phải là placeholder không hợp lệ (như "Siêu thị 2323", "Offline Mode", ...)
-  const isPlaceholderStore = (val: string) => {
-    if (!val) return true;
-    const v = val.trim();
-    if (/^siêu\s*thị\s*\d+/i.test(v)) return true;
-    if (/offline\s*mode/i.test(v)) return true;
-    if (!isValidStoreName(v)) return true;
-    return false;
-  };
-
   // Hàm tự động điền các siêu thị theo thứ tự từ trên xuống dưới:
   // Dòng đầu điền vào Siêu thị 1, tương tự các dòng tiếp theo điền vào Siêu thị 2, 3, 4
   const applyAutoFill = useCallback((force = false) => {
@@ -168,6 +149,15 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     }
     return true;
   }, [matchedBossStores]);
+
+  // Helper: Dò lại trong Firebase nếu chưa có tên siêu thị giống cấu hình thì tạo document mới, nếu có rồi thì bỏ qua
+  const syncConfiguredStoresToFirebase = useCallback(async (
+    targetKho: string,
+    configuredStores: string[],
+    existingDocs?: any[]
+  ) => {
+    return syncConfiguredStoreDocument(targetKho, configuredStores, existingDocs);
+  }, []);
 
   // Tự động điền khi danh sách BOSS hoặc mã kho thay đổi:
   // Yêu cầu khi cột MST cùng mã kho đăng nhập thì dòng đầu sẽ điền vào Siêu thị 1, tương tự các dòng tiếp theo
@@ -199,8 +189,14 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
         if (isPlaceholderStore(prev) || !prev) return m4;
         return prev;
       });
+
+      // Khi có cấu hình siêu thị từ BOSS: dò lại trong Firebase, chưa có thì tạo mới, có rồi thì bỏ qua!
+      const bossConfigured = [m1, m2, m3, m4].filter(Boolean);
+      if (bossConfigured.length > 0 && maKho) {
+        syncConfiguredStoresToFirebase(maKho, bossConfigured);
+      }
     }
-  }, [matchedBossStores]);
+  }, [matchedBossStores, maKho, syncConfiguredStoresToFirebase]);
 
   // Handler tải file Excel DS BOSS (chỉ 43751) - Đọc 4 cột B, C, D, E như Hình 1
   const handleUploadBossExcel = async (file: File) => {
@@ -595,6 +591,12 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
         if (loaded2) setStore2(loaded2);
         if (loaded3) setStore3(loaded3);
         if (loaded4) setStore4(loaded4);
+
+        // Khi có cấu hình siêu thị: dò lại trong Firebase, chưa có thì tạo document mới, có rồi thì bỏ qua!
+        const configuredList = [loaded1, loaded2, loaded3, loaded4].filter(Boolean);
+        if (configuredList.length > 0) {
+          syncConfiguredStoresToFirebase(maKho, configuredList, data);
+        }
       } catch (err) {
         console.error('[StoreDeclaration] Failed to load stores:', err);
       } finally {
@@ -665,66 +667,57 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
           .eq('id', normalizedId)
           .maybeSingle();
 
-        const payload: any = {
-          id: normalizedId,
-          warehouse_code: maKho.trim(),
-          ten_sieu_thi: storeName,
-          declared_stores: storesArray,
-          updated_at: new Date().toISOString(),
-        };
-
-        // Dynamically merge non-null/non-undefined properties from existingData or oldMaKhoData
-        const mergeField = (key: string) => {
-          const val = existingData?.[key] ?? oldMaKhoData?.[key];
-          if (val !== undefined && val !== null) {
-            payload[key] = val;
+        if (existingData) {
+          console.log(`[StoreDeclaration] Siêu thị "${storeName}" (${normalizedId}) ĐÃ CÓ trong Firebase -> BỎ QUA tạo mới, bảo toàn dữ liệu hiện có`);
+          // Nếu đã có rồi thì bỏ qua tạo mới; chỉ cập nhật declared_stores nếu có sự thay đổi để đồng bộ tên cụm
+          const currentDecl = Array.isArray(existingData.declared_stores) ? existingData.declared_stores : [];
+          if (JSON.stringify(currentDecl) !== JSON.stringify(storesArray) || String(existingData.warehouse_code || '').trim() !== maKho.trim()) {
+            await supabase.from('store').update({
+              declared_stores: storesArray,
+              warehouse_code: maKho.trim(),
+            }).eq('id', normalizedId);
           }
-        };
+        } else {
+          console.log(`[StoreDeclaration] Siêu thị "${storeName}" (${normalizedId}) CHƯA CÓ trong Firebase -> TẠO DOCUMENT MỚI`);
+          const payload: any = {
+            id: normalizedId,
+            warehouse_code: maKho.trim(),
+            ten_sieu_thi: storeName,
+            declared_stores: storesArray,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
 
-        const fieldsToMigrate = [
-          'lk_bi_tong_quan', 'lk_nh_sieu_thi', 'taget_doanh_thu', 'category_targets',
-          'lk_dt_nv', 'lk_td_nv', 'ds_nhan_vien', 'dt_gio_cong', 'data_phan_ca',
-          'tragop_matran', 'tragop_nv', 'phuc_vu', 'ban_kem_nv',
-          'sticker_ce_price_data', 'sticker_ce_inventory_data',
-          'sticker_lk_price_data', 'sticker_lk_inventory_data'
-        ];
+          // Migrate data từ oldMaKhoData nếu có
+          if (oldMaKhoData) {
+            const fieldsToMigrate = [
+              'lk_bi_tong_quan', 'lk_nh_sieu_thi', 'taget_doanh_thu', 'category_targets',
+              'lk_dt_nv', 'lk_td_nv', 'ds_nhan_vien', 'dt_gio_cong', 'data_phan_ca',
+              'tragop_matran', 'tragop_nv', 'phuc_vu', 'ban_kem_nv',
+              'sticker_ce_price_data', 'sticker_ce_inventory_data',
+              'sticker_lk_price_data', 'sticker_lk_inventory_data'
+            ];
+            fieldsToMigrate.forEach(key => {
+              if (oldMaKhoData[key] !== undefined && oldMaKhoData[key] !== null) {
+                payload[key] = oldMaKhoData[key];
+              }
+            });
+          }
 
-        fieldsToMigrate.forEach(mergeField);
+          const { error } = await supabase
+            .from('store')
+            .upsert(payload, { onConflict: 'id' });
 
-        const { error } = await supabase
-          .from('store')
-          .upsert(payload, { onConflict: 'id' });
-
-        if (error) throw error;
+          if (error) throw error;
+        }
       }
 
-      // Delete the old raw maKho document (e.g. 10528) to clean up the DB
-      await supabase
-        .from('store')
-        .delete()
-        .eq('id', maKho.trim());
-
-      // Tự động dọn dẹp các tài liệu siêu thị cũ / bị đổi tên không còn nằm trong danh sách khai báo mới
-      try {
-        const activeIds = declaredStores.map(s => normalizeStoreId(s)).filter(Boolean);
-        const maKhoNum = parseInt(maKho, 10);
-        let existingQuery = supabase.from('store').select('id');
-        if (!isNaN(maKhoNum)) {
-          existingQuery = existingQuery.or(`warehouse_code.eq.${maKho.trim()},warehouse_code.eq.${maKhoNum}`);
-        } else {
-          existingQuery = existingQuery.eq('warehouse_code', maKho.trim());
-        }
-        const { data: existingDocs } = await existingQuery;
-        if (existingDocs && existingDocs.length > 0) {
-          for (const docItem of existingDocs) {
-            if (docItem.id && !activeIds.includes(docItem.id)) {
-              console.log('[StoreDeclaration] Dọn dẹp tài liệu siêu thị cũ/đổi tên:', docItem.id);
-              await supabase.from('store').delete().eq('id', docItem.id);
-            }
-          }
-        }
-      } catch (cleanErr) {
-        console.warn('[StoreDeclaration] Lỗi khi dọn dẹp tài liệu cũ:', cleanErr);
+      // Xóa document mã kho thuần số cũ nếu có (vd: doc "1841" hoặc "3008")
+      if (/^\d+$/.test(maKho.trim())) {
+        await supabase
+          .from('store')
+          .delete()
+          .eq('id', maKho.trim());
       }
 
       // Update/upsert the warehouses table
@@ -791,7 +784,12 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     }
   };
 
-  const handleSkipOrProceed = () => {
+  const handleSkipOrProceed = async () => {
+    // Tự động kiểm tra và đảm bảo siêu thị cấu hình đã có document trong Firebase (chưa có thì tạo mới, có rồi thì bỏ qua)
+    const configuredList = [store1, store2, store3, store4].map(s => cleanStoreInput(s)).filter(Boolean);
+    if (configuredList.length > 0 && maKho) {
+      await syncConfiguredStoreDocument(maKho, configuredList);
+    }
     if (isNewUser) {
       handleSave(true);
     } else {

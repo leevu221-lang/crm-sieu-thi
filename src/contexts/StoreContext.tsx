@@ -14,8 +14,9 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '../supabaseClient';
-import { isValidStoreName } from '../pages/RTST/utils';
+import { isValidStoreName, normalizeStoreId } from '../pages/RTST/utils';
 import { URL_PAGE_MAP } from '../constants/routes';
+import { syncConfiguredStoreDocument, getConfiguredStoresFromBoss, cleanStoreInput } from '../services/storeSync';
 
 export interface StoreInfo {
   name: string;
@@ -313,11 +314,22 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           query = query.eq('warehouse_code', cleanMaKho);
         }
 
-        const { data, error } = await query;
+        let { data, error } = await query;
 
         if (error) {
           console.error('[StoreContext] Error loading declared stores:', error);
           return;
+        }
+
+        // Dò lại trong Firebase: nếu có cấu hình siêu thị mà chưa có document thì tạo document mới, nếu có rồi thì bỏ qua!
+        const configuredFromBoss = getConfiguredStoresFromBoss(cleanMaKho);
+        if (configuredFromBoss.length > 0) {
+          const syncRes = await syncConfiguredStoreDocument(cleanMaKho, configuredFromBoss, data || []);
+          if (syncRes.created.length > 0) {
+            console.log('[StoreContext] Đã tự động tạo document mới cho các siêu thị chưa có:', syncRes.created);
+            const refetch = await query;
+            if (refetch.data) data = refetch.data;
+          }
         }
 
         if (data && data.length > 0) {
