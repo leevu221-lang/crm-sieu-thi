@@ -63,6 +63,7 @@ export const ALL_HIDDEN_TARGETS: HiddenTargetItem[] = [
   { key: 'tienich_phan-ca-thang', name: 'Tiện Ích: Phân Ca Tháng', group: 'Tabs Tiện Ích', isSubTab: true, parentPage: 'tienich' },
   { key: 'tienich_phan-ca-tuan', name: 'Tiện Ích: Phân Ca Tuần', group: 'Tabs Tiện Ích', isSubTab: true, parentPage: 'tienich' },
   { key: 'tienich_tuong-tac-line', name: 'Tiện Ích: Tương Tác LINE', group: 'Tabs Tiện Ích', isSubTab: true, parentPage: 'tienich' },
+  { key: 'tienich_in-qr-sp', name: 'Tiện Ích: In QR SP', group: 'Tabs Tiện Ích', isSubTab: true, parentPage: 'tienich' },
   { key: 'tienich_bien-ban', name: 'Tiện Ích: Biên Bản', group: 'Tabs Tiện Ích', isSubTab: true, parentPage: 'tienich' },
   { key: 'tienich_kiem-ke', name: 'Tiện Ích: Kiểm Kê', group: 'Tabs Tiện Ích', isSubTab: true, parentPage: 'tienich' },
   { key: 'tienich_roadshow', name: 'Tiện Ích: Roadshow', group: 'Tabs Tiện Ích', isSubTab: true, parentPage: 'tienich' },

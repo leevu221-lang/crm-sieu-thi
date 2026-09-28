@@ -25,6 +25,7 @@ import {
   Banknote,
   Sparkles,
   Target,
+  QrCode,
 } from 'lucide-react';
 import { useStore } from '../../../contexts/StoreContext';
 
@@ -133,6 +134,7 @@ const TIENICH_SUBS = [
   { id: 'phan-ca-thang', label: 'Phân Ca Tháng', icon: Users },
   { id: 'phan-ca-tuan', label: 'Phân Ca Tuần', icon: UploadCloud },
   { id: 'tuong-tac-line', label: 'Tương Tác LINE', icon: MessageSquare },
+  { id: 'in-qr-sp', label: 'In QR SP', icon: QrCode },
   { id: 'bien-ban', label: 'Biên Bản', icon: FileText },
 ];
 const TIENICH_SUBS_ADMIN = [

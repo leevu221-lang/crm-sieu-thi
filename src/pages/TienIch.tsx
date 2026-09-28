@@ -9,7 +9,8 @@ import {
   AlertCircle,
   Sparkles,
   ChevronRight,
-  MessageSquare
+  MessageSquare,
+  QrCode
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../contexts/StoreContext';
@@ -20,6 +21,7 @@ import BaoGiaCongTyModal from '../components/BaoGiaCongTyModal';
 import InventoryManagement from '../components/InventoryManagement';
 import { RoadshowManagement } from '../components/RoadshowManagement';
 import { TuongTacLineTab } from './TienIch/components/TuongTacLineTab';
+import InQrSpTab from './TienIch/components/InQrSpTab';
 
 interface TienIchProps {
   pageMaintenanceState?: Record<string, boolean>;
@@ -41,6 +43,7 @@ export default function TienIch({ pageMaintenanceState = {}, isUser43751Local = 
     { id: 'phan-ca-thang', label: 'PHÂN CA THÁNG', icon: Users, color: 'text-purple-500' },
     { id: 'phan-ca-tuan', label: 'PHÂN CA TUẦN', icon: UploadCloud, color: 'text-orange-500' },
     { id: 'tuong-tac-line', label: 'TƯƠNG TÁC LINE', icon: MessageSquare, color: 'text-emerald-500' },
+    { id: 'in-qr-sp', label: 'IN QR SP', icon: QrCode, color: 'text-sky-500' },
     { id: 'bien-ban', label: 'BIÊN BẢN CÁC LOẠI', icon: FileText, color: 'text-rose-500' },
     ...(isAdmin ? [{ id: 'kiem-ke', label: 'KIỂM KÊ', icon: ClipboardList, color: 'text-amber-500' }] : []),
     { id: 'roadshow', label: 'ROADSHOW', icon: Calendar, color: 'text-fuchsia-500' },
@@ -142,6 +145,18 @@ export default function TienIch({ pageMaintenanceState = {}, isUser43751Local = 
                 transition={{ duration: 0.2 }}
               >
                 <TuongTacLineTab />
+              </motion.div>
+            )}
+
+            {activeTab === 'in-qr-sp' && (
+              <motion.div
+                key="in-qr-sp"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <InQrSpTab />
               </motion.div>
             )}
 
