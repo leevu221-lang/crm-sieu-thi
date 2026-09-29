@@ -192,11 +192,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         setUserProfile(prev => {
           if (!prev) return null;
+          const targetKho = userData.storeCode || prev.ma_kho;
+          const bossStores = getConfiguredStoresFromBoss(targetKho);
+          const bossDefault = bossStores.length > 0 ? bossStores[0] : '';
+
+          let rawSt = userData.ten_sieu_thi || prev.ten_sieu_thi || bossDefault;
+          if (rawSt && !isValidStoreName(rawSt)) {
+            rawSt = bossDefault || prev.ten_sieu_thi || '';
+          }
+
+          let rawSel = userData.selected_store || prev.selected_store || rawSt;
+          if (rawSel && !isValidStoreName(rawSel)) {
+            rawSel = rawSt;
+          }
+
+          const isDeclDone = userData.declarationCompleted === true || (bossStores.length > 0 && !!rawSt);
+
           const updated = {
             ...prev,
-            ma_kho: userData.storeCode || prev.ma_kho,
-            ten_sieu_thi: userData.ten_sieu_thi || prev.ten_sieu_thi,
-            selected_store: userData.selected_store || prev.selected_store,
+            ma_kho: targetKho,
+            ten_sieu_thi: rawSt,
+            selected_store: rawSel,
             expiredAt: userData.expiredAt,
             status: userData.status,
             packageDays: userData.packageDays,
@@ -205,7 +221,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             requestedAt: userData.requestedAt,
             phone: userData.phone,
             isDemo: userData.isDemo,
-            declarationCompleted: userData.declarationCompleted
+            declarationCompleted: isDeclDone
           };
           localStorage.setItem('userProfile', JSON.stringify(updated));
           return updated;
@@ -401,15 +417,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           canEditUser: isSuperAdmin,
           allowedPages: isSuperAdmin ? ALL_PAGES : (permData?.allowed_pages || [])
         },
-        ten_sieu_thi: resolvedStoreName,
-        selected_store: data.selected_store || resolvedStoreName,
+        ten_sieu_thi: (resolvedStoreName && isValidStoreName(resolvedStoreName)) 
+          ? resolvedStoreName 
+          : (getConfiguredStoresFromBoss(data.storeCode || maKho)[0] || resolvedStoreName),
+        selected_store: (data.selected_store && isValidStoreName(data.selected_store)) 
+          ? data.selected_store 
+          : ((resolvedStoreName && isValidStoreName(resolvedStoreName)) ? resolvedStoreName : (getConfiguredStoresFromBoss(data.storeCode || maKho)[0] || resolvedStoreName)),
         expiredAt: data.expiredAt,
         status: data.status,
         packageDays: data.packageDays,
         paymentConfirmed: data.paymentConfirmed,
         requestedRenewPackage: data.requestedRenewPackage,
         requestedAt: data.requestedAt,
-        declarationCompleted: data.declarationCompleted
+        declarationCompleted: data.declarationCompleted === true || (getConfiguredStoresFromBoss(data.storeCode || maKho).length > 0)
       };
 
       const cleanStorageForNewUser = () => {

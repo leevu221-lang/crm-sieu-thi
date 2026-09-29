@@ -855,12 +855,38 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     if (configuredList.length > 0 && maKho) {
       await syncConfiguredStoreDocument(maKho, configuredList);
     }
+
+    if (s1 && isValidStoreName(s1)) {
+      if (updateStoreName) {
+        updateStoreName(s1);
+      }
+      if (setCurrentStoreId) {
+        setCurrentStoreId(s1);
+      }
+      localStorage.setItem('currentStoreId', s1);
+      localStorage.setItem('rtst_ma_kho', maKho.trim());
+
+      if (userProfile?.username) {
+        supabase
+          .from('ql_nguoi_dung')
+          .update({
+            ten_sieu_thi: s1,
+            selected_store: s1,
+            declarationCompleted: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('username', userProfile.username)
+          .then().catch(() => {});
+      }
+    }
+
+    try {
+      sessionStorage.setItem('justLoggedIn', 'false');
+    } catch {}
+
     if (isNewUser) {
       handleSave(true);
     } else {
-      try {
-        sessionStorage.setItem('justLoggedIn', 'false');
-      } catch {}
       onComplete();
     }
   };

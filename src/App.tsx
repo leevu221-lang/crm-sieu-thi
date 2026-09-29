@@ -16,6 +16,7 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { GradientV2Layout } from './layouts/v2/GradientV2Layout';
 import { isValidStoreName } from './pages/RTST/utils';
+import { getConfiguredStoresFromBoss } from './services/storeSync';
 
 // Core Primary Pages statically imported for instantaneous 0ms tab switching
 import NewRealtimePage from './pages/RealtimePage';
@@ -119,6 +120,8 @@ export default function App() {
     }
   });
 
+  const [declarationDismissed, setDeclarationDismissed] = useState(false);
+
   // Tự động bật form cấu hình tên siêu thị ngay sau khi người dùng đăng nhập thành công
   useEffect(() => {
     if (userProfile && !isGuestOrDirectMode) {
@@ -135,6 +138,7 @@ export default function App() {
       sessionStorage.setItem('justLoggedIn', 'false');
     } catch {}
     setShowDeclarationForce(false);
+    setDeclarationDismissed(true);
   };
 
   const isDeclarationRequired = useMemo(() => {
@@ -143,6 +147,12 @@ export default function App() {
     
     // Explicitly check for false, meaning the user registered but hasn't completed declaration yet.
     if (userProfile.declarationCompleted === false) return true;
+
+    // If warehouse already has configured stores in DS BOSS, declaration is established
+    const bossStores = getConfiguredStoresFromBoss(userProfile.ma_kho || '');
+    if (bossStores && bossStores.length > 0) {
+      return false;
+    }
 
     // Also require declaration if not marked completed and user has no valid store name or placeholder store name
     if (userProfile.declarationCompleted !== true) {
@@ -437,7 +447,7 @@ export default function App() {
     );
   }
 
-  if (!isGuestOrDirectMode && (isDeclarationRequired || showDeclarationForce)) {
+  if (!isGuestOrDirectMode && !declarationDismissed && (isDeclarationRequired || showDeclarationForce)) {
     return (
       <StoreDeclaration 
         onComplete={handleDeclarationComplete} 
