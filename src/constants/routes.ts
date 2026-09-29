@@ -14,7 +14,6 @@ export const PAGE_URL_MAP: Record<string, string> = {
   birthday: '/sinh-nhat',
   feedback: '/feedback',
   excelviewer: '/excel-viewer',
-  bangiasoc: '/ban-gia-soc',
 };
 
 // Bảng ánh xạ từ URL pathname sang page ID
@@ -45,8 +44,6 @@ export const URL_PAGE_MAP: Record<string, string> = {
   '/feedback': 'feedback',
   '/excel-viewer': 'excelviewer',
   '/excelviewer': 'excelviewer',
-  '/ban-gia-soc': 'bangiasoc',
-  '/bangiasoc': 'bangiasoc',
 };
 
 // Helper tạo URL chia sẻ chế độ khách (view-only) cho một trang + mã kho cụ thể

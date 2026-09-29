@@ -24,7 +24,7 @@ export const BanGiaSocTab: React.FC<BanGiaSocTabProps> = ({ rawYcxRows }) => {
   const [isSyncing, setIsSyncing] = useState(false);
   const { showNotification } = useNotification();
 
-  // One-time cached read (2 min TTL, shared cache key with BanGiaSocPage.tsx) instead
+  // One-time cached read (2 min TTL) instead
   // of a permanent onSnapshot — see src/services/cachedFirestore.ts.
   useEffect(() => {
     let cancelled = false;

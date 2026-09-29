@@ -110,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
     const storedUser = localStorage.getItem('userProfile');
 
-    const ALL_SHARED_PAGES = ['realtime', 'luyke', 'health', 'lichpg', 'diemdanhhop', 'bangiasoc', 'toolhotro', 'tienich', 'birthday', 'khaibao', 'feedback', 'excelviewer'];
+    const ALL_SHARED_PAGES = ['realtime', 'luyke', 'health', 'lichpg', 'diemdanhhop', 'toolhotro', 'tienich', 'birthday', 'khaibao', 'feedback', 'excelviewer'];
 
     // 1. Mở từ link chia sẻ khách (?view=guest hoặc ?share=true):
     // Khởi tạo tài khoản Khách xem trang độc lập không cần đăng nhập dưới mã kho được chia sẻ
@@ -403,7 +403,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       const isSuperAdmin = username === '43751';
-      const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday', 'bangiasoc'];
+      const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday'];
 
       const resolvedStoreName = storeName || (isValidStoreName(storeData?.ten_kho) ? storeData.ten_kho : `Siêu thị ${data.storeCode}`);
 
@@ -577,7 +577,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Create default user permissions
-      const defaultPages = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'birthday', 'bangiasoc', 'tnb_data'];
+      const defaultPages = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'tienich', 'birthday', 'tnb_data'];
       const { error: permError } = await supabase
         .from('user_permissions')
         .insert({

@@ -56,7 +56,6 @@ const TnbLeader = lazyWithRetry(() => import('./pages/TnbLeader'));
 const SinhNhatNv = lazyWithRetry(() => import('./pages/SinhNhatNv'));
 const FeedbackPage = lazyWithRetry(() => import('./pages/FeedbackPage'));
 const ExcelViewer = lazyWithRetry(() => import('./pages/ExcelViewer').then(module => ({ default: module.ExcelViewer })));
-const BanGiaSocPage = lazyWithRetry(() => import('./pages/BanGiaSocPage').then(module => ({ default: module.BanGiaSocPage })));
 
 const LoadingSpinner = () => (
   <div className="flex-1 flex flex-col items-center justify-center min-h-[40vh]">
@@ -86,9 +85,9 @@ export default function App() {
     );
   }
 
-  const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro' | 'bbkq' | 'tienich' | 'tnb_data' | 'birthday' | 'feedback' | 'excelviewer' | 'lichpg' | 'bangiasoc' | 'tnbleader'>(() => {
+  const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro' | 'bbkq' | 'tienich' | 'tnb_data' | 'birthday' | 'feedback' | 'excelviewer' | 'lichpg' | 'tnbleader'>(() => {
     try {
-      // 1. Ưu tiên đọc từ URL pathname (/lich-pg, /realtime, /ban-gia-soc, /suc-khoe...)
+      // 1. Ưu tiên đọc từ URL pathname (/lich-pg, /realtime, /suc-khoe...)
       const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
       if (path && URL_PAGE_MAP[path]) {
         return URL_PAGE_MAP[path] as any;
@@ -97,13 +96,13 @@ export default function App() {
       const params = new URLSearchParams(window.location.search);
       const pageParam = params.get('page');
       const hash = window.location.hash;
-      if (pageParam) return pageParam as any;
+      if (pageParam && pageParam !== 'bangiasoc') return pageParam as any;
       if (hash.startsWith('#sync_thuong=')) return 'health';
     } catch {}
 
     try {
       const saved = localStorage.getItem('crm_active_page');
-      if (saved) return saved as any;
+      if (saved && saved !== 'bangiasoc') return saved as any;
     } catch {}
 
     return 'realtime';
@@ -310,7 +309,7 @@ export default function App() {
 
   // Hard Rule implementation for fallback if userProfile has missing userPermissions (legacy session)
   const isSuperAdminHardcoded = userProfile?.username === '43751' || userProfile?.username === 'ADMIN';
-  const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'bbkq', 'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday', 'feedback', 'excelviewer', 'bangiasoc'];
+  const ALL_PAGES = ['realtime', 'luyke', 'khaibao', 'health', 'toolhotro', 'bbkq', 'tienich', 'users', 'tnb_data', 'tnbleader', 'birthday', 'feedback', 'excelviewer'];
   
   // Compute allowed pages
   const canEditUser = userProfile?.userPermissions?.canEditUser ?? isSuperAdminHardcoded;
@@ -327,9 +326,6 @@ export default function App() {
   
   const effectiveAllowedPages = useMemo(() => {
     let pages = canEditUser && !allowedPages.includes('users') ? [...allowedPages, 'users'] : allowedPages;
-    if (userProfile?.username === '43751' && !pages.includes('bangiasoc')) {
-      pages = [...pages, 'bangiasoc'];
-    }
     // Lịch PG: mở cho tất cả user (PG001 vẫn xem được nhưng không có quyền chỉnh sửa — xem LichLamViecPG.tsx)
     if (!pages.includes('lichpg')) {
       pages = [...pages, 'lichpg'];
@@ -486,7 +482,6 @@ export default function App() {
     { id: 'birthday', label: 'Sinh nhật NV', icon: Gift, color: 'pink' },
     { id: 'feedback', label: 'HƯỚNG DẪN & GÓP Ý', icon: MessageSquare, color: 'indigo' },
     { id: 'excelviewer', label: 'XEM FILE EXCEL', icon: FileSpreadsheet, color: 'emerald' },
-    { id: 'bangiasoc', label: 'GIÁ SỐC', icon: ShoppingBag, color: 'rose' },
     { id: 'lichpg', label: 'Lịch PG', icon: CalendarDays, color: 'teal' }
   ];
   
@@ -603,7 +598,6 @@ export default function App() {
               if (currentPage === 'birthday' && effectiveAllowedPages.includes('birthday')) return <SinhNhatNv />;
               if (currentPage === 'feedback') return <FeedbackPage />;
               if (currentPage === 'excelviewer' && effectiveAllowedPages.includes('excelviewer')) return <ExcelViewer />;
-              if (currentPage === 'bangiasoc' && effectiveAllowedPages.includes('bangiasoc')) return <BanGiaSocPage />;
               if (currentPage === 'lichpg' && effectiveAllowedPages.includes('lichpg')) return <LichLamViecPG />;
               return null;
             })()}

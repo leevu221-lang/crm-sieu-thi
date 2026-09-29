@@ -81,14 +81,13 @@ const ITEM_META: Record<string, { subtitle: string; badge?: string; badgeType?: 
   birthday:    { subtitle: 'Danh sách sinh nhật NV' },
   feedback:    { subtitle: 'Góp ý & Hướng dẫn sử dụng' },
   excelviewer: { subtitle: 'Xem & tải file Excel' },
-  bangiasoc:   { subtitle: 'Giá sốc siêu thị' },
   lichpg:      { subtitle: 'Lịch trình PG hàng ngày' },
 };
 
 /* ── Section grouping ── */
 const SECTION_MAP: { title: string; ids: string[] }[] = [
   { title: 'MENU QUẢN LÝ', ids: ['realtime', 'luyke', 'khaibao', 'health', 'tnbleader'] },
-  { title: 'DỮ LIỆU & TIỆN ÍCH', ids: ['toolhotro', 'bbkq', 'tienich', 'birthday', 'excelviewer', 'feedback', 'bangiasoc', 'lichpg'] },
+  { title: 'DỮ LIỆU & TIỆN ÍCH', ids: ['toolhotro', 'bbkq', 'tienich', 'birthday', 'excelviewer', 'feedback', 'lichpg'] },
 ];
 
 /* ── Submenu definitions ── */

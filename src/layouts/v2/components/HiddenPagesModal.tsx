@@ -27,7 +27,6 @@ export const ALL_HIDDEN_TARGETS: HiddenTargetItem[] = [
   { key: 'tienich', name: 'Tiện Ích', group: 'Dữ liệu & Tiện ích', subtitle: 'Phân ca, biên bản, tương tác LINE' },
   { key: 'birthday', name: 'Sinh Nhật Nhân Viên', group: 'Dữ liệu & Tiện ích', subtitle: 'Danh sách sinh nhật' },
   { key: 'excelviewer', name: 'Excel Viewer', group: 'Dữ liệu & Tiện ích', subtitle: 'Xem & tải file Excel' },
-  { key: 'bangiasoc', name: 'Bảng Giá Sốc', group: 'Dữ liệu & Tiện ích', subtitle: 'Giá sốc siêu thị' },
   { key: 'lichpg', name: 'Lịch Làm Việc PG', group: 'Dữ liệu & Tiện ích', subtitle: 'Lịch trình PG hàng ngày' },
   { key: 'feedback', name: 'Góp Ý & Hướng Dẫn', group: 'Dữ liệu & Tiện ích', subtitle: 'Phản hồi hệ thống' },
 

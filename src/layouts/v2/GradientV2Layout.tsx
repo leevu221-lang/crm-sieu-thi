@@ -341,7 +341,7 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
 /* ── Mobile Sidebar Content (premium theme) ── */
 const MOBILE_SECTION_MAP = [
   { title: 'MENU QUẢN LÝ', ids: ['realtime', 'luyke', 'khaibao', 'health', 'tnbleader'] },
-  { title: 'DỮ LIỆU & TIỆN ÍCH', ids: ['toolhotro', 'bbkq', 'tienich', 'birthday', 'excelviewer', 'feedback', 'bangiasoc', 'lichpg'] },
+  { title: 'DỮ LIỆU & TIỆN ÍCH', ids: ['toolhotro', 'bbkq', 'tienich', 'birthday', 'excelviewer', 'feedback', 'lichpg'] },
 ];
 
 const MOBILE_ITEM_META: Record<string, { subtitle: string; badge?: string; badgeType?: 'hot' | 'moi' }> = {
@@ -356,7 +356,6 @@ const MOBILE_ITEM_META: Record<string, { subtitle: string; badge?: string; badge
   birthday:    { subtitle: 'Danh sách sinh nhật NV' },
   feedback:    { subtitle: 'Góp ý & Hướng dẫn sử dụng' },
   excelviewer: { subtitle: 'Xem & tải file Excel' },
-  bangiasoc:   { subtitle: 'Giá sốc siêu thị' },
   lichpg:      { subtitle: 'Lịch trình PG hàng ngày' },
 };
 
