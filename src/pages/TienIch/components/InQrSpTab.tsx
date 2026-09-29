@@ -30,7 +30,8 @@ import {
   AlertCircle,
   FileSpreadsheet,
   CheckCircle2,
-  Minus
+  Minus,
+  Sliders
 } from 'lucide-react';
 import { domToPng } from 'modern-screenshot';
 import { useStore } from '../../../contexts/StoreContext';
@@ -49,7 +50,9 @@ export interface QrProductItem {
 }
 
 export interface QrPrintConfig {
-  layoutCols: '2' | '3' | '4' | '5'; // 2, 3, 4 hoặc 5 cột trên trang A4
+  layoutCols: '2' | '3' | '4' | '5' | 'custom'; // 2, 3, 4, 5 hoặc custom
+  customCols: number; // Số cột tùy chỉnh trên trang A4
+  customRows: number; // Số hàng tùy chỉnh trên trang A4
   qrSize: number; // Kích thước QR (px)
   fontSize: number; // Cỡ chữ tên sản phẩm (px)
   showCodeText: boolean; // Hiển thị số mã SP bên dưới QR
@@ -176,6 +179,8 @@ export const SAMPLE_PRODUCTS: QrProductItem[] = [
 
 const DEFAULT_CONFIG: QrPrintConfig = {
   layoutCols: '3', // 3 cột x 5 hàng = 15 tem / trang A4 (khuyên dùng)
+  customCols: 3,
+  customRows: 5,
   qrSize: 85,
   fontSize: 11,
   showCodeText: true,
@@ -210,7 +215,17 @@ export const InQrSpTab: React.FC = () => {
   const [config, setConfig] = useState<QrPrintConfig>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_CONFIG_KEY);
-      if (saved) return { ...DEFAULT_CONFIG, ...JSON.parse(saved) };
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const defCols = parsed.layoutCols === '2' ? 2 : parsed.layoutCols === '4' ? 4 : parsed.layoutCols === '5' ? 5 : 3;
+        const defRows = parsed.layoutCols === '2' ? 4 : parsed.layoutCols === '4' ? 6 : parsed.layoutCols === '5' ? 7 : 5;
+        return {
+          ...DEFAULT_CONFIG,
+          ...parsed,
+          customCols: parsed.customCols || defCols,
+          customRows: parsed.customRows || defRows,
+        };
+      }
     } catch {}
     return DEFAULT_CONFIG;
   });
@@ -251,6 +266,34 @@ export const InQrSpTab: React.FC = () => {
   const [newNganh, setNewNganh] = useState('');
   const [newNhom, setNewNhom] = useState('');
 
+  // Số cột và số hàng hiện tại (chuẩn hóa fallback)
+  const cols = config.customCols || (config.layoutCols === '2' ? 2 : config.layoutCols === '4' ? 4 : config.layoutCols === '5' ? 5 : 3);
+  const rows = config.customRows || (config.layoutCols === '2' ? 4 : config.layoutCols === '4' ? 6 : config.layoutCols === '5' ? 7 : 5);
+
+  const handleUpdateCols = (newCols: number) => {
+    const val = Math.max(1, Math.min(6, newCols));
+    setConfig(prev => {
+      let layoutId: any = 'custom';
+      if (val === 3 && rows === 5) layoutId = '3';
+      else if (val === 4 && rows === 6) layoutId = '4';
+      else if (val === 5 && rows === 7) layoutId = '5';
+      else if (val === 2 && rows === 4) layoutId = '2';
+      return { ...prev, customCols: val, layoutCols: layoutId };
+    });
+  };
+
+  const handleUpdateRows = (newRows: number) => {
+    const val = Math.max(1, Math.min(10, newRows));
+    setConfig(prev => {
+      let layoutId: any = 'custom';
+      if (cols === 3 && val === 5) layoutId = '3';
+      else if (cols === 4 && val === 6) layoutId = '4';
+      else if (cols === 5 && val === 7) layoutId = '5';
+      else if (cols === 2 && val === 4) layoutId = '2';
+      return { ...prev, customRows: val, layoutCols: layoutId };
+    });
+  };
+
   // Lọc sản phẩm hiển thị trong bảng danh sách
   const filteredProducts = useMemo(() => {
     if (!searchTerm.trim()) return products;
@@ -278,13 +321,10 @@ export const InQrSpTab: React.FC = () => {
     return queue;
   }, [products]);
 
-  // Số tem trên 1 trang A4 tùy theo layoutCols
+  // Số tem trên 1 trang A4 tùy theo số cột và số hàng
   const itemsPerPage = useMemo(() => {
-    if (config.layoutCols === '2') return 8; // 2 cột x 4 hàng = 8
-    if (config.layoutCols === '4') return 24; // 4 cột x 6 hàng = 24
-    if (config.layoutCols === '5') return 35; // 5 cột x 7 hàng = 35 (chuẩn A4 tem vuông)
-    return 15; // 3 cột x 5 hàng = 15 (mặc định)
-  }, [config.layoutCols]);
+    return Math.max(1, cols * rows);
+  }, [cols, rows]);
 
   // Phân chia tem thành các trang A4
   const pages = useMemo(() => {
@@ -571,27 +611,34 @@ export const InQrSpTab: React.FC = () => {
         ? 'border border-slate-300'
         : 'border-0';
 
-    const is5Cols = config.layoutCols === '5';
-    const effectiveQrSize = is5Cols ? Math.min(config.qrSize, 72) : config.qrSize;
+    const isCompact = cols >= 5 || rows >= 7;
+    const paddingClass = (rows >= 8 || cols >= 5) ? 'p-1' : (rows >= 6 || cols >= 4) ? 'p-1.5' : 'p-2.5';
+
+    // Tính toán chiều cao chuẩn của tem theo khổ A4 (vùng in chuẩn ~280mm)
+    const rowGapMm = rows >= 7 ? 1.5 : 2;
+    const stickerHeightMm = Math.max(18, parseFloat(((280 - (rows - 1) * rowGapMm) / rows).toFixed(1)));
+
+    // Tính toán kích thước QR tối ưu không làm tràn chữ khi có nhiều hàng/cột
+    const approxRowHeightPx = (1123 - 48 - (rows - 1) * 8) / rows;
+    const reservedTextHeightPx = (config.showStoreName ? 14 : 0) + (config.showCodeText ? 16 : 0) + (config.showProductName ? 24 : 0) + (config.showImei && item.imei ? 12 : 0) + 12;
+    const maxSafeQrHeightPx = Math.max(34, approxRowHeightPx - reservedTextHeightPx);
+    const approxColWidthPx = (794 - 48 - (cols - 1) * 8) / cols;
+    const maxSafeQrWidthPx = Math.max(34, approxColWidthPx - 16);
+    const autoMaxQr = Math.min(maxSafeQrHeightPx, maxSafeQrWidthPx);
+    const effectiveQrSize = Math.max(34, Math.min(config.qrSize, Math.round(autoMaxQr)));
 
     return (
       <div
         key={`${item.id}_${index}`}
-        className={`qr-item-card relative bg-white flex flex-col items-center justify-between ${
-          is5Cols ? 'p-1.5' : 'p-2.5'
-        } rounded-lg transition-all ${borderClass} ${
+        className={`qr-item-card relative bg-white flex flex-col items-center justify-between ${paddingClass} rounded-lg transition-all ${borderClass} ${
           isPrintMode ? 'break-inside-avoid' : 'hover:shadow-md'
         }`}
         style={{
           boxSizing: 'border-box',
-          minHeight:
-            config.layoutCols === '2'
-              ? '64mm'
-              : config.layoutCols === '4'
-              ? '44mm'
-              : config.layoutCols === '5'
-              ? '36.5mm'
-              : '52mm',
+          height: '100%',
+          minHeight: `${stickerHeightMm}mm`,
+          maxHeight: isPrintMode ? `${stickerHeightMm}mm` : undefined,
+          overflow: 'hidden',
         }}
       >
         {/* Đường cắt kéo trang trí nếu viền nét đứt (chỉ hiển thị xem trước) */}
@@ -605,14 +652,14 @@ export const InQrSpTab: React.FC = () => {
         {/* Tiêu đề cửa hàng / thương hiệu */}
         {config.showStoreName && (
           <div className="w-full text-center pb-0.5 border-b border-slate-100">
-            <span className={`${is5Cols ? 'text-[8px]' : 'text-[9px]'} font-black uppercase text-slate-600 tracking-wider truncate block`}>
+            <span className={`${isCompact ? 'text-[8px]' : 'text-[9px]'} font-black uppercase text-slate-600 tracking-wider truncate block`}>
               {config.storeNameText || currentStoreId || 'ĐIỆN MÁY XANH'}
             </span>
           </div>
         )}
 
         {/* Khối Mã QR */}
-        <div className="flex-1 flex items-center justify-center py-0.5">
+        <div className="flex-1 flex items-center justify-center py-0.5 min-h-0">
           <div className="p-0.5 bg-white rounded">
             <QRCode
               value={item.productCode}
@@ -633,7 +680,7 @@ export const InQrSpTab: React.FC = () => {
           {/* Mã sản phẩm */}
           {config.showCodeText && (
             <div className={`font-mono font-black text-slate-900 tracking-wider leading-tight select-all ${
-              is5Cols ? 'text-[10px]' : 'text-[11.5px] sm:text-[12.5px]'
+              isCompact ? 'text-[10px]' : 'text-[11.5px] sm:text-[12.5px]'
             }`}>
               {item.productCode}
             </div>
@@ -642,10 +689,10 @@ export const InQrSpTab: React.FC = () => {
           {/* Tên sản phẩm */}
           {config.showProductName && (
             <div
-              className={`font-bold text-slate-800 line-clamp-2 mt-0.5 leading-snug w-full ${
-                is5Cols ? 'text-[9.5px]' : ''
+              className={`font-bold text-slate-800 ${rows >= 9 ? 'line-clamp-1' : 'line-clamp-2'} mt-0.5 leading-snug w-full ${
+                isCompact ? 'text-[9.5px]' : ''
               }`}
-              style={{ fontSize: is5Cols ? `${Math.min(config.fontSize, 10.5)}px` : `${config.fontSize}px` }}
+              style={{ fontSize: isCompact ? `${Math.min(config.fontSize, 10.5)}px` : `${config.fontSize}px` }}
               title={item.productName}
             >
               {item.productName}
@@ -654,7 +701,7 @@ export const InQrSpTab: React.FC = () => {
 
           {/* IMEI (nếu có và bật) */}
           {config.showImei && item.imei && (
-            <div className={`${is5Cols ? 'text-[8px]' : 'text-[9px]'} text-slate-500 font-medium mt-0.5 line-clamp-1`}>
+            <div className={`${isCompact ? 'text-[8px]' : 'text-[9px]'} text-slate-500 font-medium mt-0.5 line-clamp-1`}>
               IMEI: <span className="font-mono font-bold text-slate-700">{item.imei}</span>
             </div>
           )}
@@ -665,16 +712,8 @@ export const InQrSpTab: React.FC = () => {
 
   // Render lưới tem cho 1 trang A4
   const renderPageSheet = (pageItems: QrProductItem[], pageIdx: number, isPrintMode: boolean = false) => {
-    const gridColsClass =
-      config.layoutCols === '2'
-        ? 'grid-cols-2'
-        : config.layoutCols === '4'
-        ? 'grid-cols-4'
-        : config.layoutCols === '5'
-        ? 'grid-cols-5'
-        : 'grid-cols-3';
-
-    const gapClass = config.layoutCols === '5' ? 'gap-2' : 'gap-3';
+    const gapClass = (rows >= 8 || cols >= 5) ? 'gap-1.5' : (rows >= 6 || cols >= 4) ? 'gap-2' : 'gap-3';
+    const gapMm = rows >= 7 ? 1.5 : 2;
 
     return (
       <div
@@ -698,13 +737,21 @@ export const InQrSpTab: React.FC = () => {
               <span>Trang {pageIdx + 1} / {totalPages}</span>
             </div>
             <span className="text-[11px] text-slate-400">
-              {pageItems.length} tem / trang ({config.layoutCols} cột x {config.layoutCols === '2' ? 4 : config.layoutCols === '4' ? 6 : config.layoutCols === '5' ? 7 : 5} hàng)
+              {pageItems.length} tem / trang ({cols} cột x {rows} hàng)
             </span>
           </div>
         )}
 
         {/* Lưới các con tem */}
-        <div className={`grid ${gridColsClass} ${gapClass} h-full`}>
+        <div
+          className={`grid ${gapClass} h-full w-full`}
+          style={{
+            gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+            gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+            gap: isPrintMode ? `${gapMm}mm` : undefined,
+            height: '100%',
+          }}
+        >
           {pageItems.map((item, idx) => renderQrSticker(item, idx, isPrintMode))}
         </div>
       </div>
@@ -1003,36 +1050,155 @@ export const InQrSpTab: React.FC = () => {
               <div className="space-y-4 text-xs font-medium text-slate-700">
                 
                 {/* 1. Chọn bố cục lưới A4 */}
-                <div className="space-y-1.5">
-                  <label className="font-black text-slate-800 text-xs flex items-center gap-1.5">
-                    <Layers size={13} className="text-sky-600" />
-                    Bố cục in trên trang A4:
-                  </label>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="font-black text-slate-800 text-xs flex items-center gap-1.5">
+                      <Layers size={13} className="text-sky-600" />
+                      Bố cục in trên trang A4:
+                    </label>
+                    <span className="text-[11px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2.5 py-0.5 rounded-full shadow-xs">
+                      {cols} cột × {rows} hàng = <strong className="font-black text-sky-900">{cols * rows} tem/trang</strong>
+                    </span>
+                  </div>
+
+                  {/* Bố cục mẫu nhanh (Presets) */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
-                      { id: '3', label: '3 cột x 5 hàng', sub: '15 tem / trang', rec: true },
-                      { id: '4', label: '4 cột x 6 hàng', sub: '24 tem / trang', rec: false },
-                      { id: '5', label: '5 cột x 7 hàng', sub: '35 tem / trang', rec: false },
-                      { id: '2', label: '2 cột x 4 hàng', sub: '8 tem / trang', rec: false },
-                    ].map(opt => (
-                      <button
-                        key={opt.id}
-                        onClick={() => setConfig(prev => ({ ...prev, layoutCols: opt.id as any }))}
-                        className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer relative ${
-                          config.layoutCols === opt.id
-                            ? 'bg-sky-50 border-sky-400 text-sky-900 font-black shadow-xs'
-                            : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                        }`}
-                      >
-                        {opt.rec && (
-                          <span className="absolute -top-1.5 right-1.5 bg-emerald-500 text-white text-[8px] font-black uppercase px-1 rounded-sm">
-                            Chuẩn
+                      { id: '3', cols: 3, rows: 5, label: '3 cột × 5 hàng', sub: '15 tem / trang', rec: true },
+                      { id: '4', cols: 4, rows: 6, label: '4 cột × 6 hàng', sub: '24 tem / trang', rec: false },
+                      { id: '5', cols: 5, rows: 7, label: '5 cột × 7 hàng', sub: '35 tem / trang', rec: false },
+                      { id: '2', cols: 2, rows: 4, label: '2 cột × 4 hàng', sub: '8 tem / trang', rec: false },
+                    ].map(opt => {
+                      const isSelected = cols === opt.cols && rows === opt.rows;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setConfig(prev => ({
+                            ...prev,
+                            layoutCols: opt.id as any,
+                            customCols: opt.cols,
+                            customRows: opt.rows,
+                          }))}
+                          className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer relative ${
+                            isSelected
+                              ? 'bg-sky-50 border-sky-400 text-sky-900 font-black shadow-xs ring-2 ring-sky-200'
+                              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          {opt.rec && (
+                            <span className="absolute -top-1.5 right-1.5 bg-emerald-500 text-white text-[8px] font-black uppercase px-1 rounded-sm shadow-xs">
+                              Chuẩn
+                            </span>
+                          )}
+                          <div className="text-xs font-black">{opt.label}</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">{opt.sub}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Bảng tự điều chỉnh số cột, số hàng theo chuẩn A4 */}
+                  <div className="bg-slate-50/90 rounded-2xl p-3 sm:p-3.5 border border-slate-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11.5px] font-black text-slate-700 flex items-center gap-1.5">
+                        <Sliders size={13} className="text-indigo-600" />
+                        Tự điều chỉnh số cột & số hàng (Chuẩn A4):
+                      </span>
+                      <span className="text-[10.5px] font-bold text-slate-500">
+                        Ước tính: ~{(194 / cols).toFixed(0)} × {(280 / rows).toFixed(0)} mm/tem
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Điều chỉnh số cột */}
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-700">Số cột (ngang):</span>
+                          <span className="text-xs font-black font-mono text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
+                            {cols} cột
                           </span>
-                        )}
-                        <div className="text-xs font-black">{opt.label}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">{opt.sub}</div>
-                      </button>
-                    ))}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateCols(cols - 1)}
+                            disabled={cols <= 1}
+                            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-black disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-colors cursor-pointer"
+                            title="Giảm 1 cột"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="range"
+                            min={1}
+                            max={6}
+                            step={1}
+                            value={cols}
+                            onChange={e => handleUpdateCols(Number(e.target.value))}
+                            className="flex-1 accent-sky-600 cursor-pointer"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateCols(cols + 1)}
+                            disabled={cols >= 6}
+                            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-black disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-colors cursor-pointer"
+                            title="Tăng 1 cột"
+                          >
+                            +
+                          </button>
+                        </div>
+                        <div className="flex justify-between text-[10px] text-slate-400 font-medium">
+                          <span>1 cột</span>
+                          <span>3 cột (chuẩn)</span>
+                          <span>6 cột</span>
+                        </div>
+                      </div>
+
+                      {/* Điều chỉnh số hàng */}
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-700">Số hàng (dọc):</span>
+                          <span className="text-xs font-black font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                            {rows} hàng
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateRows(rows - 1)}
+                            disabled={rows <= 1}
+                            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-black disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-colors cursor-pointer"
+                            title="Giảm 1 hàng"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="range"
+                            min={1}
+                            max={10}
+                            step={1}
+                            value={rows}
+                            onChange={e => handleUpdateRows(Number(e.target.value))}
+                            className="flex-1 accent-emerald-600 cursor-pointer"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateRows(rows + 1)}
+                            disabled={rows >= 10}
+                            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-black disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-colors cursor-pointer"
+                            title="Tăng 1 hàng"
+                          >
+                            +
+                          </button>
+                        </div>
+                        <div className="flex justify-between text-[10px] text-slate-400 font-medium">
+                          <span>1 hàng</span>
+                          <span>5 hàng (chuẩn)</span>
+                          <span>10 hàng</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
