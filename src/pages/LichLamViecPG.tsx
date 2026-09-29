@@ -57,34 +57,44 @@ interface MonthDoc {
   updatedBy?: string;
 }
 
-// ─── Shift color mapping (Pastel Soft UI / Tinted Pills: Tone 300 nền / Tone 900 chữ) ─
-const PRESET_COLORS = [
-  { bg: '#93c5fd', text: '#1e3a8a', border: '#60a5fa' },   // blue (blue-300 / blue-900)
-  { bg: '#c4b5fd', text: '#4c1d95', border: '#a78bfa' },   // violet (violet-300 / violet-900)
-  { bg: '#67e8f9', text: '#164e63', border: '#22d3ee' },   // cyan (cyan-300 / cyan-900)
-  { bg: '#fcd34d', text: '#78350f', border: '#fbbf24' },   // amber (amber-300 / amber-900)
-  { bg: '#f9a8d4', text: '#831843', border: '#f472b6' },   // pink (pink-300 / pink-900)
-  { bg: '#5eead4', text: '#134e4a', border: '#2dd4bf' },   // teal (teal-300 / teal-900)
-  { bg: '#fdba74', text: '#7c2d12', border: '#fb923c' },   // orange (orange-300 / orange-900)
-  { bg: '#a5b4fc', text: '#312e81', border: '#818cf8' },   // indigo (indigo-300 / indigo-900)
-  { bg: '#bef264', text: '#365314', border: '#a3e635' },   // lime (lime-300 / lime-900)
-  { bg: '#d8b4fe', text: '#581c87', border: '#c084fc' },   // purple (purple-300 / purple-900)
+// ─── Shift color mapping (Chuẩn pastel dịu nhẹ + viền 1px sắc nét + chữ đậm tương phản cao theo Hình 1) ─
+const PRESET_COLORS: { bg: string; text: string; border: string }[] = [
+  { bg: '#e0f2fe', text: '#0369a1', border: '#7dd3fc' },   // sky (sky-100 / sky-700 / sky-300)
+  { bg: '#ede9fe', text: '#6d28d9', border: '#c4b5fd' },   // violet (violet-100 / violet-700 / violet-300)
+  { bg: '#cffafe', text: '#0e7490', border: '#67e8f9' },   // cyan (cyan-100 / cyan-700 / cyan-300)
+  { bg: '#fef3c7', text: '#b45309', border: '#fcd34d' },   // amber (amber-100 / amber-700 / amber-300)
+  { bg: '#fce7f3', text: '#be185d', border: '#f9a8d4' },   // pink (pink-100 / pink-700 / pink-300)
+  { bg: '#ccfbf1', text: '#0f766e', border: '#5eead4' },   // teal (teal-100 / teal-700 / teal-300)
+  { bg: '#ffedd5', text: '#c2410c', border: '#fdba74' },   // orange (orange-100 / orange-700 / orange-300)
+  { bg: '#e0e7ff', text: '#4338ca', border: '#a5b4fc' },   // indigo (indigo-100 / indigo-700 / indigo-300)
+  { bg: '#ecfccb', text: '#4d7c0f', border: '#bef264' },   // lime (lime-100 / lime-700 / lime-300)
+  { bg: '#f3e8ff', text: '#7e22ce', border: '#d8b4fe' },   // purple (purple-100 / purple-700 / purple-300)
 ];
 
 const baseShiftStyles: Record<string, { bg: string; text: string; border: string }> = {
-  'Ca sáng':   { bg: '#86efac', text: '#14532d', border: '#4ade80' }, // green-300 / green-900
-  'Ca Chiều':  { bg: '#c4b5fd', text: '#4c1d95', border: '#a78bfa' }, // violet-300 / violet-900
-  'Ca Gãy':    { bg: '#fde047', text: '#713f12', border: '#facc15' }, // yellow-300 / yellow-900
-  'OFF':       { bg: '#fca5a5', text: '#7f1d1d', border: '#f87171' }, // red-300 / red-900
-  'ST khác':   { bg: '#93c5fd', text: '#1e3a8a', border: '#60a5fa' }, // blue-300 / blue-900
+  'Ca sáng':   { bg: '#dcfce7', text: '#15803d', border: '#86efac' }, // emerald-100 / emerald-700 / emerald-300
+  'Ca Chiều':  { bg: '#ede9fe', text: '#6d28d9', border: '#c4b5fd' }, // violet-100 / violet-700 / violet-300 (Chuẩn Hình 1 - TN)
+  'Ca Gãy':    { bg: '#fef9c3', text: '#a16207', border: '#fde047' }, // yellow-100 / yellow-700 / yellow-300
+  'OFF':       { bg: '#fee2e2', text: '#dc2626', border: '#fca5a5' }, // red-100 / red-600 / red-300 (Chuẩn Hình 1 - Nghỉ Off)
+  'ST khác':   { bg: '#e0f2fe', text: '#0369a1', border: '#7dd3fc' }, // sky-100 / sky-700 / sky-300 (Chuẩn Hình 1 - HC)
+  'Ca Full':   { bg: '#ecfccb', text: '#4d7c0f', border: '#bef264' }, // lime-100 / lime-700 / lime-300
+  'KHO':       { bg: '#ffedd5', text: '#c2410c', border: '#fdba74' }, // orange-100 / orange-700 / orange-300 (Chuẩn Hình 1 - KHO)
+  'Kho':       { bg: '#ffedd5', text: '#c2410c', border: '#fdba74' },
+  'TN':        { bg: '#ede9fe', text: '#6d28d9', border: '#c4b5fd' },
+  'HC':        { bg: '#e0f2fe', text: '#0369a1', border: '#7dd3fc' },
   '':          { bg: '#f8fafc', text: '#94a3b8', border: '#cbd5e1' },
 };
 
 const BASE_SHIFTS: string[] = ['Ca sáng', 'Ca Chiều', 'Ca Gãy', 'OFF', 'ST khác'];
 
 function getShiftStyle(name: string, customShifts: string[]): { bg: string; text: string; border: string } {
-  if (baseShiftStyles[name]) return baseShiftStyles[name];
-  const idx = customShifts.indexOf(name);
+  const trimmed = (name || '').trim();
+  if (baseShiftStyles[trimmed]) return baseShiftStyles[trimmed];
+
+  const baseKey = Object.keys(baseShiftStyles).find(k => k.toLowerCase() === trimmed.toLowerCase());
+  if (baseKey) return baseShiftStyles[baseKey];
+
+  const idx = customShifts.findIndex(s => s.trim().toLowerCase() === trimmed.toLowerCase());
   if (idx >= 0) return PRESET_COLORS[idx % PRESET_COLORS.length];
   return baseShiftStyles[''];
 }
@@ -711,23 +721,61 @@ const ShiftCell: React.FC<{
   const s = getShiftStyle(value, customShifts);
   if (!editable) {
     return (
-      <td className="px-1 py-2.5 text-center border whitespace-nowrap" style={{ borderColor: '#cbd5e1', height: '46px', minWidth: 95, whiteSpace: 'nowrap' }}>
+      <td className="px-1 py-2 text-center border whitespace-nowrap" style={{ borderColor: '#cbd5e1', height: '46px', minWidth: 95, whiteSpace: 'nowrap' }}>
         {value ? (
-          <span style={{ backgroundColor: s.bg, color: s.text, border: `1px solid ${s.border || s.bg}`, borderRadius: '6px', padding: '4px 8.5px', fontSize: '12px', fontWeight: 800, display: 'inline-block', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>
+          <span
+            style={{
+              backgroundColor: s.bg,
+              color: s.text,
+              border: `1px solid ${s.border || s.bg}`,
+              borderRadius: '6px',
+              padding: '3px 8.5px',
+              fontSize: '11.5px',
+              fontWeight: 800,
+              fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              letterSpacing: '0.2px',
+              lineHeight: '1.25',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+            }}
+          >
             {value}
           </span>
         ) : (
-          <span style={{ color: '#cbd5e1', fontSize: '12px', whiteSpace: 'nowrap' }}>—</span>
+          <span
+            style={{
+              color: '#94a3b8',
+              fontSize: '13px',
+              fontWeight: 600,
+              fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+              whiteSpace: 'nowrap',
+            }}
+          >
+            -
+          </span>
         )}
       </td>
     );
   }
   return (
     <td className="p-0 border whitespace-nowrap" style={{ borderColor: '#cbd5e1', height: '46px', minWidth: 95, whiteSpace: 'nowrap' }}>
-      <select value={value} onChange={e => onChange(e.target.value as ShiftType)}
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value as ShiftType)}
         onDragStart={e => e.stopPropagation()}
-        className="w-full h-full px-0.5 py-2.5 text-[12px] font-bold text-center border-0 outline-none cursor-pointer whitespace-nowrap"
-        style={{ backgroundColor: s.bg, color: s.text, minWidth: 95, minHeight: '46px', whiteSpace: 'nowrap' }}>
+        className="w-full h-full px-1 py-2 text-[11.5px] font-extrabold text-center border-0 outline-none cursor-pointer whitespace-nowrap"
+        style={{
+          backgroundColor: s.bg,
+          color: s.text,
+          minWidth: 95,
+          minHeight: '46px',
+          whiteSpace: 'nowrap',
+          fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+        }}
+      >
         {options.map(o => <option key={o} value={o}>{o || '(trống)'}</option>)}
       </select>
     </td>
@@ -1178,11 +1226,27 @@ const PGHistoryModal: React.FC<{
 
                           {c.type === 'shift' ? (
                             <div className="flex items-center gap-1.5">
-                              <span style={{ backgroundColor: oldStyle.bg, color: oldStyle.text }} className="px-2 py-0.5 rounded text-[11px] font-bold shadow-sm">
+                              <span
+                                style={{
+                                  backgroundColor: oldStyle.bg,
+                                  color: oldStyle.text,
+                                  border: `1px solid ${oldStyle.border || oldStyle.bg}`,
+                                  fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+                                }}
+                                className="px-2 py-0.5 rounded-md text-[11px] font-extrabold shadow-2xs"
+                              >
                                 {c.oldValue}
                               </span>
                               <ArrowRight size={12} className="text-slate-400" />
-                              <span style={{ backgroundColor: newStyle.bg, color: newStyle.text }} className="px-2 py-0.5 rounded text-[11px] font-bold shadow-sm">
+                              <span
+                                style={{
+                                  backgroundColor: newStyle.bg,
+                                  color: newStyle.text,
+                                  border: `1px solid ${newStyle.border || newStyle.bg}`,
+                                  fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+                                }}
+                                className="px-2 py-0.5 rounded-md text-[11px] font-extrabold shadow-2xs"
+                              >
                                 {c.newValue}
                               </span>
                             </div>
@@ -1558,14 +1622,15 @@ const ImportExcelShiftModal: React.FC<{
                                   style={{
                                     backgroundColor: sStyle.bg,
                                     color: sStyle.text,
-                                    border: `1px solid ${sStyle.border || sStyle.bg}`
+                                    border: `1px solid ${sStyle.border || sStyle.bg}`,
+                                    fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
                                   }}
-                                  className="inline-block px-1.5 py-0.5 rounded text-[11px] font-bold whitespace-nowrap"
+                                  className="inline-flex items-center justify-center px-2 py-0.5 rounded-md text-[11px] font-extrabold whitespace-nowrap shadow-2xs"
                                 >
                                   {sVal}
                                 </span>
                               ) : (
-                                <span className="text-slate-300">—</span>
+                                <span className="text-slate-300 font-semibold" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" }}>-</span>
                               )}
                             </td>
                           );
@@ -2261,7 +2326,15 @@ const LichLamViecPG: React.FC = () => {
         tbl.style.tableLayout = 'auto';
       });
 
-      // ★ Ensure UTM Avo font is fully loaded before export
+      // Zero-Shadow Export: Gỡ bỏ toàn bộ bóng mờ trong lúc export để ảnh phẳng, không loang lổ viền đen
+      const shadowEls = el.querySelectorAll<HTMLElement>('[style*="boxShadow"], [style*="box-shadow"], [class*="shadow"]');
+      shadowEls.forEach(sEl => {
+        savedStyles.push({ el: sEl, props: { boxShadow: sEl.style.boxShadow, filter: sEl.style.filter } });
+        sEl.style.boxShadow = 'none';
+        sEl.style.filter = 'none';
+      });
+
+      // ★ Ensure fonts are fully loaded before export
       await ensureFontsReady();
       await new Promise(r => setTimeout(r, 400));
       
@@ -3023,13 +3096,50 @@ const LichLamViecPG: React.FC = () => {
 
       {/* Shift legend with add/remove */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        {BASE_SHIFTS.map(o => { const s = getShiftStyle(o, customShifts); return <span key={o} className="px-3 py-1 rounded-full text-[11px] font-bold shadow-xs border" style={{ backgroundColor: s.bg, color: s.text, borderColor: s.border || s.bg, letterSpacing: '0.3px' }}>{o}</span>; })}
-        {customShifts.map(o => { const s = getShiftStyle(o, customShifts); return (
-          <span key={o} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold shadow-xs border" style={{ backgroundColor: s.bg, color: s.text, borderColor: s.border || s.bg, letterSpacing: '0.3px' }}>
-            {o}
-            {editing && <button onClick={() => { setCustomShifts(prev => prev.filter(x => x !== o)); }} className="ml-0.5 hover:opacity-70"><X size={10} /></button>}
-          </span>
-        ); })}
+        {BASE_SHIFTS.map(o => {
+          const s = getShiftStyle(o, customShifts);
+          return (
+            <span
+              key={o}
+              className="px-2.5 py-1 rounded-md text-[11.5px] font-extrabold border shadow-2xs"
+              style={{
+                backgroundColor: s.bg,
+                color: s.text,
+                borderColor: s.border || s.bg,
+                fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+                letterSpacing: '0.2px',
+              }}
+            >
+              {o}
+            </span>
+          );
+        })}
+        {customShifts.map(o => {
+          const s = getShiftStyle(o, customShifts);
+          return (
+            <span
+              key={o}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11.5px] font-extrabold border shadow-2xs"
+              style={{
+                backgroundColor: s.bg,
+                color: s.text,
+                borderColor: s.border || s.bg,
+                fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+                letterSpacing: '0.2px',
+              }}
+            >
+              {o}
+              {editing && (
+                <button
+                  onClick={() => { setCustomShifts(prev => prev.filter(x => x !== o)); }}
+                  className="ml-0.5 hover:opacity-70 cursor-pointer"
+                >
+                  <X size={10} />
+                </button>
+              )}
+            </span>
+          );
+        })}
         {editing && !showAddShift && (
           <button onClick={() => setShowAddShift(true)} className="px-2 py-0.5 rounded text-[10px] font-bold border border-dashed border-slate-400 text-slate-500 hover:bg-slate-50 transition-colors">
             <Plus size={10} className="inline" /> Thêm ca
