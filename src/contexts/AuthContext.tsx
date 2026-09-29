@@ -5,7 +5,7 @@ import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/fire
 import { db } from '../firebaseConfig';
 import { trackUserPing } from '../services/accessTracker';
 import { localYcxDb, isValidStoreName, normalizeStoreId } from '../pages/RTST/utils';
-import { syncConfiguredStoreDocument, getConfiguredStoresFromBoss } from '../services/storeSync';
+import { syncConfiguredStoreDocument, getConfiguredStoresFromBoss, cleanStoreInput } from '../services/storeSync';
 import { URL_PAGE_MAP, isGuestShareLink } from '../constants/routes';
 import { clearAllGlobalCaches } from '../services/globalCacheRegistry';
 
@@ -303,81 +303,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('ma_kho', maKho)
         .maybeSingle();
 
-      if (data.selected_store && isValidStoreName(data.selected_store)) {
-        storeName = data.selected_store;
-      } else if (data.ten_sieu_thi && isValidStoreName(data.ten_sieu_thi)) {
-        storeName = data.ten_sieu_thi;
-      } else if (storeData?.ten_kho && isValidStoreName(storeData.ten_kho)) {
-        storeName = storeData.ten_kho;
+      // ƯU TIÊN SỐ 1 TUYỆT ĐỐI: Kiểm tra cấu hình DS BOSS từ Admin 43751 trước tiên
+      const bossConfigured = getConfiguredStoresFromBoss(maKho);
+      if (bossConfigured.length > 0 && bossConfigured[0]) {
+        storeName = bossConfigured[0];
       } else {
-        // Fallback: look up declared stores in store table
-        const { data: storeRecords } = await supabase
-          .from('store')
-          .select('id, ten_sieu_thi, declared_stores, updated_at')
-          .eq('warehouse_code', maKho);
-
-        if (storeRecords && storeRecords.length > 0) {
-          const sorted = [...storeRecords].sort((a: any, b: any) => {
-            const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-            const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
-            return timeB - timeA;
-          });
-
-          const recWithDeclared = sorted.find((r: any) => Array.isArray(r.declared_stores) && r.declared_stores.length > 0);
-          if (recWithDeclared && recWithDeclared.declared_stores[0] && isValidStoreName(recWithDeclared.declared_stores[0])) {
-            storeName = recWithDeclared.declared_stores[0];
-          } else {
-            const firstValid = sorted.find((r: any) => isValidStoreName(r.ten_sieu_thi || r.id));
-            if (firstValid) storeName = firstValid.ten_sieu_thi || firstValid.id;
+        // Fallback: Check Firestore app_settings/ds_boss_config if localStorage not yet cached
+        try {
+          const bossSnap = await getDoc(doc(db, 'app_settings', 'ds_boss_config'));
+          if (bossSnap.exists() && Array.isArray(bossSnap.data()?.rows)) {
+            const rows = bossSnap.data()?.rows;
+            const cleanTarget = String(maKho).trim().replace(/^0+/, '');
+            const matched = rows.filter((r: any) => {
+              const rowKho = String(r.maKho || '').trim().replace(/^0+/, '');
+              const d = String(r.mstSieuThi || '').trim();
+              const e = String(r.base || '').trim();
+              return (rowKho !== '' && rowKho === cleanTarget) ||
+                     d.startsWith(`${cleanTarget} -`) || d.startsWith(`${maKho} -`) ||
+                     e.startsWith(`${cleanTarget} -`) || e.startsWith(`${maKho} -`);
+            });
+            if (matched.length > 0) {
+              const cleaned = cleanStoreInput(matched[0]?.tenSieuThi || '');
+              if (cleaned && isValidStoreName(cleaned)) {
+                storeName = cleaned;
+              }
+            }
           }
-        }
+        } catch {}
       }
 
       if (!storeName) {
-        // Fallback: Check DS BOSS config (from localStorage or Firestore app_settings/ds_boss_config)
-        try {
-          let bossRows: any[] = [];
-          const cachedBoss = localStorage.getItem('rtst_ds_boss_config');
-          if (cachedBoss) {
-            try {
-              const parsed = JSON.parse(cachedBoss);
-              if (Array.isArray(parsed?.rows)) bossRows = parsed.rows;
-            } catch {}
-          }
-          if (bossRows.length === 0) {
-            const bossSnap = await getDoc(doc(db, 'app_settings', 'ds_boss_config'));
-            if (bossSnap.exists() && Array.isArray(bossSnap.data()?.rows)) {
-              bossRows = bossSnap.data()?.rows;
+        if (data.selected_store && isValidStoreName(data.selected_store)) {
+          storeName = data.selected_store;
+        } else if (data.ten_sieu_thi && isValidStoreName(data.ten_sieu_thi)) {
+          storeName = data.ten_sieu_thi;
+        } else if (storeData?.ten_kho && isValidStoreName(storeData.ten_kho)) {
+          storeName = storeData.ten_kho;
+        } else {
+          // Fallback: look up declared stores in store table
+          const { data: storeRecords } = await supabase
+            .from('store')
+            .select('id, ten_sieu_thi, declared_stores, updated_at')
+            .eq('warehouse_code', maKho);
+
+          if (storeRecords && storeRecords.length > 0) {
+            const sorted = [...storeRecords].sort((a: any, b: any) => {
+              const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+              const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+              return timeB - timeA;
+            });
+
+            const recWithDeclared = sorted.find((r: any) => Array.isArray(r.declared_stores) && r.declared_stores.length > 0);
+            if (recWithDeclared && recWithDeclared.declared_stores[0] && isValidStoreName(recWithDeclared.declared_stores[0])) {
+              storeName = recWithDeclared.declared_stores[0];
+            } else {
+              const firstValid = sorted.find((r: any) => isValidStoreName(r.ten_sieu_thi || r.id));
+              if (firstValid) storeName = firstValid.ten_sieu_thi || firstValid.id;
             }
           }
-          const cleanTarget = String(maKho).trim().replace(/^0+/, '');
-          const matched = bossRows.filter((r: any) => {
-            const rowKho = String(r.maKho || '').trim().replace(/^0+/, '');
-            const d = String(r.mstSieuThi || '').trim();
-            const e = String(r.base || '').trim();
-            return (rowKho !== '' && rowKho === cleanTarget) ||
-                   d.startsWith(`${cleanTarget} -`) || d.startsWith(`${maKho} -`) ||
-                   e.startsWith(`${cleanTarget} -`) || e.startsWith(`${maKho} -`);
-          });
-          if (matched.length > 0) {
-            const s1 = matched[0]?.tenSieuThi?.trim();
-            if (s1 && isValidStoreName(s1)) {
-              storeName = s1;
-              const declaredStores = matched.map((m: any) => m.tenSieuThi?.trim()).filter((n: string) => n && isValidStoreName(n));
-              // Dò lại trong Firebase: nếu chưa có tên siêu thị giống cấu hình thì tạo document mới, nếu có rồi thì bỏ qua!
-              await syncConfiguredStoreDocument(maKho, declaredStores);
-            }
-          }
-        } catch (bossErr) {
-          console.warn('[AuthContext] Error checking DS BOSS fallback:', bossErr);
         }
       }
 
       // Dò lại trong Firebase: nếu có cấu hình siêu thị từ BOSS cho mã kho này, đảm bảo có document trong Firebase
-      const bossConfigured = getConfiguredStoresFromBoss(maKho);
-      if (bossConfigured.length > 0) {
-        if (!storeName && bossConfigured[0]) storeName = bossConfigured[0];
-        await syncConfiguredStoreDocument(maKho, bossConfigured);
+      const activeBossStores = getConfiguredStoresFromBoss(maKho);
+      if (activeBossStores.length > 0) {
+        if (!storeName && activeBossStores[0]) storeName = activeBossStores[0];
+        await syncConfiguredStoreDocument(maKho, activeBossStores);
       }
 
       // If warehouse didn't exist in warehouses table and we found a valid storeName, auto-save to warehouses

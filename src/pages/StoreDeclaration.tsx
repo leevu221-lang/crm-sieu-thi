@@ -11,8 +11,18 @@ import { isValidStoreName, normalizeStoreId, formatMarketName } from './RTST/uti
 import { cleanStoreInput, isPlaceholderStore, syncConfiguredStoreDocument } from '../services/storeSync';
 import * as XLSX from 'xlsx';
 import { db } from '../firebaseConfig';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 import { BossStoreTableModal, BossStoreItem } from '../components/BossStoreTableModal';
+
+function isSameStore(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const cleanA = cleanStoreInput(a).toLowerCase();
+  const cleanB = cleanStoreInput(b).toLowerCase();
+  if (cleanA === cleanB) return true;
+  const normA = normalizeStoreId(a);
+  const normB = normalizeStoreId(b);
+  return Boolean(normA && normB && normA === normB);
+}
 
 interface StoreDeclarationProps {
   onComplete: () => void;
@@ -117,7 +127,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
   const matchedBossStores = useMemo(() => {
     if (!maKho || dsBossList.length === 0) return [];
     const cleanTarget = String(maKho).trim().replace(/^0+/, '');
-    return dsBossList.filter((r) => {
+    const rawMatches = dsBossList.filter((r) => {
       const rowKho = String(r.maKho || '').trim().replace(/^0+/, '');
       const d = String(r.mstSieuThi || '').trim();
       const e = String(r.base || '').trim();
@@ -125,6 +135,20 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
              d.startsWith(`${cleanTarget} -`) || d.startsWith(`${maKho} -`) ||
              e.startsWith(`${cleanTarget} -`) || e.startsWith(`${maKho} -`);
     });
+
+    // Triệt tiêu trùng lặp tên siêu thị (kể cả khác chữ hoa/thường)
+    const unique: BossStoreItem[] = [];
+    const seen = new Set<string>();
+    for (const r of rawMatches) {
+      const cleaned = cleanStoreInput(r.tenSieuThi || '');
+      if (!cleaned) continue;
+      const norm = normalizeStoreId(cleaned);
+      if (norm && !seen.has(norm)) {
+        seen.add(norm);
+        unique.push(r);
+      }
+    }
+    return unique;
   }, [dsBossList, maKho]);
 
   // Hàm tự động điền các siêu thị theo thứ tự từ trên xuống dưới:
@@ -136,17 +160,10 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     const m3 = cleanStoreInput(matchedBossStores[2]?.tenSieuThi || '');
     const m4 = cleanStoreInput(matchedBossStores[3]?.tenSieuThi || '');
 
-    if (force) {
-      if (m1) setStore1(m1);
-      setStore2(m2);
-      setStore3(m3);
-      setStore4(m4);
-    } else {
-      setStore1((prev) => (isPlaceholderStore(prev) || !prev ? m1 : prev));
-      setStore2((prev) => (isPlaceholderStore(prev) || !prev ? m2 : prev));
-      setStore3((prev) => (isPlaceholderStore(prev) || !prev ? m3 : prev));
-      setStore4((prev) => (isPlaceholderStore(prev) || !prev ? m4 : prev));
-    }
+    setStore1(m1);
+    setStore2(m2);
+    setStore3(m3);
+    setStore4(m4);
     return true;
   }, [matchedBossStores]);
 
@@ -160,7 +177,7 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
   }, []);
 
   // Tự động điền khi danh sách BOSS hoặc mã kho thay đổi:
-  // Yêu cầu khi cột MST cùng mã kho đăng nhập thì dòng đầu sẽ điền vào Siêu thị 1, tương tự các dòng tiếp theo
+  // Chuẩn hóa theo danh sách cấu hình của Admin 43751. Nếu kho chỉ có 1 siêu thị thì ô 2, 3, 4 tự động để trống!
   useEffect(() => {
     if (matchedBossStores.length > 0) {
       const m1 = cleanStoreInput(matchedBossStores[0]?.tenSieuThi || '');
@@ -168,27 +185,10 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
       const m3 = cleanStoreInput(matchedBossStores[2]?.tenSieuThi || '');
       const m4 = cleanStoreInput(matchedBossStores[3]?.tenSieuThi || '');
 
-      setStore1((prev) => {
-        if (isPlaceholderStore(prev) || !prev || !matchedBossStores.some((r) => cleanStoreInput(r.tenSieuThi) === prev)) {
-          return m1;
-        }
-        return prev;
-      });
-
-      setStore2((prev) => {
-        if (isPlaceholderStore(prev) || !prev) return m2;
-        return prev;
-      });
-
-      setStore3((prev) => {
-        if (isPlaceholderStore(prev) || !prev) return m3;
-        return prev;
-      });
-
-      setStore4((prev) => {
-        if (isPlaceholderStore(prev) || !prev) return m4;
-        return prev;
-      });
+      setStore1(m1);
+      setStore2(m2);
+      setStore3(m3);
+      setStore4(m4);
 
       // Khi có cấu hình siêu thị từ BOSS: dò lại trong Firebase, chưa có thì tạo mới, có rồi thì bỏ qua!
       const bossConfigured = [m1, m2, m3, m4].filter(Boolean);
@@ -500,28 +500,32 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
       
       try {
         console.log('[StoreDeclaration] Loading existing stores for maKho:', maKho);
-        const maKhoNum = parseInt(maKho, 10);
-        let query = supabase
-          .from('store')
-          .select('id, ten_sieu_thi, declared_stores, updated_at');
+        const cleanTarget = maKho.trim().replace(/^0+/, '');
 
-        if (!isNaN(maKhoNum)) {
-          query = query.or(`warehouse_code.eq.${maKho.trim()},warehouse_code.eq.${maKhoNum}`);
-        } else {
-          query = query.eq('warehouse_code', maKho.trim());
+        // 1. Kiểm tra DS BOSS trước tiên (từ state, cache localStorage hoặc fetch trực tiếp Firestore app_settings/ds_boss_config)
+        let bossRows = dsBossList;
+        if (bossRows.length === 0) {
+          try {
+            const cached = localStorage.getItem('rtst_ds_boss_config');
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed?.rows) && parsed.rows.length > 0) {
+                bossRows = parsed.rows;
+              }
+            }
+            if (bossRows.length === 0) {
+              const snap = await getDoc(doc(db, 'app_settings', 'ds_boss_config'));
+              if (snap.exists() && Array.isArray(snap.data()?.rows)) {
+                bossRows = snap.data()?.rows;
+                setDsBossList(bossRows);
+              }
+            }
+          } catch (e) {
+            console.warn('[StoreDeclaration] Pre-fetch ds_boss_config error:', e);
+          }
         }
 
-        const { data, error } = await query;
-
-        let loaded1 = '';
-        let loaded2 = '';
-        let loaded3 = '';
-        let loaded4 = '';
-
-        // ƯU TIÊN 1 (Tuyệt đối): Nếu có trong DS BOSS khớp mã kho đăng nhập,
-        // Dòng đầu điền vào siêu thị 1, các dòng tiếp theo tương tự điền vào siêu thị 2, 3, 4
-        const cleanTarget = maKho.trim().replace(/^0+/, '');
-        const bossMatched = dsBossList.filter((r) => {
+        const bossMatched = bossRows.filter((r) => {
           const rowKho = String(r.maKho || '').trim().replace(/^0+/, '');
           const d = String(r.mstSieuThi || '').trim();
           const e = String(r.base || '').trim();
@@ -530,13 +534,47 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
                  e.startsWith(`${cleanTarget} -`) || e.startsWith(`${maKho} -`);
         });
 
-        if (bossMatched.length > 0) {
-          loaded1 = cleanStoreInput(bossMatched[0]?.tenSieuThi || '');
-          if (bossMatched[1]) loaded2 = cleanStoreInput(bossMatched[1]?.tenSieuThi || '');
-          if (bossMatched[2]) loaded3 = cleanStoreInput(bossMatched[2]?.tenSieuThi || '');
-          if (bossMatched[3]) loaded4 = cleanStoreInput(bossMatched[3]?.tenSieuThi || '');
+        // Deduplicate bossMatched
+        const uniqueBoss: BossStoreItem[] = [];
+        const seenBoss = new Set<string>();
+        for (const r of bossMatched) {
+          const cleaned = cleanStoreInput(r.tenSieuThi || '');
+          if (!cleaned) continue;
+          const norm = normalizeStoreId(cleaned);
+          if (norm && !seenBoss.has(norm)) {
+            seenBoss.add(norm);
+            uniqueBoss.push(r);
+          }
+        }
+
+        let loaded1 = '';
+        let loaded2 = '';
+        let loaded3 = '';
+        let loaded4 = '';
+
+        if (uniqueBoss.length > 0) {
+          // ƯU TIÊN 1 (Tuyệt đối): Nếu có trong DS BOSS khớp mã kho đăng nhập,
+          // Dòng đầu điền vào siêu thị 1, các dòng tiếp theo tương tự điền vào siêu thị 2, 3, 4
+          loaded1 = cleanStoreInput(uniqueBoss[0]?.tenSieuThi || '');
+          loaded2 = cleanStoreInput(uniqueBoss[1]?.tenSieuThi || '');
+          loaded3 = cleanStoreInput(uniqueBoss[2]?.tenSieuThi || '');
+          loaded4 = cleanStoreInput(uniqueBoss[3]?.tenSieuThi || '');
         } else {
           // ƯU TIÊN 2: Nếu chưa có trong DS BOSS, mới tải từ bản ghi Supabase store
+          const maKhoNum = parseInt(maKho, 10);
+          let query = supabase
+            .from('store')
+            .select('id, ten_sieu_thi, declared_stores, updated_at');
+
+          if (!isNaN(maKhoNum)) {
+            query = query.or(`warehouse_code.eq.${maKho.trim()},warehouse_code.eq.${maKhoNum}`);
+          } else {
+            query = query.eq('warehouse_code', maKho.trim());
+          }
+
+          const { data, error } = await query;
+
+          let rawFallbackList: string[] = [];
           if (!error && data && data.length > 0) {
             // Ưu tiên bản ghi cập nhật mới nhất (updated_at desc)
             const sorted = [...data].sort((a: any, b: any) => {
@@ -547,55 +585,59 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
 
             const found = sorted.find((d: any) => d.declared_stores && Array.isArray(d.declared_stores) && d.declared_stores.length > 0);
             if (found) {
-              const stores = (found as any).declared_stores;
-              loaded1 = cleanStoreInput(stores[0] || '');
-              loaded2 = cleanStoreInput(stores[1] || '');
-              loaded3 = cleanStoreInput(stores[2] || '');
-              loaded4 = cleanStoreInput(stores[3] || '');
+              rawFallbackList = (found as any).declared_stores;
             } else {
-              // Chỉ lấy các ID là TÊN SIÊU THỊ HỢP LỆ (loại trừ mã kho thuần số như "7981", "10528", "Siêu thị 2323")
-              const validIds = sorted.map((d: any) => d.ten_sieu_thi || d.id).filter((id: string) => id && isValidStoreName(id) && !isPlaceholderStore(id));
-              loaded1 = cleanStoreInput(validIds[0] || '');
-              loaded2 = cleanStoreInput(validIds[1] || '');
-              loaded3 = cleanStoreInput(validIds[2] || '');
-              loaded4 = cleanStoreInput(validIds[3] || '');
+              rawFallbackList = sorted.map((d: any) => d.ten_sieu_thi || d.id);
             }
           }
 
-          // Dự phòng 1: Nếu chưa có trong store, kiểm tra tên siêu thị trong userProfile
-          if (!loaded1 || isPlaceholderStore(loaded1)) {
-            const profStore = userProfile?.ten_sieu_thi || (userProfile as any)?.selected_store;
-            if (profStore && isValidStoreName(profStore) && !isPlaceholderStore(profStore)) {
-              loaded1 = profStore;
-            } else {
-              loaded1 = '';
-            }
+          // Dự phòng 1: Kiểm tra tên siêu thị trong userProfile
+          const profStore = userProfile?.ten_sieu_thi || (userProfile as any)?.selected_store;
+          if (profStore && isValidStoreName(profStore) && !isPlaceholderStore(profStore)) {
+            rawFallbackList.push(profStore);
           }
 
           // Dự phòng 2: Kiểm tra tên kho trong bảng warehouses
-          if (!loaded1) {
-            try {
-              const { data: whData } = await supabase
-                .from('warehouses')
-                .select('ten_kho')
-                .eq('ma_kho', maKho.trim())
-                .maybeSingle();
-              if (whData?.ten_kho && isValidStoreName(whData.ten_kho) && !isPlaceholderStore(whData.ten_kho)) {
-                loaded1 = whData.ten_kho;
-              }
-            } catch {}
+          try {
+            const { data: whData } = await supabase
+              .from('warehouses')
+              .select('ten_kho')
+              .eq('ma_kho', maKho.trim())
+              .maybeSingle();
+            if (whData?.ten_kho && isValidStoreName(whData.ten_kho) && !isPlaceholderStore(whData.ten_kho)) {
+              rawFallbackList.push(whData.ten_kho);
+            }
+          } catch {}
+
+          // Deduplicate fallback stores case-insensitively and by normalizeStoreId
+          const uniqueFallback: string[] = [];
+          const seenFallback = new Set<string>();
+          for (const s of rawFallbackList) {
+            const cleaned = cleanStoreInput(s);
+            if (!cleaned || !isValidStoreName(cleaned) || isPlaceholderStore(cleaned)) continue;
+            const norm = normalizeStoreId(cleaned);
+            if (norm && !seenFallback.has(norm)) {
+              seenFallback.add(norm);
+              uniqueFallback.push(cleaned);
+            }
           }
+
+          loaded1 = uniqueFallback[0] || '';
+          loaded2 = uniqueFallback[1] || '';
+          loaded3 = uniqueFallback[2] || '';
+          loaded4 = uniqueFallback[3] || '';
         }
 
-        if (loaded1) setStore1(loaded1);
-        if (loaded2) setStore2(loaded2);
-        if (loaded3) setStore3(loaded3);
-        if (loaded4) setStore4(loaded4);
+        // Luôn gán chính xác giá trị cho cả 4 ô (nếu rỗng thì reset về rỗng, triệt tiêu ô cũ)
+        setStore1(loaded1);
+        setStore2(loaded2);
+        setStore3(loaded3);
+        setStore4(loaded4);
 
         // Khi có cấu hình siêu thị: dò lại trong Firebase, chưa có thì tạo document mới, có rồi thì bỏ qua!
         const configuredList = [loaded1, loaded2, loaded3, loaded4].filter(Boolean);
         if (configuredList.length > 0) {
-          syncConfiguredStoresToFirebase(maKho, configuredList, data);
+          syncConfiguredStoresToFirebase(maKho, configuredList);
         }
       } catch (err) {
         console.error('[StoreDeclaration] Failed to load stores:', err);
@@ -614,9 +656,18 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
     setStatusMessage(null);
     
     const s1 = cleanStoreInput(store1);
-    const s2 = cleanStoreInput(store2);
-    const s3 = cleanStoreInput(store3);
-    const s4 = cleanStoreInput(store4);
+    let s2 = cleanStoreInput(store2);
+    let s3 = cleanStoreInput(store3);
+    let s4 = cleanStoreInput(store4);
+
+    // Triệt tiêu hoàn toàn trùng lặp giữa các ô (ví dụ s2 trùng tên s1 dù khác hoa/thường)
+    const seenSlots = new Set<string>();
+    if (s1) seenSlots.add(normalizeStoreId(s1));
+    if (s2 && (seenSlots.has(normalizeStoreId(s2)) || isSameStore(s1, s2))) s2 = '';
+    if (s2) seenSlots.add(normalizeStoreId(s2));
+    if (s3 && (seenSlots.has(normalizeStoreId(s3)) || isSameStore(s1, s3) || isSameStore(s2, s3))) s3 = '';
+    if (s3) seenSlots.add(normalizeStoreId(s3));
+    if (s4 && (seenSlots.has(normalizeStoreId(s4)) || isSameStore(s1, s4) || isSameStore(s2, s4) || isSameStore(s3, s4))) s4 = '';
 
     setStore1(s1);
     setStore2(s2);
@@ -785,8 +836,22 @@ export default function StoreDeclaration({ onComplete }: StoreDeclarationProps) 
   };
 
   const handleSkipOrProceed = async () => {
+    let s1 = cleanStoreInput(store1);
+    let s2 = cleanStoreInput(store2);
+    let s3 = cleanStoreInput(store3);
+    let s4 = cleanStoreInput(store4);
+
+    // Triệt tiêu trùng lặp
+    const seenSlots = new Set<string>();
+    if (s1) seenSlots.add(normalizeStoreId(s1));
+    if (s2 && (seenSlots.has(normalizeStoreId(s2)) || isSameStore(s1, s2))) s2 = '';
+    if (s2) seenSlots.add(normalizeStoreId(s2));
+    if (s3 && (seenSlots.has(normalizeStoreId(s3)) || isSameStore(s1, s3) || isSameStore(s2, s3))) s3 = '';
+    if (s3) seenSlots.add(normalizeStoreId(s3));
+    if (s4 && (seenSlots.has(normalizeStoreId(s4)) || isSameStore(s1, s4) || isSameStore(s2, s4) || isSameStore(s3, s4))) s4 = '';
+
     // Tự động kiểm tra và đảm bảo siêu thị cấu hình đã có document trong Firebase (chưa có thì tạo mới, có rồi thì bỏ qua)
-    const configuredList = [store1, store2, store3, store4].map(s => cleanStoreInput(s)).filter(Boolean);
+    const configuredList = [s1, s2, s3, s4].filter(Boolean);
     if (configuredList.length > 0 && maKho) {
       await syncConfiguredStoreDocument(maKho, configuredList);
     }

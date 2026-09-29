@@ -69,9 +69,19 @@ export function getConfiguredStoresFromBoss(maKho: string): string[] {
              d.startsWith(`${cleanTarget} -`) || d.startsWith(`${maKho} -`) ||
              e.startsWith(`${cleanTarget} -`) || e.startsWith(`${maKho} -`);
     });
-    return matched
-      .map((r: any) => cleanStoreInput(r.tenSieuThi || ''))
-      .filter((s: string) => s && isValidStoreName(s) && !isPlaceholderStore(s));
+
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    for (const r of matched) {
+      const cleaned = cleanStoreInput(r.tenSieuThi || '');
+      if (!cleaned || !isValidStoreName(cleaned) || isPlaceholderStore(cleaned)) continue;
+      const norm = normalizeStoreId(cleaned);
+      if (norm && !seen.has(norm)) {
+        seen.add(norm);
+        unique.push(cleaned);
+      }
+    }
+    return unique;
   } catch {
     return [];
   }
@@ -91,9 +101,18 @@ export async function syncConfiguredStoreDocument(
   const result = { created: [] as string[], skipped: [] as string[] };
   if (!cleanKho) return result;
 
-  const validStores = storeNames
-    .map(s => cleanStoreInput(s))
-    .filter(s => s && isValidStoreName(s) && !isPlaceholderStore(s));
+  // Triệt tiêu hoàn toàn trùng lặp (kể cả khác chữ hoa/thường)
+  const validStores: string[] = [];
+  const seenNorm = new Set<string>();
+  for (const s of storeNames) {
+    const cleaned = cleanStoreInput(s);
+    if (!cleaned || !isValidStoreName(cleaned) || isPlaceholderStore(cleaned)) continue;
+    const norm = normalizeStoreId(cleaned);
+    if (norm && !seenNorm.has(norm)) {
+      seenNorm.add(norm);
+      validStores.push(cleaned);
+    }
+  }
 
   if (validStores.length === 0) return result;
 
@@ -149,16 +168,23 @@ export async function syncConfiguredStoreDocument(
         console.log(`[StoreSync] Siêu thị "${stName}" (${normId}) ĐÃ CÓ trong Firebase (Firestore getDoc) -> BỎ QUA`);
         result.skipped.push(stName);
 
-        // Đảm bảo warehouse_code và declared_stores khớp nếu thiếu
+        // Đảm bảo warehouse_code và declared_stores khớp nếu thiếu hoặc có bản ghi trùng lặp
         const existingData = docSnap.data();
+        const currentDecl = Array.isArray(existingData?.declared_stores) ? existingData.declared_stores : [];
         const needsWhUpdate = !existingData?.warehouse_code || String(existingData.warehouse_code).trim() !== cleanKho;
-        const needsDeclUpdate = !Array.isArray(existingData?.declared_stores) || existingData.declared_stores.length === 0;
+        const needsDeclUpdate = JSON.stringify(currentDecl) !== JSON.stringify(validStores);
 
         if (needsWhUpdate || needsDeclUpdate) {
           const patch: any = { updated_at: serverTimestamp() };
           if (needsWhUpdate) patch.warehouse_code = cleanKho;
           if (needsDeclUpdate) patch.declared_stores = validStores;
           await updateDoc(docRef, patch).catch(() => {});
+
+          // Đồng bộ luôn vào Supabase để triệt tiêu các bản ghi cũ lỗi
+          supabase.from('store').update({
+            declared_stores: validStores,
+            warehouse_code: cleanKho,
+          }).eq('id', safeId).catch(() => {});
         }
         continue;
       }

@@ -16,7 +16,7 @@ import { useAuth } from './AuthContext';
 import { supabase } from '../supabaseClient';
 import { isValidStoreName, normalizeStoreId } from '../pages/RTST/utils';
 import { URL_PAGE_MAP } from '../constants/routes';
-import { syncConfiguredStoreDocument, getConfiguredStoresFromBoss, cleanStoreInput } from '../services/storeSync';
+import { syncConfiguredStoreDocument, getConfiguredStoresFromBoss, cleanStoreInput, isPlaceholderStore } from '../services/storeSync';
 
 export interface StoreInfo {
   name: string;
@@ -354,9 +354,17 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             storeNames = sorted.map((d: any) => d.ten_sieu_thi || d.id).filter((name: string) => isValidStoreName(name));
           }
 
-          const uniqueStores = Array.from(new Set(storeNames))
-            .filter((name: string) => name && name.trim() && isValidStoreName(name))
-            .map((name: string) => ({ name: name.trim() }));
+          const uniqueStores: { name: string }[] = [];
+          const seenNorm = new Set<string>();
+          for (const name of storeNames) {
+            const trimmed = (name || '').trim();
+            if (!trimmed || !isValidStoreName(trimmed) || isPlaceholderStore(trimmed)) continue;
+            const norm = normalizeStoreId(trimmed);
+            if (norm && !seenNorm.has(norm)) {
+              seenNorm.add(norm);
+              uniqueStores.push({ name: trimmed });
+            }
+          }
 
           const uniqueNames = uniqueStores.map(s => s.name);
           currentStoresRef.current = uniqueNames;
