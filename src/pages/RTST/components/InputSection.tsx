@@ -536,9 +536,15 @@ const InputSection: React.FC<InputSectionProps> = ({
                       setCategoryRevenueInput(val); 
                       setClusterSummaryInput(val); 
                       try {
-                        localStorage.setItem('rt_catrev', val);
-                        localStorage.setItem('rtst_cluster_summary', val);
-                        localStorage.setItem('rtst_catrev', val);
+                        if (val) {
+                          localStorage.setItem('rt_catrev', val);
+                          localStorage.setItem('rtst_cluster_summary', val);
+                          localStorage.setItem('rtst_catrev', val);
+                        } else {
+                          localStorage.removeItem('rt_catrev');
+                          localStorage.removeItem('rtst_cluster_summary');
+                          localStorage.removeItem('rtst_catrev');
+                        }
                       } catch {}
                     }, 
                     onBlur: () => { 
@@ -548,6 +554,10 @@ const InputSection: React.FC<InputSectionProps> = ({
                           localStorage.setItem('rt_catrev', v);
                           localStorage.setItem('rtst_cluster_summary', v);
                           localStorage.setItem('rtst_catrev', v);
+                        } else {
+                          localStorage.removeItem('rt_catrev');
+                          localStorage.removeItem('rtst_cluster_summary');
+                          localStorage.removeItem('rtst_catrev');
                         }
                       } catch {}
                       onSaveRealtime(false, 'LUỸ KẾ DT'); 
@@ -569,7 +579,27 @@ const InputSection: React.FC<InputSectionProps> = ({
                 reportLabel: 'LINK REPORT TĐ',
                 items: [
                   { id: 'rt_cat', label: 'REALTIME TĐ', value: categoryInput, onChange: setCategoryInput, onBlur: () => onSaveRealtime(false, 'REALTIME TĐ'), hasData: !!categoryInput },
-                  { id: 'rt_catlk', label: 'LUỸ KẾ TĐ', value: categoryTargetInput || clusterCategoryInput, onChange: (val: string) => { setCategoryTargetInput(val); setClusterCategoryInput && setClusterCategoryInput(val); }, onBlur: () => { onSaveRealtime(false, 'LUỸ KẾ TĐ'); onSaveLuyke && onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ TĐ'); }, hasData: !!(categoryTargetInput || clusterCategoryInput) },
+                  { 
+                    id: 'rt_catlk', 
+                    label: 'LUỸ KẾ TĐ', 
+                    value: categoryTargetInput || clusterCategoryInput, 
+                    onChange: (val: string) => { 
+                      setCategoryTargetInput(val); 
+                      setClusterCategoryInput && setClusterCategoryInput(val); 
+                      try {
+                        if (!val) {
+                          localStorage.removeItem('rt_catlk');
+                          localStorage.removeItem('rtst_catlk');
+                          localStorage.removeItem('rtst_cluster_category');
+                        }
+                      } catch {}
+                    }, 
+                    onBlur: () => { 
+                      onSaveRealtime(false, 'LUỸ KẾ TĐ'); 
+                      onSaveLuyke && onSaveLuyke(false, 'auto', undefined, undefined, 'LUỸ KẾ TĐ'); 
+                    }, 
+                    hasData: !!(categoryTargetInput || clusterCategoryInput) 
+                  },
                 ]
               },
             ].map(group => (
@@ -639,7 +669,47 @@ const InputSection: React.FC<InputSectionProps> = ({
 
                         {item.hasData && (
                           <button 
-                            onClick={(e) => { e.stopPropagation(); if (clearField) { clearField(item.onChange, item.title); } else { item.onChange(''); } }} 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              if (item.label === 'REALTIME DT') {
+                                setMarketInput('');
+                                if (clearField) clearField(setMarketInput, 'REALTIME DT');
+                                else onSaveRealtime(true, 'REALTIME DT');
+                              } else if (item.label === 'LUỸ KẾ DT') {
+                                setCategoryRevenueInput('');
+                                setClusterSummaryInput('');
+                                try {
+                                  localStorage.removeItem('rt_catrev');
+                                  localStorage.removeItem('rtst_cluster_summary');
+                                  localStorage.removeItem('rtst_catrev');
+                                } catch {}
+                                if (clearField) clearField(setCategoryRevenueInput, 'LUỸ KẾ DT');
+                                else {
+                                  onSaveRealtime(true, 'LUỸ KẾ DT');
+                                  onSaveLuyke(true, 'auto', undefined, undefined, 'LUỸ KẾ DT');
+                                }
+                              } else if (item.label === 'REALTIME TĐ') {
+                                setCategoryInput('');
+                                if (clearField) clearField(setCategoryInput, 'REALTIME TĐ');
+                                else onSaveRealtime(true, 'REALTIME TĐ');
+                              } else if (item.label === 'LUỸ KẾ TĐ') {
+                                setCategoryTargetInput('');
+                                if (setClusterCategoryInput) setClusterCategoryInput('');
+                                try {
+                                  localStorage.removeItem('rt_catlk');
+                                  localStorage.removeItem('rtst_catlk');
+                                  localStorage.removeItem('rtst_cluster_category');
+                                } catch {}
+                                if (clearField) clearField(setCategoryTargetInput, 'LUỸ KẾ TĐ');
+                                else {
+                                  onSaveRealtime(true, 'LUỸ KẾ TĐ');
+                                  onSaveLuyke(true, 'auto', undefined, undefined, 'LUỸ KẾ TĐ');
+                                }
+                              } else {
+                                if (clearField) clearField(item.onChange, item.label);
+                                else item.onChange('');
+                              }
+                            }} 
                             className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all shrink-0 cursor-pointer border border-transparent hover:border-rose-200" 
                             title="Xoá dữ liệu ô này"
                           >

@@ -352,8 +352,37 @@ export const isValidStoreName = (name: string): boolean => {
     upper.includes('GRAND TOTAL')
   ) return false;
 
-  // Reject BI report headers / metadata lines unless having explicit store prefix
+  // Reject BI report headers, metric labels, revenue types, KPIs unless having explicit store prefix
+  const normMetric = upper.replace(/[\s\-_]+/g, ' ');
   if (
+    normMetric === 'DT QUY DOI' ||
+    normMetric === 'DT QUY ĐỔI' ||
+    normMetric === 'DTQĐ' ||
+    normMetric === 'DTQD' ||
+    normMetric === 'DT THUC' ||
+    normMetric === 'DT THỰC' ||
+    normMetric === 'QUY DOI' ||
+    normMetric === 'QUY ĐỔI' ||
+    normMetric.includes('DT QUY ĐỔI') ||
+    normMetric.includes('DT QUY DOI') ||
+    normMetric.includes('DT THỰC') ||
+    normMetric.includes('DT THUC') ||
+    normMetric.includes('DOANH THU QUY ĐỔI') ||
+    normMetric.includes('DOANH THU QUY DOI') ||
+    normMetric.includes('DOANH THU THỰC') ||
+    normMetric.includes('DOANH THU THUC') ||
+    normMetric.includes('THỰC ĐẠT') ||
+    normMetric.includes('THUC DAT') ||
+    normMetric.includes('THỰC THU') ||
+    normMetric.includes('THUC THU') ||
+    normMetric.includes('DOANH SỐ') ||
+    normMetric.includes('DOANH SO') ||
+    normMetric.includes('TỶ LỆ') ||
+    normMetric.includes('TY LE') ||
+    normMetric.includes('LÃI GỘP') ||
+    normMetric.includes('LAI GOP') ||
+    normMetric.includes('GIÁ TRỊ') ||
+    normMetric.includes('GIA TRI') ||
     upper.includes('BI TỔNG QUAN') || 
     upper.includes('BI TONG QUAN') ||
     upper.includes('BÁO CÁO') ||

@@ -22,6 +22,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { buildGuestShareUrl } from '../../../constants/routes';
 import { useStore } from '../../../contexts/StoreContext';
+import { isValidStoreName } from '../../../pages/RTST/utils';
 import { HiddenPagesModal } from './HiddenPagesModal';
 
 interface GradientV2HeaderProps {
@@ -150,6 +151,7 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
 
   const filteredMarkets = availableMarkets
     .filter(m => {
+      if (!m.name || !isValidStoreName(m.name)) return false;
       const normName = (m.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase();
       return !normName.includes('kho ban hang luu dong');
     })

@@ -332,7 +332,6 @@ export const useRealtimeData = (maKho: string) => {
     // Block ALL restore paths
     setGlobalLastSaveTs(Date.now());
     skipSubscriptionRef.current = true;
-    setter('');
     isDirtyRef.current = false;
 
     // Determine field name if not passed
@@ -344,19 +343,53 @@ export const useRealtimeData = (maKho: string) => {
       else if (setter === setCategoryTargetInput) resolvedFieldName = 'LUỸ KẾ TĐ';
     }
 
-    if (resolvedFieldName === 'REALTIME DT' && normalizedMaKho) {
-      try { localStorage.removeItem(`rtst_market_input_${normalizedMaKho}`); } catch {}
-    } else if (resolvedFieldName === 'REALTIME TĐ' && normalizedMaKho) {
-      try { localStorage.removeItem(`rtst_category_input_${normalizedMaKho}`); } catch {}
-    } else if (resolvedFieldName === 'LUỸ KẾ DT') {
+    if (resolvedFieldName === 'REALTIME DT' || resolvedFieldName === 'rt_market') {
+      marketInputRef.current = '';
+      setMarketInput('');
+      try {
+        localStorage.removeItem('rtst_market_input');
+        if (normalizedMaKho) localStorage.removeItem(`rtst_market_input_${normalizedMaKho}`);
+      } catch {}
+    } else if (resolvedFieldName === 'REALTIME TĐ' || resolvedFieldName === 'rt_cat') {
+      categoryInputRef.current = '';
+      setCategoryInput('');
+      try {
+        localStorage.removeItem('rtst_category_input');
+        if (normalizedMaKho) localStorage.removeItem(`rtst_category_input_${normalizedMaKho}`);
+      } catch {}
+    } else if (resolvedFieldName === 'LUỸ KẾ DT' || resolvedFieldName === 'rt_catrev') {
+      categoryRevenueInputRef.current = '';
+      setCategoryRevenueInput('');
       try {
         localStorage.removeItem('rt_catrev');
         localStorage.removeItem('rtst_cluster_summary');
         localStorage.removeItem('rtst_catrev');
+        localStorage.removeItem('rtst_doanh_thu_hop_nhat');
+        if (normalizedMaKho) {
+          localStorage.removeItem(`rt_catrev_${normalizedMaKho}`);
+          localStorage.removeItem(`rtst_cluster_summary_${normalizedMaKho}`);
+          localStorage.removeItem(`rtst_catrev_${normalizedMaKho}`);
+        }
       } catch {}
-    } else if (resolvedFieldName === 'LUỸ KẾ TĐ' && normalizedMaKho) {
-      try { localStorage.removeItem(`rtst_cat_target_${normalizedMaKho}`); } catch {}
+    } else if (resolvedFieldName === 'LUỸ KẾ TĐ' || resolvedFieldName === 'rt_catlk') {
+      categoryTargetInputRef.current = '';
+      setCategoryTargetInput('');
+      try {
+        localStorage.removeItem('rt_catlk');
+        localStorage.removeItem('rtst_catlk');
+        localStorage.removeItem('rtst_cluster_category');
+        if (normalizedMaKho) {
+          localStorage.removeItem(`rtst_cat_target_${normalizedMaKho}`);
+          localStorage.removeItem(`rtst_catlk_${normalizedMaKho}`);
+          localStorage.removeItem(`rtst_cluster_category_${normalizedMaKho}`);
+        }
+      } catch {}
+    } else {
+      setter('');
     }
+
+    // Invalidate snapshot so save is NOT skipped
+    lastSavedSnapshotRef.current = '';
 
     // Save immediately — no delay
     if (saveRealtimeDataRef.current) {
@@ -435,7 +468,7 @@ export const useRealtimeData = (maKho: string) => {
       normalizeStoreId(cleanStore), marketVal, categoryVal, categoryRevenueVal,
       categoryTargetVal, ycxDataRef.current, ycxDataMoiRef.current, ycxFileNameVal, ycxFileNameMoiVal
     ]);
-    if (lastSavedSnapshotRef.current === currentSnapshotKey) {
+    if (lastSavedSnapshotRef.current === currentSnapshotKey && !fieldName) {
       console.log(`[RealtimeData] Skip save — no change detected${fieldName ? ` (${fieldName})` : ''}`);
       return;
     }
@@ -459,13 +492,13 @@ export const useRealtimeData = (maKho: string) => {
       // NEVER send empty strings to Firestore unless explicitly triggered by clearField for that specific field
       if (marketVal) {
         payload.rt_bi_tong_quan = marketVal;
-      } else if (fieldName === 'REALTIME DT') {
+      } else if (fieldName === 'REALTIME DT' || fieldName === 'rt_market') {
         payload.rt_bi_tong_quan = '';
       }
 
       if (categoryVal) {
         payload.rt_nh_cum = categoryVal;
-      } else if (fieldName === 'REALTIME TĐ') {
+      } else if (fieldName === 'REALTIME TĐ' || fieldName === 'rt_cat') {
         payload.rt_nh_cum = '';
       }
 
@@ -488,13 +521,13 @@ export const useRealtimeData = (maKho: string) => {
       // Only include LK fields if they actually have content, or if this save was explicitly triggered for that field
       if (categoryRevenueVal) {
         payload.lk_bi_tong_quan = categoryRevenueVal;
-      } else if (fieldName === 'LUỸ KẾ DT') {
+      } else if (fieldName === 'LUỸ KẾ DT' || fieldName === 'rt_catrev') {
         payload.lk_bi_tong_quan = '';
       }
       
       if (categoryTargetVal) {
         payload.lk_nh_sieu_thi = categoryTargetVal;
-      } else if (fieldName === 'LUỸ KẾ TĐ') {
+      } else if (fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') {
         payload.lk_nh_sieu_thi = '';
       }
 
@@ -522,29 +555,61 @@ export const useRealtimeData = (maKho: string) => {
       // Synchronize the 4 cluster report fields to ALL configured sibling stores in this warehouse
       const clusterFieldsToSync: any = {};
       if (marketVal) clusterFieldsToSync.rt_bi_tong_quan = marketVal;
-      else if (fieldName === 'REALTIME DT') clusterFieldsToSync.rt_bi_tong_quan = '';
+      else if (fieldName === 'REALTIME DT' || fieldName === 'rt_market') clusterFieldsToSync.rt_bi_tong_quan = '';
 
       if (categoryVal) clusterFieldsToSync.rt_nh_cum = categoryVal;
-      else if (fieldName === 'REALTIME TĐ') clusterFieldsToSync.rt_nh_cum = '';
+      else if (fieldName === 'REALTIME TĐ' || fieldName === 'rt_cat') clusterFieldsToSync.rt_nh_cum = '';
 
       if (categoryRevenueVal) clusterFieldsToSync.lk_bi_tong_quan = categoryRevenueVal;
-      else if (fieldName === 'LUỸ KẾ DT') clusterFieldsToSync.lk_bi_tong_quan = '';
+      else if (fieldName === 'LUỸ KẾ DT' || fieldName === 'rt_catrev') clusterFieldsToSync.lk_bi_tong_quan = '';
 
       if (categoryTargetVal) clusterFieldsToSync.lk_nh_sieu_thi = categoryTargetVal;
-      else if (fieldName === 'LUỸ KẾ TĐ') clusterFieldsToSync.lk_nh_sieu_thi = '';
+      else if (fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') clusterFieldsToSync.lk_nh_sieu_thi = '';
 
-      if (Object.keys(clusterFieldsToSync).length > 0 && availableStores && availableStores.length > 1) {
-        const siblingStores = availableStores.filter(
-          s => s.name && s.name !== 'ALL' && s.name.trim() !== cleanStore.trim() && isValidStoreName(s.name)
-        );
-        if (siblingStores.length > 0) {
-          const siblingPayloads = siblingStores.map(s => ({
-            id: normalizeStoreId(s.name),
-            warehouse_code: cleanMaKho,
-            ten_sieu_thi: s.name,
-            updated_at: new Date().toISOString(),
-            ...clusterFieldsToSync
-          }));
+      if (Object.keys(clusterFieldsToSync).length > 0) {
+        const maKhoNum = parseInt(cleanMaKho, 10);
+        // Query all existing store docs in this warehouse to make sure ALL of them get synchronized
+        const { data: allWarehouseDocs } = await supabase
+          .from('store')
+          .select('id, ten_sieu_thi')
+          .or(!isNaN(maKhoNum)
+            ? `warehouse_code.eq.${cleanMaKho},warehouse_code.eq.${maKhoNum}`
+            : `warehouse_code.eq.${cleanMaKho}`);
+
+        const docMap = new Map<string, any>();
+        if (allWarehouseDocs && allWarehouseDocs.length > 0) {
+          allWarehouseDocs.forEach((d: any) => {
+            if (d.id && isValidStoreName(d.ten_sieu_thi || d.id)) {
+              docMap.set(d.id, d);
+            }
+          });
+        }
+        if (availableStores && availableStores.length > 0) {
+          availableStores.forEach(s => {
+            if (s.name && s.name !== 'ALL' && isValidStoreName(s.name)) {
+              const id = normalizeStoreId(s.name);
+              if (!docMap.has(id)) {
+                docMap.set(id, { id, ten_sieu_thi: s.name });
+              }
+            }
+          });
+        }
+
+        const siblingPayloads: any[] = [];
+        const cleanStoreId = normalizeStoreId(cleanStore);
+        docMap.forEach((docInfo, id) => {
+          if (id !== cleanStoreId) {
+            siblingPayloads.push({
+              id,
+              warehouse_code: cleanMaKho,
+              ten_sieu_thi: docInfo.ten_sieu_thi || cleanStore,
+              updated_at: new Date().toISOString(),
+              ...clusterFieldsToSync
+            });
+          }
+        });
+
+        if (siblingPayloads.length > 0) {
           try {
             await supabase.from('store').upsert(siblingPayloads, { onConflict: 'id' });
             console.log(`[RealtimeData] ✓ Đồng bộ dữ liệu báo cáo cụm (${Object.keys(clusterFieldsToSync).join(', ')}) cho ${siblingPayloads.length} siêu thị khác`);
@@ -752,21 +817,66 @@ export const useRealtimeData = (maKho: string) => {
           const loadedCategory = await sanitizeField(record.rt_nh_cum);
           const loadedCategoryRevenue = await sanitizeField(record.lk_bi_tong_quan);
           const loadedCategoryTarget = await sanitizeField(record.lk_nh_sieu_thi);
-          // Only overwrite local state if DB has non-empty values to prevent data loss
+          // Firebase is the source of truth!
+          setMarketInput(loadedMarket || '');
+          marketInputRef.current = loadedMarket || '';
           if (loadedMarket) {
-            setMarketInput(loadedMarket);
             try { localStorage.setItem(`rtst_market_input_${normalizedMaKho}`, loadedMarket); } catch {}
+          } else {
+            try {
+              localStorage.removeItem('rtst_market_input');
+              if (normalizedMaKho) localStorage.removeItem(`rtst_market_input_${normalizedMaKho}`);
+            } catch {}
           }
+
+          setCategoryInput(loadedCategory || '');
+          categoryInputRef.current = loadedCategory || '';
           if (loadedCategory) {
-            setCategoryInput(loadedCategory);
             try { localStorage.setItem(`rtst_category_input_${normalizedMaKho}`, loadedCategory); } catch {}
+          } else {
+            try {
+              localStorage.removeItem('rtst_category_input');
+              if (normalizedMaKho) localStorage.removeItem(`rtst_category_input_${normalizedMaKho}`);
+            } catch {}
           }
+
+          setCategoryRevenueInput(loadedCategoryRevenue || '');
+          categoryRevenueInputRef.current = loadedCategoryRevenue || '';
           if (loadedCategoryRevenue) {
-            setCategoryRevenueInput(loadedCategoryRevenue);
+            try {
+              localStorage.setItem('rt_catrev', loadedCategoryRevenue);
+              localStorage.setItem('rtst_cluster_summary', loadedCategoryRevenue);
+              localStorage.setItem('rtst_catrev', loadedCategoryRevenue);
+            } catch {}
+          } else {
+            try {
+              localStorage.removeItem('rt_catrev');
+              localStorage.removeItem('rtst_cluster_summary');
+              localStorage.removeItem('rtst_catrev');
+              localStorage.removeItem('rtst_doanh_thu_hop_nhat');
+              if (normalizedMaKho) {
+                localStorage.removeItem(`rt_catrev_${normalizedMaKho}`);
+                localStorage.removeItem(`rtst_cluster_summary_${normalizedMaKho}`);
+                localStorage.removeItem(`rtst_catrev_${normalizedMaKho}`);
+              }
+            } catch {}
           }
+
+          setCategoryTargetInput(loadedCategoryTarget || '');
+          categoryTargetInputRef.current = loadedCategoryTarget || '';
           if (loadedCategoryTarget) {
-            setCategoryTargetInput(loadedCategoryTarget);
             try { localStorage.setItem(`rtst_cat_target_${normalizedMaKho}`, loadedCategoryTarget); } catch {}
+          } else {
+            try {
+              localStorage.removeItem('rt_catlk');
+              localStorage.removeItem('rtst_catlk');
+              localStorage.removeItem('rtst_cluster_category');
+              if (normalizedMaKho) {
+                localStorage.removeItem(`rtst_cat_target_${normalizedMaKho}`);
+                localStorage.removeItem(`rtst_catlk_${normalizedMaKho}`);
+                localStorage.removeItem(`rtst_cluster_category_${normalizedMaKho}`);
+              }
+            } catch {}
           }
 
           let finalYcxData = await sanitizeField(record.ycx_data);

@@ -79,6 +79,17 @@ const KhaiBao: React.FC = () => {
   } = useLuykeData(maKho);
 
   const handleClearField = (setter: (val: string) => void, fieldName?: string) => {
+    if (fieldName === 'LUỸ KẾ DT' || fieldName === 'rt_catrev') {
+      setCategoryRevenueInput('');
+      setClusterSummaryInput('');
+    } else if (fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') {
+      setCategoryTargetInput('');
+      setClusterCategoryInput('');
+    } else if (fieldName === 'REALTIME DT' || fieldName === 'rt_market') {
+      setMarketInput('');
+    } else if (fieldName === 'REALTIME TĐ' || fieldName === 'rt_cat') {
+      setCategoryInput('');
+    }
     clearRealtimeField(setter, fieldName);
     clearLuykeField(setter, fieldName);
   };

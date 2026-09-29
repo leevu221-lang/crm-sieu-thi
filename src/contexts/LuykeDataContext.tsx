@@ -258,7 +258,7 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       staffCategoryVal, staffListVal, dtGioCongVal, dataPhanCaRef.current, tragopMatranVal,
       tragopNvVal, banKemNvVal
     );
-    if (dbStoreSnapshotsRef.current[storeKey] === currentSnapshotKey) {
+    if (dbStoreSnapshotsRef.current[storeKey] === currentSnapshotKey && !fieldName) {
       console.log(`[LuykeData] Skip save — no change detected for "${cleanStore}"${fieldName ? ` (${fieldName})` : ''}`);
       return;
     }
@@ -279,13 +279,13 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Only include LK fields if they actually have content, or if this save was explicitly triggered for that field
       if (summaryVal) {
         payload.lk_bi_tong_quan = summaryVal;
-      } else if (fieldName === 'LUỸ KẾ DT') {
+      } else if (fieldName === 'LUỸ KẾ DT' || fieldName === 'rt_catrev') {
         payload.lk_bi_tong_quan = '';
       }
 
       if (categoryVal) {
         payload.lk_nh_sieu_thi = categoryVal;
-      } else if (fieldName === 'LUỸ KẾ TĐ') {
+      } else if (fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') {
         payload.lk_nh_sieu_thi = '';
       }
 
@@ -354,28 +354,59 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const clusterLkFieldsToSync: any = {};
       if (summaryVal) {
         clusterLkFieldsToSync.lk_bi_tong_quan = summaryVal;
-      } else if (fieldName === 'LUỸ KẾ DT') {
+      } else if (fieldName === 'LUỸ KẾ DT' || fieldName === 'rt_catrev') {
         clusterLkFieldsToSync.lk_bi_tong_quan = '';
       }
 
       if (categoryVal) {
         clusterLkFieldsToSync.lk_nh_sieu_thi = categoryVal;
-      } else if (fieldName === 'LUỸ KẾ TĐ') {
+      } else if (fieldName === 'LUỸ KẾ TĐ' || fieldName === 'rt_catlk') {
         clusterLkFieldsToSync.lk_nh_sieu_thi = '';
       }
 
-      if (Object.keys(clusterLkFieldsToSync).length > 0 && availableStores && availableStores.length > 1) {
-        const siblingStores = availableStores.filter(
-          s => s.name && s.name !== 'ALL' && s.name.trim() !== cleanStore.trim() && isValidStoreName(s.name)
-        );
-        if (siblingStores.length > 0) {
-          const siblingPayloads = siblingStores.map(s => ({
-            id: normalizeStoreId(s.name),
-            warehouse_code: shortMaKho,
-            ten_sieu_thi: s.name,
-            updated_at: new Date().toISOString(),
-            ...clusterLkFieldsToSync
-          }));
+      if (Object.keys(clusterLkFieldsToSync).length > 0) {
+        const maKhoNum = parseInt(shortMaKho, 10);
+        const { data: allWarehouseDocs } = await supabase
+          .from('store')
+          .select('id, ten_sieu_thi')
+          .or(!isNaN(maKhoNum)
+            ? `warehouse_code.eq.${shortMaKho},warehouse_code.eq.${maKhoNum}`
+            : `warehouse_code.eq.${shortMaKho}`);
+
+        const docMap = new Map<string, any>();
+        if (allWarehouseDocs && allWarehouseDocs.length > 0) {
+          allWarehouseDocs.forEach((d: any) => {
+            if (d.id && isValidStoreName(d.ten_sieu_thi || d.id)) {
+              docMap.set(d.id, d);
+            }
+          });
+        }
+        if (availableStores && availableStores.length > 0) {
+          availableStores.forEach(s => {
+            if (s.name && s.name !== 'ALL' && isValidStoreName(s.name)) {
+              const id = normalizeStoreId(s.name);
+              if (!docMap.has(id)) {
+                docMap.set(id, { id, ten_sieu_thi: s.name });
+              }
+            }
+          });
+        }
+
+        const siblingPayloads: any[] = [];
+        const cleanStoreId = normalizeStoreId(cleanStore);
+        docMap.forEach((docInfo, id) => {
+          if (id !== cleanStoreId) {
+            siblingPayloads.push({
+              id,
+              warehouse_code: shortMaKho,
+              ten_sieu_thi: docInfo.ten_sieu_thi || cleanStore,
+              updated_at: new Date().toISOString(),
+              ...clusterLkFieldsToSync
+            });
+          }
+        });
+
+        if (siblingPayloads.length > 0) {
           try {
             await supabase.from('store').upsert(siblingPayloads, { onConflict: 'id' });
             console.log(`[LuykeData] ✓ Đồng bộ LUỸ KẾ DT / LUỸ KẾ TĐ cho ${siblingPayloads.length} siêu thị khác`);
@@ -1078,8 +1109,49 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (globalPendingSaves.has(targetStore)) {
           console.log(`[LuykeData] Save in progress for "${targetStore}", skipping DB overwrite for input fields`);
         } else {
-          if (clusterSummary) setClusterSummaryInput(clusterSummary);
-          if (clusterCategory) setClusterCategoryInput(clusterCategory);
+          // Firebase is the source of truth!
+          setClusterSummaryInput(clusterSummary || '');
+          clusterSummaryInputRef.current = clusterSummary || '';
+          if (clusterSummary) {
+            try {
+              localStorage.setItem('rt_catrev', clusterSummary);
+              localStorage.setItem('rtst_cluster_summary', clusterSummary);
+              localStorage.setItem('rtst_catrev', clusterSummary);
+            } catch {}
+          } else {
+            try {
+              localStorage.removeItem('rt_catrev');
+              localStorage.removeItem('rtst_cluster_summary');
+              localStorage.removeItem('rtst_catrev');
+              localStorage.removeItem('rtst_doanh_thu_hop_nhat');
+              if (shortMaKho) {
+                localStorage.removeItem(`rt_catrev_${shortMaKho}`);
+                localStorage.removeItem(`rtst_cluster_summary_${shortMaKho}`);
+                localStorage.removeItem(`rtst_catrev_${shortMaKho}`);
+              }
+            } catch {}
+          }
+
+          setClusterCategoryInput(clusterCategory || '');
+          clusterCategoryInputRef.current = clusterCategory || '';
+          if (clusterCategory) {
+            try {
+              localStorage.setItem('rt_catlk', clusterCategory);
+              localStorage.setItem('rtst_catlk', clusterCategory);
+              localStorage.setItem('rtst_cluster_category', clusterCategory);
+            } catch {}
+          } else {
+            try {
+              localStorage.removeItem('rt_catlk');
+              localStorage.removeItem('rtst_catlk');
+              localStorage.removeItem('rtst_cluster_category');
+              if (shortMaKho) {
+                localStorage.removeItem(`rtst_cat_target_${shortMaKho}`);
+                localStorage.removeItem(`rtst_catlk_${shortMaKho}`);
+                localStorage.removeItem(`rtst_cluster_category_${shortMaKho}`);
+              }
+            } catch {}
+          }
           
           handleProcess(loadedTargets, clusterSummary || clusterSummaryInputRef.current, clusterCategory || clusterCategoryInputRef.current, data.lk_dt_nv || staffInputRef.current || '');
         }
@@ -1588,7 +1660,6 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setActiveStore: handleSetActiveStore,
     clearField: (setter: (val: string) => void, fieldName?: string) => {
       skipSubscriptionRef.current = Date.now() + 10000;
-      setter('');
       isDirtyRef.current = false;
       let resolvedFieldName = fieldName;
       if (!resolvedFieldName) {
@@ -1601,6 +1672,60 @@ export const LuykeDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         else if (setter === setTragopNv || setter === setTragopNvSync) resolvedFieldName = 'TRẢ GÓP NV';
         else if (setter === setBanKemNvState || setter === setBanKemNvSync) resolvedFieldName = 'BÁN KÈM NV';
       }
+
+      if (resolvedFieldName === 'LUỸ KẾ DT' || resolvedFieldName === 'rt_catrev') {
+        clusterSummaryInputRef.current = '';
+        setClusterSummaryInput('');
+        try {
+          localStorage.removeItem('rt_catrev');
+          localStorage.removeItem('rtst_cluster_summary');
+          localStorage.removeItem('rtst_catrev');
+          localStorage.removeItem('rtst_doanh_thu_hop_nhat');
+          if (shortMaKho) {
+            localStorage.removeItem(`rt_catrev_${shortMaKho}`);
+            localStorage.removeItem(`rtst_cluster_summary_${shortMaKho}`);
+            localStorage.removeItem(`rtst_catrev_${shortMaKho}`);
+          }
+        } catch {}
+      } else if (resolvedFieldName === 'LUỸ KẾ TĐ' || resolvedFieldName === 'rt_catlk') {
+        clusterCategoryInputRef.current = '';
+        setClusterCategoryInput('');
+        try {
+          localStorage.removeItem('rt_catlk');
+          localStorage.removeItem('rtst_catlk');
+          localStorage.removeItem('rtst_cluster_category');
+          if (shortMaKho) {
+            localStorage.removeItem(`rtst_cat_target_${shortMaKho}`);
+            localStorage.removeItem(`rtst_catlk_${shortMaKho}`);
+            localStorage.removeItem(`rtst_cluster_category_${shortMaKho}`);
+          }
+        } catch {}
+      } else if (resolvedFieldName === 'DOANH THU NV') {
+        staffInputRef.current = '';
+        setStaffInput('');
+      } else if (resolvedFieldName === 'THI ĐUA NV') {
+        staffCategoryInputRef.current = '';
+        setStaffCategoryInput('');
+      } else if (resolvedFieldName === 'DS NHÂN VIÊN') {
+        staffListInputRef.current = '';
+        setStaffListInput('');
+      } else if (resolvedFieldName === 'TRẢ GÓP MT') {
+        tragopMatranRef.current = '';
+        setTragopMatran('');
+      } else if (resolvedFieldName === 'TRẢ GÓP NV') {
+        tragopNvRef.current = '';
+        setTragopNv('');
+      } else if (resolvedFieldName === 'BÁN KÈM NV') {
+        banKemNvRef.current = '';
+        setBanKemNvState('');
+      } else {
+        setter('');
+      }
+
+      if (activeStoreRef.current) {
+        delete dbStoreSnapshotsRef.current[normalizeStoreId(activeStoreRef.current)];
+      }
+
       // Save immediately — no delay
       if (saveLuykeDataRef.current) {
         saveLuykeDataRef.current(true, 'auto', undefined, undefined, resolvedFieldName);
