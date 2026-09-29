@@ -2694,17 +2694,19 @@ const LichLamViecPG: React.FC = () => {
   // ─── Admin Toggle Permission ───────────────────────────────────────────
   const is43751Admin = userProfile?.username === '43751' || userProfile?.ma_nhan_vien === '43751';
   
-  // Rule: Lock editing if the week's start date is less than the current date.
+  // Rule: Lock editing if the week's end date has passed (after Sunday 23:59:59).
   const todayDate = new Date();
   todayDate.setHours(0, 0, 0, 0);
-  const activeWeekStart = weeks[activeWeek] ? new Date(weeks[activeWeek].dates[0]) : new Date();
-  activeWeekStart.setHours(0, 0, 0, 0);
+  const activeWeekEnd = weeks[activeWeek] ? new Date(weeks[activeWeek].dates[6]) : new Date();
+  activeWeekEnd.setHours(23, 59, 59, 999);
   
-  const isPastWeek = activeWeekStart < todayDate;
+  // A week is in the past only when the entire week has ended
+  const isPastWeek = activeWeekEnd < todayDate;
   const weekKeyStr = `week${activeWeek + 1}`;
   const override = allowUserEdit[weekKeyStr];
   const effectiveUserEditAllowed = override !== undefined ? override : !isPastWeek;
-  const canEdit = effectiveUserEditAllowed;
+  // Admin 43751 always has edit permissions; other users follow effectiveUserEditAllowed
+  const canEdit = is43751Admin || effectiveUserEditAllowed;
 
   const handleToggleUserEdit = async () => {
     if (!is43751Admin || !targetStoreDocId) return;
