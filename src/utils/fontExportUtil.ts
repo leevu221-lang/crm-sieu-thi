@@ -167,10 +167,13 @@ export async function ensureFontsReady(): Promise<boolean> {
       await document.fonts.ready;
     }
 
-    // 3. Force-load UTM Avo if not already loaded
+    // 3. Force-load UTM Avo & Plus Jakarta Sans if not already loaded
     const fontFamilies = [
       { family: 'UTM Avo', weight: '400' },
       { family: 'UTM Avo', weight: '700' },
+      { family: 'Plus Jakarta Sans', weight: '600' },
+      { family: 'Plus Jakarta Sans', weight: '700' },
+      { family: 'Plus Jakarta Sans', weight: '800' },
     ];
 
     for (const { family, weight } of fontFamilies) {

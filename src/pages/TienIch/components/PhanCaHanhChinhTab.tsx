@@ -948,6 +948,7 @@ export function PhanCaHanhChinhTab() {
     frameWrapper.style.borderRadius = '24px';
     frameWrapper.style.border = '1px solid #e2e8f0';
     frameWrapper.style.boxShadow = 'none';
+    frameWrapper.style.fontFamily = "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif";
 
     // Nhân bản cây DOM
     const clone = captureEl.cloneNode(true) as HTMLElement;
@@ -959,6 +960,7 @@ export function PhanCaHanhChinhTab() {
     clone.style.padding = '0';
     clone.style.margin = '0';
     clone.style.boxShadow = 'none';
+    clone.style.fontFamily = "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif";
 
     // 1. Gỡ bỏ triệt để các nút bấm thao tác trong clone
     const buttonsToRemove = clone.querySelectorAll('.export-no-print, button, input, select');
@@ -969,10 +971,10 @@ export function PhanCaHanhChinhTab() {
     if (headerRight) {
       headerRight.innerHTML = `
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-          <span style="display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; background: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff;">TN: Thu Ngân</span>
-          <span style="display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; background: #fef3c7; color: #b45309; border: 1px solid #fde68a;">KHO: Phụ Kho</span>
-          <span style="display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;">HC: Hành Chính</span>
-          <span style="display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; background: #ffe4e6; color: #e11d48; border: 1px solid #fecdd3;">x: Nghỉ Off</span>
+          <span style="display: inline-block; padding: 3px 9px; border-radius: 16px; font-size: 11px; font-weight: 700; background: #ede9fe; color: #6d28d9; border: 1px solid #c4b5fd;"><strong>TN</strong> Thu Ngân</span>
+          <span style="display: inline-block; padding: 3px 9px; border-radius: 16px; font-size: 11px; font-weight: 700; background: #ffedd5; color: #c2410c; border: 1px solid #fdba74;"><strong>KHO</strong> Phụ Kho</span>
+          <span style="display: inline-block; padding: 3px 9px; border-radius: 16px; font-size: 11px; font-weight: 700; background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc;"><strong>HC</strong> Hành Chính</span>
+          <span style="display: inline-block; padding: 3px 9px; border-radius: 16px; font-size: 11px; font-weight: 700; background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5;"><strong>x</strong> Nghỉ Off</span>
         </div>
       `;
     }
@@ -1033,7 +1035,9 @@ export function PhanCaHanhChinhTab() {
             transformOrigin: 'top left',
             width: `${targetWidth}px`,
             height: `${finalHeight}px`,
-            ...EXPORT_FONT_STYLE
+            fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+            fontSmooth: 'always',
+            WebkitFontSmoothing: 'antialiased',
           }
         });
       } catch (imageErr) {
@@ -1543,47 +1547,48 @@ export function PhanCaHanhChinhTab() {
       <div 
         ref={exportAreaRef}
         id="scheduleExportArea"
-        className="bg-white rounded-3xl p-5 md:p-7 border border-slate-200 shadow-sm space-y-6"
+        className="font-jakarta bg-white rounded-3xl p-5 md:p-7 border border-slate-200 shadow-sm space-y-6"
+        style={{ fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" }}
       >
         {/* Export Banner Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-sky-100 pb-5">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-sky-500 text-white flex items-center justify-center font-black shadow-md shadow-sky-500/20">
-              <Calendar size={24} />
+            <div className="w-11 h-11 rounded-xl bg-sky-100 text-[#0284c7] flex items-center justify-center font-black shadow-xs">
+              <CalendarCheck size={22} className="text-[#0284c7]" />
             </div>
             <div>
-              <h2 className="text-lg md:text-xl font-black text-slate-800 uppercase tracking-tight">
+              <h2 className="text-[20px] md:text-[22px] font-extrabold text-[#0369a1] tracking-tight uppercase">
                 {currentWeek === 'all' 
-                  ? `BẢNG PHÂN CA HÀNH CHÍNH - TOÀN BỘ ${currentMonth}`
-                  : `BẢNG PHÂN CA HÀNH CHÍNH - ${currentWeek.toUpperCase()} - ${currentMonth}`
+                  ? `BẢNG PHÂN CA HÀNH CHÍNH – TOÀN BỘ ${currentMonth}`
+                  : `BẢNG PHÂN CA HÀNH CHÍNH – ${currentWeek.toUpperCase()} – ${currentMonth}`
                 }
               </h2>
-              <p className="text-xs text-slate-400 font-bold mt-0.5 flex items-center gap-2">
-                <span>Cửa hàng / Siêu thị: <strong className="text-sky-700">{activeStoreName}</strong></span>
+              <p className="text-[13px] text-slate-500 font-medium mt-0.5 flex flex-wrap items-center gap-2">
+                <span>Cửa hàng / Bộ phận: <strong className="text-slate-700 font-bold">{activeStoreName}</strong></span>
                 <span>•</span>
                 <span>Đồng bộ: {new Date().toLocaleDateString('vi-VN')}</span>
                 <span>•</span>
-                <span className="text-emerald-600 font-extrabold">Lưu trữ: Firebase</span>
+                <span className="text-slate-500">Lưu trữ: Firebase</span>
               </p>
             </div>
           </div>
 
           {/* Export Action Buttons */}
-          <div className="flex items-center gap-2 export-header-right">
+          <div className="flex items-center gap-2.5 export-header-right">
             <div className="flex items-center gap-2 export-no-print">
               <button
                 onClick={() => handleExportImage('week')}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 text-xs font-black transition-all cursor-pointer active:scale-95"
+                className="flex items-center gap-2 px-5 py-2 rounded-full bg-[#0284c7] hover:bg-[#0369a1] text-white text-[13px] font-bold shadow-md shadow-sky-600/25 transition-all cursor-pointer active:scale-95"
               >
-                <Camera size={15} />
+                <Camera size={14} />
                 <span>Xuất Ảnh Tuần</span>
               </button>
 
               <button
                 onClick={() => handleExportImage('month')}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 text-white text-xs font-black hover:from-sky-600 hover:to-blue-700 shadow-sm shadow-sky-500/20 transition-all cursor-pointer active:scale-95"
+                className="flex items-center gap-2 px-5 py-2 rounded-full bg-[#6366f1] hover:bg-[#4f46e5] text-white text-[13px] font-bold shadow-md shadow-indigo-600/25 transition-all cursor-pointer active:scale-95"
               >
-                <Download size={15} />
+                <Download size={14} />
                 <span>Xuất Ảnh Cả Tháng</span>
               </button>
             </div>
@@ -1617,203 +1622,226 @@ export function PhanCaHanhChinhTab() {
               </div>
             )}
 
-            <div className="overflow-x-auto no-scrollbar rounded-2xl border border-slate-200/80">
-              <table className="w-full text-center border-collapse table-fixed min-w-[850px]">
-              <colgroup>
-                <col className="w-12" />
-                <col className="w-40" />
-                <col className="w-24" />
-                {DAYS.map(d => <col key={d} className="w-20" />)}
-                <col className="w-16" />
-                <col className="w-16" />
-                <col className="w-20" />
-              </colgroup>
-              <thead>
-                <tr className="bg-slate-50/90 text-slate-700 text-xs font-black uppercase tracking-wider border-b border-slate-200">
-                  <th className="py-3 px-2">STT</th>
-                  <th className="py-3 px-3 text-left">Nhân Viên</th>
-                  <th className="py-3 px-2">Nhóm</th>
-                  {DAYS.map(d => {
-                    const isSun = d === 'CN';
+            <div className="overflow-x-auto no-scrollbar rounded-2xl border border-slate-200">
+              <table className="w-full text-center border-collapse table-fixed min-w-[850px] text-[13px]">
+                <colgroup>
+                  <col style={{ width: '42px' }} />
+                  <col style={{ width: '160px' }} />
+                  <col style={{ width: '85px' }} />
+                  {DAYS.map(d => <col key={d} style={{ width: '68px' }} />)}
+                  <col style={{ width: '60px' }} />
+                  <col style={{ width: '60px' }} />
+                  <col style={{ width: '60px' }} />
+                </colgroup>
+                <thead>
+                  <tr className="bg-[#f0f7ff] text-[#0369a1] text-[12px] font-bold uppercase tracking-wider border-b border-slate-200">
+                    <th className="py-2.5 px-1 border-r border-slate-200 text-slate-500 font-bold text-center">STT</th>
+                    <th className="py-2.5 px-3 text-left border-r border-slate-200 font-bold text-[#0369a1]">NHÂN VIÊN</th>
+                    <th className="py-2.5 px-1 border-r border-slate-200 font-bold text-[#0369a1] text-center">NHÓM</th>
+                    {DAYS.map(d => {
+                      const isSun = d === 'CN';
+                      return (
+                        <th key={d} className={`py-1.5 px-1 border-r border-slate-200 ${isSun ? 'bg-[#fee2e2] text-[#b91c1c]' : 'bg-[#f0f7ff]'}`}>
+                          <div className="flex flex-col items-center justify-center gap-0.5">
+                            <span className={`text-[13px] font-extrabold leading-tight ${isSun ? 'text-[#b91c1c]' : 'text-[#0369a1]'}`}>{d}</span>
+                            <span className={`text-[10px] font-semibold px-1 py-0.2 rounded leading-none ${
+                              isSun ? 'bg-[#fecdd3] text-[#b91c1c]' : 'bg-[#e2e8f0] text-[#475569]'
+                            }`}>
+                              {currentWeekDates[d] || ''}
+                            </span>
+                          </div>
+                        </th>
+                      );
+                    })}
+                    <th className="py-2.5 px-1 border-r border-slate-200 font-bold text-[#0369a1] text-center">TN</th>
+                    <th className="py-2.5 px-1 border-r border-slate-200 font-bold text-[#0369a1] text-center">KHO</th>
+                    <th className="py-2.5 px-1 font-bold text-[#0369a1] text-center">NGHỈ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-[13px] text-slate-700">
+                  {/* NHÓM 1 */}
+                  <tr className="bg-[#f8fafc] text-[#0284c7] font-extrabold text-left border-t-2 border-[#7dd3fc] border-b border-[#bae6fd]">
+                    <td colSpan={13} className="py-1.5 px-3 text-[12px] uppercase tracking-wider">
+                      <div className="flex items-center gap-2">
+                        <Users size={14} className="text-[#0284c7]" />
+                        <span>🔵 NHÓM 1 (HÀNH CHÍNH 1)</span>
+                      </div>
+                    </td>
+                  </tr>
+                  {staffG1.map((staff, idx) => {
+                    const staffShifts = activeMonthSchedule[currentWeek]?.[staff] || {};
+                    let tn = 0, kho = 0, off = 0;
+                    DAYS.forEach(d => {
+                      const v = String(staffShifts[d] || '').toUpperCase();
+                      if (v === 'TN') tn++;
+                      else if (v === 'KHO') kho++;
+                      else if (v === 'X') off++;
+                    });
+
                     return (
-                      <th key={d} className={`py-2 px-1 border-l border-slate-200 ${isSun ? 'bg-rose-50/70 text-rose-700' : ''}`}>
-                        <div className="flex flex-col items-center">
-                          <span className="text-xs font-extrabold">{d}</span>
-                          <span className="text-[10px] font-bold text-slate-400">{currentWeekDates[d] || ''}</span>
-                        </div>
-                      </th>
+                      <tr key={staff} className="hover:bg-sky-50/20 transition-colors">
+                        <td className="py-2 px-1 text-slate-400 font-semibold text-[12px] border-r border-slate-200 text-center">{idx + 1}</td>
+                        <td className="py-2 px-3 text-left border-r border-slate-200">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-[#e0f2fe] text-[#0284c7] flex items-center justify-center text-[10px] font-extrabold shrink-0">
+                              {staff.charAt(0)}
+                            </span>
+                            <span className="font-bold text-slate-800 text-[13px] tracking-tight truncate uppercase">
+                              {staff}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-2 px-1 text-center border-r border-slate-200">
+                          <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-bold bg-[#f0f9ff] text-[#0284c7] border border-[#bae6fd]">
+                            Nhóm 1
+                          </span>
+                        </td>
+                        {DAYS.map(d => {
+                          const shift = String(staffShifts[d] || '').toUpperCase();
+                          const isSun = d === 'CN';
+                          return (
+                            <td 
+                              key={d} 
+                              onClick={() => handleCellClick(staff, d, currentWeek)}
+                              className={`py-1 px-0.5 border-r border-slate-200 cursor-pointer select-none transition-colors text-center ${
+                                isSun ? 'bg-[#fff1f2] hover:bg-rose-100/60' : 'hover:bg-slate-100/80'
+                              }`}
+                            >
+                              <RenderShiftBadge shift={shift} />
+                            </td>
+                          );
+                        })}
+                        <td className="py-2 px-1 border-r border-slate-200 font-bold text-slate-700 text-[13px] text-center">{tn}</td>
+                        <td className="py-2 px-1 border-r border-slate-200 font-bold text-slate-700 text-[13px] text-center">{kho}</td>
+                        <td className={`py-2 px-1 font-bold text-[13px] text-center ${off > 0 ? 'text-rose-600 font-black' : 'text-slate-400'}`}>{off}</td>
+                      </tr>
                     );
                   })}
-                  <th className="py-3 px-1 border-l border-slate-200 bg-purple-50/50 text-purple-700">Tổng TN</th>
-                  <th className="py-3 px-1 border-l border-slate-200 bg-amber-50/50 text-amber-700">Tổng KHO</th>
-                  <th className="py-3 px-2 border-l border-slate-200 text-rose-600">Nghỉ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
-                {/* NHÓM 1 */}
-                <tr className="bg-sky-50/70 text-sky-800 font-black text-left">
-                  <td colSpan={13} className="py-2.5 px-4 text-xs tracking-wider">
-                    🔵 Nhóm 1 (Hành Chính 1) • {staffG1.length} Nhân Viên
-                  </td>
-                </tr>
-                {staffG1.map((staff, idx) => {
-                  const staffShifts = activeMonthSchedule[currentWeek]?.[staff] || {};
-                  let tn = 0, kho = 0, off = 0;
-                  DAYS.forEach(d => {
-                    const v = String(staffShifts[d] || '').toUpperCase();
-                    if (v === 'TN') tn++;
-                    else if (v === 'KHO') kho++;
-                    else if (v === 'X') off++;
-                  });
 
-                  return (
-                    <tr key={staff} className="hover:bg-sky-50/30 transition-colors">
-                      <td className="py-2.5 px-2 text-slate-400 font-semibold">{idx + 1}</td>
-                      <td className="py-2.5 px-3 text-left font-black text-slate-900 truncate">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center text-[10px] font-black">
-                            {staff.charAt(0)}
+                  {/* NHÓM 2 */}
+                  <tr className="bg-[#f8fafc] text-[#059669] font-extrabold text-left border-t-2 border-[#6ee7b7] border-b border-[#a7f3d0]">
+                    <td colSpan={13} className="py-1.5 px-3 text-[12px] uppercase tracking-wider">
+                      <div className="flex items-center gap-2">
+                        <Users size={14} className="text-[#059669]" />
+                        <span>🟢 NHÓM 2 (HÀNH CHÍNH 2)</span>
+                      </div>
+                    </td>
+                  </tr>
+                  {staffG2.map((staff, idx) => {
+                    const staffShifts = activeMonthSchedule[currentWeek]?.[staff] || {};
+                    let tn = 0, kho = 0, off = 0;
+                    DAYS.forEach(d => {
+                      const v = String(staffShifts[d] || '').toUpperCase();
+                      if (v === 'TN') tn++;
+                      else if (v === 'KHO') kho++;
+                      else if (v === 'X') off++;
+                    });
+
+                    return (
+                      <tr key={staff} className="hover:bg-emerald-50/20 transition-colors">
+                        <td className="py-2 px-1 text-slate-400 font-semibold text-[12px] border-r border-slate-200 text-center">{idx + 1}</td>
+                        <td className="py-2 px-3 text-left border-r border-slate-200">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-[#d1fae5] text-[#059669] flex items-center justify-center text-[10px] font-extrabold shrink-0">
+                              {staff.charAt(0)}
+                            </span>
+                            <span className="font-bold text-slate-800 text-[13px] tracking-tight truncate uppercase">
+                              {staff}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-2 px-1 text-center border-r border-slate-200">
+                          <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-bold bg-[#f0fdf4] text-[#059669] border border-[#a7f3d0]">
+                            Nhóm 2
                           </span>
-                          <span className="truncate">{staff}</span>
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-2">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-100 text-sky-700">
-                          Nhóm 1
-                        </span>
-                      </td>
-                      {DAYS.map(d => {
-                        const shift = String(staffShifts[d] || '').toUpperCase();
-                        const isSun = d === 'CN';
-                        return (
-                          <td 
-                            key={d} 
-                            onClick={() => handleCellClick(staff, d, currentWeek)}
-                            className={`py-2 px-1 border-l border-slate-100 cursor-pointer select-none transition-colors ${
-                              isSun ? 'bg-rose-50/30 hover:bg-rose-100/50' : 'hover:bg-slate-100/80'
-                            }`}
-                          >
-                            <RenderShiftBadge shift={shift} />
-                          </td>
-                        );
-                      })}
-                      <td className="py-2.5 px-1 border-l border-slate-100 font-black text-purple-700 bg-purple-50/20">{tn}</td>
-                      <td className="py-2.5 px-1 border-l border-slate-100 font-black text-amber-700 bg-amber-50/20">{kho}</td>
-                      <td className="py-2.5 px-2 border-l border-slate-100 font-black text-rose-600">{off}</td>
-                    </tr>
-                  );
-                })}
-
-                {/* NHÓM 2 */}
-                <tr className="bg-emerald-50/70 text-emerald-800 font-black text-left">
-                  <td colSpan={13} className="py-2.5 px-4 text-xs tracking-wider">
-                    🟢 Nhóm 2 (Hành Chính 2) • {staffG2.length} Nhân Viên
-                  </td>
-                </tr>
-                {staffG2.map((staff, idx) => {
-                  const staffShifts = activeMonthSchedule[currentWeek]?.[staff] || {};
-                  let tn = 0, kho = 0, off = 0;
-                  DAYS.forEach(d => {
-                    const v = String(staffShifts[d] || '').toUpperCase();
-                    if (v === 'TN') tn++;
-                    else if (v === 'KHO') kho++;
-                    else if (v === 'X') off++;
-                  });
-
-                  return (
-                    <tr key={staff} className="hover:bg-emerald-50/30 transition-colors">
-                      <td className="py-2.5 px-2 text-slate-400 font-semibold">{idx + 1}</td>
-                      <td className="py-2.5 px-3 text-left font-black text-slate-900 truncate">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-black">
-                            {staff.charAt(0)}
-                          </span>
-                          <span className="truncate">{staff}</span>
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-2">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">
-                          Nhóm 2
-                        </span>
-                      </td>
-                      {DAYS.map(d => {
-                        const shift = String(staffShifts[d] || '').toUpperCase();
-                        const isSun = d === 'CN';
-                        return (
-                          <td 
-                            key={d} 
-                            onClick={() => handleCellClick(staff, d, currentWeek)}
-                            className={`py-2 px-1 border-l border-slate-100 cursor-pointer select-none transition-colors ${
-                              isSun ? 'bg-rose-50/30 hover:bg-rose-100/50' : 'hover:bg-slate-100/80'
-                            }`}
-                          >
-                            <RenderShiftBadge shift={shift} />
-                          </td>
-                        );
-                      })}
-                      <td className="py-2.5 px-1 border-l border-slate-100 font-black text-purple-700 bg-purple-50/20">{tn}</td>
-                      <td className="py-2.5 px-1 border-l border-slate-100 font-black text-amber-700 bg-amber-50/20">{kho}</td>
-                      <td className="py-2.5 px-2 border-l border-slate-100 font-black text-rose-600">{off}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+                        {DAYS.map(d => {
+                          const shift = String(staffShifts[d] || '').toUpperCase();
+                          const isSun = d === 'CN';
+                          return (
+                            <td 
+                              key={d} 
+                              onClick={() => handleCellClick(staff, d, currentWeek)}
+                              className={`py-1 px-0.5 border-r border-slate-200 cursor-pointer select-none transition-colors text-center ${
+                                isSun ? 'bg-[#fff1f2] hover:bg-rose-100/60' : 'hover:bg-slate-100/80'
+                              }`}
+                            >
+                              <RenderShiftBadge shift={shift} />
+                            </td>
+                          );
+                        })}
+                        <td className="py-2 px-1 border-r border-slate-200 font-bold text-slate-700 text-[13px] text-center">{tn}</td>
+                        <td className="py-2 px-1 border-r border-slate-200 font-bold text-slate-700 text-[13px] text-center">{kho}</td>
+                        <td className={`py-2 px-1 font-bold text-[13px] text-center ${off > 0 ? 'text-rose-600 font-black' : 'text-slate-400'}`}>{off}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      ) : (
-        /* ALL WEEKS (CẢ THÁNG) VIEW */
-        <div className="space-y-8">
-          {currentMonthWeeks.map(wName => {
-            const weekDates = getWeekDates(currentMonth, wName);
-            const match = findMatchingWeek(currentMonth, wName);
-            return (
-              <div key={wName} className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-                <div className="bg-gradient-to-r from-sky-50 to-blue-50 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
-                  <span className="text-xs font-black text-sky-800 uppercase tracking-wide flex items-center gap-1.5">
-                    <CalendarCheck size={14} className="text-sky-600" />
-                    {wName} - {currentMonth} ({weekDates['T2']} - {weekDates['CN']})
-                  </span>
-                  {match && (
-                    <span className="export-no-print px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1 shadow-2xs">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                      Trùng {match.week} ({match.month}) • Tự đồng bộ
+        ) : (
+          /* ALL WEEKS (CẢ THÁNG) VIEW */
+          <div className="space-y-6">
+            {currentMonthWeeks.map(wName => {
+              const weekDates = getWeekDates(currentMonth, wName);
+              const match = findMatchingWeek(currentMonth, wName);
+              return (
+                <div key={wName} className="rounded-2xl border border-sky-200/80 overflow-hidden shadow-2xs">
+                  <div className="bg-gradient-to-r from-sky-50 to-blue-50 px-4 py-2 border-b border-sky-200/70 flex items-center justify-between">
+                    <span className="text-[14px] font-extrabold text-[#0369a1] tracking-wide flex items-center gap-2">
+                      <CalendarCheck size={16} className="text-sky-600" />
+                      {wName} – {currentMonth} ({weekDates['T2']} – {weekDates['CN']})
                     </span>
-                  )}
-                </div>
+                    {match && (
+                      <span className="export-no-print px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1 shadow-2xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        Trùng {match.week} ({match.month}) • Tự đồng bộ
+                      </span>
+                    )}
+                  </div>
 
                   <div className="overflow-x-auto no-scrollbar">
-                    <table className="w-full text-center border-collapse table-fixed min-w-[850px]">
+                    <table className="w-full text-center border-collapse table-fixed min-w-[850px] text-[13px]">
                       <colgroup>
-                        <col className="w-12" />
-                        <col className="w-40" />
-                        <col className="w-24" />
-                        {DAYS.map(d => <col key={d} className="w-20" />)}
-                        <col className="w-16" />
-                        <col className="w-16" />
-                        <col className="w-20" />
+                        <col style={{ width: '42px' }} />
+                        <col style={{ width: '160px' }} />
+                        <col style={{ width: '85px' }} />
+                        {DAYS.map(d => <col key={d} style={{ width: '68px' }} />)}
+                        <col style={{ width: '60px' }} />
+                        <col style={{ width: '60px' }} />
+                        <col style={{ width: '60px' }} />
                       </colgroup>
                       <thead>
-                        <tr className="bg-slate-50/80 text-slate-700 text-xs font-black uppercase tracking-wider border-b border-slate-200">
-                          <th className="py-2.5 px-2">STT</th>
-                          <th className="py-2.5 px-3 text-left">Nhân Viên</th>
-                          <th className="py-2.5 px-2">Nhóm</th>
+                        <tr className="bg-[#f0f7ff] text-[#0369a1] text-[12px] font-bold uppercase tracking-wider border-b border-slate-200">
+                          <th className="py-2.5 px-1 border-r border-slate-200 text-slate-500 font-bold text-center">STT</th>
+                          <th className="py-2.5 px-3 text-left border-r border-slate-200 font-bold text-[#0369a1]">NHÂN VIÊN</th>
+                          <th className="py-2.5 px-1 border-r border-slate-200 font-bold text-[#0369a1] text-center">NHÓM</th>
                           {DAYS.map(d => (
-                            <th key={d} className={`py-1.5 px-1 border-l border-slate-200 ${d === 'CN' ? 'bg-rose-50/60 text-rose-700' : ''}`}>
-                              <span className="text-xs font-extrabold block">{d}</span>
-                              <span className="text-[10px] font-bold text-slate-400 block">{weekDates[d] || ''}</span>
+                            <th key={d} className={`py-1.5 px-1 border-r border-slate-200 ${d === 'CN' ? 'bg-[#fee2e2] text-[#b91c1c]' : 'bg-[#f0f7ff]'}`}>
+                              <div className="flex flex-col items-center justify-center gap-0.5">
+                                <span className={`text-[13px] font-extrabold leading-tight ${d === 'CN' ? 'text-[#b91c1c]' : 'text-[#0369a1]'}`}>{d}</span>
+                                <span className={`text-[10.5px] font-semibold px-1 py-0.2 rounded leading-none ${
+                                  d === 'CN' ? 'bg-[#fecdd3] text-[#b91c1c]' : 'bg-[#e2e8f0] text-[#475569]'
+                                }`}>
+                                  {weekDates[d] || ''}
+                                </span>
+                              </div>
                             </th>
                           ))}
-                          <th className="py-2.5 px-1 border-l border-slate-200 bg-purple-50/40 text-purple-700">TN</th>
-                          <th className="py-2.5 px-1 border-l border-slate-200 bg-amber-50/40 text-amber-700">KHO</th>
-                          <th className="py-2.5 px-2 border-l border-slate-200 text-rose-600">Nghỉ</th>
+                          <th className="py-2.5 px-1 border-r border-slate-200 font-bold text-[#0369a1] text-center">TN</th>
+                          <th className="py-2.5 px-1 border-r border-slate-200 font-bold text-[#0369a1] text-center">KHO</th>
+                          <th className="py-2.5 px-1 font-bold text-[#0369a1] text-center">NGHỈ</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
+                      <tbody className="divide-y divide-slate-100 text-[13px] text-slate-700">
                         {/* NHÓM 1 */}
-                        <tr className="bg-sky-50/50 text-sky-800 font-black text-left">
-                          <td colSpan={13} className="py-2 px-4 text-[11px] tracking-wider">
-                            🔵 Nhóm 1 (Hành Chính 1)
+                        <tr className="bg-[#f8fafc] text-[#0284c7] font-extrabold text-left border-t-2 border-[#7dd3fc] border-b border-[#bae6fd]">
+                          <td colSpan={13} className="py-1.5 px-3 text-[12px] uppercase tracking-wider">
+                            <div className="flex items-center gap-2">
+                              <Users size={14} className="text-[#0284c7]" />
+                              <span>🔵 NHÓM 1 (HÀNH CHÍNH 1)</span>
+                            </div>
                           </td>
                         </tr>
                         {staffG1.map((staff, idx) => {
@@ -1828,34 +1856,51 @@ export function PhanCaHanhChinhTab() {
 
                           return (
                             <tr key={staff} className="hover:bg-sky-50/20 transition-colors">
-                              <td className="py-2 px-2 text-slate-400">{idx + 1}</td>
-                              <td className="py-2 px-3 text-left font-black text-slate-900 truncate">{staff}</td>
-                              <td className="py-2 px-2">
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-100 text-sky-700">Nhóm 1</span>
+                              <td className="py-2 px-1 text-slate-400 font-semibold text-[12px] border-r border-slate-200 text-center">{idx + 1}</td>
+                              <td className="py-2 px-3 text-left border-r border-slate-200">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-5 h-5 rounded-full bg-[#e0f2fe] text-[#0284c7] flex items-center justify-center text-[10px] font-extrabold shrink-0">
+                                    {staff.charAt(0)}
+                                  </span>
+                                  <span className="font-bold text-slate-800 text-[13px] tracking-tight truncate uppercase">
+                                    {staff}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-2 px-1 text-center border-r border-slate-200">
+                                <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-bold bg-[#f0f9ff] text-[#0284c7] border border-[#bae6fd]">
+                                  Nhóm 1
+                                </span>
                               </td>
                               {DAYS.map(d => {
                                 const shift = String(staffShifts[d] || '').toUpperCase();
+                                const isSun = d === 'CN';
                                 return (
                                   <td 
                                     key={d} 
                                     onClick={() => handleCellClick(staff, d, wName)}
-                                    className="py-1.5 px-1 border-l border-slate-100 cursor-pointer hover:bg-slate-100/70"
+                                    className={`py-1 px-0.5 border-r border-slate-200 cursor-pointer select-none transition-colors text-center ${
+                                      isSun ? 'bg-[#fff1f2] hover:bg-rose-100/60' : 'hover:bg-slate-100/80'
+                                    }`}
                                   >
                                     <RenderShiftBadge shift={shift} />
                                   </td>
                                 );
                               })}
-                              <td className="py-2 px-1 border-l border-slate-100 font-black text-purple-700">{tn}</td>
-                              <td className="py-2 px-1 border-l border-slate-100 font-black text-amber-700">{kho}</td>
-                              <td className="py-2 px-2 border-l border-slate-100 font-black text-rose-600">{off}</td>
+                              <td className="py-2 px-1 border-r border-slate-200 font-bold text-slate-700 text-[13px] text-center">{tn}</td>
+                              <td className="py-2 px-1 border-r border-slate-200 font-bold text-slate-700 text-[13px] text-center">{kho}</td>
+                              <td className={`py-2 px-1 font-bold text-[13px] text-center ${off > 0 ? 'text-rose-600 font-black' : 'text-slate-400'}`}>{off}</td>
                             </tr>
                           );
                         })}
 
                         {/* NHÓM 2 */}
-                        <tr className="bg-emerald-50/50 text-emerald-800 font-black text-left">
-                          <td colSpan={13} className="py-2 px-4 text-[11px] tracking-wider">
-                            🟢 Nhóm 2 (Hành Chính 2)
+                        <tr className="bg-[#f8fafc] text-[#059669] font-extrabold text-left border-t-2 border-[#6ee7b7] border-b border-[#a7f3d0]">
+                          <td colSpan={13} className="py-1.5 px-3 text-[12px] uppercase tracking-wider">
+                            <div className="flex items-center gap-2">
+                              <Users size={14} className="text-[#059669]" />
+                              <span>🟢 NHÓM 2 (HÀNH CHÍNH 2)</span>
+                            </div>
                           </td>
                         </tr>
                         {staffG2.map((staff, idx) => {
@@ -1870,26 +1915,40 @@ export function PhanCaHanhChinhTab() {
 
                           return (
                             <tr key={staff} className="hover:bg-emerald-50/20 transition-colors">
-                              <td className="py-2 px-2 text-slate-400">{idx + 1}</td>
-                              <td className="py-2 px-3 text-left font-black text-slate-900 truncate">{staff}</td>
-                              <td className="py-2 px-2">
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700">Nhóm 2</span>
+                              <td className="py-2 px-1 text-slate-400 font-semibold text-[12px] border-r border-slate-200 text-center">{idx + 1}</td>
+                              <td className="py-2 px-3 text-left border-r border-slate-200">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-5 h-5 rounded-full bg-[#d1fae5] text-[#059669] flex items-center justify-center text-[10px] font-extrabold shrink-0">
+                                    {staff.charAt(0)}
+                                  </span>
+                                  <span className="font-bold text-slate-800 text-[13px] tracking-tight truncate uppercase">
+                                    {staff}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-2 px-1 text-center border-r border-slate-200">
+                                <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-bold bg-[#f0fdf4] text-[#059669] border border-[#a7f3d0]">
+                                  Nhóm 2
+                                </span>
                               </td>
                               {DAYS.map(d => {
                                 const shift = String(staffShifts[d] || '').toUpperCase();
+                                const isSun = d === 'CN';
                                 return (
                                   <td 
                                     key={d} 
                                     onClick={() => handleCellClick(staff, d, wName)}
-                                    className="py-1.5 px-1 border-l border-slate-100 cursor-pointer hover:bg-slate-100/70"
+                                    className={`py-1 px-0.5 border-r border-slate-200 cursor-pointer select-none transition-colors text-center ${
+                                      isSun ? 'bg-[#fff1f2] hover:bg-rose-100/60' : 'hover:bg-slate-100/80'
+                                    }`}
                                   >
                                     <RenderShiftBadge shift={shift} />
                                   </td>
                                 );
                               })}
-                              <td className="py-2 px-1 border-l border-slate-100 font-black text-purple-700">{tn}</td>
-                              <td className="py-2 px-1 border-l border-slate-100 font-black text-amber-700">{kho}</td>
-                              <td className="py-2 px-2 border-l border-slate-100 font-black text-rose-600">{off}</td>
+                              <td className="py-2 px-1 border-r border-slate-200 font-bold text-slate-700 text-[13px] text-center">{tn}</td>
+                              <td className="py-2 px-1 border-r border-slate-200 font-bold text-slate-700 text-[13px] text-center">{kho}</td>
+                              <td className={`py-2 px-1 font-bold text-[13px] text-center ${off > 0 ? 'text-rose-600 font-black' : 'text-slate-400'}`}>{off}</td>
                             </tr>
                           );
                         })}
@@ -1903,18 +1962,18 @@ export function PhanCaHanhChinhTab() {
         )}
 
         {/* Schedule Export Footer Note */}
-        <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-bold text-slate-500">
-          <div className="flex flex-wrap items-center gap-3">
-            <span>Chú thích:</span>
-            <span className="px-2 py-0.5 rounded-lg bg-purple-50 text-purple-700 border border-purple-200"><strong>TN</strong>: Thu Ngân</span>
-            <span className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200"><strong>KHO</strong>: Phụ Kho</span>
-            <span className="px-2 py-0.5 rounded-lg bg-sky-50 text-sky-700 border border-sky-200"><strong>HC</strong>: Hành Chính</span>
-            <span className="px-2 py-0.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200"><strong>x</strong>: Nghỉ Off</span>
+        <div className="pt-4 border-t border-dashed border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 text-[12px] font-medium text-slate-500">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold text-slate-600">Chú thích:</span>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#ede9fe] text-[#6d28d9] border border-[#c4b5fd]">TN: Thu Ngân</span>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#ffedd5] text-[#c2410c] border border-[#fdba74]">KHO: Phụ Kho</span>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#e0f2fe] text-[#0369a1] border border-[#7dd3fc]">HC: Hành Chính</span>
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#fee2e2] text-[#dc2626] border border-[#fca5a5]">x: Nghỉ Off</span>
           </div>
 
-          <div className="flex items-center gap-8 text-[11px] text-slate-400">
-            <span>Người lập bảng: ....................</span>
-            <span>Quản lý duyệt: ....................</span>
+          <div className="flex items-center gap-8 text-[12px] text-slate-400 font-semibold">
+            <span>Người lập bảng: ........................</span>
+            <span>Quản lý duyệt: ........................</span>
           </div>
         </div>
       </div>
@@ -2513,41 +2572,41 @@ export function PhanCaHanhChinhTab() {
 }
 
 /**
- * Shift Badge renderer with authentic styling
+ * Shift Badge renderer with authentic styling from phanca
  */
 function RenderShiftBadge({ shift }: { shift: string }) {
   const upper = (shift || '').trim().toUpperCase();
 
   if (upper === 'TN') {
     return (
-      <span className="inline-block px-2.5 py-1 rounded-lg text-[11px] font-black bg-purple-100 text-purple-700 border border-purple-200 shadow-2xs">
+      <span className="inline-flex items-center justify-center min-w-[38px] px-2 py-0.5 rounded text-[11.5px] font-extrabold bg-[#ede9fe] text-[#6d28d9] border border-[#c4b5fd] shadow-2xs leading-tight">
         TN
       </span>
     );
   }
   if (upper === 'KHO') {
     return (
-      <span className="inline-block px-2 py-1 rounded-lg text-[11px] font-black bg-amber-100 text-amber-800 border border-amber-200 shadow-2xs">
+      <span className="inline-flex items-center justify-center min-w-[38px] px-2 py-0.5 rounded text-[11.5px] font-extrabold bg-[#ffedd5] text-[#c2410c] border border-[#fdba74] shadow-2xs leading-tight">
         KHO
       </span>
     );
   }
   if (upper === 'HC') {
     return (
-      <span className="inline-block px-2 py-1 rounded-lg text-[11px] font-black bg-sky-100 text-sky-800 border border-sky-200 shadow-2xs">
+      <span className="inline-flex items-center justify-center min-w-[38px] px-2 py-0.5 rounded text-[11.5px] font-extrabold bg-[#e0f2fe] text-[#0369a1] border border-[#7dd3fc] shadow-2xs leading-tight">
         HC
       </span>
     );
   }
   if (upper === 'X') {
     return (
-      <span className="inline-block px-2 py-1 rounded-lg text-[11px] font-black bg-rose-100 text-rose-700 border border-rose-200">
+      <span className="inline-flex items-center justify-center min-w-[38px] px-2 py-0.5 rounded text-[11.5px] font-extrabold bg-[#fee2e2] text-[#dc2626] border border-[#fca5a5] leading-tight">
         x
       </span>
     );
   }
 
-  return <span className="text-slate-300 font-bold">-</span>;
+  return <span className="text-slate-300 font-semibold text-[14px]">-</span>;
 }
 
 export default PhanCaHanhChinhTab;
