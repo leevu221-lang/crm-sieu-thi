@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, Plus, Trash2, Save, Edit3, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, ArrowLeftRight, Camera, Download, Copy, Check, Lock, Unlock, History, Search, Filter, ArrowRight, Clock, User, Share2, Store, FileSpreadsheet, ClipboardPaste, AlertCircle } from 'lucide-react';
+import { CalendarDays, Plus, Trash2, Save, Edit3, X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, ArrowLeftRight, Camera, Download, Copy, Check, Lock, Unlock, History, Search, Filter, ArrowRight, ArrowDown, Sparkles, Clock, User, Share2, Store, FileSpreadsheet, ClipboardPaste, AlertCircle } from 'lucide-react';
 import { doc, onSnapshot, setDoc, runTransaction, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../contexts/AuthContext';
@@ -144,6 +144,138 @@ function areWeeksMatching(datesA?: Date[], datesB?: Date[]) {
 }
 
 const emptyShifts = (): WeekShiftData => ({ shifts: ['', '', '', '', '', '', ''] });
+
+function isPgMatch(rosterName: string, inputName: string): boolean {
+  const a = removeAccents(rosterName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const b = removeAccents(inputName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!a || !b) return false;
+  return a === b || a.includes(b) || b.includes(a);
+}
+
+function parseMonthKey(key: string): { year: number; month: number } {
+  if (!key || !key.includes('-')) {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  }
+  const [yStr, mStr] = key.split('-');
+  return { year: parseInt(yStr, 10), month: parseInt(mStr, 10) - 1 };
+}
+
+function applyCopyWeekShifts({
+  sourceIctRoster,
+  sourceDtdlgdRoster,
+  sourceWeekShifts,
+  targetIctRoster,
+  targetDtdlgdRoster,
+  targetExistingWeekData,
+  targetWeekIndex,
+  syncRoster,
+  overwriteExisting,
+}: {
+  sourceIctRoster: PGInfo[];
+  sourceDtdlgdRoster: PGInfo[];
+  sourceWeekShifts: { ict?: Record<string, WeekShiftData>; dtdlgd?: Record<string, WeekShiftData> };
+  targetIctRoster: PGInfo[];
+  targetDtdlgdRoster: PGInfo[];
+  targetExistingWeekData: Record<string, { ict: Record<string, WeekShiftData>; dtdlgd: Record<string, WeekShiftData> }>;
+  targetWeekIndex: number | 'ALL';
+  syncRoster: boolean;
+  overwriteExisting: boolean;
+}) {
+  let updatedIctRoster = [...targetIctRoster];
+  let updatedDtdlgdRoster = [...targetDtdlgdRoster];
+
+  const findMatch = (roster: PGInfo[], srcPg: PGInfo) => {
+    const byId = roster.find(r => r.id === srcPg.id);
+    if (byId) return byId;
+    const srcName = (srcPg.tenPgHang || '').trim().toLowerCase();
+    const byName = roster.find(r => (r.tenPgHang || '').trim().toLowerCase() === srcName);
+    if (byName) return byName;
+    return roster.find(r => isPgMatch(r.tenPgHang, srcPg.tenPgHang));
+  };
+
+  const ictIdMap = new Map<string, string>();
+  const dtdlgdIdMap = new Map<string, string>();
+
+  sourceIctRoster.forEach(srcPg => {
+    let match = findMatch(updatedIctRoster, srcPg);
+    if (!match && syncRoster) {
+      match = {
+        ...srcPg,
+        id: genId(),
+      };
+      updatedIctRoster.push(match);
+    }
+    if (match) {
+      ictIdMap.set(srcPg.id, match.id);
+    }
+  });
+
+  sourceDtdlgdRoster.forEach(srcPg => {
+    let match = findMatch(updatedDtdlgdRoster, srcPg);
+    if (!match && syncRoster) {
+      match = {
+        ...srcPg,
+        id: genId(),
+      };
+      updatedDtdlgdRoster.push(match);
+    }
+    if (match) {
+      dtdlgdIdMap.set(srcPg.id, match.id);
+    }
+  });
+
+  const updatedWeekData: Record<string, { ict: Record<string, WeekShiftData>; dtdlgd: Record<string, WeekShiftData> }> = JSON.parse(
+    JSON.stringify(targetExistingWeekData || {})
+  );
+
+  const targetWeekKeys = targetWeekIndex === 'ALL'
+    ? [0, 1, 2, 3, 4].map(i => `week${i + 1}`)
+    : [`week${targetWeekIndex + 1}`];
+
+  targetWeekKeys.forEach(wKey => {
+    const curWk = updatedWeekData[wKey] || { ict: {}, dtdlgd: {} };
+    const curIct = { ...(curWk.ict || {}) };
+    const curDtdlgd = { ...(curWk.dtdlgd || {}) };
+
+    if (sourceWeekShifts?.ict) {
+      Object.entries(sourceWeekShifts.ict).forEach(([srcPgId, shiftData]) => {
+        const targetPgId = ictIdMap.get(srcPgId);
+        if (targetPgId && shiftData?.shifts) {
+          if (overwriteExisting || !curIct[targetPgId]?.shifts?.some(Boolean)) {
+            curIct[targetPgId] = {
+              shifts: [...shiftData.shifts]
+            };
+          }
+        }
+      });
+    }
+
+    if (sourceWeekShifts?.dtdlgd) {
+      Object.entries(sourceWeekShifts.dtdlgd).forEach(([srcPgId, shiftData]) => {
+        const targetPgId = dtdlgdIdMap.get(srcPgId);
+        if (targetPgId && shiftData?.shifts) {
+          if (overwriteExisting || !curDtdlgd[targetPgId]?.shifts?.some(Boolean)) {
+            curDtdlgd[targetPgId] = {
+              shifts: [...shiftData.shifts]
+            };
+          }
+        }
+      });
+    }
+
+    updatedWeekData[wKey] = {
+      ict: curIct,
+      dtdlgd: curDtdlgd,
+    };
+  });
+
+  return {
+    updatedIctRoster,
+    updatedDtdlgdRoster,
+    updatedWeekData,
+  };
+}
 
 function sanitizeForFirestore(data: any): any {
   if (data === null || data === undefined) return null;
@@ -1484,6 +1616,528 @@ const ImportExcelShiftModal: React.FC<{
   return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 
+// ─── Copy Week Shifts Modal ──────────────────────────────────────────────────
+const CopyWeekShiftModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  currentYear: number;
+  currentMonth: number;
+  currentWeekIndex: number;
+  allMonthsData: Record<string, any>;
+  currentIctRoster: PGInfo[];
+  currentDtdlgdRoster: PGInfo[];
+  currentAllWeekData: Record<string, { ict: Record<string, WeekShiftData>; dtdlgd: Record<string, WeekShiftData> }>;
+  customShifts: string[];
+  activeStoreName: string;
+  onApplyCopy: (params: {
+    sourceMonthKey: string;
+    sourceMonthLabel: string;
+    sourceWeekIndex: number;
+    targetMonthKey: string;
+    targetMonthLabel: string;
+    targetWeekIndex: number | 'ALL';
+    updatedIctRoster: PGInfo[];
+    updatedDtdlgdRoster: PGInfo[];
+    updatedWeekData: Record<string, { ict: Record<string, WeekShiftData>; dtdlgd: Record<string, WeekShiftData> }>;
+    targetCustomShifts: string[];
+    targetYear: number;
+    targetMonth: number;
+  }) => Promise<void> | void;
+}> = ({
+  isOpen,
+  onClose,
+  currentYear,
+  currentMonth,
+  currentWeekIndex,
+  allMonthsData,
+  currentIctRoster,
+  currentDtdlgdRoster,
+  currentAllWeekData,
+  customShifts,
+  activeStoreName,
+  onApplyCopy,
+}) => {
+  const [sourceMonthKey, setSourceMonthKey] = useState<string>('');
+  const [sourceWeekIndex, setSourceWeekIndex] = useState<number>(0);
+  const [targetMonthKey, setTargetMonthKey] = useState<string>('');
+  const [targetWeekIndex, setTargetWeekIndex] = useState<number | 'ALL'>(0);
+
+  const [syncRoster, setSyncRoster] = useState(true);
+  const [replaceRoster, setReplaceRoster] = useState(false);
+  const [overwriteExisting, setOverwriteExisting] = useState(true);
+  const [copying, setCopying] = useState(false);
+
+  // Available months options
+  const availableMonthOptions = useMemo(() => {
+    const list: { key: string; label: string; year: number; month: number }[] = [];
+    const start = new Date(currentYear, currentMonth - 4, 1);
+    for (let i = 0; i <= 10; i++) {
+      const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+      const y = d.getFullYear();
+      const m = d.getMonth();
+      const key = `${y}-${String(m + 1).padStart(2, '0')}`;
+      list.push({
+        key,
+        label: `Tháng ${m + 1} / ${y}`,
+        year: y,
+        month: m,
+      });
+    }
+    if (allMonthsData) {
+      Object.keys(allMonthsData).forEach(k => {
+        if (!list.find(x => x.key === k) && /^\d{4}-\d{2}$/.test(k)) {
+          const { year: y, month: m } = parseMonthKey(k);
+          list.push({
+            key: k,
+            label: `Tháng ${m + 1} / ${y}`,
+            year: y,
+            month: m,
+          });
+        }
+      });
+    }
+    list.sort((a, b) => a.key.localeCompare(b.key));
+    return list;
+  }, [currentYear, currentMonth, allMonthsData]);
+
+  // Reset and auto-select on open
+  useEffect(() => {
+    if (isOpen) {
+      const curMonthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+      setTargetMonthKey(curMonthKey);
+      setTargetWeekIndex(currentWeekIndex);
+
+      // Smart default for source:
+      // If currently on Week 1 (index 0), default to Previous Month, Week 5 (index 4)
+      if (currentWeekIndex === 0) {
+        const prev = getPrevMonthInfo(currentYear, currentMonth);
+        setSourceMonthKey(prev.monthKey);
+        setSourceWeekIndex(4);
+      } else {
+        setSourceMonthKey(curMonthKey);
+        setSourceWeekIndex(currentWeekIndex - 1);
+      }
+
+      // Check if target month has saved data
+      const targetSaved = allMonthsData?.[curMonthKey];
+      const hasSavedRoster = targetSaved && (
+        (Array.isArray(targetSaved.ictRoster) && targetSaved.ictRoster.length > 0) ||
+        (Array.isArray(targetSaved.dtdlgdRoster) && targetSaved.dtdlgdRoster.length > 0)
+      );
+      setReplaceRoster(!hasSavedRoster);
+      setSyncRoster(true);
+      setOverwriteExisting(true);
+      setCopying(false);
+    }
+  }, [isOpen, currentYear, currentMonth, currentWeekIndex, allMonthsData]);
+
+  // Weeks for source and target
+  const srcWeeks = useMemo(() => {
+    if (!sourceMonthKey) return [];
+    const { year, month } = parseMonthKey(sourceMonthKey);
+    return getWeeksOfMonth(year, month);
+  }, [sourceMonthKey]);
+
+  const tgtWeeks = useMemo(() => {
+    if (!targetMonthKey) return [];
+    const { year, month } = parseMonthKey(targetMonthKey);
+    return getWeeksOfMonth(year, month);
+  }, [targetMonthKey]);
+
+  // Source week shift summary & stats
+  const sourceWeekSummary = useMemo(() => {
+    if (!sourceMonthKey) return { totalPgs: 0, countShifts: 0, hasData: false, srcData: null, samplePgs: [] };
+
+    let srcData: any = null;
+    const curMonthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+    if (sourceMonthKey === curMonthKey) {
+      srcData = {
+        ictRoster: currentIctRoster,
+        dtdlgdRoster: currentDtdlgdRoster,
+        weekData: currentAllWeekData,
+        customShifts: customShifts,
+      };
+    } else {
+      srcData = allMonthsData[sourceMonthKey] || {};
+    }
+
+    const ict: PGInfo[] = srcData.ictRoster || [];
+    const dtdlgd: PGInfo[] = srcData.dtdlgdRoster || [];
+    const totalPgs = ict.length + dtdlgd.length;
+
+    const wKey = `week${sourceWeekIndex + 1}`;
+    const weekShifts = srcData.weekData?.[wKey] || { ict: {}, dtdlgd: {} };
+
+    let countShifts = 0;
+    const samplePgs: string[] = [];
+
+    if (weekShifts.ict) {
+      Object.entries(weekShifts.ict).forEach(([pgId, s]: [string, any]) => {
+        if (s?.shifts && Array.isArray(s.shifts) && s.shifts.some((x: string) => Boolean(x && x.trim()))) {
+          countShifts++;
+          const found = ict.find(p => p.id === pgId);
+          if (found && samplePgs.length < 4) samplePgs.push(found.tenPgHang);
+        }
+      });
+    }
+    if (weekShifts.dtdlgd) {
+      Object.entries(weekShifts.dtdlgd).forEach(([pgId, s]: [string, any]) => {
+        if (s?.shifts && Array.isArray(s.shifts) && s.shifts.some((x: string) => Boolean(x && x.trim()))) {
+          countShifts++;
+          const found = dtdlgd.find(p => p.id === pgId);
+          if (found && samplePgs.length < 4) samplePgs.push(found.tenPgHang);
+        }
+      });
+    }
+
+    return {
+      totalPgs,
+      countShifts,
+      hasData: countShifts > 0,
+      srcData,
+      samplePgs,
+    };
+  }, [sourceMonthKey, sourceWeekIndex, currentYear, currentMonth, currentIctRoster, currentDtdlgdRoster, currentAllWeekData, customShifts, allMonthsData]);
+
+  const handleConfirm = async () => {
+    if (sourceWeekSummary.countShifts === 0) {
+      const ok = window.confirm('Tuần nguồn hiện chưa có ca làm việc nào được phân công. Bạn có chắc chắn muốn sao chép tuần này không?');
+      if (!ok) return;
+    }
+
+    setCopying(true);
+    try {
+      const srcData = sourceWeekSummary.srcData || {};
+      const srcIctRoster: PGInfo[] = srcData.ictRoster || [];
+      const srcDtdlgdRoster: PGInfo[] = srcData.dtdlgdRoster || [];
+      const srcWeekShifts = srcData.weekData?.[`week${sourceWeekIndex + 1}`] || { ict: {}, dtdlgd: {} };
+
+      const curMonthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+      let targetIct: PGInfo[] = [];
+      let targetDtdlgd: PGInfo[] = [];
+      let targetWeekData: any = {};
+      let targetCustomShifts: string[] = [];
+
+      if (targetMonthKey === curMonthKey) {
+        targetIct = [...currentIctRoster];
+        targetDtdlgd = [...currentDtdlgdRoster];
+        targetWeekData = JSON.parse(JSON.stringify(currentAllWeekData));
+        targetCustomShifts = [...customShifts];
+      } else {
+        const tgtData = allMonthsData[targetMonthKey] || {};
+        targetIct = Array.isArray(tgtData.ictRoster) ? [...tgtData.ictRoster] : [];
+        targetDtdlgd = Array.isArray(tgtData.dtdlgdRoster) ? [...tgtData.dtdlgdRoster] : [];
+        targetWeekData = JSON.parse(JSON.stringify(tgtData.weekData || {}));
+        targetCustomShifts = Array.isArray(tgtData.customShifts) ? [...tgtData.customShifts] : [...customShifts];
+      }
+
+      if (replaceRoster) {
+        targetIct = JSON.parse(JSON.stringify(srcIctRoster));
+        targetDtdlgd = JSON.parse(JSON.stringify(srcDtdlgdRoster));
+      }
+
+      const { updatedIctRoster, updatedDtdlgdRoster, updatedWeekData } = applyCopyWeekShifts({
+        sourceIctRoster: srcIctRoster,
+        sourceDtdlgdRoster: srcDtdlgdRoster,
+        sourceWeekShifts: srcWeekShifts,
+        targetIctRoster: targetIct,
+        targetDtdlgdRoster: targetDtdlgd,
+        targetExistingWeekData: targetWeekData,
+        targetWeekIndex: targetWeekIndex,
+        syncRoster: syncRoster || replaceRoster,
+        overwriteExisting: overwriteExisting,
+      });
+
+      const combinedCustomShifts = Array.from(new Set([
+        ...targetCustomShifts,
+        ...(srcData.customShifts || []),
+      ])).filter(Boolean);
+
+      const { year: tgtY, month: tgtM } = parseMonthKey(targetMonthKey);
+      const { year: srcY, month: srcM } = parseMonthKey(sourceMonthKey);
+
+      await onApplyCopy({
+        sourceMonthKey,
+        sourceMonthLabel: `Tháng ${srcM + 1}/${srcY}`,
+        sourceWeekIndex,
+        targetMonthKey,
+        targetMonthLabel: `Tháng ${tgtM + 1}/${tgtY}`,
+        targetWeekIndex,
+        updatedIctRoster,
+        updatedDtdlgdRoster,
+        updatedWeekData,
+        targetCustomShifts: combinedCustomShifts,
+        targetYear: tgtY,
+        targetMonth: tgtM,
+      });
+
+      onClose();
+    } catch (err: any) {
+      console.error('Lỗi khi sao chép ca tuần:', err);
+      alert('Không thể sao chép ca: ' + (err?.message || 'Có lỗi xảy ra'));
+    } finally {
+      setCopying(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const { year: srcY, month: srcM } = parseMonthKey(sourceMonthKey);
+  const { year: tgtY, month: tgtM } = parseMonthKey(targetMonthKey);
+  const targetWeekLabel = targetWeekIndex === 'ALL' ? 'Tất cả các tuần (Tuần 1 → 5)' : `Tuần ${Number(targetWeekIndex) + 1}`;
+
+  const modalContent = (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 bg-slate-50/80">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-indigo-100 text-indigo-700 shadow-xs border border-indigo-200">
+              <Copy size={20} />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-slate-800">Sao Chép Ca Làm Việc Của Tuần</h3>
+              <p className="text-[12px] text-slate-500 font-medium">
+                Sao chép phân ca giữa các tuần trong tháng hoặc khác tháng (VD: Tuần 5 Tháng 9 → Tuần 1 Tháng 10)
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            title="Đóng"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-4 sm:p-5 overflow-y-auto max-h-[calc(90vh-130px)] space-y-4">
+          {/* Dual Column Box */}
+          <div className="bg-slate-50/90 rounded-2xl p-4 border border-slate-200">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr,auto,1fr] gap-3 items-center">
+              {/* Nguồn */}
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md">
+                    Tuần Nguồn (Lấy ca từ)
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-[11.5px] font-bold text-slate-600 mb-1">Chọn Tháng:</label>
+                  <select
+                    value={sourceMonthKey}
+                    onChange={e => setSourceMonthKey(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-black text-slate-800 outline-none focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    {availableMonthOptions.map(opt => (
+                      <option key={opt.key} value={opt.key}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11.5px] font-bold text-slate-600 mb-1">Chọn Tuần:</label>
+                  <select
+                    value={sourceWeekIndex}
+                    onChange={e => setSourceWeekIndex(Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-black text-slate-800 outline-none focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    {srcWeeks.map((w, idx) => (
+                      <option key={idx} value={idx}>
+                        Tuần {idx + 1} ({fmtDate(w.dates[0])} → {fmtDate(w.dates[6])})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Status pill */}
+                <div className="pt-1">
+                  {sourceWeekSummary.countShifts > 0 ? (
+                    <div className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
+                      <Check size={13} className="text-emerald-600 shrink-0" />
+                      <span>
+                        Có <strong>{sourceWeekSummary.countShifts}</strong> PG đã được xếp ca
+                        {sourceWeekSummary.samplePgs.length > 0 && (
+                          <span className="block text-[10px] text-emerald-600/80 font-normal truncate">
+                            ({sourceWeekSummary.samplePgs.join(', ')}...)
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
+                      <AlertCircle size={13} className="text-amber-600 shrink-0" />
+                      <span>Chưa có dữ liệu ca trong tuần này</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Arrow */}
+              <div className="flex justify-center items-center py-1 md:py-0">
+                <div className="p-2 rounded-full bg-indigo-100 text-indigo-700 shadow-xs border border-indigo-200">
+                  <ArrowRight size={18} className="hidden md:block" />
+                  <ArrowDown size={18} className="md:hidden" />
+                </div>
+              </div>
+
+              {/* Đích */}
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md">
+                    Tuần Đích (Áp dụng vào)
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-[11.5px] font-bold text-slate-600 mb-1">Chọn Tháng:</label>
+                  <select
+                    value={targetMonthKey}
+                    onChange={e => setTargetMonthKey(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-black text-slate-800 outline-none focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    {availableMonthOptions.map(opt => (
+                      <option key={opt.key} value={opt.key}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11.5px] font-bold text-slate-600 mb-1">Chọn Tuần:</label>
+                  <select
+                    value={targetWeekIndex}
+                    onChange={e => setTargetWeekIndex(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-black text-slate-800 outline-none focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    {tgtWeeks.map((w, idx) => (
+                      <option key={idx} value={idx}>
+                        Tuần {idx + 1} ({fmtDate(w.dates[0])} → {fmtDate(w.dates[6])})
+                      </option>
+                    ))}
+                    <option value="ALL">★ Tất cả các tuần trong tháng (Tuần 1 → 5)</option>
+                  </select>
+                </div>
+
+                <div className="pt-1">
+                  <div className="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 truncate">
+                    <Store size={13} className="text-indigo-600 shrink-0" />
+                    <span className="truncate">
+                      Siêu thị: <strong className="uppercase">{activeStoreName || 'Hiện tại'}</strong>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Options */}
+          <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2.5">
+            <h4 className="text-[12px] font-black text-slate-700 uppercase tracking-wide">Tùy chọn sao chép</h4>
+
+            <label className="flex items-start gap-2.5 cursor-pointer text-xs font-bold text-slate-700 hover:text-indigo-700 transition-colors">
+              <input
+                type="checkbox"
+                checked={replaceRoster}
+                onChange={e => setReplaceRoster(e.target.checked)}
+                className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+              />
+              <span>
+                Đồng bộ toàn bộ danh sách PG theo tháng nguồn
+                <span className="text-[11px] font-normal text-slate-500 block">
+                  Tự động sao chép tên PG, SĐT SUP và Ghi chú sang tháng đích (khuyên dùng khi sang tháng mới chưa có dữ liệu)
+                </span>
+              </span>
+            </label>
+
+            {!replaceRoster && (
+              <label className="flex items-start gap-2.5 cursor-pointer text-xs font-bold text-slate-700 hover:text-indigo-700 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={syncRoster}
+                  onChange={e => setSyncRoster(e.target.checked)}
+                  className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                />
+                <span>
+                  Thêm PG từ tuần nguồn nếu tháng đích chưa có
+                  <span className="text-[11px] font-normal text-slate-500 block">
+                    Giữ nguyên PG hiện tại của tháng đích và tự động bổ sung PG mới từ tuần nguồn
+                  </span>
+                </span>
+              </label>
+            )}
+
+            <label className="flex items-start gap-2.5 cursor-pointer text-xs font-bold text-slate-700 hover:text-indigo-700 transition-colors">
+              <input
+                type="checkbox"
+                checked={overwriteExisting}
+                onChange={e => setOverwriteExisting(e.target.checked)}
+                className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+              />
+              <span>
+                Ghi đè ca làm việc của các PG trùng tên
+                <span className="text-[11px] font-normal text-slate-500 block">
+                  Nếu bỏ chọn, chỉ điền ca cho các PG hiện đang để trống ở tuần đích
+                </span>
+              </span>
+            </label>
+          </div>
+
+          {/* Action Summary Banner */}
+          <div className="bg-gradient-to-r from-indigo-50 to-emerald-50 border border-indigo-200 rounded-xl p-3 flex items-center gap-2.5 text-xs text-indigo-900 font-semibold shadow-xs">
+            <Sparkles size={18} className="text-indigo-600 shrink-0" />
+            <div>
+              Sao chép ca từ{' '}
+              <strong className="text-indigo-950 font-black">
+                Tuần {sourceWeekIndex + 1} (Tháng {srcM + 1}/{srcY})
+              </strong>{' '}
+              sang{' '}
+              <strong className="text-emerald-950 font-black">
+                {targetWeekLabel} (Tháng {tgtM + 1}/{tgtY})
+              </strong>
+              . Dữ liệu sẽ được lưu trực tiếp vào hệ thống.
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-5 py-3 border-t border-slate-200 bg-slate-50/80">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-black text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+          >
+            Hủy bỏ
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={copying}
+            className="flex items-center gap-1.5 px-5 py-2 text-xs font-black text-white bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-700 hover:to-emerald-700 rounded-xl shadow-md disabled:opacity-50 transition-all cursor-pointer"
+          >
+            {copying ? (
+              <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />
+            ) : (
+              <Check size={15} />
+            )}
+            {copying ? 'Đang sao chép...' : 'Xác nhận sao chép & Lưu'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
+};
+
 // ─── Main page ───────────────────────────────────────────────────────────────
 const LichLamViecPG: React.FC = () => {
   const { userProfile } = useAuth();
@@ -1731,6 +2385,8 @@ const LichLamViecPG: React.FC = () => {
   const [historyLogs, setHistoryLogs] = useState<PGHistoryRecord[]>([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showImportExcelModal, setShowImportExcelModal] = useState(false);
+  const [showCopyWeekModal, setShowCopyWeekModal] = useState(false);
+  const [allMonthsLichPg, setAllMonthsLichPg] = useState<Record<string, any>>({});
   const [historyFilterPg, setHistoryFilterPg] = useState<string>('ALL');
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -1797,6 +2453,9 @@ const LichLamViecPG: React.FC = () => {
     const unsub = onSnapshot(docRef, async snap => {
       if (snap.exists()) {
         const d = snap.data() as any;
+        const allMonths = d.lich_pg || d.data_phan_ca_pg || {};
+        setAllMonthsLichPg(allMonths);
+
         const monthData = d.lich_pg?.[monthKey] || d.data_phan_ca_pg?.[monthKey];
         const hasValidRoster = monthData && (
           (Array.isArray(monthData.ictRoster) && monthData.ictRoster.length > 0) ||
@@ -1817,6 +2476,25 @@ const LichLamViecPG: React.FC = () => {
           }
           if (monthData.historyLogs) setHistoryLogs(monthData.historyLogs);
           else setHistoryLogs([]);
+          setLoaded(true);
+          return;
+        }
+
+        // Inherit roster from previous month if current month is new
+        const prevInfo = getPrevMonthInfo(selectedYear, selectedMonth);
+        const prevMonthData = d.lich_pg?.[prevInfo.monthKey] || d.data_phan_ca_pg?.[prevInfo.monthKey];
+        if (prevMonthData && (
+          (Array.isArray(prevMonthData.ictRoster) && prevMonthData.ictRoster.length > 0) ||
+          (Array.isArray(prevMonthData.dtdlgdRoster) && prevMonthData.dtdlgdRoster.length > 0)
+        )) {
+          if (!editingRef.current) {
+            setIctRoster(Array.isArray(prevMonthData.ictRoster) ? prevMonthData.ictRoster : []);
+            setDtdlgdRoster(Array.isArray(prevMonthData.dtdlgdRoster) ? prevMonthData.dtdlgdRoster : []);
+            setAllWeekData({});
+            if (Array.isArray(prevMonthData.customShifts)) setCustomShifts(prevMonthData.customShifts);
+            setAllowUserEdit({});
+            setHistoryLogs([]);
+          }
           setLoaded(true);
           return;
         }
@@ -2106,6 +2784,129 @@ const LichLamViecPG: React.FC = () => {
     });
   };
 
+  const allMonthsDataForModal = useMemo(() => {
+    return {
+      ...allMonthsLichPg,
+      [monthKey]: {
+        ...(allMonthsLichPg[monthKey] || {}),
+        ictRoster,
+        dtdlgdRoster,
+        weekData: allWeekData,
+        customShifts,
+      }
+    };
+  }, [allMonthsLichPg, monthKey, ictRoster, dtdlgdRoster, allWeekData, customShifts]);
+
+  const handleApplyCopyWeek = async ({
+    sourceMonthKey,
+    sourceMonthLabel,
+    sourceWeekIndex,
+    targetMonthKey,
+    targetMonthLabel,
+    targetWeekIndex,
+    updatedIctRoster,
+    updatedDtdlgdRoster,
+    updatedWeekData,
+    targetCustomShifts,
+    targetYear,
+    targetMonth,
+  }: {
+    sourceMonthKey: string;
+    sourceMonthLabel: string;
+    sourceWeekIndex: number;
+    targetMonthKey: string;
+    targetMonthLabel: string;
+    targetWeekIndex: number | 'ALL';
+    updatedIctRoster: PGInfo[];
+    updatedDtdlgdRoster: PGInfo[];
+    updatedWeekData: Record<string, { ict: Record<string, WeekShiftData>; dtdlgd: Record<string, WeekShiftData> }>;
+    targetCustomShifts: string[];
+    targetYear: number;
+    targetMonth: number;
+  }) => {
+    if (!targetStoreDocId) {
+      alert('Chưa chọn siêu thị để lưu Lịch PG.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const docRef = doc(db, 'store', targetStoreDocId);
+      const targetWeekStr = targetWeekIndex === 'ALL' ? 'Tất cả các tuần' : `Tuần ${targetWeekIndex + 1}`;
+      const logDesc = `Sao chép phân ca từ [Tuần ${sourceWeekIndex + 1} ${sourceMonthLabel}] sang [${targetWeekStr} ${targetMonthLabel}]`;
+
+      const newRecord: PGHistoryRecord = {
+        id: genId(),
+        timestamp: new Date().toISOString(),
+        userName: userProfile?.username || 'Ẩn danh',
+        changes: [{
+          type: 'shift',
+          pgName: 'Toàn bộ PG',
+          category: 'ICT',
+          week: targetWeekIndex === 'ALL' ? undefined : (targetWeekIndex + 1),
+          oldValue: 'Ca cũ',
+          newValue: 'Ca sao chép',
+          description: logDesc,
+        }],
+      };
+
+      const isCurrentView = targetMonthKey === monthKey;
+
+      if (isCurrentView) {
+        setIctRoster(updatedIctRoster);
+        setDtdlgdRoster(updatedDtdlgdRoster);
+        setAllWeekData(updatedWeekData);
+        setCustomShifts(targetCustomShifts);
+        if (targetWeekIndex !== 'ALL') {
+          setActiveWeek(targetWeekIndex);
+        }
+        setHistoryLogs(prev => [newRecord, ...prev].slice(0, 150));
+      }
+
+      const targetMonthPayload = sanitizeForFirestore({
+        ictRoster: updatedIctRoster,
+        dtdlgdRoster: updatedDtdlgdRoster,
+        weekData: updatedWeekData,
+        customShifts: targetCustomShifts || [],
+        historyLogs: [newRecord, ...(allMonthsLichPg[targetMonthKey]?.historyLogs || [])].slice(0, 150),
+        allowUserEdit: allMonthsLichPg[targetMonthKey]?.allowUserEdit || {},
+        updatedAt: new Date().toISOString(),
+        updatedBy: userProfile?.username || '',
+        monthKey: targetMonthKey,
+      });
+
+      const storePayload: any = {
+        id: targetStoreDocId,
+        ten_sieu_thi: activeStoreName,
+        warehouse_code: maKho || '',
+        updated_at: new Date().toISOString(),
+        lich_pg: {
+          [targetMonthKey]: targetMonthPayload,
+        }
+      };
+
+      await setDoc(docRef, storePayload, { merge: true });
+
+      setAllMonthsLichPg(prev => ({
+        ...prev,
+        [targetMonthKey]: targetMonthPayload,
+      }));
+
+      if (!isCurrentView) {
+        setSelectedYear(targetYear);
+        setSelectedMonth(targetMonth);
+        setActiveWeek(targetWeekIndex === 'ALL' ? 0 : targetWeekIndex);
+      }
+
+      alert(`Đã sao chép thành công ca làm việc từ Tuần ${sourceWeekIndex + 1} (${sourceMonthLabel}) sang ${targetWeekStr} (${targetMonthLabel})!`);
+    } catch (err: any) {
+      console.error('Lỗi khi lưu sao chép ca làm việc:', err);
+      alert('Không thể lưu dữ liệu ca làm việc: ' + (err?.message || 'Có lỗi xảy ra'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleCopyCurrentWeekToAll = () => {
     const curWkData = allWeekData[wk];
     if (!curWkData) return;
@@ -2314,6 +3115,13 @@ const LichLamViecPG: React.FC = () => {
                   title="Dán nhanh bảng phân ca từ Excel hoặc Office 365">
                   <FileSpreadsheet size={15} /> Dán từ Excel
                 </button>
+                <button
+                  onClick={() => setShowCopyWeekModal(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-indigo-800 bg-indigo-50 border border-indigo-300 rounded-xl hover:bg-indigo-100 shadow-sm transition-all cursor-pointer"
+                  title="Sao chép ca làm việc của tuần (VD: từ Tuần 5 Tháng 9 qua Tuần 1 Tháng 10)"
+                >
+                  <Copy size={15} /> Sao chép ca tuần
+                </button>
               </>
             )}
             {is43751Admin && (
@@ -2364,6 +3172,14 @@ const LichLamViecPG: React.FC = () => {
               title="Dán bảng phân ca từ Excel hoặc Office 365 vào tuần đang chọn"
             >
               <FileSpreadsheet size={15} /> Dán từ Excel
+            </button>
+            <button
+              onClick={() => setShowCopyWeekModal(true)}
+              type="button"
+              className="flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-black text-indigo-800 bg-indigo-50 border border-indigo-300 rounded-xl hover:bg-indigo-100 shadow-sm transition-all cursor-pointer"
+              title="Sao chép ca làm việc giữa các tuần hoặc khác tháng"
+            >
+              <Copy size={15} /> Sao chép ca tuần
             </button>
             <button
               onClick={handleCopyCurrentWeekToAll}
@@ -2448,6 +3264,22 @@ const LichLamViecPG: React.FC = () => {
         dtdlgdRoster={dtdlgdRoster}
         customShifts={customShifts}
         onApply={handleApplyImportExcel}
+      />
+
+      {/* Copy Week Shifts Modal */}
+      <CopyWeekShiftModal
+        isOpen={showCopyWeekModal}
+        onClose={() => setShowCopyWeekModal(false)}
+        currentYear={selectedYear}
+        currentMonth={selectedMonth}
+        currentWeekIndex={activeWeek}
+        allMonthsData={allMonthsDataForModal}
+        currentIctRoster={ictRoster}
+        currentDtdlgdRoster={dtdlgdRoster}
+        currentAllWeekData={allWeekData}
+        customShifts={customShifts}
+        activeStoreName={activeStoreName}
+        onApplyCopy={handleApplyCopyWeek}
       />
 
       {/* Image Preview Popup */}
