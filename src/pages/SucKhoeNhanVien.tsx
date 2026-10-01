@@ -2846,9 +2846,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const parsedTd2 = parseStaffValueList(thidua3t2);
     const parsedTd3 = parseStaffValueList(thidua3t3);
 
-    const parsedTracham1 = parseStaffValueList(tracham3t1, 'LAST_COLUMN');
-    const parsedTracham2 = parseStaffValueList(tracham3t2, 'LAST_COLUMN');
-    const parsedTracham3 = parseStaffValueList(tracham3t3, 'LAST_COLUMN');
+    const parsedTracham1 = parseStaffValueList(tracham3t1, 'COLUMN_3');
+    const parsedTracham2 = parseStaffValueList(tracham3t2, 'COLUMN_3');
+    const parsedTracham3 = parseStaffValueList(tracham3t3, 'COLUMN_3');
 
     const calcSum = (parsed: any[]) => parsed.reduce((acc, item) => {
       let val = item.value;
@@ -2874,9 +2874,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       thidua1Sum: calcRawSum(parsedTd1),
       thidua2Sum: calcRawSum(parsedTd2),
       thidua3Sum: calcRawSum(parsedTd3),
-      tracham1Sum: calcRawSum(parsedTracham1),
-      tracham2Sum: calcRawSum(parsedTracham2),
-      tracham3Sum: calcRawSum(parsedTracham3),
+      tracham1Sum: parsedTracham1.length > 0 ? calcRawSum(parsedTracham1) / parsedTracham1.length : 0,
+      tracham2Sum: parsedTracham2.length > 0 ? calcRawSum(parsedTracham2) / parsedTracham2.length : 0,
+      tracham3Sum: parsedTracham3.length > 0 ? calcRawSum(parsedTracham3) / parsedTracham3.length : 0,
     };
   }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, thidua3t1, thidua3t2, thidua3t3, tracham3t1, tracham3t2, tracham3t3, parseTn]);
 
@@ -2979,9 +2979,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const parsedGc2 = parseStaffValueList(giocong3t2);
     const parsedGc3 = parseStaffValueList(giocong3t3);
 
-    const parsedTracham1 = parseStaffValueList(tracham3t1, 'LAST_COLUMN');
-    const parsedTracham2 = parseStaffValueList(tracham3t2, 'LAST_COLUMN');
-    const parsedTracham3 = parseStaffValueList(tracham3t3, 'LAST_COLUMN');
+    const parsedTracham1 = parseStaffValueList(tracham3t1, 'COLUMN_3');
+    const parsedTracham2 = parseStaffValueList(tracham3t2, 'COLUMN_3');
+    const parsedTracham3 = parseStaffValueList(tracham3t3, 'COLUMN_3');
 
     const employeeMap = new Map<string, {
       id: string;
@@ -3681,29 +3681,37 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const N = filteredRank3TData.length;
     const count20 = Math.max(1, Math.round(N * 0.2));
 
-    // Sort by Trả Chậm TB (row.tracham)
-    const sortedTb = [...filteredRank3TData].sort((a, b) => (b.tracham || 0) - (a.tracham || 0));
-    const topTbKeys = new Set(sortedTb.slice(0, count20).map(item => item.id || item.name));
-    const botTbKeys = new Set(sortedTb.slice(-count20).map(item => item.id || item.name));
+    // Sort by Trả Chậm TB (row.tracham) - only consider staff with tracham > 0
+    const validTb = filteredRank3TData.filter(item => (item.tracham || 0) > 0);
+    const count20Tb = Math.max(1, Math.round(validTb.length * 0.2));
+    const sortedTb = [...validTb].sort((a, b) => (b.tracham || 0) - (a.tracham || 0));
+    const topTbKeys = validTb.length > 0 ? new Set(sortedTb.slice(0, count20Tb).map(item => item.id || item.name)) : new Set<string>();
+    const botTbKeys = validTb.length > 0 ? new Set(sortedTb.slice(-count20Tb).map(item => item.id || item.name)) : new Set<string>();
 
-    const sortedM1 = [...filteredRank3TData].sort((a, b) => (b.tracham1 || 0) - (a.tracham1 || 0));
-    const topM1Keys = new Set(sortedM1.slice(0, count20).map(item => item.id || item.name));
-    const botM1Keys = new Set(sortedM1.slice(-count20).map(item => item.id || item.name));
+    const validM1 = filteredRank3TData.filter(item => (item.tracham1 || 0) > 0);
+    const count20M1 = Math.max(1, Math.round(validM1.length * 0.2));
+    const sortedM1 = [...validM1].sort((a, b) => (b.tracham1 || 0) - (a.tracham1 || 0));
+    const topM1Keys = validM1.length > 0 ? new Set(sortedM1.slice(0, count20M1).map(item => item.id || item.name)) : new Set<string>();
+    const botM1Keys = validM1.length > 0 ? new Set(sortedM1.slice(-count20M1).map(item => item.id || item.name)) : new Set<string>();
 
-    const sortedM2 = [...filteredRank3TData].sort((a, b) => (b.tracham2 || 0) - (a.tracham2 || 0));
-    const topM2Keys = new Set(sortedM2.slice(0, count20).map(item => item.id || item.name));
-    const botM2Keys = new Set(sortedM2.slice(-count20).map(item => item.id || item.name));
+    const validM2 = filteredRank3TData.filter(item => (item.tracham2 || 0) > 0);
+    const count20M2 = Math.max(1, Math.round(validM2.length * 0.2));
+    const sortedM2 = [...validM2].sort((a, b) => (b.tracham2 || 0) - (a.tracham2 || 0));
+    const topM2Keys = validM2.length > 0 ? new Set(sortedM2.slice(0, count20M2).map(item => item.id || item.name)) : new Set<string>();
+    const botM2Keys = validM2.length > 0 ? new Set(sortedM2.slice(-count20M2).map(item => item.id || item.name)) : new Set<string>();
 
-    const sortedM3 = [...filteredRank3TData].sort((a, b) => (b.tracham3 || 0) - (a.tracham3 || 0));
-    const topM3Keys = new Set(sortedM3.slice(0, count20).map(item => item.id || item.name));
-    const botM3Keys = new Set(sortedM3.slice(-count20).map(item => item.id || item.name));
+    const validM3 = filteredRank3TData.filter(item => (item.tracham3 || 0) > 0);
+    const count20M3 = Math.max(1, Math.round(validM3.length * 0.2));
+    const sortedM3 = [...validM3].sort((a, b) => (b.tracham3 || 0) - (a.tracham3 || 0));
+    const topM3Keys = validM3.length > 0 ? new Set(sortedM3.slice(0, count20M3).map(item => item.id || item.name)) : new Set<string>();
+    const botM3Keys = validM3.length > 0 ? new Set(sortedM3.slice(-count20M3).map(item => item.id || item.name)) : new Set<string>();
 
     const stats: Record<string, { top: number; bot: number }> = {};
 
     filteredRank3TData.forEach(row => {
       const key = row.id || row.name;
-      const top = topTbKeys.has(key) ? 1 : 0;
-      const bot = botTbKeys.has(key) ? 1 : 0;
+      const top = (row.tracham > 0 && topTbKeys.has(key)) ? 1 : 0;
+      const bot = (row.tracham > 0 && botTbKeys.has(key)) ? 1 : 0;
       stats[key] = { top, bot };
     });
 
@@ -7348,24 +7356,24 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                                 <>
                                                   <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
                                                     "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
-                                                    rank3TTraChamTopBotStats.sets?.botM1Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
-                                                    rank3TTraChamTopBotStats.sets?.topM1Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
+                                                    row.tracham1 > 0 && rank3TTraChamTopBotStats.sets?.botM1Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
+                                                    row.tracham1 > 0 && rank3TTraChamTopBotStats.sets?.topM1Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
                                                     "bg-rose-50/10 text-rose-700"
                                                   )}>
                                                     {row.tracham1 ? Math.round(row.tracham1) + '%' : '0%'}
                                                   </td>
                                                   <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
                                                     "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
-                                                    rank3TTraChamTopBotStats.sets?.botM2Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
-                                                    rank3TTraChamTopBotStats.sets?.topM2Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
+                                                    row.tracham2 > 0 && rank3TTraChamTopBotStats.sets?.botM2Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
+                                                    row.tracham2 > 0 && rank3TTraChamTopBotStats.sets?.topM2Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
                                                     "bg-rose-50/10 text-rose-700"
                                                   )}>
                                                     {row.tracham2 ? Math.round(row.tracham2) + '%' : '0%'}
                                                   </td>
                                                   <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
                                                     "px-4 py-3 text-center border-r border-slate-200 font-mono font-black transition-colors whitespace-nowrap",
-                                                    rank3TTraChamTopBotStats.sets?.botM3Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
-                                                    rank3TTraChamTopBotStats.sets?.topM3Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
+                                                    row.tracham3 > 0 && rank3TTraChamTopBotStats.sets?.botM3Keys.has(key) ? "bg-rose-100/90 text-rose-700 font-black" :
+                                                    row.tracham3 > 0 && rank3TTraChamTopBotStats.sets?.topM3Keys.has(key) ? "bg-emerald-100/90 text-emerald-800 font-black" :
                                                     "bg-rose-50/10 text-rose-700"
                                                   )}>
                                                     {row.tracham3 ? Math.round(row.tracham3) + '%' : '0%'}
@@ -7374,18 +7382,20 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                               )}
                                               <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className={cn(
                                                 "px-6 py-3 text-center border-r border-slate-200 font-mono font-black whitespace-nowrap transition-colors",
-                                                tbTc.top > 0 ? "bg-[#d1fae5] text-[#065f46]" :
-                                                tbTc.bot > 0 ? "bg-[#ffe4e6] text-[#be123c]" :
+                                                row.tracham > 0 && tbTc.top > 0 ? "bg-[#d1fae5] text-[#065f46]" :
+                                                row.tracham > 0 && tbTc.bot > 0 ? "bg-[#ffe4e6] text-[#be123c]" :
                                                 "bg-rose-50/10 text-rose-700"
                                               )}>
                                                 {(() => {
-                                                  const avgTc = Math.round(row.tracham / 3);
+                                                  const activeTcCount = (tracham3t1.trim() ? 1 : 0) + (tracham3t2.trim() ? 1 : 0) + (tracham3t3.trim() ? 1 : 0) || 3;
+                                                  const avgTc = Math.round(row.tracham / activeTcCount);
                                                   return avgTc > 0 ? avgTc + '%' : '0%';
                                                 })()}
                                               </td>
                                               <td style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900 }} className="px-3 py-3 text-center border-r border-slate-200 text-[12px] whitespace-nowrap bg-rose-50/20">
                                                 {(() => {
-                                                   const avgTc = Math.round(row.tracham / 3);
+                                                   const activeTcCount = (tracham3t1.trim() ? 1 : 0) + (tracham3t2.trim() ? 1 : 0) + (tracham3t3.trim() ? 1 : 0) || 3;
+                                                   const avgTc = Math.round(row.tracham / activeTcCount);
                                                    if (avgTc === 0) {
                                                      return <span className="text-slate-300 font-normal text-xs">-</span>;
                                                    }
@@ -7407,7 +7417,8 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                             const effectiveTbTn = avgTn === 0 ? { top: 0, bot: 0 } : tbTn;
                                             
                                             const tbTc = rank3TTraChamTopBotStats.stats[key] || { top: 0, bot: 0 };
-                                            const avgTc = Math.round(row.tracham / 3);
+                                            const activeTcCount = (tracham3t1.trim() ? 1 : 0) + (tracham3t2.trim() ? 1 : 0) + (tracham3t3.trim() ? 1 : 0) || 3;
+                                            const avgTc = Math.round(row.tracham / activeTcCount);
                                             const effectiveTbTc = avgTc === 0 ? { top: 0, bot: 0 } : tbTc;
 
                                             const totalTop = (showDtqdGroup ? tbDtqd.top : 0) + 

@@ -3172,8 +3172,10 @@ export const parseStaffValueList = (text: string, targetHeaderKeyword?: string):
     'stt', 'luong', 'thuong', 'doanh thu', 'he so'
   ];
 
+  const isColumn3Mode = targetHeaderKeyword === 'COLUMN_3' || targetHeaderKeyword === 'COL_3' || targetHeaderKeyword === 'TRA_CHAM';
+
   let targetColIdx = -1;
-  if (targetHeaderKeyword && targetHeaderKeyword !== 'LAST_COLUMN') {
+  if (!isColumn3Mode && targetHeaderKeyword && targetHeaderKeyword !== 'LAST_COLUMN') {
     const keywordNorm = normalize(targetHeaderKeyword);
     for (let i = 0; i < Math.min(lines.length, 5); i++) {
       let cols = lines[i].split('\t').map(c => c.trim());
@@ -3205,6 +3207,96 @@ export const parseStaffValueList = (text: string, targetHeaderKeyword?: string):
     let id = '';
     let name = '';
     let value = 0;
+
+    if (isColumn3Mode) {
+      // User requirement: % TC nằm ở cột thứ 3 từ trái sang (cols[2]). VD 64.06 = 64%
+      // If only 2 cols exist, fallback to cols[1].
+      const valColIdx = cols.length >= 3 ? 2 : 1;
+      const rawVal = cols[valColIdx];
+      
+      const cleanVal = cleanNum(rawVal);
+      // Skip if value is not numeric or looks like header text
+      if (isNaN(cleanVal) || (!/\d/.test(rawVal) && rawVal.toLowerCase().includes('chậm'))) {
+        return;
+      }
+      
+      value = cleanVal;
+      // If entered as decimal percentage e.g. 0.6406 instead of 64.06, convert to percentage scale
+      if (value > 0 && value <= 1.0) {
+        value = value * 100;
+      }
+
+      // Check remaining columns for Name and Employee ID
+      const otherCols = cols.filter((_, idx) => idx !== valColIdx);
+
+      // 1. Combined ID/Name
+      otherCols.forEach(col => {
+        if (!col) return;
+        const m1 = col.match(/(.+)[\s-–—]+(\d{4,8})$/);
+        const m2 = col.match(/^(\d{4,8})[\s-–—]+(.+)$/);
+        if (m1) {
+          if (!id) id = m1[2].trim();
+          if (!name) name = m1[1].trim();
+        } else if (m2) {
+          if (!id) id = m2[1].trim();
+          if (!name) name = m2[2].trim();
+        }
+      });
+
+      // 2. Pure 4-8 digit employee ID
+      if (!id) {
+        for (const col of otherCols) {
+          if (/^\d{4,8}$/.test(col.trim())) {
+            id = col.trim();
+            break;
+          }
+        }
+      }
+
+      // 3. Regex search for 4-8 digits in any other column
+      if (!id) {
+        for (const col of otherCols) {
+          const m = col.match(/\b(\d{4,8})\b/);
+          if (m) {
+            id = m[1];
+            break;
+          }
+        }
+      }
+
+      // 4. Name extraction: pick column containing letters (ignoring pure numbers like STT)
+      if (!name) {
+        const nameCandidates = otherCols.filter(col => {
+          const trimmed = col.trim();
+          if (/^\d+$/.test(trimmed)) return false; // STT or pure number
+          if (id && trimmed === id) return false;
+          return /[a-zA-Z]/.test(normalize(trimmed));
+        });
+        if (nameCandidates.length > 0) {
+          if (cols.length >= 2 && nameCandidates.includes(cols[1])) {
+            name = cols[1].trim();
+          } else {
+            name = nameCandidates[0].trim();
+          }
+        }
+      }
+
+      if (name) {
+        name = name.replace(/[-–—\s]+$/, '').trim();
+      }
+
+      const hasValidLetters = Boolean(name && (normalize(name).match(/[a-z]/g) || []).length >= 2);
+      const hasValidEmpId = Boolean(id && /^\d{4,8}$/.test(id.trim()));
+
+      if (hasValidLetters || hasValidEmpId) {
+        results.push({
+          id: id || name,
+          name: name || id,
+          value
+        });
+      }
+      return;
+    }
 
     // Parse combined ID/Name in columns first
     cols.forEach(col => {
