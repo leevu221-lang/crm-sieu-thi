@@ -193,11 +193,22 @@ const DEFAULT_CONFIG: QrPrintConfig = {
   showProductName: true,
   showImei: true,
   showStatus: true, // Mặc định hiển thị dòng Trạng thái nếu có dữ liệu
-  statusPosition: 'bottom', // Mặc định hiển thị ở dưới cùng (dưới IMEI/Tên SP)
+  statusPosition: 'top', // Mặc định nằm phía trên mã QR theo yêu cầu người dùng
   showStoreName: false,
   storeNameText: 'ĐIỆN MÁY XANH',
   borderStyle: 'dashed',
   textAlign: 'center',
+};
+
+// Loại bỏ tiền tố "Trạng thái:" / "TT:" để chỉ hiển thị giá trị như "1 - Mới" hoặc "3 - Trưng Bày"
+const cleanStatusText = (status?: string) => {
+  if (!status) return '';
+  return String(status)
+    .replace(/^trạng\s*thái[:\s-]*/i, '')
+    .replace(/^tình\s*trạng[:\s-]*/i, '')
+    .replace(/^status[:\s-]*/i, '')
+    .replace(/^tt[:\s-]*/i, '')
+    .trim();
 };
 
 const STORAGE_PRODUCTS_KEY = 'crm_tienich_in_qr_sp_products';
@@ -235,7 +246,7 @@ export const InQrSpTab: React.FC = () => {
           maxNameLines: parsed.maxNameLines !== undefined ? parsed.maxNameLines : 0,
           autoFitName: parsed.autoFitName !== undefined ? parsed.autoFitName : true,
           showStatus: parsed.showStatus !== undefined ? parsed.showStatus : true,
-          statusPosition: parsed.statusPosition || 'bottom',
+          statusPosition: parsed.statusPosition === 'under_code' ? 'under_code' : parsed.statusPosition === 'bottom' ? 'bottom' : 'top',
         };
       }
     } catch {}
@@ -775,15 +786,16 @@ export const InQrSpTab: React.FC = () => {
 
     // Tính toán kích thước QR tối ưu không làm tràn chữ khi có nhiều hàng/cột
     const hasStatus = Boolean(config.showStatus && item.status);
+    const statusPos = config.statusPosition || 'top';
     const approxRowHeightPx = (1123 - 48 - (rows - 1) * 8) / rows;
     const reservedTextHeightPx = 
       (config.showStoreName ? 14 : 0) + 
-      (hasStatus && config.statusPosition === 'top' ? 14 : 0) +
+      (hasStatus && statusPos === 'top' ? (isCompact ? 13 : 15) : 0) + 
       (config.showCodeText ? (isCompact ? 13 : 16) : 0) + 
-      (hasStatus && config.statusPosition === 'under_code' ? (isCompact ? 11 : 13) : 0) +
+      (hasStatus && statusPos === 'under_code' ? (isCompact ? 11 : 13) : 0) +
       estimatedNameHeightPx + 
       (config.showImei && item.imei ? (isCompact ? 11 : 13) : 0) + 
-      (hasStatus && (!config.statusPosition || config.statusPosition === 'bottom') ? (isCompact ? 11 : 13) : 0) +
+      (hasStatus && statusPos === 'bottom' ? (isCompact ? 11 : 13) : 0) +
       8;
     const maxSafeQrHeightPx = Math.max(28, approxRowHeightPx - reservedTextHeightPx);
     const maxSafeQrWidthPx = Math.max(28, approxColWidthPx - 14);
@@ -821,11 +833,11 @@ export const InQrSpTab: React.FC = () => {
           </div>
         )}
 
-        {/* Dòng trạng thái nếu chọn vị trí phía trên QR */}
-        {hasStatus && config.statusPosition === 'top' && (
-          <div className="w-full text-center pb-0.5 border-b border-slate-100">
-            <span className={`${isCompact ? 'text-[8px]' : 'text-[9px]'} font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md truncate inline-block max-w-full`}>
-              Trạng thái: {item.status.replace(/^trạng\s*thái[:\s]*/i, '')}
+        {/* Dòng trạng thái phía trên QR (Mặc định: 1 - Mới, 3 - Trưng Bày) */}
+        {hasStatus && statusPos === 'top' && (
+          <div className="w-full text-center pb-0.5 border-b border-slate-100 flex items-center justify-center">
+            <span className={`${isCompact ? 'text-[8.5px]' : 'text-[9.5px]'} font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full inline-block truncate max-w-full leading-none tracking-tight shadow-2xs`}>
+              {cleanStatusText(item.status)}
             </span>
           </div>
         )}
@@ -859,9 +871,9 @@ export const InQrSpTab: React.FC = () => {
           )}
 
           {/* Dòng trạng thái nếu chọn vị trí dưới Mã SP */}
-          {hasStatus && config.statusPosition === 'under_code' && (
-            <div className={`${isCompact ? 'text-[8px]' : 'text-[9px]'} text-slate-500 font-medium mt-0.5 line-clamp-1`}>
-              Trạng thái: <span className="font-bold text-slate-800">{item.status.replace(/^trạng\s*thái[:\s]*/i, '')}</span>
+          {hasStatus && statusPos === 'under_code' && (
+            <div className={`${isCompact ? 'text-[8px]' : 'text-[9px]'} font-bold text-emerald-700 mt-0.5 line-clamp-1`}>
+              {cleanStatusText(item.status)}
             </div>
           )}
 
@@ -898,10 +910,10 @@ export const InQrSpTab: React.FC = () => {
             </div>
           )}
 
-          {/* Dòng trạng thái dưới cùng (sau IMEI/Tên SP) - Mặc định */}
-          {hasStatus && (!config.statusPosition || config.statusPosition === 'bottom') && (
-            <div className={`${isCompact ? 'text-[8px]' : 'text-[9px]'} text-slate-500 font-medium mt-0.5 line-clamp-1`}>
-              Trạng thái: <span className="font-bold text-slate-800">{item.status.replace(/^trạng\s*thái[:\s]*/i, '')}</span>
+          {/* Dòng trạng thái dưới cùng (sau IMEI/Tên SP) */}
+          {hasStatus && statusPos === 'bottom' && (
+            <div className={`${isCompact ? 'text-[8px]' : 'text-[9px]'} font-bold text-emerald-700 mt-0.5 line-clamp-1`}>
+              {cleanStatusText(item.status)}
             </div>
           )}
         </div>
@@ -1570,24 +1582,24 @@ export const InQrSpTab: React.FC = () => {
                       onChange={e => setConfig(prev => ({ ...prev, showStatus: e.target.checked }))}
                       className="rounded text-sky-600 focus:ring-0"
                     />
-                    <span className="text-xs font-bold text-slate-800">Hiển thị dòng Trạng thái (nếu có dữ liệu)</span>
+                    <span className="text-xs font-bold text-slate-800">Hiển thị Trạng thái (1 - Mới, 3 - Trưng Bày...)</span>
                   </label>
 
                   {config.showStatus && (
                     <div className="pl-6 space-y-1.5 py-1">
-                      <span className="text-[11px] font-bold text-slate-600 block">Vị trí hiển thị dòng Trạng thái:</span>
+                      <span className="text-[11px] font-bold text-slate-600 block">Vị trí hiển thị trạng thái:</span>
                       <div className="grid grid-cols-3 gap-1.5">
                         {[
-                          { id: 'bottom', label: 'Dưới cùng' },
+                          { id: 'top', label: 'Trên QR (Mặc định)' },
                           { id: 'under_code', label: 'Dưới Mã SP' },
-                          { id: 'top', label: 'Phía trên QR' },
+                          { id: 'bottom', label: 'Dưới cùng' },
                         ].map(pos => (
                           <button
                             key={pos.id}
                             type="button"
                             onClick={() => setConfig(prev => ({ ...prev, statusPosition: pos.id as any }))}
                             className={`py-1.5 px-2 rounded-lg text-[10.5px] font-bold border text-center transition-all cursor-pointer ${
-                              (config.statusPosition || 'bottom') === pos.id
+                              (config.statusPosition || 'top') === pos.id
                                 ? 'bg-sky-50 border-sky-400 text-sky-700 shadow-xs'
                                 : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                             }`}
