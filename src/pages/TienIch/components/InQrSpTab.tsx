@@ -31,7 +31,8 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   Minus,
-  Sliders
+  Sliders,
+  ExternalLink
 } from 'lucide-react';
 import { domToPng } from 'modern-screenshot';
 import { useStore } from '../../../contexts/StoreContext';
@@ -998,6 +999,18 @@ export const InQrSpTab: React.FC = () => {
             <p className="text-xs text-slate-500 font-medium mt-0.5">
               Tạo và in hàng loạt mã QR từ cột Mã SP kèm tên sản phẩm bên dưới theo khổ giấy A4
             </p>
+            <div className="mt-1">
+              <a
+                href="https://report.mwgroup.vn/home/dashboard/4286"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs font-bold text-sky-600 hover:text-sky-800 hover:underline transition-colors"
+                title="Mở link đổ tồn kho chi tiết (MWG Report)"
+              >
+                <span>Link đổ tồn kho chi tiết &gt;</span>
+                <ExternalLink size={12} className="text-sky-500" />
+              </a>
+            </div>
           </div>
         </div>
 
@@ -1721,6 +1734,9 @@ export const InQrSpTab: React.FC = () => {
               <span>MẸO DÙNG EXCEL NHANH:</span>
             </div>
             <ul className="text-[11px] space-y-1 text-sky-700 list-disc pl-4 font-medium leading-relaxed">
+              <li>
+                Lấy dữ liệu tồn kho nhanh: <a href="https://report.mwgroup.vn/home/dashboard/4286" target="_blank" rel="noopener noreferrer" className="font-bold underline text-sky-700 hover:text-sky-900">Link đổ tồn kho chi tiết &gt;</a>
+              </li>
               <li>Chỉ cần bôi đen và copy các cột từ Excel (gồm cột <strong>Mã SP</strong>, <strong>Tên SP</strong>, và <strong>Số lượng</strong>) rồi bấm <strong>"Dán từ Excel"</strong>.</li>
               <li>Hệ thống tự động nhận diện các cột và loại bỏ khoảng trắng thừa.</li>
               <li>Dùng nút <strong>[+]</strong> và <strong>[-]</strong> để tăng giảm số lượng tem in cho từng sản phẩm.</li>
