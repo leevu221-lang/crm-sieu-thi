@@ -92,6 +92,33 @@ const extractMonthNumber = (str: string): number => {
   return (fallback >= 1 && fallback <= 12) ? fallback : 0;
 };
 
+export const getMonthDaysInfo = (
+  monthStr: string,
+  currentSystemMonth: number = new Date().getMonth() + 1,
+  currentYear: number = new Date().getFullYear(),
+  currentDaysPassed: number = 0
+) => {
+  const mNum = extractMonthNumber(monthStr);
+  if (!mNum) return { mNum: 0, totalDays: 30, daysPassed: 30, isCurrent: false };
+
+  // Số ngày chuẩn của tháng (VD Tháng 7: 31, Tháng 8: 31, Tháng 9: 30, Tháng 10: 31, Tháng 2: 28/29)
+  const totalDaysInMonth = new Date(currentYear, mNum, 0).getDate();
+  const isCurrent = mNum === currentSystemMonth;
+
+  // Nếu là tháng hiện tại (VD tháng 10): auto lấy theo số ngày hiện tại của tháng (currentDaysPassed hoặc ngày hôm nay)
+  // Nếu là tháng khác (VD Tháng 7 có 31 ngày): auto lấy theo đủ số ngày của tháng đó
+  const daysPassedInMonth = isCurrent
+    ? (currentDaysPassed > 0 ? Math.min(currentDaysPassed, totalDaysInMonth) : Math.min(new Date().getDate(), totalDaysInMonth))
+    : totalDaysInMonth;
+
+  return {
+    mNum,
+    totalDays: totalDaysInMonth,
+    daysPassed: daysPassedInMonth,
+    isCurrent
+  };
+};
+
 const splitLine = (l: string): string[] => {
   if (l.includes('\t')) {
     return l.split('\t').map(p => p.trim());
@@ -1293,6 +1320,13 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     allStoreTargets
   } = useRTSTSharedData(maKho);
   const { tragopMatran, tragopNv: luykeTragopNv, categoryTargets, processedData, staffInput, staffCategoryInput, loadData: loadLuykeData, isLoading: isLuykeLoading, allStoresCache } = useLuykeData(maKho);
+
+  const currentSystemMonth = new Date().getMonth() + 1;
+  const currentYear = new Date().getFullYear();
+
+  const rankMonth1DaysInfo = useMemo(() => getMonthDaysInfo(rankMonth1, currentSystemMonth, currentYear, daysPassed), [rankMonth1, currentSystemMonth, currentYear, daysPassed]);
+  const rankMonth2DaysInfo = useMemo(() => getMonthDaysInfo(rankMonth2, currentSystemMonth, currentYear, daysPassed), [rankMonth2, currentSystemMonth, currentYear, daysPassed]);
+  const rankMonth3DaysInfo = useMemo(() => getMonthDaysInfo(rankMonth3, currentSystemMonth, currentYear, daysPassed), [rankMonth3, currentSystemMonth, currentYear, daysPassed]);
 
   const isDataLoading = isHealthLoading || isLuykeLoading;
 
@@ -3166,25 +3200,17 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       let thunhap = emp.thunhap;
       if (thunhap > 0 && thunhap < 1000000) thunhap = thunhap * 1000000;
 
-      const currentSystemMonth = new Date().getMonth() + 1;
-      const m1Num = extractMonthNumber(rankMonth1) || 4;
-      const m2Num = extractMonthNumber(rankMonth2) || 5;
-      const m3Num = extractMonthNumber(rankMonth3) || 6;
-      const isM1CurrentMonth = m1Num === currentSystemMonth;
-      const isM2CurrentMonth = m2Num === currentSystemMonth;
-      const isM3CurrentMonth = m3Num === currentSystemMonth;
-
-      if (isProjectedMonth1 && (isM1CurrentMonth || daysPassed > 0) && daysPassed > 0) {
-        dtqd1 = (dtqd1 / daysPassed) * totalDays;
-        thunhap1 = (thunhap1 / daysPassed) * totalDays;
+      if ((isProjectedMonth1 || rankMonth1DaysInfo.isCurrent) && rankMonth1DaysInfo.daysPassed > 0 && rankMonth1DaysInfo.daysPassed < rankMonth1DaysInfo.totalDays) {
+        dtqd1 = (dtqd1 / rankMonth1DaysInfo.daysPassed) * rankMonth1DaysInfo.totalDays;
+        thunhap1 = (thunhap1 / rankMonth1DaysInfo.daysPassed) * rankMonth1DaysInfo.totalDays;
       }
-      if (isProjectedMonth2 && (isM2CurrentMonth || daysPassed > 0) && daysPassed > 0) {
-        dtqd2 = (dtqd2 / daysPassed) * totalDays;
-        thunhap2 = (thunhap2 / daysPassed) * totalDays;
+      if ((isProjectedMonth2 || rankMonth2DaysInfo.isCurrent) && rankMonth2DaysInfo.daysPassed > 0 && rankMonth2DaysInfo.daysPassed < rankMonth2DaysInfo.totalDays) {
+        dtqd2 = (dtqd2 / rankMonth2DaysInfo.daysPassed) * rankMonth2DaysInfo.totalDays;
+        thunhap2 = (thunhap2 / rankMonth2DaysInfo.daysPassed) * rankMonth2DaysInfo.totalDays;
       }
-      if (isProjectedMonth3 && (isM3CurrentMonth || daysPassed > 0) && daysPassed > 0) {
-        dtqd3 = (dtqd3 / daysPassed) * totalDays;
-        thunhap3 = (thunhap3 / daysPassed) * totalDays;
+      if ((isProjectedMonth3 || rankMonth3DaysInfo.isCurrent) && rankMonth3DaysInfo.daysPassed > 0 && rankMonth3DaysInfo.daysPassed < rankMonth3DaysInfo.totalDays) {
+        dtqd3 = (dtqd3 / rankMonth3DaysInfo.daysPassed) * rankMonth3DaysInfo.totalDays;
+        thunhap3 = (thunhap3 / rankMonth3DaysInfo.daysPassed) * rankMonth3DaysInfo.totalDays;
       }
 
       dtqd = dtqd1 + dtqd2 + dtqd3;
@@ -3227,7 +3253,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     })
     .filter(emp => emp.dtqd > 0 || emp.thunhap > 0 || emp.nganhhang > 0 || emp.giocong > 0 || emp.tracham > 0)
     .sort((a, b) => b.dtqd - a.dtqd);
-  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, tracham3t1, tracham3t2, tracham3t3, parseTn, isProjectedMonth1, isProjectedMonth2, isProjectedMonth3, daysPassed, totalDays, rankMonth1, rankMonth2, rankMonth3]);
+  }, [dtqd3t1, dtqd3t2, dtqd3t3, thunhap3t1, thunhap3t2, thunhap3t3, nganhhang3t1, nganhhang3t2, nganhhang3t3, giocong3t1, giocong3t2, giocong3t3, tracham3t1, tracham3t2, tracham3t3, parseTn, isProjectedMonth1, isProjectedMonth2, isProjectedMonth3, daysPassed, totalDays, rankMonth1, rankMonth2, rankMonth3, rankMonth1DaysInfo, rankMonth2DaysInfo, rankMonth3DaysInfo]);
 
   const filteredRank3TData = useMemo(() => {
     // Synchronize 3-Month Ranking table directly with BỘ LỌC NHÂN VIÊN ở đầu trang (selectedStaffIds)
@@ -3384,7 +3410,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     const calcMonth = (
       nganhhangInput: string, 
       thiduaInput: string, 
-      mDaysPassed: number = 0, 
+      mDaysPassed: number = 30, 
       mTotalDays: number = 30,
       isCurrentMonth: boolean = false,
       preParsedStoreData?: { categories: string[]; categoryObjects: any[]; totalCat: number }
@@ -3412,7 +3438,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
           const effectiveMarkets = allowedMarkets.length > 0 
             ? allowedMarkets 
             : [{ id: maKho, name: marketFilter !== 'ALL' ? marketFilter : (tenSieuThi || maKho) }];
-          const parsedCategoryTargets = parseCategoryData(thiduaInput.trim(), 0, 30, effectiveMarkets, 'LUYKE');
+          const parsedCategoryTargets = parseCategoryData(thiduaInput.trim(), mDaysPassed, mTotalDays, effectiveMarkets, 'LUYKE');
           const filteredCategoryTargets = parsedCategoryTargets.filter((c: any) => isCategoryForMarket(c, marketFilter));
           
           // Deduplicate unique categories per store using cleanCategoryName
@@ -3433,7 +3459,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         ? filteredLuykeCategories
         : targetCatsToUse;
 
-      // Only apply categoryConfig filter for current month (e.g. Month 9).
+      // Only apply categoryConfig filter for current month (e.g. Month 9/10).
       // Historical months (T7, T8) must use all competition categories defined in that month's store report.
       const configToUse = isCurrentMonth ? categoryConfig : undefined;
 
@@ -3453,34 +3479,31 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
       return { staffMatrix, totalCat: finalTotalCat };
     };
 
-    const currentSystemMonth = new Date().getMonth() + 1;
-    const m1Num = extractMonthNumber(rankMonth1) || 4;
-    const m2Num = extractMonthNumber(rankMonth2) || 5;
-    const m3Num = extractMonthNumber(rankMonth3) || 6;
-    const isM1CurrentMonth = m1Num === currentSystemMonth;
-    const isM2CurrentMonth = m2Num === currentSystemMonth;
-    const isM3CurrentMonth = m3Num === currentSystemMonth;
+    const m1 = calcMonth(
+      nganhhang3t1,
+      thidua3t1,
+      rankMonth1DaysInfo.daysPassed,
+      rankMonth1DaysInfo.totalDays,
+      rankMonth1DaysInfo.isCurrent || isProjectedMonth1,
+      m1StoreData
+    );
 
-    let m1;
-    if (isProjectedMonth1 && daysPassed > 0) {
-      m1 = calcMonth(nganhhang3t1, thidua3t1, daysPassed, totalDays, isM1CurrentMonth || isProjectedMonth1, m1StoreData);
-    } else {
-      m1 = calcMonth(nganhhang3t1, thidua3t1, 0, 30, isM1CurrentMonth, m1StoreData);
-    }
+    const m2 = calcMonth(
+      nganhhang3t2,
+      thidua3t2,
+      rankMonth2DaysInfo.daysPassed,
+      rankMonth2DaysInfo.totalDays,
+      rankMonth2DaysInfo.isCurrent || isProjectedMonth2,
+      m2StoreData
+    );
 
-    let m2;
-    if (isProjectedMonth2 && daysPassed > 0) {
-      m2 = calcMonth(nganhhang3t2, thidua3t2, daysPassed, totalDays, isM2CurrentMonth || isProjectedMonth2, m2StoreData);
-    } else {
-      m2 = calcMonth(nganhhang3t2, thidua3t2, 0, 30, isM2CurrentMonth, m2StoreData);
-    }
-    
-    let m3;
-    if (isProjectedMonth3 && daysPassed > 0) {
-      m3 = calcMonth(nganhhang3t3, thidua3t3, daysPassed, totalDays, isM3CurrentMonth || isProjectedMonth3);
-    } else {
-      m3 = calcMonth(nganhhang3t3, thidua3t3, 0, 30, isM3CurrentMonth);
-    }
+    const m3 = calcMonth(
+      nganhhang3t3,
+      thidua3t3,
+      rankMonth3DaysInfo.daysPassed,
+      rankMonth3DaysInfo.totalDays,
+      rankMonth3DaysInfo.isCurrent || isProjectedMonth3
+    );
 
     const scores: Record<string, {
       m1Text: string;
@@ -3528,7 +3551,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     });
 
     return scores;
-  }, [filteredRank3TData, nganhhang3t1, thidua3t1, nganhhang3t2, thidua3t2, nganhhang3t3, thidua3t3, thiDuaNv, categoryTargets, filteredLuykeCategories, categoryConfig, marketFilter, allowedMarkets, mainStoreCategories, isProjectedMonth1, isProjectedMonth2, isProjectedMonth3, daysPassed, totalDays, rankMonth1, rankMonth2, rankMonth3, m1StoreData, m2StoreData]);
+  }, [filteredRank3TData, nganhhang3t1, thidua3t1, nganhhang3t2, thidua3t2, nganhhang3t3, thidua3t3, thiDuaNv, categoryTargets, filteredLuykeCategories, categoryConfig, marketFilter, allowedMarkets, mainStoreCategories, isProjectedMonth1, isProjectedMonth2, isProjectedMonth3, daysPassed, totalDays, rankMonth1, rankMonth2, rankMonth3, rankMonth1DaysInfo, rankMonth2DaysInfo, rankMonth3DaysInfo, m1StoreData, m2StoreData]);
 
   const rank3TNganhHangTopBotStats = useMemo(() => {
     if (!filteredRank3TData || filteredRank3TData.length === 0) return { stats: {}, sets: null };
@@ -6195,7 +6218,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">THI ĐUA NHÂN VIÊN ({rankMonth1})</label>
+                              <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">THI ĐUA NHÂN VIÊN ({rankMonth1} - {rankMonth1DaysInfo.isCurrent ? `${rankMonth1DaysInfo.daysPassed}/${rankMonth1DaysInfo.totalDays} ngày` : `${rankMonth1DaysInfo.totalDays} ngày`})</label>
                               <span className="text-[10px] font-black text-indigo-600">{nganhhang1Sum.toLocaleString('vi-VN')}</span>
                             </div>
                             <textarea
@@ -6207,7 +6230,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">Thi Đua Siêu Thị ({rankMonth1})</label>
+                              <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">Thi Đua Siêu Thị ({rankMonth1} - {rankMonth1DaysInfo.isCurrent ? `${rankMonth1DaysInfo.daysPassed}/${rankMonth1DaysInfo.totalDays} ngày` : `${rankMonth1DaysInfo.totalDays} ngày`})</label>
                               <span className="text-[10px] font-black text-purple-600">
                                 {m1StoreData.totalCat > 0 ? `${m1StoreData.totalCat} ngành hàng` : (thidua1Sum > 0 ? thidua1Sum.toLocaleString('vi-VN') : '')}
                               </span>
@@ -6334,7 +6357,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">THI ĐUA NHÂN VIÊN ({rankMonth2})</label>
+                              <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">THI ĐUA NHÂN VIÊN ({rankMonth2} - {rankMonth2DaysInfo.isCurrent ? `${rankMonth2DaysInfo.daysPassed}/${rankMonth2DaysInfo.totalDays} ngày` : `${rankMonth2DaysInfo.totalDays} ngày`})</label>
                               <span className="text-[10px] font-black text-indigo-600">{nganhhang2Sum.toLocaleString('vi-VN')}</span>
                             </div>
                             <textarea
@@ -6346,7 +6369,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">Thi Đua Siêu Thị ({rankMonth2})</label>
+                              <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">Thi Đua Siêu Thị ({rankMonth2} - {rankMonth2DaysInfo.isCurrent ? `${rankMonth2DaysInfo.daysPassed}/${rankMonth2DaysInfo.totalDays} ngày` : `${rankMonth2DaysInfo.totalDays} ngày`})</label>
                               <span className="text-[10px] font-black text-purple-600">
                                 {m2StoreData.totalCat > 0 ? `${m2StoreData.totalCat} ngành hàng` : (thidua2Sum > 0 ? thidua2Sum.toLocaleString('vi-VN') : '')}
                               </span>
@@ -6514,7 +6537,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">THI ĐUA NHÂN VIÊN ({rankMonth3})</label>
+                              <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">THI ĐUA NHÂN VIÊN ({rankMonth3} - {rankMonth3DaysInfo.isCurrent ? `${rankMonth3DaysInfo.daysPassed}/${rankMonth3DaysInfo.totalDays} ngày` : `${rankMonth3DaysInfo.totalDays} ngày`})</label>
                               <div className="flex items-center gap-1.5">
                                 <button
                                   onClick={() => setConfirmModal({ title: 'Đồng bộ Thi Đua NV', message: 'Đồng bộ dữ liệu từ CẬP NHẬT > CẤU HÌNH SIÊU THỊ > THI ĐUA NV vào cột ' + rankMonth3 + '?\nDữ liệu cũ sẽ bị ghi đè.', variant: 'info', onConfirm: () => { if (thiDuaNv) setNganhhang3t3(thiDuaNv); else alert('Chưa có dữ liệu Thi Đua NV từ CẤU HÌNH SIÊU THỊ'); } })}
@@ -6535,7 +6558,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           </div>
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">Thi Đua Siêu Thị ({rankMonth3})</label>
+                              <label className="text-[11px] font-black text-slate-900 uppercase tracking-wider block">Thi Đua Siêu Thị ({rankMonth3} - {rankMonth3DaysInfo.isCurrent ? `${rankMonth3DaysInfo.daysPassed}/${rankMonth3DaysInfo.totalDays} ngày` : `${rankMonth3DaysInfo.totalDays} ngày`})</label>
                               <div className="flex items-center gap-1.5">
                                 <button
                                   onClick={() => setConfirmModal({ title: 'Đồng bộ Thi Đua Siêu Thị', message: 'Đồng bộ dữ liệu từ CẬP NHẬT > THI ĐUA CỤM > LUỸ KẾ TĐ vào cột ' + rankMonth3 + '?\nDữ liệu cũ sẽ bị ghi đè.', variant: 'info', onConfirm: () => { if (luyKeNganhHang) setThidua3t3(luyKeNganhHang); else alert('Chưa có dữ liệu Thi Đua Siêu Thị từ THI ĐUA CỤM'); } })}
@@ -6728,10 +6751,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                         </label>
 
                         {/* New Toggles for Projected Months */}
-                        {(extractMonthNumber(rankMonth1) || 4) === new Date().getMonth() + 1 && (
+                        {rankMonth1DaysInfo.isCurrent && (
                           <label className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors shadow-sm group">
                             <span className="flex items-center gap-2 text-[12px] font-bold text-slate-700 uppercase tracking-wider group-hover:text-amber-600 transition-colors">
-                              <TrendingUp size={16} /> DỰ KIẾN THÁNG {(extractMonthNumber(rankMonth1) || 4)}
+                              <TrendingUp size={16} /> DỰ KIẾN THÁNG {rankMonth1DaysInfo.mNum} ({rankMonth1DaysInfo.daysPassed}/{rankMonth1DaysInfo.totalDays} ngày)
                             </span>
                             <div className="relative">
                               <input
@@ -6751,10 +6774,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                             </div>
                           </label>
                         )}
-                        {(extractMonthNumber(rankMonth2) || 5) === new Date().getMonth() + 1 && (
+                        {rankMonth2DaysInfo.isCurrent && (
                           <label className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors shadow-sm group">
                             <span className="flex items-center gap-2 text-[12px] font-bold text-slate-700 uppercase tracking-wider group-hover:text-amber-600 transition-colors">
-                              <TrendingUp size={16} /> DỰ KIẾN THÁNG {(extractMonthNumber(rankMonth2) || 5)}
+                              <TrendingUp size={16} /> DỰ KIẾN THÁNG {rankMonth2DaysInfo.mNum} ({rankMonth2DaysInfo.daysPassed}/{rankMonth2DaysInfo.totalDays} ngày)
                             </span>
                             <div className="relative">
                               <input
@@ -6774,10 +6797,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                             </div>
                           </label>
                         )}
-                        {(extractMonthNumber(rankMonth3) || 6) === new Date().getMonth() + 1 && (
+                        {rankMonth3DaysInfo.isCurrent && (
                           <label className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors shadow-sm group">
                             <span className="flex items-center gap-2 text-[12px] font-bold text-slate-700 uppercase tracking-wider group-hover:text-amber-600 transition-colors">
-                              <TrendingUp size={16} /> DỰ KIẾN THÁNG {(extractMonthNumber(rankMonth3) || 6)}
+                              <TrendingUp size={16} /> DỰ KIẾN THÁNG {rankMonth3DaysInfo.mNum} ({rankMonth3DaysInfo.daysPassed}/{rankMonth3DaysInfo.totalDays} ngày)
                             </span>
                             <div className="relative">
                               <input
@@ -6993,9 +7016,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                       <>
                                         {showMonthlyDtqd && (
                                           <>
-                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth1.replace('Tháng ', 'T')}{isProjectedMonth1 ? ' (DK)' : ''}</th>
-                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth2.replace('Tháng ', 'T')}{isProjectedMonth2 ? ' (DK)' : ''}</th>
-                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth3.replace('Tháng ', 'T')}{isProjectedMonth3 ? ' (DK)' : ''}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth1.replace('Tháng ', 'T')}{(isProjectedMonth1 || rankMonth1DaysInfo.isCurrent) && rankMonth1DaysInfo.daysPassed < rankMonth1DaysInfo.totalDays ? ' (DK)' : ''}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth2.replace('Tháng ', 'T')}{(isProjectedMonth2 || rankMonth2DaysInfo.isCurrent) && rankMonth2DaysInfo.daysPassed < rankMonth2DaysInfo.totalDays ? ' (DK)' : ''}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-4 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ {rankMonth3.replace('Tháng ', 'T')}{(isProjectedMonth3 || rankMonth3DaysInfo.isCurrent) && rankMonth3DaysInfo.daysPassed < rankMonth3DaysInfo.totalDays ? ' (DK)' : ''}</th>
                                           </>
                                         )}
                                         <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ffcb05' }} className="px-6 py-2.5 border-r border-white/20 text-[#0f172a] font-sans font-black text-center whitespace-nowrap">DTQĐ TB</th>
@@ -7007,9 +7030,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                       <>
                                         {showMonthlyDtqd && (
                                           <>
-                                            <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth1.replace('Tháng ', 'T')}{isProjectedMonth1 ? ' (DK)' : ''}</th>
-                                            <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth2.replace('Tháng ', 'T')}{isProjectedMonth2 ? ' (DK)' : ''}</th>
-                                            <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth3.replace('Tháng ', 'T')}{isProjectedMonth3 ? ' (DK)' : ''}</th>
+                                            <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth1.replace('Tháng ', 'T')}{(isProjectedMonth1 || rankMonth1DaysInfo.isCurrent) && rankMonth1DaysInfo.daysPassed < rankMonth1DaysInfo.totalDays ? ' (DK)' : ''}</th>
+                                            <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth2.replace('Tháng ', 'T')}{(isProjectedMonth2 || rankMonth2DaysInfo.isCurrent) && rankMonth2DaysInfo.daysPassed < rankMonth2DaysInfo.totalDays ? ' (DK)' : ''}</th>
+                                            <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#6366f1' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG {rankMonth3.replace('Tháng ', 'T')}{(isProjectedMonth3 || rankMonth3DaysInfo.isCurrent) && rankMonth3DaysInfo.daysPassed < rankMonth3DaysInfo.totalDays ? ' (DK)' : ''}</th>
                                           </>
                                         )}
                                         <th style={{ width: '140px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#4f46e5' }} className="px-6 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">N.HÀNG TB</th>
@@ -7035,9 +7058,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                                       <>
                                         {showMonthlyDtqd && (
                                           <>
-                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TN {rankMonth1.replace('Tháng ', 'T')}{isProjectedMonth1 ? ' (DK)' : ''}</th>
-                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TN {rankMonth2.replace('Tháng ', 'T')}{isProjectedMonth2 ? ' (DK)' : ''}</th>
-                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TN {rankMonth3.replace('Tháng ', 'T')}{isProjectedMonth3 ? ' (DK)' : ''}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TN {rankMonth1.replace('Tháng ', 'T')}{(isProjectedMonth1 || rankMonth1DaysInfo.isCurrent) && rankMonth1DaysInfo.daysPassed < rankMonth1DaysInfo.totalDays ? ' (DK)' : ''}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TN {rankMonth2.replace('Tháng ', 'T')}{(isProjectedMonth2 || rankMonth2DaysInfo.isCurrent) && rankMonth2DaysInfo.daysPassed < rankMonth2DaysInfo.totalDays ? ' (DK)' : ''}</th>
+                                            <th style={{ width: '110px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#f58220' }} className="px-4 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TN {rankMonth3.replace('Tháng ', 'T')}{(isProjectedMonth3 || rankMonth3DaysInfo.isCurrent) && rankMonth3DaysInfo.daysPassed < rankMonth3DaysInfo.totalDays ? ' (DK)' : ''}</th>
                                           </>
                                         )}
                                         <th style={{ width: '120px', fontFamily: "'Inter', sans-serif", fontWeight: 900, backgroundColor: '#ea580c' }} className="px-6 py-2.5 border-r border-white/20 text-white font-sans font-black text-center whitespace-nowrap">TN TB</th>
