@@ -55,6 +55,8 @@ export interface QrPrintConfig {
   customRows: number; // Số hàng tùy chỉnh trên trang A4
   qrSize: number; // Kích thước QR (px)
   fontSize: number; // Cỡ chữ tên sản phẩm (px)
+  maxNameLines: number; // Số dòng tối đa hiển thị (0: Hiển thị hết 100% không cắt chữ, 2, 3, 4, 5)
+  autoFitName: boolean; // Tự động co chữ thông minh khi tên dài
   showCodeText: boolean; // Hiển thị số mã SP bên dưới QR
   showProductName: boolean; // Hiển thị tên SP
   showImei: boolean; // Hiển thị IMEI nếu có
@@ -183,6 +185,8 @@ const DEFAULT_CONFIG: QrPrintConfig = {
   customRows: 5,
   qrSize: 85,
   fontSize: 11,
+  maxNameLines: 0, // 0: Hiển thị trọn vẹn 100% không cắt chữ
+  autoFitName: true,
   showCodeText: true,
   showProductName: true,
   showImei: true,
@@ -224,6 +228,8 @@ export const InQrSpTab: React.FC = () => {
           ...parsed,
           customCols: parsed.customCols || defCols,
           customRows: parsed.customRows || defRows,
+          maxNameLines: parsed.maxNameLines !== undefined ? parsed.maxNameLines : 0,
+          autoFitName: parsed.autoFitName !== undefined ? parsed.autoFitName : true,
         };
       }
     } catch {}
@@ -612,20 +618,60 @@ export const InQrSpTab: React.FC = () => {
         : 'border-0';
 
     const isCompact = cols >= 5 || rows >= 7;
-    const paddingClass = (rows >= 8 || cols >= 5) ? 'p-1' : (rows >= 6 || cols >= 4) ? 'p-1.5' : 'p-2.5';
+    const paddingClass = (rows >= 8 || cols >= 5) ? 'p-1' : (rows >= 6 || cols >= 4) ? 'p-1.5' : 'p-2 sm:p-2.5';
 
     // Tính toán chiều cao chuẩn của tem theo khổ A4 (vùng in chuẩn ~280mm)
     const rowGapMm = rows >= 7 ? 1.5 : 2;
     const stickerHeightMm = Math.max(18, parseFloat(((280 - (rows - 1) * rowGapMm) / rows).toFixed(1)));
 
+    // Tính toán không gian và độ dài của tên sản phẩm
+    const nameText = item.productName || '';
+    const nameLen = nameText.length;
+    const approxColWidthPx = (794 - 48 - (cols - 1) * 8) / cols;
+
+    // Tự động tinh chỉnh cỡ chữ nếu tên dài hoặc nhiều cột
+    let calculatedFontSize = config.fontSize;
+    if (config.autoFitName !== false) {
+      if (cols >= 6) {
+        if (nameLen > 45) calculatedFontSize = Math.min(config.fontSize, 8.5);
+        else if (nameLen > 28) calculatedFontSize = Math.min(config.fontSize, 9);
+        else calculatedFontSize = Math.min(config.fontSize, 9.5);
+      } else if (cols === 5) {
+        if (nameLen > 50) calculatedFontSize = Math.min(config.fontSize, 8.8);
+        else if (nameLen > 30) calculatedFontSize = Math.min(config.fontSize, 9.5);
+        else calculatedFontSize = Math.min(config.fontSize, 10);
+      } else if (cols === 4) {
+        if (nameLen > 55) calculatedFontSize = Math.min(config.fontSize, 9.5);
+        else if (nameLen > 35) calculatedFontSize = Math.min(config.fontSize, 10.5);
+      } else {
+        if (nameLen > 65) calculatedFontSize = Math.min(config.fontSize, 10.5);
+      }
+    }
+    const finalFontSize = isCompact ? Math.min(calculatedFontSize, 10) : calculatedFontSize;
+
+    // Ước tính số dòng tên sản phẩm cần để hiển thị đầy đủ
+    const charsPerLine = Math.max(10, Math.floor((approxColWidthPx - 10) / (finalFontSize * 0.58)));
+    const neededLines = Math.max(1, Math.ceil(nameLen / charsPerLine));
+    const effectiveLines = config.maxNameLines && config.maxNameLines > 0 
+      ? Math.min(neededLines, config.maxNameLines) 
+      : neededLines;
+
+    const estimatedNameHeightPx = config.showProductName 
+      ? Math.max(15, effectiveLines * (finalFontSize * 1.24) + 3) 
+      : 0;
+
     // Tính toán kích thước QR tối ưu không làm tràn chữ khi có nhiều hàng/cột
     const approxRowHeightPx = (1123 - 48 - (rows - 1) * 8) / rows;
-    const reservedTextHeightPx = (config.showStoreName ? 14 : 0) + (config.showCodeText ? 16 : 0) + (config.showProductName ? 24 : 0) + (config.showImei && item.imei ? 12 : 0) + 12;
-    const maxSafeQrHeightPx = Math.max(34, approxRowHeightPx - reservedTextHeightPx);
-    const approxColWidthPx = (794 - 48 - (cols - 1) * 8) / cols;
-    const maxSafeQrWidthPx = Math.max(34, approxColWidthPx - 16);
+    const reservedTextHeightPx = 
+      (config.showStoreName ? 14 : 0) + 
+      (config.showCodeText ? (isCompact ? 13 : 16) : 0) + 
+      estimatedNameHeightPx + 
+      (config.showImei && item.imei ? (isCompact ? 11 : 13) : 0) + 
+      8;
+    const maxSafeQrHeightPx = Math.max(28, approxRowHeightPx - reservedTextHeightPx);
+    const maxSafeQrWidthPx = Math.max(28, approxColWidthPx - 14);
     const autoMaxQr = Math.min(maxSafeQrHeightPx, maxSafeQrWidthPx);
-    const effectiveQrSize = Math.max(34, Math.min(config.qrSize, Math.round(autoMaxQr)));
+    const effectiveQrSize = Math.max(28, Math.min(config.qrSize, Math.round(autoMaxQr)));
 
     return (
       <div
@@ -686,13 +732,26 @@ export const InQrSpTab: React.FC = () => {
             </div>
           )}
 
-          {/* Tên sản phẩm */}
+          {/* Tên sản phẩm - Hiển thị đầy đủ không cắt chữ */}
           {config.showProductName && (
             <div
-              className={`font-bold text-slate-800 ${rows >= 9 ? 'line-clamp-1' : 'line-clamp-2'} mt-0.5 leading-snug w-full ${
-                isCompact ? 'text-[9.5px]' : ''
-              }`}
-              style={{ fontSize: isCompact ? `${Math.min(config.fontSize, 10.5)}px` : `${config.fontSize}px` }}
+              className="font-bold text-slate-800 break-words mt-0.5 leading-[1.22] w-full select-all"
+              style={{
+                fontSize: `${finalFontSize}px`,
+                wordBreak: 'break-word',
+                overflowWrap: 'break-word',
+                ...(config.maxNameLines && config.maxNameLines > 0
+                  ? {
+                      display: '-webkit-box',
+                      WebkitBoxOrient: 'vertical',
+                      WebkitLineClamp: config.maxNameLines,
+                      overflow: 'hidden',
+                    }
+                  : {
+                      whiteSpace: 'normal',
+                      overflow: 'visible',
+                    }),
+              }}
               title={item.productName}
             >
               {item.productName}
@@ -999,7 +1058,7 @@ export const InQrSpTab: React.FC = () => {
                               </span>
                             )}
                           </div>
-                          <p className="text-xs font-bold text-slate-800 mt-1 line-clamp-2 leading-snug">
+                          <p className="text-xs font-bold text-slate-800 mt-1 line-clamp-3 leading-snug">
                             {p.productName}
                           </p>
                           {p.nhomHang && (
@@ -1250,6 +1309,56 @@ export const InQrSpTab: React.FC = () => {
                     <span>Vừa (11px)</span>
                     <span>Lớn (14px)</span>
                   </div>
+                </div>
+
+                {/* 3b. Tùy chọn hiển thị đầy đủ tên sản phẩm */}
+                <div className="bg-emerald-50/70 p-3 rounded-xl border border-emerald-200 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-black text-emerald-950 text-xs flex items-center gap-1.5">
+                      <CheckCircle2 size={13} className="text-emerald-600" />
+                      Hiển thị tên sản phẩm dài:
+                    </label>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">
+                      {config.maxNameLines === 0 ? 'Hiển thị hết 100%' : `Tối đa ${config.maxNameLines} dòng`}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                    {[
+                      { id: 0, label: 'Hiển thị hết', desc: 'Không cắt chữ (Chuẩn)' },
+                      { id: 4, label: 'Tối đa 4 dòng', desc: 'Cho tên rất dài' },
+                      { id: 3, label: 'Tối đa 3 dòng', desc: 'Vừa vặn đẹp' },
+                      { id: 2, label: 'Tối đa 2 dòng', desc: 'Gọn gàng' },
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setConfig(prev => ({ ...prev, maxNameLines: opt.id }))}
+                        className={`p-2 rounded-lg text-left transition-all border cursor-pointer ${
+                          config.maxNameLines === opt.id
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs font-black'
+                            : 'bg-white text-slate-700 border-emerald-100 hover:border-emerald-300'
+                        }`}
+                      >
+                        <div className="text-[11px] font-bold leading-tight">{opt.label}</div>
+                        <div className={`text-[9px] mt-0.5 leading-tight ${config.maxNameLines === opt.id ? 'text-emerald-100' : 'text-slate-400'}`}>
+                          {opt.desc}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={config.autoFitName !== false}
+                      onChange={e => setConfig(prev => ({ ...prev, autoFitName: e.target.checked }))}
+                      className="rounded text-emerald-600 focus:ring-0"
+                    />
+                    <span className="text-[11px] font-bold text-slate-700">
+                      Tự động co nhỏ cỡ chữ khi tên sản phẩm quá dài (Auto-fit thông minh)
+                    </span>
+                  </label>
                 </div>
 
                 {/* 4. Viền tem & Căn lề */}
