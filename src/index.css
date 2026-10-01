@@ -484,4 +484,23 @@ body.capturing-screenshot .grid-cols-1.xl\:grid-cols-2 {
   background-color: #94a3b8;
 }
 
+/* Hiệu ứng nháy nổi bật thu hút chú ý (Blink & Glow) */
+@keyframes blinkGlow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.45);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(1.025);
+    box-shadow: 0 0 16px 4px rgba(14, 165, 233, 0.4);
+  }
+}
+
+.blink-highlight {
+  animation: blinkGlow 1.4s ease-in-out infinite;
+}
+
+
 

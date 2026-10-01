@@ -999,16 +999,21 @@ export const InQrSpTab: React.FC = () => {
             <p className="text-xs text-slate-500 font-medium mt-0.5">
               Tạo và in hàng loạt mã QR từ cột Mã SP kèm tên sản phẩm bên dưới theo khổ giấy A4
             </p>
-            <div className="mt-1">
+            <div className="mt-2.5">
               <a
                 href="https://report.mwgroup.vn/home/dashboard/4286"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs font-bold text-sky-600 hover:text-sky-800 hover:underline transition-colors"
+                className="blink-highlight inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-sky-50 border-2 border-sky-400 text-sky-600 hover:text-sky-800 hover:bg-sky-100 hover:border-sky-500 font-black text-sm sm:text-[14.5px] transition-all hover:scale-105 active:scale-95 cursor-pointer"
                 title="Mở link đổ tồn kho chi tiết (MWG Report)"
               >
-                <span>Link đổ tồn kho chi tiết &gt;</span>
-                <ExternalLink size={12} className="text-sky-500" />
+                {/* Đèn nháy ping thu hút chú ý */}
+                <span className="relative flex h-2.5 w-2.5 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-600"></span>
+                </span>
+                <span className="tracking-tight">Link đổ tồn kho chi tiết &gt;</span>
+                <ExternalLink size={16} className="text-sky-600 shrink-0" />
               </a>
             </div>
           </div>
