@@ -60,6 +60,8 @@ export interface QrPrintConfig {
   showCodeText: boolean; // Hiển thị số mã SP bên dưới QR
   showProductName: boolean; // Hiển thị tên SP
   showImei: boolean; // Hiển thị IMEI nếu có
+  showStatus: boolean; // Hiển thị dòng Trạng thái nếu có
+  statusPosition: 'bottom' | 'top' | 'under_code'; // Vị trí hiển thị dòng trạng thái
   showStoreName: boolean; // Hiển thị tên siêu thị/brand trên đầu tem
   storeNameText: string; // Tên hiển thị
   borderStyle: 'dashed' | 'solid' | 'none'; // Viền tem
@@ -190,6 +192,8 @@ const DEFAULT_CONFIG: QrPrintConfig = {
   showCodeText: true,
   showProductName: true,
   showImei: true,
+  showStatus: true, // Mặc định hiển thị dòng Trạng thái nếu có dữ liệu
+  statusPosition: 'bottom', // Mặc định hiển thị ở dưới cùng (dưới IMEI/Tên SP)
   showStoreName: false,
   storeNameText: 'ĐIỆN MÁY XANH',
   borderStyle: 'dashed',
@@ -230,6 +234,8 @@ export const InQrSpTab: React.FC = () => {
           customRows: parsed.customRows || defRows,
           maxNameLines: parsed.maxNameLines !== undefined ? parsed.maxNameLines : 0,
           autoFitName: parsed.autoFitName !== undefined ? parsed.autoFitName : true,
+          showStatus: parsed.showStatus !== undefined ? parsed.showStatus : true,
+          statusPosition: parsed.statusPosition || 'bottom',
         };
       }
     } catch {}
@@ -269,6 +275,7 @@ export const InQrSpTab: React.FC = () => {
   const [newCode, setNewCode] = useState('');
   const [newName, setNewName] = useState('');
   const [newImei, setNewImei] = useState('');
+  const [newStatus, setNewStatus] = useState('');
   const [newNganh, setNewNganh] = useState('');
   const [newNhom, setNewNhom] = useState('');
 
@@ -419,7 +426,23 @@ export const InQrSpTab: React.FC = () => {
         imeiCol = row.findIndex(cell => cell.includes('imei') || cell.includes('serial') || cell.includes('seri'));
         nganhCol = row.findIndex(cell => cell.includes('ngành'));
         nhomCol = row.findIndex(cell => cell.includes('nhóm'));
-        statusCol = row.findIndex(cell => cell.includes('trạng thái') || cell.includes('status'));
+        statusCol = row.findIndex(cell => {
+          const c = cell.trim().toLowerCase();
+          return (
+            c === 'tt' ||
+            c === 'status' ||
+            c === 'trạng thái' ||
+            c === 'trang thai' ||
+            c === 'trangthai' ||
+            c === 'tình trạng' ||
+            c === 'tinh trang' ||
+            c.includes('trạng thái') ||
+            c.includes('trang thai') ||
+            c.includes('tình trạng') ||
+            c.includes('tinh trang') ||
+            c.includes('status')
+          );
+        });
         break;
       }
     }
@@ -502,6 +525,16 @@ export const InQrSpTab: React.FC = () => {
             pQty = parsed;
           }
         }
+      }
+
+      // Fallback trạng thái nếu dữ liệu không có tiêu đề
+      if (statusCol === -1 && !pStatus) {
+        const nonEmpties = row.map(c => String(c ?? '').trim()).filter(Boolean);
+        const statusCand = nonEmpties.find(
+          val => val !== pCode && val !== pName && val !== pImei &&
+          (/(mới|trưng bày|kích hoạt|loại \d|tồn|hỏng|bảo hành)/i.test(val) || /^\d\s*-\s*[a-zA-ZÀ-ỹ]/.test(val))
+        );
+        if (statusCand) pStatus = statusCand;
       }
 
       if (pCode || pName) {
@@ -603,6 +636,7 @@ export const InQrSpTab: React.FC = () => {
       productCode: newCode.trim() || 'N/A',
       productName: newName.trim() || 'Sản phẩm mới',
       imei: newImei.trim(),
+      status: newStatus.trim(),
       nganhHang: newNganh.trim(),
       nhomHang: newNhom.trim(),
       quantity: 1,
@@ -612,6 +646,7 @@ export const InQrSpTab: React.FC = () => {
     setNewCode('');
     setNewName('');
     setNewImei('');
+    setNewStatus('');
     setNewNganh('');
     setNewNhom('');
     showNotification(`Đã thêm mã "${item.productCode}"!`, 'success');
@@ -739,12 +774,16 @@ export const InQrSpTab: React.FC = () => {
       : 0;
 
     // Tính toán kích thước QR tối ưu không làm tràn chữ khi có nhiều hàng/cột
+    const hasStatus = Boolean(config.showStatus && item.status);
     const approxRowHeightPx = (1123 - 48 - (rows - 1) * 8) / rows;
     const reservedTextHeightPx = 
       (config.showStoreName ? 14 : 0) + 
+      (hasStatus && config.statusPosition === 'top' ? 14 : 0) +
       (config.showCodeText ? (isCompact ? 13 : 16) : 0) + 
+      (hasStatus && config.statusPosition === 'under_code' ? (isCompact ? 11 : 13) : 0) +
       estimatedNameHeightPx + 
       (config.showImei && item.imei ? (isCompact ? 11 : 13) : 0) + 
+      (hasStatus && (!config.statusPosition || config.statusPosition === 'bottom') ? (isCompact ? 11 : 13) : 0) +
       8;
     const maxSafeQrHeightPx = Math.max(28, approxRowHeightPx - reservedTextHeightPx);
     const maxSafeQrWidthPx = Math.max(28, approxColWidthPx - 14);
@@ -782,6 +821,15 @@ export const InQrSpTab: React.FC = () => {
           </div>
         )}
 
+        {/* Dòng trạng thái nếu chọn vị trí phía trên QR */}
+        {hasStatus && config.statusPosition === 'top' && (
+          <div className="w-full text-center pb-0.5 border-b border-slate-100">
+            <span className={`${isCompact ? 'text-[8px]' : 'text-[9px]'} font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md truncate inline-block max-w-full`}>
+              Trạng thái: {item.status.replace(/^trạng\s*thái[:\s]*/i, '')}
+            </span>
+          </div>
+        )}
+
         {/* Khối Mã QR */}
         <div className="flex-1 flex items-center justify-center py-0.5 min-h-0">
           <div className="p-0.5 bg-white rounded">
@@ -807,6 +855,13 @@ export const InQrSpTab: React.FC = () => {
               isCompact ? 'text-[10px]' : 'text-[11.5px] sm:text-[12.5px]'
             }`}>
               {item.productCode}
+            </div>
+          )}
+
+          {/* Dòng trạng thái nếu chọn vị trí dưới Mã SP */}
+          {hasStatus && config.statusPosition === 'under_code' && (
+            <div className={`${isCompact ? 'text-[8px]' : 'text-[9px]'} text-slate-500 font-medium mt-0.5 line-clamp-1`}>
+              Trạng thái: <span className="font-bold text-slate-800">{item.status.replace(/^trạng\s*thái[:\s]*/i, '')}</span>
             </div>
           )}
 
@@ -840,6 +895,13 @@ export const InQrSpTab: React.FC = () => {
           {config.showImei && item.imei && (
             <div className={`${isCompact ? 'text-[8px]' : 'text-[9px]'} text-slate-500 font-medium mt-0.5 line-clamp-1`}>
               IMEI: <span className="font-mono font-bold text-slate-700">{item.imei}</span>
+            </div>
+          )}
+
+          {/* Dòng trạng thái dưới cùng (sau IMEI/Tên SP) - Mặc định */}
+          {hasStatus && (!config.statusPosition || config.statusPosition === 'bottom') && (
+            <div className={`${isCompact ? 'text-[8px]' : 'text-[9px]'} text-slate-500 font-medium mt-0.5 line-clamp-1`}>
+              Trạng thái: <span className="font-bold text-slate-800">{item.status.replace(/^trạng\s*thái[:\s]*/i, '')}</span>
             </div>
           )}
         </div>
@@ -1504,6 +1566,42 @@ export const InQrSpTab: React.FC = () => {
                   <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 hover:bg-slate-100 cursor-pointer">
                     <input
                       type="checkbox"
+                      checked={config.showStatus}
+                      onChange={e => setConfig(prev => ({ ...prev, showStatus: e.target.checked }))}
+                      className="rounded text-sky-600 focus:ring-0"
+                    />
+                    <span className="text-xs font-bold text-slate-800">Hiển thị dòng Trạng thái (nếu có dữ liệu)</span>
+                  </label>
+
+                  {config.showStatus && (
+                    <div className="pl-6 space-y-1.5 py-1">
+                      <span className="text-[11px] font-bold text-slate-600 block">Vị trí hiển thị dòng Trạng thái:</span>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { id: 'bottom', label: 'Dưới cùng' },
+                          { id: 'under_code', label: 'Dưới Mã SP' },
+                          { id: 'top', label: 'Phía trên QR' },
+                        ].map(pos => (
+                          <button
+                            key={pos.id}
+                            type="button"
+                            onClick={() => setConfig(prev => ({ ...prev, statusPosition: pos.id as any }))}
+                            className={`py-1.5 px-2 rounded-lg text-[10.5px] font-bold border text-center transition-all cursor-pointer ${
+                              (config.statusPosition || 'bottom') === pos.id
+                                ? 'bg-sky-50 border-sky-400 text-sky-700 shadow-xs'
+                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            {pos.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <label className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 hover:bg-slate-100 cursor-pointer">
+                    <input
+                      type="checkbox"
                       checked={config.showStoreName}
                       onChange={e => setConfig(prev => ({ ...prev, showStoreName: e.target.checked }))}
                       className="rounded text-sky-600 focus:ring-0"
@@ -1570,15 +1668,26 @@ export const InQrSpTab: React.FC = () => {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="font-bold text-slate-700 text-[11px]">Nhóm hàng:</label>
+                    <label className="font-bold text-slate-700 text-[11px]">Trạng thái (tùy chọn):</label>
                     <input
                       type="text"
-                      value={newNhom}
-                      onChange={e => setNewNhom(e.target.value)}
-                      placeholder="VD: Tủ lạnh"
+                      value={newStatus}
+                      onChange={e => setNewStatus(e.target.value)}
+                      placeholder="VD: 1 - Mới"
                       className="w-full p-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 text-[11px]">Nhóm hàng:</label>
+                  <input
+                    type="text"
+                    value={newNhom}
+                    onChange={e => setNewNhom(e.target.value)}
+                    placeholder="VD: Tủ lạnh"
+                    className="w-full p-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
+                  />
                 </div>
 
                 <button
