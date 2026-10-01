@@ -360,6 +360,7 @@ export const InQrSpTab: React.FC = () => {
     let headerRowIdx = -1;
     let codeCol = -1;
     let nameCol = -1;
+    let qtyCol = -1;
     let imeiCol = -1;
     let nganhCol = -1;
     let nhomCol = -1;
@@ -376,11 +377,45 @@ export const InQrSpTab: React.FC = () => {
         cell.includes('tên sản phẩm') || cell.includes('tên sp') || cell.includes('tensp') || 
         cell.includes('product name') || cell.includes('tên hàng') || cell.includes('model') || cell === 'tên'
       );
+      const qIdx = row.findIndex(cell => {
+        const c = cell.trim().toLowerCase();
+        if (
+          c === 'sl' ||
+          c === 'sl.' ||
+          c === 'qty' ||
+          c === 'quantity' ||
+          c === 'số lượng' ||
+          c === 'so luong' ||
+          c === 'soluong' ||
+          c === 'số tem' ||
+          c === 'so tem' ||
+          c === 's.lượng' ||
+          c === 's.luong'
+        ) return true;
+        return (
+          c.includes('số lượng') ||
+          c.includes('so luong') ||
+          c.includes('soluong') ||
+          c.includes('sl in') ||
+          c.includes('sl tem') ||
+          c.includes('số tem') ||
+          c.includes('so tem') ||
+          c.includes('sl tồn') ||
+          c.includes('sl ton') ||
+          c.includes('tồn kho') ||
+          c.includes('ton kho') ||
+          c.includes('sl thực') ||
+          c.includes('sl thực tế') ||
+          c.includes('tổng sl') ||
+          c.includes('tong sl')
+        );
+      });
 
       if (cIdx !== -1 || nIdx !== -1) {
         headerRowIdx = r;
         codeCol = cIdx;
         nameCol = nIdx;
+        qtyCol = qIdx;
         imeiCol = row.findIndex(cell => cell.includes('imei') || cell.includes('serial') || cell.includes('seri'));
         nganhCol = row.findIndex(cell => cell.includes('ngành'));
         nhomCol = row.findIndex(cell => cell.includes('nhóm'));
@@ -402,6 +437,7 @@ export const InQrSpTab: React.FC = () => {
       let pNganh = '';
       let pNhom = '';
       let pStatus = '';
+      let pQty = 1;
 
       if (codeCol !== -1 && row[codeCol] !== undefined) pCode = String(row[codeCol] ?? '').trim();
       if (nameCol !== -1 && row[nameCol] !== undefined) pName = String(row[nameCol] ?? '').trim();
@@ -409,6 +445,33 @@ export const InQrSpTab: React.FC = () => {
       if (nganhCol !== -1 && row[nganhCol] !== undefined) pNganh = String(row[nganhCol] ?? '').trim();
       if (nhomCol !== -1 && row[nhomCol] !== undefined) pNhom = String(row[nhomCol] ?? '').trim();
       if (statusCol !== -1 && row[statusCol] !== undefined) pStatus = String(row[statusCol] ?? '').trim();
+
+      // Đọc số lượng từ cột Số lượng trong file Excel nếu có
+      if (qtyCol !== -1 && row[qtyCol] !== undefined && row[qtyCol] !== null) {
+        const rawCell = row[qtyCol];
+        if (typeof rawCell === 'number' && !isNaN(rawCell)) {
+          if (rawCell > 0) pQty = Math.max(1, Math.round(rawCell));
+        } else {
+          const rawStr = String(rawCell).trim();
+          if (rawStr) {
+            // Hỗ trợ số có phân cách hàng ngàn hoặc thập phân
+            let cleanStr = rawStr;
+            if (/^\d{1,3}([.,]\d{3})+$/.test(rawStr)) {
+              cleanStr = rawStr.replace(/[.,]/g, '');
+            } else {
+              cleanStr = rawStr.replace(/,/g, '.');
+            }
+            let num = parseFloat(cleanStr);
+            if (isNaN(num)) {
+              const match = rawStr.match(/\d+/);
+              if (match) num = parseInt(match[0], 10);
+            }
+            if (!isNaN(num) && num > 0) {
+              pQty = Math.max(1, Math.round(num));
+            }
+          }
+        }
+      }
 
       // Heuristic fallback nếu không có header chuẩn
       if (!pCode || !pName) {
@@ -427,6 +490,20 @@ export const InQrSpTab: React.FC = () => {
         }
       }
 
+      // Fallback số lượng nếu dữ liệu không có tiêu đề nhưng có cột số lượng
+      if (qtyCol === -1) {
+        const nonEmpties = row.map(c => String(c ?? '').trim()).filter(Boolean);
+        const qtyCand = nonEmpties.find(
+          val => val !== pCode && val !== pName && val !== pImei && /^\d{1,4}$/.test(val)
+        );
+        if (qtyCand) {
+          const parsed = parseInt(qtyCand, 10);
+          if (!isNaN(parsed) && parsed > 0) {
+            pQty = parsed;
+          }
+        }
+      }
+
       if (pCode || pName) {
         newItems.push({
           id: `qr_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`,
@@ -436,7 +513,7 @@ export const InQrSpTab: React.FC = () => {
           nganhHang: pNganh,
           nhomHang: pNhom,
           status: pStatus,
-          quantity: 1,
+          quantity: pQty,
           selected: true,
         });
       }
@@ -447,12 +524,13 @@ export const InQrSpTab: React.FC = () => {
       return;
     }
 
+    const totalStickers = newItems.reduce((acc, it) => acc + (it.quantity || 1), 0);
     if (overwrite) {
       setProducts(newItems);
-      showNotification(`Đã nạp mới ${newItems.length} sản phẩm thành công!`, 'success');
+      showNotification(`Đã nạp mới ${newItems.length} sản phẩm (${totalStickers} tem in) thành công!`, 'success');
     } else {
       setProducts(prev => [...prev, ...newItems]);
-      showNotification(`Đã thêm ${newItems.length} sản phẩm vào danh sách!`, 'success');
+      showNotification(`Đã thêm ${newItems.length} sản phẩm (${totalStickers} tem in) vào danh sách!`, 'success');
     }
   };
 
@@ -544,7 +622,7 @@ export const InQrSpTab: React.FC = () => {
     setProducts(prev =>
       prev.map(p => {
         if (p.id === id) {
-          const next = Math.max(1, Math.min(99, (p.quantity || 1) + delta));
+          const next = Math.max(1, Math.min(999, (p.quantity || 1) + delta));
           return { ...p, quantity: next };
         }
         return p;
@@ -1077,7 +1155,7 @@ export const InQrSpTab: React.FC = () => {
                           >
                             <Minus size={11} />
                           </button>
-                          <span className="w-6 text-center text-xs font-black text-slate-800">
+                          <span className="min-w-[24px] px-1 text-center text-xs font-black text-slate-800">
                             {p.quantity || 1}
                           </span>
                           <button
@@ -1522,7 +1600,7 @@ export const InQrSpTab: React.FC = () => {
               <span>MẸO DÙNG EXCEL NHANH:</span>
             </div>
             <ul className="text-[11px] space-y-1 text-sky-700 list-disc pl-4 font-medium leading-relaxed">
-              <li>Chỉ cần bôi đen và copy các cột từ Excel (gồm cột <strong>Mã SP</strong> và <strong>Tên SP</strong>) rồi bấm <strong>"Dán từ Excel"</strong>.</li>
+              <li>Chỉ cần bôi đen và copy các cột từ Excel (gồm cột <strong>Mã SP</strong>, <strong>Tên SP</strong>, và <strong>Số lượng</strong>) rồi bấm <strong>"Dán từ Excel"</strong>.</li>
               <li>Hệ thống tự động nhận diện các cột và loại bỏ khoảng trắng thừa.</li>
               <li>Dùng nút <strong>[+]</strong> và <strong>[-]</strong> để tăng giảm số lượng tem in cho từng sản phẩm.</li>
             </ul>
@@ -1650,12 +1728,12 @@ export const InQrSpTab: React.FC = () => {
                 rows={10}
                 value={pasteText}
                 onChange={e => setPasteText(e.target.value)}
-                placeholder={`Ví dụ copy từ Excel:\nNgành hàng\tNhóm hàng\tMã sản phẩm\tTên sản phẩm\tIMEI_1\n1755 - Tủ lạnh\t6421 - Mô hình\t3052959000401\tMô hình Tủ lạnh Panasonic NR-MBX471GPK\t141K00132`}
+                placeholder={`Ví dụ copy từ Excel:\nNgành hàng\tNhóm hàng\tMã sản phẩm\tTên sản phẩm\tSố lượng\tIMEI_1\n1755 - Tủ lạnh\t6421 - Mô hình\t3052959000401\tMô hình Tủ lạnh Panasonic NR-MBX471GPK\t5\t141K00132`}
                 className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-mono focus:outline-none focus:border-sky-400 leading-relaxed"
                 autoFocus
               />
               <p className="text-[11px] text-slate-400">
-                Hệ thống tự động phát hiện cột <strong>Mã SP</strong>, <strong>Tên SP</strong>, <strong>IMEI</strong> và <strong>Nhóm hàng</strong>.
+                Hệ thống tự động phát hiện cột <strong>Mã SP</strong>, <strong>Tên SP</strong>, <strong>Số lượng</strong>, <strong>IMEI</strong> và <strong>Nhóm hàng</strong>.
               </p>
             </div>
 
