@@ -285,7 +285,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           .eq('ten_sieu_thi', cleanStore);
         lkQuery = supabase
           .from('store')
-          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, nganhhang_chinh_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, rank_month_1, rank_month_2, rank_month_3, ten_sieu_thi, updated_at')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, nganhhang_chinh_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, thidua_3t_1, thidua_3t_2, thidua_3t_3, tracham_3t_1, tracham_3t_2, tracham_3t_3, rank_month_1, rank_month_2, rank_month_3, ten_sieu_thi, updated_at')
           .eq('id', normalizeStoreId(cleanStore));
       } else {
         // ALL stores mode: query by warehouse_code
@@ -295,7 +295,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
           .or(warehouseFilter);
         lkQuery = supabase
           .from('store')
-          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, nganhhang_chinh_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, rank_month_1, rank_month_2, rank_month_3, ten_sieu_thi, updated_at')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, nganhhang_chinh_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, thidua_3t_1, thidua_3t_2, thidua_3t_3, tracham_3t_1, tracham_3t_2, tracham_3t_3, rank_month_1, rank_month_2, rank_month_3, ten_sieu_thi, updated_at')
           .or(warehouseFilter);
       }
 
@@ -323,7 +323,7 @@ export const useEmployeeHealth = (maKho: string, storeName?: string) => {
         console.log(`[EmployeeHealth] lkQuery by ID returned empty, falling back to warehouse_code query...`);
         const { data: fallbackData } = await supabase
           .from('store')
-          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, rank_month_1, rank_month_2, rank_month_3, ten_sieu_thi, updated_at')
+          .select('id, lk_dt_nv, lk_nh_sieu_thi, lk_td_nv, phuc_vu, ban_kem_nv, tragop_nv, nganhhang_chinh_nv, dtqd_3t_1, dtqd_3t_2, dtqd_3t_3, thunhap_3t_1, thunhap_3t_2, thunhap_3t_3, nganhhang_3t_1, nganhhang_3t_2, nganhhang_3t_3, giocong_3t_1, giocong_3t_2, giocong_3t_3, thidua_3t_1, thidua_3t_2, thidua_3t_3, tracham_3t_1, tracham_3t_2, tracham_3t_3, rank_month_1, rank_month_2, rank_month_3, ten_sieu_thi, updated_at')
           .or(warehouseFilter);
         console.log(`[EmployeeHealth] Fallback lk data:`, fallbackData);
         if (fallbackData) {
