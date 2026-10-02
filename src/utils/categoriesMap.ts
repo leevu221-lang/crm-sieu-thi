@@ -116,5 +116,10 @@ export const NHOM_HANG_MAP: Record<string, { large: string, small: string }> = {
   "4741 - Xe Đạp Trẻ Em": { large: "XE ĐẠP", small: "XE ĐẠP" },
   "4742 - Xe Đạp Người Lớn": { large: "XE ĐẠP", small: "XE ĐẠP" },
   "4324 - Khung treo, giá đỡ": { large: "KHUNG TREO", small: "KHUNG TREO" },
-  "4169 - Lõi lọc": { large: "LÕI LỌC", small: "LÕI LỌC" }
+  "4169 - Lõi lọc": { large: "LÕI LỌC", small: "LÕI LỌC" },
+  "2037": { large: "DỊCH VỤ", small: "Thợ ĐMX" },
+  "7547": { large: "DỊCH VỤ", small: "Thợ ĐMX" },
+  "7160": { large: "DỊCH VỤ", small: "Thợ ĐMX" },
+  "7161": { large: "DỊCH VỤ", small: "Thợ ĐMX" },
+  "7162": { large: "DỊCH VỤ", small: "Thợ ĐMX" }
 };
