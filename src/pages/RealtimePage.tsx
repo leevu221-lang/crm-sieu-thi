@@ -1020,9 +1020,95 @@ const getStaffIdx = (headers: string[]): number => {
   return -1;
 };
 
+export const checkIsThoDmx = (params: {
+  productName?: string;
+  category?: string;
+  nhomHang?: string;
+  nganhHang?: string;
+  nsx?: string;
+  loaiYcx?: string;
+  htx?: string;
+  row?: any[];
+  rowStr?: string;
+}): boolean => {
+  const normProd = removeAccents(params.productName || '').toUpperCase();
+  const normCat = removeAccents(params.category || '').toUpperCase();
+  const normNhom = removeAccents(params.nhomHang || '').toUpperCase();
+  const normNganh = removeAccents(params.nganhHang || '').toUpperCase();
+  const normNsx = removeAccents(params.nsx || '').toUpperCase();
+  const normLoai = removeAccents(params.loaiYcx || '').toUpperCase();
+  const normHtx = removeAccents(params.htx || '').toUpperCase();
+
+  const hasThoDmxText = (s: string) => {
+    if (!s) return false;
+    const clean = s.replace(/[\s\-_]+/g, ' ');
+    return (
+      clean.includes('THO DMX') ||
+      clean.includes('THO DIEN MAY XANH') ||
+      clean.includes('THO_DMX') ||
+      clean.includes('THỢ ĐMX') ||
+      clean.includes('THỢ ĐIỆN MÁY XANH')
+    );
+  };
+
+  if (
+    hasThoDmxText(normProd) ||
+    hasThoDmxText(params.productName || '') ||
+    hasThoDmxText(normCat) ||
+    hasThoDmxText(params.category || '') ||
+    hasThoDmxText(normNhom) ||
+    hasThoDmxText(params.nhomHang || '') ||
+    hasThoDmxText(normNganh) ||
+    hasThoDmxText(params.nganhHang || '') ||
+    hasThoDmxText(normNsx) ||
+    hasThoDmxText(params.nsx || '') ||
+    hasThoDmxText(normLoai) ||
+    hasThoDmxText(params.loaiYcx || '') ||
+    hasThoDmxText(normHtx) ||
+    hasThoDmxText(params.htx || '')
+  ) {
+    return true;
+  }
+
+  const hasThoDmxCode = (s: string) =>
+    s.includes('2037') ||
+    s.includes('7547') ||
+    s.includes('7160') ||
+    s.includes('7161') ||
+    s.includes('7162');
+
+  if (
+    hasThoDmxCode(normCat) ||
+    hasThoDmxCode(normNhom) ||
+    hasThoDmxCode(normNganh) ||
+    hasThoDmxCode(normProd)
+  ) {
+    return true;
+  }
+
+  const rowStr = params.rowStr || (params.row ? params.row.map(c => String(c || '').trim()).join(' | ') : '');
+  if (rowStr) {
+    const normRow = removeAccents(rowStr).toUpperCase();
+    if (hasThoDmxText(normRow) || hasThoDmxText(rowStr)) {
+      return true;
+    }
+    if (
+      hasThoDmxCode(normRow) &&
+      (normRow.includes('THU HO') || normRow.includes('DICH VU') || normRow.includes('BAO DUONG') || normRow.includes('VE SINH') || normRow.includes('BAO HANH'))
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 const classifyProduct = (name: string, customRules?: BaoHiemRule[]) => {
+  if (checkIsThoDmx({ productName: name })) {
+    return 'Thợ ĐMX';
+  }
+
   const n = String(name || '').toUpperCase();
-  
   const rules = customRules || activeCustomBaoHiemRules;
   if (rules && rules.length > 0) {
     const match = rules.find(r => r.tenSanPham && n.includes(r.tenSanPham));
@@ -1103,6 +1189,10 @@ const classifyNhomHangLarge = (
   const prodCode = String(productCode || '').trim();
   const prodName = String(productName || '').trim().toUpperCase();
 
+  if (checkIsThoDmx({ productName, category: cat })) {
+    return 'DỊCH VỤ';
+  }
+
   const matchedRule = getMatchedBaoHiemRule(prodCode, prodName, customBaoHiemRules);
   if (matchedRule && matchedRule.nganhHangLon) {
     return matchedRule.nganhHangLon;
@@ -1156,6 +1246,10 @@ const resolveNhomSmall = (
   const prodName = String(productName || '').trim().toUpperCase();
   const prodCode = String(productCode || '').trim();
   
+  if (checkIsThoDmx({ productName, category: cat })) {
+    return 'Thợ ĐMX';
+  }
+
   const matchedRule = getMatchedBaoHiemRule(prodCode, prodName, customBaoHiemRules);
   if (matchedRule && matchedRule.nhomHangNho) {
     return matchedRule.nhomHangNho;
@@ -1210,6 +1304,10 @@ const resolveNhomSmallFriendlyName = (
   const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
   const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
   
+  if (checkIsThoDmx({ productName: prodName, category: catVal, nhomHang: origCat, row })) {
+    return 'Thợ ĐMX';
+  }
+
   const matchedRule = getMatchedBaoHiemRule(prodCode, prodName, customBaoHiemRules);
   if (matchedRule && matchedRule.nhomHangNho) {
     return matchedRule.nhomHangNho;
@@ -2361,23 +2459,69 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       });
     })();
 
+    const idxLoaiYcx = (() => {
+      const idxExact = headers.findIndex(h => removeAccents(h).toLowerCase().trim() === 'loai ycx');
+      if (idxExact !== -1) return idxExact;
+      return headers.findIndex(h => {
+        const lh = removeAccents(h).toLowerCase().trim();
+        return lh.includes('loai ycx') || lh === 'loai yeu cau' || lh.includes('loai yeu cau');
+      });
+    })();
+
+    const idxNhaSanXuat = (() => {
+      const idxExact = headers.findIndex(h => {
+        const lh = removeAccents(h).toLowerCase().trim();
+        return lh === 'nha san xuat' || lh === 'hang san xuat' || lh === 'hang sx' || lh === 'nha sx' || lh === 'brand';
+      });
+      if (idxExact !== -1) return idxExact;
+      return headers.findIndex(h => {
+        const lh = removeAccents(h).toLowerCase().trim();
+        return lh.includes('nha san xuat') || lh.includes('hang san xuat') || lh.includes('nha sx');
+      });
+    })();
+
+    const idxHuy = headers.findIndex(h => {
+      const lh = removeAccents(h).toLowerCase().trim();
+      return lh === 'trang thai huy' || lh.includes('trang thai huy');
+    });
+
     return rawYcxRows.slice(1).filter((row, rIdx) => {
       const productName = idxProduct !== -1 ? String(row[idxProduct] || '').trim() : '';
       const category = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
+      const nhomHangStr = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
       const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
       const pClass = classifyProductByCode(prodCode, customBaoHiemRules) || classifyProduct(productName, customBaoHiemRules);
 
       const normProdUpper = removeAccents(productName).toUpperCase();
       const normCatUpper = removeAccents(category).toUpperCase();
+      const normNhomUpper = removeAccents(nhomHangStr).toUpperCase();
+
+      const rawLoaiYcx = idxLoaiYcx !== -1 ? String(row[idxLoaiYcx] || '').trim() : '';
+      const normLoaiYcx = removeAccents(rawLoaiYcx).toLowerCase();
+      const rawHtx = idxHinhThucXuat !== -1 ? String(row[idxHinhThucXuat] || '').trim() : '';
+      const normHtx = removeAccents(rawHtx).toLowerCase();
+      const rawNsx = idxNhaSanXuat !== -1 ? String(row[idxNhaSanXuat] || '').trim() : '';
+      const normNsx = removeAccents(rawNsx).toLowerCase();
+
+      const isThoDmxRow = checkIsThoDmx({
+        productName,
+        category,
+        nhomHang: nhomHangStr,
+        nsx: rawNsx,
+        loaiYcx: rawLoaiYcx,
+        htx: rawHtx,
+        row
+      });
 
       const isVasRow = 
+        isThoDmxRow ||
         pClass === 'Mango' || pClass === 'Icall' || ['V1', 'V2', 'V3', 'V4'].includes(pClass) ||
         pClass === 'B.HIỂM' || ['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1', 'BHAP', 'BHOT', 'BHVC', 'BHMT', 'BHXH', 'BHYT', 'BVMH', 'GIC'].includes(pClass) ||
         normProdUpper.includes('MANGO') || normProdUpper.includes('ICALL') || normProdUpper.includes('VIEON') ||
         ((normProdUpper.includes('BAO HIEM') || normCatUpper.includes('BAO HIEM')) && !normProdUpper.includes('NON BAO HIEM') && !normProdUpper.includes('MU BAO HIEM') && !normCatUpper.includes('NON BAO HIEM') && !normCatUpper.includes('MU BAO HIEM')) ||
         normProdUpper.includes('1 DOI 1') || normProdUpper.includes('PVI_') ||
         normProdUpper.includes('BVMH') || normProdUpper.includes('BAO VE MAN HINH') ||
-        category.includes('1994') || category.includes('4479') || category.includes('7139');
+        category.includes('1994') || category.includes('4479') || category.includes('7139') || category.includes('2037');
 
       const statusValue = idxStatus !== -1 ? removeAccents(String(row[idxStatus] || '')).trim().toLowerCase() : '';
       const thuTienValue = idxThuTien !== -1 ? removeAccents(String(row[idxThuTien] || '')).trim().toLowerCase() : '';
@@ -2385,17 +2529,31 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
       let failStatus = false;
       if (idxStatus !== -1) {
-        if (!statusValue || !statusValue.includes('da xuat')) failStatus = true;
+        if (isThoDmxRow) {
+          // Thợ ĐMX là dịch vụ thu hộ, hệ thống ghi nhận "Chưa xuất" hoặc "Đã xuất", cả hai đều hợp lệ
+          if (statusValue && !statusValue.includes('da xuat') && !statusValue.includes('chua xuat')) failStatus = true;
+        } else {
+          if (!statusValue || !statusValue.includes('da xuat')) failStatus = true;
+        }
       }
 
       let failThuTien = false;
-      if (idxThuTien !== -1 && isVasRow) {
-        if (!thuTienValue || !thuTienValue.includes('da thu')) failThuTien = true;
+      if (idxThuTien !== -1 && (isVasRow || isThoDmxRow)) {
+        if (isThoDmxRow) {
+          if (thuTienValue && !thuTienValue.includes('da thu') && !thuTienValue.includes('thanh toan') && !thuTienValue.includes('hoan tat') && !thuTienValue.includes('thanh cong')) failThuTien = true;
+        } else {
+          if (!thuTienValue || !thuTienValue.includes('da thu')) failThuTien = true;
+        }
       }
 
       let failTra = false;
       if (idxTra !== -1 && traValue) {
         if (traValue.includes('da tra') || (traValue.includes('tra') && !traValue.includes('chua tra'))) failTra = true;
+      }
+
+      if (idxHuy !== -1) {
+        const huyValue = removeAccents(String(row[idxHuy] || '')).trim().toLowerCase();
+        if (huyValue.includes('da huy') || (huyValue.includes('huy') && !huyValue.includes('chua huy'))) return false;
       }
 
       if (failStatus || failThuTien || failTra) {
@@ -2415,56 +2573,57 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       }
 
       // 4. Loại trừ theo danh sách Cấu hình loại bỏ động (hoặc danh sách mặc định)
-      const rowHtx = idxHinhThucXuat !== -1 ? removeAccents(String(row[idxHinhThucXuat] || '')).toUpperCase() : '';
-      const rowNganh = idxCategory !== -1 ? removeAccents(String(row[idxCategory] || '')).toUpperCase() : '';
-      const rowNhom = idxNhomHang !== -1 ? removeAccents(String(row[idxNhomHang] || '')).toUpperCase() : '';
-      const rowTenSP = idxProduct !== -1 ? removeAccents(String(row[idxProduct] || '')).toUpperCase() : '';
-
       let shouldExclude = false;
-      if (customExclusionRules && customExclusionRules.length > 0) {
-        shouldExclude = customExclusionRules.some(rule => {
-          const normHtx = removeAccents(rule.hinhThucXuat || '').toUpperCase().trim();
-          const normNganh = removeAccents(rule.nganhHang || '').toUpperCase().trim();
-          const normNhom = removeAccents(rule.nhomHang || '').toUpperCase().trim();
-          const normTenSP = removeAccents(rule.tenSanPham || '').toUpperCase().trim();
+      if (!isThoDmxRow) {
+        const rowHtx = idxHinhThucXuat !== -1 ? removeAccents(String(row[idxHinhThucXuat] || '')).toUpperCase() : '';
+        const rowNganh = idxCategory !== -1 ? removeAccents(String(row[idxCategory] || '')).toUpperCase() : '';
+        const rowNhom = idxNhomHang !== -1 ? removeAccents(String(row[idxNhomHang] || '')).toUpperCase() : '';
+        const rowTenSP = idxProduct !== -1 ? removeAccents(String(row[idxProduct] || '')).toUpperCase() : '';
 
-          if (!normHtx && !normNganh && !normNhom && !normTenSP) return false;
+        if (customExclusionRules && customExclusionRules.length > 0) {
+          shouldExclude = customExclusionRules.some(rule => {
+            const normRuleHtx = removeAccents(rule.hinhThucXuat || '').toUpperCase().trim();
+            const normRuleNganh = removeAccents(rule.nganhHang || '').toUpperCase().trim();
+            const normRuleNhom = removeAccents(rule.nhomHang || '').toUpperCase().trim();
+            const normRuleTenSP = removeAccents(rule.tenSanPham || '').toUpperCase().trim();
 
-          const matchHtx = normHtx && rowHtx.includes(normHtx);
-          const matchNganh = normNganh && rowNganh.includes(normNganh);
-          const matchNhom = normNhom && rowNhom.includes(normNhom);
-          const matchTenSP = normTenSP && rowTenSP.includes(normTenSP);
+            if (!normRuleHtx && !normRuleNganh && !normRuleNhom && !normRuleTenSP) return false;
 
-          return matchHtx || matchNganh || matchNhom || matchTenSP;
-        });
-      } else {
-        // Fallback mặc định
-        const nhomHangVal = idxNhomHang !== -1 
-          ? removeAccents(String(row[idxNhomHang] || '')).toLowerCase()
-          : removeAccents(row.join(' ')).toLowerCase();
+            const matchHtx = normRuleHtx && rowHtx.includes(normRuleHtx);
+            const matchNganh = normRuleNganh && rowNganh.includes(normRuleNganh);
+            const matchNhom = normRuleNhom && rowNhom.includes(normRuleNhom);
+            const matchTenSP = normRuleTenSP && rowTenSP.includes(normRuleTenSP);
 
-        shouldExclude = 
-          nhomHangVal.includes('2513') ||
-          nhomHangVal.includes('2571') ||
-          nhomHangVal.includes('4519') ||
-          nhomHangVal.includes('4599') ||
-          nhomHangVal.includes('thu ho payoo') ||
-          nhomHangVal.includes('thu ho cuoc viettel') ||
-          nhomHangVal.includes('thu ho tien tra gop') ||
-          nhomHangVal.includes('thu ho tien mat');
+            return matchHtx || matchNganh || matchNhom || matchTenSP;
+          });
+        } else {
+          // Fallback mặc định
+          const nhomHangVal = idxNhomHang !== -1 
+            ? removeAccents(String(row[idxNhomHang] || '')).toLowerCase()
+            : removeAccents(row.join(' ')).toLowerCase();
+
+          shouldExclude = 
+            nhomHangVal.includes('2513') ||
+            nhomHangVal.includes('2571') ||
+            nhomHangVal.includes('4519') ||
+            nhomHangVal.includes('4599') ||
+            nhomHangVal.includes('thu ho payoo') ||
+            nhomHangVal.includes('thu ho cuoc viettel') ||
+            nhomHangVal.includes('thu ho tien tra gop') ||
+            nhomHangVal.includes('thu ho tien mat');
+        }
       }
 
       if (shouldExclude) {
         if (rIdx < 50) {
-          console.log(`[Filter YCX Row ${rIdx} FAIL shouldExclude]`, { product: row[idxProduct], rowHtx, rowNganh, rowNhom, rowTenSP });
+          console.log(`[Filter YCX Row ${rIdx} FAIL shouldExclude]`, { product: row[idxProduct], isThoDmxRow });
         }
         return false;
       }
 
-      // 5. Ẩn / Loại trừ Ngành hàng "Khác" / "Không rõ" / "Thẻ cào" (GIỮ LẠI B.HIỂM, V1, V2, V3, VieON, MANGO, ICALLME)
-
+      // 5. Ẩn / Loại trừ Ngành hàng "Khác" / "Không rõ" / "Thẻ cào" (GIỮ LẠI B.HIỂM, V1, V2, V3, VieON, MANGO, ICALLME, THỢ ĐMX)
       let failNhomLarge = false;
-      if (!isVasRow) {
+      if (!isVasRow && !isThoDmxRow) {
         const nhomSmallValue = '';
         const nhomLarge = classifyNhomHangLarge(category, productName, nhomSmallValue, undefined, customNhomSmallMap, customBaoHiemRules, prodCode);
         if (nhomLarge === 'Khác' || nhomLarge === 'KHÁC' || nhomLarge === 'Không rõ' || nhomLarge === 'THỂ CÀO') {
@@ -2633,10 +2792,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       !n || n.toLowerCase().includes('người tạo') || n.toLowerCase() === 'admin' || n.toLowerCase() === 'administrator';
 
     const isInsuranceRowHelper = (category: string, productName: string, row: any[]): boolean => {
-      const brandVal = idxNhaSanXuat !== -1 ? String(row[idxNhaSanXuat] || '').trim().toUpperCase() : '';
-      const normBrand = removeAccents(brandVal).toUpperCase();
-      const normCatUpper = removeAccents(category).toUpperCase();
-      if ((normBrand === 'THO DMX' || normBrand.includes('THO DMX')) && (normCatUpper.includes('2037') || normCatUpper.includes('THU HO') || normCatUpper.includes('THO DMX'))) {
+      const brandVal = idxNhaSanXuat !== -1 ? String(row[idxNhaSanXuat] || '').trim() : '';
+      const nhomHangVal = idxCategory !== -1 ? String(row[idxCategory] || '').trim() : '';
+      if (checkIsThoDmx({ productName, category, nhomHang: nhomHangVal, nsx: brandVal, row })) {
         return false;
       }
 
@@ -3720,6 +3878,27 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         return lh === 'loai ycx' || lh === 'loai yeu cau' || lh === 'phan loai ycx';
       });
     })();
+
+    const idxLoaiYcx = (() => {
+      const idxExact = headers.findIndex(h => removeAccents(h).toLowerCase().trim() === 'loai ycx');
+      if (idxExact !== -1) return idxExact;
+      return headers.findIndex(h => {
+        const lh = removeAccents(h).toLowerCase().trim();
+        return lh.includes('loai ycx') || lh === 'loai yeu cau' || lh.includes('loai yeu cau');
+      });
+    })();
+
+    const idxNhaSanXuat = (() => {
+      const idxExact = headers.findIndex(h => {
+        const lh = removeAccents(h).toLowerCase().trim();
+        return lh === 'nha san xuat' || lh === 'hang san xuat' || lh === 'hang sx' || lh === 'nha sx' || lh === 'brand';
+      });
+      if (idxExact !== -1) return idxExact;
+      return headers.findIndex(h => {
+        const lh = removeAccents(h).toLowerCase().trim();
+        return lh.includes('nha san xuat') || lh.includes('hang san xuat') || lh.includes('nha sx');
+      });
+    })();
     
     // Find exact "Hình thức xuất" column for strict filtering
     const idxExactHinhThucXuat = idxHinhThucXuat;
@@ -3728,6 +3907,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       const clean = htx.trim().toLowerCase();
       if (!clean) return null;
 
+      if (clean.includes('tho dmx') || clean.includes('thợ đmx')) {
+        return 'Thu hộ';
+      }
       if (clean.includes('yêu cầu xuất dv thu hộ bảo hiểm') || clean.includes('yeu cau xuat dv thu ho bao hiem')) {
         return 'Yêu cầu xuất DV thu hộ bảo hiểm';
       }
@@ -3751,13 +3933,25 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
     return rawYcxRowsForTable.filter(row => {
       // 1. Loại bỏ theo danh sách Cấu hình loại bỏ động
+      const rowLoaiYcx = idxLoaiYcx !== -1 ? removeAccents(String(row[idxLoaiYcx] || '')).toLowerCase().trim() : '';
       const rowHtx = idxHinhThucXuat !== -1 ? removeAccents(String(row[idxHinhThucXuat] || '')).toUpperCase() : '';
       const rowNganh = idxNganhHang !== -1 ? removeAccents(String(row[idxNganhHang] || '')).toUpperCase() : '';
       const rowNhom = idxNhomHang !== -1 ? removeAccents(String(row[idxNhomHang] || '')).toUpperCase() : '';
       const rowTenSP = idxProduct !== -1 ? removeAccents(String(row[idxProduct] || '')).toUpperCase() : '';
+      const rowNsx = idxNhaSanXuat !== -1 ? removeAccents(String(row[idxNhaSanXuat] || '')).toLowerCase().trim() : '';
+
+      const isThoDmxRow = checkIsThoDmx({
+        productName: rowTenSP,
+        category: rowNganh,
+        nhomHang: rowNhom,
+        nsx: rowNsx,
+        loaiYcx: rowLoaiYcx,
+        htx: rowHtx,
+        row
+      });
 
       let shouldExclude = false;
-      if (customExclusionRules && customExclusionRules.length > 0) {
+      if (!isThoDmxRow && customExclusionRules && customExclusionRules.length > 0) {
         shouldExclude = customExclusionRules.some(rule => {
           const normHtx = removeAccents(rule.hinhThucXuat || '').toUpperCase().trim();
           const normNganh = removeAccents(rule.nganhHang || '').toUpperCase().trim();
@@ -3795,20 +3989,33 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
 
           if (colIdx === row.length) {
-            const codeClass = classifyProductByCode(prodCode, customBaoHiemRules);
-            if (codeClass) {
-              cellValue = codeClass;
+            if (isThoDmxRow) {
+              cellValue = 'Thợ ĐMX';
             } else {
-              cellValue = classifyProduct(prodName, customBaoHiemRules) || '-';
+              const codeClass = classifyProductByCode(prodCode, customBaoHiemRules);
+              if (codeClass) {
+                cellValue = codeClass;
+              } else {
+                cellValue = classifyProduct(prodName, customBaoHiemRules) || '-';
+              }
             }
           } else if (colIdx === row.length + 1) {
-            const nhomSmallValue = idxSmallCategoryHeader !== -1 ? String(row[idxSmallCategoryHeader] || '').trim().toUpperCase() : '';
-            const valLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', String(row[idxProduct] || ''), nhomSmallValue, undefined, customNhomSmallMap, customBaoHiemRules, prodCode) || '-';
-            cellValue = valLarge === 'BẢO HIỂM' ? 'B.HIỂM' : valLarge;
+            if (isThoDmxRow) {
+              cellValue = 'DỊCH VỤ';
+            } else {
+              const nhomSmallValue = idxSmallCategoryHeader !== -1 ? String(row[idxSmallCategoryHeader] || '').trim().toUpperCase() : '';
+              const valLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', String(row[idxProduct] || ''), nhomSmallValue, undefined, customNhomSmallMap, customBaoHiemRules, prodCode) || '-';
+              cellValue = valLarge === 'BẢO HIỂM' ? 'B.HIỂM' : valLarge;
+            }
           } else if (colIdx === row.length + 2) {
-            cellValue = resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode, customNhomSmallMap, customBaoHiemRules);
+            if (isThoDmxRow) {
+              cellValue = 'Thợ ĐMX';
+            } else {
+              cellValue = resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode, customNhomSmallMap, customBaoHiemRules);
+            }
           } else if (colIdx === row.length + 3) {
-            cellValue = idxHinhThucXuat !== -1 ? (classifyHinhThucXuat(String(row[idxHinhThucXuat] || '')) || '-') : '-';
+            const sourceHtx = (idxHinhThucXuat !== -1 ? String(row[idxHinhThucXuat] || '') : '') || (idxLoaiYcx !== -1 ? String(row[idxLoaiYcx] || '') : '');
+            cellValue = classifyHinhThucXuat(sourceHtx) || '-';
           }
         }
 
@@ -4081,8 +4288,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     console.log('[KhaiThac] idxRevenue:', idxRevenue, '| Header:', headers[idxRevenue]);
     const idxNganhHang = findIdx(['ngành hàng', 'nganh hang', 'tên ngành hàng', 'ten nganh hang', 'mã ngành hàng', 'nhóm ngành hàng'], -1);
     const idxCategory = findIdx(['nhóm hàng', 'tên nhóm hàng', 'ngành hàng', 'nhóm ngành hàng'], -1);
+    const idxNhomHang = findIdx(['nhóm hàng', 'nhom hang', 'tên nhóm hàng', 'ten nhom hang'], -1);
     const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ'], -1);
     const idxHinhThucXuat = findIdx(['hình thức xuất', 'hinh thuc xuat', 'htx', 'loại hình thức xuất', 'loai hinh thuc xuat', 'loại ycx', 'loai ycx', 'loại yêu cầu', 'loai yeu cau', 'phân loại ycx', 'phan loai ycx', 'hình thức', 'hinh thuc'], -1);
+    const idxLoaiYcx = findIdx(['loại ycx', 'loai ycx', 'loại yêu cầu', 'loai yeu cau', 'phân loại ycx', 'phan loai ycx'], -1);
     const idxNhaSanXuat = findIdx(['nhà sản xuất', 'nha san xuat', 'nhà sx', 'nha sx', 'hãng sản xuất', 'hãng sx', 'brand', 'nsx', 'hãng'], -1);
     const idxProduct = (() => {
       const exact = headers.findIndex(h => h.toLowerCase() === 'tên sản phẩm');
@@ -4185,32 +4394,29 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       const normCatUpper = removeAccents(category).toUpperCase();
       const prodUpper = productName.toUpperCase();
       const rawNganhHang = idxNganhHang !== -1 ? String(row[idxNganhHang] || '').trim() : '';
+      const rawNhomHang = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
       const rawNsx = idxNhaSanXuat !== -1 ? String(row[idxNhaSanXuat] || '').trim() : '';
       const normNsxUpper = removeAccents(rawNsx).toUpperCase();
       const normNganhHangUpper = removeAccents(rawNganhHang).toUpperCase();
+      const rawLoaiYcx = idxLoaiYcx !== -1 ? String(row[idxLoaiYcx] || '').trim() : '';
+      const rawHtx = idxHinhThucXuat !== -1 ? String(row[idxHinhThucXuat] || '').trim() : '';
 
-      const isThoDmxNsx = normNsxUpper === 'THO DMX' || normNsxUpper.includes('THO DMX') || rawNsx.toUpperCase().includes('THỢ ĐMX');
-      const isThoDmxNganhHang = 
-        rawNganhHang.includes('2037') || 
-        normNganhHangUpper.includes('2037') || 
-        category.includes('2037') || 
-        normCatUpper.includes('2037') || 
-        (normNganhHangUpper.includes('DICH VU THU HO') && normNganhHangUpper.includes('THO DMX')) ||
-        (normCatUpper.includes('DICH VU THU HO') && normCatUpper.includes('THO DMX')) ||
-        (normNganhHangUpper.includes('THU HO') && normNganhHangUpper.includes('THO DMX')) ||
-        (normCatUpper.includes('THU HO') && normCatUpper.includes('THO DMX'));
+      const isThoDmxRow = checkIsThoDmx({
+        productName,
+        category,
+        nhomHang: rawNhomHang,
+        nganhHang: rawNganhHang,
+        nsx: rawNsx,
+        loaiYcx: rawLoaiYcx,
+        htx: rawHtx,
+        row
+      });
 
-      let isThoDmxRow = isThoDmxNsx && isThoDmxNganhHang;
-      if (!isThoDmxRow && (idxNhaSanXuat === -1 || (idxNganhHang === -1 && idxCategory === -1))) {
-        const rowStr = row.map(c => String(c || '').trim()).join(' | ');
-        const normRowStr = removeAccents(rowStr).toUpperCase();
-        if ((normRowStr.includes('THO DMX') || rowStr.includes('Thợ ĐMX')) && 
-            (normRowStr.includes('2037') || normRowStr.includes('DICH VU THU HO CHO THO DMX'))) {
-          isThoDmxRow = true;
-        }
+      if (isThoDmxRow) {
+        nhomLarge = 'DỊCH VỤ';
       }
 
-      const pClass = classifyProductByCode(prodCode, customBaoHiemRules) || classifyProduct(productName, customBaoHiemRules);
+      const pClass = isThoDmxRow ? 'Thợ ĐMX' : (classifyProductByCode(prodCode, customBaoHiemRules) || classifyProduct(productName, customBaoHiemRules));
       const isInsuranceRow = 
         !isThoDmxRow && (
           pClass === 'B.HIỂM' || ['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1', 'BHAP', 'BHOT', 'BHVC', 'BHMT', 'BHXH', 'BHYT', 'BVMH', 'GIC'].includes(pClass) ||
@@ -4226,10 +4432,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       }
 
       const nhomSmallValue = idxSmallCat !== -1 ? String(row[idxSmallCat] || '').trim().toUpperCase() : '';
-      const nhomSmall = resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName, customNhomSmallMap, prodCode, customBaoHiemRules);
+      const nhomSmall = isThoDmxRow ? 'Thợ ĐMX' : resolveNhomSmall(category, nhomSmallValue, nhomLarge, productName, customNhomSmallMap, prodCode, customBaoHiemRules);
 
       const brandVal = idxNhaSanXuat !== -1 ? String(row[idxNhaSanXuat] || '').trim().toUpperCase() : '';
-      const isVieONRow = (brandVal === 'VIEON' || category.toUpperCase().includes('VIEON') || productName.toUpperCase().includes('VIEON') || ['V1', 'V2', 'V3', 'V4'].includes(pClass) || normProdUpper.includes('VIEON') || normCatUpper.includes('VIEON')) && pClass !== 'Mango' && pClass !== 'Icall' && !normProdUpper.includes('MANGO') && !normProdUpper.includes('ICALL');
+      const isVieONRow = !isThoDmxRow && (brandVal === 'VIEON' || category.toUpperCase().includes('VIEON') || productName.toUpperCase().includes('VIEON') || ['V1', 'V2', 'V3', 'V4'].includes(pClass) || normProdUpper.includes('VIEON') || normCatUpper.includes('VIEON')) && pClass !== 'Mango' && pClass !== 'Icall' && !normProdUpper.includes('MANGO') && !normProdUpper.includes('ICALL');
 
       const rawHtx = idxHinhThucXuat !== -1 ? String(row[idxHinhThucXuat] || '').trim() : '';
       const normHtx = removeAccents(rawHtx).toLowerCase();

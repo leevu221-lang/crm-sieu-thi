@@ -231,6 +231,14 @@ const BRAND_DEFINITIONS: Array<[string, string]> = [
 ];
 
 const NHOM_HANG_MAP: Record<string, { large: string, small: string }> = {
+  "2037 - Dịch vụ thu hộ cho Thợ ĐMX": { large: "DỊCH VỤ", small: "Thợ ĐMX" },
+  "7547 - Thu hộ dịch vụ Bảo hành Mở rộng gói Thợ ĐMX": { large: "DỊCH VỤ", small: "Thợ ĐMX" },
+  "7160 - Dịch vụ bảo hành rơi vỡ Thợ Điện Máy Xanh": { large: "DỊCH VỤ", small: "Thợ ĐMX" },
+  "7161 - Dịch vụ bảo hành 1 đổi 1 Thợ Điện Máy Xanh": { large: "DỊCH VỤ", small: "Thợ ĐMX" },
+  "7162 - Dịch vụ thay lõi lọc Thợ Điện Máy Xanh": { large: "DỊCH VỤ", small: "Thợ ĐMX" },
+  "Bảo hiểm Thợ ĐMX": { large: "DỊCH VỤ", small: "Thợ ĐMX" },
+  "Thợ ĐMX": { large: "DỊCH VỤ", small: "Thợ ĐMX" },
+  "Dịch vụ thu hộ cho Thợ ĐMX": { large: "DỊCH VỤ", small: "Thợ ĐMX" },
   "4479 - Dịch Vụ Bảo Hiểm": { large: "BẢO HIỂM", small: "B.HIỂM" },
   "4499 - Thu Hộ Phí Bảo Hiểm": { large: "BẢO HIỂM", small: "B.HIỂM" },
   "1098 - Máy lạnh (IMEI)": { large: "CE", small: "ML" },
@@ -340,8 +348,7 @@ const NHOM_HANG_MAP: Record<string, { large: string, small: string }> = {
   "4741 - Xe Đạp Trẻ Em": { large: "XE ĐẠP", small: "XE ĐẠP" },
   "4742 - Xe Đạp Người Lớn": { large: "XE ĐẠP", small: "XE ĐẠP" },
   "4324 - Khung treo, giá đỡ": { large: "KHUNG TREO", small: "KHUNG TREO" },
-  "4169 - Lõi lọc": { large: "LÕI LỌC", small: "LÕI LỌC" },
-  "7161 - Dịch vụ bảo hành 1 đổi 1 Thợ Điện Máy Xanh": { large: "B.Hiểm", small: "B.Hiểm" }
+  "4169 - Lõi lọc": { large: "LÕI LỌC", small: "LÕI LỌC" }
 };
 
 const NHOM_SMALL_DISPLAY: Record<string, string> = {
