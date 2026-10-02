@@ -5,17 +5,21 @@ interface PrintLayoutModalProps {
   isOpen: boolean;
   isCe?: boolean;
   isLk?: boolean;
+  isPopupAllSp?: boolean;
   onClose: () => void;
   onConfirm: (style: string, layout: string, showPromoLabel: boolean) => void;
 }
 
-export default function PrintLayoutModal({ isOpen, isCe = false, isLk = false, onClose, onConfirm }: PrintLayoutModalProps) {
+export default function PrintLayoutModal({ isOpen, isCe = false, isLk = false, isPopupAllSp = false, onClose, onConfirm }: PrintLayoutModalProps) {
   const [selectedStyle, setSelectedStyle] = useState('classic');
   const [selectedLayout, setSelectedLayout] = useState('4');
   const [showPromoLabel, setShowPromoLabel] = useState(true);
 
   useEffect(() => {
-    if (isCe) {
+    if (isPopupAllSp) {
+      setSelectedStyle('sticker_lk');
+      setSelectedLayout('a4_ngang');
+    } else if (isCe) {
       setSelectedStyle('sticker_ce');
       setSelectedLayout('1');
     } else if (isLk) {
@@ -25,7 +29,7 @@ export default function PrintLayoutModal({ isOpen, isCe = false, isLk = false, o
       setSelectedStyle('classic');
       setSelectedLayout('4');
     }
-  }, [isCe, isLk, isOpen]);
+  }, [isCe, isLk, isPopupAllSp, isOpen]);
 
   if (!isOpen) return null;
 
@@ -52,7 +56,7 @@ export default function PrintLayoutModal({ isOpen, isCe = false, isLk = false, o
             <h3 className="text-sm font-bold text-slate-600 mb-4 uppercase tracking-wider">1. CHỌN KIỂU STICKER</h3>
             <div className="p-4 rounded-xl border-2 border-indigo-500 bg-indigo-50/55 flex items-center">
               <span className="font-black text-indigo-600 text-sm uppercase tracking-wide">
-                {isCe ? 'In Sticker CE (Điện máy)' : isLk ? 'In Sticker Loa Kéo' : 'Kiểu có sẵn'}
+                {isPopupAllSp ? 'In Sticker POPUP ALL SP' : isCe ? 'In Sticker CE (Điện máy)' : isLk ? 'In Sticker Loa Kéo' : 'Kiểu có sẵn'}
               </span>
             </div>
           </div>
@@ -61,7 +65,31 @@ export default function PrintLayoutModal({ isOpen, isCe = false, isLk = false, o
           <div className="mb-8">
             <h3 className="text-sm font-bold text-slate-600 mb-4 uppercase tracking-wider">2. CHỌN BỐ CỤC TRANG IN</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {isCe || isLk ? (
+              {isPopupAllSp ? (
+                <>
+                  <div 
+                    onClick={() => setSelectedLayout('a4_ngang')}
+                    className={`p-5 rounded-xl border-2 cursor-pointer transition-all ${selectedLayout === 'a4_ngang' ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-200'}`}
+                  >
+                    <h4 className="text-lg font-bold text-slate-800 mb-1">1 Sticker / Trang A4 ngang</h4>
+                    <p className="text-sm text-slate-500">Kích thước 297 x 210 mm (A4 ngang chuẩn lớn)</p>
+                  </div>
+                  <div 
+                    onClick={() => setSelectedLayout('1')}
+                    className={`p-5 rounded-xl border-2 cursor-pointer transition-all ${selectedLayout === '1' ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-200'}`}
+                  >
+                    <h4 className="text-lg font-bold text-slate-800 mb-1">1 Sticker / Trang A5 ngang</h4>
+                    <p className="text-sm text-slate-500">Kích thước 210 x 148.5 mm (A5 ngang)</p>
+                  </div>
+                  <div 
+                    onClick={() => setSelectedLayout('2')}
+                    className={`p-5 rounded-xl border-2 cursor-pointer transition-all ${selectedLayout === '2' ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-200'}`}
+                  >
+                    <h4 className="text-lg font-bold text-slate-800 mb-1">2 Sticker / Trang A4 đứng</h4>
+                    <p className="text-sm text-slate-500">1 Trang A4 đứng = 2 Sticker xếp dọc</p>
+                  </div>
+                </>
+              ) : isCe || isLk ? (
                 <>
                   <div 
                     onClick={() => setSelectedLayout('1')}
@@ -105,7 +133,7 @@ export default function PrintLayoutModal({ isOpen, isCe = false, isLk = false, o
           </div>
 
           {/* Additional Options */}
-          {!(isCe || isLk) && (
+          {!(isCe || isLk || isPopupAllSp) && (
             <div>
               <h3 className="text-sm font-bold text-slate-600 mb-4 uppercase tracking-wider">3. TÙY CHỌN KHÁC</h3>
               <label className="flex items-center p-4 rounded-xl border-2 border-slate-200 hover:border-indigo-200 cursor-pointer transition-all">
@@ -128,7 +156,7 @@ export default function PrintLayoutModal({ isOpen, isCe = false, isLk = false, o
           <button 
             onClick={() => {
               const finalLayout = (selectedStyle === 'display' || selectedStyle === 'giovang' || selectedStyle === 'a4_giasoc') ? '1' : selectedLayout;
-              onConfirm(selectedStyle, finalLayout, (isCe || isLk) ? false : showPromoLabel);
+              onConfirm(selectedStyle, finalLayout, (isCe || isLk || isPopupAllSp) ? false : showPromoLabel);
             }}
             className="px-6 py-2.5 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
           >

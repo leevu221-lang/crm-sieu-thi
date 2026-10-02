@@ -146,7 +146,7 @@ const TIENICH_SUBS_TAIL = [
 ];
 
 const STICKER_VARIANTS = new Set([
-  'sticker-event-dmx', 'sticker-event', 'sticker-lk',
+  'sticker-event-dmx', 'sticker-event', 'sticker-lk', 'popup-all-sp',
   'sticker-ce', 'sticker-mln', 'sticker-gvgs', 'sticker-dcnb',
   'sticker-dong-gia-100k', 'sticker-laptop',
 ]);

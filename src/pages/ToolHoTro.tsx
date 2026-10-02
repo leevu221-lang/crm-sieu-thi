@@ -6,7 +6,7 @@ import {
   SortAsc, SortDesc, PieChart, Users, UploadCloud, Settings, 
   ChevronRight, LayoutGrid, FileText, Tag, Scan, MapPin, ClipboardList,
   RefreshCw, AlertCircle, Banknote, RotateCcw,
-  ShoppingCart, Plus, ShoppingBag, Minus
+  ShoppingCart, Plus, ShoppingBag, Minus, Search, ExternalLink, FileSpreadsheet
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import * as XLSX from 'xlsx';
@@ -350,6 +350,7 @@ const STICKER_CACHE_KEYS = [
   'rtst_sticker_event_dmx_price_data', 'rtst_sticker_event_dmx_inventory_data',
   'rtst_sticker_ce_price_data', 'rtst_sticker_ce_inventory_data',
   'rtst_sticker_lk_price_data', 'rtst_sticker_lk_inventory_data',
+  'rtst_sticker_popup_all_sp_price_data', 'rtst_sticker_popup_all_sp_inventory_data',
   'rtst_sticker_price_data', 'rtst_sticker_inventory_data',
   'rtst_sticker_dong_gia_100k_price_data', 'rtst_sticker_dong_gia_100k_inventory_data'
 ];
@@ -399,6 +400,22 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   const [phieuBhData, setPhieuBhData] = useState<PhieuBHData>(DEFAULT_PHIEU_BH);
   const [phieuBhPrintLayout, setPhieuBhPrintLayout] = useState<string>('2');
   const [lkPrintLayout, setLkPrintLayout] = useState<string>('1');
+  const [popupPrintLayout, setPopupPrintLayout] = useState<string>('a4_ngang');
+  const [googleSheetProducts, setGoogleSheetProducts] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('rtst_popup_all_sp_sheet_products');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isSyncingSheet, setIsSyncingSheet] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<string>(() => {
+    return localStorage.getItem('rtst_popup_all_sp_last_sync') || '';
+  });
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState(false);
+  const searchDropdownRef = useRef<HTMLDivElement>(null);
   const [cePrintLayout, setCePrintLayout] = useState<string>('1');
   const [mlnPrintLayout, setMlnPrintLayout] = useState<string>('1');
   const [gvgsPrintLayout, setGvgsPrintLayout] = useState<string>('1');
@@ -444,6 +461,11 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         return {
           inventory: STORAGE_KEYS.STICKER_LK_INVENTORY_DATA,
           price: STORAGE_KEYS.STICKER_LK_PRICE_DATA
+        };
+      case 'popup-all-sp':
+        return {
+          inventory: 'rtst_sticker_popup_all_sp_inventory_data',
+          price: 'rtst_sticker_popup_all_sp_price_data'
         };
       case 'sticker-ce':
         return {
@@ -511,6 +533,179 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     nganhHang: '',
     endDate: ''
   });
+
+  const DEFAULT_POPUP_SHEET_CSV = 'https://docs.google.com/spreadsheets/d/10lNW3vdP6Y3IOao2ZsLCza-71s0Pxi5Bz1X9tlcztWo/export?format=csv';
+
+  const handleSyncGoogleSheetAllSp = async () => {
+    setIsSyncingSheet(true);
+    try {
+      const res = await fetch(DEFAULT_POPUP_SHEET_CSV);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const csvText = await res.text();
+      
+      const parseCsvLine = (text: string) => {
+        const result: string[] = [];
+        let cur = '';
+        let inQuotes = false;
+        for (let i = 0; i < text.length; i++) {
+          const char = text[i];
+          if (char === '"') {
+            if (inQuotes && text[i + 1] === '"') {
+              cur += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === ',' && !inQuotes) {
+            result.push(cur.trim());
+            cur = '';
+          } else {
+            cur += char;
+          }
+        }
+        result.push(cur.trim());
+        return result;
+      };
+
+      const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
+      let products: any[] = [];
+
+      if (lines.length > 1) {
+        const headers = parseCsvLine(lines[0]).map(h => h.trim().toUpperCase());
+        let colMa = headers.findIndex(h => h.includes('MÃ') || h.includes('MA') || h.includes('CODE'));
+        let colTen = headers.findIndex(h => h.includes('TÊN') || h.includes('TEN') || h.includes('NAME') || h.includes('SẢN PHẨM'));
+        let colGiaGoc = headers.findIndex(h => h.includes('GỐC') || h.includes('GOC') || h.includes('ORIGINAL'));
+        let colGiaGiam = headers.findIndex(h => h.includes('GIẢM') || h.includes('GIAM') || h.includes('KHUYẾN MÃI') || h.includes('KM') || h.includes('DISCOUNT') || h.includes('BÁN'));
+
+        if (colMa === -1) colMa = 1;
+        if (colTen === -1) colTen = 2;
+        if (colGiaGoc === -1) colGiaGoc = 3;
+        if (colGiaGiam === -1) colGiaGiam = 4;
+
+        const parseNum = (v: string) => {
+          const digits = (v || '').replace(/[^\d]/g, '');
+          return digits ? parseInt(digits, 10) : 0;
+        };
+
+        for (let i = 1; i < lines.length; i++) {
+          const cols = parseCsvLine(lines[i]);
+          const ma = (cols[colMa] || '').trim();
+          const ten = (cols[colTen] || '').trim();
+          if (!ma && !ten) continue;
+
+          products.push({
+            id: `gg_${i}_${ma || Date.now()}`,
+            productCode: ma,
+            maSanPham: ma,
+            name: ten,
+            originalPrice: parseNum(cols[colGiaGoc]),
+            discountPrice: parseNum(cols[colGiaGiam]),
+            nganhHang: 'POPUP ALL SP',
+            qrData: ma || '00000'
+          });
+        }
+      }
+
+      if (products.length === 0) {
+        products = [
+          { id: 'sample_1', productCode: 'LK001', maSanPham: 'LK001', name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, nganhHang: 'POPUP ALL SP', qrData: 'LK001' },
+          { id: 'sample_2', productCode: 'LK002', maSanPham: 'LK002', name: 'Loa kéo Dalton TS-12G350N', originalPrice: 6200000, discountPrice: 4890000, nganhHang: 'POPUP ALL SP', qrData: 'LK002' },
+          { id: 'sample_3', productCode: 'TV001', maSanPham: 'TV001', name: 'Smart Tivi Samsung 4K 55 inch Crystal UHD', originalPrice: 14900000, discountPrice: 10490000, nganhHang: 'POPUP ALL SP', qrData: 'TV001' },
+          { id: 'sample_4', productCode: 'TL001', maSanPham: 'TL001', name: 'Tủ lạnh Toshiba Inverter 249 lít GR-RT325WE', originalPrice: 8990000, discountPrice: 6690000, nganhHang: 'POPUP ALL SP', qrData: 'TL001' },
+          { id: 'sample_5', productCode: 'MG001', maSanPham: 'MG001', name: 'Máy giặt Toshiba 9 kg AW-M1000FV(MK)', originalPrice: 6490000, discountPrice: 4790000, nganhHang: 'POPUP ALL SP', qrData: 'MG001' },
+          { id: 'sample_6', productCode: 'MLN01', maSanPham: 'MLN01', name: 'Máy lọc nước RO Kangaroo 10 lõi KG10A3', originalPrice: 7990000, discountPrice: 5490000, nganhHang: 'POPUP ALL SP', qrData: 'MLN01' },
+          { id: 'sample_7', productCode: 'QD001', maSanPham: 'QD001', name: 'Quạt điều hoà Sunhouse SHD7746', originalPrice: 5490000, discountPrice: 3490000, nganhHang: 'POPUP ALL SP', qrData: 'QD001' }
+        ];
+        showNotification('Đã nạp danh sách sản phẩm mẫu (Google Sheet chưa có dòng sản phẩm)! Hãy thêm dòng trên Sheet rồi bấm Đồng bộ lại.', 'success');
+      } else {
+        showNotification(`Đã đồng bộ thành công ${products.length} sản phẩm từ Google Sheet!`, 'success');
+      }
+
+      setGoogleSheetProducts(products);
+      safeLocalStorageSet('rtst_popup_all_sp_sheet_products', JSON.stringify(products));
+      const nowStr = new Date().toLocaleString('vi-VN');
+      setLastSyncTime(nowStr);
+      safeLocalStorageSet('rtst_popup_all_sp_last_sync', nowStr);
+    } catch (err: any) {
+      console.error('Lỗi đồng bộ Google Sheet:', err);
+      showNotification(`Không thể tải từ Google Sheet: ${err?.message || 'Lỗi mạng hoặc chưa mở link'}`, 'error');
+    } finally {
+      setIsSyncingSheet(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'popup-all-sp' && googleSheetProducts.length === 0) {
+      handleSyncGoogleSheetAllSp();
+    }
+  }, [activeTab]);
+
+  const filteredGoogleSheetProducts = useMemo(() => {
+    if (!productSearchQuery.trim()) return googleSheetProducts.slice(0, 15);
+    const q = productSearchQuery.toLowerCase().trim();
+    const qNorm = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+    return googleSheetProducts.filter(item => {
+      const code = (item.productCode || item.maSanPham || '').toLowerCase();
+      const name = (item.name || '').toLowerCase();
+      const nameNorm = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+      return code.includes(q) || name.includes(q) || nameNorm.includes(qNorm);
+    }).slice(0, 20);
+  }, [googleSheetProducts, productSearchQuery]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchDropdownRef.current && !searchDropdownRef.current.contains(e.target as Node)) {
+        setIsSearchDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectProductFromSearch = (prod: any) => {
+    setManualData({
+      productCode: prod.productCode || prod.maSanPham || '',
+      name: prod.name || '',
+      originalPrice: prod.originalPrice ? formatPriceInput(String(prod.originalPrice)) : '',
+      discountPrice: prod.discountPrice ? formatPriceInput(String(prod.discountPrice)) : '',
+      nganhHang: prod.nganhHang || 'POPUP ALL SP',
+      endDate: prod.endDate || ''
+    });
+    setProductSearchQuery(`${prod.productCode ? `[${prod.productCode}] ` : ''}${prod.name}`);
+    setIsSearchDropdownOpen(false);
+    showNotification(`Đã chọn: ${prod.name}. Bạn có thể chỉnh sửa Giá gốc & Giá giảm tự do rồi bấm "THÊM VÀO LIST"!`, 'success');
+  };
+
+  const handleQuickAddProduct = (prod: any, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const newItem = {
+      productCode: prod.productCode || prod.maSanPham || 'MANUAL',
+      maSanPham: prod.productCode || prod.maSanPham || 'MANUAL',
+      name: prod.name,
+      originalPrice: prod.originalPrice || 0,
+      discountPrice: prod.discountPrice || 0,
+      nganhHang: prod.nganhHang || 'POPUP ALL SP',
+      nhomHang: 'GOOGLE SHEET',
+      endDate: prod.endDate || '',
+      isManual: true,
+      qrData: prod.productCode || prod.maSanPham || '00000'
+    };
+
+    setPriceData(prev => {
+      const updated = [newItem, ...prev];
+      const keys = getStorageKeysForTab(activeTab);
+      safeLocalStorageSet(keys.price, JSON.stringify({
+        data: updated,
+        timestamp: new Date().toISOString()
+      }));
+      return updated;
+    });
+
+    setIsSearchDropdownOpen(false);
+    showNotification(`Đã thêm nhanh "${prod.name}" vào giỏ in!`, 'success');
+  };
 
   const [dongGiaTitle, setDongGiaTitle] = useState(() => {
     return localStorage.getItem('rtst_dong_gia_title') || 'ĐỒNG GIÁ';
@@ -626,6 +821,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     if (
       activeTab === 'all-sticker' || 
       activeTab === 'sticker-lk' || 
+      activeTab === 'popup-all-sp' || 
       activeTab === 'sticker-ce' || 
       activeTab === 'sticker-mln' || 
       activeTab === 'sticker-gvgs' || 
@@ -1972,7 +2168,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               });
             }
           }
-        } else if (activeTab === 'sticker-lk') {
+        } else if (activeTab === 'sticker-lk' || activeTab === 'popup-all-sp') {
           const isSystemReport = data.some(row => row && row.length > 27);
           if (isSystemReport) {
             const cleanPrice = (val: any) => {
@@ -2015,7 +2211,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 name: name,
                 originalPrice: cleanPrice(colV),
                 discountPrice: cleanPrice(colU),
-                nganhHang: 'LOA KÉO',
+                nganhHang: activeTab === 'popup-all-sp' ? 'POPUP ALL SP' : 'LOA KÉO',
                 nhomHang: '',
                 endDate: ''
               });
@@ -2049,7 +2245,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 name: colB,
                 originalPrice: cleanPrice(colC),
                 discountPrice: cleanPrice(colD),
-                nganhHang: 'LOA KÉO',
+                nganhHang: activeTab === 'popup-all-sp' ? 'POPUP ALL SP' : 'LOA KÉO',
                 nhomHang: '',
                 endDate: ''
               });
@@ -2762,7 +2958,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       name: manualData.name,
       originalPrice: parseInt(manualData.originalPrice.replace(/[^\d]/g, '')) || 0,
       discountPrice: finalDiscountPrice || 100000,
-      nganhHang: activeTab === 'sticker-mln' ? (manualData.nganhHang || 'MÁY LỌC NƯỚC') : activeTab === 'sticker-gvgs' ? (manualData.nganhHang || 'GIỜ VÀNG GIÁ SỐC') : activeTab === 'sticker-dong-gia-100k' ? (manualData.nganhHang || 'ĐỒNG GIÁ 100K') : (manualData.nganhHang || 'THỦ CÔNG'),
+      nganhHang: activeTab === 'popup-all-sp' ? (manualData.nganhHang || 'POPUP ALL SP') : activeTab === 'sticker-mln' ? (manualData.nganhHang || 'MÁY LỌC NƯỚC') : activeTab === 'sticker-gvgs' ? (manualData.nganhHang || 'GIỜ VÀNG GIÁ SỐC') : activeTab === 'sticker-dong-gia-100k' ? (manualData.nganhHang || 'ĐỒNG GIÁ 100K') : (manualData.nganhHang || 'THỦ CÔNG'),
       nhomHang: 'THỦ CÔNG',
       endDate: manualData.endDate || '',
       isManual: true
@@ -2896,6 +3092,17 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           </button>
 
           <button
+            onClick={() => setActiveTab('popup-all-sp')}
+            className={`flex items-center gap-2.5 py-3 px-6 rounded-full text-sm font-extrabold uppercase tracking-wide transition-all border-2 shadow-sm shrink-0 whitespace-nowrap cursor-pointer ${
+              activeTab === 'popup-all-sp'
+                ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-700 shadow-md ring-2 ring-fuchsia-200'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-fuchsia-300 hover:bg-fuchsia-50 hover:text-fuchsia-700'
+            }`}
+          >
+            <span className="text-lg">🏷️</span> POPUP ALL SP
+          </button>
+
+          <button
             onClick={() => setActiveTab('sticker-ce')}
             className={`flex items-center gap-2.5 py-3 px-6 rounded-full text-sm font-extrabold uppercase tracking-wide transition-all border-2 shadow-sm shrink-0 whitespace-nowrap cursor-pointer ${
               activeTab === 'sticker-ce'
@@ -2999,6 +3206,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 activeTab === 'sticker-dong-gia-100k' ||
                 activeTab === 'sticker-event' ||
                 activeTab === 'sticker-lk' ||
+                activeTab === 'popup-all-sp' ||
                 activeTab === 'sticker-ce' ||
                 activeTab === 'sticker-mln' ||
                 activeTab === 'sticker-gvgs' ||
@@ -3568,7 +3776,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               </motion.div>
             )}
 
-            {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event' || activeTab === 'sticker' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dcnb' || activeTab === 'sticker-laptop') && (
+            {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event' || activeTab === 'sticker' || activeTab === 'sticker-lk' || activeTab === 'popup-all-sp' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dcnb' || activeTab === 'sticker-laptop') && (
               <motion.div
                 key={activeTab}
                 initial={{ opacity: 0, x: 20 }}
@@ -3576,7 +3784,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
-                {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dcnb' || activeTab === 'sticker-laptop') && renderSubTabs()}
+                {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event' || activeTab === 'sticker-lk' || activeTab === 'popup-all-sp' || activeTab === 'sticker-ce' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-dcnb' || activeTab === 'sticker-laptop') && renderSubTabs()}
                 {activeTab === 'sticker-laptop' ? (
                   <LaptopStickerTab />
                 ) : (
@@ -3584,7 +3792,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               {/* Left Column */}
               {activeTab !== 'sticker-dcnb' && activeTab !== 'sticker-event-dmx' && (
                 <div className="col-span-1 space-y-6">
-                  {activeTab !== 'sticker-dong-gia-100k' && (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') && (
+                  {activeTab !== 'sticker-dong-gia-100k' && (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'popup-all-sp' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') && (
                   /* Card 1: Thông tin & Nhập dữ liệu */
                   <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
                     <div className="flex items-center justify-between mb-4">
@@ -3680,8 +3888,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             <div className="text-center">
                               <div className="text-[10px] font-black uppercase tracking-wider">
                                 {priceFile || lastUpdatePrice 
-                                  ? (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' ? 'Đã tải Bảng Giá Mẫu 99' : activeTab === 'sticker-ce' ? 'Đã tải Bảng Giá Mẫu 97' : activeTab === 'sticker-lk' ? 'Đã tải Bảng Giá Mẫu 78' : 'Đã tải Bảng Giá Mẫu 81')
-                                  : (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' ? 'Tải Bảng Giá Mẫu 99' : activeTab === 'sticker-ce' ? 'Tải Bảng Giá Mẫu 97' : activeTab === 'sticker-lk' ? 'Tải Bảng Giá Mẫu 78' : 'Tải Bảng Giá Mẫu 81')}
+                                  ? (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' ? 'Đã tải Bảng Giá Mẫu 99' : activeTab === 'sticker-ce' ? 'Đã tải Bảng Giá Mẫu 97' : (activeTab === 'sticker-lk' || activeTab === 'popup-all-sp') ? 'Đã tải Bảng Giá Mẫu 78' : 'Đã tải Bảng Giá Mẫu 81')
+                                  : (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' ? 'Tải Bảng Giá Mẫu 99' : activeTab === 'sticker-ce' ? 'Tải Bảng Giá Mẫu 97' : (activeTab === 'sticker-lk' || activeTab === 'popup-all-sp') ? 'Tải Bảng Giá Mẫu 78' : 'Tải Bảng Giá Mẫu 81')}
                               </div>
                               {lastUpdatePrice && !priceFile && <div className="text-[8px] font-bold text-emerald-500 mt-1">Cập nhật: {lastUpdatePrice}</div>}
                               {priceFile && <div className="text-[8px] font-bold text-emerald-500 mt-1 truncate max-w-[80px]">{priceFile.name}</div>}
@@ -3691,7 +3899,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                       )}
                     </div>
 
-                    {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-event' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') && (
+                    {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'popup-all-sp' || activeTab === 'sticker-event' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') && (
                       <div className="mt-3">
                         <button
                           onClick={handleStartScanner}
@@ -3873,7 +4081,149 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                       </button>
                     </div>
                   ) : (
-                    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
+                    <>
+                      {/* KHỐI ĐỒNG BỘ GOOGLE SHEET & TÌM KIẾM NHANH CHO TAB POPUP ALL SP */}
+                      {activeTab === 'popup-all-sp' && (
+                        <div className="bg-white rounded-3xl shadow-sm border-2 border-emerald-500/30 p-5 space-y-4 relative overflow-hidden">
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
+                          
+                          <div className="flex items-center justify-between relative z-10">
+                            <div className="flex items-center gap-2">
+                              <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-xs">
+                                <FileSpreadsheet size={20} />
+                              </div>
+                              <div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-1.5">
+                                  ĐỒNG BỘ GOOGLE SHEET
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">ALL SP</span>
+                                </h3>
+                                <p className="text-[11px] text-slate-400 font-medium">Data nạp sẵn từ bảng tính Google Sheet</p>
+                              </div>
+                            </div>
+                            <a 
+                              href="https://docs.google.com/spreadsheets/d/10lNW3vdP6Y3IOao2ZsLCza-71s0Pxi5Bz1X9tlcztWo/edit?usp=sharing"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Mở Google Sheet trên tab mới"
+                              className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-200 transition-colors"
+                            >
+                              <span>Mở Sheet</span>
+                              <ExternalLink size={12} />
+                            </a>
+                          </div>
+
+                          {/* Nút Đồng Bộ Google Sheet */}
+                          <div className="flex flex-col sm:flex-row items-center gap-2.5">
+                            <button
+                              type="button"
+                              onClick={handleSyncGoogleSheetAllSp}
+                              disabled={isSyncingSheet}
+                              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-md shadow-emerald-500/20 active:scale-98 transition-all disabled:opacity-60 cursor-pointer"
+                            >
+                              <RefreshCw size={16} className={isSyncingSheet ? 'animate-spin' : ''} />
+                              <span>{isSyncingSheet ? 'ĐANG TẢI DỮ LIỆU...' : 'ĐỒNG BỘ VỚI GG SHEET'}</span>
+                            </button>
+                          </div>
+
+                          {/* Trạng thái dữ liệu */}
+                          <div className="flex items-center justify-between text-[11px] bg-slate-50 border border-slate-200/80 px-3 py-2 rounded-xl">
+                            <div className="flex items-center gap-1.5 font-bold text-slate-700">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                              <span>Đã nạp: <strong className="text-emerald-600 font-black">{googleSheetProducts.length}</strong> SP</span>
+                            </div>
+                            {lastSyncTime && (
+                              <span className="text-[10px] text-slate-400 font-medium">Lúc: {lastSyncTime}</span>
+                            )}
+                          </div>
+
+                          {/* Ô Tìm Kiếm Mã SP hoặc Tên SP */}
+                          <div className="relative" ref={searchDropdownRef}>
+                            <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-tight block mb-1.5">
+                              🔍 Tìm kiếm mã SP hoặc tên SP:
+                            </label>
+                            <div className="relative">
+                              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                              <input 
+                                type="text"
+                                placeholder="Gõ mã hoặc tên SP để chọn (VD: TV001, MK-2120C, Tủ lạnh...)"
+                                value={productSearchQuery}
+                                onChange={(e) => {
+                                  setProductSearchQuery(e.target.value);
+                                  setIsSearchDropdownOpen(true);
+                                }}
+                                onFocus={() => setIsSearchDropdownOpen(true)}
+                                className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all shadow-inner"
+                              />
+                              {productSearchQuery && (
+                                <button 
+                                  type="button"
+                                  onClick={() => setProductSearchQuery('')}
+                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                                >
+                                  <X size={14} />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Dropdown danh sách gợi ý tìm kiếm */}
+                            {isSearchDropdownOpen && (
+                              <div className="absolute left-0 right-0 top-full mt-1.5 max-h-72 overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-xl z-50 divide-y divide-slate-100">
+                                {filteredGoogleSheetProducts.length === 0 ? (
+                                  <div className="p-4 text-center text-xs text-slate-400">
+                                    Không tìm thấy sản phẩm nào khớp với từ khóa "{productSearchQuery}"
+                                  </div>
+                                ) : (
+                                  filteredGoogleSheetProducts.map((p, idx) => (
+                                    <div 
+                                      key={p.id || idx}
+                                      onClick={() => handleSelectProductFromSearch(p)}
+                                      className="p-3 hover:bg-emerald-50/60 cursor-pointer transition-colors flex items-center justify-between gap-3 group"
+                                    >
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-1.5">
+                                          {p.productCode && (
+                                            <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+                                              {p.productCode}
+                                            </span>
+                                          )}
+                                          <span className="text-xs font-bold text-slate-800 truncate group-hover:text-emerald-700">
+                                            {p.name}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-1">
+                                          {p.originalPrice > 0 && (
+                                            <span className="text-[10px] text-slate-400 line-through">
+                                              {p.originalPrice.toLocaleString('vi-VN')}đ
+                                            </span>
+                                          )}
+                                          <span className="text-[11px] font-black text-rose-600">
+                                            {p.discountPrice ? `${p.discountPrice.toLocaleString('vi-VN')}đ` : 'Chưa có giá'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        <span className="text-[10px] text-emerald-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                                          Chọn & sửa giá
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => handleQuickAddProduct(p, e)}
+                                          title="Thêm ngay vào giỏ in"
+                                          className="p-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition-colors"
+                                        >
+                                          <Plus size={14} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
@@ -4057,6 +4407,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                         </button>
                       </div>
                     </div>
+                    </>
                   )
                 )}
 
@@ -4167,7 +4518,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                   </div>
                 )}
 
-                {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'sticker-dcnb' || activeTab === 'sticker-ce') && (
+                {(activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'popup-all-sp' || activeTab === 'sticker-dcnb' || activeTab === 'sticker-ce') && (
                   <div className={activeTab === 'sticker-event-dmx' ? 'grid grid-cols-1 lg:grid-cols-3 gap-6 items-start' : ''}>
                     {activeTab === 'sticker-event-dmx' && (
                       <div className="lg:col-span-1 bg-[#f5f6ff] border-2 border-indigo-100/90 rounded-3xl p-6 shadow-sm space-y-4 animate-fade-in">
@@ -4239,32 +4590,36 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               ? 'CHỌN BỐ CỤC IN GVGS'
                               : activeTab === 'sticker-dong-gia-100k'
                                 ? 'CHỌN BỐ CỤC IN ĐỒNG GIÁ 100K'
-                                : activeTab === 'sticker-lk'
-                                  ? 'CHỌN BỐ CỤC IN LOA KÉO'
-                                  : activeTab === 'sticker-ce'
-                                    ? 'CHỌN BỐ CỤC IN TIVI, TỦ LẠNH, MÁY GIẶT'
-                                    : activeTab === 'sticker-dcnb'
-                                      ? 'XEM TRƯỚC TRANG IN DCNB'
-                                      : 'CHỌN BỐ CỤC IN'}
+                                : activeTab === 'popup-all-sp'
+                                  ? 'CHỌN BỐ CỤC IN POPUP ALL SP'
+                                  : activeTab === 'sticker-lk'
+                                    ? 'CHỌN BỐ CỤC IN LOA KÉO'
+                                    : activeTab === 'sticker-ce'
+                                      ? 'CHỌN BỐ CỤC IN TIVI, TỦ LẠNH, MÁY GIẶT'
+                                      : activeTab === 'sticker-dcnb'
+                                        ? 'XEM TRƯỚC TRANG IN DCNB'
+                                        : 'CHỌN BỐ CỤC IN'}
                         </h2>
                         <p className="text-[11px] text-slate-400 font-medium">
                           {activeTab === 'sticker-mln'
                             ? 'Nhấp vào nút bên dưới để in trực tiếp kiểu Máy Lọc Nước'
                             : activeTab === 'sticker-gvgs'
                               ? 'Nhấp vào nút bên dưới để in trực tiếp kiểu Giờ Vàng Giá Sốc'
-                              : activeTab === 'sticker-lk'
-                                ? 'Chọn bố cục bên dưới để in trực tiếp kiểu Loa Kéo'
-                                : activeTab === 'sticker-ce'
-                                  ? 'Chọn bố cục bên dưới để in trực tiếp kiểu Tivi, Tủ lạnh, Máy giặt'
-                                  : activeTab === 'sticker-dcnb'
-                                    ? 'Hiển thị 3 cột ghép nằm ngang tương đương với 1 trang A4'
-                                    : 'Chọn bố cục bên dưới để in trực tiếp'}
+                              : activeTab === 'popup-all-sp'
+                                ? 'Chọn bố cục bên dưới để in trực tiếp kiểu POPUP ALL SP (A4 ngang, A5 ngang, A4 đứng)'
+                                : activeTab === 'sticker-lk'
+                                  ? 'Chọn bố cục bên dưới để in trực tiếp kiểu Loa Kéo'
+                                  : activeTab === 'sticker-ce'
+                                    ? 'Chọn bố cục bên dưới để in trực tiếp kiểu Tivi, Tủ lạnh, Máy giặt'
+                                    : activeTab === 'sticker-dcnb'
+                                      ? 'Hiển thị 3 cột ghép nằm ngang tương đương với 1 trang A4'
+                                      : 'Chọn bố cục bên dưới để in trực tiếp'}
                         </p>
                       </div>
                     </div>
 
                     <div className="rounded-3xl border border-indigo-100/70 overflow-hidden flex flex-col mb-4 bg-white shadow-xl shadow-indigo-100/10">
-                      <div className={`${activeTab === 'sticker-dcnb' || (activeTab === 'sticker-lk' && lkPrintLayout === '2') || (activeTab === 'sticker-ce' && cePrintLayout === '2') || (activeTab === 'sticker-mln' && mlnPrintLayout === '2') || (activeTab === 'sticker-gvgs' && gvgsPrintLayout === '2') ? 'h-[760px]' : 'h-[440px]'} bg-gradient-to-tr from-slate-50 via-indigo-50/20 to-purple-50/30 flex items-center justify-center overflow-hidden relative p-8`}>
+                      <div className={`${activeTab === 'sticker-dcnb' || (activeTab === 'sticker-lk' && lkPrintLayout === '2') || (activeTab === 'popup-all-sp' && popupPrintLayout === '2') || (activeTab === 'sticker-ce' && cePrintLayout === '2') || (activeTab === 'sticker-mln' && mlnPrintLayout === '2') || (activeTab === 'sticker-gvgs' && gvgsPrintLayout === '2') ? 'h-[760px]' : (activeTab === 'popup-all-sp' && popupPrintLayout === 'a4_ngang') ? 'h-[520px]' : 'h-[440px]'} bg-gradient-to-tr from-slate-50 via-indigo-50/20 to-purple-50/30 flex items-center justify-center overflow-hidden relative p-8`}>
                         <div
                           className="pointer-events-none select-none shadow-[0_20px_50px_rgba(99,102,241,0.15)] border border-slate-900/10 rounded-xl overflow-hidden transition-all duration-300 flex flex-col bg-white"
                           style={{
@@ -4272,36 +4627,42 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               ? ((activeTab === 'sticker-gvgs' ? gvgsPrintLayout : mlnPrintLayout) === '1' ? 'scale(0.5)' : 'scale(0.58)')
                               : activeTab === 'sticker-lk'
                                 ? (lkPrintLayout === '1' ? 'scale(0.48)' : 'scale(0.58)')
-                                : activeTab === 'sticker-ce'
-                                  ? (cePrintLayout === '1' ? 'scale(0.48)' : 'scale(0.58)')
-                                  : activeTab === 'sticker-dcnb'
-                                    ? 'scale(0.58)'
-                                    : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event')
-                                      ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? 'scale(0.4)' : 'scale(0.42)')
-                                      : 'scale(0.95)',
+                                : activeTab === 'popup-all-sp'
+                                  ? (popupPrintLayout === 'a4_ngang' ? 'scale(0.38)' : popupPrintLayout === '1' ? 'scale(0.48)' : 'scale(0.58)')
+                                  : activeTab === 'sticker-ce'
+                                    ? (cePrintLayout === '1' ? 'scale(0.48)' : 'scale(0.58)')
+                                    : activeTab === 'sticker-dcnb'
+                                      ? 'scale(0.58)'
+                                      : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event')
+                                        ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? 'scale(0.4)' : 'scale(0.42)')
+                                        : 'scale(0.95)',
                             transformOrigin: 'center',
                             width: (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs')
                               ? ((activeTab === 'sticker-gvgs' ? gvgsPrintLayout : mlnPrintLayout) === '1' ? '148.5mm' : '210mm')
                               : activeTab === 'sticker-lk'
                                 ? '210mm'
-                                : activeTab === 'sticker-ce'
-                                  ? '210mm'
-                                  : activeTab === 'sticker-dcnb'
+                                : activeTab === 'popup-all-sp'
+                                  ? (popupPrintLayout === 'a4_ngang' ? '297mm' : '210mm')
+                                  : activeTab === 'sticker-ce'
                                     ? '210mm'
-                                    : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event')
-                                      ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? '210mm' : '297mm')
-                                      : '148.5mm',
+                                    : activeTab === 'sticker-dcnb'
+                                      ? '210mm'
+                                      : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event')
+                                        ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? '210mm' : '297mm')
+                                        : '148.5mm',
                             height: (activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') 
                               ? ((activeTab === 'sticker-gvgs' ? gvgsPrintLayout : mlnPrintLayout) === '1' ? '210mm' : '297mm')
                               : activeTab === 'sticker-lk'
                                 ? (lkPrintLayout === '1' ? '148.5mm' : '297mm')
-                                : activeTab === 'sticker-ce'
-                                  ? (cePrintLayout === '1' ? '148.5mm' : '297mm')
-                                  : activeTab === 'sticker-dcnb'
-                                    ? '297mm'
-                                    : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event')
-                                      ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? '297mm' : '210mm')
-                                      : '105mm',
+                                : activeTab === 'popup-all-sp'
+                                  ? (popupPrintLayout === 'a4_ngang' ? '210mm' : popupPrintLayout === '1' ? '148.5mm' : '297mm')
+                                  : activeTab === 'sticker-ce'
+                                    ? (cePrintLayout === '1' ? '148.5mm' : '297mm')
+                                    : activeTab === 'sticker-dcnb'
+                                      ? '297mm'
+                                      : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event')
+                                        ? (eventPrintLayout === '2' || eventPrintLayout === '8' ? '297mm' : '210mm')
+                                        : '105mm',
                             flexShrink: 0
                           }}
                         >
@@ -4326,26 +4687,30 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                 </div>
                               ))}
                             </div>
-                          ) : (activeTab === 'sticker-lk' && lkPrintLayout === '2') || (activeTab === 'sticker-ce' && cePrintLayout === '2') ? (
+                          ) : (activeTab === 'sticker-lk' && lkPrintLayout === '2') || (activeTab === 'popup-all-sp' && popupPrintLayout === '2') || (activeTab === 'sticker-ce' && cePrintLayout === '2') ? (
                             <div className="flex flex-col h-full justify-between bg-white w-full">
                               <Sticker
                                 item={
-                                  activeTab === 'sticker-lk'
-                                    ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
-                                    : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
+                                  activeTab === 'popup-all-sp'
+                                    ? (combinedPriceData.length > 0 ? combinedPriceData[0] : { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: 'LK001', maSanPham: 'LK001', nganhHang: 'POPUP ALL SP' })
+                                    : activeTab === 'sticker-lk'
+                                      ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
+                                      : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
                                 }
-                                style={activeTab === 'sticker-lk' ? 'sticker_lk' : 'sticker_ce'}
+                                style={activeTab === 'sticker-ce' ? 'sticker_ce' : 'sticker_lk'}
                                 layout="2"
                                 showPromoLabel={false}
                               />
                               <div className="border-t-[2px] border-dashed border-slate-400 w-full shrink-0"></div>
                               <Sticker
                                 item={
-                                  activeTab === 'sticker-lk'
-                                    ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
-                                    : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
+                                  activeTab === 'popup-all-sp'
+                                    ? (combinedPriceData.length > 0 ? combinedPriceData[0] : { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: 'LK001', maSanPham: 'LK001', nganhHang: 'POPUP ALL SP' })
+                                    : activeTab === 'sticker-lk'
+                                      ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
+                                      : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
                                 }
-                                style={activeTab === 'sticker-lk' ? 'sticker_lk' : 'sticker_ce'}
+                                style={activeTab === 'sticker-ce' ? 'sticker_ce' : 'sticker_lk'}
                                 layout="2"
                                 showPromoLabel={false}
                               />
@@ -4405,7 +4770,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                           }
                                           style={activeTab === 'sticker-dong-gia-100k' ? 'dong_gia' : 'classic'}
                                           layout="1"
-                                          showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' || activeTab === 'sticker-dong-gia-100k' ? false : showEventPromoLabel}
+                                          showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'popup-all-sp' || activeTab === 'sticker-ce' || activeTab === 'sticker-dong-gia-100k' ? false : showEventPromoLabel}
                                           promoLabelText={promoLabelTextVal}
                                         />
                                       </div>
@@ -4421,15 +4786,15 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                   ? { name: 'Karofi KAQ-X18 11 lõi', originalPrice: 6990000, discountPrice: 4990000, maSanPham: 'SP001', nganhHang: 'MÁY LỌC NƯỚC', endDate: '31/05/2026' }
                                   : activeTab === 'sticker-gvgs'
                                     ? { name: 'Karofi KAQ-X18 11 lõi', originalPrice: 6990000, discountPrice: 4990000, maSanPham: 'SP001', nganhHang: 'GIỜ VÀNG GIÁ SỐC', endDate: '31/05/2026' }
-                                    : activeTab === 'sticker-lk'
-                                      ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
-                                      : activeTab === 'sticker-ce'
-                                        ? { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
+                                    : activeTab === 'popup-all-sp'
+                                      ? (combinedPriceData.length > 0 ? combinedPriceData[0] : { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: 'LK001', maSanPham: 'LK001', nganhHang: 'POPUP ALL SP' })
+                                      : activeTab === 'sticker-lk'
+                                        ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
                                         : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
                               }
-                              style={(activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') ? 'display' : activeTab === 'sticker-lk' ? 'sticker_lk' : activeTab === 'sticker-ce' ? 'sticker_ce' : 'classic'}
-                              layout={activeTab === 'sticker-lk' ? lkPrintLayout : activeTab === 'sticker-ce' ? cePrintLayout : activeTab === 'sticker-mln' ? mlnPrintLayout : activeTab === 'sticker-gvgs' ? gvgsPrintLayout : '1'}
-                              showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'sticker-ce' ? false : showEventPromoLabel}
+                              style={(activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') ? 'display' : (activeTab === 'sticker-lk' || activeTab === 'popup-all-sp') ? 'sticker_lk' : activeTab === 'sticker-ce' ? 'sticker_ce' : 'classic'}
+                              layout={activeTab === 'popup-all-sp' ? popupPrintLayout : activeTab === 'sticker-lk' ? lkPrintLayout : activeTab === 'sticker-ce' ? cePrintLayout : activeTab === 'sticker-mln' ? mlnPrintLayout : activeTab === 'sticker-gvgs' ? gvgsPrintLayout : '1'}
+                              showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'popup-all-sp' || activeTab === 'sticker-ce' ? false : showEventPromoLabel}
                               promoLabelText={promoLabelTextVal}
                               mlnHeaderTemplate={activeTab === 'sticker-gvgs' ? gvgsHeaderTemplate : mlnHeaderTemplate}
                               mlnFooterTemplate={activeTab === 'sticker-gvgs' ? gvgsFooterTemplate : mlnFooterTemplate}
@@ -4554,6 +4919,37 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             }`}
                           >
                             <Printer size={16} />
+                            <span>{s.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : activeTab === 'popup-all-sp' ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {[
+                          { layout: 'a4_ngang', label: 'BẤM ĐỂ IN (1 / TRANG A4 NGANG)' },
+                          { layout: '1', label: 'BẤM ĐỂ IN (1 / TRANG A5 NGANG)' },
+                          { layout: '2', label: 'BẤM ĐỂ IN (2 / TRANG A4 ĐỨNG)' }
+                        ].map((s) => (
+                          <button
+                            key={s.layout}
+                            onMouseEnter={() => setPopupPrintLayout(s.layout as any)}
+                            onClick={() => {
+                              setPopupPrintLayout(s.layout as any);
+                              setPrintConfig({ 
+                                style: 'sticker_lk', 
+                                layout: s.layout, 
+                                showPromoLabel: false 
+                              });
+                              setIsPrintModalOpen(true);
+                            }}
+                            disabled={combinedPriceData.length === 0 || selectedIndices.length === 0}
+                            className={`w-full py-3.5 px-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer ${
+                              popupPrintLayout === s.layout
+                                ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 ring-2 ring-amber-400 ring-offset-2'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                            }`}
+                          >
+                            <Printer size={15} />
                             <span>{s.label}</span>
                           </button>
                         ))}
@@ -5755,6 +6151,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         isOpen={isLayoutModalOpen}
         isCe={activeTab === 'sticker-ce'}
         isLk={activeTab === 'sticker-lk'}
+        isPopupAllSp={activeTab === 'popup-all-sp'}
         onClose={() => setIsLayoutModalOpen(false)}
         onConfirm={(style, layout, showPromoLabel) => {
           setPrintConfig({ style, layout, showPromoLabel });
