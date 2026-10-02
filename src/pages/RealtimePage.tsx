@@ -1095,11 +1095,8 @@ export const checkIsThoDmx = (params: {
   row?: any[];
   rowStr?: string;
 }): boolean => {
+  // 1. Ưu tiên số 1: Phân loại theo cột Phân loại hoặc rule phân loại sản phẩm
   if (checkIsThoDmxClassification(params.phanLoai) || checkIsThoDmxClassification(params.pClass)) {
-    return true;
-  }
-
-  if (params.row && Array.isArray(params.row) && params.row.some(cell => checkIsThoDmxClassification(String(cell || '')))) {
     return true;
   }
 
@@ -1108,70 +1105,53 @@ export const checkIsThoDmx = (params: {
   const normNhom = removeAccents(params.nhomHang || '').toUpperCase();
   const normNganh = removeAccents(params.nganhHang || '').toUpperCase();
   const normNsx = removeAccents(params.nsx || '').toUpperCase();
-  const normLoai = removeAccents(params.loaiYcx || '').toUpperCase();
-  const normHtx = removeAccents(params.htx || '').toUpperCase();
+  const rawNsx = String(params.nsx || '').toUpperCase();
 
-  const hasThoDmxText = (s: string) => {
-    if (!s) return false;
-    const clean = removeAccents(s).toUpperCase().replace(/[\s\-_]+/g, ' ');
-    return (
-      clean.includes('THO DMX') ||
-      clean.includes('THO DIEN MAY XANH') ||
-      clean.includes('THO_DMX') ||
-      clean.includes('THO DMX') ||
-      s.toUpperCase().includes('THỢ ĐMX') ||
-      s.toUpperCase().includes('THỢ ĐIỆN MÁY XANH')
-    );
-  };
+  const isThoDmxNsx = normNsx === 'THO DMX' || normNsx.includes('THO DMX') || rawNsx.includes('THỢ ĐMX');
+  const isThoDmxNganhOrCat = 
+    normNganh.includes('2037') || 
+    normCat.includes('2037') || 
+    normNhom.includes('2037') ||
+    normNganh.includes('THO DMX') ||
+    normCat.includes('THO DMX') ||
+    normNhom.includes('THO DMX') ||
+    (normNganh.includes('THU HO') && normNganh.includes('THO')) ||
+    (normCat.includes('THU HO') && normCat.includes('THO')) ||
+    (normNhom.includes('THU HO') && normNhom.includes('THO'));
 
+  // 2. Logic chuẩn theo bản backup: Nhà sản xuất Thợ ĐMX VÀ Ngành hàng/Nhóm hàng Thợ ĐMX (2037)
+  if (isThoDmxNsx && isThoDmxNganhOrCat) {
+    return true;
+  }
+
+  // 3. Nếu ngành hàng hoặc nhóm hàng trực tiếp chỉ rõ mã 2037 hoặc Dịch vụ thu hộ Thợ ĐMX
   if (
-    hasThoDmxText(params.phanLoai || '') ||
-    hasThoDmxText(params.pClass || '') ||
-    hasThoDmxText(normProd) ||
-    hasThoDmxText(params.productName || '') ||
-    hasThoDmxText(normCat) ||
-    hasThoDmxText(params.category || '') ||
-    hasThoDmxText(normNhom) ||
-    hasThoDmxText(params.nhomHang || '') ||
-    hasThoDmxText(normNganh) ||
-    hasThoDmxText(params.nganhHang || '') ||
-    hasThoDmxText(normNsx) ||
-    hasThoDmxText(params.nsx || '') ||
-    hasThoDmxText(normLoai) ||
-    hasThoDmxText(params.loaiYcx || '') ||
-    hasThoDmxText(normHtx) ||
-    hasThoDmxText(params.htx || '')
+    normCat.includes('2037') ||
+    normNhom.includes('2037') ||
+    normNganh.includes('2037') ||
+    (normCat.includes('THU HO') && (normCat.includes('THO DMX') || normCat.includes('THO DIEN MAY XANH'))) ||
+    (normNhom.includes('THU HO') && (normNhom.includes('THO DMX') || normNhom.includes('THO DIEN MAY XANH')))
   ) {
     return true;
   }
 
-  const hasThoDmxCode = (s: string) =>
-    s.includes('2037') ||
-    s.includes('7547') ||
-    s.includes('7160') ||
-    s.includes('7161') ||
-    s.includes('7162');
-
+  // 4. Nếu tên sản phẩm trực tiếp là dịch vụ Thợ ĐMX
   if (
-    hasThoDmxCode(normCat) ||
-    hasThoDmxCode(normNhom) ||
-    hasThoDmxCode(normNganh) ||
-    hasThoDmxCode(normProd)
+    (normProd.includes('THO DMX') || normProd.includes('THO DIEN MAY XANH') || (params.productName || '').toUpperCase().includes('THỢ ĐMX')) &&
+    (normProd.includes('DICH VU') || normProd.includes('DV') || normProd.includes('THU HO') || normProd.includes('BAO DUONG') || normProd.includes('VE SINH') || normProd.includes('LAP DAT') || normProd.includes('SUA CHUA'))
   ) {
     return true;
   }
 
-  const rowStr = params.rowStr || (params.row ? params.row.map(c => String(c || '').trim()).join(' | ') : '');
-  if (rowStr) {
-    const normRow = removeAccents(rowStr).toUpperCase();
-    if (hasThoDmxText(normRow) || hasThoDmxText(rowStr)) {
-      return true;
-    }
-    if (
-      hasThoDmxCode(normRow) &&
-      (normRow.includes('THU HO') || normRow.includes('DICH VU') || normRow.includes('BAO DUONG') || normRow.includes('VE SINH') || normRow.includes('BAO HANH'))
-    ) {
-      return true;
+  // 5. Nếu không có header NSX và Ngành hàng riêng biệt, kiểm tra rowStr nhưng bắt buộc phải có CẢ THỢ ĐMX VÀ (2037 hoặc DỊCH VỤ THU HỘ)
+  if (!params.nsx && !params.nganhHang && !params.category) {
+    const rowStr = params.rowStr || (params.row ? params.row.map(c => String(c || '').trim()).join(' | ') : '');
+    if (rowStr) {
+      const normRow = removeAccents(rowStr).toUpperCase();
+      if ((normRow.includes('THO DMX') || rowStr.toUpperCase().includes('THỢ ĐMX')) && 
+          (normRow.includes('2037') || normRow.includes('DICH VU THU HO CHO THO DMX'))) {
+        return true;
+      }
     }
   }
 
@@ -1287,7 +1267,10 @@ const classifyNhomHangLarge = (
     return largeVal === 'BẢO HIỂM' ? 'B.HIỂM' : largeVal;
   }
 
-  const catLower = cat.toLowerCase();
+  const catLower = cat.toLowerCase().trim();
+  if (!catLower) {
+    return 'Khác';
+  }
   
   // Try exact match in NHOM_HANG_MAP
   if (NHOM_HANG_MAP[cat] && NHOM_HANG_MAP[cat].large) {
@@ -1305,8 +1288,9 @@ const classifyNhomHangLarge = (
   for (const [key, val] of Object.entries(NHOM_HANG_MAP)) {
     const parts = key.split(' - ');
     if (parts.length === 2) {
+      const code = parts[0].trim().toLowerCase();
       const name = parts[1].trim().toLowerCase();
-      if (catLower === name || catLower.includes(name) || name.includes(catLower)) {
+      if (catLower === code || catLower === name || catLower.includes(name) || (catLower.length >= 4 && name.includes(catLower))) {
         return val.large;
       }
     }
@@ -1353,7 +1337,10 @@ const resolveNhomSmall = (
   }
 
   const origCat = String(category || '').trim();
-  const catLower = origCat.toLowerCase();
+  const catLower = origCat.toLowerCase().trim();
+  if (!catLower) {
+    return nhomSmallValue || 'KHÁC';
+  }
 
   if (NHOM_HANG_MAP[origCat] && NHOM_HANG_MAP[origCat].small) {
     return NHOM_HANG_MAP[origCat].small;
@@ -1368,8 +1355,9 @@ const resolveNhomSmall = (
   for (const [key, val] of Object.entries(NHOM_HANG_MAP)) {
     const parts = key.split(' - ');
     if (parts.length === 2) {
+      const code = parts[0].trim().toLowerCase();
       const name = parts[1].trim().toLowerCase();
-      if (catLower === name || catLower.includes(name) || name.includes(catLower)) {
+      if (catLower === code || catLower === name || catLower.includes(name) || (catLower.length >= 4 && name.includes(catLower))) {
         return val.small;
       }
     }
@@ -1387,7 +1375,8 @@ const resolveNhomSmallFriendlyName = (
   idxProductCode?: number,
   customNhomSmallMap?: Record<string, { large: string, small: string }>,
   customBaoHiemRules?: BaoHiemRule[],
-  idxPhanLoai?: number
+  idxPhanLoai?: number,
+  isThoDmxRow?: boolean
 ): string => {
   const catVal = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim().toUpperCase() : '';
   const origCat = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
@@ -1396,7 +1385,7 @@ const resolveNhomSmallFriendlyName = (
   const prodName = idxProduct !== -1 && idxProduct !== undefined ? String(row[idxProduct] || '').toUpperCase() : '';
   const rawPhanLoai = idxPhanLoai !== -1 && idxPhanLoai !== undefined ? String(row[idxPhanLoai] || '').trim() : '';
   
-  if (checkIsThoDmxClassification(rawPhanLoai) || checkIsThoDmx({ productName: prodName, category: catVal, nhomHang: origCat, phanLoai: rawPhanLoai, row })) {
+  if (isThoDmxRow || checkIsThoDmxClassification(rawPhanLoai) || checkIsThoDmx({ productName: prodName, category: catVal, nhomHang: origCat, phanLoai: rawPhanLoai })) {
     return 'Thợ ĐMX';
   }
 
@@ -1414,7 +1403,11 @@ const resolveNhomSmallFriendlyName = (
     return customNhomSmallMap[catVal].small;
   }
 
-  const catLower = origCat.toLowerCase();
+  const catLower = origCat.toLowerCase().trim();
+  if (!catLower) {
+    return nhomSmallValue || 'KHÁC';
+  }
+
   if (NHOM_HANG_MAP[origCat] && NHOM_HANG_MAP[origCat].small) {
     return NHOM_HANG_MAP[origCat].small;
   }
@@ -1428,8 +1421,9 @@ const resolveNhomSmallFriendlyName = (
   for (const [key, val] of Object.entries(NHOM_HANG_MAP)) {
     const parts = key.split(' - ');
     if (parts.length === 2) {
+      const code = parts[0].trim().toLowerCase();
       const name = parts[1].trim().toLowerCase();
-      if (catLower === name || catLower.includes(name) || name.includes(catLower)) {
+      if (catLower === code || catLower === name || catLower.includes(name) || (catLower.length >= 4 && name.includes(catLower))) {
         return val.small;
       }
     }
@@ -2599,8 +2593,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         checkIsThoDmxClassification(rawPhanLoai) ||
         checkIsThoDmxClassification(pClassRule) ||
         checkIsThoDmxClassification(codeClass) ||
-        checkIsThoDmxClassification(nameClass) ||
-        (Array.isArray(row) && row.some(cell => checkIsThoDmxClassification(String(cell || ''))));
+        checkIsThoDmxClassification(nameClass);
 
       const normProdUpper = removeAccents(productName).toUpperCase();
       const normCatUpper = removeAccents(category).toUpperCase();
@@ -4172,7 +4165,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
             if (isThoDmxRow) {
               cellValue = 'Thợ ĐMX';
             } else {
-              cellValue = resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode, customNhomSmallMap, customBaoHiemRules, idxPhanLoai);
+              cellValue = resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode, customNhomSmallMap, customBaoHiemRules, idxPhanLoai, false);
             }
           } else if (colIdx === row.length + 3) {
             const sourceHtx = (idxHinhThucXuat !== -1 ? String(row[idxHinhThucXuat] || '') : '') || (idxLoaiYcx !== -1 ? String(row[idxLoaiYcx] || '') : '');
@@ -4320,7 +4313,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           if (isThoDmxRow) {
             val = 'Thợ ĐMX';
           } else {
-            val = resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode, customNhomSmallMap, customBaoHiemRules, idxPhanLoai);
+            val = resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode, customNhomSmallMap, customBaoHiemRules, idxPhanLoai, false);
           }
         } else if (colIdx === row.length + 3) {
           val = idxHinhThucXuat !== -1 ? (classifyHinhThucXuat(String(row[idxHinhThucXuat] || '')) || '-') : '-';
@@ -4593,8 +4586,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         checkIsThoDmxClassification(rawPhanLoai) ||
         checkIsThoDmxClassification(pClassRule) ||
         checkIsThoDmxClassification(codeClass) ||
-        checkIsThoDmxClassification(nameClass) ||
-        (Array.isArray(row) && row.some(cell => checkIsThoDmxClassification(String(cell || ''))));
+        checkIsThoDmxClassification(nameClass);
 
       const normProdUpper = removeAccents(productName).toUpperCase();
       const normCatUpper = removeAccents(category).toUpperCase();
@@ -9693,35 +9685,45 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                             : (cell === undefined || cell === null ? '' : String(cell))}
                                         </td>
                                       )})}
-                                      <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
-                                        {(() => {
-                                          const rawPhanLoai = idxPhanLoai !== -1 ? String(row[idxPhanLoai] || '').trim() : '';
-                                          const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
-                                          const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
-                                          const codeClass = classifyProductByCode(prodCode, customBaoHiemRules);
-                                          const nameClass = classifyProduct(prodName, customBaoHiemRules);
-                                          if (checkIsThoDmxClassification(rawPhanLoai) || checkIsThoDmxClassification(codeClass) || checkIsThoDmxClassification(nameClass)) {
-                                            return 'Thợ ĐMX';
-                                          }
-                                          if (codeClass) return codeClass;
-                                          if (nameClass && nameClass !== '-') return nameClass;
-                                          if (rawPhanLoai) return rawPhanLoai;
-                                          return '-';
-                                        })()}
-                                      </td>
-                                      <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
-                                        {(() => {
-                                          const rawPhanLoai = idxPhanLoai !== -1 ? String(row[idxPhanLoai] || '').trim() : '';
-                                          const nhomSmallValue = idxSmallCategoryHeader !== -1 ? String(row[idxSmallCategoryHeader] || '').trim().toUpperCase() : '';
-                                          const valLarge = classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', String(row[idxProduct] || ''), nhomSmallValue, undefined, customNhomSmallMap, customBaoHiemRules, idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '', rawPhanLoai) || '-';
-                                          return valLarge === 'BẢO HIỂM' ? 'B.HIỂM' : valLarge;
-                                        })()}
-                                      </td>
-                                      <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
-                                        {(() => {
-                                          return resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode, customNhomSmallMap, customBaoHiemRules, idxPhanLoai);
-                                        })()}
-                                      </td>
+                                      {(() => {
+                                        const rawPhanLoai = idxPhanLoai !== -1 ? String(row[idxPhanLoai] || '').trim() : '';
+                                        const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
+                                        const prodName = idxProduct !== -1 ? String(row[idxProduct] || '').toUpperCase() : '';
+                                        const codeClass = classifyProductByCode(prodCode, customBaoHiemRules);
+                                        const nameClass = classifyProduct(prodName, customBaoHiemRules);
+                                        const pClassRule = codeClass || (nameClass && nameClass !== '-' ? nameClass : '');
+                                        const catStr = idxNhomHang !== -1 ? String(row[idxNhomHang] || '').trim() : '';
+                                        const isThoDmxThisRow = 
+                                          checkIsThoDmxClassification(rawPhanLoai) || 
+                                          checkIsThoDmxClassification(pClassRule) || 
+                                          checkIsThoDmx({ productName: prodName, category: catStr, phanLoai: rawPhanLoai, pClass: pClassRule });
+                                        
+                                        const nhomSmallValue = idxSmallCategoryHeader !== -1 ? String(row[idxSmallCategoryHeader] || '').trim().toUpperCase() : '';
+                                        const valLarge = isThoDmxThisRow ? 'DỊCH VỤ' : (classifyNhomHangLarge(idxNhomHang !== -1 ? row[idxNhomHang] : '', String(row[idxProduct] || ''), nhomSmallValue, undefined, customNhomSmallMap, customBaoHiemRules, idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '', rawPhanLoai) || '-');
+                                        const displayLarge = valLarge === 'BẢO HIỂM' ? 'B.HIỂM' : valLarge;
+                                        
+                                        const displayClassify = isThoDmxThisRow
+                                          ? 'Thợ ĐMX'
+                                          : (codeClass || (nameClass && nameClass !== '-' ? nameClass : '') || rawPhanLoai || '-');
+                                        
+                                        const displaySmall = isThoDmxThisRow
+                                          ? 'Thợ ĐMX'
+                                          : resolveNhomSmallFriendlyName(row, idxSmallCategoryHeader, idxNhomHang, idxProduct, idxProductCode, customNhomSmallMap, customBaoHiemRules, idxPhanLoai, false);
+
+                                        return (
+                                          <>
+                                            <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
+                                              {displayClassify}
+                                            </td>
+                                            <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
+                                              {displayLarge}
+                                            </td>
+                                            <td className="border border-slate-200 py-2 px-3 text-[9px] text-slate-900 whitespace-nowrap font-bold">
+                                              {displaySmall}
+                                            </td>
+                                          </>
+                                        );
+                                      })()}
                                       <td className="border border-slate-200 py-2 px-3 text-[9px] whitespace-nowrap font-black text-center">
                                         {(() => {
                                           const val = idxHinhThucXuat !== -1 ? classifyHinhThucXuat(String(row[idxHinhThucXuat] || '')) : null;
