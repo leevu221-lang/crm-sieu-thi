@@ -2931,6 +2931,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
       let nhomLarge = classifyNhomHangLarge(category, productName, undefined, undefined, undefined, customBaoHiemRules, prodCode, rawPhanLoai);
       const normProdUpper = removeAccents(productName).toUpperCase();
+      const normCatUpper = removeAccents(category).toUpperCase();
       
       return (
         pClass === 'B.HIỂM' || ['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1', 'BHAP', 'BHOT', 'BHVC', 'BHMT', 'BHXH', 'BHYT', 'BVMH', 'GIC'].includes(pClass) ||
