@@ -2633,10 +2633,16 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       !n || n.toLowerCase().includes('người tạo') || n.toLowerCase() === 'admin' || n.toLowerCase() === 'administrator';
 
     const isInsuranceRowHelper = (category: string, productName: string, row: any[]): boolean => {
+      const brandVal = idxNhaSanXuat !== -1 ? String(row[idxNhaSanXuat] || '').trim().toUpperCase() : '';
+      const normBrand = removeAccents(brandVal).toUpperCase();
+      const normCatUpper = removeAccents(category).toUpperCase();
+      if ((normBrand === 'THO DMX' || normBrand.includes('THO DMX')) && (normCatUpper.includes('2037') || normCatUpper.includes('THU HO') || normCatUpper.includes('THO DMX'))) {
+        return false;
+      }
+
       const prodCode = idxProductCode !== -1 ? String(row[idxProductCode] || '').trim() : '';
       let nhomLarge = classifyNhomHangLarge(category, productName, undefined, undefined, undefined, customBaoHiemRules, prodCode);
       const normProdUpper = removeAccents(productName).toUpperCase();
-      const normCatUpper = removeAccents(category).toUpperCase();
 
       const pClass = classifyProductByCode(prodCode, customBaoHiemRules) || classifyProduct(productName, customBaoHiemRules);
       
@@ -3540,6 +3546,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     vasBh: true,
     vasVieon: true,
     vasMangoIcall: true,
+    vasThoDmx: true,
     sim: true,
     dongHo: true,
     phuKien: true,
@@ -3593,7 +3600,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
               ...data.khaiThacSettings,
               gdNoiChao: data.khaiThacSettings.gdNoiChao !== undefined ? data.khaiThacSettings.gdNoiChao : true,
               gdDcnb: data.khaiThacSettings.gdDcnb !== undefined ? data.khaiThacSettings.gdDcnb : true,
-              colTong: data.khaiThacSettings.colTong !== undefined ? data.khaiThacSettings.colTong : true
+              colTong: data.khaiThacSettings.colTong !== undefined ? data.khaiThacSettings.colTong : true,
+              vasThoDmx: data.khaiThacSettings.vasThoDmx !== undefined ? data.khaiThacSettings.vasThoDmx : true
             }));
           }
         }
@@ -4001,6 +4009,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       if (showKhaiThacCols.vasBh) total += (item.bhQty || 0);
       if (showKhaiThacCols.vasVieon) total += (item.vieonQty || 0);
       if (showKhaiThacCols.vasMangoIcall) total += (item.mangoIcallQty || 0);
+      if (showKhaiThacCols.vasThoDmx) total += (item.thoDmxQty || 0);
     }
 
     // 4. ĐỒNG HỒ
@@ -4070,10 +4079,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       return findIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá bán', 'giá trị đh', 'giá trị'], -1);
     })();
     console.log('[KhaiThac] idxRevenue:', idxRevenue, '| Header:', headers[idxRevenue]);
+    const idxNganhHang = findIdx(['ngành hàng', 'nganh hang', 'tên ngành hàng', 'ten nganh hang', 'mã ngành hàng', 'nhóm ngành hàng'], -1);
     const idxCategory = findIdx(['nhóm hàng', 'tên nhóm hàng', 'ngành hàng', 'nhóm ngành hàng'], -1);
     const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ'], -1);
     const idxHinhThucXuat = findIdx(['hình thức xuất', 'hinh thuc xuat', 'htx', 'loại hình thức xuất', 'loai hinh thuc xuat', 'loại ycx', 'loai ycx', 'loại yêu cầu', 'loai yeu cau', 'phân loại ycx', 'phan loai ycx', 'hình thức', 'hinh thuc'], -1);
-    const idxNhaSanXuat = findIdx(['nhà sản xuất', 'nha san xuat', 'nhà sx', 'nha sx', 'hãng sản xuất', 'hãng sx', 'brand'], -1);
+    const idxNhaSanXuat = findIdx(['nhà sản xuất', 'nha san xuat', 'nhà sx', 'nha sx', 'hãng sản xuất', 'hãng sx', 'brand', 'nsx', 'hãng'], -1);
     const idxProduct = (() => {
       const exact = headers.findIndex(h => h.toLowerCase() === 'tên sản phẩm');
       if (exact !== -1) return exact;
@@ -4130,6 +4140,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       vieonRev: number;
       mangoIcallQty: number;
       mangoIcallRev: number;
+      thoDmxQty: number;
+      thoDmxRev: number;
       simQty: number;
       simRev: number;
       dhQty: number;
@@ -4172,14 +4184,42 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       const normProdUpper = removeAccents(productName).toUpperCase();
       const normCatUpper = removeAccents(category).toUpperCase();
       const prodUpper = productName.toUpperCase();
+      const rawNganhHang = idxNganhHang !== -1 ? String(row[idxNganhHang] || '').trim() : '';
+      const rawNsx = idxNhaSanXuat !== -1 ? String(row[idxNhaSanXuat] || '').trim() : '';
+      const normNsxUpper = removeAccents(rawNsx).toUpperCase();
+      const normNganhHangUpper = removeAccents(rawNganhHang).toUpperCase();
+
+      const isThoDmxNsx = normNsxUpper === 'THO DMX' || normNsxUpper.includes('THO DMX') || rawNsx.toUpperCase().includes('THỢ ĐMX');
+      const isThoDmxNganhHang = 
+        rawNganhHang.includes('2037') || 
+        normNganhHangUpper.includes('2037') || 
+        category.includes('2037') || 
+        normCatUpper.includes('2037') || 
+        (normNganhHangUpper.includes('DICH VU THU HO') && normNganhHangUpper.includes('THO DMX')) ||
+        (normCatUpper.includes('DICH VU THU HO') && normCatUpper.includes('THO DMX')) ||
+        (normNganhHangUpper.includes('THU HO') && normNganhHangUpper.includes('THO DMX')) ||
+        (normCatUpper.includes('THU HO') && normCatUpper.includes('THO DMX'));
+
+      let isThoDmxRow = isThoDmxNsx && isThoDmxNganhHang;
+      if (!isThoDmxRow && (idxNhaSanXuat === -1 || (idxNganhHang === -1 && idxCategory === -1))) {
+        const rowStr = row.map(c => String(c || '').trim()).join(' | ');
+        const normRowStr = removeAccents(rowStr).toUpperCase();
+        if ((normRowStr.includes('THO DMX') || rowStr.includes('Thợ ĐMX')) && 
+            (normRowStr.includes('2037') || normRowStr.includes('DICH VU THU HO CHO THO DMX'))) {
+          isThoDmxRow = true;
+        }
+      }
+
       const pClass = classifyProductByCode(prodCode, customBaoHiemRules) || classifyProduct(productName, customBaoHiemRules);
       const isInsuranceRow = 
-        pClass === 'B.HIỂM' || ['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1', 'BHAP', 'BHOT', 'BHVC', 'BHMT', 'BHXH', 'BHYT', 'BVMH', 'GIC'].includes(pClass) ||
-        ((normProdUpper.includes('BAO HIEM') || normCatUpper.includes('BAO HIEM')) && !normProdUpper.includes('NON BAO HIEM') && !normProdUpper.includes('MU BAO HIEM') && !normCatUpper.includes('NON BAO HIEM') && !normCatUpper.includes('MU BAO HIEM')) ||
-        normProdUpper.includes('1 DOI 1') || normProdUpper.includes('PVI_') ||
-        normProdUpper.includes('BVMH') || normProdUpper.includes('BAO VE MAN HINH') ||
-        category.includes('1994') || category.includes('4479') || category.includes('7139') ||
-        nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM';
+        !isThoDmxRow && (
+          pClass === 'B.HIỂM' || ['BHXM', 'BHRV', 'BHMR', 'BHKV', 'SC+', '1 ĐỔI 1', 'BHAP', 'BHOT', 'BHVC', 'BHMT', 'BHXH', 'BHYT', 'BVMH', 'GIC'].includes(pClass) ||
+          ((normProdUpper.includes('BAO HIEM') || normCatUpper.includes('BAO HIEM')) && !normProdUpper.includes('NON BAO HIEM') && !normProdUpper.includes('MU BAO HIEM') && !normCatUpper.includes('NON BAO HIEM') && !normCatUpper.includes('MU BAO HIEM')) ||
+          normProdUpper.includes('1 DOI 1') || normProdUpper.includes('PVI_') ||
+          normProdUpper.includes('BVMH') || normProdUpper.includes('BAO VE MAN HINH') ||
+          category.includes('1994') || category.includes('4479') || category.includes('7139') ||
+          nhomLarge === 'BẢO HIỂM' || nhomLarge === 'B.HIỂM'
+        );
 
       if (isInsuranceRow) {
         nhomLarge = 'B.HIỂM';
@@ -4241,6 +4281,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           vieonRev: 0,
           mangoIcallQty: 0,
           mangoIcallRev: 0,
+          thoDmxQty: 0,
+          thoDmxRev: 0,
           simQty: 0,
           simRev: 0,
           dhQty: 0,
@@ -4272,7 +4314,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
       const item = statsMap.get(staffName)!;
 
-      if (pClass === 'Mango' || pClass === 'Icall' || normProdUpper.includes('MANGO') || normProdUpper.includes('ICALL')) {
+      if (isThoDmxRow) {
+        item.thoDmxQty += qty;
+        item.thoDmxRev += revenue;
+      } else if (pClass === 'Mango' || pClass === 'Icall' || normProdUpper.includes('MANGO') || normProdUpper.includes('ICALL')) {
         item.mangoIcallQty += qty;
         item.mangoIcallRev += revenue;
       }
@@ -4523,7 +4568,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       const getVisibleVasTotalQty = (item: any) => {
         return (showKhaiThacCols.vasBh ? item.bhQty : 0) +
           (showKhaiThacCols.vasVieon ? item.vieonQty : 0) +
-          (showKhaiThacCols.vasMangoIcall ? item.mangoIcallQty : 0);
+          (showKhaiThacCols.vasMangoIcall ? item.mangoIcallQty : 0) +
+          (showKhaiThacCols.vasThoDmx ? (item.thoDmxQty || 0) : 0);
       };
 
       const getVisiblePkTotalQty = (item: any) => {
@@ -8174,7 +8220,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               {[
                                 { key: 'vasBh', label: 'SL B.HIỂM' },
                                 { key: 'vasVieon', label: 'SL VIEON' },
-                                { key: 'vasMangoIcall', label: 'SL Mango/Icall' }
+                                { key: 'vasMangoIcall', label: 'SL Mango/Icall' },
+                                { key: 'vasThoDmx', label: 'Thợ ĐMX' }
                               ].map(btn => {
                                 const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
                                 return (
@@ -8283,7 +8330,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   (showKhaiThacCols.baoHiem ? (
                                     (showKhaiThacCols.vasBh ? 1 : 0) +
                                     (showKhaiThacCols.vasVieon ? 1 : 0) +
-                                    (showKhaiThacCols.vasMangoIcall ? 1 : 0)
+                                    (showKhaiThacCols.vasMangoIcall ? 1 : 0) +
+                                    (showKhaiThacCols.vasThoDmx ? 1 : 0)
                                   ) : 0)
                                 }
                                 className="py-1 px-3 text-center text-[#be123c] bg-[#ffe4e6] border-r border-slate-200/50 font-black text-[13px] border-b border-rose-100"
@@ -8366,6 +8414,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                     {showKhaiThacCols.vasBh && renderKhaiThacHeader('bhQty', 'SL B.HIỂM', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
                                     {showKhaiThacCols.vasVieon && renderKhaiThacHeader('vieonQty', 'SL VIEON', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-14')}
                                     {showKhaiThacCols.vasMangoIcall && renderKhaiThacHeader('mangoIcallQty', 'SL Mango/Icall', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-24')}
+                                    {showKhaiThacCols.vasThoDmx && renderKhaiThacHeader('thoDmxQty', 'Thợ ĐMX', 'text-[#be123c]', 'bg-[#ffe4e6]', 'w-20')}
                                   </>
                                 )}
                               </>
@@ -8554,6 +8603,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                           {showKhaiThacCols.vasBh && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.bhQty)}</td>}
                                           {showKhaiThacCols.vasVieon && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.vieonQty)}</td>}
                                           {showKhaiThacCols.vasMangoIcall && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.mangoIcallQty)}</td>}
+                                          {showKhaiThacCols.vasThoDmx && <td className="py-2 px-2 text-center text-[13px] font-black text-[#be123c] border-r border-slate-200/50">{formatVal(item.thoDmxQty)}</td>}
                                         </>
                                       )}
                                     </>
@@ -8641,6 +8691,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               const totalBhQty = staffKhaiThacStats.reduce((s, x) => s + x.bhQty, 0);
                               const totalVieonQty = staffKhaiThacStats.reduce((s, x) => s + x.vieonQty, 0);
                               const totalMangoIcallQty = staffKhaiThacStats.reduce((s, x) => s + x.mangoIcallQty, 0);
+                              const totalThoDmxQty = staffKhaiThacStats.reduce((s, x) => s + (x.thoDmxQty || 0), 0);
 
                               const totalSimQty = staffKhaiThacStats.reduce((s, x) => s + x.simQty, 0);
 
@@ -8770,6 +8821,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                           {showKhaiThacCols.vasBh && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalBhQty)}</td>}
                                           {showKhaiThacCols.vasVieon && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalVieonQty)}</td>}
                                           {showKhaiThacCols.vasMangoIcall && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalMangoIcallQty)}</td>}
+                                          {showKhaiThacCols.vasThoDmx && <td className="py-2 px-2 text-center text-[13px] text-[#be123c] font-black border-r border-slate-200/50">{formatFooterVal(totalThoDmxQty)}</td>}
                                         </>
                                       )}
                                     </>
