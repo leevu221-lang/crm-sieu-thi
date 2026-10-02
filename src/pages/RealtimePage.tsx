@@ -5965,7 +5965,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const targetQD = formatCurrencyUnit(dailyTargetQD);
     const actualVirtual = formatCurrencyUnit(parsedMarket.actualVirtual || 0);
     const percentHT = dailyPercentHT;
-    const installmentRate = (parsedMarket.installmentRate || 0).toFixed(1);
+    const installmentRate = (parsedMarket.installmentRate || parsedMarket.percentTraGop || 0).toFixed(1);
     const luotBill = Math.round(parsedMarket.luotBillThuHo || 0);
 
     const dtlk = (parsedMarket as any).actualReal || 0;
@@ -6747,6 +6747,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           actualReal: 0,
                           percentHT: 0,
                           installmentRate: 0,
+                          percentTraGop: 0,
                           luotBillBanHang: 0,
                           luotBillThuHo: 0
                         };
@@ -6844,7 +6845,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               />
                               <StatCard
                                 title="Tỷ Trọng Trả Góp"
-                                value={`${(parsedMarket.installmentRate || 0).toFixed(1)}%`}
+                                value={`${(parsedMarket.installmentRate || parsedMarket.percentTraGop || 0).toFixed(1)}%`}
                                 subValue=""
                                 icon={ShoppingBag}
                                 color="amber"

@@ -1697,7 +1697,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
     const dtlkVal = targetData?.stDtlk || actualReal || 0;
     const dtqdVal = targetData?.stDtqd || actualVirtual || 0;
     const percentQDVal = dtlkVal > 0 ? ((dtqdVal - dtlkVal) / dtlkVal) * 100 : (market.percentQD || 0);
-    const installmentRate = (market.installmentRate || 0).toFixed(1);
+    const installmentRate = (market.installmentRate || market.percentTraGop || 0).toFixed(1);
     const billCount = market.billCount || 0;
 
     const marketName = market.name || 'SIÊU THỊ';
@@ -2458,7 +2458,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                     const dtlkVal = targetData?.stDtlk || actualReal || 0;
                     const dtqdVal = targetData?.stDtqd || actualVirtual || 0;
                     const percentQDVal = dtlkVal > 0 ? ((dtqdVal - dtlkVal) / dtlkVal) * 100 : (market.percentQD || 0);
-                    const installmentRate = (market.installmentRate || 0).toFixed(1);
+                    const installmentRate = (market.installmentRate || market.percentTraGop || 0).toFixed(1);
                     const billCount = market.billCount || 0;
                     const storeAddress = (storeSettings as any)?.[market.name]?.address || (storeSettings as any)?.[maKho]?.address || 'LUỸ KẾ THÁNG';
 

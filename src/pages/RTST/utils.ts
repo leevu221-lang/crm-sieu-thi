@@ -529,7 +529,9 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
 
   // 1. Extract Top KPI Cards if present in BI text
   let topInstallmentRate = 0;
-  const traGopMatch = val.match(/T[ỉi]\s*tr[ọo]ng\s*tr[ảa]\s*g[óo]p\s*\n\s*([\d,.]+)%/i);
+  const normValForTopKpi = removeAccents(val);
+  const traGopMatch = normValForTopKpi.match(/(?:t[yi]\s*trong\s*tra\s*(?:gop|cham)|t[yi]\s*trong\s*t[gc]|%\s*tra\s*(?:gop|cham))\s*[:\n\r\t ]+\s*([\d,.]+)\s*%/i) ||
+                      val.match(/(?:T[ỉiỷy]\s*tr[ọo]ng\s*tr[ảa]\s*(?:g[óo]p|ch[ậa]m)|T[ỉiỷy]\s*tr[ọo]ng\s*t[gc]|%\s*tr[ảa]\s*(?:g[óo]p|ch[ậa]m))\s*[:\n\r\t ]+\s*([\d,.]+)\s*%/i);
   if (traGopMatch) {
     topInstallmentRate = cleanNum(traGopMatch[1]);
   }
@@ -909,6 +911,8 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
           percentTraGopVal = cleanNum(cols[cols.length - 1]);
         }
 
+        const finalInstallmentRate = percentTraGopVal || installmentRateVal || topInstallmentRate;
+
         if (!results.some(m => m.name === marketName)) {
           results.push({ 
             name: marketName, 
@@ -919,7 +923,7 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
             dtHomQua: 0,
             percentHT: percentHTVal,
             percentQD: 0,
-            installmentRate: installmentRateVal || topInstallmentRate,
+            installmentRate: finalInstallmentRate,
             luotBillBanHang: luotBillBanHangVal,
             luotBillThuHo: luotBillThuHoVal,
             dtckThang: 0,
@@ -927,7 +931,7 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
             tb3Thang: tb3ThangVal,
             percentTT: percentTTVal,
             dtTraGop: dtTraGopVal,
-            percentTraGop: percentTraGopVal,
+            percentTraGop: finalInstallmentRate,
             isExplicitTarget: true,
             isSummary: marketName.toUpperCase().includes('TỔNG')
           });
@@ -985,6 +989,7 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
             if (codeMatch) {
               ma_kho = codeMatch[1].trim().replace(/[\s_]+/g, '');
             }
+            const finalInstallmentRate = percentTraGopVal || installmentRateVal || topInstallmentRate;
             results.push({
               name: marketName,
               ma_kho,
@@ -995,14 +1000,14 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
               dtHomQua: 0,
               percentHT,
               percentHTTargetDuKienLNTT: percentHTTargetDuKienLNTTVal,
-              installmentRate: installmentRateVal,
+              installmentRate: finalInstallmentRate,
               dtckThang: 0,
               luotBillBanHang: luotBillBanHangVal,
               luotBillThuHo: luotBillThuHoVal,
               tb3Thang: tb3ThangVal,
               percentTT: percentTTVal,
               dtTraGop: dtTraGopVal,
-              percentTraGop: percentTraGopVal,
+              percentTraGop: finalInstallmentRate,
               isExplicitTarget: true,
               isSummary: marketName.toUpperCase().includes('TỔNG')
             });
@@ -1073,6 +1078,7 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
               ma_kho = codeMatch[1].trim().replace(/[\s_]+/g, '');
             }
 
+            const finalInstallmentRate = percentTraGopVal || installmentRateVal || topInstallmentRate;
             results.push({ 
               name: marketName, 
               ma_kho,
@@ -1083,12 +1089,12 @@ export const parseMarketData = (input: string, adjustment: number, pageType?: st
               dtHomQua, 
               percentHT, 
               percentHTTargetDuKienLNTT: percentHTTargetDuKienLNTTVal,
-              installmentRate: installmentRateVal,
+              installmentRate: finalInstallmentRate,
               dtckThang: dtckThangVal,
               tb3Thang: tb3ThangVal,
               percentTT: percentTTVal,
               dtTraGop: dtTraGopVal,
-              percentTraGop: percentTraGopVal,
+              percentTraGop: finalInstallmentRate,
               isExplicitTarget: true,
               isSummary: marketName.toUpperCase().includes('TỔNG')
             });

@@ -28,7 +28,7 @@ const RealtimeDashboard: React.FC<RealtimeDashboardProps> = ({ market }) => {
           { label: 'DT QUY ĐỔI (DTQĐ)', value: market.actualVirtual !== undefined && market.actualVirtual !== null ? `${Math.round(market.actualVirtual).toLocaleString('vi-VN')} Tr` : '---', grad: 'from-[#2563EB] via-[#6366F1] to-[#7C3AED] shadow-indigo-500/20', icon: <TrendingUp size={22} /> },
           { label: '% HT TARGET (QĐ)', value: `${Math.round(market.percentHT || 0)}%`, grad: 'from-emerald-600 via-teal-600 to-cyan-600 shadow-emerald-500/20', icon: <BarChart3 size={22} /> },
           { label: '%QĐ', value: `${market.percentQD?.toFixed(1) || '0'}%`, grad: 'from-orange-500 via-amber-500 to-rose-500 shadow-orange-500/20', icon: <Zap size={22} /> },
-          { label: 'TỶ TRỌNG TRẢ GÓP', value: `${market.installmentRate?.toFixed(1) || '0'}%`, grad: 'from-amber-500 via-orange-500 to-amber-600 shadow-amber-500/20', icon: <PieChart size={22} /> },
+          { label: 'TỶ TRỌNG TRẢ GÓP', value: `${(market.installmentRate || market.percentTraGop || 0).toFixed(1)}%`, grad: 'from-amber-500 via-orange-500 to-amber-600 shadow-amber-500/20', icon: <PieChart size={22} /> },
         ].map((card, i) => (
           <div key={i} className={`relative overflow-hidden rounded-2xl md:rounded-3xl p-5 text-white shadow-lg bg-gradient-to-br ${card.grad} border border-white/20 transition-all hover:scale-[1.02]`}>
             <div className="flex items-center gap-2 mb-3">

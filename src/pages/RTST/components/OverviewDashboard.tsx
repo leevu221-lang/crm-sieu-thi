@@ -209,7 +209,7 @@ const OverviewDashboard: React.FC<OverviewDashboardProps> = ({
                     },
                     { 
                       label: 'Tỷ Trọng Trả Góp', 
-                      value: `${Math.round(market.installmentRate || 0)}%`, 
+                      value: `${Math.round(market.installmentRate || market.percentTraGop || 0)}%`, 
                       color: 'bg-indigo-600', 
                       icon: <BarChart3 size={20} /> 
                     },
