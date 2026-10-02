@@ -3159,20 +3159,20 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     parsedTracham1.forEach(item => {
       const entry = getOrCreate(item);
       if (!entry) return;
-      entry.tracham1 += item.value;
-      entry.tracham += item.value;
+      entry.tracham1 = item.value;
     });
     parsedTracham2.forEach(item => {
       const entry = getOrCreate(item);
       if (!entry) return;
-      entry.tracham2 += item.value;
-      entry.tracham += item.value;
+      entry.tracham2 = item.value;
     });
     parsedTracham3.forEach(item => {
       const entry = getOrCreate(item);
       if (!entry) return;
-      entry.tracham3 += item.value;
-      entry.tracham += item.value;
+      entry.tracham3 = item.value;
+    });
+    employeeMap.forEach(entry => {
+      entry.tracham = entry.tracham1 + entry.tracham2 + entry.tracham3;
     });
 
     return Array.from(employeeMap.values()).map(emp => {

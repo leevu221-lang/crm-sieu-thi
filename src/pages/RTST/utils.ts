@@ -3174,8 +3174,152 @@ export const parseStaffValueList = (text: string, targetHeaderKeyword?: string):
 
   const isColumn3Mode = targetHeaderKeyword === 'COLUMN_3' || targetHeaderKeyword === 'COL_3' || targetHeaderKeyword === 'TRA_CHAM';
 
+  if (isColumn3Mode) {
+    const isValidPersonName = (str: string) => {
+      if (!str) return false;
+      if (str.includes(':') || str.includes('/') || str.includes('@') || str.includes('×')) return false;
+      const norm = normalize(str);
+      if (norm.length < 3) return false;
+      const letters = norm.match(/[a-z]/g);
+      if (!letters || letters.length < 3) return false;
+
+      const words = norm.split(/\s+/).filter(Boolean);
+      if (words.length < 2 || words.length > 7) return false;
+
+      const blacklist = [
+        'tgdd', 'dashboards', 'dashboard', 'danh muc bao cao', 'doanh thu hop nhat', 'thi dua',
+        'doanh thu nganh hang bi', 'doanh thu nganh hang', 'gio cong lam viec', 'bao cao tra cham', 'luot bill',
+        'chi phi cham soc', 'employee', 'tim bao cao', 'cap nhat', 'toggle theme', 'ty trong tra gop',
+        'theo nganh hang', 'ty le duyet', 'chi tiet theo chuong trinh', 'vung', 'chon',
+        'khu vuc', 'sieu thi', 'xem', 'xuat excel', 'xuat theo mau', 'luy ke', 'realtime',
+        'tat ca vung', 'nhan vien', 'dt tra gop', 'dt sieu thi', 'ty trong tra cham',
+        'homecredit', 'fecredit', 'smartpos', 'mwg paylater', 'tra gop kredivo',
+        'tong', 'tong cong', 'total', 'dong', 'trang', 'stt', 'he so', 'dt', 'thang', 'nam', 'ngay',
+        'dml', 'cma', 'nguyen tat thanh'
+      ];
+
+      if (blacklist.some(b => norm === b || norm.startsWith(b + ' ') || norm.endsWith(' ' + b) || norm.includes(b))) {
+        return false;
+      }
+      return true;
+    };
+
+    let pendingStaff: { id: string; name: string } | null = null;
+
+    for (let i = 0; i < lines.length; i++) {
+      const rawLine = lines[i];
+      let cols = rawLine.split('\t').map(c => c.trim());
+      if (cols.length < 2) {
+        cols = rawLine.split(/ {2,}/).map(c => c.trim()).filter(Boolean);
+      }
+
+      const numValues: { val: number; raw: string; colIdx: number }[] = [];
+      cols.forEach((col, idx) => {
+        const colCleaned = col.trim().toLowerCase().replace(/(h|tr|đ|vnd|hours|tr\.|đ\.|%)/g, '').trim();
+        const cleanCol = colCleaned.replace(/[^\d,.-]/g, '');
+        const isNum = cleanCol.length > 0 && /^\s*[-+]?[0-9,.]+\s*$/.test(colCleaned);
+        if (isNum) {
+          numValues.push({ val: cleanNum(col), raw: col, colIdx: idx });
+        }
+      });
+
+      // Check if line is purely staff name (0 numbers, or only 1 employee ID number)
+      const isNameOnly = (numValues.length === 0 || (numValues.length === 1 && /^\d{4,8}$/.test(String(numValues[0].val)))) && isValidPersonName(rawLine);
+
+      if (isNameOnly) {
+        let id = '';
+        let name = '';
+        const m1 = rawLine.match(/(.+)[\s-–—]+(\d{4,8})$/);
+        const m2 = rawLine.match(/^(\d{4,8})[\s-–—]+(.+)$/);
+        if (m1) {
+          id = m1[2].trim();
+          name = m1[1].trim();
+        } else if (m2) {
+          id = m2[1].trim();
+          name = m2[2].trim();
+        } else {
+          name = rawLine.trim();
+        }
+        pendingStaff = { id, name };
+        continue;
+      }
+
+      // If pending staff exists and this line contains AT LEAST 2 numbers (data row from report)
+      if (pendingStaff && numValues.length >= 2) {
+        let value = 0;
+        // User requirement: % TC is column 3 from left (cols[2]). VD 64.06 = 64%
+        if (cols.length >= 3 && !isNaN(cleanNum(cols[2]))) {
+          value = cleanNum(cols[2]);
+        } else if (numValues.length >= 3) {
+          value = numValues[2].val;
+        } else {
+          value = numValues[numValues.length - 1].val;
+        }
+
+        if (value > 0 && value <= 1.0) {
+          value = value * 100;
+        }
+
+        results.push({
+          id: pendingStaff.id || pendingStaff.name,
+          name: pendingStaff.name,
+          value
+        });
+        pendingStaff = null;
+        continue;
+      }
+
+      // Invalidate pendingStaff if subsequent line was not a data row
+      if (pendingStaff && numValues.length < 2) {
+        pendingStaff = null;
+      }
+
+      // Case: Combined line (staff name and numbers on same line)
+      if (cols.length >= 2 && numValues.length >= 1) {
+        let nameCol = '';
+        let id = '';
+        cols.forEach(c => {
+          if (!nameCol && isValidPersonName(c)) {
+            nameCol = c;
+          }
+          if (!id && /^\d{4,8}$/.test(c.trim())) {
+            id = c.trim();
+          }
+        });
+
+        if (nameCol) {
+          let value = 0;
+          let metricNums = numValues;
+          if (numValues.length > 0 && numValues[0].colIdx === 0 && numValues[0].val <= 300) {
+            metricNums = numValues.slice(1);
+          }
+
+          if (metricNums.length >= 3) {
+            value = metricNums[2].val;
+          } else if (cols.length >= 3 && !isNaN(cleanNum(cols[2]))) {
+            value = cleanNum(cols[2]);
+          } else {
+            value = metricNums.length > 0 ? metricNums[metricNums.length - 1].val : numValues[numValues.length - 1].val;
+          }
+
+          if (value > 0 && value <= 1.0) {
+            value = value * 100;
+          }
+
+          results.push({
+            id: id || nameCol,
+            name: nameCol,
+            value
+          });
+        }
+      }
+    }
+
+    return results;
+  }
+
   let targetColIdx = -1;
-  if (!isColumn3Mode && targetHeaderKeyword && targetHeaderKeyword !== 'LAST_COLUMN') {
+  if (targetHeaderKeyword && targetHeaderKeyword !== 'LAST_COLUMN') {
     const keywordNorm = normalize(targetHeaderKeyword);
     for (let i = 0; i < Math.min(lines.length, 5); i++) {
       let cols = lines[i].split('\t').map(c => c.trim());
@@ -3207,96 +3351,6 @@ export const parseStaffValueList = (text: string, targetHeaderKeyword?: string):
     let id = '';
     let name = '';
     let value = 0;
-
-    if (isColumn3Mode) {
-      // User requirement: % TC nằm ở cột thứ 3 từ trái sang (cols[2]). VD 64.06 = 64%
-      // If only 2 cols exist, fallback to cols[1].
-      const valColIdx = cols.length >= 3 ? 2 : 1;
-      const rawVal = cols[valColIdx];
-      
-      const cleanVal = cleanNum(rawVal);
-      // Skip if value is not numeric or looks like header text
-      if (isNaN(cleanVal) || (!/\d/.test(rawVal) && rawVal.toLowerCase().includes('chậm'))) {
-        return;
-      }
-      
-      value = cleanVal;
-      // If entered as decimal percentage e.g. 0.6406 instead of 64.06, convert to percentage scale
-      if (value > 0 && value <= 1.0) {
-        value = value * 100;
-      }
-
-      // Check remaining columns for Name and Employee ID
-      const otherCols = cols.filter((_, idx) => idx !== valColIdx);
-
-      // 1. Combined ID/Name
-      otherCols.forEach(col => {
-        if (!col) return;
-        const m1 = col.match(/(.+)[\s-–—]+(\d{4,8})$/);
-        const m2 = col.match(/^(\d{4,8})[\s-–—]+(.+)$/);
-        if (m1) {
-          if (!id) id = m1[2].trim();
-          if (!name) name = m1[1].trim();
-        } else if (m2) {
-          if (!id) id = m2[1].trim();
-          if (!name) name = m2[2].trim();
-        }
-      });
-
-      // 2. Pure 4-8 digit employee ID
-      if (!id) {
-        for (const col of otherCols) {
-          if (/^\d{4,8}$/.test(col.trim())) {
-            id = col.trim();
-            break;
-          }
-        }
-      }
-
-      // 3. Regex search for 4-8 digits in any other column
-      if (!id) {
-        for (const col of otherCols) {
-          const m = col.match(/\b(\d{4,8})\b/);
-          if (m) {
-            id = m[1];
-            break;
-          }
-        }
-      }
-
-      // 4. Name extraction: pick column containing letters (ignoring pure numbers like STT)
-      if (!name) {
-        const nameCandidates = otherCols.filter(col => {
-          const trimmed = col.trim();
-          if (/^\d+$/.test(trimmed)) return false; // STT or pure number
-          if (id && trimmed === id) return false;
-          return /[a-zA-Z]/.test(normalize(trimmed));
-        });
-        if (nameCandidates.length > 0) {
-          if (cols.length >= 2 && nameCandidates.includes(cols[1])) {
-            name = cols[1].trim();
-          } else {
-            name = nameCandidates[0].trim();
-          }
-        }
-      }
-
-      if (name) {
-        name = name.replace(/[-–—\s]+$/, '').trim();
-      }
-
-      const hasValidLetters = Boolean(name && (normalize(name).match(/[a-z]/g) || []).length >= 2);
-      const hasValidEmpId = Boolean(id && /^\d{4,8}$/.test(id.trim()));
-
-      if (hasValidLetters || hasValidEmpId) {
-        results.push({
-          id: id || name,
-          name: name || id,
-          value
-        });
-      }
-      return;
-    }
 
     // Parse combined ID/Name in columns first
     cols.forEach(col => {
