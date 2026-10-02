@@ -963,13 +963,14 @@ const getMatchedBaoHiemRule = (code: string, name: string, customRules?: BaoHiem
 export const checkIsThoDmxClassification = (val: string | null | undefined): boolean => {
   if (!val) return false;
   const raw = String(val).toUpperCase().trim();
-  const s = removeAccents(String(val)).toUpperCase().replace(/[\s\-_]+/g, ' ').trim();
+  const s = removeAccents(String(val)).toUpperCase().replace(/[\u00A0\s\-_]+/g, ' ').trim();
   return (
     s === 'THO DMX' ||
     s.includes('THO DMX') ||
     s.includes('THO DIEN MAY XANH') ||
     s.includes('DICH VU THO DMX') ||
     s.includes('DV THO DMX') ||
+    s.includes('THODMX') ||
     raw === 'THỢ ĐMX' ||
     raw.includes('THỢ ĐMX') ||
     raw.includes('THỢ ĐIỆN MÁY XANH')
@@ -1041,7 +1042,7 @@ const getStaffIdx = (headers: string[]): number => {
 
 export const getPhanLoaiIdx = (headers: string[]): number => {
   if (!headers || headers.length === 0) return -1;
-  const normalized = headers.map(h => removeAccents(String(h || '')).toLowerCase().trim());
+  const normalized = headers.map(h => removeAccents(String(h || '')).toLowerCase().replace(/[\u00A0\s\-_]+/g, ' ').trim());
   
   // Exact match first (excluding ycx)
   const exactNames = [
@@ -1049,11 +1050,23 @@ export const getPhanLoaiIdx = (headers: string[]): number => {
     'phan loai sp',
     'phan loai san pham',
     'phan loai hang',
+    'phan loai hang hoa',
+    'phan loai mat hang',
     'phan loai dich vu',
     'phan loai dv',
+    'phan loai nhom',
     'phan nhom',
+    'nhom phan loai',
     'loai san pham',
-    'loai sp'
+    'loai sp',
+    'loai hang',
+    'loai hang hoa',
+    'loai mat hang',
+    'loai dich vu',
+    'loai dv',
+    'pl sp',
+    'pl san pham',
+    'pl'
   ];
   for (const name of exactNames) {
     const idx = normalized.findIndex(h => h === name);
@@ -1083,6 +1096,10 @@ export const checkIsThoDmx = (params: {
   rowStr?: string;
 }): boolean => {
   if (checkIsThoDmxClassification(params.phanLoai) || checkIsThoDmxClassification(params.pClass)) {
+    return true;
+  }
+
+  if (params.row && Array.isArray(params.row) && params.row.some(cell => checkIsThoDmxClassification(String(cell || '')))) {
     return true;
   }
 
@@ -2582,7 +2599,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         checkIsThoDmxClassification(rawPhanLoai) ||
         checkIsThoDmxClassification(pClassRule) ||
         checkIsThoDmxClassification(codeClass) ||
-        checkIsThoDmxClassification(nameClass);
+        checkIsThoDmxClassification(nameClass) ||
+        (Array.isArray(row) && row.some(cell => checkIsThoDmxClassification(String(cell || ''))));
 
       const normProdUpper = removeAccents(productName).toUpperCase();
       const normCatUpper = removeAccents(category).toUpperCase();
@@ -4574,7 +4592,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         checkIsThoDmxClassification(rawPhanLoai) ||
         checkIsThoDmxClassification(pClassRule) ||
         checkIsThoDmxClassification(codeClass) ||
-        checkIsThoDmxClassification(nameClass);
+        checkIsThoDmxClassification(nameClass) ||
+        (Array.isArray(row) && row.some(cell => checkIsThoDmxClassification(String(cell || ''))));
 
       const normProdUpper = removeAccents(productName).toUpperCase();
       const normCatUpper = removeAccents(category).toUpperCase();
@@ -4707,7 +4726,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
       const item = statsMap.get(staffName)!;
 
-      if (isThoDmxRow || checkIsThoDmxClassification(pClass) || checkIsThoDmxClassification(rawPhanLoai)) {
+      if (isThoDmxRow || checkIsThoDmxClassification(pClass) || checkIsThoDmxClassification(rawPhanLoai) || (Array.isArray(row) && row.some(cell => checkIsThoDmxClassification(String(cell || ''))))) {
         item.thoDmxQty += qty;
         item.thoDmxRev += revenue;
       } else if (pClass === 'Mango' || pClass === 'Icall' || normProdUpper.includes('MANGO') || normProdUpper.includes('ICALL')) {
