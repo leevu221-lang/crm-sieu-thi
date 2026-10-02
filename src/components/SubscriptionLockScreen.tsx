@@ -43,79 +43,120 @@ export default function SubscriptionLockScreen({ userProfile, onLogout, onRefres
     }
   }, [userProfile.status, userProfile.paymentConfirmed, isSuccess, onClose]);
 
-  const isNewUserPendingApproval = (userProfile.status === 'pending' || userProfile.status === 'rejected') && !userProfile.requestedRenewPackage;
+  // Tạm off form chọn gói cước khi tài khoản bị lock theo yêu cầu Admin
+  const SHOW_PACKAGES_FORM = false;
 
-  if (isNewUserPendingApproval) {
+  if (!SHOW_PACKAGES_FORM) {
+    const isPending = userProfile.status === 'pending';
     const isRejected = userProfile.status === 'rejected';
 
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden font-sans selection:bg-pink-100 selection:text-pink-900" style={{ background: 'linear-gradient(135deg, #fdf2f8 0%, #faf5ff 35%, #eff6ff 65%, #ecfdf5 100%)' }}>
-        <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-pink-100/40 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-violet-100/40 blur-3xl pointer-events-none" />
+      <div 
+        className={`${onClose ? 'w-full h-full flex items-center justify-center p-4' : 'min-h-screen w-full flex items-center justify-center p-4 relative overflow-hidden font-sans selection:bg-pink-100 selection:text-pink-900'}`} 
+        style={!onClose ? { background: 'linear-gradient(135deg, #fdf2f8 0%, #faf5ff 35%, #eff6ff 65%, #ecfdf5 100%)' } : {}}
+      >
+        {!onClose && (
+          <>
+            <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-pink-100/40 blur-3xl pointer-events-none" />
+            <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-violet-100/40 blur-3xl pointer-events-none" />
+            <div className="absolute top-[40%] left-[30%] w-[400px] h-[400px] rounded-full bg-sky-100/30 blur-3xl pointer-events-none" />
+          </>
+        )}
 
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md bg-white/80 backdrop-blur-xl rounded-3xl border border-white/60 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] p-8 text-center relative z-10"
+          className="w-full max-w-md bg-white/95 backdrop-blur-2xl rounded-3xl border border-white/80 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.12)] p-7 md:p-8 text-center relative z-10"
         >
-          {isRejected ? (
-            <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-200/60 text-rose-400 flex items-center justify-center mx-auto mb-6 shadow-sm animate-bounce">
-              <ShieldAlert className="w-8 h-8" />
-            </div>
-          ) : (
-            <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200/60 text-amber-400 flex items-center justify-center mx-auto mb-6 shadow-sm animate-pulse">
-              <Loader2 className="w-8 h-8 animate-spin" />
-            </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-all cursor-pointer shadow-sm"
+              title="Đóng"
+            >
+              <X size={16} />
+            </button>
           )}
 
-          <span className={`text-[10px] font-black uppercase tracking-widest block mb-2 ${isRejected ? 'text-rose-400' : 'text-amber-400'}`}>
-            {isRejected ? 'Đăng ký bị từ chối' : 'Đăng ký tài khoản mới'}
-          </span>
-          <h2 className="text-xl font-black text-slate-700 tracking-tight uppercase mb-4">
-            {isRejected ? 'Từ chối duyệt tài khoản' : 'Chờ phê duyệt tài khoản'}
-          </h2>
-
-          <div className="bg-violet-50/50 border border-violet-100/60 p-5 rounded-2xl text-left space-y-3 mb-6 text-slate-600 font-medium text-xs leading-relaxed">
-            <div className="flex justify-between border-b border-violet-100/50 pb-2">
-              <span className="text-slate-400 font-bold">Tài khoản (Username):</span>
-              <span className="font-extrabold text-slate-700">{userProfile.username}</span>
-            </div>
-            <div className="flex justify-between border-b border-violet-100/50 pb-2">
-              <span className="text-slate-400 font-bold">Mã kho (Store Code):</span>
-              <span className="font-extrabold text-slate-700">{userProfile.ma_kho}</span>
-            </div>
-            <div className="flex flex-col gap-1 pb-1">
-              <span className="text-slate-400 font-bold">Siêu thị khai báo:</span>
-              <span className={`font-extrabold px-3 py-1.5 rounded-xl text-[13px] text-center ${isRejected ? 'text-rose-500 border-rose-200/60 bg-rose-50/50 border' : 'text-violet-600 bg-violet-50/60 border border-violet-100/60'}`}>{userProfile.ten_sieu_thi || `Siêu thị ${userProfile.ma_kho}`}</span>
-            </div>
+          {/* Animated Icon */}
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-rose-50 to-pink-100 border border-rose-200 text-rose-500 flex items-center justify-center mx-auto mb-4 shadow-sm animate-pulse">
+            <ShieldAlert className="w-8 h-8" />
           </div>
 
-          <p className="text-slate-400 font-medium text-xs leading-relaxed mb-8 max-w-sm mx-auto">
-            {isRejected ? (
-              <>
-                Tài khoản của anh/chị đã bị Admin <strong className="text-rose-500">43751</strong> từ chối phê duyệt kích hoạt. Vui lòng liên hệ trực tiếp Admin để giải quyết.
-              </>
-            ) : (
-              <>
-                Thông tin đăng ký đã được lưu trên hệ thống. Vui lòng liên hệ Admin <strong className="text-violet-500">43751</strong> duyệt kích hoạt tài khoản dùng thử 7 ngày để truy cập vào ứng dụng.
-              </>
-            )}
-          </p>
+          <span className="text-[10px] font-black uppercase tracking-widest text-rose-500 block mb-1">
+            Thông báo tài khoản
+          </span>
+          <h2 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight uppercase mb-4">
+            {isPending ? 'Chờ phê duyệt tài khoản' : isRejected ? 'Từ chối duyệt tài khoản' : 'Tài khoản đang bị khóa'}
+          </h2>
 
+          {/* Main Notice Banner: Liên hệ admin 43751 để mở lock */}
+          <div className="bg-gradient-to-br from-rose-50 via-pink-50/70 to-purple-50/50 border-2 border-rose-200/90 p-4 rounded-2xl text-center mb-5 shadow-sm">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500 text-white text-[11px] font-black uppercase tracking-wider mb-2 shadow-sm">
+              <ShieldAlert className="w-3.5 h-3.5" />
+              Yêu cầu hỗ trợ
+            </div>
+            <p className="text-sm md:text-base font-black text-rose-600 tracking-tight uppercase mb-1">
+              Liên hệ admin 43751 để mở lock
+            </p>
+            <p className="text-xs text-slate-600 font-medium leading-relaxed max-w-sm mx-auto">
+              {isPending
+                ? 'Thông tin đăng ký đã được ghi nhận. Vui lòng liên hệ Admin 43751 để phê duyệt kích hoạt tài khoản sử dụng.'
+                : isRejected
+                ? 'Tài khoản của bạn đã bị từ chối duyệt. Vui lòng liên hệ trực tiếp Admin 43751 để được hỗ trợ giải quyết.'
+                : 'Tài khoản tạm thời chưa được kích hoạt hoặc đã hết hạn truy cập. Vui lòng liên hệ trực tiếp Admin 43751 để được mở khóa và tiếp tục sử dụng hệ thống.'}
+            </p>
+          </div>
+
+          {/* Account Details Box */}
+          <div className="bg-slate-50/90 border border-slate-200/70 p-4 rounded-2xl text-left space-y-2 mb-6 text-xs text-slate-600 font-medium">
+            <div className="flex justify-between border-b border-slate-200/60 pb-2">
+              <span className="text-slate-400 font-bold">Tài khoản (Username):</span>
+              <span className="font-extrabold text-slate-800">{userProfile.username}</span>
+            </div>
+            <div className="flex justify-between border-b border-slate-200/60 pb-2">
+              <span className="text-slate-400 font-bold">Mã kho (Store Code):</span>
+              <span className="font-extrabold text-slate-800">{userProfile.ma_kho || 'Chưa gán'}</span>
+            </div>
+            <div className="flex flex-col gap-1 pb-1">
+              <span className="text-slate-400 font-bold">Siêu thị:</span>
+              <span className="font-extrabold text-slate-800 px-3 py-1.5 rounded-xl text-[12px] bg-white border border-slate-200/80 text-center">
+                {userProfile.ten_sieu_thi || (userProfile.ma_kho ? `Siêu thị ${userProfile.ma_kho}` : 'Chưa khai báo')}
+              </span>
+            </div>
+            <div className="flex justify-between pt-1 border-t border-slate-200/60">
+              <span className="text-slate-400 font-bold">Trạng thái:</span>
+              <span className={`font-black px-2.5 py-0.5 rounded text-[11px] ${isPending ? 'bg-amber-100 text-amber-800' : isRejected ? 'bg-rose-100 text-rose-700' : 'bg-rose-100 text-rose-700'}`}>
+                {isPending ? 'Chờ kích hoạt' : isRejected ? 'Từ chối duyệt' : 'Đã khóa truy cập'}
+              </span>
+            </div>
+            {userProfile.expiredAt && (
+              <div className="flex justify-between pt-1 text-[11px]">
+                <span className="text-slate-400 font-bold">Ngày hết hạn:</span>
+                <span className="font-extrabold text-rose-500">
+                  {new Date(userProfile.expiredAt).toLocaleDateString('vi-VN')}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
           <div className="flex items-center gap-3">
             <button
+              type="button"
               onClick={handleSyncStatus}
               disabled={isSyncing}
-              className="flex-1 py-3.5 text-white font-black rounded-xl text-xs uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+              className="flex-1 py-3.5 text-white font-black rounded-xl text-xs uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer hover:shadow-lg active:scale-[0.98]"
               style={{ background: 'linear-gradient(135deg, #a78bfa 0%, #818cf8 50%, #6366f1 100%)' }}
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-              ĐỒNG BỘ TRẠNG THÁI
+              {isSyncing ? 'ĐANG ĐỒNG BỘ...' : 'ĐỒNG BỘ TRẠNG THÁI'}
             </button>
             {onLogout && (
               <button
+                type="button"
                 onClick={onLogout}
-                className="px-4 py-3.5 bg-rose-50 hover:bg-rose-100 text-rose-400 font-black rounded-xl text-xs uppercase tracking-widest transition-colors shrink-0 cursor-pointer"
+                className="px-4 py-3.5 bg-rose-50 hover:bg-rose-100 text-rose-500 font-black rounded-xl text-xs uppercase tracking-widest transition-colors shrink-0 cursor-pointer shadow-sm hover:shadow active:scale-[0.98]"
                 title="Đăng xuất"
               >
                 <LogOut className="w-4 h-4" />
