@@ -99,7 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const khoParam = params.get('kho') || params.get('makho') || params.get('store');
+    const khoParam = params.get('kho') || params.get('k') || params.get('makho') || params.get('store');
     const isShare = isGuestShareLink(window.location.search);
     
     // Only persist rtst_ma_kho from URL parameter if accessing via an explicit guest share link
@@ -112,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const ALL_SHARED_PAGES = ['realtime', 'luyke', 'health', 'lichpg', 'diemdanhhop', 'toolhotro', 'tienich', 'birthday', 'khaibao', 'feedback', 'excelviewer'];
 
-    // 1. Mở từ link chia sẻ khách (?view=guest hoặc ?share=true):
+    // 1. Mở từ link chia sẻ khách (?kho=... hoặc ?view=guest):
     // Khởi tạo tài khoản Khách xem trang độc lập không cần đăng nhập dưới mã kho được chia sẻ
     if (isShare) {
       const kho = khoParam || localStorage.getItem('rtst_ma_kho') || '';
@@ -122,10 +122,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       localStorage.setItem('rtst_ma_kho', kho);
-      // Đọc siêu thị được chia sẻ từ URL param st
+      // Đọc siêu thị được chia sẻ từ URL param st (nếu có)
       const stParam = params.get('st') || params.get('sieuthi') || '';
       if (stParam) {
         localStorage.setItem('currentStoreId', stParam);
+      } else {
+        localStorage.removeItem('currentStoreId');
       }
       const guestUser: any = {
         username: `Khách (${kho})`,

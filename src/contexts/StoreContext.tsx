@@ -15,7 +15,7 @@ import React, { createContext, useContext, useState, useCallback, useRef, useEff
 import { useAuth } from './AuthContext';
 import { supabase } from '../supabaseClient';
 import { isValidStoreName, normalizeStoreId } from '../pages/RTST/utils';
-import { URL_PAGE_MAP } from '../constants/routes';
+import { URL_PAGE_MAP, isGuestShareLink } from '../constants/routes';
 import { syncConfiguredStoreDocument, getConfiguredStoresFromBoss, cleanStoreInput, isPlaceholderStore } from '../services/storeSync';
 
 export interface StoreInfo {
@@ -153,6 +153,10 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         if (urlTab && allowedTabs.includes(urlTab as T)) {
           return urlTab as T;
         }
+        // Khi mở từ link chia sẻ khách mà không có param tab -> luôn dùng tab mặc định
+        if (isGuestShareLink(window.location.search)) {
+          return defaultTab;
+        }
       }
       const saved = localStorage.getItem(`crm_active_${pageKey}_tab`);
       if (saved && allowedTabs.includes(saved as T)) {
@@ -171,6 +175,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         const params = new URLSearchParams(window.location.search);
         const urlTab = params.get('tab');
         if (urlTab) return urlTab;
+        if (isGuestShareLink(window.location.search)) {
+          return 'all-sticker';
+        }
       }
       return localStorage.getItem('crm_active_toolhotro_tab') || 'all-sticker';
     } catch {
@@ -183,6 +190,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         const params = new URLSearchParams(window.location.search);
         const urlTab = params.get('tab');
         if (urlTab && urlTab !== 'quay-so') return urlTab;
+        if (isGuestShareLink(window.location.search)) {
+          return 'phan-ca-hc';
+        }
       }
       const saved = localStorage.getItem('crm_active_tienich_tab');
       if (saved && saved !== 'quay-so') return saved;

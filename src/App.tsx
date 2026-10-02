@@ -67,7 +67,7 @@ const LoadingSpinner = () => (
   </div>
 );
 
-import { PAGE_URL_MAP, URL_PAGE_MAP, isGuestShareLink } from './constants/routes';
+import { PAGE_URL_MAP, URL_PAGE_MAP, isGuestShareLink, PAGE_DEFAULT_TAB_MAP } from './constants/routes';
 
 export default function App() {
   const isScannerMode = window.location.search.includes('scanner=true');
@@ -206,18 +206,41 @@ export default function App() {
         // External URLs (?kho=...) CANNOT override or jump warehouse for an authenticated user.
         const kho = (userProfile && !isGuest && userProfile.ma_kho)
           ? userProfile.ma_kho
-          : (params.get('kho') || params.get('makho') || params.get('store') || localStorage.getItem('rtst_ma_kho') || userProfile?.ma_kho || '');
+          : (params.get('kho') || params.get('k') || params.get('makho') || params.get('store') || localStorage.getItem('rtst_ma_kho') || userProfile?.ma_kho || '');
         
         const currentTab = currentPage === 'realtime' ? activeRealtimeTab :
                            currentPage === 'luyke' ? activeLuyKeTab :
                            currentPage === 'health' ? activeHealthTab :
                            currentPage === 'toolhotro' ? activeToolHoTroTab :
                            currentPage === 'tienich' ? activeTienIchTab : (params.get('tab') || '');
-        const tabParam = currentTab ? `&tab=${currentTab}` : '';
-        const khoParam = kho ? `?kho=${kho}` : '';
-        // Giữ param st (siêu thị) trong URL cho guest để F5 không mất store context
-        const stParam = (isShare && currentStoreId && currentStoreId !== 'ALL') ? `&st=${encodeURIComponent(currentStoreId)}` : '';
-        const targetPath = `${basePath}${khoParam}${tabParam}${stParam}${isShare ? '&view=guest' : ''}`;
+        
+        const defaultTab = PAGE_DEFAULT_TAB_MAP[currentPage];
+        const isDefaultTab = !currentTab || currentTab === defaultTab;
+        const isDefaultStore = !availableMarkets || availableMarkets.length <= 1 || 
+                               (availableMarkets.length > 0 && availableMarkets[0]?.name === currentStoreId);
+
+        const queryParams = new URLSearchParams();
+
+        if (isGuest || isShare) {
+          if (kho) queryParams.set('kho', kho);
+          if (!isDefaultTab && currentTab) queryParams.set('tab', currentTab);
+          // Chỉ giữ param st (siêu thị) trong URL cho guest nếu kho có nhiều hơn 1 siêu thị và không phải siêu thị đầu tiên
+          if (!isDefaultStore && currentStoreId && currentStoreId !== 'ALL') {
+            queryParams.set('st', currentStoreId);
+          }
+          if (params.get('view') === 'guest') {
+            queryParams.set('view', 'guest');
+          }
+        } else {
+          // Phiên đã đăng nhập: URL giữ sạch và tinh gọn, không nhồi tham số kho
+          if (!isDefaultTab && currentTab) queryParams.set('tab', currentTab);
+          if (!isDefaultStore && currentStoreId && currentStoreId !== 'ALL') {
+            queryParams.set('st', currentStoreId);
+          }
+        }
+
+        const queryStr = queryParams.toString();
+        const targetPath = `${basePath}${queryStr ? `?${queryStr}` : ''}`;
         const currentFull = window.location.pathname + window.location.search;
         if (currentFull !== targetPath) {
           window.history.replaceState({ page: currentPage, tab: currentTab }, '', targetPath);
@@ -235,7 +258,8 @@ export default function App() {
     activeHealthTab,
     activeToolHoTroTab,
     activeTienIchTab,
-    currentStoreId
+    currentStoreId,
+    availableMarkets
   ]);
 
   // Lắng nghe nút Back / Forward trên trình duyệt

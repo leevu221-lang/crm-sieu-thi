@@ -2466,7 +2466,9 @@ const LichLamViecPG: React.FC = () => {
   const handleShareLink = () => {
     const currentKho = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '';
     if (!currentKho) return;
-    const shareUrl = buildGuestShareUrl('lichpg', currentKho, '', activeStoreName);
+    const isDefaultStore = !availableStores || availableStores.length <= 1 || 
+                           (availableStores.length > 0 && availableStores[0]?.name === activeStoreName);
+    const shareUrl = buildGuestShareUrl('lichpg', currentKho, '', activeStoreName, isDefaultStore);
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(shareUrl).then(() => {
         setCopiedLink(true);

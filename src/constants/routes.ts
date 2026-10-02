@@ -46,23 +46,44 @@ export const URL_PAGE_MAP: Record<string, string> = {
   '/excelviewer': 'excelviewer',
 };
 
+// Bảng ánh xạ tab mặc định cho từng trang để tối ưu rút gọn link chia sẻ
+export const PAGE_DEFAULT_TAB_MAP: Record<string, string> = {
+  realtime: 'summary',
+  luyke: 'summary',
+  health: 'DOANH_THU',
+  toolhotro: 'all-sticker',
+  tienich: 'phan-ca-hc',
+};
+
 // Helper tạo URL chia sẻ chế độ khách (view-only) cho một trang + mã kho cụ thể
-// Bao gồm tab hiện tại và siêu thị đang chọn để khách thấy đúng nội dung đang chia sẻ
-export const buildGuestShareUrl = (pageId: string, kho: string, tab?: string, storeName?: string): string => {
+// Tối ưu rút gọn tối đa:
+// - Bỏ tab nếu trùng tab mặc định
+// - Bỏ siêu thị st nếu là siêu thị mặc định duy nhất hoặc siêu thị đầu tiên của kho
+// - Link siêu ngắn gọn: https://crm-sieu-thi.pages.dev/tool-ho-tro?kho=1841
+export const buildGuestShareUrl = (
+  pageId: string, 
+  kho: string, 
+  tab?: string, 
+  storeName?: string,
+  isDefaultStore?: boolean
+): string => {
   const pathname = PAGE_URL_MAP[pageId] || `/${pageId}`;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const params = new URLSearchParams();
   if (kho) {
     params.set('kho', kho);
   }
-  if (tab) {
+  // Chỉ thêm tab nếu khác tab mặc định của trang
+  const defaultTab = PAGE_DEFAULT_TAB_MAP[pageId];
+  if (tab && tab !== defaultTab) {
     params.set('tab', tab);
   }
-  if (storeName && storeName !== 'ALL') {
+  // Chỉ thêm siêu thị st nếu kho có nhiều hơn 1 siêu thị và không phải siêu thị đầu tiên
+  if (storeName && storeName !== 'ALL' && !isDefaultStore) {
     params.set('st', storeName);
   }
-  params.set('view', 'guest');
-  return `${origin}${pathname}?${params.toString()}`;
+  const queryStr = params.toString();
+  return `${origin}${pathname}${queryStr ? `?${queryStr}` : ''}`;
 };
 
 // Helper kiểm tra xem URL có phải là link chia sẻ chế độ khách hay không
@@ -71,14 +92,45 @@ export const isGuestShareLink = (search: string = ''): boolean => {
     const rawSearch = search || (typeof window !== 'undefined' ? (window.location.search || window.location.hash || '') : '');
     const queryPart = rawSearch.includes('?') ? rawSearch.substring(rawSearch.indexOf('?')) : (rawSearch.startsWith('#') ? rawSearch.substring(1) : rawSearch);
     const params = new URLSearchParams(queryPart);
-    return params.get('view') === 'guest' || 
-           params.get('share') === 'true' || 
-           params.get('share') === '1' || 
-           params.has('share') || 
-           params.get('guest') === 'true' || 
-           params.get('guest') === '1' || 
-           params.get('mode') === 'guest' || 
-           params.get('mode') === 'share';
+    
+    // 1. Cờ chia sẻ tường minh (tương thích ngược 100% với các link cũ)
+    if (
+      params.get('view') === 'guest' || 
+      params.get('share') === 'true' || 
+      params.get('share') === '1' || 
+      params.has('share') || 
+      params.get('guest') === 'true' || 
+      params.get('guest') === '1' || 
+      params.get('mode') === 'guest' || 
+      params.get('mode') === 'share'
+    ) {
+      return true;
+    }
+
+    // 2. Link chia sẻ rút gọn (có tham số kho hoặc k)
+    const khoParam = params.get('kho') || params.get('k') || params.get('makho') || params.get('store');
+    if (khoParam) {
+      if (typeof window !== 'undefined') {
+        const storedUser = localStorage.getItem('userProfile');
+        // Chưa đăng nhập -> chắc chắn là khách mở link chia sẻ
+        if (!storedUser) return true;
+        try {
+          const parsed = JSON.parse(storedUser);
+          // Phiên hiện tại là role guest -> là khách
+          if (parsed.role === 'guest' || parsed.isGuest) return true;
+          // Nếu user đang đăng nhập nhưng mở link có mã kho khác với tài khoản đang đăng nhập -> xem khách của kho đó
+          if (parsed.ma_kho && String(parsed.ma_kho).trim() !== String(khoParam).trim()) {
+            return true;
+          }
+        } catch {
+          return true;
+        }
+      } else {
+        return true;
+      }
+    }
+
+    return false;
   } catch {
     return false;
   }

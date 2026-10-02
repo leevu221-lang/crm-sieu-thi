@@ -93,8 +93,11 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
                        currentPage === 'health' ? activeHealthTab :
                        currentPage === 'toolhotro' ? activeToolHoTroTab :
                        currentPage === 'tienich' ? activeTienIchTab : '';
-    // Tạo URL chia sẻ kèm tab + siêu thị đang chọn
-    const shareUrl = buildGuestShareUrl(currentPage, currentKho, currentTab, currentStoreId);
+    // Xác định xem siêu thị hiện tại có phải là siêu thị duy nhất hoặc siêu thị đầu tiên của kho không
+    const isDefaultStore = !availableMarkets || availableMarkets.length <= 1 || 
+                           (availableMarkets.length > 0 && availableMarkets[0]?.name === currentStoreId);
+    // Tạo URL chia sẻ rút gọn tối đa (bỏ tab mặc định, bỏ tên siêu thị nếu là mặc định)
+    const shareUrl = buildGuestShareUrl(currentPage, currentKho, currentTab, currentStoreId, isDefaultStore);
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(shareUrl).then(() => {
         setCopiedLink(true);
