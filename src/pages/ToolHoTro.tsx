@@ -442,6 +442,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   });
   const [isCartModalOpen, setIsCartModalOpen] = useState<boolean>(false);
   const [printSource, setPrintSource] = useState<'table' | 'cart'>('table');
+  const [tableCurrentPage, setTableCurrentPage] = useState<number>(1);
+  const [tablePageSize, setTablePageSize] = useState<number>(50);
 
   useEffect(() => {
     try {
@@ -545,54 +547,35 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       }
       const csvText = await res.text();
       
-      const parseCsvLine = (text: string) => {
-        const result: string[] = [];
-        let cur = '';
-        let inQuotes = false;
-        for (let i = 0; i < text.length; i++) {
-          const char = text[i];
-          if (char === '"') {
-            if (inQuotes && text[i + 1] === '"') {
-              cur += '"';
-              i++;
-            } else {
-              inQuotes = !inQuotes;
-            }
-          } else if (char === ',' && !inQuotes) {
-            result.push(cur.trim());
-            cur = '';
-          } else {
-            cur += char;
-          }
-        }
-        result.push(cur.trim());
-        return result;
-      };
+      const workbook = XLSX.read(csvText, { type: 'string' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
-      const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
       let products: any[] = [];
 
-      if (lines.length > 1) {
-        const headers = parseCsvLine(lines[0]).map(h => h.trim().toUpperCase());
-        let colMa = headers.findIndex(h => h.includes('MÃ') || h.includes('MA') || h.includes('CODE'));
-        let colTen = headers.findIndex(h => h.includes('TÊN') || h.includes('TEN') || h.includes('NAME') || h.includes('SẢN PHẨM'));
-        let colGiaGoc = headers.findIndex(h => h.includes('GỐC') || h.includes('GOC') || h.includes('ORIGINAL'));
-        let colGiaGiam = headers.findIndex(h => h.includes('GIẢM') || h.includes('GIAM') || h.includes('KHUYẾN MÃI') || h.includes('KM') || h.includes('DISCOUNT') || h.includes('BÁN'));
+      if (rawRows.length > 1) {
+        const headers = (rawRows[0] || []).map((h: any) => String(h || '').trim().toUpperCase());
+        let colMa = headers.findIndex((h: string) => h === 'MÃ SẢN PHẨM' || (h.includes('MÃ') && !h.includes('GIẢM')) || h.includes('CODE'));
+        let colTen = headers.findIndex((h: string) => h === 'TÊN SẢN PHẨM' || (h.includes('TÊN') && !h.includes('MÃ')) || h.includes('NAME'));
+        let colGiaGoc = headers.findIndex((h: string) => h.includes('GỐC') || h.includes('ORIGINAL'));
+        let colGiaGiam = headers.findIndex((h: string) => h.includes('GIẢM') || h.includes('KHUYẾN MÃI') || h.includes('KM') || h.includes('DISCOUNT') || h.includes('BÁN'));
 
         if (colMa === -1) colMa = 1;
         if (colTen === -1) colTen = 2;
         if (colGiaGoc === -1) colGiaGoc = 3;
         if (colGiaGiam === -1) colGiaGiam = 4;
 
-        const parseNum = (v: string) => {
-          const digits = (v || '').replace(/[^\d]/g, '');
+        const parseNum = (v: any) => {
+          const digits = String(v ?? '').replace(/[^\d]/g, '');
           return digits ? parseInt(digits, 10) : 0;
         };
 
-        for (let i = 1; i < lines.length; i++) {
-          const cols = parseCsvLine(lines[i]);
-          const ma = (cols[colMa] || '').trim();
-          const ten = (cols[colTen] || '').trim();
+        for (let i = 1; i < rawRows.length; i++) {
+          const cols = rawRows[i];
+          if (!cols || cols.length === 0) continue;
+          const ma = String(cols[colMa] ?? '').trim();
+          const ten = String(cols[colTen] ?? '').trim();
           if (!ma && !ten) continue;
 
           products.push({
@@ -602,25 +585,25 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
             name: ten,
             originalPrice: parseNum(cols[colGiaGoc]),
             discountPrice: parseNum(cols[colGiaGiam]),
-            nganhHang: 'POPUP ALL SP',
-            qrData: ma || '00000'
+            nganhHang: 'POSM ALL SP',
+            nhomHang: 'GOOGLE SHEET',
+            qrData: ma || '00000',
+            isManual: false
           });
         }
       }
 
       if (products.length === 0) {
         products = [
-          { id: 'sample_1', productCode: 'LK001', maSanPham: 'LK001', name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, nganhHang: 'POPUP ALL SP', qrData: 'LK001' },
-          { id: 'sample_2', productCode: 'LK002', maSanPham: 'LK002', name: 'Loa kéo Dalton TS-12G350N', originalPrice: 6200000, discountPrice: 4890000, nganhHang: 'POPUP ALL SP', qrData: 'LK002' },
-          { id: 'sample_3', productCode: 'TV001', maSanPham: 'TV001', name: 'Smart Tivi Samsung 4K 55 inch Crystal UHD', originalPrice: 14900000, discountPrice: 10490000, nganhHang: 'POPUP ALL SP', qrData: 'TV001' },
-          { id: 'sample_4', productCode: 'TL001', maSanPham: 'TL001', name: 'Tủ lạnh Toshiba Inverter 249 lít GR-RT325WE', originalPrice: 8990000, discountPrice: 6690000, nganhHang: 'POPUP ALL SP', qrData: 'TL001' },
-          { id: 'sample_5', productCode: 'MG001', maSanPham: 'MG001', name: 'Máy giặt Toshiba 9 kg AW-M1000FV(MK)', originalPrice: 6490000, discountPrice: 4790000, nganhHang: 'POPUP ALL SP', qrData: 'MG001' },
-          { id: 'sample_6', productCode: 'MLN01', maSanPham: 'MLN01', name: 'Máy lọc nước RO Kangaroo 10 lõi KG10A3', originalPrice: 7990000, discountPrice: 5490000, nganhHang: 'POPUP ALL SP', qrData: 'MLN01' },
-          { id: 'sample_7', productCode: 'QD001', maSanPham: 'QD001', name: 'Quạt điều hoà Sunhouse SHD7746', originalPrice: 5490000, discountPrice: 3490000, nganhHang: 'POPUP ALL SP', qrData: 'QD001' }
+          { id: 'sample_1', productCode: 'LK001', maSanPham: 'LK001', name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, nganhHang: 'POSM ALL SP', qrData: 'LK001' },
+          { id: 'sample_2', productCode: 'LK002', maSanPham: 'LK002', name: 'Loa kéo Dalton TS-12G350N', originalPrice: 6200000, discountPrice: 4890000, nganhHang: 'POSM ALL SP', qrData: 'LK002' },
+          { id: 'sample_3', productCode: 'TV001', maSanPham: 'TV001', name: 'Smart Tivi Samsung 4K 55 inch Crystal UHD', originalPrice: 14900000, discountPrice: 10490000, nganhHang: 'POSM ALL SP', qrData: 'TV001' },
+          { id: 'sample_4', productCode: 'TL001', maSanPham: 'TL001', name: 'Tủ lạnh Toshiba Inverter 249 lít GR-RT325WE', originalPrice: 8990000, discountPrice: 6690000, nganhHang: 'POSM ALL SP', qrData: 'TL001' },
+          { id: 'sample_5', productCode: 'MG001', maSanPham: 'MG001', name: 'Máy giặt Toshiba 9 kg AW-M1000FV(MK)', originalPrice: 6490000, discountPrice: 4790000, nganhHang: 'POSM ALL SP', qrData: 'MG001' },
+          { id: 'sample_6', productCode: 'MLN01', maSanPham: 'MLN01', name: 'Máy lọc nước RO Kangaroo 10 lõi KG10A3', originalPrice: 7990000, discountPrice: 5490000, nganhHang: 'POSM ALL SP', qrData: 'MLN01' },
+          { id: 'sample_7', productCode: 'QD001', maSanPham: 'QD001', name: 'Quạt điều hoà Sunhouse SHD7746', originalPrice: 5490000, discountPrice: 3490000, nganhHang: 'POSM ALL SP', qrData: 'QD001' }
         ];
         showNotification('Đã nạp danh sách sản phẩm mẫu (Google Sheet chưa có dòng sản phẩm)! Hãy thêm dòng trên Sheet rồi bấm Đồng bộ lại.', 'success');
-      } else {
-        showNotification(`Đã đồng bộ thành công ${products.length} sản phẩm từ Google Sheet!`, 'success');
       }
 
       setGoogleSheetProducts(products);
@@ -628,6 +611,47 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       const nowStr = new Date().toLocaleString('vi-VN');
       setLastSyncTime(nowStr);
       safeLocalStorageSet('rtst_popup_all_sp_last_sync', nowStr);
+      setLastUpdatePrice(nowStr);
+
+      // Điền trực tiếp danh sách Mã SP & Tên SP từ Google Sheet vào bảng "DỮ LIỆU BẢNG GIÁ" (priceData)
+      setPriceData(prevPriceData => {
+        const existingPriceMap = new Map<string, any>();
+        prevPriceData.forEach(item => {
+          const key = (item.maSanPham || item.productCode || '').trim();
+          if (key) existingPriceMap.set(key, item);
+        });
+
+        const syncedPriceItems = products.map((p, idx) => {
+          const key = (p.maSanPham || p.productCode || '').trim();
+          const existing = key ? existingPriceMap.get(key) : null;
+          return {
+            id: p.id || `gg_${idx}_${p.productCode || Date.now()}`,
+            productCode: p.productCode || p.maSanPham || '',
+            maSanPham: p.maSanPham || p.productCode || '',
+            name: p.name || '',
+            originalPrice: (existing && existing.originalPrice) ? existing.originalPrice : (p.originalPrice || 0),
+            discountPrice: (existing && existing.discountPrice) ? existing.discountPrice : (p.discountPrice || 0),
+            nganhHang: 'POSM ALL SP',
+            nhomHang: 'GOOGLE SHEET',
+            qrData: p.maSanPham || p.productCode || '00000',
+            isManual: false
+          };
+        });
+
+        const manualItems = prevPriceData.filter(item => item.isManual && !products.some(p => (p.maSanPham || p.productCode) === (item.maSanPham || item.productCode)));
+        const finalPriceList = [...manualItems, ...syncedPriceItems];
+
+        const keys = getStorageKeysForTab('popup-all-sp');
+        safeLocalStorageSet(keys.price, JSON.stringify({
+          data: finalPriceList,
+          timestamp: new Date().toISOString()
+        }));
+
+        return finalPriceList;
+      });
+
+      setTableCurrentPage(1);
+      showNotification(`Đã đồng bộ thành công ${products.length} sản phẩm (Mã SP & Tên SP) từ Google Sheet vào bảng DỮ LIỆU BẢNG GIÁ!`, 'success');
     } catch (err: any) {
       console.error('Lỗi đồng bộ Google Sheet:', err);
       showNotification(`Không thể tải từ Google Sheet: ${err?.message || 'Lỗi mạng hoặc chưa mở link'}`, 'error');
@@ -637,7 +661,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   };
 
   useEffect(() => {
-    if (activeTab === 'popup-all-sp' && googleSheetProducts.length === 0) {
+    if (activeTab === 'popup-all-sp' && priceData.length === 0 && googleSheetProducts.length === 0) {
       handleSyncGoogleSheetAllSp();
     }
   }, [activeTab]);
@@ -670,7 +694,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       name: prod.name || '',
       originalPrice: prod.originalPrice ? formatPriceInput(String(prod.originalPrice)) : '',
       discountPrice: prod.discountPrice ? formatPriceInput(String(prod.discountPrice)) : '',
-      nganhHang: prod.nganhHang || 'POPUP ALL SP',
+      nganhHang: prod.nganhHang || 'POSM ALL SP',
       endDate: prod.endDate || ''
     });
     setProductSearchQuery(`${prod.productCode ? `[${prod.productCode}] ` : ''}${prod.name}`);
@@ -686,7 +710,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       name: prod.name,
       originalPrice: prod.originalPrice || 0,
       discountPrice: prod.discountPrice || 0,
-      nganhHang: prod.nganhHang || 'POPUP ALL SP',
+      nganhHang: prod.nganhHang || 'POSM ALL SP',
       nhomHang: 'GOOGLE SHEET',
       endDate: prod.endDate || '',
       isManual: true,
@@ -1391,6 +1415,23 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
     return result;
   }, [combinedPriceData, filters]);
+
+  const totalTablePages = Math.ceil(filteredPriceData.length / tablePageSize) || 1;
+
+  const pagedPriceData = React.useMemo(() => {
+    if (tablePageSize >= 99999) {
+      return filteredPriceData.map((item, idx) => ({ item, globalIndex: idx }));
+    }
+    const start = (tableCurrentPage - 1) * tablePageSize;
+    return filteredPriceData.slice(start, start + tablePageSize).map((item, localIdx) => ({
+      item,
+      globalIndex: start + localIdx
+    }));
+  }, [filteredPriceData, tableCurrentPage, tablePageSize]);
+
+  useEffect(() => {
+    setTableCurrentPage(1);
+  }, [activeTab, filters, tenSanPhamInput]);
 
   const uniqueNganhHang = React.useMemo(() => {
     const set = new Set<string>();
@@ -2211,7 +2252,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 name: name,
                 originalPrice: cleanPrice(colV),
                 discountPrice: cleanPrice(colU),
-                nganhHang: activeTab === 'popup-all-sp' ? 'POPUP ALL SP' : 'LOA KÉO',
+                nganhHang: activeTab === 'popup-all-sp' ? 'POSM ALL SP' : 'LOA KÉO',
                 nhomHang: '',
                 endDate: ''
               });
@@ -2245,7 +2286,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 name: colB,
                 originalPrice: cleanPrice(colC),
                 discountPrice: cleanPrice(colD),
-                nganhHang: activeTab === 'popup-all-sp' ? 'POPUP ALL SP' : 'LOA KÉO',
+                nganhHang: activeTab === 'popup-all-sp' ? 'POSM ALL SP' : 'LOA KÉO',
                 nhomHang: '',
                 endDate: ''
               });
@@ -2958,7 +2999,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       name: manualData.name,
       originalPrice: parseInt(manualData.originalPrice.replace(/[^\d]/g, '')) || 0,
       discountPrice: finalDiscountPrice || 100000,
-      nganhHang: activeTab === 'popup-all-sp' ? (manualData.nganhHang || 'POPUP ALL SP') : activeTab === 'sticker-mln' ? (manualData.nganhHang || 'MÁY LỌC NƯỚC') : activeTab === 'sticker-gvgs' ? (manualData.nganhHang || 'GIỜ VÀNG GIÁ SỐC') : activeTab === 'sticker-dong-gia-100k' ? (manualData.nganhHang || 'ĐỒNG GIÁ 100K') : (manualData.nganhHang || 'THỦ CÔNG'),
+      nganhHang: activeTab === 'popup-all-sp' ? (manualData.nganhHang || 'POSM ALL SP') : activeTab === 'sticker-mln' ? (manualData.nganhHang || 'MÁY LỌC NƯỚC') : activeTab === 'sticker-gvgs' ? (manualData.nganhHang || 'GIỜ VÀNG GIÁ SỐC') : activeTab === 'sticker-dong-gia-100k' ? (manualData.nganhHang || 'ĐỒNG GIÁ 100K') : (manualData.nganhHang || 'THỦ CÔNG'),
       nhomHang: 'THỦ CÔNG',
       endDate: manualData.endDate || '',
       isManual: true
@@ -3099,7 +3140,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 : 'border-slate-200 bg-white text-slate-600 hover:border-fuchsia-300 hover:bg-fuchsia-50 hover:text-fuchsia-700'
             }`}
           >
-            <span className="text-lg">🏷️</span> POPUP ALL SP
+            <span className="text-lg">🏷️</span> POSM ALL SP
           </button>
 
           <button
@@ -3685,8 +3726,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {filteredPriceData.map((item, index) => (
-                              <tr key={index} className={`hover:bg-slate-50 transition-colors ${item.isManual ? 'bg-amber-50/30' : ''}`}>
+                            {pagedPriceData.map(({ item, globalIndex: index }) => (
+                              <tr key={item.id || index} className={`hover:bg-slate-50 transition-colors ${item.isManual ? 'bg-amber-50/30' : ''}`}>
                                 <td className="py-2 px-3 text-center">
                                   <input
                                     type="checkbox"
@@ -3724,6 +3765,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                     type="text"
                                     className="w-24 bg-white border border-slate-100 text-slate-700 py-0.5 px-1.5 rounded-lg text-[11px] font-bold text-right focus:border-slate-300"
                                     value={Number(item.originalPrice || 0).toLocaleString('vi-VN') + ' đ'}
+                                    onFocus={(e) => e.target.select()}
                                     onChange={(e) => handlePriceChange(index, 'originalPrice', e.target.value)}
                                   />
                                 </td>
@@ -3732,6 +3774,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                     type="text"
                                     className="w-24 bg-white border border-slate-100 text-red-600 py-0.5 px-1.5 rounded-lg text-[11px] font-bold text-right focus:border-slate-300"
                                     value={Number(item.discountPrice || 0).toLocaleString('vi-VN') + ' đ'}
+                                    onFocus={(e) => e.target.select()}
                                     onChange={(e) => handlePriceChange(index, 'discountPrice', e.target.value)}
                                   />
                                 </td>
@@ -3747,6 +3790,52 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             ))}
                           </tbody>
                         </table>
+                      </div>
+
+                      {/* Pagination Bar Mobile */}
+                      <div className="p-2.5 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
+                          <select
+                            value={tablePageSize}
+                            onChange={(e) => {
+                              setTablePageSize(Number(e.target.value));
+                              setTableCurrentPage(1);
+                            }}
+                            className="bg-white border border-slate-300 rounded px-1.5 py-0.5 text-[11px] font-black text-slate-700 focus:outline-none"
+                          >
+                            <option value={50}>50 dòng</option>
+                            <option value={100}>100 dòng</option>
+                            <option value={200}>200 dòng</option>
+                            <option value={99999}>Tất cả ({filteredPriceData.length})</option>
+                          </select>
+                          <span>
+                            {filteredPriceData.length === 0 ? '0' : `${(tableCurrentPage - 1) * tablePageSize + 1}-${Math.min(tableCurrentPage * tablePageSize, filteredPriceData.length)}`} / {filteredPriceData.length} SP
+                          </span>
+                        </div>
+
+                        {totalTablePages > 1 && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={tableCurrentPage <= 1}
+                              onClick={() => setTableCurrentPage(prev => Math.max(1, prev - 1))}
+                              className="px-2 py-0.5 text-[11px] font-bold rounded border border-slate-200 bg-white disabled:opacity-40"
+                            >
+                              ‹ Trước
+                            </button>
+                            <span className="px-2 py-0.5 text-[10px] font-black bg-emerald-600 text-white rounded">
+                              {tableCurrentPage}/{totalTablePages}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={tableCurrentPage >= totalTablePages}
+                              onClick={() => setTableCurrentPage(prev => Math.min(totalTablePages, prev + 1))}
+                              className="px-2 py-0.5 text-[11px] font-bold rounded border border-slate-200 bg-white disabled:opacity-40"
+                            >
+                              Sau ›
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -4082,7 +4171,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                     </div>
                   ) : (
                     <>
-                      {/* KHỐI ĐỒNG BỘ GOOGLE SHEET & TÌM KIẾM NHANH CHO TAB POPUP ALL SP */}
+                      {/* KHỐI ĐỒNG BỘ GOOGLE SHEET & TÌM KIẾM NHANH CHO TAB POSM ALL SP */}
                       {activeTab === 'popup-all-sp' && (
                         <div className="bg-white rounded-3xl shadow-sm border-2 border-emerald-500/30 p-5 space-y-4 relative overflow-hidden">
                           <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
@@ -4591,7 +4680,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               : activeTab === 'sticker-dong-gia-100k'
                                 ? 'CHỌN BỐ CỤC IN ĐỒNG GIÁ 100K'
                                 : activeTab === 'popup-all-sp'
-                                  ? 'CHỌN BỐ CỤC IN POPUP ALL SP'
+                                  ? 'CHỌN BỐ CỤC IN POSM ALL SP'
                                   : activeTab === 'sticker-lk'
                                     ? 'CHỌN BỐ CỤC IN LOA KÉO'
                                     : activeTab === 'sticker-ce'
@@ -4606,7 +4695,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             : activeTab === 'sticker-gvgs'
                               ? 'Nhấp vào nút bên dưới để in trực tiếp kiểu Giờ Vàng Giá Sốc'
                               : activeTab === 'popup-all-sp'
-                                ? 'Chọn bố cục bên dưới để in trực tiếp kiểu POPUP ALL SP (A4 ngang, A5 ngang, A4 đứng)'
+                                ? 'Chọn bố cục bên dưới để in trực tiếp kiểu POSM ALL SP (A4 ngang, A5 ngang, A4 đứng)'
                                 : activeTab === 'sticker-lk'
                                   ? 'Chọn bố cục bên dưới để in trực tiếp kiểu Loa Kéo'
                                   : activeTab === 'sticker-ce'
@@ -4692,7 +4781,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               <Sticker
                                 item={
                                   activeTab === 'popup-all-sp'
-                                    ? (combinedPriceData.length > 0 ? combinedPriceData[0] : { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: 'LK001', maSanPham: 'LK001', nganhHang: 'POPUP ALL SP' })
+                                    ? (combinedPriceData.length > 0 ? combinedPriceData[0] : { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: 'LK001', maSanPham: 'LK001', nganhHang: 'POSM ALL SP' })
                                     : activeTab === 'sticker-lk'
                                       ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
                                       : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
@@ -4705,7 +4794,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               <Sticker
                                 item={
                                   activeTab === 'popup-all-sp'
-                                    ? (combinedPriceData.length > 0 ? combinedPriceData[0] : { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: 'LK001', maSanPham: 'LK001', nganhHang: 'POPUP ALL SP' })
+                                    ? (combinedPriceData.length > 0 ? combinedPriceData[0] : { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: 'LK001', maSanPham: 'LK001', nganhHang: 'POSM ALL SP' })
                                     : activeTab === 'sticker-lk'
                                       ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
                                       : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
@@ -4787,7 +4876,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                   : activeTab === 'sticker-gvgs'
                                     ? { name: 'Karofi KAQ-X18 11 lõi', originalPrice: 6990000, discountPrice: 4990000, maSanPham: 'SP001', nganhHang: 'GIỜ VÀNG GIÁ SỐC', endDate: '31/05/2026' }
                                     : activeTab === 'popup-all-sp'
-                                      ? (combinedPriceData.length > 0 ? combinedPriceData[0] : { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: 'LK001', maSanPham: 'LK001', nganhHang: 'POPUP ALL SP' })
+                                      ? (combinedPriceData.length > 0 ? combinedPriceData[0] : { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: 'LK001', maSanPham: 'LK001', nganhHang: 'POSM ALL SP' })
                                       : activeTab === 'sticker-lk'
                                         ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
                                         : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
@@ -5507,8 +5596,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {filteredPriceData.map((item, index) => (
-                            <tr key={index} className={`hover:bg-slate-50 transition-colors ${item.isManual ? 'bg-amber-50/30' : ''}`}>
+                          {pagedPriceData.map(({ item, globalIndex: index }) => (
+                            <tr key={item.id || index} className={`hover:bg-slate-50 transition-colors ${item.isManual ? 'bg-amber-50/30' : ''}`}>
                               <td className="py-3 px-4 text-center">
                                 <input 
                                   type="checkbox" 
@@ -5554,6 +5643,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                   type="text"
                                   className="w-32 bg-white border border-slate-200 text-slate-700 py-1 px-2 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right"
                                   value={Number(item.originalPrice || 0).toLocaleString('vi-VN') + ' đ'}
+                                  onFocus={(e) => e.target.select()}
                                   onChange={(e) => handlePriceChange(index, 'originalPrice', e.target.value)}
                                 />
                               </td>
@@ -5562,6 +5652,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                   type="text"
                                   className="w-32 bg-white border border-slate-200 text-red-600 py-1 px-2 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right"
                                   value={Number(item.discountPrice || 0).toLocaleString('vi-VN') + ' đ'}
+                                  onFocus={(e) => e.target.select()}
                                   onChange={(e) => handlePriceChange(index, 'discountPrice', e.target.value)}
                                 />
                               </td>
@@ -5578,6 +5669,73 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                           ))}
                         </tbody>
                       </table>
+                    </div>
+
+                    {/* Pagination Bar */}
+                    <div className="p-3 md:p-4 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                        <span>Hiển thị</span>
+                        <select
+                          value={tablePageSize}
+                          onChange={(e) => {
+                            setTablePageSize(Number(e.target.value));
+                            setTableCurrentPage(1);
+                          }}
+                          className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-black text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-xs"
+                        >
+                          <option value={50}>50 dòng / trang</option>
+                          <option value={100}>100 dòng / trang</option>
+                          <option value={200}>200 dòng / trang</option>
+                          <option value={500}>500 dòng / trang</option>
+                          <option value={99999}>Tất cả ({filteredPriceData.length})</option>
+                        </select>
+                        <span className="text-slate-400 font-normal">|</span>
+                        <span>
+                          {filteredPriceData.length === 0 ? '0' : `${(tableCurrentPage - 1) * tablePageSize + 1} - ${Math.min(tableCurrentPage * tablePageSize, filteredPriceData.length)}`} / {filteredPriceData.length} sản phẩm
+                        </span>
+                      </div>
+
+                      {totalTablePages > 1 && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={tableCurrentPage <= 1}
+                            onClick={() => setTableCurrentPage(1)}
+                            className="px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                            title="Trang đầu"
+                          >
+                            « Đầu
+                          </button>
+                          <button
+                            type="button"
+                            disabled={tableCurrentPage <= 1}
+                            onClick={() => setTableCurrentPage(prev => Math.max(1, prev - 1))}
+                            className="px-3 py-1 text-xs font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                          >
+                            ‹ Trước
+                          </button>
+                          <div className="px-3 py-1 text-xs font-black bg-emerald-600 text-white rounded-lg shadow-xs">
+                            Trang {tableCurrentPage} / {totalTablePages}
+                          </div>
+                          <button
+                            type="button"
+                            disabled={tableCurrentPage >= totalTablePages}
+                            onClick={() => setTableCurrentPage(prev => Math.min(totalTablePages, prev + 1))}
+                            className="px-3 py-1 text-xs font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                          >
+                            Sau ›
+                          </button>
+                          <button
+                            type="button"
+                            disabled={tableCurrentPage >= totalTablePages}
+                            onClick={() => setTableCurrentPage(totalTablePages)}
+                            className="px-2.5 py-1 text-xs font-bold rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                            title="Trang cuối"
+                          >
+                            Cuối »
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (

@@ -56,7 +56,7 @@ export default function PrintLayoutModal({ isOpen, isCe = false, isLk = false, i
             <h3 className="text-sm font-bold text-slate-600 mb-4 uppercase tracking-wider">1. CHỌN KIỂU STICKER</h3>
             <div className="p-4 rounded-xl border-2 border-indigo-500 bg-indigo-50/55 flex items-center">
               <span className="font-black text-indigo-600 text-sm uppercase tracking-wide">
-                {isPopupAllSp ? 'In Sticker POPUP ALL SP' : isCe ? 'In Sticker CE (Điện máy)' : isLk ? 'In Sticker Loa Kéo' : 'Kiểu có sẵn'}
+                {isPopupAllSp ? 'In Sticker POSM ALL SP' : isCe ? 'In Sticker CE (Điện máy)' : isLk ? 'In Sticker Loa Kéo' : 'Kiểu có sẵn'}
               </span>
             </div>
           </div>
