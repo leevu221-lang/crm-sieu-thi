@@ -5472,7 +5472,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                     </div>
 
                     <div className="rounded-3xl border border-indigo-100/70 overflow-hidden flex flex-col mb-4 bg-white shadow-xl shadow-indigo-100/10">
-                      <div className={`${activeTab === 'sticker-dcnb' || (activeTab === 'sticker-lk' && lkPrintLayout === '2') || (activeTab === 'popup-all-sp' && popupPrintLayout === '2') || (activeTab === 'sticker-ce' && cePrintLayout === '2') || (activeTab === 'sticker-mln' && mlnPrintLayout === '2') || (activeTab === 'sticker-gvgs' && gvgsPrintLayout === '2') ? 'h-[760px]' : (activeTab === 'popup-all-sp' && popupPrintLayout === 'a4_ngang') ? 'h-[520px]' : 'h-[440px]'} bg-gradient-to-tr from-slate-50 via-indigo-50/20 to-purple-50/30 flex items-center justify-center overflow-hidden relative p-8`}>
+                      <div className={`${activeTab === 'sticker-dcnb' || (activeTab === 'sticker-lk' && lkPrintLayout === '2') || (activeTab === 'popup-all-sp' && popupPrintLayout === '2') || (activeTab === 'sticker-ce' && cePrintLayout === '2') || (activeTab === 'sticker-mln' && mlnPrintLayout === '2') || (activeTab === 'sticker-gvgs' && gvgsPrintLayout === '2') ? 'h-[760px]' : (activeTab === 'popup-all-sp' && popupPrintLayout === 'a4_ngang') ? 'h-[360px] sm:h-[440px] md:h-[520px]' : 'h-[340px] sm:h-[390px] md:h-[440px]'} bg-gradient-to-tr from-slate-50 via-indigo-50/20 to-purple-50/30 flex items-center justify-center overflow-hidden relative p-2 sm:p-4 md:p-8`}>
                         <div
                           className="pointer-events-none select-none shadow-[0_20px_50px_rgba(99,102,241,0.15)] border border-slate-900/10 rounded-xl overflow-hidden transition-all duration-300 flex flex-col bg-white"
                           style={{
@@ -5481,7 +5481,11 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               : activeTab === 'sticker-lk'
                                 ? (lkPrintLayout === '1' ? 'scale(0.48)' : 'scale(0.58)')
                                 : activeTab === 'popup-all-sp'
-                                  ? (popupPrintLayout === 'a4_ngang' ? 'scale(0.38)' : popupPrintLayout === '1' ? 'scale(0.48)' : 'scale(0.58)')
+                                  ? (popupPrintLayout === 'a4_ngang' 
+                                      ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.28)' : 'scale(0.38)') 
+                                      : popupPrintLayout === '1' 
+                                        ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.38)' : 'scale(0.48)') 
+                                        : (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.46)' : 'scale(0.58)'))
                                   : activeTab === 'sticker-ce'
                                     ? (cePrintLayout === '1' ? 'scale(0.48)' : 'scale(0.58)')
                                     : activeTab === 'sticker-dcnb'
@@ -5789,7 +5793,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             onClick={() => {
                               setPopupPrintLayout(s.layout as any);
                               setPrintConfig({ 
-                                style: 'popup_all_sp', 
+                                style: 'sticker_lk', 
                                 layout: s.layout, 
                                 showPromoLabel: false 
                               });

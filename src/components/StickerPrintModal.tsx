@@ -40,12 +40,8 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
     if (config.style === 'address_flyer') return { cols: 3, rows: 2, scale: 1, orientation: 'portrait' };
     if (config.style === 'dcnb') return { cols: 3, rows: 8, scale: 1, orientation: 'portrait' };
     if (config.style === 'display' || config.style === 'giovang' || config.style === 'a4_giasoc') return { cols: 1, rows: 1, scale: 1, orientation: 'portrait' };
-    if (config.style === 'popup_all_sp') {
+    if (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp') {
       if (config.layout === 'a4_ngang' || config.layout === '1_a4') return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
-      if (config.layout === '2') return { cols: 1, rows: 2, scale: 1, orientation: 'portrait' };
-      return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
-    }
-    if (config.style === 'sticker_ce' || config.style === 'sticker_lk') {
       if (config.layout === '2') return { cols: 1, rows: 2, scale: 1, orientation: 'portrait' };
       return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
     }
@@ -71,7 +67,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
 
   const isMobileOrIos = useMemo(() => {
     if (typeof window === 'undefined') return false;
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   }, []);
 
   useEffect(() => {
@@ -351,13 +347,13 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
   }
 
   // Base sticker dimensions
-  const isCeA6 = (config.style === 'sticker_ce' || config.style === 'sticker_lk') && config.layout === '2';
+  const isCeA6 = false;
   const isAddressFlyer = config.style === 'address_flyer';
   const isDcnb = config.style === 'dcnb';
   const isDisplayA4 = config.style === 'display' && config.layout === '2';
-  const isA4Ngang = config.style === 'popup_all_sp' && (config.layout === 'a4_ngang' || config.layout === '1_a4');
-  const baseStickerWidth = isDcnb ? 66 : (isAddressFlyer ? 66 : (isPhieuBH ? (config.layout === 'right' ? 98 : 105) : (isCeA6 ? 148.5 : (isA4Ngang ? 297 : (config.style === 'sticker_ce' || config.style === 'sticker_lk' || isDisplayA4 ? 210 : (config.style === 'popup_all_sp' ? 210 : (isA5 ? 148.5 : (isA4Giasoc ? 210 : 148.5)))))))); // mm
-  const baseStickerHeight = isDcnb ? 35 : (isAddressFlyer ? 142 : (isPhieuBH ? (config.layout === 'right' ? 132 : 148.5) : (isCeA6 ? 105 : (isA4Ngang ? 210 : (config.style === 'sticker_ce' || config.style === 'sticker_lk' ? 148.5 : (config.style === 'popup_all_sp' ? 148.5 : (isA5 ? 210 : (isA4Giasoc || isDisplayA4 ? 297 : 105)))))))); // mm
+  const isA4Ngang = (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp') && (config.layout === 'a4_ngang' || config.layout === '1_a4');
+  const baseStickerWidth = isDcnb ? 66 : (isAddressFlyer ? 66 : (isPhieuBH ? (config.layout === 'right' ? 98 : 105) : (isCeA6 ? 148.5 : (isA4Ngang ? 297 : (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp' || isDisplayA4 ? 210 : (isA5 ? 148.5 : (isA4Giasoc ? 210 : 148.5))))))); // mm
+  const baseStickerHeight = isDcnb ? 35 : (isAddressFlyer ? 142 : (isPhieuBH ? (config.layout === 'right' ? 132 : 148.5) : (isCeA6 ? 105 : (isA4Ngang ? 210 : (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp' ? 148.5 : (isA5 ? 210 : (isA4Giasoc || isDisplayA4 ? 297 : 105))))))); // mm
 
   return createPortal(
     <div className={`print-modal-container fixed inset-0 z-50 print:static print:bg-white print:p-0 print:block ${
@@ -480,8 +476,8 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
             width: ${isA5 ? (layoutStyles.orientation === 'portrait' ? '147.5mm' : '209mm') : (layoutStyles.orientation === 'portrait' ? '210mm' : '297mm')} !important;
             min-width: 0 !important;
             max-width: none !important;
-            height: ${isA5 ? (layoutStyles.orientation === 'portrait' ? '209mm' : '147.5mm') : (layoutStyles.orientation === 'portrait' ? '295mm' : '205mm')} !important;
-            max-height: ${isA5 ? (layoutStyles.orientation === 'portrait' ? '209mm' : '147.5mm') : (layoutStyles.orientation === 'portrait' ? '295mm' : '205mm')} !important;
+            height: ${layoutStyles.orientation === 'portrait' ? '295mm' : '205mm'} !important;
+            max-height: ${layoutStyles.orientation === 'portrait' ? '295mm' : '205mm'} !important;
             overflow: hidden !important;
             box-sizing: border-box !important;
           }
@@ -713,7 +709,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                         position: 'absolute',
                         top: 0,
                         left: 0,
-                        padding: (config.style === 'address_flyer' || config.style === 'dcnb') ? '5mm' : ((isA5 || isA4Giasoc || isDisplayA4 || isA4Ngang) ? '0' : '2mm'),
+                        padding: (config.style === 'address_flyer' || config.style === 'dcnb') ? '5mm' : ((isA5 || isA4Giasoc || isDisplayA4) ? '0' : '2mm'),
                         gridTemplateColumns: `repeat(${layoutStyles.cols}, 1fr)`,
                         gridTemplateRows: `repeat(${layoutStyles.rows}, 1fr)`,
                         margin: 0,
@@ -722,7 +718,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                       }}
                     >
                       {page.map((item, index) => (
-                        <div key={index} className="relative overflow-hidden border-dashed border-slate-100 print:border-none flex items-center justify-center min-w-0 min-h-0" style={{ borderWidth: (isA4Ngang || isA5 || isA4Giasoc || isDisplayA4) ? '0' : '0.5px' }}>
+                        <div key={index} className="relative overflow-hidden border-dashed border-slate-100 print:border-none flex items-center justify-center min-w-0 min-h-0" style={{ borderWidth: '0.5px' }}>
                           <div style={{
                             width: `${baseStickerWidth * layoutStyles.scale}mm`,
                             height: `${baseStickerHeight * layoutStyles.scale}mm`,
@@ -739,7 +735,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                               flexShrink: 0 
                             }}>
                               {item ? (
-                                 <Sticker item={item} style={config.style} layout={config.layout} showPromoLabel={config.showPromoLabel} mlnHeaderTemplate={mlnHeaderTemplate} mlnFooterTemplate={mlnFooterTemplate} promoLabelText={promoLabelText} isMobile={isMobileOrIos} />
+                                 <Sticker item={item} style={config.style} layout={config.layout} showPromoLabel={config.showPromoLabel} mlnHeaderTemplate={mlnHeaderTemplate} mlnFooterTemplate={mlnFooterTemplate} promoLabelText={promoLabelText} />
                               ) : null}
                             </div>
                           </div>
@@ -866,13 +862,7 @@ export function DcnbCard() {
   );
 }
 
-export const Sticker = React.memo(function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderTemplate = '', mlnFooterTemplate = '', promoLabelText = 'sản phẩm giá sốc - event T7 & CN', isMobile }: { item: any, style: string, layout: string, showPromoLabel?: boolean, mlnHeaderTemplate?: string, mlnFooterTemplate?: string, promoLabelText?: string, isMobile?: boolean }) {
-  const isMobileClient = useMemo(() => {
-    if (typeof isMobile === 'boolean') return isMobile;
-    if (typeof window === 'undefined') return false;
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-  }, [isMobile]);
-
+export const Sticker = React.memo(function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderTemplate = '', mlnFooterTemplate = '', promoLabelText = 'sản phẩm giá sốc - event T7 & CN' }: { item: any, style: string, layout: string, showPromoLabel?: boolean, mlnHeaderTemplate?: string, mlnFooterTemplate?: string, promoLabelText?: string }) {
   // Get current time for the sticker
   const now = new Date();
   const day = now.getDate().toString().padStart(2, '0');
@@ -1120,7 +1110,7 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
     );
   }
 
-  if (style === 'popup_all_sp') {
+  if (style === 'sticker_ce' || style === 'sticker_lk' || style === 'popup_all_sp') {
     const isA6 = false;
     const isA4Ngang = layout === 'a4_ngang' || layout === '1_a4';
     const priceStr = formatPrice(item.discountPrice);
@@ -1132,12 +1122,6 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
     const codeLen = productCodeText.length;
     const getCodeFontSize = () => {
       if (isA4Ngang) {
-        if (isMobileClient) {
-          if (codeLen > 14) return '11px';
-          if (codeLen > 10) return '13px';
-          if (codeLen > 7) return '15px';
-          return '17px';
-        }
         if (codeLen > 14) return '13px';
         if (codeLen > 10) return '15px';
         if (codeLen > 7) return '17px';
@@ -1154,70 +1138,82 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
       if (codeLen > 7) return '12.5px';
       return '14px';
     };
-    const qrColWidth = isA4Ngang ? (isMobileClient ? '110px' : '135px') : isA6 ? '55px' : '90px';
+    const qrColWidth = isA4Ngang ? '120px' : isA6 ? '55px' : '90px';
+
+    const isMobileClient = typeof window !== 'undefined' && (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768);
 
     const nameText = item.name || 'TÊN SẢN PHẨM';
     const nameLen = nameText.length;
     const getNameFontSize = () => {
       if (isA4Ngang) {
         if (isMobileClient) {
-          if (nameLen > 70) return '24px';
-          if (nameLen > 45) return '28px';
-          if (nameLen > 30) return '34px';
-          return '38px';
+          // Mobile: Thu nhỏ vừa vặn 1 dòng, không bao giờ tự động xuống dòng
+          if (nameLen > 75) return '17px';
+          if (nameLen > 60) return '20px';
+          if (nameLen > 45) return '23px';
+          if (nameLen > 30) return '27px';
+          if (nameLen > 20) return '31px';
+          return '35px';
         }
-        // Desktop: Chữ to rõ, chiếm cân đối tổng thể tem
-        if (nameLen > 70) return '28px';
-        if (nameLen > 45) return '36px';
-        if (nameLen > 30) return '42px';
-        return '48px';
+        // Desktop / Laptop: Bề thế, sang trọng nhưng vẫn vừa vặn 1 dòng
+        if (nameLen > 75) return '22px';
+        if (nameLen > 60) return '26px';
+        if (nameLen > 45) return '31px';
+        if (nameLen > 30) return '36px';
+        if (nameLen > 20) return '42px';
+        return '46px';
       }
       if (isA6) {
-        if (nameLen > 70) return '13px';
+        if (isMobileClient) {
+          if (nameLen > 75) return '9px';
+          if (nameLen > 60) return '10.5px';
+          if (nameLen > 45) return '12px';
+          if (nameLen > 30) return '14px';
+          if (nameLen > 20) return '16.5px';
+          return '19px';
+        }
+        if (nameLen > 75) return '11px';
+        if (nameLen > 60) return '13px';
         if (nameLen > 45) return '15px';
         if (nameLen > 30) return '18px';
-        return '21px';
+        if (nameLen > 20) return '20px';
+        return '23px';
       }
+      // Khổ A5 ngang (210mm x 148.5mm) hoặc A4 đứng 2 tem:
       if (isMobileClient) {
-        if (nameLen > 70) return '18px';
-        if (nameLen > 45) return '22px';
-        if (nameLen > 30) return '26px';
-        return '30px';
+        // Mobile: Thu nhỏ vừa vặn 1 dòng
+        if (nameLen > 75) return '11px';
+        if (nameLen > 60) return '13px';
+        if (nameLen > 45) return '15px';
+        if (nameLen > 30) return '18px';
+        if (nameLen > 20) return '21px';
+        return '24px';
       }
-      if (nameLen > 70) return '20px';
-      if (nameLen > 45) return '25px';
-      if (nameLen > 30) return '30px';
-      return '35px';
+      // Desktop:
+      if (nameLen > 75) return '14px';
+      if (nameLen > 60) return '17px';
+      if (nameLen > 45) return '20px';
+      if (nameLen > 30) return '24px';
+      if (nameLen > 20) return '28px';
+      return '32px';
     };
 
     const getPriceFontSize = () => {
       const len = mainPrice.length;
       if (isA4Ngang) {
-        if (isMobileClient) {
-          // Mobile: Giữ nguyên tuyệt đối không thay đổi theo yêu cầu người dùng
-          if (len <= 5) return { main: 154, last: 54 };
-          if (len === 6) return { main: 136, last: 48 };
-          return { main: 120, last: 42 };
-        }
-        // Desktop: Chữ to đậm đà, bề thế, lấp đầy không gian hài hòa đẹp mắt
-        if (len <= 5) return { main: 200, last: 72 };
-        if (len === 6) return { main: 178, last: 64 };
-        return { main: 155, last: 56 };
+        if (len <= 5) return { main: 215, last: 78 };
+        if (len === 6) return { main: 190, last: 70 };
+        return { main: 165, last: 60 };
       }
       if (isA6) {
-        if (len <= 5) return { main: 76, last: 28 };
-        if (len === 6) return { main: 68, last: 24 };
-        return { main: 58, last: 20 };
+        if (len <= 5) return { main: 104, last: 38 };
+        if (len === 6) return { main: 92, last: 34 };
+        return { main: 80, last: 30 };
       }
       // Khổ A5 ngang hoặc A4 đứng 2 tem:
-      if (isMobileClient) {
-        if (len <= 5) return { main: 110, last: 40 };
-        if (len === 6) return { main: 98, last: 36 };
-        return { main: 86, last: 32 };
-      }
-      if (len <= 5) return { main: 140, last: 50 };
-      if (len === 6) return { main: 124, last: 44 };
-      return { main: 110, last: 38 };
+      if (len <= 5) return { main: 156, last: 58 };
+      if (len === 6) return { main: 138, last: 50 };
+      return { main: 120, last: 44 };
     };
     const priceFS = getPriceFontSize();
 
@@ -1234,9 +1230,7 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
               fontFamily: '"Oswald", sans-serif',
               borderStyle: 'solid',
               borderWidth: isA4Ngang ? '4px' : isA6 ? '2px' : '3px',
-              padding: isA4Ngang 
-                ? (isMobileClient ? '18px 28px 14px' : '22px 30px 16px') 
-                : isA6 ? '10px 12px' : '16px 20px'
+              padding: isA4Ngang ? '26px 30px' : isA6 ? '12px' : '20px 24px'
             }}
           >
             {/* Top Section: Above the horizontal line - Tiêu đề 2 dòng chuẩn Ảnh 2 */}
@@ -1258,24 +1252,20 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                 }}
               >
                 <div 
-                  className="uppercase tracking-[0.04em] leading-[0.9]"
+                  className="uppercase tracking-[0.04em] leading-[0.88]"
                   style={{
                     fontFamily: '"UTM Colossalis", sans-serif',
-                    fontSize: isA4Ngang 
-                      ? (isMobileClient ? '52px' : '64px') 
-                      : isA6 ? '26px' : (isMobileClient ? '38px' : '44px'),
+                    fontSize: isA4Ngang ? '68px' : isA6 ? '34px' : '48px',
                     fontWeight: 'normal',
                   }}
                 >
                   KHUYẾN MÃI
                 </div>
                 <div 
-                  className="uppercase tracking-[0.06em] leading-[0.9] mt-1"
+                  className="uppercase tracking-[0.06em] leading-[0.88] mt-1"
                   style={{
                     fontFamily: '"UTM Colossalis", sans-serif',
-                    fontSize: isA4Ngang 
-                      ? (isMobileClient ? '52px' : '64px') 
-                      : isA6 ? '26px' : (isMobileClient ? '38px' : '44px'),
+                    fontSize: isA4Ngang ? '68px' : isA6 ? '34px' : '48px',
                     fontWeight: 'normal',
                   }}
                 >
@@ -1292,7 +1282,7 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                 }}
               >
                 <div className="shrink-0 flex items-center justify-center p-0.5 bg-white border border-black">
-                  <QRCode value={item.qrData || item.maSanPham || item.productCode || '00000'} size={isA4Ngang ? (isMobileClient ? 64 : 76) : isA6 ? 32 : 48} level="L" />
+                  <QRCode value={item.qrData || item.maSanPham || item.productCode || '00000'} size={isA4Ngang ? 64 : isA6 ? 32 : 48} level="L" />
                 </div>
                 {productCodeText && (
                   <div 
@@ -1312,16 +1302,17 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
             <div className="bg-black w-full shrink-0" style={{ height: isA4Ngang ? '4px' : isA6 ? '2px' : '3px' }}></div>
 
             {/* Middle Section: Centered layout */}
-            <div className="flex-1 flex flex-col justify-evenly py-1 min-h-0 text-center">
-              {/* Product Info - Full name display */}
-              <div className="flex flex-col items-center justify-center px-4">
+            <div className="flex-1 flex flex-col justify-around py-1 min-h-0 text-center">
+              {/* Product Info - Full name display, khóa cứng 1 dòng duy nhất không bao giờ tự động xuống dòng */}
+              <div className="flex flex-col items-center justify-center px-2 w-full overflow-hidden">
                 <div 
-                  className="font-black uppercase tracking-wide text-center max-w-[96%] mx-auto leading-tight break-words" 
+                  className="font-black uppercase tracking-wide text-center max-w-[96%] mx-auto whitespace-nowrap overflow-hidden text-ellipsis leading-normal" 
                   style={{ 
                     fontFamily: '"Oswald", sans-serif',
                     fontWeight: 900,
                     fontSize: getNameFontSize()
                   }}
+                  title={nameText}
                 >
                   {nameText}
                 </div>
@@ -1331,21 +1322,14 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
               <div className="flex flex-col items-center justify-center">
                 {/* Original Price (Strikethrough) */}
                 <div 
-                  className="relative font-bold text-black mb-1 leading-none inline-block"
+                  className="relative font-bold text-black mb-1 leading-none"
                   style={{ 
                     fontFamily: '"Oswald", sans-serif',
-                    fontSize: isA4Ngang 
-                      ? (isMobileClient ? '32px' : '44px') 
-                      : isA6 ? '16px' : (isMobileClient ? '24px' : '32px') 
+                    fontSize: isA4Ngang ? '48px' : isA6 ? '24px' : '36px' 
                   }}
                 >
                   {formatPrice(item.originalPrice)}đ
-                  <div 
-                    className="absolute top-[55%] left-[-6%] right-[-6%] bg-black -translate-y-1/2" 
-                    style={{ 
-                      height: isA4Ngang ? (isMobileClient ? '3px' : '4px') : isA6 ? '1.5px' : '2px' 
-                    }}
-                  ></div>
+                  <div className="absolute top-[55%] left-[-5%] right-[-5%] bg-black -translate-y-1/2" style={{ height: isA4Ngang ? '4px' : isA6 ? '2px' : '3px' }}></div>
                 </div>
 
                 {/* Discount price - Khóa chặt font UTM Colossalis cho 10.490 và .000Đ */}
@@ -1353,8 +1337,7 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                   className="font-utm-colossalis flex items-baseline justify-center text-black leading-none select-none" 
                   style={{ 
                     fontFamily: '"UTM Colossalis", sans-serif',
-                    fontWeight: 'normal',
-                    lineHeight: 1
+                    fontWeight: 'normal'
                   }}
                 >
                   <span 
@@ -1362,19 +1345,17 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                     style={{ 
                       fontFamily: '"UTM Colossalis", sans-serif',
                       fontSize: `${priceFS.main}px`,
-                      letterSpacing: '-0.03em',
-                      lineHeight: 0.92
+                      letterSpacing: '-0.03em'
                     }}
                   >
                     {mainPrice}
                   </span>
                   <span 
-                    className="font-utm-colossalis ml-1.5 leading-none" 
+                    className="font-utm-colossalis ml-1 leading-none" 
                     style={{ 
                       fontFamily: '"UTM Colossalis", sans-serif',
                       fontSize: `${priceFS.last}px`,
-                      letterSpacing: '-0.02em',
-                      lineHeight: 0.92
+                      letterSpacing: '-0.02em'
                     }}
                   >
                     .{lastPart}Đ
@@ -1387,111 +1368,8 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
             <div 
               className="border-t-2 border-black flex justify-between items-center font-bold text-black shrink-0"
               style={{ 
-                paddingTop: isA4Ngang ? (isMobileClient ? '10px' : '12px') : isA6 ? '5px' : '8px',
-                fontSize: isA4Ngang ? (isMobileClient ? '15px' : '16px') : isA6 ? '10px' : '12px'
-              }}
-            >
-              <div>ĐIỆN MÁY XANH</div>
-              <div className="italic font-medium">In lúc: {timeString}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (style === 'sticker_ce' || style === 'sticker_lk') {
-    const isA6 = layout === '2';
-    const priceStr = formatPrice(item.discountPrice);
-    const priceParts = priceStr.split('.');
-    const mainPrice = priceParts.slice(0, -1).join('.');
-    const lastPart = priceParts[priceParts.length - 1];
-
-    return (
-      <div className={`sticker-font-own box-border shrink-0 overflow-hidden ${isA6 ? 'w-[148.5mm] h-[105mm] p-[3mm]' : 'w-[210mm] h-[148.5mm] p-[7mm]'}`}>
-        <div className={`w-full h-full bg-white box-border flex flex-col justify-between border-black ${isA6 ? 'border-[4px] p-[1mm]' : 'border-[6px] p-[2mm]'}`}>
-          <div 
-            className="w-full h-full bg-white border-black box-border relative text-black flex flex-col justify-between" 
-            style={{ 
-              fontFamily: '"Oswald", sans-serif',
-              borderStyle: 'solid',
-              borderWidth: isA6 ? '2px' : '3px',
-              padding: isA6 ? '12px' : '24px'
-            }}
-          >
-            {/* Top Section: Above the horizontal line */}
-            <div className="flex items-center justify-between px-1 py-1 shrink-0 w-full">
-              {/* Invisible spacer for perfect symmetry */}
-              <div className="opacity-0 shrink-0" style={{ width: isA6 ? '32px' : '58px', height: isA6 ? '32px' : '58px' }}></div>
-              
-              {/* Centered Title */}
-              <div 
-                className="font-black uppercase tracking-[0.08em] leading-none text-center flex-1" 
-                style={{ 
-                  fontWeight: 900, 
-                  WebkitTextStroke: isA6 ? '1px black' : '2px black',
-                  fontSize: isA6 ? '38px' : '58px',
-                  fontFamily: '"UTM Colossalis", sans-serif'
-                }}
-              >
-                KHUYẾN MÃI GIÁ SỐC
-              </div>
-
-              {/* QR Code on the right */}
-              <div className="shrink-0 flex items-center justify-center p-0.5 bg-white border border-black">
-                <QRCode value={item.qrData || item.maSanPham || item.productCode || '00000'} size={isA6 ? 32 : 48} level="L" />
-              </div>
-            </div>
-
-            {/* Horizontal Divider Line */}
-            <div className="bg-black w-full shrink-0" style={{ height: isA6 ? '2px' : '3px' }}></div>
-
-            {/* Middle Section: Centered layout */}
-            <div className="flex-1 flex flex-col justify-around py-1 min-h-0 text-center">
-              {/* Product Info */}
-              <div className="flex flex-col items-center justify-center">
-                <div 
-                  className="font-black uppercase tracking-wide truncate whitespace-nowrap max-w-[95%] leading-tight" 
-                  style={{ 
-                    fontWeight: 900,
-                    fontSize: isA6 ? '22px' : '32px'
-                  }}
-                >
-                  {item.name || 'TÊN SẢN PHẨM'}
-                </div>
-              </div>
-
-              {/* Prices */}
-              <div className="flex flex-col items-center justify-center">
-                {/* Original Price (Strikethrough) */}
-                <div 
-                  className="relative font-bold text-black mb-0.5 leading-none"
-                  style={{ fontSize: isA6 ? '24px' : '36px' }}
-                >
-                  {formatPrice(item.originalPrice)}đ
-                  <div className="absolute top-[55%] left-[-5%] right-[-5%] bg-black -translate-y-1/2" style={{ height: isA6 ? '2px' : '3px' }}></div>
-                </div>
-
-                {/* Discount price */}
-                <div 
-                  className="flex items-baseline font-black text-black leading-none" 
-                  style={{ 
-                    fontWeight: 900,
-                    fontFamily: '"UTM Colossalis", sans-serif'
-                  }}
-                >
-                  <span className="tracking-tighter leading-none" style={{ fontSize: isA6 ? '104px' : '156px' }}>{mainPrice}</span>
-                  <span className="ml-0.5 leading-none" style={{ fontSize: isA6 ? '38px' : '58px' }}>.{lastPart}Đ</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer Section: Date & Info */}
-            <div 
-              className="border-t-2 border-black flex justify-between items-center font-bold text-black shrink-0"
-              style={{ 
-                paddingTop: isA6 ? '6px' : '12px',
-                fontSize: isA6 ? '10px' : '13px'
+                paddingTop: isA4Ngang ? '14px' : isA6 ? '6px' : '12px',
+                fontSize: isA4Ngang ? '16px' : isA6 ? '10px' : '13px'
               }}
             >
               <div>ĐIỆN MÁY XANH</div>

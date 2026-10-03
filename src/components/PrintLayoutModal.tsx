@@ -17,7 +17,7 @@ export default function PrintLayoutModal({ isOpen, isCe = false, isLk = false, i
 
   useEffect(() => {
     if (isPopupAllSp) {
-      setSelectedStyle('popup_all_sp');
+      setSelectedStyle('sticker_lk');
       setSelectedLayout('a4_ngang');
     } else if (isCe) {
       setSelectedStyle('sticker_ce');
