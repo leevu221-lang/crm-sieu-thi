@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import QRCode from 'react-qr-code';
-import { X, Printer, Smartphone, Share2, HelpCircle, ArrowLeft, Download, Check, Sparkles, RotateCw, FileText } from 'lucide-react';
+import { X, Printer, Smartphone, Share2, HelpCircle, ArrowLeft, Download, Check, Sparkles, RotateCw, FileText, Eye } from 'lucide-react';
 
 interface StickerPrintModalProps {
   isOpen: boolean;
@@ -107,7 +107,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
   if (!isOpen) return null;
 
   const handlePrint = () => {
-    if (pages.length > 4 && !renderAllPages) {
+    if (!shouldRenderAll) {
       setIsPreparing(true);
       setRenderAllPages(true);
       setTimeout(() => {
@@ -345,6 +345,10 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
   for (let i = 0; i < data.length; i += itemsPerPage) {
     pages.push(data.slice(i, i + itemsPerPage));
   }
+
+  // Luôn hiển thị đầy đủ tem xem trước cho POPUP ALL SP và các bản in dưới 30 trang
+  const isAllSp = config.style === 'popup_all_sp';
+  const shouldRenderAll = renderAllPages || isAllSp || pages.length <= 30;
 
   // Base sticker dimensions
   const isCeA6 = false;
@@ -636,7 +640,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
             </div>
           ) : (
             <div className={`flex flex-col items-center gap-6 sm:gap-8 print:gap-0 print:block w-full ${isIPrintMode ? 'py-4' : ''}`}>
-              {(renderAllPages || pages.length <= 4 ? pages : pages.slice(0, 4)).map((page, pageIndex) => (
+              {(shouldRenderAll ? pages : pages.slice(0, 30)).map((page, pageIndex) => (
                 <div 
                   key={pageIndex} 
                   className="preview-page-wrapper flex flex-col items-center print:contents"
@@ -745,13 +749,21 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                   </div>
                 </div>
               ))}
-              {!renderAllPages && pages.length > 4 && !isIPrintMode && (
-                <div className="text-center p-4 bg-amber-50 text-amber-800 rounded-2xl border border-amber-200 print:hidden w-full max-w-xl shadow-sm">
+              {!shouldRenderAll && !isIPrintMode && (
+                <div className="text-center p-4 bg-amber-50 text-amber-800 rounded-2xl border border-amber-200 print:hidden w-full max-w-xl shadow-sm flex flex-col items-center gap-2">
                   <p className="font-bold text-sm">
-                    Đang xem trước 4 / {pages.length} trang ({data.length} tem) để tải siêu nhanh.
+                    Đang xem trước 30 / {pages.length} trang ({data.length} tem).
                   </p>
-                  <p className="text-xs text-amber-700 mt-1">
-                    Bấm <span className="font-black text-emerald-700">"IN NGAY"</span> ở góc trên bên phải để in toàn bộ {pages.length} trang ({data.length} tem).
+                  <button
+                    type="button"
+                    onClick={() => setRenderAllPages(true)}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-md active:scale-95 flex items-center gap-1.5"
+                  >
+                    <Eye size={15} />
+                    <span>Xem toàn bộ {pages.length} trang ({data.length} tem)</span>
+                  </button>
+                  <p className="text-xs text-amber-700">
+                    Hoặc bấm <span className="font-black text-emerald-700">"IN NGAY"</span> ở góc trên bên phải để in toàn bộ {pages.length} trang ({data.length} tem).
                   </p>
                 </div>
               )}
