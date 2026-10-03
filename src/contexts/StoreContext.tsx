@@ -127,6 +127,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const isCurrentUrlForPage = (pageKey: string): boolean => {
     try {
       const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+      if (path === '/posm' && pageKey === 'toolhotro') return true;
       const mappedPage = URL_PAGE_MAP[path];
       if (mappedPage === pageKey) return true;
       
@@ -171,6 +172,10 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
   const [activeToolHoTroTab, setActiveToolHoTroTabRaw] = useState<string>(() => {
     try {
+      const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+      if (path === '/posm') {
+        return 'popup-all-sp';
+      }
       if (isCurrentUrlForPage('toolhotro')) {
         const params = new URLSearchParams(window.location.search);
         const urlTab = params.get('tab');
@@ -260,11 +265,16 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => {
     const handlePopState = () => {
       try {
+        const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+        if (path === '/posm') {
+          setActiveToolHoTroTabRaw('popup-all-sp');
+          return;
+        }
+
         const params = new URLSearchParams(window.location.search);
         const urlTab = params.get('tab');
         if (!urlTab) return;
         
-        const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
         const page = URL_PAGE_MAP[path] || params.get('page');
         
         if (page === 'realtime') {

@@ -85,8 +85,8 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
   const { currentStoreId, activeRealtimeTab, activeLuyKeTab, activeHealthTab, activeToolHoTroTab, activeTienIchTab } = useStore();
 
   const handleShareLink = () => {
-    const currentKho = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || '';
-    if (!currentKho) return;
+    const currentKho = userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || (currentPage === 'toolhotro' ? '1841' : '');
+    if (!currentKho && currentPage !== 'toolhotro') return;
     // Xác định tab hiện tại theo trang đang mở
     const currentTab = currentPage === 'realtime' ? activeRealtimeTab :
                        currentPage === 'luyke' ? activeLuyKeTab :
@@ -252,27 +252,40 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
           {/* ─── Right: Share Button + Clock + User Profile ─── */}
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* Share Guest Link Button */}
-            <button
-              onClick={handleShareLink}
-              className={`flex items-center justify-center gap-1.5 w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer border ${
-                copiedLink 
-                  ? 'bg-sky-50 text-sky-700 border-sky-300 ring-2 ring-sky-200 font-extrabold sm:px-3' 
-                  : 'bg-gradient-to-r from-sky-50 to-blue-50 hover:from-sky-100 hover:to-blue-100 text-sky-700 border-sky-200'
-              }`}
-              title={`Chia sẻ link trực tiếp trang này cho Khách xem dữ liệu Kho ${userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}`}
-            >
-              {copiedLink ? (
-                <>
-                  <Check size={14} className="text-sky-600 shrink-0" />
-                  <span className="hidden sm:inline text-[11px] font-black">Đã chép link Kho {userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}!</span>
-                </>
-              ) : (
-                <>
-                  <Share2 size={14} className="text-sky-600 shrink-0" />
-                  <span className="hidden sm:inline text-[11px] font-black tracking-wide">CHIA SẺ LINK</span>
-                </>
-              )}
-            </button>
+            {(() => {
+              const isPosmAllSp = currentPage === 'toolhotro' && activeToolHoTroTab === 'popup-all-sp';
+              return (
+                <button
+                  onClick={handleShareLink}
+                  className={`flex items-center justify-center gap-1.5 w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer border ${
+                    copiedLink 
+                      ? 'bg-sky-50 text-sky-700 border-sky-300 ring-2 ring-sky-200 font-extrabold sm:px-3' 
+                      : isPosmAllSp
+                        ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 border-emerald-400/40'
+                        : 'bg-gradient-to-r from-sky-50 to-blue-50 hover:from-sky-100 hover:to-blue-100 text-sky-700 border-sky-200'
+                  }`}
+                  title={
+                    isPosmAllSp
+                      ? 'Chia sẻ link POSM ALL SP: crm-sieu-thi.pages.dev/posm'
+                      : `Chia sẻ link trực tiếp trang này cho Khách xem dữ liệu Kho ${userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}`
+                  }
+                >
+                  {copiedLink ? (
+                    <>
+                      <Check size={14} className="text-sky-600 shrink-0" />
+                      <span className="hidden sm:inline text-[11px] font-black">
+                        {isPosmAllSp ? 'Đã chép link crm-sieu-thi.pages.dev/posm!' : `Đã chép link Kho ${userProfile?.ma_kho || localStorage.getItem('rtst_ma_kho') || ''}!`}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Share2 size={14} className={`${isPosmAllSp ? 'text-emerald-400' : 'text-sky-600'} shrink-0`} />
+                      <span className="hidden sm:inline text-[11px] font-black tracking-wide">CHIA SẺ LINK</span>
+                    </>
+                  )}
+                </button>
+              );
+            })()}
 
             {/* Subscription / Gói Cước Button (Chỉ hiển thị với user 43751) */}
             {isUser43751 && setShowSubscriptionForce && (

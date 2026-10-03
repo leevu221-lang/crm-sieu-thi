@@ -87,8 +87,11 @@ export default function App() {
 
   const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro' | 'bbkq' | 'tienich' | 'tnb_data' | 'birthday' | 'feedback' | 'excelviewer' | 'lichpg' | 'tnbleader'>(() => {
     try {
-      // 1. Ưu tiên đọc từ URL pathname (/lich-pg, /realtime, /suc-khoe...)
+      // 1. Ưu tiên đọc từ URL pathname (/posm, /lich-pg, /realtime, /suc-khoe...)
       const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+      if (path === '/posm') {
+        return 'toolhotro';
+      }
       if (path && URL_PAGE_MAP[path]) {
         return URL_PAGE_MAP[path] as any;
       }
@@ -197,7 +200,9 @@ export default function App() {
         if (!isDirectDedicatedMode && userProfile?.role !== 'guest') {
           localStorage.setItem('crm_active_page', currentPage);
         }
-        const basePath = PAGE_URL_MAP[currentPage] || `/${currentPage}`;
+        
+        const isPosmRoute = (currentPage === 'toolhotro' && activeToolHoTroTab === 'popup-all-sp');
+        const basePath = isPosmRoute ? '/posm' : (PAGE_URL_MAP[currentPage] || `/${currentPage}`);
         const params = new URLSearchParams(window.location.search);
         const isShare = isDirectDedicatedMode || isGuestShareLink(window.location.search);
         const isGuest = isShare || userProfile?.role === 'guest';
@@ -206,7 +211,7 @@ export default function App() {
         // External URLs (?kho=...) CANNOT override or jump warehouse for an authenticated user.
         const kho = (userProfile && !isGuest && userProfile.ma_kho)
           ? userProfile.ma_kho
-          : (params.get('kho') || params.get('k') || params.get('makho') || params.get('store') || localStorage.getItem('rtst_ma_kho') || userProfile?.ma_kho || '');
+          : (params.get('kho') || params.get('k') || params.get('makho') || params.get('store') || localStorage.getItem('rtst_ma_kho') || userProfile?.ma_kho || (isPosmRoute ? '1841' : ''));
         
         const currentTab = currentPage === 'realtime' ? activeRealtimeTab :
                            currentPage === 'luyke' ? activeLuyKeTab :
@@ -221,7 +226,15 @@ export default function App() {
 
         const queryParams = new URLSearchParams();
 
-        if (isGuest || isShare) {
+        if (isPosmRoute) {
+          // Với route /posm: Nếu kho khác 1841 thì mới thêm kho, còn kho 1841 (mặc định) thì URL giữ nguyên sạch sẽ: /posm
+          if (kho && kho !== '1841') {
+            queryParams.set('kho', kho);
+          }
+          if (params.get('view') === 'guest') {
+            queryParams.set('view', 'guest');
+          }
+        } else if (isGuest || isShare) {
           if (kho) queryParams.set('kho', kho);
           if (!isDefaultTab && currentTab) queryParams.set('tab', currentTab);
           // Chỉ giữ param st (siêu thị) trong URL cho guest nếu kho có nhiều hơn 1 siêu thị và không phải siêu thị đầu tiên

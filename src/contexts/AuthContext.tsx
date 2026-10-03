@@ -99,23 +99,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const khoParam = params.get('kho') || params.get('k') || params.get('makho') || params.get('store');
-    const isShare = isGuestShareLink(window.location.search);
+    const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+    const isPosmRoute = path === '/posm';
+    const khoParam = params.get('kho') || params.get('k') || params.get('makho') || params.get('store') || (isPosmRoute ? '1841' : '');
+    const isShare = isGuestShareLink(window.location.search) || isPosmRoute;
     
-    // Only persist rtst_ma_kho from URL parameter if accessing via an explicit guest share link
-    if (khoParam && isShare) {
+    // Only persist rtst_ma_kho from URL parameter if accessing via an explicit guest share link or /posm
+    if (khoParam && (isShare || isPosmRoute)) {
       localStorage.setItem('rtst_ma_kho', khoParam);
     }
 
-    const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
     const storedUser = localStorage.getItem('userProfile');
 
     const ALL_SHARED_PAGES = ['realtime', 'luyke', 'health', 'lichpg', 'diemdanhhop', 'toolhotro', 'tienich', 'birthday', 'khaibao', 'feedback', 'excelviewer'];
 
-    // 1. Mở từ link chia sẻ khách (?kho=... hoặc ?view=guest):
+    // 1. Mở từ link chia sẻ khách (?kho=... hoặc ?view=guest hoặc /posm):
     // Khởi tạo tài khoản Khách xem trang độc lập không cần đăng nhập dưới mã kho được chia sẻ
     if (isShare) {
-      const kho = khoParam || localStorage.getItem('rtst_ma_kho') || '';
+      const kho = khoParam || localStorage.getItem('rtst_ma_kho') || (isPosmRoute ? '1841' : '');
       if (!kho) {
         setUserProfile(null);
         setLoading(false);

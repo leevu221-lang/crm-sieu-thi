@@ -1,5 +1,6 @@
 // Bảng ánh xạ từ page ID sang URL pathname thân thiện
 export const PAGE_URL_MAP: Record<string, string> = {
+  posm: '/posm',
   realtime: '/realtime',
   health: '/suc-khoe',
   luyke: '/luy-ke',
@@ -18,6 +19,7 @@ export const PAGE_URL_MAP: Record<string, string> = {
 
 // Bảng ánh xạ từ URL pathname sang page ID
 export const URL_PAGE_MAP: Record<string, string> = {
+  '/posm': 'toolhotro',
   '/realtime': 'realtime',
   '/health': 'health',
   '/suc-khoe': 'health',
@@ -57,6 +59,7 @@ export const PAGE_DEFAULT_TAB_MAP: Record<string, string> = {
 
 // Helper tạo URL chia sẻ chế độ khách (view-only) cho một trang + mã kho cụ thể
 // Tối ưu rút gọn tối đa:
+// - POSM ALL SP: https://crm-sieu-thi.pages.dev/posm
 // - Bỏ tab nếu trùng tab mặc định
 // - Bỏ siêu thị st nếu là siêu thị mặc định duy nhất hoặc siêu thị đầu tiên của kho
 // - Link siêu ngắn gọn: https://crm-sieu-thi.pages.dev/tool-ho-tro?kho=1841
@@ -67,8 +70,19 @@ export const buildGuestShareUrl = (
   storeName?: string,
   isDefaultStore?: boolean
 ): string => {
+  const origin = typeof window !== 'undefined' && window.location.origin && !window.location.origin.includes('localhost')
+    ? window.location.origin 
+    : 'https://crm-sieu-thi.pages.dev';
+
+  // Đặc biệt: Nếu là tab POSM ALL SP ('popup-all-sp') của Tool Hỗ Trợ
+  if (pageId === 'toolhotro' && tab === 'popup-all-sp') {
+    if (!kho || kho === '1841') {
+      return `${origin}/posm`;
+    }
+    return `${origin}/posm?kho=${encodeURIComponent(kho)}`;
+  }
+
   const pathname = PAGE_URL_MAP[pageId] || `/${pageId}`;
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const params = new URLSearchParams();
   if (kho) {
     params.set('kho', kho);
@@ -89,6 +103,22 @@ export const buildGuestShareUrl = (
 // Helper kiểm tra xem URL có phải là link chia sẻ chế độ khách hay không
 export const isGuestShareLink = (search: string = ''): boolean => {
   try {
+    // 0. Đường dẫn trực tiếp /posm (chế độ xem POSM nhanh)
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+      if (path === '/posm') {
+        const storedUser = localStorage.getItem('userProfile');
+        // Chưa đăng nhập -> tự động vào xem trực tiếp chế độ khách
+        if (!storedUser) return true;
+        try {
+          const parsed = JSON.parse(storedUser);
+          if (parsed.role === 'guest' || parsed.isGuest) return true;
+        } catch {
+          return true;
+        }
+      }
+    }
+
     const rawSearch = search || (typeof window !== 'undefined' ? (window.location.search || window.location.hash || '') : '');
     const queryPart = rawSearch.includes('?') ? rawSearch.substring(rawSearch.indexOf('?')) : (rawSearch.startsWith('#') ? rawSearch.substring(1) : rawSearch);
     const params = new URLSearchParams(queryPart);
