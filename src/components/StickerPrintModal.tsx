@@ -90,25 +90,35 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
   const rotateImage90 = (dataUrl: string): Promise<string> => {
     return new Promise((resolve) => {
       const img = new Image();
+      const timer = setTimeout(() => resolve(dataUrl), 5000);
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.height;
-        canvas.height = img.width;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
+        clearTimeout(timer);
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.height;
+          canvas.height = img.width;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(dataUrl);
+            return;
+          }
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          
+          ctx.translate(canvas.width, 0);
+          ctx.rotate((90 * Math.PI) / 180);
+          ctx.drawImage(img, 0, 0);
+          
+          resolve(canvas.toDataURL('image/png', 1.0));
+        } catch (e) {
+          console.error('Rotate image error:', e);
           resolve(dataUrl);
-          return;
         }
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        ctx.translate(canvas.width, 0);
-        ctx.rotate((90 * Math.PI) / 180);
-        ctx.drawImage(img, 0, 0);
-        
-        resolve(canvas.toDataURL('image/png', 1.0));
       };
-      img.onerror = () => resolve(dataUrl);
+      img.onerror = () => {
+        clearTimeout(timer);
+        resolve(dataUrl);
+      };
       img.src = dataUrl;
     });
   };
@@ -409,21 +419,21 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
         </div>
       ) : (
         /* THANH ĐIỀU KHIỂN XEM TRƯỚC MẶC ĐỊNH */
-        <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex flex-wrap items-center gap-2 print:hidden z-50">
+        <div className="absolute top-2 right-2 sm:top-4 sm:right-4 flex flex-wrap items-center justify-end gap-1.5 sm:gap-2 print:hidden z-50 max-w-[96vw]">
           {/* Nút Xoay 90 độ vừa khít A4 Brother khi là layout ngang */}
           {layoutStyles.orientation === 'landscape' && (
             <button
               type="button"
               onClick={() => setRotateForBrother(!rotateForBrother)}
-              className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all cursor-pointer border ${
+              className={`px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all cursor-pointer border ${
                 rotateForBrother 
                   ? 'bg-amber-400 hover:bg-amber-500 text-slate-950 border-amber-300 shadow-amber-500/25' 
                   : 'bg-slate-800/90 hover:bg-slate-900 text-slate-300 border-slate-700'
               }`}
               title="Xoay dọc 90 độ để khi máy in Brother HL-L2360D in ra không bị cắt mất nửa trang"
             >
-              <RotateCw size={14} className={rotateForBrother ? 'text-slate-950 animate-spin-slow' : 'text-slate-400'} />
-              <span>{rotateForBrother ? 'Xoay Vừa A4: BẬT' : 'Xoay Vừa A4: TẮT'}</span>
+              <RotateCw size={13} className={rotateForBrother ? 'text-slate-950 animate-spin-slow' : 'text-slate-400'} />
+              <span>{rotateForBrother ? 'Xoay A4: BẬT' : 'Xoay A4: TẮT'}</span>
             </button>
           )}
 
@@ -431,11 +441,12 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
           <button 
             type="button"
             onClick={() => setIsIPrintMode(true)}
-            className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-blue-500/25 transition-all cursor-pointer border border-blue-400/40"
+            className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 active:scale-95 text-white px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-blue-500/25 transition-all cursor-pointer border border-blue-400/40"
             title="Bật giao diện in sạch chuẩn A4 cho app Brother iPrint&Scan trên iPhone"
           >
-            <Smartphone size={15} className="text-blue-200 animate-pulse" />
-            <span>In Qua App iPrint&Scan</span>
+            <Smartphone size={14} className="text-blue-200 animate-pulse" />
+            <span className="hidden sm:inline">In Qua App iPrint&Scan</span>
+            <span className="sm:hidden">App iPrint</span>
           </button>
 
           {/* Nút Chia sẻ ảnh sang iPrint&Scan */}
@@ -443,35 +454,36 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
             type="button"
             onClick={() => handleExportPngForIPrint(0)}
             disabled={isExportingImage}
-            className="bg-slate-800/90 hover:bg-slate-900 active:scale-95 text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg transition-all cursor-pointer border border-slate-700"
+            className="bg-teal-700 hover:bg-teal-800 active:scale-95 text-white px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1.5 shadow-lg transition-all cursor-pointer border border-teal-500/50"
             title="Xuất file ảnh độ nét cao (300 DPI) để in qua tính năng Print Photos của Brother iPrint&Scan"
           >
-            <Share2 size={14} className="text-teal-300" />
-            <span className="hidden sm:inline">{isExportingImage ? 'Đang xuất...' : 'Chia Sẻ Ảnh'}</span>
+            <Share2 size={13} className="text-teal-200" />
+            <span>{isExportingImage ? 'Đang xuất...' : 'Chia Sẻ Ảnh'}</span>
           </button>
 
           {/* Nút Hướng dẫn */}
           <button
             type="button"
             onClick={() => setShowIPrintGuide(true)}
-            className="bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white p-2 rounded-xl shadow-lg transition-all cursor-pointer"
+            className="bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white p-1.5 sm:p-2 rounded-xl shadow-lg transition-all cursor-pointer"
             title="Xem hướng dẫn in bằng app Brother iPrint&Scan trên iPhone"
           >
-            <HelpCircle size={18} />
+            <HelpCircle size={16} />
           </button>
 
           {/* Nút In Ngay */}
           <button 
             onClick={handlePrint} 
             disabled={isPreparing}
-            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 sm:px-6 py-2 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg transition-colors cursor-pointer"
+            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-3 sm:px-5 py-1.5 sm:py-2 rounded-xl font-black text-[11px] sm:text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-colors cursor-pointer"
           >
-            <Printer size={16} /> {isPreparing ? 'Đang chuẩn bị...' : 'In Ngay'}
+            <Printer size={15} />
+            <span>{isPreparing ? 'Chờ...' : 'In Ngay'}</span>
           </button>
 
           {/* Nút Đóng */}
-          <button onClick={onClose} className="bg-white hover:bg-slate-100 text-slate-800 p-2 rounded-xl shadow-lg transition-colors cursor-pointer" title="Đóng">
-            <X size={20} />
+          <button onClick={onClose} className="bg-white hover:bg-slate-100 text-slate-800 p-1.5 sm:p-2 rounded-xl shadow-lg transition-colors cursor-pointer" title="Đóng">
+            <X size={18} />
           </button>
         </div>
       )}
@@ -493,25 +505,51 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
           ) : (
             <div className={`flex flex-col items-center gap-8 print:gap-0 print:block w-full ${isIPrintMode ? 'py-4' : ''}`}>
               {(renderAllPages || pages.length <= 4 ? pages : pages.slice(0, 4)).map((page, pageIndex) => (
-                <div 
-                  key={pageIndex} 
-                  id={`sticker-page-${pageIndex}`}
-                  className={`bg-white grid page-break ${isIPrintMode ? 'shadow-none border border-slate-200' : 'shadow-xl print:shadow-none'}`} 
-                  style={{ 
-                    width: isA5 
-                      ? (layoutStyles.orientation === 'portrait' ? '147.5mm' : '209mm') 
-                      : (layoutStyles.orientation === 'portrait' ? '210mm' : '297mm'),
-                    height: isA5 
-                      ? (layoutStyles.orientation === 'portrait' ? '209mm' : '147.5mm') 
-                      : (layoutStyles.orientation === 'portrait' ? '295mm' : '205mm'),
-                    padding: (config.style === 'address_flyer' || config.style === 'dcnb') ? '5mm' : ((isA5 || isA4Giasoc || isDisplayA4) ? '0' : '2mm'),
-                    gridTemplateColumns: `repeat(${layoutStyles.cols}, 1fr)`,
-                    gridTemplateRows: `repeat(${layoutStyles.rows}, 1fr)`,
-                    margin: isIPrintMode ? '0 auto 12mm auto' : '0 auto',
-                    boxSizing: 'border-box',
-                    gap: config.style === 'dcnb' ? '1mm' : '0'
-                  }}
-                >
+                <div key={pageIndex} className="flex flex-col items-center w-full print:contents">
+                  {/* Thanh thông tin trang & nút xuất ảnh riêng cho từng trang */}
+                  <div 
+                    className="w-full flex items-center justify-between px-3 py-1.5 text-slate-600 text-xs font-bold print:hidden no-export bg-white/90 backdrop-blur-xs rounded-xl border border-slate-200 shadow-xs mb-2" 
+                    style={{ 
+                      maxWidth: isA5 
+                        ? (layoutStyles.orientation === 'portrait' ? '147.5mm' : '209mm') 
+                        : (layoutStyles.orientation === 'portrait' ? '210mm' : '297mm'),
+                      width: '100%'
+                    }}
+                  >
+                    <span className="flex items-center gap-1.5 text-slate-700">
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                      Trang {pageIndex + 1} / {pages.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleExportPngForIPrint(pageIndex)}
+                      disabled={isExportingImage}
+                      className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer border border-teal-200/80 active:scale-95 shadow-2xs"
+                      title={`Xuất ảnh trang ${pageIndex + 1} chuẩn máy in Brother`}
+                    >
+                      <Share2 size={12} className="text-teal-600" />
+                      <span>{isExportingImage ? 'Đang xuất...' : `Chia sẻ ảnh trang ${pageIndex + 1}`}</span>
+                    </button>
+                  </div>
+
+                  <div 
+                    id={`sticker-page-${pageIndex}`}
+                    className={`bg-white grid page-break ${isIPrintMode ? 'shadow-none border border-slate-200' : 'shadow-xl print:shadow-none'}`} 
+                    style={{ 
+                      width: isA5 
+                        ? (layoutStyles.orientation === 'portrait' ? '147.5mm' : '209mm') 
+                        : (layoutStyles.orientation === 'portrait' ? '210mm' : '297mm'),
+                      height: isA5 
+                        ? (layoutStyles.orientation === 'portrait' ? '209mm' : '147.5mm') 
+                        : (layoutStyles.orientation === 'portrait' ? '295mm' : '205mm'),
+                      padding: (config.style === 'address_flyer' || config.style === 'dcnb') ? '5mm' : ((isA5 || isA4Giasoc || isDisplayA4) ? '0' : '2mm'),
+                      gridTemplateColumns: `repeat(${layoutStyles.cols}, 1fr)`,
+                      gridTemplateRows: `repeat(${layoutStyles.rows}, 1fr)`,
+                      margin: isIPrintMode ? '0 auto 12mm auto' : '0 auto',
+                      boxSizing: 'border-box',
+                      gap: config.style === 'dcnb' ? '1mm' : '0'
+                    }}
+                  >
                   {page.map((item, index) => (
                     <div key={index} className="relative overflow-hidden border-dashed border-slate-100 print:border-none flex items-center justify-center min-w-0 min-h-0" style={{ borderWidth: '0.5px' }}>
                       <div style={{
@@ -537,7 +575,8 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                     </div>
                   ))}
                 </div>
-              ))}
+              </div>
+            ))}
               {!renderAllPages && pages.length > 4 && !isIPrintMode && (
                 <div className="text-center p-4 bg-amber-50 text-amber-800 rounded-2xl border border-amber-200 print:hidden w-full max-w-xl shadow-sm">
                   <p className="font-bold text-sm">
