@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import QRCode from 'react-qr-code';
-import { X, Printer } from 'lucide-react';
+import { X, Printer, Smartphone, Share2, HelpCircle, ArrowLeft, Download, Check, Sparkles } from 'lucide-react';
 
 interface StickerPrintModalProps {
   isOpen: boolean;
@@ -21,15 +21,32 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
   const isPhieuBH = config.style === 'phieu_bh';
   const [renderAllPages, setRenderAllPages] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
+  const [isIPrintMode, setIsIPrintMode] = useState(false);
+  const [isExportingImage, setIsExportingImage] = useState(false);
+  const [showIPrintGuide, setShowIPrintGuide] = useState(false);
+  const [exportSuccessMsg, setExportSuccessMsg] = useState<string | null>(null);
+
+  const isMobileOrIos = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
       setRenderAllPages(false);
       setIsPreparing(false);
+      setIsIPrintMode(false);
+      setShowIPrintGuide(false);
+      setExportSuccessMsg(null);
       return;
     }
     
     const updateScale = () => {
+      if (isIPrintMode) {
+        setPreviewScale(1);
+        return;
+      }
+
       if (containerRef.current) {
         const availableWidth = containerRef.current.clientWidth;
         const padding = 64;
@@ -51,7 +68,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
     setTimeout(updateScale, 10);
     window.addEventListener('resize', updateScale);
     return () => window.removeEventListener('resize', updateScale);
-  }, [isOpen, config.layout]);
+  }, [isOpen, config.layout, isIPrintMode]);
 
   if (!isOpen) return null;
 
@@ -66,6 +83,76 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
     } else {
       window.print();
     }
+  };
+
+  const handleExportPngForIPrint = async (targetPageIndex: number = 0) => {
+    try {
+      setIsExportingImage(true);
+      setRenderAllPages(true);
+      await new Promise(r => setTimeout(r, 150));
+
+      const pageElements = document.querySelectorAll('.print-modal-container .page-break');
+      const targetEl = (pageElements[targetPageIndex] || pageElements[0]) as HTMLElement;
+      if (!targetEl) {
+        alert('Không tìm thấy trang in để xuất ảnh!');
+        return;
+      }
+
+      const htmlToImage = await import('html-to-image');
+      const dataUrl = await htmlToImage.toPng(targetEl, {
+        quality: 1,
+        pixelRatio: 2.5,
+        backgroundColor: '#ffffff',
+        filter: (node) => {
+          if (node instanceof HTMLElement && (node.classList.contains('no-export') || node.classList.contains('print:hidden'))) {
+            return false;
+          }
+          return true;
+        },
+        style: {
+          boxShadow: 'none',
+          filter: 'none',
+          transform: 'none',
+        }
+      });
+
+      const fileName = `Tem_POSM_Trang_${targetPageIndex + 1}_${Date.now()}.png`;
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], fileName, { type: 'image/png' });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'In Tem POSM - iPrint&Scan',
+            text: 'Mở bằng app Brother iPrint&Scan để in ra máy in'
+          });
+          setExportSuccessMsg('Đã mở menu chia sẻ! Hãy chạm chọn app iPrint&Scan để in.');
+          setTimeout(() => setExportSuccessMsg(null), 5000);
+        } catch (shareErr: any) {
+          if (shareErr.name !== 'AbortError') {
+            downloadDataUrl(dataUrl, fileName);
+          }
+        }
+      } else {
+        downloadDataUrl(dataUrl, fileName);
+        setExportSuccessMsg('Đã tải ảnh tem A4 sắc nét! Bạn hãy mở app iPrint&Scan -> chọn In Ảnh (Print Photos) để in.');
+        setTimeout(() => setExportSuccessMsg(null), 5000);
+      }
+    } catch (err) {
+      console.error('Lỗi khi xuất ảnh cho iPrint&Scan:', err);
+      alert('Không thể tạo file ảnh. Vui lòng thử lại!');
+    } finally {
+      setIsExportingImage(false);
+    }
+  };
+
+  const downloadDataUrl = (url: string, filename: string) => {
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = url;
+    link.click();
   };
 
   const getLayoutStyles = () => {
@@ -131,7 +218,11 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
   const baseStickerHeight = isDcnb ? 35 : (isAddressFlyer ? 142 : (isPhieuBH ? (config.layout === 'right' ? 132 : 148.5) : (isCeA6 ? 105 : (isA4Ngang ? 210 : (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp' ? 148.5 : (isA5 ? 210 : (isA4Giasoc || isDisplayA4 ? 297 : 105))))))); // mm
 
   return createPortal(
-    <div className="print-modal-container fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 print:static print:bg-white print:p-0 print:block">
+    <div className={`print-modal-container fixed inset-0 z-50 print:static print:bg-white print:p-0 print:block ${
+      isIPrintMode 
+        ? 'bg-white p-0 m-0 overflow-y-auto block' 
+        : 'bg-black/80 flex items-center justify-center p-2 sm:p-4'
+    }`}>
       <style type="text/css">
         {`
           @import url('https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:ital,wght@0,500;0,700;0,800;1,500;1,700;1,800&family=Oswald:wght@400;500;700;900&display=swap');
@@ -207,44 +298,146 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
         `}
       </style>
       
-      {/* Modal Controls - Hidden when printing */}
-      <div className="absolute top-4 right-4 flex gap-2 print:hidden z-50">
-        <button 
-          onClick={handlePrint} 
-          disabled={isPreparing}
-          className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-colors"
-        >
-          <Printer size={20} /> {isPreparing ? 'Đang chuẩn bị trang in...' : 'In Ngay'}
-        </button>
-        <button onClick={onClose} className="bg-white hover:bg-slate-100 text-slate-800 p-2 rounded-xl shadow-lg transition-colors">
-          <X size={24} />
-        </button>
-      </div>
+      {/* Toast thông báo xuất ảnh thành công */}
+      {exportSuccessMsg && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[60] bg-emerald-700 text-white px-4 py-2.5 rounded-2xl shadow-2xl text-xs font-bold flex items-center gap-2 border border-emerald-400/50 animate-bounce print:hidden no-export">
+          <Check size={16} />
+          <span>{exportSuccessMsg}</span>
+        </div>
+      )}
 
-      {/* Print Area */}
-      <div ref={containerRef} className="bg-slate-100 rounded-2xl overflow-auto max-h-[90vh] w-full max-w-6xl p-8 print:p-0 print:m-0 print:max-h-none print:w-full print:bg-white print:overflow-visible">
-        <div style={{ zoom: previewScale }} className="print-area flex flex-col items-center w-full">
+      {/* THANH ĐIỀU KHIỂN KHI BẬT CHẾ ĐỘ iPRINT&SCAN (A4 SẠCH 100%) */}
+      {isIPrintMode ? (
+        <div className="sticky top-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-md text-white px-3 sm:px-5 py-2.5 shadow-md flex flex-wrap items-center justify-between gap-2 border-b border-slate-700/80 print:hidden no-export">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <div>
+              <div className="text-xs font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                <Smartphone size={14} />
+                <span>CHẾ ĐỘ IN SẠCH iPRINT&SCAN (CHUẨN A4)</span>
+              </div>
+              <div className="text-[11px] text-slate-300 font-medium leading-tight">
+                👉 Chạm biểu tượng <strong>Máy In</strong> ở thanh dưới cùng của app Brother để in!
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleExportPngForIPrint(0)}
+              disabled={isExportingImage}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+              title="Chia sẻ ảnh độ nét cao sang app Brother iPrint&Scan"
+            >
+              <Share2 size={13} />
+              <span>{isExportingImage ? 'Đang xuất...' : 'Chia Sẻ Ảnh'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowIPrintGuide(true)}
+              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition-all cursor-pointer"
+              title="Xem hướng dẫn in trên iPhone"
+            >
+              <HelpCircle size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsIPrintMode(false)}
+              className="px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+            >
+              <ArrowLeft size={13} />
+              <span>Thoát Chế Độ</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* THANH ĐIỀU KHIỂN XEM TRƯỚC MẶC ĐỊNH */
+        <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex flex-wrap items-center gap-2 print:hidden z-50">
+          {/* Nút Chế độ In iPrint&Scan (Tối ưu riêng cho iPhone và app Brother) */}
+          <button 
+            type="button"
+            onClick={() => setIsIPrintMode(true)}
+            className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-blue-500/25 transition-all cursor-pointer border border-blue-400/40"
+            title="Bật giao diện in sạch chuẩn A4 cho app Brother iPrint&Scan trên iPhone"
+          >
+            <Smartphone size={15} className="text-blue-200 animate-pulse" />
+            <span>In Qua App iPrint&Scan</span>
+          </button>
+
+          {/* Nút Chia sẻ ảnh sang iPrint&Scan */}
+          <button 
+            type="button"
+            onClick={() => handleExportPngForIPrint(0)}
+            disabled={isExportingImage}
+            className="bg-slate-800/90 hover:bg-slate-900 active:scale-95 text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg transition-all cursor-pointer border border-slate-700"
+            title="Xuất file ảnh độ nét cao (300 DPI) để in qua tính năng Print Photos của Brother iPrint&Scan"
+          >
+            <Share2 size={14} className="text-teal-300" />
+            <span className="hidden sm:inline">{isExportingImage ? 'Đang xuất...' : 'Chia Sẻ Ảnh'}</span>
+          </button>
+
+          {/* Nút Hướng dẫn */}
+          <button
+            type="button"
+            onClick={() => setShowIPrintGuide(true)}
+            className="bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white p-2 rounded-xl shadow-lg transition-all cursor-pointer"
+            title="Xem hướng dẫn in bằng app Brother iPrint&Scan trên iPhone"
+          >
+            <HelpCircle size={18} />
+          </button>
+
+          {/* Nút In Ngay */}
+          <button 
+            onClick={handlePrint} 
+            disabled={isPreparing}
+            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-4 sm:px-6 py-2 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg transition-colors cursor-pointer"
+          >
+            <Printer size={16} /> {isPreparing ? 'Đang chuẩn bị...' : 'In Ngay'}
+          </button>
+
+          {/* Nút Đóng */}
+          <button onClick={onClose} className="bg-white hover:bg-slate-100 text-slate-800 p-2 rounded-xl shadow-lg transition-colors cursor-pointer" title="Đóng">
+            <X size={20} />
+          </button>
+        </div>
+      )}
+
+      {/* Print Area Container */}
+      <div 
+        ref={containerRef} 
+        className={`w-full ${
+          isIPrintMode 
+            ? 'bg-white p-0 m-0 overflow-visible max-h-none rounded-none shadow-none flex justify-center' 
+            : 'bg-slate-100 rounded-2xl overflow-auto max-h-[90vh] max-w-6xl p-4 sm:p-8 print:p-0 print:m-0 print:max-h-none print:w-full print:bg-white print:overflow-visible'
+        }`}
+      >
+        <div style={{ zoom: isIPrintMode ? 1 : previewScale }} className="print-area flex flex-col items-center w-full">
           {data.length === 0 ? (
             <div className="text-center text-slate-500 font-medium py-12 print:hidden w-full">
               Không có dữ liệu để in. Vui lòng tải file dữ liệu.
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-8 print:gap-0 print:block w-full">
+            <div className={`flex flex-col items-center gap-8 print:gap-0 print:block w-full ${isIPrintMode ? 'py-4' : ''}`}>
               {(renderAllPages || pages.length <= 4 ? pages : pages.slice(0, 4)).map((page, pageIndex) => (
-                <div key={pageIndex} className="bg-white shadow-xl print:shadow-none grid page-break" style={{ 
-                  width: isA5 
-                    ? (layoutStyles.orientation === 'portrait' ? '147.5mm' : '209mm') 
-                    : (layoutStyles.orientation === 'portrait' ? '210mm' : '297mm'),
-                  height: isA5 
-                    ? (layoutStyles.orientation === 'portrait' ? '209mm' : '147.5mm') 
-                    : (layoutStyles.orientation === 'portrait' ? '295mm' : '205mm'),
-                  padding: (config.style === 'address_flyer' || config.style === 'dcnb') ? '5mm' : ((isA5 || isA4Giasoc || isDisplayA4) ? '0' : '2mm'),
-                  gridTemplateColumns: `repeat(${layoutStyles.cols}, 1fr)`,
-                  gridTemplateRows: `repeat(${layoutStyles.rows}, 1fr)`,
-                  margin: '0 auto',
-                  boxSizing: 'border-box',
-                  gap: config.style === 'dcnb' ? '1mm' : '0'
-                }}>
+                <div 
+                  key={pageIndex} 
+                  id={`sticker-page-${pageIndex}`}
+                  className={`bg-white grid page-break ${isIPrintMode ? 'shadow-none border border-slate-200' : 'shadow-xl print:shadow-none'}`} 
+                  style={{ 
+                    width: isA5 
+                      ? (layoutStyles.orientation === 'portrait' ? '147.5mm' : '209mm') 
+                      : (layoutStyles.orientation === 'portrait' ? '210mm' : '297mm'),
+                    height: isA5 
+                      ? (layoutStyles.orientation === 'portrait' ? '209mm' : '147.5mm') 
+                      : (layoutStyles.orientation === 'portrait' ? '295mm' : '205mm'),
+                    padding: (config.style === 'address_flyer' || config.style === 'dcnb') ? '5mm' : ((isA5 || isA4Giasoc || isDisplayA4) ? '0' : '2mm'),
+                    gridTemplateColumns: `repeat(${layoutStyles.cols}, 1fr)`,
+                    gridTemplateRows: `repeat(${layoutStyles.rows}, 1fr)`,
+                    margin: isIPrintMode ? '0 auto 12mm auto' : '0 auto',
+                    boxSizing: 'border-box',
+                    gap: config.style === 'dcnb' ? '1mm' : '0'
+                  }}
+                >
                   {page.map((item, index) => (
                     <div key={index} className="relative overflow-hidden border-dashed border-slate-100 print:border-none flex items-center justify-center min-w-0 min-h-0" style={{ borderWidth: '0.5px' }}>
                       <div style={{
@@ -271,7 +464,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                   ))}
                 </div>
               ))}
-              {!renderAllPages && pages.length > 4 && (
+              {!renderAllPages && pages.length > 4 && !isIPrintMode && (
                 <div className="text-center p-4 bg-amber-50 text-amber-800 rounded-2xl border border-amber-200 print:hidden w-full max-w-xl shadow-sm">
                   <p className="font-bold text-sm">
                     Đang xem trước 4 / {pages.length} trang ({data.length} tem) để tải siêu nhanh.
@@ -285,6 +478,85 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
           )}
         </div>
       </div>
+
+      {/* POPUP HƯỚNG DẪN IN BẰNG APP BROTHER iPRINT&SCAN TRÊN IPHONE */}
+      {showIPrintGuide && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[70] flex items-center justify-center p-3 sm:p-5 animate-[fadeIn_0.2s_ease-out] print:hidden no-export">
+          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] shadow-2xl overflow-hidden border border-slate-200 flex flex-col text-slate-800">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 p-4 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <Smartphone size={22} className="text-blue-200" />
+                <div>
+                  <h3 className="text-base font-black uppercase tracking-wider leading-tight">
+                    HƯỚNG DẪN IN TRÊN IPHONE
+                  </h3>
+                  <p className="text-[11px] text-blue-100 font-medium">Qua ứng dụng Brother iPrint&Scan</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowIPrintGuide(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
+              {/* Cách 1 */}
+              <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2">
+                <div className="font-black text-blue-900 text-sm flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs">1</span>
+                  <span>Cách 1: In trực tiếp trong app iPrint&Scan (Khuyên dùng)</span>
+                </div>
+                <ol className="list-decimal list-inside space-y-1.5 text-slate-700 font-medium pl-1 leading-relaxed">
+                  <li>Mở app <strong>Brother iPrint&Scan</strong> trên iPhone, chọn mục <strong>"Trang web" (Web Page)</strong>.</li>
+                  <li>Truy cập vào trang web siêu thị này và mở màn hình in tem POSM.</li>
+                  <li>Nhấn nút màu xanh <strong>"In Qua App iPrint&Scan"</strong> trên màn hình (để chuyển sang chế độ trang giấy A4 sạch tinh).</li>
+                  <li>Chạm vào biểu tượng <strong>Máy In</strong> ở thanh công cụ dưới đáy của app Brother iPrint&Scan &rarr; chọn <strong>Print</strong> để in ra giấy!</li>
+                </ol>
+              </div>
+
+              {/* Cách 2 */}
+              <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2">
+                <div className="font-black text-emerald-900 text-sm flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs">2</span>
+                  <span>Cách 2: Chia sẻ ảnh trực tiếp sang app iPrint&Scan</span>
+                </div>
+                <ol className="list-decimal list-inside space-y-1.5 text-slate-700 font-medium pl-1 leading-relaxed">
+                  <li>Khi đang mở web bằng Safari hoặc Chrome trên iPhone.</li>
+                  <li>Nhấn nút <strong>"Chia Sẻ Ảnh"</strong> ở góc trên bên phải.</li>
+                  <li>Menu chia sẻ của iPhone hiện ra &rarr; Chạm chọn biểu tượng app <strong>"iPrint&Scan"</strong>.</li>
+                  <li>App Brother iPrint&Scan sẽ tự động nạp bức ảnh tem khổ A4 cực nét &rarr; Bạn chỉ việc bấm <strong>Print</strong> là xong!</li>
+                </ol>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3.5 bg-slate-50 border-t border-slate-200 shrink-0 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowIPrintGuide(false);
+                  setIsIPrintMode(true);
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-sm cursor-pointer"
+              >
+                Bật Chế Độ iPrint&Scan Ngay
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowIPrintGuide(false)}
+                className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body
   );
