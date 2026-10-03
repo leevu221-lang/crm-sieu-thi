@@ -67,7 +67,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
 
   const isMobileOrIos = useMemo(() => {
     if (typeof window === 'undefined') return false;
-    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
   }, []);
 
   useEffect(() => {
@@ -735,7 +735,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                               flexShrink: 0 
                             }}>
                               {item ? (
-                                 <Sticker item={item} style={config.style} layout={config.layout} showPromoLabel={config.showPromoLabel} mlnHeaderTemplate={mlnHeaderTemplate} mlnFooterTemplate={mlnFooterTemplate} promoLabelText={promoLabelText} />
+                                 <Sticker item={item} style={config.style} layout={config.layout} showPromoLabel={config.showPromoLabel} mlnHeaderTemplate={mlnHeaderTemplate} mlnFooterTemplate={mlnFooterTemplate} promoLabelText={promoLabelText} isMobile={isMobileOrIos} />
                               ) : null}
                             </div>
                           </div>
@@ -862,7 +862,13 @@ export function DcnbCard() {
   );
 }
 
-export const Sticker = React.memo(function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderTemplate = '', mlnFooterTemplate = '', promoLabelText = 'sản phẩm giá sốc - event T7 & CN' }: { item: any, style: string, layout: string, showPromoLabel?: boolean, mlnHeaderTemplate?: string, mlnFooterTemplate?: string, promoLabelText?: string }) {
+export const Sticker = React.memo(function Sticker({ item, style, layout, showPromoLabel = true, mlnHeaderTemplate = '', mlnFooterTemplate = '', promoLabelText = 'sản phẩm giá sốc - event T7 & CN', isMobile }: { item: any, style: string, layout: string, showPromoLabel?: boolean, mlnHeaderTemplate?: string, mlnFooterTemplate?: string, promoLabelText?: string, isMobile?: boolean }) {
+  const isMobileClient = useMemo(() => {
+    if (typeof isMobile === 'boolean') return isMobile;
+    if (typeof window === 'undefined') return false;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+  }, [isMobile]);
+
   // Get current time for the sticker
   const now = new Date();
   const day = now.getDate().toString().padStart(2, '0');
@@ -1122,6 +1128,12 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
     const codeLen = productCodeText.length;
     const getCodeFontSize = () => {
       if (isA4Ngang) {
+        if (isMobileClient) {
+          if (codeLen > 14) return '11px';
+          if (codeLen > 10) return '13px';
+          if (codeLen > 7) return '15px';
+          return '17px';
+        }
         if (codeLen > 14) return '13px';
         if (codeLen > 10) return '15px';
         if (codeLen > 7) return '17px';
@@ -1138,16 +1150,23 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
       if (codeLen > 7) return '12.5px';
       return '14px';
     };
-    const qrColWidth = isA4Ngang ? '120px' : isA6 ? '55px' : '90px';
+    const qrColWidth = isA4Ngang ? (isMobileClient ? '110px' : '135px') : isA6 ? '55px' : '90px';
 
     const nameText = item.name || 'TÊN SẢN PHẨM';
     const nameLen = nameText.length;
     const getNameFontSize = () => {
       if (isA4Ngang) {
-        if (nameLen > 70) return '24px';
-        if (nameLen > 45) return '28px';
-        if (nameLen > 30) return '34px';
-        return '40px';
+        if (isMobileClient) {
+          if (nameLen > 70) return '24px';
+          if (nameLen > 45) return '28px';
+          if (nameLen > 30) return '34px';
+          return '38px';
+        }
+        // Desktop: Chữ to rõ, chiếm cân đối tổng thể tem
+        if (nameLen > 70) return '28px';
+        if (nameLen > 45) return '36px';
+        if (nameLen > 30) return '42px';
+        return '48px';
       }
       if (isA6) {
         if (nameLen > 70) return '13px';
@@ -1155,18 +1174,31 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
         if (nameLen > 30) return '18px';
         return '21px';
       }
-      if (nameLen > 70) return '18px';
-      if (nameLen > 45) return '22px';
-      if (nameLen > 30) return '26px';
-      return '30px';
+      if (isMobileClient) {
+        if (nameLen > 70) return '18px';
+        if (nameLen > 45) return '22px';
+        if (nameLen > 30) return '26px';
+        return '30px';
+      }
+      if (nameLen > 70) return '20px';
+      if (nameLen > 45) return '25px';
+      if (nameLen > 30) return '30px';
+      return '35px';
     };
 
     const getPriceFontSize = () => {
       const len = mainPrice.length;
       if (isA4Ngang) {
-        if (len <= 5) return { main: 154, last: 54 };
-        if (len === 6) return { main: 136, last: 48 };
-        return { main: 120, last: 42 };
+        if (isMobileClient) {
+          // Mobile: Giữ nguyên tuyệt đối không thay đổi theo yêu cầu người dùng
+          if (len <= 5) return { main: 154, last: 54 };
+          if (len === 6) return { main: 136, last: 48 };
+          return { main: 120, last: 42 };
+        }
+        // Desktop: Chữ to đậm đà, bề thế, lấp đầy không gian hài hòa đẹp mắt
+        if (len <= 5) return { main: 200, last: 72 };
+        if (len === 6) return { main: 178, last: 64 };
+        return { main: 155, last: 56 };
       }
       if (isA6) {
         if (len <= 5) return { main: 76, last: 28 };
@@ -1174,9 +1206,14 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
         return { main: 58, last: 20 };
       }
       // Khổ A5 ngang hoặc A4 đứng 2 tem:
-      if (len <= 5) return { main: 110, last: 40 };
-      if (len === 6) return { main: 98, last: 36 };
-      return { main: 86, last: 32 };
+      if (isMobileClient) {
+        if (len <= 5) return { main: 110, last: 40 };
+        if (len === 6) return { main: 98, last: 36 };
+        return { main: 86, last: 32 };
+      }
+      if (len <= 5) return { main: 140, last: 50 };
+      if (len === 6) return { main: 124, last: 44 };
+      return { main: 110, last: 38 };
     };
     const priceFS = getPriceFontSize();
 
@@ -1193,7 +1230,9 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
               fontFamily: '"Oswald", sans-serif',
               borderStyle: 'solid',
               borderWidth: isA4Ngang ? '4px' : isA6 ? '2px' : '3px',
-              padding: isA4Ngang ? '18px 28px 14px' : isA6 ? '10px 12px' : '16px 20px'
+              padding: isA4Ngang 
+                ? (isMobileClient ? '18px 28px 14px' : '22px 30px 16px') 
+                : isA6 ? '10px 12px' : '16px 20px'
             }}
           >
             {/* Top Section: Above the horizontal line - Tiêu đề 2 dòng chuẩn Ảnh 2 */}
@@ -1218,7 +1257,9 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                   className="uppercase tracking-[0.04em] leading-[0.9]"
                   style={{
                     fontFamily: '"UTM Colossalis", sans-serif',
-                    fontSize: isA4Ngang ? '52px' : isA6 ? '26px' : '38px',
+                    fontSize: isA4Ngang 
+                      ? (isMobileClient ? '52px' : '64px') 
+                      : isA6 ? '26px' : (isMobileClient ? '38px' : '44px'),
                     fontWeight: 'normal',
                   }}
                 >
@@ -1228,7 +1269,9 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                   className="uppercase tracking-[0.06em] leading-[0.9] mt-1"
                   style={{
                     fontFamily: '"UTM Colossalis", sans-serif',
-                    fontSize: isA4Ngang ? '52px' : isA6 ? '26px' : '38px',
+                    fontSize: isA4Ngang 
+                      ? (isMobileClient ? '52px' : '64px') 
+                      : isA6 ? '26px' : (isMobileClient ? '38px' : '44px'),
                     fontWeight: 'normal',
                   }}
                 >
@@ -1245,7 +1288,7 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                 }}
               >
                 <div className="shrink-0 flex items-center justify-center p-0.5 bg-white border border-black">
-                  <QRCode value={item.qrData || item.maSanPham || item.productCode || '00000'} size={isA4Ngang ? 64 : isA6 ? 32 : 48} level="L" />
+                  <QRCode value={item.qrData || item.maSanPham || item.productCode || '00000'} size={isA4Ngang ? (isMobileClient ? 64 : 76) : isA6 ? 32 : 48} level="L" />
                 </div>
                 {productCodeText && (
                   <div 
@@ -1287,11 +1330,18 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                   className="relative font-bold text-black mb-1 leading-none inline-block"
                   style={{ 
                     fontFamily: '"Oswald", sans-serif',
-                    fontSize: isA4Ngang ? '32px' : isA6 ? '16px' : '24px' 
+                    fontSize: isA4Ngang 
+                      ? (isMobileClient ? '32px' : '44px') 
+                      : isA6 ? '16px' : (isMobileClient ? '24px' : '32px') 
                   }}
                 >
                   {formatPrice(item.originalPrice)}đ
-                  <div className="absolute top-[55%] left-[-6%] right-[-6%] bg-black -translate-y-1/2" style={{ height: isA4Ngang ? '3px' : isA6 ? '1.5px' : '2px' }}></div>
+                  <div 
+                    className="absolute top-[55%] left-[-6%] right-[-6%] bg-black -translate-y-1/2" 
+                    style={{ 
+                      height: isA4Ngang ? (isMobileClient ? '3px' : '4px') : isA6 ? '1.5px' : '2px' 
+                    }}
+                  ></div>
                 </div>
 
                 {/* Discount price - Khóa chặt font UTM Colossalis cho 10.490 và .000Đ */}
@@ -1333,8 +1383,8 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
             <div 
               className="border-t-2 border-black flex justify-between items-center font-bold text-black shrink-0"
               style={{ 
-                paddingTop: isA4Ngang ? '10px' : isA6 ? '5px' : '8px',
-                fontSize: isA4Ngang ? '15px' : isA6 ? '10px' : '12px'
+                paddingTop: isA4Ngang ? (isMobileClient ? '10px' : '12px') : isA6 ? '5px' : '8px',
+                fontSize: isA4Ngang ? (isMobileClient ? '15px' : '16px') : isA6 ? '10px' : '12px'
               }}
             >
               <div>ĐIỆN MÁY XANH</div>
