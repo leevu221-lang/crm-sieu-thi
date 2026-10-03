@@ -1160,19 +1160,19 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
     const getPriceFontSize = () => {
       const len = mainPrice.length;
       if (isA4Ngang) {
-        if (len <= 5) return { main: 240, last: 88 };
-        if (len === 6) return { main: 220, last: 80 };
-        return { main: 185, last: 68 };
+        if (len <= 5) return { main: 215, last: 78 };
+        if (len === 6) return { main: 190, last: 70 };
+        return { main: 165, last: 60 };
       }
       if (isA6) {
-        if (len <= 5) return { main: 115, last: 42 };
-        if (len === 6) return { main: 105, last: 38 };
-        return { main: 90, last: 32 };
+        if (len <= 5) return { main: 104, last: 38 };
+        if (len === 6) return { main: 92, last: 34 };
+        return { main: 80, last: 30 };
       }
       // Khổ A5 ngang hoặc A4 đứng 2 tem:
-      if (len <= 5) return { main: 165, last: 60 };
-      if (len === 6) return { main: 150, last: 54 };
-      return { main: 130, last: 46 };
+      if (len <= 5) return { main: 156, last: 58 };
+      if (len === 6) return { main: 138, last: 50 };
+      return { main: 120, last: 44 };
     };
     const priceFS = getPriceFontSize();
 
@@ -1290,16 +1290,16 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                   <div className="absolute top-[55%] left-[-5%] right-[-5%] bg-black -translate-y-1/2" style={{ height: isA4Ngang ? '4px' : isA6 ? '2px' : '3px' }}></div>
                 </div>
 
-                {/* Discount price - Font Oswald chuẩn Ảnh 2 */}
+                {/* Discount price - Áp dụng chuẩn font UTM Colossalis như GVGS */}
                 <div 
-                  className="flex items-baseline justify-center font-bold text-black leading-none" 
+                  className="flex items-baseline justify-center text-black leading-none" 
                   style={{ 
-                    fontFamily: '"Oswald", sans-serif',
-                    fontWeight: 700
+                    fontFamily: '"UTM Colossalis", sans-serif',
+                    fontWeight: 'normal'
                   }}
                 >
                   <span className="tracking-tighter leading-none" style={{ fontSize: `${priceFS.main}px` }}>{mainPrice}</span>
-                  <span className="ml-1 leading-none font-bold" style={{ fontSize: `${priceFS.last}px` }}>.{lastPart}Đ</span>
+                  <span className="ml-1 leading-none" style={{ fontSize: `${priceFS.last}px` }}>.{lastPart}Đ</span>
                 </div>
               </div>
             </div>
