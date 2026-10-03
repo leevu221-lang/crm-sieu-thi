@@ -1144,39 +1144,39 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
     const nameLen = nameText.length;
     const getNameFontSize = () => {
       if (isA4Ngang) {
-        if (nameLen > 70) return '28px';
-        if (nameLen > 45) return '34px';
-        if (nameLen > 30) return '40px';
-        return '46px';
+        if (nameLen > 70) return '24px';
+        if (nameLen > 45) return '28px';
+        if (nameLen > 30) return '34px';
+        return '40px';
       }
       if (isA6) {
-        if (nameLen > 70) return '14px';
-        if (nameLen > 45) return '17px';
-        if (nameLen > 30) return '20px';
-        return '23px';
+        if (nameLen > 70) return '13px';
+        if (nameLen > 45) return '15px';
+        if (nameLen > 30) return '18px';
+        return '21px';
       }
-      if (nameLen > 70) return '20px';
-      if (nameLen > 45) return '24px';
-      if (nameLen > 30) return '28px';
-      return '33px';
+      if (nameLen > 70) return '18px';
+      if (nameLen > 45) return '22px';
+      if (nameLen > 30) return '26px';
+      return '30px';
     };
 
     const getPriceFontSize = () => {
       const len = mainPrice.length;
       if (isA4Ngang) {
-        if (len <= 5) return { main: 215, last: 78 };
-        if (len === 6) return { main: 190, last: 70 };
-        return { main: 165, last: 60 };
+        if (len <= 5) return { main: 168, last: 62 };
+        if (len === 6) return { main: 148, last: 54 };
+        return { main: 130, last: 46 };
       }
       if (isA6) {
-        if (len <= 5) return { main: 104, last: 38 };
-        if (len === 6) return { main: 92, last: 34 };
-        return { main: 80, last: 30 };
+        if (len <= 5) return { main: 82, last: 30 };
+        if (len === 6) return { main: 74, last: 26 };
+        return { main: 64, last: 22 };
       }
       // Khổ A5 ngang hoặc A4 đứng 2 tem:
-      if (len <= 5) return { main: 156, last: 58 };
-      if (len === 6) return { main: 138, last: 50 };
-      return { main: 120, last: 44 };
+      if (len <= 5) return { main: 120, last: 44 };
+      if (len === 6) return { main: 108, last: 40 };
+      return { main: 95, last: 34 };
     };
     const priceFS = getPriceFontSize();
 
@@ -1193,7 +1193,7 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
               fontFamily: '"Oswald", sans-serif',
               borderStyle: 'solid',
               borderWidth: isA4Ngang ? '4px' : isA6 ? '2px' : '3px',
-              padding: isA4Ngang ? '26px 30px' : isA6 ? '12px' : '20px 24px'
+              padding: isA4Ngang ? '20px 28px 16px' : isA6 ? '10px 12px' : '16px 20px'
             }}
           >
             {/* Top Section: Above the horizontal line - Tiêu đề 2 dòng chuẩn Ảnh 2 */}
@@ -1215,20 +1215,20 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                 }}
               >
                 <div 
-                  className="uppercase tracking-[0.04em] leading-[0.88]"
+                  className="uppercase tracking-[0.04em] leading-[0.9]"
                   style={{
                     fontFamily: '"UTM Colossalis", sans-serif',
-                    fontSize: isA4Ngang ? '68px' : isA6 ? '34px' : '48px',
+                    fontSize: isA4Ngang ? '56px' : isA6 ? '28px' : '40px',
                     fontWeight: 'normal',
                   }}
                 >
                   KHUYẾN MÃI
                 </div>
                 <div 
-                  className="uppercase tracking-[0.06em] leading-[0.88] mt-1"
+                  className="uppercase tracking-[0.06em] leading-[0.9] mt-1"
                   style={{
                     fontFamily: '"UTM Colossalis", sans-serif',
-                    fontSize: isA4Ngang ? '68px' : isA6 ? '34px' : '48px',
+                    fontSize: isA4Ngang ? '56px' : isA6 ? '28px' : '40px',
                     fontWeight: 'normal',
                   }}
                 >
@@ -1281,17 +1281,17 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
               </div>
 
               {/* Prices */}
-              <div className="flex flex-col items-center justify-center">
+              <div className="flex flex-col items-center justify-center mb-1">
                 {/* Original Price (Strikethrough) */}
                 <div 
                   className="relative font-bold text-black mb-1 leading-none"
                   style={{ 
                     fontFamily: '"Oswald", sans-serif',
-                    fontSize: isA4Ngang ? '48px' : isA6 ? '24px' : '36px' 
+                    fontSize: isA4Ngang ? '36px' : isA6 ? '18px' : '26px' 
                   }}
                 >
                   {formatPrice(item.originalPrice)}đ
-                  <div className="absolute top-[55%] left-[-5%] right-[-5%] bg-black -translate-y-1/2" style={{ height: isA4Ngang ? '4px' : isA6 ? '2px' : '3px' }}></div>
+                  <div className="absolute top-[55%] left-[-5%] right-[-5%] bg-black -translate-y-1/2" style={{ height: isA4Ngang ? '3.5px' : isA6 ? '2px' : '2.5px' }}></div>
                 </div>
 
                 {/* Discount price - Khóa chặt font UTM Colossalis cho 10.490 và .000Đ */}
@@ -1330,8 +1330,8 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
             <div 
               className="border-t-2 border-black flex justify-between items-center font-bold text-black shrink-0"
               style={{ 
-                paddingTop: isA4Ngang ? '14px' : isA6 ? '6px' : '12px',
-                fontSize: isA4Ngang ? '16px' : isA6 ? '10px' : '13px'
+                paddingTop: isA4Ngang ? '10px' : isA6 ? '5px' : '8px',
+                fontSize: isA4Ngang ? '15px' : isA6 ? '10px' : '12px'
               }}
             >
               <div>ĐIỆN MÁY XANH</div>
