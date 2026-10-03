@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import QRCode from 'react-qr-code';
-import { X, Printer, Smartphone, Share2, HelpCircle, ArrowLeft, Download, Check, Sparkles, RotateCw } from 'lucide-react';
+import { X, Printer, Smartphone, Share2, HelpCircle, ArrowLeft, Download, Check, Sparkles, RotateCw, FileText } from 'lucide-react';
 
 interface StickerPrintModalProps {
   isOpen: boolean;
@@ -23,6 +23,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
   const [isPreparing, setIsPreparing] = useState(false);
   const [isIPrintMode, setIsIPrintMode] = useState(false);
   const [isExportingImage, setIsExportingImage] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [showIPrintGuide, setShowIPrintGuide] = useState(false);
   const [exportSuccessMsg, setExportSuccessMsg] = useState<string | null>(null);
   const [rotateForBrother, setRotateForBrother] = useState<boolean>(true);
@@ -201,6 +202,103 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
     link.download = filename;
     link.href = url;
     link.click();
+  };
+
+  const handleExportPdf = async (targetPageIndex?: number) => {
+    try {
+      setIsExportingPdf(true);
+      setRenderAllPages(true);
+      await new Promise(r => setTimeout(r, 250));
+
+      const pageElements = document.querySelectorAll('.print-modal-container .page-break');
+      if (!pageElements || pageElements.length === 0) {
+        alert('Không tìm thấy trang in để xuất PDF!');
+        return;
+      }
+
+      const elementsToExport = targetPageIndex !== undefined 
+        ? [pageElements[targetPageIndex] || pageElements[0]]
+        : Array.from(pageElements);
+
+      const htmlToImage = await import('html-to-image');
+      const { jsPDF } = await import('jspdf');
+
+      const isLandscape = layoutStyles.orientation === 'landscape';
+      const format = isA5 ? 'a5' : 'a4';
+      const orientation = isLandscape ? 'landscape' : 'portrait';
+
+      const pageWidthMm = isA5 ? (isLandscape ? 210 : 148.5) : (isLandscape ? 297 : 210);
+      const pageHeightMm = isA5 ? (isLandscape ? 148.5 : 210) : (isLandscape ? 210 : 297);
+
+      const pdf = new jsPDF({
+        orientation: orientation,
+        unit: 'mm',
+        format: format,
+        compress: true,
+      });
+
+      for (let i = 0; i < elementsToExport.length; i++) {
+        const targetEl = elementsToExport[i] as HTMLElement;
+        if (i > 0) {
+          pdf.addPage(format, orientation);
+        }
+
+        const dataUrl = await htmlToImage.toPng(targetEl, {
+          quality: 1,
+          pixelRatio: 2.5,
+          backgroundColor: '#ffffff',
+          filter: (node) => {
+            if (node instanceof HTMLElement && (node.classList.contains('no-export') || node.classList.contains('print:hidden'))) {
+              return false;
+            }
+            return true;
+          },
+          style: {
+            boxShadow: 'none',
+            filter: 'none',
+            transform: 'none',
+          }
+        });
+
+        pdf.addImage(dataUrl, 'PNG', 0, 0, pageWidthMm, pageHeightMm, undefined, 'FAST');
+      }
+
+      const fileName = targetPageIndex !== undefined
+        ? `Tem_POSM_${isA5 ? 'A5' : 'A4'}_Trang_${targetPageIndex + 1}_${Date.now()}.pdf`
+        : `Tem_POSM_${isA5 ? 'A5' : 'A4'}_${elementsToExport.length}_Trang_${Date.now()}.pdf`;
+
+      const pdfBlob = pdf.output('blob');
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+      const msgSuccess = `Đã xuất file PDF (${elementsToExport.length} trang) chuẩn in!`;
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'Tem POSM - File PDF Chuẩn In',
+            text: 'Mở bằng app Brother iPrint&Scan hoặc in trực tiếp'
+          });
+          setExportSuccessMsg(msgSuccess);
+          setTimeout(() => setExportSuccessMsg(null), 6000);
+        } catch (shareErr: any) {
+          if (shareErr.name !== 'AbortError') {
+            pdf.save(fileName);
+            setExportSuccessMsg(msgSuccess);
+            setTimeout(() => setExportSuccessMsg(null), 6000);
+          }
+        }
+      } else {
+        pdf.save(fileName);
+        setExportSuccessMsg(msgSuccess);
+        setTimeout(() => setExportSuccessMsg(null), 6000);
+      }
+    } catch (err) {
+      console.error('Lỗi khi xuất file PDF:', err);
+      alert('Không thể tạo file PDF. Vui lòng thử lại!');
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   const getLayoutStyles = () => {
@@ -420,33 +518,16 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
       ) : (
         /* THANH ĐIỀU KHIỂN XEM TRƯỚC MẶC ĐỊNH */
         <div className="absolute top-2 right-2 sm:top-4 sm:right-4 flex flex-wrap items-center justify-end gap-1.5 sm:gap-2 print:hidden z-50 max-w-[96vw]">
-          {/* Nút Xoay 90 độ vừa khít A4 Brother khi là layout ngang */}
-          {layoutStyles.orientation === 'landscape' && (
-            <button
-              type="button"
-              onClick={() => setRotateForBrother(!rotateForBrother)}
-              className={`px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all cursor-pointer border ${
-                rotateForBrother 
-                  ? 'bg-amber-400 hover:bg-amber-500 text-slate-950 border-amber-300 shadow-amber-500/25' 
-                  : 'bg-slate-800/90 hover:bg-slate-900 text-slate-300 border-slate-700'
-              }`}
-              title="Xoay dọc 90 độ để khi máy in Brother HL-L2360D in ra không bị cắt mất nửa trang"
-            >
-              <RotateCw size={13} className={rotateForBrother ? 'text-slate-950 animate-spin-slow' : 'text-slate-400'} />
-              <span>{rotateForBrother ? 'Xoay A4: BẬT' : 'Xoay A4: TẮT'}</span>
-            </button>
-          )}
-
-          {/* Nút Chế độ In iPrint&Scan (Tối ưu riêng cho iPhone và app Brother) */}
+          {/* Nút Xuất PDF thay thế 2 nút Xoay A4 và In Qua App iPrint&Scan */}
           <button 
             type="button"
-            onClick={() => setIsIPrintMode(true)}
-            className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 active:scale-95 text-white px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-blue-500/25 transition-all cursor-pointer border border-blue-400/40"
-            title="Bật giao diện in sạch chuẩn A4 cho app Brother iPrint&Scan trên iPhone"
+            onClick={() => handleExportPdf()}
+            disabled={isExportingPdf}
+            className="bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-800 active:scale-95 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-red-500/25 transition-all cursor-pointer border border-red-400/40 disabled:opacity-60"
+            title="Xuất file PDF chuẩn khổ in A4/A5 để in trực tiếp trên iPhone qua app Brother iPrint&Scan hoặc AirPrint"
           >
-            <Smartphone size={14} className="text-blue-200 animate-pulse" />
-            <span className="hidden sm:inline">In Qua App iPrint&Scan</span>
-            <span className="sm:hidden">App iPrint</span>
+            <FileText size={15} className={isExportingPdf ? 'animate-bounce text-red-200' : 'text-red-100'} />
+            <span>{isExportingPdf ? 'Đang tạo PDF...' : 'XUẤT PDF'}</span>
           </button>
 
           {/* Nút Chia sẻ ảnh sang iPrint&Scan */}
@@ -520,16 +601,28 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                       <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                       Trang {pageIndex + 1} / {pages.length}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => handleExportPngForIPrint(pageIndex)}
-                      disabled={isExportingImage}
-                      className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer border border-teal-200/80 active:scale-95 shadow-2xs"
-                      title={`Xuất ảnh trang ${pageIndex + 1} chuẩn máy in Brother`}
-                    >
-                      <Share2 size={12} className="text-teal-600" />
-                      <span>{isExportingImage ? 'Đang xuất...' : `Chia sẻ ảnh trang ${pageIndex + 1}`}</span>
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleExportPdf(pageIndex)}
+                        disabled={isExportingPdf}
+                        className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-800 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer border border-rose-200/80 active:scale-95 shadow-2xs"
+                        title={`Xuất file PDF trang ${pageIndex + 1}`}
+                      >
+                        <FileText size={12} className="text-rose-600" />
+                        <span>{isExportingPdf ? 'Đang xuất...' : `PDF Trang ${pageIndex + 1}`}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleExportPngForIPrint(pageIndex)}
+                        disabled={isExportingImage}
+                        className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer border border-teal-200/80 active:scale-95 shadow-2xs"
+                        title={`Xuất ảnh trang ${pageIndex + 1} chuẩn máy in Brother`}
+                      >
+                        <Share2 size={12} className="text-teal-600" />
+                        <span>{isExportingImage ? 'Đang xuất...' : `Ảnh Trang ${pageIndex + 1}`}</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div 
@@ -618,17 +711,16 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
 
             {/* Content */}
             <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
-              {/* Cách 1 */}
-              <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2">
-                <div className="font-black text-blue-900 text-sm flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs">1</span>
-                  <span>Cách 1: In trực tiếp trong app iPrint&Scan (Khuyên dùng)</span>
+              {/* Cách 1: Xuất PDF */}
+              <div className="p-3.5 bg-rose-50/80 border border-rose-200 rounded-2xl space-y-2">
+                <div className="font-black text-rose-900 text-sm flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-xs">1</span>
+                  <span>Cách 1: Xuất PDF (Khuyên dùng nhất - Chuẩn 100% A4)</span>
                 </div>
                 <ol className="list-decimal list-inside space-y-1.5 text-slate-700 font-medium pl-1 leading-relaxed">
-                  <li>Mở app <strong>Brother iPrint&Scan</strong> trên iPhone, chọn mục <strong>"Trang web" (Web Page)</strong>.</li>
-                  <li>Truy cập vào trang web siêu thị này và mở màn hình in tem POSM.</li>
-                  <li>Nhấn nút màu xanh <strong>"In Qua App iPrint&Scan"</strong> trên màn hình (để chuyển sang chế độ trang giấy A4 sạch tinh).</li>
-                  <li>Chạm vào biểu tượng <strong>Máy In</strong> ở thanh công cụ dưới đáy của app Brother iPrint&Scan &rarr; chọn <strong>Print</strong> để in ra giấy!</li>
+                  <li>Chạm nút màu đỏ <strong>"XUẤT PDF"</strong> ở góc trên bên phải màn hình xem trước.</li>
+                  <li>Menu chia sẻ của iPhone hiện ra &rarr; Chạm chọn biểu tượng app <strong>"iPrint&Scan"</strong>.</li>
+                  <li>App Brother iPrint&Scan sẽ tự động nạp tài liệu PDF chuẩn khổ A4 Ngang &rarr; Bạn chỉ việc bấm <strong>Print</strong> là in trọn vẹn 100%!</li>
                 </ol>
               </div>
 
@@ -664,11 +756,12 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                 type="button"
                 onClick={() => {
                   setShowIPrintGuide(false);
-                  setIsIPrintMode(true);
+                  handleExportPdf();
                 }}
-                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-sm cursor-pointer"
+                className="px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-sm cursor-pointer flex items-center gap-1.5"
               >
-                Bật Chế Độ iPrint&Scan Ngay
+                <FileText size={14} />
+                <span>Xuất PDF Ngay</span>
               </button>
               <button
                 type="button"
