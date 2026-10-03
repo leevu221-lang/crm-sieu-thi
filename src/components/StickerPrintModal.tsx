@@ -1215,9 +1215,16 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
     const getPriceFontSize = () => {
       const len = mainPrice.length;
       if (isA4Ngang) {
-        if (len <= 5) return { main: 215, last: 78 };
-        if (len === 6) return { main: 190, last: 70 };
-        return { main: 165, last: 60 };
+        if (isMobileClient) {
+          if (len <= 5) return { main: 215, last: 78 };
+          if (len === 6) return { main: 190, last: 70 };
+          return { main: 165, last: 60 };
+        }
+        // Desktop: Chữ to lên và gần sát đường viền lề trái và phải
+        if (len <= 5) return { main: 310, last: 112 };
+        if (len === 6) return { main: 275, last: 100 };
+        if (len === 7) return { main: 240, last: 88 };
+        return { main: 200, last: 74 };
       }
       if (isA6) {
         if (len <= 5) return { main: 104, last: 38 };
@@ -1225,9 +1232,16 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
         return { main: 80, last: 30 };
       }
       // Khổ A5 ngang hoặc A4 đứng 2 tem:
-      if (len <= 5) return { main: 156, last: 58 };
-      if (len === 6) return { main: 138, last: 50 };
-      return { main: 120, last: 44 };
+      if (isMobileClient) {
+        if (len <= 5) return { main: 156, last: 58 };
+        if (len === 6) return { main: 138, last: 50 };
+        return { main: 120, last: 44 };
+      }
+      // Desktop:
+      if (len <= 5) return { main: 195, last: 72 };
+      if (len === 6) return { main: 175, last: 64 };
+      if (len === 7) return { main: 150, last: 55 };
+      return { main: 130, last: 48 };
     };
     const priceFS = getPriceFontSize();
 
@@ -1361,7 +1375,7 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
 
                 {/* Discount price - Khóa chặt font UTM Colossalis cho 10.490 và .000Đ */}
                 <div 
-                  className="font-utm-colossalis flex items-baseline justify-center text-black leading-none select-none" 
+                  className="font-utm-colossalis flex items-baseline justify-center text-black leading-none select-none w-full" 
                   style={{ 
                     fontFamily: '"UTM Colossalis", sans-serif',
                     fontWeight: 'normal'
