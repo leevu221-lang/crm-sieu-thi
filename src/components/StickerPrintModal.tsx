@@ -554,6 +554,28 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
     const mainPrice = priceParts.slice(0, -1).join('.');
     const lastPart = priceParts[priceParts.length - 1];
 
+    const productCodeText = item.maSanPham || item.productCode || (item.qrData && item.qrData !== '00000' ? item.qrData : '');
+    const nameText = item.name || 'TÊN SẢN PHẨM';
+    const nameLen = nameText.length;
+    const getNameFontSize = () => {
+      if (isA4Ngang) {
+        if (nameLen > 70) return '26px';
+        if (nameLen > 45) return '32px';
+        if (nameLen > 30) return '38px';
+        return '44px';
+      }
+      if (isA6) {
+        if (nameLen > 70) return '13px';
+        if (nameLen > 45) return '16px';
+        if (nameLen > 30) return '19px';
+        return '22px';
+      }
+      if (nameLen > 70) return '19px';
+      if (nameLen > 45) return '23px';
+      if (nameLen > 30) return '27px';
+      return '32px';
+    };
+
     return (
       <div className={`sticker-font-own box-border shrink-0 overflow-hidden ${
         isA4Ngang ? 'w-[297mm] h-[210mm] p-[9mm]' : isA6 ? 'w-[148.5mm] h-[105mm] p-[3mm]' : 'w-[210mm] h-[148.5mm] p-[7mm]'
@@ -573,7 +595,13 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
             {/* Top Section: Above the horizontal line */}
             <div className="flex items-center justify-between px-1 py-1 shrink-0 w-full">
               {/* Invisible spacer for perfect symmetry */}
-              <div className="opacity-0 shrink-0" style={{ width: isA4Ngang ? '72px' : isA6 ? '32px' : '58px', height: isA4Ngang ? '72px' : isA6 ? '32px' : '58px' }}></div>
+              <div 
+                className="opacity-0 shrink-0 pointer-events-none" 
+                style={{ 
+                  width: isA4Ngang ? '100px' : isA6 ? '48px' : '75px', 
+                  minWidth: isA4Ngang ? '100px' : isA6 ? '48px' : '75px' 
+                }}
+              ></div>
               
               {/* Centered Title */}
               <div 
@@ -588,9 +616,29 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                 KHUYẾN MÃI GIÁ SỐC
               </div>
 
-              {/* QR Code on the right */}
-              <div className="shrink-0 flex items-center justify-center p-0.5 bg-white border border-black">
-                <QRCode value={item.qrData || item.maSanPham || item.productCode || '00000'} size={isA4Ngang ? 64 : isA6 ? 32 : 48} level="L" />
+              {/* QR Code and Product Code on the right */}
+              <div 
+                className="shrink-0 flex flex-col items-center justify-center"
+                style={{ 
+                  width: isA4Ngang ? '100px' : isA6 ? '48px' : '75px',
+                  minWidth: isA4Ngang ? '100px' : isA6 ? '48px' : '75px'
+                }}
+              >
+                <div className="shrink-0 flex items-center justify-center p-0.5 bg-white border border-black">
+                  <QRCode value={item.qrData || item.maSanPham || item.productCode || '00000'} size={isA4Ngang ? 64 : isA6 ? 32 : 48} level="L" />
+                </div>
+                {productCodeText && (
+                  <div 
+                    className="font-black text-black text-center uppercase tracking-tight mt-1 font-mono leading-tight" 
+                    style={{ 
+                      fontSize: isA4Ngang ? '16px' : isA6 ? '9px' : '12px',
+                      maxWidth: isA4Ngang ? '110px' : isA6 ? '55px' : '85px',
+                      wordBreak: 'break-all'
+                    }}
+                  >
+                    {productCodeText}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -599,16 +647,16 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
 
             {/* Middle Section: Centered layout */}
             <div className="flex-1 flex flex-col justify-around py-1 min-h-0 text-center">
-              {/* Product Info */}
-              <div className="flex flex-col items-center justify-center">
+              {/* Product Info - Full name display */}
+              <div className="flex flex-col items-center justify-center px-2">
                 <div 
-                  className="font-black uppercase tracking-wide truncate whitespace-nowrap max-w-[95%] leading-tight" 
+                  className="font-black uppercase tracking-wide text-center max-w-[96%] mx-auto leading-snug break-words" 
                   style={{ 
                     fontWeight: 900,
-                    fontSize: isA4Ngang ? '44px' : isA6 ? '22px' : '32px'
+                    fontSize: getNameFontSize()
                   }}
                 >
-                  {item.name || 'TÊN SẢN PHẨM'}
+                  {nameText}
                 </div>
               </div>
 
