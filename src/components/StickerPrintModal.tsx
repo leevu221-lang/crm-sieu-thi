@@ -709,7 +709,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                         position: 'absolute',
                         top: 0,
                         left: 0,
-                        padding: (config.style === 'address_flyer' || config.style === 'dcnb') ? '5mm' : ((isA5 || isA4Giasoc || isDisplayA4) ? '0' : '2mm'),
+                        padding: (config.style === 'address_flyer' || config.style === 'dcnb') ? '5mm' : ((isA5 || isA4Giasoc || isDisplayA4 || isA4Ngang || config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp') ? '0' : '2mm'),
                         gridTemplateColumns: `repeat(${layoutStyles.cols}, 1fr)`,
                         gridTemplateRows: `repeat(${layoutStyles.rows}, 1fr)`,
                         margin: 0,
@@ -718,7 +718,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                       }}
                     >
                       {page.map((item, index) => (
-                        <div key={index} className="relative overflow-hidden border-dashed border-slate-100 print:border-none flex items-center justify-center min-w-0 min-h-0" style={{ borderWidth: '0.5px' }}>
+                        <div key={index} className="relative overflow-hidden border-dashed border-slate-100 print:border-none flex items-center justify-center min-w-0 min-h-0" style={{ borderWidth: (isA4Ngang || isA5 || isA4Giasoc || isDisplayA4 || config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp') ? '0' : '0.5px' }}>
                           <div style={{
                             width: `${baseStickerWidth * layoutStyles.scale}mm`,
                             height: `${baseStickerHeight * layoutStyles.scale}mm`,
@@ -1164,19 +1164,19 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
     const getPriceFontSize = () => {
       const len = mainPrice.length;
       if (isA4Ngang) {
-        if (len <= 5) return { main: 168, last: 62 };
-        if (len === 6) return { main: 148, last: 54 };
-        return { main: 130, last: 46 };
+        if (len <= 5) return { main: 154, last: 54 };
+        if (len === 6) return { main: 136, last: 48 };
+        return { main: 120, last: 42 };
       }
       if (isA6) {
-        if (len <= 5) return { main: 82, last: 30 };
-        if (len === 6) return { main: 74, last: 26 };
-        return { main: 64, last: 22 };
+        if (len <= 5) return { main: 76, last: 28 };
+        if (len === 6) return { main: 68, last: 24 };
+        return { main: 58, last: 20 };
       }
       // Khổ A5 ngang hoặc A4 đứng 2 tem:
-      if (len <= 5) return { main: 120, last: 44 };
-      if (len === 6) return { main: 108, last: 40 };
-      return { main: 95, last: 34 };
+      if (len <= 5) return { main: 110, last: 40 };
+      if (len === 6) return { main: 98, last: 36 };
+      return { main: 86, last: 32 };
     };
     const priceFS = getPriceFontSize();
 
@@ -1193,7 +1193,7 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
               fontFamily: '"Oswald", sans-serif',
               borderStyle: 'solid',
               borderWidth: isA4Ngang ? '4px' : isA6 ? '2px' : '3px',
-              padding: isA4Ngang ? '20px 28px 16px' : isA6 ? '10px 12px' : '16px 20px'
+              padding: isA4Ngang ? '18px 28px 14px' : isA6 ? '10px 12px' : '16px 20px'
             }}
           >
             {/* Top Section: Above the horizontal line - Tiêu đề 2 dòng chuẩn Ảnh 2 */}
@@ -1218,7 +1218,7 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                   className="uppercase tracking-[0.04em] leading-[0.9]"
                   style={{
                     fontFamily: '"UTM Colossalis", sans-serif',
-                    fontSize: isA4Ngang ? '56px' : isA6 ? '28px' : '40px',
+                    fontSize: isA4Ngang ? '52px' : isA6 ? '26px' : '38px',
                     fontWeight: 'normal',
                   }}
                 >
@@ -1228,7 +1228,7 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                   className="uppercase tracking-[0.06em] leading-[0.9] mt-1"
                   style={{
                     fontFamily: '"UTM Colossalis", sans-serif',
-                    fontSize: isA4Ngang ? '56px' : isA6 ? '28px' : '40px',
+                    fontSize: isA4Ngang ? '52px' : isA6 ? '26px' : '38px',
                     fontWeight: 'normal',
                   }}
                 >
@@ -1265,11 +1265,11 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
             <div className="bg-black w-full shrink-0" style={{ height: isA4Ngang ? '4px' : isA6 ? '2px' : '3px' }}></div>
 
             {/* Middle Section: Centered layout */}
-            <div className="flex-1 flex flex-col justify-around py-1 min-h-0 text-center">
+            <div className="flex-1 flex flex-col justify-evenly py-1 min-h-0 text-center">
               {/* Product Info - Full name display */}
-              <div className="flex flex-col items-center justify-center px-2">
+              <div className="flex flex-col items-center justify-center px-4">
                 <div 
-                  className="font-black uppercase tracking-wide text-center max-w-[96%] mx-auto leading-snug break-words" 
+                  className="font-black uppercase tracking-wide text-center max-w-[96%] mx-auto leading-tight break-words" 
                   style={{ 
                     fontFamily: '"Oswald", sans-serif',
                     fontWeight: 900,
@@ -1281,17 +1281,17 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
               </div>
 
               {/* Prices */}
-              <div className="flex flex-col items-center justify-center mb-1">
+              <div className="flex flex-col items-center justify-center">
                 {/* Original Price (Strikethrough) */}
                 <div 
-                  className="relative font-bold text-black mb-1 leading-none"
+                  className="relative font-bold text-black mb-1 leading-none inline-block"
                   style={{ 
                     fontFamily: '"Oswald", sans-serif',
-                    fontSize: isA4Ngang ? '36px' : isA6 ? '18px' : '26px' 
+                    fontSize: isA4Ngang ? '32px' : isA6 ? '16px' : '24px' 
                   }}
                 >
                   {formatPrice(item.originalPrice)}đ
-                  <div className="absolute top-[55%] left-[-5%] right-[-5%] bg-black -translate-y-1/2" style={{ height: isA4Ngang ? '3.5px' : isA6 ? '2px' : '2.5px' }}></div>
+                  <div className="absolute top-[55%] left-[-6%] right-[-6%] bg-black -translate-y-1/2" style={{ height: isA4Ngang ? '3px' : isA6 ? '1.5px' : '2px' }}></div>
                 </div>
 
                 {/* Discount price - Khóa chặt font UTM Colossalis cho 10.490 và .000Đ */}
@@ -1299,7 +1299,8 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                   className="font-utm-colossalis flex items-baseline justify-center text-black leading-none select-none" 
                   style={{ 
                     fontFamily: '"UTM Colossalis", sans-serif',
-                    fontWeight: 'normal'
+                    fontWeight: 'normal',
+                    lineHeight: 1
                   }}
                 >
                   <span 
@@ -1307,17 +1308,19 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                     style={{ 
                       fontFamily: '"UTM Colossalis", sans-serif',
                       fontSize: `${priceFS.main}px`,
-                      letterSpacing: '-0.03em'
+                      letterSpacing: '-0.03em',
+                      lineHeight: 0.92
                     }}
                   >
                     {mainPrice}
                   </span>
                   <span 
-                    className="font-utm-colossalis ml-1 leading-none" 
+                    className="font-utm-colossalis ml-1.5 leading-none" 
                     style={{ 
                       fontFamily: '"UTM Colossalis", sans-serif',
                       fontSize: `${priceFS.last}px`,
-                      letterSpacing: '-0.02em'
+                      letterSpacing: '-0.02em',
+                      lineHeight: 0.92
                     }}
                   >
                     .{lastPart}Đ
