@@ -5913,7 +5913,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                           ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
                                           : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
                                 }
-                                style={(activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') ? 'display' : (activeTab === 'sticker-lk' || activeTab === 'popup-all-sp') ? 'sticker_lk' : activeTab === 'sticker-ce' ? 'sticker_ce' : 'classic'}
+                                style={(activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') ? 'display' : activeTab === 'popup-all-sp' ? 'popup_all_sp' : activeTab === 'sticker-lk' ? 'sticker_lk' : activeTab === 'sticker-ce' ? 'sticker_ce' : 'classic'}
                                 layout={activeTab === 'popup-all-sp' ? popupPrintLayout : activeTab === 'sticker-lk' ? lkPrintLayout : activeTab === 'sticker-ce' ? cePrintLayout : activeTab === 'sticker-mln' ? mlnPrintLayout : activeTab === 'sticker-gvgs' ? gvgsPrintLayout : '1'}
                                 showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'popup-all-sp' || activeTab === 'sticker-ce' ? false : showEventPromoLabel}
                                 promoLabelText={promoLabelTextVal}
@@ -6058,7 +6058,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             onClick={() => {
                               setPopupPrintLayout(s.layout as any);
                               setPrintConfig({ 
-                                style: 'sticker_lk', 
+                                style: 'popup_all_sp', 
                                 layout: s.layout, 
                                 showPromoLabel: false 
                               });

@@ -16,7 +16,10 @@ interface StickerPrintModalProps {
 export default function StickerPrintModal({ isOpen, onClose, data, config = { style: 'classic', layout: '4', showPromoLabel: true }, mlnHeaderTemplate = '', mlnFooterTemplate = '', promoLabelText = 'sản phẩm giá sốc - event T7 & CN' }: StickerPrintModalProps) {
   const [previewScale, setPreviewScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
-  const isA5 = ((config.style === 'display' || config.style === 'giovang') && config.layout === '1') || ((config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp') && config.layout === '1') || (config.style === 'phieu_bh' && config.layout === 'right');
+  const isA5 = ((config.style === 'display' || config.style === 'giovang') && config.layout === '1') || 
+               ((config.style === 'sticker_ce' || config.style === 'sticker_lk') && config.layout === '1') || 
+               (config.style === 'popup_all_sp' && config.layout === '1') || 
+               (config.style === 'phieu_bh' && config.layout === 'right');
   const isA4Giasoc = config.style === 'a4_giasoc';
   const isPhieuBH = config.style === 'phieu_bh';
   const [renderAllPages, setRenderAllPages] = useState(false);
@@ -40,8 +43,12 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
     if (config.style === 'address_flyer') return { cols: 3, rows: 2, scale: 1, orientation: 'portrait' };
     if (config.style === 'dcnb') return { cols: 3, rows: 8, scale: 1, orientation: 'portrait' };
     if (config.style === 'display' || config.style === 'giovang' || config.style === 'a4_giasoc') return { cols: 1, rows: 1, scale: 1, orientation: 'portrait' };
-    if (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp') {
+    if (config.style === 'popup_all_sp') {
       if (config.layout === 'a4_ngang' || config.layout === '1_a4') return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
+      if (config.layout === '2') return { cols: 1, rows: 2, scale: 1, orientation: 'portrait' };
+      return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
+    }
+    if (config.style === 'sticker_ce' || config.style === 'sticker_lk') {
       if (config.layout === '2') return { cols: 1, rows: 2, scale: 1, orientation: 'portrait' };
       return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
     }
@@ -355,7 +362,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
   const isAddressFlyer = config.style === 'address_flyer';
   const isDcnb = config.style === 'dcnb';
   const isDisplayA4 = config.style === 'display' && config.layout === '2';
-  const isA4Ngang = (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp') && (config.layout === 'a4_ngang' || config.layout === '1_a4');
+  const isA4Ngang = config.style === 'popup_all_sp' && (config.layout === 'a4_ngang' || config.layout === '1_a4');
   const baseStickerWidth = isDcnb ? 66 : (isAddressFlyer ? 66 : (isPhieuBH ? (config.layout === 'right' ? 98 : 105) : (isCeA6 ? 148.5 : (isA4Ngang ? 297 : (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp' || isDisplayA4 ? 210 : (isA5 ? 148.5 : (isA4Giasoc ? 210 : 148.5))))))); // mm
   const baseStickerHeight = isDcnb ? 35 : (isAddressFlyer ? 142 : (isPhieuBH ? (config.layout === 'right' ? 132 : 148.5) : (isCeA6 ? 105 : (isA4Ngang ? 210 : (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp' ? 148.5 : (isA5 ? 210 : (isA4Giasoc || isDisplayA4 ? 297 : 105))))))); // mm
 
@@ -480,8 +487,12 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
             width: ${isA5 ? (layoutStyles.orientation === 'portrait' ? '147.5mm' : '209mm') : (layoutStyles.orientation === 'portrait' ? '210mm' : '297mm')} !important;
             min-width: 0 !important;
             max-width: none !important;
-            height: ${layoutStyles.orientation === 'portrait' ? '295mm' : '205mm'} !important;
-            max-height: ${layoutStyles.orientation === 'portrait' ? '295mm' : '205mm'} !important;
+            height: ${isA5 
+              ? (layoutStyles.orientation === 'portrait' ? '208.5mm' : '146.5mm') 
+              : (layoutStyles.orientation === 'portrait' ? '295mm' : '205mm')} !important;
+            max-height: ${isA5 
+              ? (layoutStyles.orientation === 'portrait' ? '208.5mm' : '146.5mm') 
+              : (layoutStyles.orientation === 'portrait' ? '295mm' : '205mm')} !important;
             overflow: hidden !important;
             box-sizing: border-box !important;
           }
@@ -1124,7 +1135,7 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
     );
   }
 
-  if (style === 'sticker_ce' || style === 'sticker_lk' || style === 'popup_all_sp') {
+  if (style === 'popup_all_sp') {
     const isA6 = false;
     const isA4Ngang = layout === 'a4_ngang' || layout === '1_a4';
     const priceStr = formatPrice(item.discountPrice);
@@ -1422,6 +1433,126 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
               style={{ 
                 paddingTop: isA4Ngang ? '14px' : isA6 ? '6px' : '12px',
                 fontSize: isA4Ngang ? '16px' : isA6 ? '10px' : '13px'
+              }}
+            >
+              <div>ĐIỆN MÁY XANH</div>
+              <div className="italic font-medium">In lúc: {timeString}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (style === 'sticker_ce' || style === 'sticker_lk') {
+    const isA6 = false;
+    const priceStr = formatPrice(item.discountPrice);
+    const priceParts = priceStr.split('.');
+    const mainPrice = priceParts.slice(0, -1).join('.');
+    const lastPart = priceParts[priceParts.length - 1];
+
+    return (
+      <div 
+        className="sticker-font-own box-border shrink-0 overflow-hidden w-full h-full flex flex-col"
+        style={{
+          width: isA6 ? '148.5mm' : '210mm',
+          height: isA6 ? '105mm' : '148.5mm',
+          padding: isA6 ? '3mm' : '7mm',
+          boxSizing: 'border-box'
+        }}
+      >
+        <div 
+          className="w-full h-full bg-white box-border flex flex-col justify-between border-black"
+          style={{
+            borderWidth: isA6 ? '4px' : '6px',
+            borderStyle: 'solid',
+            padding: isA6 ? '1mm' : '2mm',
+            boxSizing: 'border-box'
+          }}
+        >
+          <div 
+            className="w-full h-full bg-white border-black box-border relative text-black flex flex-col justify-between" 
+            style={{ 
+              fontFamily: '"Oswald", sans-serif',
+              borderStyle: 'solid',
+              borderWidth: isA6 ? '2px' : '3px',
+              padding: isA6 ? '12px' : '24px',
+              boxSizing: 'border-box'
+            }}
+          >
+            {/* Top Section: Above the horizontal line */}
+            <div className="flex items-center justify-between px-1 py-1 shrink-0 w-full">
+              {/* Invisible spacer for perfect symmetry */}
+              <div className="opacity-0 shrink-0" style={{ width: isA6 ? '32px' : '58px', height: isA6 ? '32px' : '58px' }}></div>
+              
+              {/* Centered Title */}
+              <div 
+                className="font-black uppercase tracking-[0.08em] leading-none text-center flex-1" 
+                style={{ 
+                  fontWeight: 900, 
+                  WebkitTextStroke: isA6 ? '1px black' : '2px black',
+                  fontSize: isA6 ? '38px' : '58px',
+                  fontFamily: '"UTM Colossalis", sans-serif'
+                }}
+              >
+                KHUYẾN MÃI GIÁ SỐC
+              </div>
+
+              {/* QR Code on the right */}
+              <div className="shrink-0 flex items-center justify-center p-0.5 bg-white border border-black">
+                <QRCode value={item.qrData || item.maSanPham || item.productCode || '00000'} size={isA6 ? 32 : 48} level="L" />
+              </div>
+            </div>
+
+            {/* Horizontal Divider Line */}
+            <div className="bg-black w-full shrink-0" style={{ height: isA6 ? '2px' : '3px' }}></div>
+
+            {/* Middle Section: Centered layout */}
+            <div className="flex-1 flex flex-col justify-around py-1 min-h-0 text-center">
+              {/* Product Info */}
+              <div className="flex flex-col items-center justify-center">
+                <div 
+                  className="font-black uppercase tracking-wide truncate whitespace-nowrap max-w-[95%] leading-tight" 
+                  style={{ 
+                    fontWeight: 900,
+                    fontSize: isA6 ? '22px' : '32px'
+                  }}
+                >
+                  {item.name || 'TÊN SẢN PHẨM'}
+                </div>
+              </div>
+
+              {/* Prices */}
+              <div className="flex flex-col items-center justify-center">
+                {/* Original Price (Strikethrough) */}
+                <div 
+                  className="relative font-bold text-black mb-0.5 leading-none"
+                  style={{ fontSize: isA6 ? '24px' : '36px' }}
+                >
+                  {formatPrice(item.originalPrice)}đ
+                  <div className="absolute top-[55%] left-[-5%] right-[-5%] bg-black -translate-y-1/2" style={{ height: isA6 ? '2px' : '3px' }}></div>
+                </div>
+
+                {/* Discount price */}
+                <div 
+                  className="flex items-baseline font-black text-black leading-none" 
+                  style={{ 
+                    fontWeight: 900,
+                    fontFamily: '"UTM Colossalis", sans-serif'
+                  }}
+                >
+                  <span className="tracking-tighter leading-none" style={{ fontSize: isA6 ? '104px' : '156px' }}>{mainPrice}</span>
+                  <span className="ml-0.5 leading-none" style={{ fontSize: isA6 ? '38px' : '58px' }}>.{lastPart}Đ</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Section: Date & Info */}
+            <div 
+              className="border-t-2 border-black flex justify-between items-center font-bold text-black shrink-0"
+              style={{ 
+                paddingTop: isA6 ? '6px' : '12px',
+                fontSize: isA6 ? '10px' : '13px'
               }}
             >
               <div>ĐIỆN MÁY XANH</div>
