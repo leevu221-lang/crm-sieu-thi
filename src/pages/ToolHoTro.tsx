@@ -5789,7 +5789,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             onClick={() => {
                               setPopupPrintLayout(s.layout as any);
                               setPrintConfig({ 
-                                style: 'sticker_lk', 
+                                style: 'popup_all_sp', 
                                 layout: s.layout, 
                                 showPromoLabel: false 
                               });
