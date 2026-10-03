@@ -33,5 +33,15 @@
     2. Đẩy lên GitHub: `git push origin main`
     3. Tự động trigger Netlify / Cloudflare Pages deploy.
 
+- **Quy Chuẩn In Ấn & Tem POSM (Print & Sticker Invariants)**:
+  - **Tránh dùng class mm trong Tailwind v4**: Tuyệt đối không dùng class Tailwind tùy biến mang đơn vị `mm` hoặc `border-[px]` lạ (ví dụ: `w-[297mm]`, `h-[210mm]`, `p-[9mm]`, `border-[8px]`) vì Tailwind v4 không sinh mã CSS cho các class này, dẫn đến vỡ kích thước tem in.
+  - **Khóa kích thước bằng Inline Style**: Luôn khai báo kích thước tem, lề trang và độ dày viền in bằng style inline rõ ràng:
+    `style={{ width: '297mm', height: '210mm', padding: '9mm', borderWidth: '8px', borderStyle: 'solid', boxSizing: 'border-box' }}`.
+  - **Tối ưu hiển thị giá tiền phân định Desktop / Mobile**:
+    - Khi điều chỉnh cỡ chữ số tiền lớn trên tem in POSM, luôn sử dụng điều kiện `isMobileClient` để kiểm tra.
+    - Trên **Desktop**: Cho phép cỡ chữ tăng lớn bề thế, dàn trải gần sát hai đường viền lề trái/phải (>90% chiều rộng).
+    - Trên **Mobile**: Giữ nguyên kích thước tinh gọn theo viewport, đảm bảo không tràn lề hay tự động ngắt dòng ngoài ý muốn.
+
+
 
 
