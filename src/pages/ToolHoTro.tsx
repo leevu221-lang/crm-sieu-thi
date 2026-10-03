@@ -7,7 +7,7 @@ import {
   ChevronRight, LayoutGrid, FileText, Tag, Scan, MapPin, ClipboardList,
   RefreshCw, AlertCircle, Banknote, RotateCcw,
   ShoppingCart, Plus, ShoppingBag, Minus, Search, ExternalLink, FileSpreadsheet,
-  QrCode, Camera, History, Undo2, Clock
+  QrCode, Camera, History, Undo2, Clock, Zap, ZapOff
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
@@ -474,6 +474,10 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
   // GIỎ IN CHO POSM ALL SP
   const [posmCartItems, setPosmCartItems] = useState<PosmCartItem[]>([]);
+  const posmCartItemsRef = useRef<PosmCartItem[]>([]);
+  useEffect(() => {
+    posmCartItemsRef.current = posmCartItems;
+  }, [posmCartItems]);
   const [isPosmCartModalOpen, setIsPosmCartModalOpen] = useState<boolean>(false);
   const [isSavingPosmCart, setIsSavingPosmCart] = useState<boolean>(false);
   const [posmDeletedCarts, setPosmDeletedCarts] = useState<PosmDeletedCartRecord[]>([]);
@@ -798,7 +802,49 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     return () => unsubscribe();
   }, [activeTab, currentStoreId]);
 
+  const posmSyncTimeoutRef = useRef<any>(null);
+  const debounceSyncPosmCartToDb = (cartToSync: PosmCartItem[]) => {
+    if (posmSyncTimeoutRef.current) {
+      clearTimeout(posmSyncTimeoutRef.current);
+    }
+    posmSyncTimeoutRef.current = setTimeout(async () => {
+      try {
+        const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+        const storeDocId = normalizeStoreId(targetStore);
+        const docRef = doc(db, 'store', storeDocId);
+        await setDoc(docRef, {
+          posm_all_sp_cart: JSON.stringify(cartToSync),
+          ten_sieu_thi: targetStore,
+          updated_at: new Date().toISOString()
+        }, { merge: true });
+      } catch (err) {
+        console.error('Lỗi debounce đồng bộ POSM cart lên Firestore:', err);
+      }
+    }, 1500);
+  };
+
+  const flushPosmCartSync = async () => {
+    if (posmSyncTimeoutRef.current) {
+      clearTimeout(posmSyncTimeoutRef.current);
+      posmSyncTimeoutRef.current = null;
+      try {
+        const currentCart = posmCartItemsRef.current || [];
+        const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+        const storeDocId = normalizeStoreId(targetStore);
+        const docRef = doc(db, 'store', storeDocId);
+        await setDoc(docRef, {
+          posm_all_sp_cart: JSON.stringify(currentCart),
+          ten_sieu_thi: targetStore,
+          updated_at: new Date().toISOString()
+        }, { merge: true });
+      } catch (err) {
+        console.error('Lỗi flush POSM cart lên Firestore:', err);
+      }
+    }
+  };
+
   const savePosmCartToDb = async (newCart: PosmCartItem[], notifyText?: string) => {
+    posmCartItemsRef.current = newCart;
     setPosmCartItems(newCart);
     const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
     const storeDocId = normalizeStoreId(targetStore);
@@ -824,16 +870,17 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     }
   };
 
-  const handleAddToCartPosm = (prod: any, qty: number = 1) => {
+  const handleAddToCartPosm = (prod: any, qty: number = 1, silentNotify: boolean = false) => {
+    const currentCart = posmCartItemsRef.current || [];
     const code = String(prod.productCode || prod.maSanPham || 'MANUAL').trim();
-    const existingIndex = posmCartItems.findIndex(item => 
+    const existingIndex = currentCart.findIndex(item => 
       (code && (item.maSanPham === code || item.productCode === code)) || 
       (item.name && item.name === prod.name)
     );
 
     let updatedCart: PosmCartItem[];
     if (existingIndex >= 0) {
-      updatedCart = posmCartItems.map((item, idx) => {
+      updatedCart = currentCart.map((item, idx) => {
         if (idx === existingIndex) {
           return {
             ...item,
@@ -858,11 +905,23 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         qrData: code || '00000',
         updatedAt: new Date().toISOString()
       };
-      updatedCart = [newItem, ...posmCartItems];
+      updatedCart = [newItem, ...currentCart];
     }
 
-    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'Siêu thị';
-    savePosmCartToDb(updatedCart, `Đã thêm "${prod.name}" (${qty} tem) vào Giỏ In POSM (${targetStore})!`);
+    posmCartItemsRef.current = updatedCart;
+    setPosmCartItems(updatedCart);
+
+    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+    const storeDocId = normalizeStoreId(targetStore);
+    safeLocalStorageSet(`rtst_posm_cart_${storeDocId}`, JSON.stringify(updatedCart));
+
+    if (silentNotify) {
+      debounceSyncPosmCartToDb(updatedCart);
+    } else {
+      savePosmCartToDb(updatedCart, `Đã thêm "${prod.name}" (${qty} tem) vào Giỏ In POSM (${targetStore})!`);
+    }
+
+    return updatedCart;
   };
 
   const handleAddSelectedToPosmCart = () => {
@@ -923,7 +982,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       finalVal = digits ? parseInt(digits, 10) : 0;
     }
 
-    const updated = posmCartItems.map(item => {
+    const currentCart = posmCartItemsRef.current || posmCartItems;
+    const updated = currentCart.map(item => {
       if (item.id === id) {
         return { ...item, [field]: finalVal };
       }
@@ -933,9 +993,20 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     savePosmCartToDb(updated);
   };
 
-  const handleRemoveFromPosmCart = (id: string) => {
-    const updated = posmCartItems.filter(item => item.id !== id);
-    savePosmCartToDb(updated, 'Đã xóa sản phẩm khỏi Giỏ In POSM!');
+  const handleRemoveFromPosmCart = (id: string, silent: boolean = false) => {
+    const currentCart = posmCartItemsRef.current || posmCartItems;
+    const updated = currentCart.filter(item => item.id !== id);
+    if (silent) {
+      posmCartItemsRef.current = updated;
+      setPosmCartItems(updated);
+      const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+      const storeDocId = normalizeStoreId(targetStore);
+      safeLocalStorageSet(`rtst_posm_cart_${storeDocId}`, JSON.stringify(updated));
+      debounceSyncPosmCartToDb(updated);
+    } else {
+      savePosmCartToDb(updated, 'Đã xóa sản phẩm khỏi Giỏ In POSM!');
+    }
+    return updated;
   };
 
   const handleClearPosmCart = async () => {
@@ -1216,7 +1287,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
   // POSM ALL SP: QR Scanner auto-match Google Sheet
   const [isPosmQrScannerOpen, setIsPosmQrScannerOpen] = useState(false);
-  const [posmScanMessage, setPosmScanMessage] = useState<{ text: string; type: 'success' | 'warning' | 'info' } | null>(null);
+  const [posmScanMessage, setPosmScanMessage] = useState<{ text: string; type: 'success' | 'warning' | 'info'; item?: any } | null>(null);
   const [posmLastScannedCode, setPosmLastScannedCode] = useState<string>('');
   const [posmLastScannedItem, setPosmLastScannedItem] = useState<any | null>(null);
   const [posmScannerError, setPosmScannerError] = useState<string | null>(null);
@@ -1226,6 +1297,10 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   const posmHtml5QrScannerRef = useRef<any>(null);
   const posmScanCooldownRef = useRef<number>(0);
   const [posmScannedHistory, setPosmScannedHistory] = useState<any[]>([]);
+  const [posmScanFlash, setPosmScanFlash] = useState<boolean>(false);
+  const [posmTorchOn, setPosmTorchOn] = useState<boolean>(false);
+  const [posmTorchSupported, setPosmTorchSupported] = useState<boolean>(false);
+  const onPosmScanSuccessRef = useRef<(code: string) => void>(() => {});
 
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
@@ -3413,67 +3488,215 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     }
   };
 
-  // POSM ALL SP: Xử lý quét QR khớp tự động với Google Sheet
+  // POSM ALL SP: Âm thanh beep giòn khi quét thành công
+  const playPosmScanBeep = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(1450, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1800, ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.35, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.09);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.09);
+    } catch (e) {
+      console.warn('Audio beep error:', e);
+    }
+  };
+
+  // Hàm trích xuất và tìm kiếm sản phẩm thông minh đa tầng
+  const findProductFromScannedCode = (rawScanned: string) => {
+    const raw = String(rawScanned || '').trim();
+    if (!raw) return null;
+
+    // Gom toàn bộ sản phẩm có trong hệ thống
+    const pool: any[] = [];
+    const seenMap = new Set<string>();
+
+    const addToPool = (list: any[]) => {
+      if (!Array.isArray(list)) return;
+      list.forEach(p => {
+        if (!p) return;
+        const code = String(p.productCode || p.maSanPham || '').trim();
+        const name = String(p.name || '').trim();
+        const key = `${code}_${name}`.toLowerCase();
+        if (code && !seenMap.has(key)) {
+          seenMap.add(key);
+          pool.push(p);
+        }
+      });
+    };
+
+    addToPool(combinedPriceData);
+    addToPool(googleSheetProducts);
+    addToPool(priceData);
+
+    if (pool.length === 0) return null;
+
+    const cleanRaw = raw.toLowerCase().replace(/[\s\r\n\t]/g, '');
+    const cleanAlphaNum = cleanRaw.replace(/[^a-z0-9]/g, '');
+
+    // Tạo danh sách các ứng viên mã trích xuất từ chuỗi quét
+    const candidateCodes: string[] = [raw, cleanRaw, cleanAlphaNum];
+
+    // Trích xuất mã nếu là URL (DMX, TGDD, BHX hoặc link web bất kỳ)
+    if (raw.includes('http://') || raw.includes('https://') || raw.includes('.com') || raw.includes('.vn')) {
+      try {
+        const fullUrl = (raw.startsWith('http://') || raw.startsWith('https://')) ? raw : `https://${raw}`;
+        const urlObj = new URL(fullUrl);
+        for (const param of ['sp', 'id', 'code', 'masp', 'sku', 'product_id', 'p']) {
+          const val = urlObj.searchParams.get(param);
+          if (val) candidateCodes.push(val.trim().toLowerCase());
+        }
+        const pathSegments = urlObj.pathname.split('/').filter(Boolean);
+        if (pathSegments.length > 0) {
+          const lastSeg = pathSegments[pathSegments.length - 1];
+          candidateCodes.push(lastSeg.toLowerCase());
+          const matchNum = lastSeg.match(/(\d{5,14})/g);
+          if (matchNum) matchNum.forEach(n => candidateCodes.push(n));
+        }
+      } catch (e) {
+        // bỏ qua nếu parse url lỗi
+      }
+    }
+
+    // Tách theo các ký tự phân cách thông dụng: |, -, _, /, ;, :, khoảng trắng
+    const tokens = raw.split(/[\|\-_\/;\:\s\t]+/).map(t => t.trim().toLowerCase()).filter(t => t.length >= 3);
+    candidateCodes.push(...tokens);
+
+    // Trích xuất các chuỗi số từ 5 đến 14 chữ số (chuẩn mã nội bộ MWG hoặc barcode EAN-13)
+    const numericMatches = raw.match(/\d{5,14}/g);
+    if (numericMatches) {
+      numericMatches.forEach(num => candidateCodes.push(num));
+    }
+
+    const uniqueCandidates = Array.from(new Set(candidateCodes.filter(Boolean)));
+
+    // BƯỚC 1: Khớp chính xác hoàn toàn với candidateCodes
+    for (const cand of uniqueCandidates) {
+      const candClean = cand.replace(/[^a-z0-9]/g, '');
+      if (!candClean) continue;
+
+      const found = pool.find(p => {
+        const pCode = String(p.productCode || p.maSanPham || '').trim().toLowerCase();
+        const pQr = String(p.qrData || '').trim().toLowerCase();
+        const pCodeClean = pCode.replace(/[^a-z0-9]/g, '');
+        const pQrClean = pQr.replace(/[^a-z0-9]/g, '');
+
+        if (pCode && (pCode === cand || pCodeClean === candClean)) return true;
+        if (pQr && (pQr === cand || pQrClean === candClean)) return true;
+        return false;
+      });
+      if (found) return found;
+    }
+
+    // BƯỚC 2: Kiểm tra chứa mã sản phẩm (sub-string match) nếu mã sản phẩm dài >= 4 ký tự
+    const foundSub = pool.find(p => {
+      const pCode = String(p.productCode || p.maSanPham || '').trim().toLowerCase();
+      const pCodeClean = pCode.replace(/[^a-z0-9]/g, '');
+      if (pCodeClean && pCodeClean.length >= 4) {
+        if (cleanAlphaNum.includes(pCodeClean) || pCodeClean.includes(cleanAlphaNum)) return true;
+      }
+      return false;
+    });
+    if (foundSub) return foundSub;
+
+    // BƯỚC 3: Thử tìm theo Tên sản phẩm nếu chuỗi quét chứa tên hoặc model
+    if (cleanAlphaNum.length >= 6) {
+      const foundByName = pool.find(p => {
+        const pName = String(p.name || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        return pName && (cleanAlphaNum.includes(pName) || (pName.length >= 8 && pName.includes(cleanAlphaNum)));
+      });
+      if (foundByName) return foundByName;
+    }
+
+    return null;
+  };
+
+  // POSM ALL SP: Xử lý quét QR/Barcode tự động thêm vào giỏ in liên tục
   const handleMatchAndAddProductFromQr = (scannedCodeRaw: string) => {
     const raw = String(scannedCodeRaw || '').trim();
     if (!raw) return;
 
-    // Ngăn chặn quét trùng cùng 1 mã trong 2.5 giây
     const now = Date.now();
-    if (posmLastScannedCode === raw && now - posmScanCooldownRef.current < 2500) {
+    // Chống quét trùng lặp dồn dập cùng 1 mã trong 1.5 giây
+    if (posmLastScannedCode === raw && now - posmScanCooldownRef.current < 1500) {
       return;
     }
     posmScanCooldownRef.current = now;
     setPosmLastScannedCode(raw);
 
-    const clean = raw.toLowerCase().replace(/[\s\r\n\t]/g, '');
-    const cleanAlphaNum = clean.replace(/[^a-z0-9]/g, '');
-
-    // 1. Tìm trong danh sách Google Sheet đã nạp
-    let matched = googleSheetProducts.find(p => {
-      const pCode = String(p.productCode || p.maSanPham || '').toLowerCase().replace(/[\s\r\n\t]/g, '');
-      const pQr = String(p.qrData || '').toLowerCase().replace(/[\s\r\n\t]/g, '');
-
-      if (pCode && (pCode === clean || clean === pCode)) return true;
-      if (pQr && (pQr === clean || clean === pQr)) return true;
-      if (cleanAlphaNum && pCode && cleanAlphaNum === pCode.replace(/[^a-z0-9]/g, '')) return true;
-      if (pCode && pCode.length >= 4 && clean.includes(pCode)) return true;
-      return false;
-    });
-
-    // 2. Tìm tiếp trong priceData (nếu có)
-    if (!matched && priceData && priceData.length > 0) {
-      matched = priceData.find(p => {
-        const pCode = String(p.productCode || p.maSanPham || '').toLowerCase().replace(/[\s\r\n\t]/g, '');
-        const pQr = String(p.qrData || '').toLowerCase().replace(/[\s\r\n\t]/g, '');
-        if (pCode && (pCode === clean || clean === pCode)) return true;
-        if (pQr && (pQr === clean || clean === pQr)) return true;
-        if (pCode && pCode.length >= 4 && clean.includes(pCode)) return true;
-        return false;
-      });
-    }
+    const matched = findProductFromScannedCode(raw);
 
     if (matched) {
-      // Âm thanh beep & rung
-      beepSoundRef.current?.();
-      if (navigator.vibrate) navigator.vibrate(150);
+      // Âm thanh beep sắc giòn & rung máy
+      playPosmScanBeep();
+      if (navigator.vibrate) {
+        try { navigator.vibrate(120); } catch (_) {}
+      }
 
-      // Tự động thêm vào Giỏ In POSM
-      handleAddToCartPosm(matched, 1);
+      // Flash chớp sáng viền khung ngắm camera
+      setPosmScanFlash(true);
+      setTimeout(() => setPosmScanFlash(false), 450);
+
+      // TỰ ĐỘNG THÊM VÀO GIỎ IN POSM NGAY TỨC THÌ (silentNotify = true để không pop alert che camera)
+      const updatedCart = handleAddToCartPosm(matched, 1, true);
+
+      // Lấy số lượng mới của sản phẩm trong giỏ
+      const itemCode = String(matched.productCode || matched.maSanPham || '').trim();
+      const inCartItem = updatedCart.find(it => 
+        (itemCode && (it.maSanPham === itemCode || it.productCode === itemCode)) ||
+        (it.name && it.name === matched.name)
+      );
+      const currentQty = inCartItem?.quantity || 1;
 
       setPosmLastScannedItem(matched);
       setPosmScanMessage({
-        text: `ĐÃ THÊM: ${matched.name} (Mã: ${matched.productCode || matched.maSanPham || clean})`,
-        type: 'success'
+        text: `ĐÃ THÊM VÀO GIỎ: ${matched.name} (Đang có: ${currentQty} tem)`,
+        type: 'success',
+        item: matched
       });
-      setPosmScannedHistory(prev => [matched, ...prev.filter(item => (item.productCode || item.maSanPham) !== (matched.productCode || matched.maSanPham)).slice(0, 9)]);
+
+      // Cập nhật danh sách các sản phẩm vừa quét với số lượng mới
+      setPosmScannedHistory(prev => {
+        const otherItems = prev.filter(item => {
+          const c = String(item.productCode || item.maSanPham || '').trim();
+          return c !== itemCode && item.name !== matched.name;
+        });
+        return [{ ...matched, inCartQty: currentQty }, ...otherItems].slice(0, 10);
+      });
     } else {
       // Không tìm thấy sản phẩm khớp
       setPosmLastScannedItem(null);
       setPosmScanMessage({
-        text: `Không tìm thấy mã "${raw}" trong dữ liệu Google Sheet (${googleSheetProducts.length} SP)!`,
+        text: `Không tìm thấy mã "${raw}" trong dữ liệu SP (${combinedPriceData.length || googleSheetProducts.length} SP)!`,
         type: 'warning'
       });
+    }
+  };
+
+  // Luôn gán hàm mới nhất vào ref để máy quét gọi không bao giờ bị stale closure
+  useEffect(() => {
+    onPosmScanSuccessRef.current = handleMatchAndAddProductFromQr;
+  });
+
+  const togglePosmTorch = async () => {
+    if (!posmHtml5QrScannerRef.current || !posmHtml5QrScannerRef.current.isScanning) return;
+    try {
+      const nextTorch = !posmTorchOn;
+      await posmHtml5QrScannerRef.current.applyVideoConstraints({
+        advanced: [{ torch: nextTorch }]
+      });
+      setPosmTorchOn(nextTorch);
+    } catch (e) {
+      console.warn('Torch error:', e);
+      showNotification('Thiết bị không hỗ trợ hoặc không thể bật đèn Flash.', 'warning');
     }
   };
 
@@ -3512,45 +3735,77 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
           if (posmHtml5QrScannerRef.current.isScanning) {
             await posmHtml5QrScannerRef.current.stop();
           }
+          await posmHtml5QrScannerRef.current.clear();
         } catch (e) {
           console.warn('Error stopping previous posm scanner:', e);
         }
       }
 
-      const scanner = new window.Html5Qrcode('posm-cart-reader');
+      // Khởi tạo Html5Qrcode với cấu hình tăng tốc native BarcodeDetector
+      const scanner = new window.Html5Qrcode('posm-cart-reader', {
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
+        },
+        verbose: false
+      });
       posmHtml5QrScannerRef.current = scanner;
       setPosmScannerError(null);
       setIsPosmScanning(true);
 
       const cameraConfig = cameraId === 'environment' ? { facingMode: 'environment' } : cameraId;
 
+      const formats = window.Html5QrcodeSupportedFormats ? [
+        window.Html5QrcodeSupportedFormats.QR_CODE,
+        window.Html5QrcodeSupportedFormats.EAN_13,
+        window.Html5QrcodeSupportedFormats.EAN_8,
+        window.Html5QrcodeSupportedFormats.CODE_128,
+        window.Html5QrcodeSupportedFormats.CODE_39,
+        window.Html5QrcodeSupportedFormats.UPC_A,
+        window.Html5QrcodeSupportedFormats.UPC_E,
+      ].filter(Boolean) : undefined;
+
       await scanner.start(
         cameraConfig,
         {
-          fps: 15,
+          fps: 25, // Tốc độ quét 25 FPS siêu nhanh
           qrbox: (w: number, h: number) => {
-            const size = Math.min(w, h) * 0.72;
-            return { width: size, height: size };
+            const boxW = Math.min(Math.floor(w * 0.88), 360);
+            const boxH = Math.min(Math.floor(h * 0.72), 260);
+            return { width: boxW, height: boxH };
           },
-          aspectRatio: 1
+          aspectRatio: 1.0,
+          formatsToSupport: formats
         },
         (decodedText: string) => {
-          handleMatchAndAddProductFromQr(decodedText);
+          // Luôn gọi qua ref để không bao giờ bị stale closure!
+          onPosmScanSuccessRef.current(decodedText);
         },
         () => {}
       );
 
+      // Thử áp dụng continuous focusMode và kiểm tra đèn Flash
       setTimeout(async () => {
         try {
           if (posmHtml5QrScannerRef.current?.isScanning) {
             await posmHtml5QrScannerRef.current.applyVideoConstraints({
-              focusMode: 'continuous'
+              focusMode: 'continuous',
+              advanced: [{ focusMode: 'continuous' }]
             });
+
+            const videoElem = document.querySelector('#posm-cart-reader video') as HTMLVideoElement;
+            if (videoElem && videoElem.srcObject) {
+              const stream = videoElem.srcObject as MediaStream;
+              const track = stream.getVideoTracks()[0];
+              const capabilities = (track as any)?.getCapabilities?.();
+              if (capabilities && 'torch' in capabilities) {
+                setPosmTorchSupported(true);
+              }
+            }
           }
         } catch (e) {
           console.warn('posm scanner focusMode error:', e);
         }
-      }, 1000);
+      }, 700);
     } catch (err: any) {
       console.error('Lỗi khởi động POSM camera:', err);
       setPosmScannerError('Không thể mở camera. Vui lòng cấp quyền truy cập camera trên trình duyệt.');
@@ -3559,6 +3814,10 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   };
 
   const stopPosmScanning = async () => {
+    flushPosmCartSync();
+    if (posmTorchOn) {
+      setPosmTorchOn(false);
+    }
     if (posmHtml5QrScannerRef.current) {
       try {
         if (posmHtml5QrScannerRef.current.isScanning) {
@@ -7723,7 +7982,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 animate-[fadeIn_0.2s_ease-out]">
           <div className="bg-white rounded-3xl max-w-lg w-full max-h-[95vh] shadow-2xl overflow-hidden border border-slate-200 flex flex-col">
             {/* Header */}
-            <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 px-5 py-4 text-white flex items-center justify-between shrink-0 shadow-md">
+            <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 px-4 sm:px-5 py-3.5 text-white flex items-center justify-between shrink-0 shadow-md">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center text-white font-black shadow-inner">
                   <Scan size={22} className="animate-pulse" />
@@ -7734,25 +7993,56 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                   </h3>
                   <p className="text-[11px] text-emerald-100 font-semibold mt-0.5 flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
-                    <span>Tự động khớp dữ liệu Google Sheet ({googleSheetProducts.length} SP)</span>
+                    <span>Tự động khớp & thêm giỏ liên tục ({combinedPriceData.length || googleSheetProducts.length} SP)</span>
                   </p>
                 </div>
               </div>
-              <button 
-                type="button"
-                onClick={() => {
-                  stopPosmScanning();
-                  setIsPosmQrScannerOpen(false);
-                }}
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
-                title="Đóng máy quét"
-              >
-                <X size={18} />
-              </button>
+
+              <div className="flex items-center gap-2">
+                {/* Nút bật/tắt đèn Flash trợ sáng */}
+                <button
+                  type="button"
+                  onClick={togglePosmTorch}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                    posmTorchOn 
+                      ? 'bg-amber-400 text-slate-950 font-black shadow-lg shadow-amber-400/40 ring-2 ring-white scale-105' 
+                      : 'bg-white/10 hover:bg-white/20 text-white'
+                  }`}
+                  title={posmTorchOn ? "Tắt đèn Flash" : "Bật đèn Flash trợ sáng"}
+                >
+                  {posmTorchOn ? <Zap size={18} className="fill-slate-950" /> : <ZapOff size={18} />}
+                </button>
+
+                {/* Huy hiệu giỏ hàng thời gian thực */}
+                <div 
+                  onClick={() => {
+                    stopPosmScanning();
+                    setIsPosmQrScannerOpen(false);
+                    setIsPosmCartModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-2xl text-xs font-black text-white shadow-inner cursor-pointer transition-all active:scale-95"
+                  title="Bấm để mở giỏ in"
+                >
+                  <ShoppingCart size={15} className="text-emerald-200" />
+                  <span>{posmCartItems.length} SP</span>
+                </div>
+
+                <button 
+                  type="button"
+                  onClick={() => {
+                    stopPosmScanning();
+                    setIsPosmQrScannerOpen(false);
+                  }}
+                  className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                  title="Đóng máy quét"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             {/* Camera Viewport & Toolbar */}
-            <div className="p-4 bg-slate-900 flex-1 flex flex-col items-center justify-center relative overflow-hidden">
+            <div className="p-3 sm:p-4 bg-slate-900 flex-1 flex flex-col items-center justify-center relative overflow-hidden">
               {/* Chọn camera nếu có nhiều camera */}
               {posmCameras.length > 1 && (
                 <div className="w-full flex items-center justify-between mb-2 z-10 px-1">
@@ -7773,14 +8063,19 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 </div>
               )}
 
-              {/* Khung Camera */}
-              <div className="w-full max-w-[340px] aspect-square bg-black rounded-3xl overflow-hidden relative shadow-2xl border-2 border-emerald-500/60 flex items-center justify-center">
+              {/* Khung Camera với hiệu ứng Flash khi quét thành công */}
+              <div className={`w-full max-w-[340px] aspect-square bg-black rounded-3xl overflow-hidden relative shadow-2xl transition-all duration-300 ${
+                posmScanFlash 
+                  ? 'border-4 border-emerald-400 ring-4 ring-emerald-300/80 shadow-[0_0_35px_#10b981] scale-[1.02]' 
+                  : 'border-2 border-emerald-500/60'
+              } flex items-center justify-center`}>
                 <div id="posm-cart-reader" className="w-full h-full object-cover"></div>
 
-                {/* Laser animation */}
+                {/* Laser animation & 4 góc ngắm */}
                 <div className="absolute inset-0 pointer-events-none flex flex-col justify-center items-center">
-                  {/* Khung 4 góc ngắm */}
-                  <div className="w-[72%] h-[72%] border-2 border-emerald-400/70 rounded-2xl relative">
+                  <div className={`w-[78%] h-[72%] rounded-2xl relative transition-colors ${
+                    posmScanFlash ? 'border-2 border-emerald-300' : 'border-2 border-emerald-400/70'
+                  }`}>
                     <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-400 -mt-1 -ml-1"></div>
                     <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-400 -mt-1 -mr-1"></div>
                     <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-400 -mb-1 -ml-1"></div>
@@ -7798,7 +8093,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                     <button
                       type="button"
                       onClick={() => startPosmScanning(posmSelectedCameraId || 'environment')}
-                      className="mt-3 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl"
+                      className="mt-3 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl cursor-pointer"
                     >
                       Thử lại
                     </button>
@@ -7806,13 +8101,13 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                 )}
               </div>
 
-              {/* Thông báo quét trực tiếp */}
-              <div className="w-full mt-3 z-10 min-h-[50px]">
-                {posmScanMessage && (
-                  <div className={`p-3 rounded-2xl text-xs font-bold flex items-center gap-2.5 transition-all animate-[fadeIn_0.2s_ease-out] shadow-md ${
+              {/* Thông báo trạng thái quét trực tiếp */}
+              <div className="w-full mt-3 z-10 min-h-[46px]">
+                {posmScanMessage ? (
+                  <div className={`p-2.5 rounded-2xl text-xs font-bold flex items-center gap-2.5 transition-all animate-[fadeIn_0.2s_ease-out] shadow-md ${
                     posmScanMessage.type === 'success' 
-                      ? 'bg-emerald-500/90 text-white border border-emerald-300' 
-                      : 'bg-amber-500/90 text-slate-950 border border-amber-300'
+                      ? 'bg-emerald-500 text-white border border-emerald-300 ring-2 ring-emerald-400/30' 
+                      : 'bg-amber-500 text-slate-950 border border-amber-300'
                   }`}>
                     {posmScanMessage.type === 'success' ? (
                       <CheckCircle2 size={18} className="shrink-0 text-white" />
@@ -7823,46 +8118,98 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                       {posmScanMessage.text}
                     </div>
                   </div>
+                ) : (
+                  <div className="text-[11px] font-medium text-slate-400 text-center flex items-center justify-center gap-1.5 py-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span>Đang sẵn sàng quét liên tục • Tự động thêm giỏ ngay khi phát hiện mã</span>
+                  </div>
                 )}
               </div>
             </div>
 
-            {/* Danh sách các sản phẩm vừa quét */}
-            <div className="p-3 bg-slate-50 border-t border-slate-200 shrink-0 max-h-48 overflow-y-auto space-y-1.5">
+            {/* Danh sách các sản phẩm vừa quét trực tiếp với nút chỉnh SL ngay tại chỗ */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 shrink-0 max-h-52 overflow-y-auto space-y-1.5">
               <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 px-1">
                 <span>Vừa quét ({posmScannedHistory.length} SP):</span>
-                <span className="text-emerald-700 font-black">Tổng giỏ: {totalPosmCartStickers} tem</span>
+                <span className="text-emerald-700 font-black">Tổng giỏ in: {totalPosmCartStickers} tem</span>
               </div>
               {posmScannedHistory.length === 0 ? (
-                <div className="text-[11px] text-center text-slate-400 py-2 italic">
-                  Chĩa camera vào mã QR hoặc mã vạch sản phẩm để quét tự động...
+                <div className="text-[11px] text-center text-slate-400 py-2.5 italic">
+                  Chĩa camera vào mã QR hoặc mã vạch barcode sản phẩm để quét tự động...
                 </div>
               ) : (
-                posmScannedHistory.slice(0, 3).map((item, idx) => (
-                  <div key={item.id || idx} className="bg-white border border-slate-200/80 rounded-xl p-2 flex items-center justify-between gap-2 shadow-2xs">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-bold text-slate-800 truncate">{item.name}</div>
-                      <div className="text-[10px] text-slate-500 font-mono">
-                        Mã: <strong className="text-emerald-700">{item.productCode || item.maSanPham}</strong> • <strong className="text-rose-600">{Number(item.discountPrice || 0).toLocaleString('vi-VN')}đ</strong>
+                posmScannedHistory.slice(0, 4).map((item, idx) => {
+                  const code = String(item.productCode || item.maSanPham || '').trim();
+                  const inCartItem = posmCartItems.find(it => 
+                    (code && (it.maSanPham === code || it.productCode === code)) ||
+                    (it.name && it.name === item.name)
+                  );
+                  const currentQty = inCartItem?.quantity || item.inCartQty || 1;
+
+                  return (
+                    <div key={item.id || idx} className="bg-white border border-slate-200/90 rounded-2xl p-2 flex items-center justify-between gap-2 shadow-2xs">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-slate-800 truncate">{item.name}</div>
+                        <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 mt-0.5">
+                          <span>Mã: <strong className="text-emerald-700">{code || '-'}</strong></span>
+                          <span>•</span>
+                          <strong className="text-rose-600">{Number(item.discountPrice || 0).toLocaleString('vi-VN')}đ</strong>
+                        </div>
+                      </div>
+
+                      {/* Bộ nút tăng / giảm số lượng tem trực tiếp */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (inCartItem) {
+                                if (currentQty > 1) {
+                                  handleUpdatePosmCartItem(inCartItem.id, 'quantity', currentQty - 1);
+                                } else {
+                                  handleRemoveFromPosmCart(inCartItem.id, true);
+                                }
+                              }
+                            }}
+                            className="p-1 hover:bg-slate-200 text-slate-600 cursor-pointer transition-colors"
+                            title="Giảm 1 tem"
+                          >
+                            <Minus size={11} />
+                          </button>
+                          <span className="w-7 text-center text-xs font-black text-emerald-800 select-none">
+                            {currentQty}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleAddToCartPosm(item, 1, true);
+                            }}
+                            className="p-1 hover:bg-slate-200 text-slate-600 cursor-pointer transition-colors"
+                            title="Tăng 1 tem"
+                          >
+                            <Plus size={11} />
+                          </button>
+                        </div>
+
+                        <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-lg border border-emerald-200">
+                          Đã thêm
+                        </span>
                       </div>
                     </div>
-                    <div className="text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
-                      Đã thêm
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
             {/* Footer */}
-            <div className="p-3.5 bg-white border-t border-slate-200 shrink-0 flex items-center justify-between gap-2">
+            <div className="p-3 sm:p-3.5 bg-white border-t border-slate-200 shrink-0 flex items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={() => {
                   stopPosmScanning();
                   setIsPosmQrScannerOpen(false);
                 }}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold transition-colors cursor-pointer active:scale-95"
               >
                 Đóng máy quét
               </button>
@@ -7874,7 +8221,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                   setIsPosmQrScannerOpen(false);
                   setIsPosmCartModalOpen(true);
                 }}
-                className="flex-1 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1.5 cursor-pointer"
+                className="flex-1 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-500/25 flex items-center justify-center gap-1.5 cursor-pointer active:scale-98"
               >
                 <ShoppingCart size={16} />
                 <span>Xem Giỏ In ({posmCartItems.length} SP • {totalPosmCartStickers} tem)</span>
