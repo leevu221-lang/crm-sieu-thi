@@ -7,7 +7,7 @@ import {
   ChevronRight, LayoutGrid, FileText, Tag, Scan, MapPin, ClipboardList,
   RefreshCw, AlertCircle, Banknote, RotateCcw,
   ShoppingCart, Plus, ShoppingBag, Minus, Search, ExternalLink, FileSpreadsheet,
-  QrCode, Camera
+  QrCode, Camera, History, Undo2, Clock
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
@@ -405,6 +405,16 @@ export interface PosmCartItem {
   updatedAt?: string;
 }
 
+export interface PosmDeletedCartRecord {
+  id: string;
+  deletedAt: string;
+  items: PosmCartItem[];
+  totalItems: number;
+  totalStickers: number;
+  storeId?: string;
+  deletedBy?: string;
+}
+
 export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local = false }: { pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean }) {
   const { userProfile } = useAuth();
   const maKho = userProfile?.ma_kho || '';
@@ -466,6 +476,9 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   const [posmCartItems, setPosmCartItems] = useState<PosmCartItem[]>([]);
   const [isPosmCartModalOpen, setIsPosmCartModalOpen] = useState<boolean>(false);
   const [isSavingPosmCart, setIsSavingPosmCart] = useState<boolean>(false);
+  const [posmDeletedCarts, setPosmDeletedCarts] = useState<PosmDeletedCartRecord[]>([]);
+  const [isPosmHistoryModalOpen, setIsPosmHistoryModalOpen] = useState<boolean>(false);
+  const [posmHistoryPreviewId, setPosmHistoryPreviewId] = useState<string | null>(null);
 
   const totalPosmCartStickers = useMemo(() => {
     return posmCartItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
@@ -714,12 +727,13 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Real-time Firestore sync cho Giỏ In POSM ALL SP theo tên siêu thị
+  // Real-time Firestore sync cho Giỏ In POSM ALL SP & Lịch sử giỏ đã xóa theo tên siêu thị
   useEffect(() => {
     if (activeTab !== 'popup-all-sp') return;
     const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
     const storeDocId = normalizeStoreId(targetStore);
     const localKey = `rtst_posm_cart_${storeDocId}`;
+    const localHistoryKey = `rtst_posm_deleted_carts_${storeDocId}`;
 
     // 1. Tải cache cục bộ trước
     const cached = localStorage.getItem(localKey);
@@ -731,6 +745,17 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
       }
     } else {
       setPosmCartItems([]);
+    }
+
+    const cachedHistory = localStorage.getItem(localHistoryKey);
+    if (cachedHistory) {
+      try {
+        setPosmDeletedCarts(JSON.parse(cachedHistory));
+      } catch (e) {
+        console.error('Error parsing cached posm deleted carts:', e);
+      }
+    } else {
+      setPosmDeletedCarts([]);
     }
 
     // 2. Lắng nghe Firestore onSnapshot theo siêu thị
@@ -749,6 +774,20 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
             }
           } catch (err) {
             console.error('Lỗi khi đọc posm_all_sp_cart từ Firestore:', err);
+          }
+        }
+
+        if (data && data.posm_all_sp_deleted_carts !== undefined) {
+          try {
+            const parsedHistory = typeof data.posm_all_sp_deleted_carts === 'string'
+              ? JSON.parse(data.posm_all_sp_deleted_carts)
+              : data.posm_all_sp_deleted_carts;
+            if (Array.isArray(parsedHistory)) {
+              setPosmDeletedCarts(parsedHistory);
+              safeLocalStorageSet(localHistoryKey, JSON.stringify(parsedHistory));
+            }
+          } catch (err) {
+            console.error('Lỗi khi đọc posm_all_sp_deleted_carts từ Firestore:', err);
           }
         }
       }
@@ -899,9 +938,136 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     savePosmCartToDb(updated, 'Đã xóa sản phẩm khỏi Giỏ In POSM!');
   };
 
-  const handleClearPosmCart = () => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ sản phẩm trong Giỏ In POSM của siêu thị này?')) {
-      savePosmCartToDb([], 'Đã xóa rỗng Giỏ In POSM!');
+  const handleClearPosmCart = async () => {
+    if (posmCartItems.length === 0) {
+      showNotification('Giỏ in POSM hiện đang trống!', 'info');
+      return;
+    }
+
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa toàn bộ ${posmCartItems.length} sản phẩm (${totalPosmCartStickers} tem) trong Giỏ In POSM?\n\n(Hệ thống sẽ tự động lưu lại vào Lịch Sử Đã Xóa để bạn có thể khôi phục lại bất kỳ lúc nào mà không bị mất dữ liệu!)`)) {
+      return;
+    }
+
+    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+    const storeDocId = normalizeStoreId(targetStore);
+    const localCartKey = `rtst_posm_cart_${storeDocId}`;
+    const localHistoryKey = `rtst_posm_deleted_carts_${storeDocId}`;
+
+    const newRecord: PosmDeletedCartRecord = {
+      id: `del_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      deletedAt: new Date().toISOString(),
+      items: [...posmCartItems],
+      totalItems: posmCartItems.length,
+      totalStickers: totalPosmCartStickers,
+      storeId: targetStore,
+      deletedBy: (userProfile as any)?.full_name || (userProfile as any)?.name || (userProfile as any)?.username || 'Nhân viên siêu thị'
+    };
+
+    const updatedHistory = [newRecord, ...posmDeletedCarts.filter(r => r.id !== newRecord.id)].slice(0, 20);
+
+    // Cập nhật state & local storage tức thì
+    setPosmCartItems([]);
+    setPosmDeletedCarts(updatedHistory);
+    safeLocalStorageSet(localCartKey, JSON.stringify([]));
+    safeLocalStorageSet(localHistoryKey, JSON.stringify(updatedHistory));
+
+    // Đồng bộ lên Firestore chỉ trong 1 single write (Firebase Cost Optimization)
+    setIsSavingPosmCart(true);
+    try {
+      const docRef = doc(db, 'store', storeDocId);
+      await setDoc(docRef, {
+        posm_all_sp_cart: JSON.stringify([]),
+        posm_all_sp_deleted_carts: JSON.stringify(updatedHistory),
+        ten_sieu_thi: targetStore,
+        updated_at: new Date().toISOString()
+      }, { merge: true });
+      showNotification('Đã xóa giỏ in và lưu vào Lịch sử. Bạn có thể bấm "Khôi phục" bất kỳ lúc nào!', 'success');
+    } catch (err: any) {
+      console.error('Lỗi khi xóa và lưu lịch sử giỏ in POSM:', err);
+      showNotification('Đã lưu cục bộ nhưng lỗi đồng bộ Firestore: ' + (err?.message || ''), 'warning');
+    } finally {
+      setIsSavingPosmCart(false);
+    }
+  };
+
+  const handleRestorePosmCart = async (record: PosmDeletedCartRecord, mode: 'replace' | 'merge' = 'replace') => {
+    if (!record || !record.items || record.items.length === 0) {
+      showNotification('Không có dữ liệu sản phẩm trong bản ghi để khôi phục!', 'error');
+      return;
+    }
+
+    let finalCart: PosmCartItem[] = [];
+
+    if (mode === 'replace' || posmCartItems.length === 0) {
+      finalCart = [...record.items];
+    } else {
+      // Gộp thêm vào giỏ hiện tại
+      finalCart = [...posmCartItems];
+      record.items.forEach(incoming => {
+        const incCode = String(incoming.productCode || incoming.maSanPham || '').trim();
+        const existingIdx = finalCart.findIndex(cur => 
+          (incCode && (cur.maSanPham === incCode || cur.productCode === incCode)) ||
+          (cur.name && incoming.name && cur.name === incoming.name)
+        );
+
+        if (existingIdx >= 0) {
+          finalCart[existingIdx] = {
+            ...finalCart[existingIdx],
+            quantity: (finalCart[existingIdx].quantity || 1) + (incoming.quantity || 1),
+            originalPrice: incoming.originalPrice || finalCart[existingIdx].originalPrice,
+            discountPrice: incoming.discountPrice || finalCart[existingIdx].discountPrice
+          };
+        } else {
+          finalCart.push({ ...incoming });
+        }
+      });
+    }
+
+    await savePosmCartToDb(
+      finalCart, 
+      `Khôi phục thành công giỏ in (${record.items.length} SP, ${record.totalStickers} tem)!`
+    );
+  };
+
+  const handleDeleteHistoryRecord = async (recordId: string) => {
+    const updated = posmDeletedCarts.filter(r => r.id !== recordId);
+    setPosmDeletedCarts(updated);
+    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+    const storeDocId = normalizeStoreId(targetStore);
+    const localHistoryKey = `rtst_posm_deleted_carts_${storeDocId}`;
+    safeLocalStorageSet(localHistoryKey, JSON.stringify(updated));
+
+    try {
+      const docRef = doc(db, 'store', storeDocId);
+      await setDoc(docRef, {
+        posm_all_sp_deleted_carts: JSON.stringify(updated),
+        updated_at: new Date().toISOString()
+      }, { merge: true });
+      showNotification('Đã xóa bản ghi khỏi lịch sử!', 'success');
+    } catch (e) {
+      console.error('Lỗi khi xóa bản ghi lịch sử:', e);
+    }
+  };
+
+  const handleClearAllDeletedHistory = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử giỏ đã xóa của siêu thị này? Thao tác này không thể hoàn tác.')) {
+      return;
+    }
+    setPosmDeletedCarts([]);
+    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+    const storeDocId = normalizeStoreId(targetStore);
+    const localHistoryKey = `rtst_posm_deleted_carts_${storeDocId}`;
+    safeLocalStorageSet(localHistoryKey, JSON.stringify([]));
+
+    try {
+      const docRef = doc(db, 'store', storeDocId);
+      await setDoc(docRef, {
+        posm_all_sp_deleted_carts: JSON.stringify([]),
+        updated_at: new Date().toISOString()
+      }, { merge: true });
+      showNotification('Đã dọn sạch toàn bộ lịch sử giỏ in đã xóa!', 'success');
+    } catch (e) {
+      console.error('Lỗi khi dọn sạch lịch sử:', e);
     }
   };
 
@@ -4690,6 +4856,19 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             </button>
                           </div>
 
+                          {/* Nút Khôi phục giỏ đã xóa nếu có lịch sử */}
+                          {posmDeletedCarts.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setIsPosmHistoryModalOpen(true)}
+                              className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100/80 text-amber-800 border border-amber-300/80 rounded-2xl text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs hover:border-amber-400"
+                              title="Xem danh sách các giỏ in đã xóa và khôi phục lại"
+                            >
+                              <RotateCcw size={13} className="text-amber-600" />
+                              <span>Lịch sử đã xóa / Khôi phục ({posmDeletedCarts.length})</span>
+                            </button>
+                          )}
+
                           {/* Danh sách xem nhanh 2 sản phẩm gần nhất nếu có */}
                           {posmCartItems.length > 0 && (
                             <div className="space-y-1.5 pt-1 border-t border-slate-100">
@@ -7234,6 +7413,17 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                     <span className="bg-white/20 text-white text-xs font-black px-2.5 py-0.5 rounded-full backdrop-blur-xs shadow-2xs border border-white/20">
                       {posmCartItems.length} sản phẩm
                     </span>
+                    {posmDeletedCarts.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setIsPosmHistoryModalOpen(true)}
+                        className="bg-white/15 hover:bg-white/25 text-white text-xs font-bold px-2.5 py-0.5 rounded-full backdrop-blur-xs shadow-2xs border border-white/20 flex items-center gap-1 transition-all cursor-pointer"
+                        title="Xem lịch sử các giỏ hàng đã xóa và khôi phục"
+                      >
+                        <RotateCcw size={11} />
+                        <span>Lịch sử đã xóa ({posmDeletedCarts.length})</span>
+                      </button>
+                    )}
                   </div>
                   <p className="text-[11px] text-emerald-100 font-semibold mt-0.5 flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
@@ -7270,6 +7460,17 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                     <Scan size={14} className="animate-pulse" />
                     <span>QUÉT QR MÃ SP</span>
                   </button>
+                  {posmDeletedCarts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setIsPosmHistoryModalOpen(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer hover:border-slate-300"
+                      title="Xem danh sách các giỏ in đã xóa và khôi phục"
+                    >
+                      <History size={13} className="text-amber-600" />
+                      <span>Lịch sử đã xóa ({posmDeletedCarts.length})</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={handleClearPosmCart}
@@ -7285,7 +7486,46 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
             {/* Body */}
             <div className="p-4 md:p-5 overflow-y-auto flex-1 space-y-4">
               {posmCartItems.length === 0 ? (
-                <div className="py-16 flex flex-col items-center justify-center text-center">
+                <div className="py-12 flex flex-col items-center justify-center text-center">
+                  {/* Banner khôi phục giỏ vừa xóa gần nhất nếu có */}
+                  {posmDeletedCarts.length > 0 && (
+                    <div className="w-full max-w-lg mb-6 p-4 bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-teal-500/10 border-2 border-emerald-500/40 rounded-3xl text-left shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/30">
+                          <RotateCcw size={20} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                            <span>Giỏ Vừa Xóa Gần Nhất</span>
+                            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                              {posmDeletedCarts[0].totalItems} SP • {posmDeletedCarts[0].totalStickers} tem
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+                            Đã xóa lúc: {new Date(posmDeletedCarts[0].deletedAt).toLocaleString('vi-VN')} {posmDeletedCarts[0].deletedBy ? `(${posmDeletedCarts[0].deletedBy})` : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-emerald-200/60">
+                        <button
+                          type="button"
+                          onClick={() => handleRestorePosmCart(posmDeletedCarts[0], 'replace')}
+                          className="flex-1 py-2 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                        >
+                          <RotateCcw size={13} />
+                          <span>KHÔI PHỤC GIỎ NÀY NGAY</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsPosmHistoryModalOpen(true)}
+                          className="py-2 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                        >
+                          Tất cả lịch sử ({posmDeletedCarts.length})
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="w-20 h-20 rounded-3xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mb-4 shadow-sm">
                     <ShoppingBag size={40} />
                   </div>
@@ -7628,6 +7868,236 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               >
                 <ShoppingCart size={16} />
                 <span>Xem Giỏ In ({posmCartItems.length} SP • {totalPosmCartStickers} tem)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Lịch Sử Giỏ In POSM Đã Xóa & Khôi Phục */}
+      {isPosmHistoryModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[92vh] shadow-2xl overflow-hidden border border-slate-200 flex flex-col">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 px-5 py-4 text-white flex items-center justify-between shrink-0 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center text-white font-black shadow-inner">
+                  <History size={22} className="text-emerald-200" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-base md:text-lg uppercase tracking-wider leading-tight text-white">
+                      LỊCH SỬ GIỎ IN ĐÃ XÓA
+                    </h3>
+                    <span className="bg-white/20 text-white text-xs font-black px-2 py-0.5 rounded-full backdrop-blur-xs shadow-2xs border border-white/20">
+                      {posmDeletedCarts.length} lần xóa
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-emerald-100 font-semibold mt-0.5 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
+                    <span>Siêu thị: <strong className="text-white underline font-black">{currentStoreId && currentStoreId !== 'ALL' ? currentStoreId : 'Siêu thị đang chọn'}</strong> • Khôi phục giỏ in tức thì</span>
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsPosmHistoryModalOpen(false)}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Đóng modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Sub-header hướng dẫn */}
+            <div className="px-5 py-2.5 bg-amber-50/80 border-b border-amber-200/80 flex items-center justify-between gap-3 text-xs text-amber-900 font-medium shrink-0">
+              <div className="flex items-center gap-2">
+                <RotateCcw size={14} className="text-amber-700 shrink-0" />
+                <span>
+                  Bấm <strong>Khôi phục</strong> để phục hồi nguyên vẹn danh sách sản phẩm, số lượng tem và giá đã nhập.
+                </span>
+              </div>
+              {posmDeletedCarts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearAllDeletedHistory}
+                  className="text-red-600 hover:text-red-700 hover:underline font-bold text-[11px] shrink-0 cursor-pointer"
+                >
+                  Xóa sạch lịch sử
+                </button>
+              )}
+            </div>
+
+            {/* Body */}
+            <div className="p-4 md:p-5 overflow-y-auto flex-1 space-y-3.5">
+              {posmDeletedCarts.length === 0 ? (
+                <div className="py-16 flex flex-col items-center justify-center text-center">
+                  <div className="w-16 h-16 rounded-3xl bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
+                    <Archive size={32} />
+                  </div>
+                  <h4 className="text-sm font-black text-slate-700 uppercase tracking-wide">
+                    Chưa Có Giỏ In Nào Bị Xóa
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-sm mt-1">
+                    Khi bạn xóa giỏ in POSM, bản ghi sẽ tự động được lưu lại tại đây để khôi phục bất cứ khi nào cần.
+                  </p>
+                </div>
+              ) : (
+                posmDeletedCarts.map((record, rIdx) => {
+                  const isPreviewOpen = posmHistoryPreviewId === record.id;
+                  const dateStr = record.deletedAt ? new Date(record.deletedAt).toLocaleString('vi-VN') : 'Không rõ thời gian';
+
+                  return (
+                    <div 
+                      key={record.id || rIdx}
+                      className="border border-slate-200 hover:border-emerald-300 rounded-2xl p-4 bg-white hover:bg-slate-50/50 transition-all shadow-2xs space-y-3"
+                    >
+                      {/* Tiêu đề & Thông tin lần xóa */}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black text-xs">
+                            #{rIdx + 1}
+                          </div>
+                          <div>
+                            <div className="text-xs font-black text-slate-800 flex items-center gap-2">
+                              <span>{dateStr}</span>
+                              {rIdx === 0 && (
+                                <span className="bg-emerald-500 text-white text-[9.5px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider">
+                                  Mới nhất
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                              {record.deletedBy ? `Người xóa: ${record.deletedBy}` : ''}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Badges số lượng */}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-black px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 border border-slate-200">
+                            {record.totalItems || record.items?.length || 0} sản phẩm
+                          </span>
+                          <span className="text-xs font-black px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            {record.totalStickers || 0} tem
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Các nút hành động */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                        <div className="flex items-center gap-2">
+                          {/* Nút Khôi Phục */}
+                          {posmCartItems.length === 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleRestorePosmCart(record, 'replace');
+                                setIsPosmHistoryModalOpen(false);
+                                setIsPosmCartModalOpen(true);
+                              }}
+                              className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                            >
+                              <RotateCcw size={13} />
+                              <span>KHÔI PHỤC GIỎ NÀY</span>
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm('Giỏ in hiện tại đang có ' + posmCartItems.length + ' sản phẩm.\n\nBạn có muốn THAY THẾ toàn bộ giỏ in hiện tại bằng giỏ này?')) {
+                                    handleRestorePosmCart(record, 'replace');
+                                    setIsPosmHistoryModalOpen(false);
+                                    setIsPosmCartModalOpen(true);
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                                title="Thay thế toàn bộ giỏ hiện tại"
+                              >
+                                <RotateCcw size={12} />
+                                <span>Khôi phục (Ghi đè)</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleRestorePosmCart(record, 'merge');
+                                  setIsPosmHistoryModalOpen(false);
+                                  setIsPosmCartModalOpen(true);
+                                }}
+                                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                                title="Giữ giỏ hiện tại và cộng dồn thêm sản phẩm của giỏ này"
+                              >
+                                <Plus size={12} />
+                                <span>Gộp thêm</span>
+                              </button>
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => setPosmHistoryPreviewId(isPreviewOpen ? null : record.id)}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            {isPreviewOpen ? 'Thu gọn' : `Xem chi tiết (${record.items?.length || 0})`}
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteHistoryRecord(record.id)}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          title="Xóa bản ghi lịch sử này"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+
+                      {/* Chi tiết danh sách sản phẩm trong giỏ nếu bấm Xem chi tiết */}
+                      {isPreviewOpen && (
+                        <div className="mt-2 pt-2 border-t border-slate-100 max-h-48 overflow-y-auto space-y-1.5 bg-slate-50/70 p-2.5 rounded-xl border border-slate-200/80">
+                          <div className="text-[11px] font-bold text-slate-600 mb-1">
+                            Danh sách {record.items?.length} sản phẩm trong giỏ:
+                          </div>
+                          {record.items?.map((item, iIdx) => (
+                            <div key={item.id || iIdx} className="bg-white p-2 rounded-lg border border-slate-200/60 flex items-center justify-between text-xs gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="font-bold text-slate-800 truncate">{item.name}</div>
+                                <div className="text-[10px] text-slate-500 font-mono">
+                                  Mã: <strong className="text-emerald-700">{item.productCode || item.maSanPham}</strong> • SL: <strong className="text-emerald-700">{item.quantity || 1} tem</strong>
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <div className="text-xs font-bold text-rose-600 font-mono">
+                                  {Number(item.discountPrice || 0).toLocaleString('vi-VN')}đ
+                                </div>
+                                {Number(item.originalPrice || 0) > 0 && (
+                                  <div className="text-[10px] text-slate-400 line-through font-mono">
+                                    {Number(item.originalPrice).toLocaleString('vi-VN')}đ
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-3.5 bg-slate-50 border-t border-slate-200 shrink-0 flex items-center justify-between gap-2">
+              <span className="text-[11px] text-slate-500 font-medium">
+                Tự động lưu tối đa 20 lần xóa gần nhất trên Cloud Firestore.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsPosmHistoryModalOpen(false)}
+                className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Đóng
               </button>
             </div>
           </div>
