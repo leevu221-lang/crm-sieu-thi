@@ -6047,22 +6047,34 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               {activeTab !== 'sticker-mln' && activeTab !== 'sticker-gvgs' && <td className="py-3 px-4 text-sm font-medium text-slate-600">{item.nhomHang || '-'}</td>}
                               <td className="py-3 px-4 text-sm font-medium text-slate-500 font-mono tracking-wider">{item.qrData || '-'}</td>
                               <td className="py-3 px-4 text-sm font-medium text-slate-600 text-right">
-                                <input 
-                                  type="text"
-                                  className="w-32 bg-white border border-slate-200 text-slate-700 py-1 px-2 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right"
-                                  value={Number(item.originalPrice || 0).toLocaleString('vi-VN') + ' đ'}
-                                  onFocus={(e) => e.target.select()}
-                                  onChange={(e) => handlePriceChange(index, 'originalPrice', e.target.value)}
-                                />
+                                <div className="relative inline-block">
+                                  <input 
+                                    type="text"
+                                    className="w-32 bg-white border border-slate-200 text-slate-700 py-1 pl-2 pr-6 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right"
+                                    value={item.originalPrice ? Number(item.originalPrice).toLocaleString('vi-VN') : ''}
+                                    placeholder="0"
+                                    onFocus={(e) => e.target.select()}
+                                    onChange={(e) => handlePriceChange(index, 'originalPrice', e.target.value)}
+                                  />
+                                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400 pointer-events-none select-none">
+                                    đ
+                                  </span>
+                                </div>
                               </td>
                               <td className="py-3 px-4 text-sm font-bold text-red-600 text-right">
-                                <input 
-                                  type="text"
-                                  className="w-32 bg-white border border-slate-200 text-red-600 py-1 px-2 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right"
-                                  value={Number(item.discountPrice || 0).toLocaleString('vi-VN') + ' đ'}
-                                  onFocus={(e) => e.target.select()}
-                                  onChange={(e) => handlePriceChange(index, 'discountPrice', e.target.value)}
-                                />
+                                <div className="relative inline-block">
+                                  <input 
+                                    type="text"
+                                    className="w-32 bg-white border border-slate-200 text-red-600 py-1 pl-2 pr-6 rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-right"
+                                    value={item.discountPrice ? Number(item.discountPrice).toLocaleString('vi-VN') : ''}
+                                    placeholder="0"
+                                    onFocus={(e) => e.target.select()}
+                                    onChange={(e) => handlePriceChange(index, 'discountPrice', e.target.value)}
+                                  />
+                                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-red-400 pointer-events-none select-none">
+                                    đ
+                                  </span>
+                                </div>
                               </td>
                               <td className="py-3 px-4 text-center">
                                 <button 
@@ -7120,24 +7132,34 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               )}
                             </td>
                             <td className="py-3 px-3 text-right">
-                              <input 
-                                type="text"
-                                className="w-32 bg-slate-50 border border-slate-200 text-slate-700 py-1.5 px-2 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-right transition-all"
-                                value={item.originalPrice ? Number(item.originalPrice).toLocaleString('vi-VN') + ' đ' : ''}
-                                placeholder="0 đ"
-                                onFocus={(e) => e.target.select()}
-                                onChange={(e) => handleUpdatePosmCartItem(item.id, 'originalPrice', e.target.value)}
-                              />
+                              <div className="relative inline-block">
+                                <input 
+                                  type="text"
+                                  className="w-32 bg-slate-50 border border-slate-200 text-slate-700 py-1.5 pl-2 pr-6 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-right transition-all"
+                                  value={item.originalPrice ? Number(item.originalPrice).toLocaleString('vi-VN') : ''}
+                                  placeholder="0"
+                                  onFocus={(e) => e.target.select()}
+                                  onChange={(e) => handleUpdatePosmCartItem(item.id, 'originalPrice', e.target.value)}
+                                />
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400 pointer-events-none select-none">
+                                  đ
+                                </span>
+                              </div>
                             </td>
                             <td className="py-3 px-3 text-right">
-                              <input 
-                                type="text"
-                                className="w-32 bg-rose-50/40 border border-rose-300 text-rose-600 py-1.5 px-2 rounded-xl text-xs font-black focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white text-right transition-all shadow-2xs"
-                                value={item.discountPrice ? Number(item.discountPrice).toLocaleString('vi-VN') + ' đ' : ''}
-                                placeholder="0 đ"
-                                onFocus={(e) => e.target.select()}
-                                onChange={(e) => handleUpdatePosmCartItem(item.id, 'discountPrice', e.target.value)}
-                              />
+                              <div className="relative inline-block">
+                                <input 
+                                  type="text"
+                                  className="w-32 bg-rose-50/40 border border-rose-300 text-rose-600 py-1.5 pl-2 pr-6 rounded-xl text-xs font-black focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white text-right transition-all shadow-2xs"
+                                  value={item.discountPrice ? Number(item.discountPrice).toLocaleString('vi-VN') : ''}
+                                  placeholder="0"
+                                  onFocus={(e) => e.target.select()}
+                                  onChange={(e) => handleUpdatePosmCartItem(item.id, 'discountPrice', e.target.value)}
+                                />
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-black text-rose-400 pointer-events-none select-none">
+                                  đ
+                                </span>
+                              </div>
                             </td>
                             <td className="py-3 px-3 text-center">
                               <button
