@@ -365,6 +365,43 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
         {`
           @import url('https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:ital,wght@0,500;0,700;0,800;1,500;1,700;1,800&family=Oswald:wght@400;500;700;900&display=swap');
           
+          @font-face {
+            font-family: "UTM Colossalis";
+            src: url("/fonts/UTM-Colossalis.ttf") format("truetype"),
+                 url("/fonts/UTM%20Colossalis.ttf") format("truetype"),
+                 url("/fonts/UTM Colossalis.ttf") format("truetype");
+            font-weight: 100 900;
+            font-style: normal;
+            font-display: swap;
+          }
+          @font-face {
+            font-family: "UTM Colossalis";
+            src: url("/fonts/UTM-Colossalis.ttf") format("truetype"),
+                 url("/fonts/UTM%20Colossalis.ttf") format("truetype"),
+                 url("/fonts/UTM Colossalis.ttf") format("truetype");
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+          }
+          @font-face {
+            font-family: "UTM Colossalis";
+            src: url("/fonts/UTM-Colossalis.ttf") format("truetype"),
+                 url("/fonts/UTM%20Colossalis.ttf") format("truetype"),
+                 url("/fonts/UTM Colossalis.ttf") format("truetype");
+            font-weight: bold;
+            font-style: normal;
+            font-display: swap;
+          }
+          @font-face {
+            font-family: "UTM Colossalis";
+            src: url("/fonts/UTM-Colossalis.ttf") format("truetype"),
+                 url("/fonts/UTM%20Colossalis.ttf") format("truetype"),
+                 url("/fonts/UTM Colossalis.ttf") format("truetype");
+            font-weight: 900;
+            font-style: normal;
+            font-display: swap;
+          }
+
           /* Override global nowrap !important in index.css for cells inside printing components */
           .print-area td, 
           .print-modal-container td {
@@ -1166,28 +1203,29 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                 }}
               ></div>
               
-              {/* Centered Title - 2 dòng KHUYẾN MÃI / GIÁ SỐC chuẩn Ảnh 2 */}
+              {/* Centered Title - 2 dòng KHUYẾN MÃI / GIÁ SỐC chuẩn font UTM Colossalis như Hình 1 */}
               <div 
-                className="flex flex-col items-center justify-center text-center flex-1 shrink-0 leading-none" 
+                className="flex flex-col items-center justify-center text-center flex-1 shrink-0 leading-none select-none" 
                 style={{ 
-                  fontFamily: '"UTM Colossalis", "Oswald", sans-serif',
-                  fontWeight: 900
+                  fontFamily: '"UTM Colossalis", sans-serif'
                 }}
               >
                 <div 
-                  className="font-black uppercase tracking-[0.06em] leading-[0.9]"
+                  className="uppercase tracking-[0.04em] leading-[0.88]"
                   style={{
-                    fontSize: isA4Ngang ? '64px' : isA6 ? '32px' : '46px',
-                    WebkitTextStroke: isA4Ngang ? '2.5px black' : isA6 ? '1px black' : '1.8px black',
+                    fontFamily: '"UTM Colossalis", sans-serif',
+                    fontSize: isA4Ngang ? '68px' : isA6 ? '34px' : '48px',
+                    fontWeight: 'normal',
                   }}
                 >
                   KHUYẾN MÃI
                 </div>
                 <div 
-                  className="font-black uppercase tracking-[0.08em] leading-[0.9] mt-0.5"
+                  className="uppercase tracking-[0.06em] leading-[0.88] mt-1"
                   style={{
-                    fontSize: isA4Ngang ? '64px' : isA6 ? '32px' : '46px',
-                    WebkitTextStroke: isA4Ngang ? '2.5px black' : isA6 ? '1px black' : '1.8px black',
+                    fontFamily: '"UTM Colossalis", sans-serif',
+                    fontSize: isA4Ngang ? '68px' : isA6 ? '34px' : '48px',
+                    fontWeight: 'normal',
                   }}
                 >
                   GIÁ SỐC
