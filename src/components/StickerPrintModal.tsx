@@ -29,6 +29,42 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
   const [rotateForBrother, setRotateForBrother] = useState<boolean>(true);
   const [isIPrintLandscapeRotated, setIsIPrintLandscapeRotated] = useState<boolean>(false);
 
+  const getLayoutStyles = () => {
+    if (config.style === 'phieu_bh') {
+      if (config.layout === '1') return { cols: 1, rows: 1, scale: 1.8, orientation: 'portrait' };
+      if (config.layout === '2') return { cols: 2, rows: 1, scale: 1.35, orientation: 'landscape' };
+      if (config.layout === '4') return { cols: 2, rows: 2, scale: 0.92, orientation: 'portrait' };
+      if (config.layout === 'right') return { cols: 2, rows: 1, scale: 0.95, orientation: 'landscape' };
+      return { cols: 2, rows: 2, scale: 0.92, orientation: 'portrait' };
+    }
+    if (config.style === 'address_flyer') return { cols: 3, rows: 2, scale: 1, orientation: 'portrait' };
+    if (config.style === 'dcnb') return { cols: 3, rows: 8, scale: 1, orientation: 'portrait' };
+    if (config.style === 'display' || config.style === 'giovang' || config.style === 'a4_giasoc') return { cols: 1, rows: 1, scale: 1, orientation: 'portrait' };
+    if (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp') {
+      if (config.layout === 'a4_ngang' || config.layout === '1_a4') return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
+      if (config.layout === '2') return { cols: 1, rows: 2, scale: 1, orientation: 'portrait' };
+      return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
+    }
+    switch (config.layout) {
+      case '1': return { cols: 1, rows: 1, scale: 1.96, orientation: 'landscape' };
+      case '2': return { cols: 1, rows: 2, scale: 1.38, orientation: 'portrait' };
+      case '4': return { cols: 2, rows: 2, scale: 0.94, orientation: 'landscape' };
+      case '8': return { cols: 2, rows: 4, scale: 0.68, orientation: 'portrait' };
+      case '12': return { cols: 4, rows: 3, scale: 0.47, orientation: 'landscape' };
+      case '16': return { cols: 4, rows: 4, scale: 0.46, orientation: 'landscape' };
+      default: return { cols: 2, rows: 2, scale: 0.94, orientation: 'landscape' };
+    }
+  };
+
+  const layoutStyles = getLayoutStyles();
+  const isLandscape = layoutStyles.orientation === 'landscape';
+  const pageDimensionsMm = isA5
+    ? (isLandscape ? { width: 210, height: 148.5 } : { width: 148.5, height: 210 })
+    : (isLandscape ? { width: 297, height: 210 } : { width: 210, height: 297 });
+
+  const targetWidthPx = Math.round(pageDimensionsMm.width * 3.7795);
+  const targetHeightPx = Math.round(pageDimensionsMm.height * 3.7795);
+
   const isMobileOrIos = useMemo(() => {
     if (typeof window === 'undefined') return false;
     return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -52,26 +88,21 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
 
       if (containerRef.current) {
         const availableWidth = containerRef.current.clientWidth;
-        const padding = 64;
-        const isPortrait = (config.layout === '2' && !isPhieuBH) || config.layout === '8' || config.style === 'display' || config.style === 'giovang' || isA4Giasoc || config.style === 'address_flyer' || (isPhieuBH && config.layout !== 'right' && config.layout !== '2');
-        const pageDimensions = isA5 
-          ? { width: 148.5, height: 210 } // A5
-          : { width: 210, height: 297 };  // A4
+        const padding = window.innerWidth < 640 ? 16 : 48;
+        const usableWidth = availableWidth - padding;
         
-        const targetWidthPx = (isPortrait ? pageDimensions.width : pageDimensions.height) * 3.78;
-        
-        if (availableWidth - padding < targetWidthPx) {
-          setPreviewScale((availableWidth - padding) / targetWidthPx);
+        if (usableWidth < targetWidthPx) {
+          setPreviewScale(Math.max(0.15, usableWidth / targetWidthPx));
         } else {
           setPreviewScale(1);
         }
       }
     };
 
-    setTimeout(updateScale, 10);
+    setTimeout(updateScale, 20);
     window.addEventListener('resize', updateScale);
     return () => window.removeEventListener('resize', updateScale);
-  }, [isOpen, config.layout, isIPrintMode]);
+  }, [isOpen, config.layout, config.style, isIPrintMode, targetWidthPx]);
 
   if (!isOpen) return null;
 
@@ -152,6 +183,10 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
           boxShadow: 'none',
           filter: 'none',
           transform: 'none',
+          position: 'static',
+          top: 'auto',
+          left: 'auto',
+          margin: '0',
         }
       });
 
@@ -257,6 +292,10 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
             boxShadow: 'none',
             filter: 'none',
             transform: 'none',
+            position: 'static',
+            top: 'auto',
+            left: 'auto',
+            margin: '0',
           }
         });
 
@@ -300,53 +339,6 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
       setIsExportingPdf(false);
     }
   };
-
-  const getLayoutStyles = () => {
-    if (config.style === 'phieu_bh') {
-      if (config.layout === '1') {
-        return { cols: 1, rows: 1, scale: 1.8, orientation: 'portrait' };
-      }
-      if (config.layout === '2') {
-        return { cols: 2, rows: 1, scale: 1.35, orientation: 'landscape' };
-      }
-      if (config.layout === '4') {
-        return { cols: 2, rows: 2, scale: 0.92, orientation: 'portrait' };
-      }
-      if (config.layout === 'right') {
-        return { cols: 2, rows: 1, scale: 0.95, orientation: 'landscape' };
-      }
-      return { cols: 2, rows: 2, scale: 0.92, orientation: 'portrait' };
-    }
-    if (config.style === 'address_flyer') {
-      return { cols: 3, rows: 2, scale: 1, orientation: 'portrait' };
-    }
-    if (config.style === 'dcnb') {
-      return { cols: 3, rows: 8, scale: 1, orientation: 'portrait' };
-    }
-    if (config.style === 'display' || config.style === 'giovang' || config.style === 'a4_giasoc') {
-      return { cols: 1, rows: 1, scale: 1, orientation: 'portrait' };
-    }
-    if (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp') {
-      if (config.layout === 'a4_ngang' || config.layout === '1_a4') {
-        return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
-      }
-      if (config.layout === '2') {
-        return { cols: 1, rows: 2, scale: 1, orientation: 'portrait' };
-      }
-      return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
-    }
-    switch (config.layout) {
-      case '1': return { cols: 1, rows: 1, scale: 1.96, orientation: 'landscape' };
-      case '2': return { cols: 1, rows: 2, scale: 1.38, orientation: 'portrait' };
-      case '4': return { cols: 2, rows: 2, scale: 0.94, orientation: 'landscape' };
-      case '8': return { cols: 2, rows: 4, scale: 0.68, orientation: 'portrait' };
-      case '12': return { cols: 4, rows: 3, scale: 0.47, orientation: 'landscape' };
-      case '16': return { cols: 4, rows: 4, scale: 0.46, orientation: 'landscape' };
-      default: return { cols: 2, rows: 2, scale: 0.94, orientation: 'landscape' };
-    }
-  };
-
-  const layoutStyles = getLayoutStyles();
 
   const itemsPerPage = layoutStyles.cols * layoutStyles.rows;
   const pages = [];
@@ -420,11 +412,29 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
             display: block !important;
             overflow: visible !important;
           }
+          .preview-page-wrapper {
+            width: 100% !important;
+            max-width: none !important;
+            display: block !important;
+          }
+          .preview-scaler-box {
+            display: contents !important;
+            width: auto !important;
+            height: auto !important;
+            overflow: visible !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+          }
           .page-break {
+            position: static !important;
+            transform: none !important;
             page-break-before: avoid !important;
             break-before: avoid !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+            width: ${isA5 ? (layoutStyles.orientation === 'portrait' ? '147.5mm' : '209mm') : (layoutStyles.orientation === 'portrait' ? '210mm' : '297mm')} !important;
+            min-width: 0 !important;
+            max-width: none !important;
             height: ${layoutStyles.orientation === 'portrait' ? '295mm' : '205mm'} !important;
             max-height: ${layoutStyles.orientation === 'portrait' ? '295mm' : '205mm'} !important;
             overflow: hidden !important;
@@ -575,25 +585,29 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
         className={`w-full ${
           isIPrintMode 
             ? 'bg-white p-0 m-0 overflow-visible max-h-none rounded-none shadow-none flex justify-center' 
-            : 'bg-slate-100 rounded-2xl overflow-auto max-h-[90vh] max-w-6xl p-4 sm:p-8 print:p-0 print:m-0 print:max-h-none print:w-full print:bg-white print:overflow-visible'
+            : 'bg-slate-100 rounded-2xl overflow-auto max-h-[90vh] max-w-6xl p-2 sm:p-6 md:p-8 print:p-0 print:m-0 print:max-h-none print:w-full print:bg-white print:overflow-visible'
         }`}
       >
-        <div style={{ zoom: isIPrintMode ? 1 : previewScale }} className="print-area flex flex-col items-center w-full">
+        <div className="print-area flex flex-col items-center w-full">
           {data.length === 0 ? (
             <div className="text-center text-slate-500 font-medium py-12 print:hidden w-full">
               Không có dữ liệu để in. Vui lòng tải file dữ liệu.
             </div>
           ) : (
-            <div className={`flex flex-col items-center gap-8 print:gap-0 print:block w-full ${isIPrintMode ? 'py-4' : ''}`}>
+            <div className={`flex flex-col items-center gap-6 sm:gap-8 print:gap-0 print:block w-full ${isIPrintMode ? 'py-4' : ''}`}>
               {(renderAllPages || pages.length <= 4 ? pages : pages.slice(0, 4)).map((page, pageIndex) => (
-                <div key={pageIndex} className="flex flex-col items-center w-full print:contents">
+                <div 
+                  key={pageIndex} 
+                  className="preview-page-wrapper flex flex-col items-center print:contents"
+                  style={{
+                    width: `${targetWidthPx * previewScale}px`,
+                    maxWidth: '100%',
+                  }}
+                >
                   {/* Thanh thông tin trang & nút xuất ảnh riêng cho từng trang */}
                   <div 
                     className="w-full flex items-center justify-between px-3 py-1.5 text-slate-600 text-xs font-bold print:hidden no-export bg-white/90 backdrop-blur-xs rounded-xl border border-slate-200 shadow-xs mb-2" 
                     style={{ 
-                      maxWidth: isA5 
-                        ? (layoutStyles.orientation === 'portrait' ? '147.5mm' : '209mm') 
-                        : (layoutStyles.orientation === 'portrait' ? '210mm' : '297mm'),
                       width: '100%'
                     }}
                   >
@@ -625,51 +639,71 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                     </div>
                   </div>
 
+                  {/* Khung co giãn trang chuẩn tỷ lệ theo màn hình */}
                   <div 
-                    id={`sticker-page-${pageIndex}`}
-                    className={`bg-white grid page-break ${isIPrintMode ? 'shadow-none border border-slate-200' : 'shadow-xl print:shadow-none'}`} 
-                    style={{ 
-                      width: isA5 
-                        ? (layoutStyles.orientation === 'portrait' ? '147.5mm' : '209mm') 
-                        : (layoutStyles.orientation === 'portrait' ? '210mm' : '297mm'),
-                      height: isA5 
-                        ? (layoutStyles.orientation === 'portrait' ? '209mm' : '147.5mm') 
-                        : (layoutStyles.orientation === 'portrait' ? '295mm' : '205mm'),
-                      padding: (config.style === 'address_flyer' || config.style === 'dcnb') ? '5mm' : ((isA5 || isA4Giasoc || isDisplayA4) ? '0' : '2mm'),
-                      gridTemplateColumns: `repeat(${layoutStyles.cols}, 1fr)`,
-                      gridTemplateRows: `repeat(${layoutStyles.rows}, 1fr)`,
-                      margin: isIPrintMode ? '0 auto 12mm auto' : '0 auto',
-                      boxSizing: 'border-box',
-                      gap: config.style === 'dcnb' ? '1mm' : '0'
+                    className="preview-scaler-box print:contents"
+                    style={{
+                      width: `${targetWidthPx * previewScale}px`,
+                      height: `${targetHeightPx * previewScale}px`,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      borderRadius: isIPrintMode ? '0' : '8px',
+                      boxShadow: isIPrintMode ? 'none' : '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                      backgroundColor: '#ffffff',
                     }}
                   >
-                  {page.map((item, index) => (
-                    <div key={index} className="relative overflow-hidden border-dashed border-slate-100 print:border-none flex items-center justify-center min-w-0 min-h-0" style={{ borderWidth: '0.5px' }}>
-                      <div style={{
-                        width: `${baseStickerWidth * layoutStyles.scale}mm`,
-                        height: `${baseStickerHeight * layoutStyles.scale}mm`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                      }}>
-                        <div style={{ 
-                          transform: `scale(${layoutStyles.scale})`, 
-                          transformOrigin: 'center', 
-                          width: `${baseStickerWidth}mm`, 
-                          height: `${baseStickerHeight}mm`, 
-                          flexShrink: 0 
-                        }}>
-                          {item ? (
-                             <Sticker item={item} style={config.style} layout={config.layout} showPromoLabel={config.showPromoLabel} mlnHeaderTemplate={mlnHeaderTemplate} mlnFooterTemplate={mlnFooterTemplate} promoLabelText={promoLabelText} />
-                          ) : null}
+                    <div 
+                      id={`sticker-page-${pageIndex}`}
+                      className={`bg-white grid page-break print:shadow-none ${isIPrintMode ? 'border border-slate-200' : ''}`} 
+                      style={{ 
+                        width: `${pageDimensionsMm.width}mm`,
+                        height: `${pageDimensionsMm.height}mm`,
+                        minWidth: `${pageDimensionsMm.width}mm`,
+                        minHeight: `${pageDimensionsMm.height}mm`,
+                        maxWidth: `${pageDimensionsMm.width}mm`,
+                        maxHeight: `${pageDimensionsMm.height}mm`,
+                        flexShrink: 0,
+                        transform: `scale(${previewScale})`,
+                        transformOrigin: 'top left',
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        padding: (config.style === 'address_flyer' || config.style === 'dcnb') ? '5mm' : ((isA5 || isA4Giasoc || isDisplayA4) ? '0' : '2mm'),
+                        gridTemplateColumns: `repeat(${layoutStyles.cols}, 1fr)`,
+                        gridTemplateRows: `repeat(${layoutStyles.rows}, 1fr)`,
+                        margin: 0,
+                        boxSizing: 'border-box',
+                        gap: config.style === 'dcnb' ? '1mm' : '0'
+                      }}
+                    >
+                      {page.map((item, index) => (
+                        <div key={index} className="relative overflow-hidden border-dashed border-slate-100 print:border-none flex items-center justify-center min-w-0 min-h-0" style={{ borderWidth: '0.5px' }}>
+                          <div style={{
+                            width: `${baseStickerWidth * layoutStyles.scale}mm`,
+                            height: `${baseStickerHeight * layoutStyles.scale}mm`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            <div style={{ 
+                              transform: `scale(${layoutStyles.scale})`, 
+                              transformOrigin: 'center', 
+                              width: `${baseStickerWidth}mm`, 
+                              height: `${baseStickerHeight}mm`, 
+                              flexShrink: 0 
+                            }}>
+                              {item ? (
+                                 <Sticker item={item} style={config.style} layout={config.layout} showPromoLabel={config.showPromoLabel} mlnHeaderTemplate={mlnHeaderTemplate} mlnFooterTemplate={mlnFooterTemplate} promoLabelText={promoLabelText} />
+                              ) : null}
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
               {!renderAllPages && pages.length > 4 && !isIPrintMode && (
                 <div className="text-center p-4 bg-amber-50 text-amber-800 rounded-2xl border border-amber-200 print:hidden w-full max-w-xl shadow-sm">
                   <p className="font-bold text-sm">
@@ -1115,12 +1149,12 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
               
               {/* Centered Title */}
               <div 
-                className="font-black uppercase tracking-[0.08em] leading-none text-center flex-1" 
+                className="font-black uppercase tracking-[0.08em] leading-none text-center flex-1 whitespace-nowrap overflow-hidden text-ellipsis" 
                 style={{ 
                   fontWeight: 900, 
                   WebkitTextStroke: isA4Ngang ? '2.5px black' : isA6 ? '1px black' : '2px black',
-                  fontSize: isA4Ngang ? '80px' : isA6 ? '38px' : '58px',
-                  fontFamily: '"UTM Colossalis", sans-serif'
+                  fontSize: isA4Ngang ? '72px' : isA6 ? '34px' : '52px',
+                  fontFamily: '"UTM Colossalis", "Oswald", sans-serif'
                 }}
               >
                 KHUYẾN MÃI GIÁ SỐC
