@@ -69,6 +69,10 @@
   font-display: swap;
 }
 
+.font-utm-colossalis {
+  font-family: "UTM Colossalis", sans-serif !important;
+}
+
 .font-oswald {
   font-family: 'Oswald', sans-serif !important;
 }

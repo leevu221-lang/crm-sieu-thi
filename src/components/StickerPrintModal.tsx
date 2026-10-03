@@ -402,6 +402,10 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
             font-display: swap;
           }
 
+          .font-utm-colossalis {
+            font-family: "UTM Colossalis", sans-serif !important;
+          }
+
           /* Override global nowrap !important in index.css for cells inside printing components */
           .print-area td, 
           .print-modal-container td {
@@ -1290,16 +1294,34 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                   <div className="absolute top-[55%] left-[-5%] right-[-5%] bg-black -translate-y-1/2" style={{ height: isA4Ngang ? '4px' : isA6 ? '2px' : '3px' }}></div>
                 </div>
 
-                {/* Discount price - Áp dụng chuẩn font UTM Colossalis như GVGS */}
+                {/* Discount price - Khóa chặt font UTM Colossalis cho 10.490 và .000Đ */}
                 <div 
-                  className="flex items-baseline justify-center text-black leading-none" 
+                  className="font-utm-colossalis flex items-baseline justify-center text-black leading-none select-none" 
                   style={{ 
                     fontFamily: '"UTM Colossalis", sans-serif',
                     fontWeight: 'normal'
                   }}
                 >
-                  <span className="tracking-tighter leading-none" style={{ fontSize: `${priceFS.main}px` }}>{mainPrice}</span>
-                  <span className="ml-1 leading-none" style={{ fontSize: `${priceFS.last}px` }}>.{lastPart}Đ</span>
+                  <span 
+                    className="font-utm-colossalis tracking-tighter leading-none" 
+                    style={{ 
+                      fontFamily: '"UTM Colossalis", sans-serif',
+                      fontSize: `${priceFS.main}px`,
+                      letterSpacing: '-0.03em'
+                    }}
+                  >
+                    {mainPrice}
+                  </span>
+                  <span 
+                    className="font-utm-colossalis ml-1 leading-none" 
+                    style={{ 
+                      fontFamily: '"UTM Colossalis", sans-serif',
+                      fontSize: `${priceFS.last}px`,
+                      letterSpacing: '-0.02em'
+                    }}
+                  >
+                    .{lastPart}Đ
+                  </span>
                 </div>
               </div>
             </div>
