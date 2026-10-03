@@ -1123,19 +1123,19 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
     const getPriceFontSize = () => {
       const len = mainPrice.length;
       if (isA4Ngang) {
-        if (len <= 5) return { main: 215, last: 78 };
-        if (len === 6) return { main: 192, last: 70 };
-        return { main: 168, last: 60 };
+        if (len <= 5) return { main: 240, last: 88 };
+        if (len === 6) return { main: 220, last: 80 };
+        return { main: 185, last: 68 };
       }
       if (isA6) {
-        if (len <= 5) return { main: 104, last: 38 };
-        if (len === 6) return { main: 92, last: 34 };
-        return { main: 80, last: 30 };
+        if (len <= 5) return { main: 115, last: 42 };
+        if (len === 6) return { main: 105, last: 38 };
+        return { main: 90, last: 32 };
       }
       // Khổ A5 ngang hoặc A4 đứng 2 tem:
-      if (len <= 5) return { main: 156, last: 58 };
-      if (len === 6) return { main: 138, last: 50 };
-      return { main: 120, last: 44 };
+      if (len <= 5) return { main: 165, last: 60 };
+      if (len === 6) return { main: 150, last: 54 };
+      return { main: 130, last: 46 };
     };
     const priceFS = getPriceFontSize();
 
@@ -1152,11 +1152,11 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
               fontFamily: '"Oswald", sans-serif',
               borderStyle: 'solid',
               borderWidth: isA4Ngang ? '4px' : isA6 ? '2px' : '3px',
-              padding: isA4Ngang ? '30px' : isA6 ? '12px' : '24px'
+              padding: isA4Ngang ? '26px 30px' : isA6 ? '12px' : '20px 24px'
             }}
           >
-            {/* Top Section: Above the horizontal line */}
-            <div className="flex items-center justify-between px-1 py-1 shrink-0 w-full">
+            {/* Top Section: Above the horizontal line - Tiêu đề 2 dòng chuẩn Ảnh 2 */}
+            <div className="flex items-center justify-between px-1 shrink-0 w-full mb-1">
               {/* Invisible spacer for perfect symmetry */}
               <div 
                 className="opacity-0 shrink-0 pointer-events-none" 
@@ -1166,17 +1166,32 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                 }}
               ></div>
               
-              {/* Centered Title */}
+              {/* Centered Title - 2 dòng KHUYẾN MÃI / GIÁ SỐC chuẩn Ảnh 2 */}
               <div 
-                className="font-black uppercase tracking-[0.05em] leading-none text-center flex-1 whitespace-nowrap" 
+                className="flex flex-col items-center justify-center text-center flex-1 shrink-0 leading-none" 
                 style={{ 
-                  fontWeight: 900, 
-                  WebkitTextStroke: isA4Ngang ? '2.5px black' : isA6 ? '1px black' : '2px black',
-                  fontSize: isA4Ngang ? '78px' : isA6 ? '38px' : '58px',
-                  fontFamily: '"UTM Colossalis", "Oswald", sans-serif'
+                  fontFamily: '"UTM Colossalis", "Oswald", sans-serif',
+                  fontWeight: 900
                 }}
               >
-                KHUYẾN MÃI GIÁ SỐC
+                <div 
+                  className="font-black uppercase tracking-[0.06em] leading-[0.9]"
+                  style={{
+                    fontSize: isA4Ngang ? '64px' : isA6 ? '32px' : '46px',
+                    WebkitTextStroke: isA4Ngang ? '2.5px black' : isA6 ? '1px black' : '1.8px black',
+                  }}
+                >
+                  KHUYẾN MÃI
+                </div>
+                <div 
+                  className="font-black uppercase tracking-[0.08em] leading-[0.9] mt-0.5"
+                  style={{
+                    fontSize: isA4Ngang ? '64px' : isA6 ? '32px' : '46px',
+                    WebkitTextStroke: isA4Ngang ? '2.5px black' : isA6 ? '1px black' : '1.8px black',
+                  }}
+                >
+                  GIÁ SỐC
+                </div>
               </div>
 
               {/* QR Code and Product Code on the right */}
@@ -1214,6 +1229,7 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                 <div 
                   className="font-black uppercase tracking-wide text-center max-w-[96%] mx-auto leading-snug break-words" 
                   style={{ 
+                    fontFamily: '"Oswald", sans-serif',
                     fontWeight: 900,
                     fontSize: getNameFontSize()
                   }}
@@ -1226,23 +1242,26 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
               <div className="flex flex-col items-center justify-center">
                 {/* Original Price (Strikethrough) */}
                 <div 
-                  className="relative font-bold text-black mb-0.5 leading-none"
-                  style={{ fontSize: isA4Ngang ? '48px' : isA6 ? '24px' : '36px' }}
+                  className="relative font-bold text-black mb-1 leading-none"
+                  style={{ 
+                    fontFamily: '"Oswald", sans-serif',
+                    fontSize: isA4Ngang ? '48px' : isA6 ? '24px' : '36px' 
+                  }}
                 >
                   {formatPrice(item.originalPrice)}đ
                   <div className="absolute top-[55%] left-[-5%] right-[-5%] bg-black -translate-y-1/2" style={{ height: isA4Ngang ? '4px' : isA6 ? '2px' : '3px' }}></div>
                 </div>
 
-                {/* Discount price */}
+                {/* Discount price - Font Oswald chuẩn Ảnh 2 */}
                 <div 
-                  className="flex items-baseline justify-center font-black text-black leading-none" 
+                  className="flex items-baseline justify-center font-bold text-black leading-none" 
                   style={{ 
-                    fontWeight: 900,
-                    fontFamily: '"UTM Colossalis", "Oswald", sans-serif'
+                    fontFamily: '"Oswald", sans-serif',
+                    fontWeight: 700
                   }}
                 >
                   <span className="tracking-tighter leading-none" style={{ fontSize: `${priceFS.main}px` }}>{mainPrice}</span>
-                  <span className="ml-0.5 leading-none" style={{ fontSize: `${priceFS.last}px` }}>.{lastPart}Đ</span>
+                  <span className="ml-1 leading-none font-bold" style={{ fontSize: `${priceFS.last}px` }}>.{lastPart}Đ</span>
                 </div>
               </div>
             </div>
