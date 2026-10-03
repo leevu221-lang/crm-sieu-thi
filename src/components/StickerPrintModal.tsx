@@ -555,6 +555,27 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
     const lastPart = priceParts[priceParts.length - 1];
 
     const productCodeText = item.maSanPham || item.productCode || (item.qrData && item.qrData !== '00000' ? item.qrData : '');
+    const codeLen = productCodeText.length;
+    const getCodeFontSize = () => {
+      if (isA4Ngang) {
+        if (codeLen > 14) return '13px';
+        if (codeLen > 10) return '15px';
+        if (codeLen > 7) return '17px';
+        return '19px';
+      }
+      if (isA6) {
+        if (codeLen > 14) return '7px';
+        if (codeLen > 10) return '8px';
+        if (codeLen > 7) return '9px';
+        return '10px';
+      }
+      if (codeLen > 14) return '10px';
+      if (codeLen > 10) return '11.5px';
+      if (codeLen > 7) return '12.5px';
+      return '14px';
+    };
+    const qrColWidth = isA4Ngang ? '140px' : isA6 ? '65px' : '105px';
+
     const nameText = item.name || 'TÊN SẢN PHẨM';
     const nameLen = nameText.length;
     const getNameFontSize = () => {
@@ -598,8 +619,8 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
               <div 
                 className="opacity-0 shrink-0 pointer-events-none" 
                 style={{ 
-                  width: isA4Ngang ? '100px' : isA6 ? '48px' : '75px', 
-                  minWidth: isA4Ngang ? '100px' : isA6 ? '48px' : '75px' 
+                  width: qrColWidth, 
+                  minWidth: qrColWidth 
                 }}
               ></div>
               
@@ -620,8 +641,8 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
               <div 
                 className="shrink-0 flex flex-col items-center justify-center"
                 style={{ 
-                  width: isA4Ngang ? '100px' : isA6 ? '48px' : '75px',
-                  minWidth: isA4Ngang ? '100px' : isA6 ? '48px' : '75px'
+                  width: qrColWidth,
+                  minWidth: qrColWidth
                 }}
               >
                 <div className="shrink-0 flex items-center justify-center p-0.5 bg-white border border-black">
@@ -629,11 +650,10 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
                 </div>
                 {productCodeText && (
                   <div 
-                    className="font-black text-black text-center uppercase tracking-tight mt-1 font-mono leading-tight" 
+                    className="font-black text-black text-center uppercase tracking-tight mt-1 font-mono leading-none whitespace-nowrap" 
                     style={{ 
-                      fontSize: isA4Ngang ? '16px' : isA6 ? '9px' : '12px',
-                      maxWidth: isA4Ngang ? '110px' : isA6 ? '55px' : '85px',
-                      wordBreak: 'break-all'
+                      fontSize: getCodeFontSize(),
+                      maxWidth: '100%'
                     }}
                   >
                     {productCodeText}
