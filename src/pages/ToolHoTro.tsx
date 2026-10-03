@@ -5482,9 +5482,9 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                 ? (lkPrintLayout === '1' ? 'scale(0.48)' : 'scale(0.58)')
                                 : activeTab === 'popup-all-sp'
                                   ? (popupPrintLayout === 'a4_ngang' 
-                                      ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.28)' : 'scale(0.38)') 
+                                      ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.28)' : 'scale(0.44)') 
                                       : popupPrintLayout === '1' 
-                                        ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.38)' : 'scale(0.48)') 
+                                        ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.38)' : 'scale(0.56)') 
                                         : (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.46)' : 'scale(0.58)'))
                                   : activeTab === 'sticker-ce'
                                     ? (cePrintLayout === '1' ? 'scale(0.48)' : 'scale(0.58)')
@@ -5545,32 +5545,36 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               ))}
                             </div>
                           ) : (activeTab === 'sticker-lk' && lkPrintLayout === '2') || (activeTab === 'popup-all-sp' && popupPrintLayout === '2') || (activeTab === 'sticker-ce' && cePrintLayout === '2') ? (
-                            <div className="flex flex-col h-full justify-between bg-white w-full">
-                              <Sticker
-                                item={
-                                  activeTab === 'popup-all-sp'
-                                    ? (combinedPriceData.length > 0 ? combinedPriceData[0] : { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: 'LK001', maSanPham: 'LK001', nganhHang: 'POSM ALL SP' })
-                                    : activeTab === 'sticker-lk'
-                                      ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
-                                      : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
-                                }
-                                style={activeTab === 'sticker-ce' ? 'sticker_ce' : 'sticker_lk'}
-                                layout="2"
-                                showPromoLabel={false}
-                              />
+                            <div className="flex flex-col h-full justify-between bg-white w-full overflow-hidden">
+                              <div className="w-full flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+                                <Sticker
+                                  item={
+                                    activeTab === 'popup-all-sp'
+                                      ? (selectedIndices.length > 0 && combinedPriceData[selectedIndices[0]] ? combinedPriceData[selectedIndices[0]] : combinedPriceData.length > 0 ? combinedPriceData[0] : { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: 'LK001', maSanPham: 'LK001', nganhHang: 'POSM ALL SP' })
+                                      : activeTab === 'sticker-lk'
+                                        ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
+                                        : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
+                                  }
+                                  style={activeTab === 'sticker-ce' ? 'sticker_ce' : 'sticker_lk'}
+                                  layout="2"
+                                  showPromoLabel={false}
+                                />
+                              </div>
                               <div className="border-t-[2px] border-dashed border-slate-400 w-full shrink-0"></div>
-                              <Sticker
-                                item={
-                                  activeTab === 'popup-all-sp'
-                                    ? (combinedPriceData.length > 0 ? combinedPriceData[0] : { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: 'LK001', maSanPham: 'LK001', nganhHang: 'POSM ALL SP' })
-                                    : activeTab === 'sticker-lk'
-                                      ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
-                                      : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
-                                }
-                                style={activeTab === 'sticker-ce' ? 'sticker_ce' : 'sticker_lk'}
-                                layout="2"
-                                showPromoLabel={false}
-                              />
+                              <div className="w-full flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+                                <Sticker
+                                  item={
+                                    activeTab === 'popup-all-sp'
+                                      ? (selectedIndices.length > 0 && combinedPriceData[selectedIndices[0]] ? combinedPriceData[selectedIndices[0]] : combinedPriceData.length > 0 ? combinedPriceData[0] : { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: 'LK001', maSanPham: 'LK001', nganhHang: 'POSM ALL SP' })
+                                      : activeTab === 'sticker-lk'
+                                        ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
+                                        : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
+                                  }
+                                  style={activeTab === 'sticker-ce' ? 'sticker_ce' : 'sticker_lk'}
+                                  layout="2"
+                                  showPromoLabel={false}
+                                />
+                              </div>
                             </div>
                           ) : (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k' || activeTab === 'sticker-event') ? (
                             <div 
@@ -5637,25 +5641,27 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               })}
                             </div>
                           ) : (
-                            <Sticker
-                              item={
-                                activeTab === 'sticker-mln'
-                                  ? { name: 'Karofi KAQ-X18 11 lõi', originalPrice: 6990000, discountPrice: 4990000, maSanPham: 'SP001', nganhHang: 'MÁY LỌC NƯỚC', endDate: '31/05/2026' }
-                                  : activeTab === 'sticker-gvgs'
-                                    ? { name: 'Karofi KAQ-X18 11 lõi', originalPrice: 6990000, discountPrice: 4990000, maSanPham: 'SP001', nganhHang: 'GIỜ VÀNG GIÁ SỐC', endDate: '31/05/2026' }
-                                    : activeTab === 'popup-all-sp'
-                                      ? (combinedPriceData.length > 0 ? combinedPriceData[0] : { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: 'LK001', maSanPham: 'LK001', nganhHang: 'POSM ALL SP' })
-                                      : activeTab === 'sticker-lk'
-                                        ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
-                                        : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
-                              }
-                              style={(activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') ? 'display' : (activeTab === 'sticker-lk' || activeTab === 'popup-all-sp') ? 'sticker_lk' : activeTab === 'sticker-ce' ? 'sticker_ce' : 'classic'}
-                              layout={activeTab === 'popup-all-sp' ? popupPrintLayout : activeTab === 'sticker-lk' ? lkPrintLayout : activeTab === 'sticker-ce' ? cePrintLayout : activeTab === 'sticker-mln' ? mlnPrintLayout : activeTab === 'sticker-gvgs' ? gvgsPrintLayout : '1'}
-                              showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'popup-all-sp' || activeTab === 'sticker-ce' ? false : showEventPromoLabel}
-                              promoLabelText={promoLabelTextVal}
-                              mlnHeaderTemplate={activeTab === 'sticker-gvgs' ? gvgsHeaderTemplate : mlnHeaderTemplate}
-                              mlnFooterTemplate={activeTab === 'sticker-gvgs' ? gvgsFooterTemplate : mlnFooterTemplate}
-                            />
+                            <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                              <Sticker
+                                item={
+                                  activeTab === 'sticker-mln'
+                                    ? { name: 'Karofi KAQ-X18 11 lõi', originalPrice: 6990000, discountPrice: 4990000, maSanPham: 'SP001', nganhHang: 'MÁY LỌC NƯỚC', endDate: '31/05/2026' }
+                                    : activeTab === 'sticker-gvgs'
+                                      ? { name: 'Karofi KAQ-X18 11 lõi', originalPrice: 6990000, discountPrice: 4990000, maSanPham: 'SP001', nganhHang: 'GIỜ VÀNG GIÁ SỐC', endDate: '31/05/2026' }
+                                      : activeTab === 'popup-all-sp'
+                                        ? (selectedIndices.length > 0 && combinedPriceData[selectedIndices[0]] ? combinedPriceData[selectedIndices[0]] : combinedPriceData.length > 0 ? combinedPriceData[0] : { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: 'LK001', maSanPham: 'LK001', nganhHang: 'POSM ALL SP' })
+                                        : activeTab === 'sticker-lk'
+                                          ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
+                                          : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
+                                }
+                                style={(activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') ? 'display' : (activeTab === 'sticker-lk' || activeTab === 'popup-all-sp') ? 'sticker_lk' : activeTab === 'sticker-ce' ? 'sticker_ce' : 'classic'}
+                                layout={activeTab === 'popup-all-sp' ? popupPrintLayout : activeTab === 'sticker-lk' ? lkPrintLayout : activeTab === 'sticker-ce' ? cePrintLayout : activeTab === 'sticker-mln' ? mlnPrintLayout : activeTab === 'sticker-gvgs' ? gvgsPrintLayout : '1'}
+                                showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'popup-all-sp' || activeTab === 'sticker-ce' ? false : showEventPromoLabel}
+                                promoLabelText={promoLabelTextVal}
+                                mlnHeaderTemplate={activeTab === 'sticker-gvgs' ? gvgsHeaderTemplate : mlnHeaderTemplate}
+                                mlnFooterTemplate={activeTab === 'sticker-gvgs' ? gvgsFooterTemplate : mlnFooterTemplate}
+                              />
+                            </div>
                           )}
                         </div>
                       </div>
