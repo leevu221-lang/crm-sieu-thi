@@ -9,6 +9,8 @@ import {
   ShoppingCart, Plus, ShoppingBag, Minus, Search, ExternalLink, FileSpreadsheet
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 import * as XLSX from 'xlsx';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -388,6 +390,20 @@ export interface EventDmxCartItem {
   addedAt?: string;
 }
 
+export interface PosmCartItem {
+  id: string;
+  maSanPham: string;
+  productCode?: string;
+  name: string;
+  originalPrice: number;
+  discountPrice: number;
+  quantity: number;
+  nganhHang?: string;
+  nhomHang?: string;
+  qrData?: string;
+  updatedAt?: string;
+}
+
 export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local = false }: { pageMaintenanceState?: Record<string, boolean>, isUser43751Local?: boolean }) {
   const { userProfile } = useAuth();
   const maKho = userProfile?.ma_kho || '';
@@ -441,9 +457,18 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     }
   });
   const [isCartModalOpen, setIsCartModalOpen] = useState<boolean>(false);
-  const [printSource, setPrintSource] = useState<'table' | 'cart'>('table');
+  const [printSource, setPrintSource] = useState<'table' | 'cart' | 'posm_cart'>('table');
   const [tableCurrentPage, setTableCurrentPage] = useState<number>(1);
   const [tablePageSize, setTablePageSize] = useState<number>(50);
+
+  // GIỎ IN CHO POSM ALL SP
+  const [posmCartItems, setPosmCartItems] = useState<PosmCartItem[]>([]);
+  const [isPosmCartModalOpen, setIsPosmCartModalOpen] = useState<boolean>(false);
+  const [isSavingPosmCart, setIsSavingPosmCart] = useState<boolean>(false);
+
+  const totalPosmCartStickers = useMemo(() => {
+    return posmCartItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
+  }, [posmCartItems]);
 
   useEffect(() => {
     try {
@@ -688,6 +713,213 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Real-time Firestore sync cho Giỏ In POSM ALL SP theo tên siêu thị
+  useEffect(() => {
+    if (activeTab !== 'popup-all-sp') return;
+    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+    const storeDocId = normalizeStoreId(targetStore);
+    const localKey = `rtst_posm_cart_${storeDocId}`;
+
+    // 1. Tải cache cục bộ trước
+    const cached = localStorage.getItem(localKey);
+    if (cached) {
+      try {
+        setPosmCartItems(JSON.parse(cached));
+      } catch (e) {
+        console.error('Error parsing cached posm cart:', e);
+      }
+    } else {
+      setPosmCartItems([]);
+    }
+
+    // 2. Lắng nghe Firestore onSnapshot theo siêu thị
+    const docRef = doc(db, 'store', storeDocId);
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && data.posm_all_sp_cart !== undefined) {
+          try {
+            const parsed = typeof data.posm_all_sp_cart === 'string'
+              ? JSON.parse(data.posm_all_sp_cart)
+              : data.posm_all_sp_cart;
+            if (Array.isArray(parsed)) {
+              setPosmCartItems(parsed);
+              safeLocalStorageSet(localKey, JSON.stringify(parsed));
+            }
+          } catch (err) {
+            console.error('Lỗi khi đọc posm_all_sp_cart từ Firestore:', err);
+          }
+        }
+      }
+    }, (err) => {
+      console.warn('[Firestore] posm_all_sp_cart onSnapshot listener error:', err);
+    });
+
+    return () => unsubscribe();
+  }, [activeTab, currentStoreId]);
+
+  const savePosmCartToDb = async (newCart: PosmCartItem[], notifyText?: string) => {
+    setPosmCartItems(newCart);
+    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'DEFAULT_STORE';
+    const storeDocId = normalizeStoreId(targetStore);
+    const localKey = `rtst_posm_cart_${storeDocId}`;
+    safeLocalStorageSet(localKey, JSON.stringify(newCart));
+
+    setIsSavingPosmCart(true);
+    try {
+      const docRef = doc(db, 'store', storeDocId);
+      await setDoc(docRef, {
+        posm_all_sp_cart: JSON.stringify(newCart),
+        ten_sieu_thi: targetStore,
+        updated_at: new Date().toISOString()
+      }, { merge: true });
+      if (notifyText) {
+        showNotification(notifyText, 'success');
+      }
+    } catch (err: any) {
+      console.error('Lỗi lưu Giỏ In POSM lên Firebase:', err);
+      showNotification('Đã lưu cục bộ nhưng lỗi đồng bộ Firestore: ' + (err?.message || ''), 'error');
+    } finally {
+      setIsSavingPosmCart(false);
+    }
+  };
+
+  const handleAddToCartPosm = (prod: any, qty: number = 1) => {
+    const code = String(prod.productCode || prod.maSanPham || 'MANUAL').trim();
+    const existingIndex = posmCartItems.findIndex(item => 
+      (code && (item.maSanPham === code || item.productCode === code)) || 
+      (item.name && item.name === prod.name)
+    );
+
+    let updatedCart: PosmCartItem[];
+    if (existingIndex >= 0) {
+      updatedCart = posmCartItems.map((item, idx) => {
+        if (idx === existingIndex) {
+          return {
+            ...item,
+            quantity: (item.quantity || 1) + qty,
+            originalPrice: prod.originalPrice !== undefined ? Number(prod.originalPrice) : item.originalPrice,
+            discountPrice: prod.discountPrice !== undefined ? Number(prod.discountPrice) : item.discountPrice
+          };
+        }
+        return item;
+      });
+    } else {
+      const newItem: PosmCartItem = {
+        id: `posm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        productCode: code,
+        maSanPham: code,
+        name: prod.name || '',
+        originalPrice: Number(prod.originalPrice) || 0,
+        discountPrice: Number(prod.discountPrice) || 0,
+        quantity: Math.max(1, qty),
+        nganhHang: 'POSM ALL SP',
+        nhomHang: prod.nhomHang || 'GOOGLE SHEET',
+        qrData: code || '00000',
+        updatedAt: new Date().toISOString()
+      };
+      updatedCart = [newItem, ...posmCartItems];
+    }
+
+    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'Siêu thị';
+    savePosmCartToDb(updatedCart, `Đã thêm "${prod.name}" (${qty} tem) vào Giỏ In POSM (${targetStore})!`);
+  };
+
+  const handleAddSelectedToPosmCart = () => {
+    if (selectedIndices.length === 0) {
+      showNotification('Vui lòng chọn ít nhất 1 sản phẩm để thêm vào giỏ in!', 'error');
+      return;
+    }
+
+    let updatedCart = [...posmCartItems];
+    let addedCount = 0;
+
+    selectedIndices.forEach(idx => {
+      const prod = filteredPriceData[idx];
+      if (!prod) return;
+      const code = String(prod.productCode || prod.maSanPham || '').trim();
+      const qty = printQuantities[idx] || 1;
+
+      const existingIdx = updatedCart.findIndex(item => 
+        (code && (item.maSanPham === code || item.productCode === code)) || 
+        (item.name && item.name === prod.name)
+      );
+
+      if (existingIdx >= 0) {
+        updatedCart[existingIdx] = {
+          ...updatedCart[existingIdx],
+          quantity: (updatedCart[existingIdx].quantity || 1) + qty,
+          originalPrice: prod.originalPrice !== undefined ? Number(prod.originalPrice) : updatedCart[existingIdx].originalPrice,
+          discountPrice: prod.discountPrice !== undefined ? Number(prod.discountPrice) : updatedCart[existingIdx].discountPrice
+        };
+      } else {
+        updatedCart.unshift({
+          id: `posm_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+          productCode: code || 'MANUAL',
+          maSanPham: code || 'MANUAL',
+          name: prod.name || '',
+          originalPrice: Number(prod.originalPrice) || 0,
+          discountPrice: Number(prod.discountPrice) || 0,
+          quantity: qty,
+          nganhHang: 'POSM ALL SP',
+          nhomHang: prod.nhomHang || 'GOOGLE SHEET',
+          qrData: code || '00000',
+          updatedAt: new Date().toISOString()
+        });
+      }
+      addedCount++;
+    });
+
+    const targetStore = (currentStoreId && currentStoreId !== 'ALL') ? currentStoreId : 'Siêu thị';
+    savePosmCartToDb(updatedCart, `Đã thêm ${addedCount} sản phẩm vào Giỏ In POSM (${targetStore})!`);
+  };
+
+  const handleUpdatePosmCartItem = (id: string, field: 'originalPrice' | 'discountPrice' | 'quantity', value: any) => {
+    let finalVal = value;
+    if (field === 'quantity') {
+      finalVal = Math.max(1, parseInt(String(value), 10) || 1);
+    } else {
+      const digits = String(value).replace(/[^\d]/g, '');
+      finalVal = digits ? parseInt(digits, 10) : 0;
+    }
+
+    const updated = posmCartItems.map(item => {
+      if (item.id === id) {
+        return { ...item, [field]: finalVal };
+      }
+      return item;
+    });
+
+    savePosmCartToDb(updated);
+  };
+
+  const handleRemoveFromPosmCart = (id: string) => {
+    const updated = posmCartItems.filter(item => item.id !== id);
+    savePosmCartToDb(updated, 'Đã xóa sản phẩm khỏi Giỏ In POSM!');
+  };
+
+  const handleClearPosmCart = () => {
+    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ sản phẩm trong Giỏ In POSM của siêu thị này?')) {
+      savePosmCartToDb([], 'Đã xóa rỗng Giỏ In POSM!');
+    }
+  };
+
+  const handlePrintFromPosmCart = (layout: 'a4_ngang' | '1' | '2') => {
+    if (posmCartItems.length === 0) {
+      showNotification('Giỏ in đang trống! Hãy thêm sản phẩm vào giỏ trước khi in.', 'error');
+      return;
+    }
+    setPrintSource('posm_cart');
+    setPopupPrintLayout(layout as any);
+    setPrintConfig({
+      style: 'sticker_lk',
+      layout: layout,
+      showPromoLabel: false
+    });
+    setIsPosmCartModalOpen(false);
+    setIsPrintModalOpen(true);
+  };
+
   const handleSelectProductFromSearch = (prod: any) => {
     setManualData({
       productCode: prod.productCode || prod.maSanPham || '',
@@ -729,6 +961,28 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
     setIsSearchDropdownOpen(false);
     showNotification(`Đã thêm nhanh "${prod.name}" vào giỏ in!`, 'success');
+  };
+
+  const handleAddManualToPosmCart = () => {
+    if (!manualData.name || !manualData.name.trim()) {
+      showNotification('Vui lòng nhập tên sản phẩm!', 'error');
+      return;
+    }
+    const origPrice = parseInt(String(manualData.originalPrice).replace(/[^\d]/g, '')) || 0;
+    const discPrice = parseInt(String(manualData.discountPrice).replace(/[^\d]/g, '')) || 0;
+
+    const code = manualData.productCode?.trim() || 'MANUAL';
+    const itemToAdd = {
+      productCode: code,
+      maSanPham: code,
+      name: manualData.name.trim(),
+      originalPrice: origPrice,
+      discountPrice: discPrice,
+      nganhHang: manualData.nganhHang || 'POSM ALL SP',
+      nhomHang: 'NHẬP TAY'
+    };
+
+    handleAddToCartPosm(itemToAdd, 1);
   };
 
   const [dongGiaTitle, setDongGiaTitle] = useState(() => {
@@ -3881,7 +4135,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               {/* Left Column */}
               {activeTab !== 'sticker-dcnb' && activeTab !== 'sticker-event-dmx' && (
                 <div className="col-span-1 space-y-6">
-                  {activeTab !== 'sticker-dong-gia-100k' && (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'popup-all-sp' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') && (
+                  {activeTab !== 'sticker-dong-gia-100k' && activeTab !== 'popup-all-sp' && (activeTab === 'all-sticker' || activeTab === 'sticker-event-dmx' || activeTab === 'sticker-event' || activeTab === 'sticker-ce' || activeTab === 'sticker-lk' || activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') && (
                   /* Card 1: Thông tin & Nhập dữ liệu */
                   <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5">
                     <div className="flex items-center justify-between mb-4">
@@ -4171,6 +4425,96 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                     </div>
                   ) : (
                     <>
+                      {/* THẺ GIỎ IN POSM ALL SP */}
+                      {activeTab === 'popup-all-sp' && (
+                        <div className="bg-white rounded-3xl shadow-sm border-2 border-emerald-500/40 p-5 space-y-4 relative overflow-hidden">
+                          <div className="absolute top-0 right-0 w-36 h-36 bg-gradient-to-br from-emerald-100/60 to-teal-100/30 rounded-full blur-2xl -mr-12 -mt-12 pointer-events-none"></div>
+
+                          <div className="flex items-center justify-between relative z-10">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
+                                <ShoppingCart size={22} />
+                              </div>
+                              <div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-1.5">
+                                  GIỎ IN POSM ALL SP
+                                </h3>
+                                <p className="text-[11px] text-slate-500 font-bold flex items-center gap-1 mt-0.5">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                  Siêu thị: <span className="text-emerald-700 font-black">{currentStoreId && currentStoreId !== 'ALL' ? currentStoreId : 'Siêu thị đang chọn'}</span>
+                                </p>
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Realtime Sync
+                            </span>
+                          </div>
+
+                          {/* Thống kê giỏ */}
+                          <div className="grid grid-cols-2 gap-2 text-center">
+                            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-2.5">
+                              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Sản phẩm</div>
+                              <div className="text-xl font-black text-slate-800 mt-0.5">{posmCartItems.length}</div>
+                            </div>
+                            <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-2.5">
+                              <div className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Tổng tem in</div>
+                              <div className="text-xl font-black text-emerald-700 mt-0.5">{totalPosmCartStickers}</div>
+                            </div>
+                          </div>
+
+                          {/* Nút Mở Giỏ In */}
+                          <button
+                            type="button"
+                            onClick={() => setIsPosmCartModalOpen(true)}
+                            className="w-full py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white font-black text-xs sm:text-sm uppercase tracking-wider rounded-2xl shadow-md shadow-emerald-500/25 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <ShoppingCart size={18} />
+                            <span>MỞ GIỎ IN ĐỂ SỬA GIÁ & IN</span>
+                          </button>
+
+                          {/* Danh sách xem nhanh 2 sản phẩm gần nhất nếu có */}
+                          {posmCartItems.length > 0 && (
+                            <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                                <span>Sản phẩm trong giỏ:</span>
+                                <button 
+                                  type="button" 
+                                  onClick={handleClearPosmCart} 
+                                  className="text-red-500 hover:text-red-700 flex items-center gap-1 transition-colors text-[10px]"
+                                >
+                                  <Trash2 size={11} /> Xóa giỏ
+                                </button>
+                              </div>
+                              <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                                {posmCartItems.slice(0, 3).map((item) => (
+                                  <div key={item.id} className="text-xs bg-slate-50 border border-slate-200/60 rounded-xl p-2 flex items-center justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-bold text-slate-800 truncate">{item.name}</div>
+                                      <div className="text-[10px] text-rose-600 font-black">
+                                        {Number(item.discountPrice || 0).toLocaleString('vi-VN')}đ • {item.quantity || 1} tem
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveFromPosmCart(item.id)}
+                                      className="text-slate-400 hover:text-red-500 p-1"
+                                      title="Xóa"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
+                                ))}
+                                {posmCartItems.length > 3 && (
+                                  <div className="text-[10px] text-center text-slate-400 font-semibold py-0.5">
+                                    + còn {posmCartItems.length - 3} sản phẩm khác trong giỏ
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {/* KHỐI ĐỒNG BỘ GOOGLE SHEET & TÌM KIẾM NHANH CHO TAB POSM ALL SP */}
                       {activeTab === 'popup-all-sp' && (
                         <div className="bg-white rounded-3xl shadow-sm border-2 border-emerald-500/30 p-5 space-y-4 relative overflow-hidden">
@@ -4290,17 +4634,29 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                           </span>
                                         </div>
                                       </div>
-                                      <div className="flex items-center gap-1 shrink-0">
-                                        <span className="text-[10px] text-emerald-600 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                                          Chọn & sửa giá
-                                        </span>
+                                      <div className="flex items-center gap-1.5 shrink-0">
                                         <button
                                           type="button"
-                                          onClick={(e) => handleQuickAddProduct(p, e)}
-                                          title="Thêm ngay vào giỏ in"
-                                          className="p-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition-colors"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleSelectProductFromSearch(p);
+                                          }}
+                                          title="Đổ dữ liệu vào ô nhập tay để sửa giá gốc/giá giảm"
+                                          className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold transition-colors cursor-pointer"
                                         >
-                                          <Plus size={14} />
+                                          Sửa giá
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleAddToCartPosm(p, 1);
+                                          }}
+                                          title="Thêm ngay 1 tem vào Giỏ In POSM"
+                                          className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-[10.5px] transition-all flex items-center gap-1 shadow-xs cursor-pointer"
+                                        >
+                                          <ShoppingCart size={12} />
+                                          <span>+ Giỏ</span>
                                         </button>
                                       </div>
                                     </div>
@@ -4437,6 +4793,17 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               </div>
                             </div>
                           </>
+                        )}
+
+                        {activeTab === 'popup-all-sp' && (
+                          <button
+                            type="button"
+                            onClick={handleAddManualToPosmCart}
+                            className="w-full py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-2xl text-xs sm:text-sm font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-500/25 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] mb-3"
+                          >
+                            <ShoppingCart size={18} />
+                            <span>🛒 THÊM VÀO GIỎ IN POSM</span>
+                          </button>
                         )}
 
                         <div className="grid grid-cols-2 gap-3 mb-3">
@@ -5515,6 +5882,35 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                         </div>
                       </div>
                       <div className="flex items-center gap-2.5 flex-wrap">
+                        {activeTab === 'popup-all-sp' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={handleAddSelectedToPosmCart}
+                              disabled={selectedIndices.length === 0}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-xs cursor-pointer"
+                              title="Thêm các sản phẩm đang tick chọn vào giỏ in POSM"
+                            >
+                              <Plus size={14} />
+                              <span>Thêm vào Giỏ in ({selectedIndices.length})</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setIsPosmCartModalOpen(true)}
+                              className="relative flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black rounded-xl text-xs shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
+                              title="Xem và sửa giá trong Giỏ in POSM để in"
+                            >
+                              <ShoppingCart size={14} />
+                              <span>Giỏ in POSM ({posmCartItems.length})</span>
+                              {totalPosmCartStickers > 0 && (
+                                <span className="bg-white text-emerald-800 text-[10px] font-black px-1.5 py-0.2 rounded-full ml-0.5">
+                                  {totalPosmCartStickers} tem
+                                </span>
+                              )}
+                            </button>
+                          </>
+                        )}
                         {activeTab === 'sticker-event-dmx' && (
                           <>
                             <button
@@ -5565,8 +5961,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                             </th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200">STT</th>
                             <th className="py-3 px-4 text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 text-center">SL In</th>
-                            {activeTab === 'sticker-event-dmx' && (
-                              <th className="py-3 px-2 text-xs font-bold text-indigo-700 uppercase tracking-wider border-b border-slate-200 text-center w-14 bg-indigo-50/60">
+                            {(activeTab === 'sticker-event-dmx' || activeTab === 'popup-all-sp') && (
+                              <th className={`py-3 px-2 text-xs font-bold uppercase tracking-wider border-b border-slate-200 text-center w-14 ${activeTab === 'popup-all-sp' ? 'text-emerald-700 bg-emerald-50/60' : 'text-indigo-700 bg-indigo-50/60'}`}>
                                 Giỏ in
                               </th>
                             )}
@@ -5616,6 +6012,18 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                   onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 0)}
                                 />
                               </td>
+                              {activeTab === 'popup-all-sp' && (
+                                <td className="py-3 px-2 text-center bg-emerald-50/20">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddToCartPosm(item, printQuantities[index] || 1)}
+                                    className="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-100 rounded-lg transition-colors inline-flex items-center justify-center cursor-pointer"
+                                    title={`Thêm ${item.name} (${printQuantities[index] || 1} tem) vào giỏ in POSM`}
+                                  >
+                                    <ShoppingCart size={16} />
+                                  </button>
+                                </td>
+                              )}
                               {activeTab === 'sticker-event-dmx' && (
                                 <td className="py-3 px-2 text-center bg-indigo-50/20">
                                   <button
@@ -6344,11 +6752,13 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                   : (isPrintModalOpen ? (
                       (activeTab === 'sticker-event-dmx' && printSource === 'cart')
                         ? cartItems.flatMap(item => Array(item.quantity || 1).fill(item))
-                        : filteredPriceData.flatMap((item, index) => {
-                            const isSelected = selectedIndices.length === 0 || selectedIndices.includes(index);
-                            const quantity = printQuantities[index] || 1;
-                            return isSelected && quantity > 0 ? Array(quantity).fill(item) : [];
-                          })
+                        : (activeTab === 'popup-all-sp' && printSource === 'posm_cart')
+                          ? posmCartItems.flatMap(item => Array(item.quantity || 1).fill(item))
+                          : filteredPriceData.flatMap((item, index) => {
+                              const isSelected = selectedIndices.length === 0 || selectedIndices.includes(index);
+                              const quantity = printQuantities[index] || 1;
+                              return isSelected && quantity > 0 ? Array(quantity).fill(item) : [];
+                            })
                     ) : [])
         } 
         config={
@@ -6569,6 +6979,227 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                       </button>
                     );
                   })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Giỏ In POSM ALL SP */}
+      {isPosmCartModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 md:p-4 animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[92vh] shadow-2xl overflow-hidden border border-slate-200 flex flex-col">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 px-5 py-4 text-white flex items-center justify-between shrink-0 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center text-white font-black shadow-inner">
+                  <ShoppingCart size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-base md:text-lg uppercase tracking-wider leading-tight text-white">
+                      Giỏ In POSM ALL SP
+                    </h3>
+                    <span className="bg-white/20 text-white text-xs font-black px-2.5 py-0.5 rounded-full backdrop-blur-xs shadow-2xs border border-white/20">
+                      {posmCartItems.length} sản phẩm
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-emerald-100 font-semibold mt-0.5 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
+                    <span>Lưu Firestore theo siêu thị: <strong className="text-white underline font-black">{currentStoreId && currentStoreId !== 'ALL' ? currentStoreId : 'Siêu thị đang chọn'}</strong></span>
+                    <span>• Đồng bộ tất cả trình duyệt</span>
+                    {isSavingPosmCart && <span className="text-amber-200 italic ml-1">Đang lưu...</span>}
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsPosmCartModalOpen(false)}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Đóng modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Toolbar if cart has items */}
+            {posmCartItems.length > 0 && (
+              <div className="px-5 py-2.5 bg-emerald-50/70 border-b border-emerald-100 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
+                <div className="flex items-center gap-2 text-slate-700 font-medium">
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Nhập trực tiếp <strong>Giá gốc</strong> và <strong>Giá giảm</strong> trên từng dòng, dữ liệu tự động lưu và đồng bộ tức thì.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearPosmCart}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer hover:border-red-300"
+                >
+                  <Trash2 size={13} />
+                  <span>Xóa toàn bộ giỏ hàng</span>
+                </button>
+              </div>
+            )}
+
+            {/* Body */}
+            <div className="p-4 md:p-5 overflow-y-auto flex-1 space-y-4">
+              {posmCartItems.length === 0 ? (
+                <div className="py-16 flex flex-col items-center justify-center text-center">
+                  <div className="w-20 h-20 rounded-3xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mb-4 shadow-sm">
+                    <ShoppingBag size={40} />
+                  </div>
+                  <h4 className="text-base font-black text-slate-800 uppercase tracking-wide">
+                    Giỏ In POSM Đang Trống
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-md mt-1 font-medium leading-relaxed">
+                    Hãy tìm kiếm sản phẩm từ ô Google Sheet, nhập tay thủ công hoặc bấm nút <ShoppingCart size={14} className="inline text-emerald-600 mx-1 align-text-bottom" /> trong bảng giá để thêm sản phẩm vào giỏ in!
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setIsPosmCartModalOpen(false)}
+                    className="mt-5 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer"
+                  >
+                    Quay lại danh sách sản phẩm
+                  </button>
+                </div>
+              ) : (
+                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+                  <div className="overflow-x-auto max-h-[48vh]" style={{ WebkitOverflowScrolling: 'touch' }}>
+                    <table className="w-full text-left border-collapse min-w-[760px]">
+                      <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-xs border-b border-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider">
+                        <tr>
+                          <th className="py-3 px-3 text-center w-12">STT</th>
+                          <th className="py-3 px-3 text-center w-32">SL In (Tem)</th>
+                          <th className="py-3 px-3 w-28">Mã SP</th>
+                          <th className="py-3 px-4">Tên sản phẩm</th>
+                          <th className="py-3 px-3 text-right w-40">Giá gốc (VNĐ)</th>
+                          <th className="py-3 px-3 text-right w-40">Giá giảm (VNĐ)</th>
+                          <th className="py-3 px-3 text-center w-12">Xóa</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-sm">
+                        {posmCartItems.map((item, idx) => (
+                          <tr key={item.id || idx} className="hover:bg-emerald-50/20 transition-colors">
+                            <td className="py-3 px-3 text-center font-bold text-slate-400 text-xs">{idx + 1}</td>
+                            <td className="py-3 px-3 text-center">
+                              <div className="inline-flex items-center border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdatePosmCartItem(item.id, 'quantity', Math.max(1, (item.quantity || 1) - 1))}
+                                  className="p-1.5 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+                                  title="Giảm 1 tem"
+                                >
+                                  <Minus size={12} />
+                                </button>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={item.quantity || 1}
+                                  onChange={(e) => handleUpdatePosmCartItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
+                                  className="w-12 text-center text-xs font-black text-slate-800 py-1 focus:outline-none bg-transparent"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdatePosmCartItem(item.id, 'quantity', (item.quantity || 1) + 1)}
+                                  className="p-1.5 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+                                  title="Tăng 1 tem"
+                                >
+                                  <Plus size={12} />
+                                </button>
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 text-xs font-bold text-emerald-700 font-mono">
+                              {item.productCode || item.maSanPham || '-'}
+                            </td>
+                            <td className="py-3 px-4 text-xs font-bold text-slate-800 leading-snug">
+                              {item.name}
+                              {(item.nganhHang || item.nhomHang) && (
+                                <div className="text-[10px] text-slate-400 font-normal mt-0.5">
+                                  {[item.nganhHang, item.nhomHang].filter(Boolean).join(' • ')}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              <input 
+                                type="text"
+                                className="w-32 bg-slate-50 border border-slate-200 text-slate-700 py-1.5 px-2 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-right transition-all"
+                                value={item.originalPrice ? Number(item.originalPrice).toLocaleString('vi-VN') + ' đ' : ''}
+                                placeholder="0 đ"
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => handleUpdatePosmCartItem(item.id, 'originalPrice', e.target.value)}
+                              />
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              <input 
+                                type="text"
+                                className="w-32 bg-rose-50/40 border border-rose-300 text-rose-600 py-1.5 px-2 rounded-xl text-xs font-black focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white text-right transition-all shadow-2xs"
+                                value={item.discountPrice ? Number(item.discountPrice).toLocaleString('vi-VN') + ' đ' : ''}
+                                placeholder="0 đ"
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => handleUpdatePosmCartItem(item.id, 'discountPrice', e.target.value)}
+                              />
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveFromPosmCart(item.id)}
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                title="Xóa khỏi giỏ in"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer / POSM Print Buttons */}
+            {posmCartItems.length > 0 && (
+              <div className="p-4 md:p-5 bg-slate-50/90 border-t border-slate-200 shrink-0 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Printer size={16} className="text-emerald-700" />
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-800">
+                      BẤM IN TRỰC TIẾP TỪ GIỎ HÀNG POSM ({totalPosmCartStickers} TEM)
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 font-medium">
+                    Tổng cộng: <strong className="text-slate-900 font-black">{posmCartItems.length} sản phẩm</strong> • <strong className="text-emerald-700 font-black">{totalPosmCartStickers} tem in</strong>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => handlePrintFromPosmCart('a4_ngang')}
+                    className="p-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+                  >
+                    <Printer size={16} />
+                    <span>IN 1 STICKER / TRANG A4 NGANG ({totalPosmCartStickers} TRANG)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handlePrintFromPosmCart('1')}
+                    className="p-3.5 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-sky-500/20 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+                  >
+                    <Printer size={16} />
+                    <span>IN 1 STICKER / TRANG A5 NGANG ({totalPosmCartStickers} TRANG)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handlePrintFromPosmCart('2')}
+                    className="p-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+                  >
+                    <Printer size={16} />
+                    <span>IN 2 STICKER / TRANG A4 ĐỨNG ({Math.ceil(totalPosmCartStickers / 2)} TRANG)</span>
+                  </button>
                 </div>
               </div>
             )}
