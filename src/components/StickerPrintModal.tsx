@@ -16,7 +16,7 @@ interface StickerPrintModalProps {
 export default function StickerPrintModal({ isOpen, onClose, data, config = { style: 'classic', layout: '4', showPromoLabel: true }, mlnHeaderTemplate = '', mlnFooterTemplate = '', promoLabelText = 'sản phẩm giá sốc - event T7 & CN' }: StickerPrintModalProps) {
   const [previewScale, setPreviewScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
-  const isA5 = ((config.style === 'display' || config.style === 'giovang') && config.layout === '1') || ((config.style === 'sticker_ce' || config.style === 'sticker_lk') && config.layout === '1') || (config.style === 'phieu_bh' && config.layout === 'right');
+  const isA5 = ((config.style === 'display' || config.style === 'giovang') && config.layout === '1') || ((config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp') && config.layout === '1') || (config.style === 'phieu_bh' && config.layout === 'right');
   const isA4Giasoc = config.style === 'a4_giasoc';
   const isPhieuBH = config.style === 'phieu_bh';
   const [renderAllPages, setRenderAllPages] = useState(false);
@@ -41,7 +41,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
     if (config.style === 'dcnb') return { cols: 3, rows: 8, scale: 1, orientation: 'portrait' };
     if (config.style === 'display' || config.style === 'giovang' || config.style === 'a4_giasoc') return { cols: 1, rows: 1, scale: 1, orientation: 'portrait' };
     if (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp') {
-      if (config.layout === 'a4_ngang' || config.layout === '1_a4' || (config.style === 'popup_all_sp' && config.layout !== '2')) return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
+      if (config.layout === 'a4_ngang' || config.layout === '1_a4') return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
       if (config.layout === '2') return { cols: 1, rows: 2, scale: 1, orientation: 'portrait' };
       return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
     }
@@ -351,8 +351,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
   const isAddressFlyer = config.style === 'address_flyer';
   const isDcnb = config.style === 'dcnb';
   const isDisplayA4 = config.style === 'display' && config.layout === '2';
-  const isPopupAllSp = config.style === 'popup_all_sp';
-  const isA4Ngang = (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp') && (config.layout === 'a4_ngang' || config.layout === '1_a4' || (isPopupAllSp && config.layout !== '2'));
+  const isA4Ngang = (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp') && (config.layout === 'a4_ngang' || config.layout === '1_a4');
   const baseStickerWidth = isDcnb ? 66 : (isAddressFlyer ? 66 : (isPhieuBH ? (config.layout === 'right' ? 98 : 105) : (isCeA6 ? 148.5 : (isA4Ngang ? 297 : (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp' || isDisplayA4 ? 210 : (isA5 ? 148.5 : (isA4Giasoc ? 210 : 148.5))))))); // mm
   const baseStickerHeight = isDcnb ? 35 : (isAddressFlyer ? 142 : (isPhieuBH ? (config.layout === 'right' ? 132 : 148.5) : (isCeA6 ? 105 : (isA4Ngang ? 210 : (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp' ? 148.5 : (isA5 ? 210 : (isA4Giasoc || isDisplayA4 ? 297 : 105))))))); // mm
 
@@ -1112,9 +1111,8 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
   }
 
   if (style === 'sticker_ce' || style === 'sticker_lk' || style === 'popup_all_sp') {
-    const isPopupAllSp = style === 'popup_all_sp' || item?.nganhHang === 'POSM ALL SP';
     const isA6 = false;
-    const isA4Ngang = (layout === 'a4_ngang' || layout === '1_a4') || (isPopupAllSp && layout !== '2');
+    const isA4Ngang = layout === 'a4_ngang' || layout === '1_a4';
     const priceStr = formatPrice(item.discountPrice);
     const priceParts = priceStr.split('.');
     const mainPrice = priceParts.slice(0, -1).join('.');
@@ -1142,33 +1140,62 @@ export const Sticker = React.memo(function Sticker({ item, style, layout, showPr
     };
     const qrColWidth = isA4Ngang ? '120px' : isA6 ? '55px' : '90px';
 
+    const isMobileClient = typeof window !== 'undefined' && (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768);
+
     const nameText = item.name || 'TÊN SẢN PHẨM';
     const nameLen = nameText.length;
     const getNameFontSize = () => {
       if (isA4Ngang) {
-        // Cỡ chữ chuẩn vừa khít 1 dòng đẹp tuyệt đối trên cả Desktop và Mobile (khớp chuẩn Hình 2)
-        if (nameLen > 75) return '20px';
-        if (nameLen > 60) return '23px';
-        if (nameLen > 45) return '27px';
-        if (nameLen > 30) return '33px';
-        if (nameLen > 20) return '38px';
-        return '44px';
+        if (isMobileClient) {
+          // Mobile: Thu nhỏ vừa vặn 1 dòng, không bao giờ tự động xuống dòng
+          if (nameLen > 75) return '17px';
+          if (nameLen > 60) return '20px';
+          if (nameLen > 45) return '23px';
+          if (nameLen > 30) return '27px';
+          if (nameLen > 20) return '31px';
+          return '35px';
+        }
+        // Desktop / Laptop: Bề thế, sang trọng nhưng vẫn vừa vặn 1 dòng
+        if (nameLen > 75) return '22px';
+        if (nameLen > 60) return '26px';
+        if (nameLen > 45) return '31px';
+        if (nameLen > 30) return '36px';
+        if (nameLen > 20) return '42px';
+        return '46px';
       }
       if (isA6) {
-        if (nameLen > 75) return '10px';
-        if (nameLen > 60) return '11.5px';
-        if (nameLen > 45) return '13px';
-        if (nameLen > 30) return '15px';
-        if (nameLen > 20) return '18px';
-        return '21px';
+        if (isMobileClient) {
+          if (nameLen > 75) return '9px';
+          if (nameLen > 60) return '10.5px';
+          if (nameLen > 45) return '12px';
+          if (nameLen > 30) return '14px';
+          if (nameLen > 20) return '16.5px';
+          return '19px';
+        }
+        if (nameLen > 75) return '11px';
+        if (nameLen > 60) return '13px';
+        if (nameLen > 45) return '15px';
+        if (nameLen > 30) return '18px';
+        if (nameLen > 20) return '20px';
+        return '23px';
       }
       // Khổ A5 ngang (210mm x 148.5mm) hoặc A4 đứng 2 tem:
-      if (nameLen > 75) return '13px';
-      if (nameLen > 60) return '15px';
-      if (nameLen > 45) return '18px';
-      if (nameLen > 30) return '22px';
-      if (nameLen > 20) return '26px';
-      return '30px';
+      if (isMobileClient) {
+        // Mobile: Thu nhỏ vừa vặn 1 dòng
+        if (nameLen > 75) return '11px';
+        if (nameLen > 60) return '13px';
+        if (nameLen > 45) return '15px';
+        if (nameLen > 30) return '18px';
+        if (nameLen > 20) return '21px';
+        return '24px';
+      }
+      // Desktop:
+      if (nameLen > 75) return '14px';
+      if (nameLen > 60) return '17px';
+      if (nameLen > 45) return '20px';
+      if (nameLen > 30) return '24px';
+      if (nameLen > 20) return '28px';
+      return '32px';
     };
 
     const getPriceFontSize = () => {

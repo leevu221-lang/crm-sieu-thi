@@ -3335,7 +3335,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       htmlTh.style.setProperty('font-weight', '900', 'important');
       htmlTh.style.setProperty('line-height', '1.25', 'important');
       htmlTh.style.setProperty('height', '42px', 'important');
-      htmlTh.style.setProperty('padding', '6px 4px', 'important');
+      const isLeftHeader = htmlTh.classList.contains('text-left') || (htmlTh.textContent || '').includes('CHI TIẾT NGÀNH HÀNG') || (htmlTh.textContent || '').includes('TIÊU CHÍ');
+      htmlTh.style.setProperty('padding-top', '6px', 'important');
+      htmlTh.style.setProperty('padding-bottom', '6px', 'important');
+      htmlTh.style.setProperty('padding-right', '4px', 'important');
+      htmlTh.style.setProperty('padding-left', isLeftHeader ? '16px' : '4px', 'important');
       htmlTh.style.setProperty('box-sizing', 'border-box', 'important');
       htmlTh.style.setProperty('font-family', "'UTM Avo', sans-serif", 'important');
     });
@@ -3347,7 +3351,26 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       htmlTd.style.setProperty('font-weight', '800', 'important');
       htmlTd.style.setProperty('line-height', '1.25', 'important');
       htmlTd.style.setProperty('height', '38px', 'important');
-      htmlTd.style.setProperty('padding', '6px 4px', 'important');
+
+      // Preserve hierarchical indentation for drill-down / tree cells (thụt lề theo cấp danh mục)
+      const depthAttr = htmlTd.getAttribute('data-depth');
+      const origPaddingLeft = htmlTd.style.paddingLeft || htmlTd.getAttribute('data-padding-left');
+
+      htmlTd.style.setProperty('padding-top', '6px', 'important');
+      htmlTd.style.setProperty('padding-bottom', '6px', 'important');
+      htmlTd.style.setProperty('padding-right', '4px', 'important');
+
+      if (depthAttr !== null && depthAttr !== undefined && depthAttr !== '') {
+        const d = parseInt(depthAttr, 10);
+        htmlTd.style.setProperty('padding-left', `${16 + (isNaN(d) ? 0 : d) * 20}px`, 'important');
+      } else if (origPaddingLeft && origPaddingLeft !== '4px' && origPaddingLeft !== '0px') {
+        htmlTd.style.setProperty('padding-left', origPaddingLeft, 'important');
+      } else if (htmlTd.classList.contains('pl-6') || (htmlTd.textContent || '').trim() === 'TỔNG') {
+        htmlTd.style.setProperty('padding-left', '16px', 'important');
+      } else {
+        htmlTd.style.setProperty('padding-left', '4px', 'important');
+      }
+
       htmlTd.style.setProperty('box-sizing', 'border-box', 'important');
       htmlTd.style.setProperty('font-family', "'UTM Avo', sans-serif", 'important');
     });
@@ -3525,8 +3548,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         }
       });
 
-      // Hide all remaining no-capture controls and interactive buttons in the clone
-      const noCaptureElements = clone.querySelectorAll('.no-capture, button');
+      // Hide all remaining no-capture controls and interactive buttons in the clone (preserving drill-down tree chevrons)
+      const noCaptureElements = clone.querySelectorAll('.no-capture, button:not(.drill-toggle-btn)');
       noCaptureElements.forEach(el => {
         (el as HTMLElement).style.display = 'none';
       });
@@ -5467,20 +5490,23 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       }
       await new Promise(resolve => setTimeout(resolve, 150));
 
-      // Save original styles for element and all ancestors up to body
-      const savedStyles: { el: HTMLElement; cssText: string }[] = [];
+      // Save original styles for element and all ancestors up to body using a map so each element is saved exactly once at the beginning
+      const savedStylesMap = new Map<HTMLElement, string>();
+      const saveOriginalStyle = (el: HTMLElement) => {
+        if (!savedStylesMap.has(el)) {
+          savedStylesMap.set(el, el.style.cssText);
+        }
+      };
       
       // Save styles of elements before applying desktop styles
       const styleNodes = element.querySelectorAll('table, th, td, td div, td span, colgroup col, h2, h3, [class*="from-[#0284C7]"] > div, [class*="from-[#1E40AF]"] > div, [class*="from-[#047857]"] > div, .bg-gradient-to-r > div');
-      styleNodes.forEach(sn => {
-        savedStyles.push({ el: sn as HTMLElement, cssText: (sn as HTMLElement).style.cssText });
-      });
+      styleNodes.forEach(sn => saveOriginalStyle(sn as HTMLElement));
 
       // Apply desktop styles (typography, headers, category column widths, banner title/subtitle)
       applyDesktopScreenshotStyles(element);
 
       // Save and expand element itself
-      savedStyles.push({ el: element, cssText: element.style.cssText });
+      saveOriginalStyle(element);
       element.style.maxWidth = 'none';
       element.style.width = 'max-content';
       element.style.minWidth = '820px';
@@ -5496,7 +5522,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       // Expand all ancestors so they don't clip the widened table
       let parent = element.parentElement;
       while (parent && parent !== document.body) {
-        savedStyles.push({ el: parent, cssText: parent.style.cssText });
+        saveOriginalStyle(parent);
         parent.style.maxWidth = 'none';
         parent.style.overflow = 'visible';
         parent.style.width = 'auto';
@@ -5508,7 +5534,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       const scrollEls = element.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow-"], .grow, [class*="grow"]');
       scrollEls.forEach(el => {
         const htmlEl = el as HTMLElement;
-        savedStyles.push({ el: htmlEl, cssText: htmlEl.style.cssText });
+        saveOriginalStyle(htmlEl);
         htmlEl.style.overflow = 'visible';
         htmlEl.style.overflowX = 'visible';
         htmlEl.style.overflowY = 'visible';
@@ -5525,7 +5551,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       const allTables = element.querySelectorAll('table');
       allTables.forEach(t => {
         const htmlT = t as HTMLElement;
-        savedStyles.push({ el: htmlT, cssText: htmlT.style.cssText });
+        saveOriginalStyle(htmlT);
         htmlT.style.width = 'max-content';
         htmlT.style.minWidth = '100%';
         htmlT.style.maxWidth = 'none';
@@ -5537,7 +5563,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       const allCells = element.querySelectorAll('th, td');
       allCells.forEach(c => {
         const htmlC = c as HTMLElement;
-        savedStyles.push({ el: htmlC, cssText: htmlC.style.cssText });
+        saveOriginalStyle(htmlC);
         htmlC.style.whiteSpace = 'nowrap';
         htmlC.style.maxWidth = 'none';
         htmlC.style.overflow = 'visible';
@@ -5599,7 +5625,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       const dataUrl = await addWhiteBorderToDataUrl(rawDataUrl, 20, fullWidth);
 
       // Restore all styles in reverse order
-      savedStyles.forEach(({ el, cssText }) => { el.style.cssText = cssText; });
+      savedStylesMap.forEach((cssText, el) => { el.style.cssText = cssText; });
       savedShadows.forEach(({ el, bs, f, ts }) => {
         el.style.boxShadow = bs;
         el.style.filter = f;
@@ -8305,7 +8331,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               return (
                                 <tr key={row.key} className="border-b border-slate-100/70 hover:bg-slate-50/80 transition-colors h-10">
                                   {/* Danh mục / Indented */}
-                                  <td className="py-2 px-4 text-left border-r border-slate-200/50" style={{ paddingLeft: `${16 + row.depth * 20}px` }}>
+                                  <td 
+                                    className="py-2 px-4 text-left border-r border-slate-200/50 drill-cell-name" 
+                                    data-depth={row.depth}
+                                    data-padding-left={`${16 + row.depth * 20}px`}
+                                    style={{ paddingLeft: `${16 + row.depth * 20}px` }}
+                                  >
                                     <div className="flex items-center">
                                       {hasChildren ? (
                                         <button
@@ -8316,14 +8347,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                               [row.key]: !isExpanded
                                             }));
                                           }}
-                                          className="w-5 h-5 rounded hover:bg-slate-100 flex items-center justify-center text-slate-400 mr-1.5 transition-colors cursor-pointer shrink-0"
+                                          className="w-5 h-5 rounded hover:bg-slate-100 flex items-center justify-center text-slate-400 mr-1.5 transition-colors cursor-pointer shrink-0 drill-toggle-btn"
                                         >
                                           <ChevronRight size={14} className={`transform transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
                                         </button>
                                       ) : (
-                                        <div className="w-5 h-5 mr-1.5 shrink-0" />
+                                        <div className="w-5 h-5 mr-1.5 shrink-0 drill-toggle-btn" />
                                       )}
-                                      <span className={`${isUser43751 ? 'text-[14px]' : 'text-[13px]'} tracking-tight ${textClass}`}>{row.name}</span>
+                                      <span className={`${isUser43751 ? 'text-[14px]' : 'text-[13px]'} tracking-tight whitespace-nowrap ${textClass}`}>{row.name}</span>
                                     </div>
                                   </td>
 

@@ -1650,7 +1650,12 @@ const BcDtNganhHang: React.FC<{ isUser43751?: boolean }> = ({ isUser43751 = fals
                     return (
                       <tr key={row.key} className="border-b border-slate-100/70 hover:bg-slate-50/60 transition-colors h-10">
                         {/* Expandable Title */}
-                        <td className="py-2 px-4 text-left border-r border-slate-200/50" style={{ paddingLeft: `${16 + row.depth * 20}px` }}>
+                        <td 
+                          className="py-2 px-4 text-left border-r border-slate-200/50 drill-cell-name" 
+                          data-depth={row.depth}
+                          data-padding-left={`${16 + row.depth * 20}px`}
+                          style={{ paddingLeft: `${16 + row.depth * 20}px` }}
+                        >
                           <div className="flex items-center">
                             {hasChildren ? (
                               <button
@@ -1660,14 +1665,14 @@ const BcDtNganhHang: React.FC<{ isUser43751?: boolean }> = ({ isUser43751 = fals
                                     [row.key]: !isExpanded
                                   }));
                                 }}
-                                className="w-5 h-5 rounded hover:bg-slate-100 flex items-center justify-center text-slate-400 mr-1.5 transition-colors cursor-pointer shrink-0"
+                                className="w-5 h-5 rounded hover:bg-slate-100 flex items-center justify-center text-slate-400 mr-1.5 transition-colors cursor-pointer shrink-0 drill-toggle-btn"
                               >
                                 <ChevronRight size={14} className={`transform transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
                               </button>
                             ) : (
-                              <div className="w-5 h-5 mr-1.5 shrink-0" />
+                              <div className="w-5 h-5 mr-1.5 shrink-0 drill-toggle-btn" />
                             )}
-                            <span className={`${isUser43751 ? 'text-[14px] tracking-tight' : ''} ${textClass}`}>{row.name}</span>
+                            <span className={`${isUser43751 ? 'text-[14px] tracking-tight' : ''} whitespace-nowrap ${textClass}`}>{row.name}</span>
                           </div>
                         </td>
 
