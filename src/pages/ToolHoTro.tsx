@@ -1079,7 +1079,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     setPrintSource('posm_cart');
     setPopupPrintLayout(layout as any);
     setPrintConfig({
-      style: 'sticker_lk',
+      style: 'popup_all_sp',
       layout: layout,
       showPromoLabel: false
     });
@@ -1258,6 +1258,10 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
     if (activeTab === 'sticker-event-dmx') {
       setPromoLabelTextVal('GIÁ KM 43346-TRẦN TRỌNG THIỆN GỬI');
+    } else if (activeTab === 'popup-all-sp') {
+      setPromoLabelTextVal('SẢN PHẨM GIÁ SỐC - EVENT T7 & CN');
+      setPopupPrintLayout('a4_ngang');
+      setPrintConfig({ style: 'popup_all_sp', layout: 'a4_ngang', showPromoLabel: false });
     } else if (activeTab === 'sticker-dong-gia-100k') {
       setPromoLabelTextVal('ĐỒNG GIÁ');
       setEventPrintLayout('16');
@@ -5472,7 +5476,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                     </div>
 
                     <div className="rounded-3xl border border-indigo-100/70 overflow-hidden flex flex-col mb-4 bg-white shadow-xl shadow-indigo-100/10">
-                      <div className={`${activeTab === 'sticker-dcnb' || (activeTab === 'sticker-lk' && lkPrintLayout === '2') || (activeTab === 'popup-all-sp' && popupPrintLayout === '2') || (activeTab === 'sticker-ce' && cePrintLayout === '2') || (activeTab === 'sticker-mln' && mlnPrintLayout === '2') || (activeTab === 'sticker-gvgs' && gvgsPrintLayout === '2') ? 'h-[760px]' : (activeTab === 'popup-all-sp' && popupPrintLayout === 'a4_ngang') ? 'h-[360px] sm:h-[440px] md:h-[520px]' : 'h-[340px] sm:h-[390px] md:h-[440px]'} bg-gradient-to-tr from-slate-50 via-indigo-50/20 to-purple-50/30 flex items-center justify-center overflow-hidden relative p-2 sm:p-4 md:p-8`}>
+                      <div className={`${activeTab === 'sticker-dcnb' || (activeTab === 'sticker-lk' && lkPrintLayout === '2') || (activeTab === 'popup-all-sp' && popupPrintLayout === '2') || (activeTab === 'sticker-ce' && cePrintLayout === '2') || (activeTab === 'sticker-mln' && mlnPrintLayout === '2') || (activeTab === 'sticker-gvgs' && gvgsPrintLayout === '2') ? 'h-[760px]' : activeTab === 'popup-all-sp' ? 'h-[360px] sm:h-[440px] md:h-[500px]' : 'h-[340px] sm:h-[390px] md:h-[440px]'} bg-gradient-to-tr from-slate-50 via-indigo-50/20 to-purple-50/30 flex items-center justify-center overflow-hidden relative p-2 sm:p-4 md:p-8`}>
                         <div
                           className="pointer-events-none select-none shadow-[0_20px_50px_rgba(99,102,241,0.15)] border border-slate-900/10 rounded-xl overflow-hidden transition-all duration-300 flex flex-col bg-white"
                           style={{
@@ -5481,11 +5485,9 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               : activeTab === 'sticker-lk'
                                 ? (lkPrintLayout === '1' ? 'scale(0.48)' : 'scale(0.58)')
                                 : activeTab === 'popup-all-sp'
-                                  ? (popupPrintLayout === 'a4_ngang' 
-                                      ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.28)' : 'scale(0.38)') 
-                                      : popupPrintLayout === '1' 
-                                        ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.38)' : 'scale(0.48)') 
-                                        : (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.46)' : 'scale(0.58)'))
+                                  ? (popupPrintLayout === '2' 
+                                      ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.38)' : 'scale(0.48)') 
+                                      : (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.32)' : typeof window !== 'undefined' && window.innerWidth < 1024 ? 'scale(0.42)' : 'scale(0.52)'))
                                   : activeTab === 'sticker-ce'
                                     ? (cePrintLayout === '1' ? 'scale(0.48)' : 'scale(0.58)')
                                     : activeTab === 'sticker-dcnb'
@@ -5499,7 +5501,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               : activeTab === 'sticker-lk'
                                 ? '210mm'
                                 : activeTab === 'popup-all-sp'
-                                  ? (popupPrintLayout === 'a4_ngang' ? '297mm' : '210mm')
+                                  ? (popupPrintLayout === '2' ? '210mm' : '297mm')
                                   : activeTab === 'sticker-ce'
                                     ? '210mm'
                                     : activeTab === 'sticker-dcnb'
@@ -5512,7 +5514,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               : activeTab === 'sticker-lk'
                                 ? (lkPrintLayout === '1' ? '148.5mm' : '297mm')
                                 : activeTab === 'popup-all-sp'
-                                  ? (popupPrintLayout === 'a4_ngang' ? '210mm' : popupPrintLayout === '1' ? '148.5mm' : '297mm')
+                                  ? (popupPrintLayout === '2' ? '297mm' : '210mm')
                                   : activeTab === 'sticker-ce'
                                     ? (cePrintLayout === '1' ? '148.5mm' : '297mm')
                                     : activeTab === 'sticker-dcnb'
@@ -5554,7 +5556,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                       ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
                                       : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
                                 }
-                                style={activeTab === 'sticker-ce' ? 'sticker_ce' : 'sticker_lk'}
+                                style={activeTab === 'popup-all-sp' ? 'popup_all_sp' : activeTab === 'sticker-ce' ? 'sticker_ce' : 'sticker_lk'}
                                 layout="2"
                                 showPromoLabel={false}
                               />
@@ -5567,7 +5569,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                       ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
                                       : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
                                 }
-                                style={activeTab === 'sticker-ce' ? 'sticker_ce' : 'sticker_lk'}
+                                style={activeTab === 'popup-all-sp' ? 'popup_all_sp' : activeTab === 'sticker-ce' ? 'sticker_ce' : 'sticker_lk'}
                                 layout="2"
                                 showPromoLabel={false}
                               />
@@ -5649,7 +5651,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                         ? { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: '88888', maSanPham: 'SP002', nganhHang: 'LOA KÉO' }
                                         : { name: 'Quạt điều hoà DK03', originalPrice: 5490000, discountPrice: 3490000, qrData: '99999', maSanPham: 'SP001' }
                               }
-                              style={(activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') ? 'display' : (activeTab === 'sticker-lk' || activeTab === 'popup-all-sp') ? 'sticker_lk' : activeTab === 'sticker-ce' ? 'sticker_ce' : 'classic'}
+                              style={(activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs') ? 'display' : activeTab === 'popup-all-sp' ? 'popup_all_sp' : activeTab === 'sticker-lk' ? 'sticker_lk' : activeTab === 'sticker-ce' ? 'sticker_ce' : 'classic'}
                               layout={activeTab === 'popup-all-sp' ? popupPrintLayout : activeTab === 'sticker-lk' ? lkPrintLayout : activeTab === 'sticker-ce' ? cePrintLayout : activeTab === 'sticker-mln' ? mlnPrintLayout : activeTab === 'sticker-gvgs' ? gvgsPrintLayout : '1'}
                               showPromoLabel={activeTab === 'sticker-mln' || activeTab === 'sticker-gvgs' || activeTab === 'sticker-lk' || activeTab === 'popup-all-sp' || activeTab === 'sticker-ce' ? false : showEventPromoLabel}
                               promoLabelText={promoLabelTextVal}
@@ -5789,11 +5791,10 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                         ].map((s) => (
                           <button
                             key={s.layout}
-                            onMouseEnter={() => setPopupPrintLayout(s.layout as any)}
                             onClick={() => {
                               setPopupPrintLayout(s.layout as any);
                               setPrintConfig({ 
-                                style: 'sticker_lk', 
+                                style: 'popup_all_sp', 
                                 layout: s.layout, 
                                 showPromoLabel: false 
                               });
