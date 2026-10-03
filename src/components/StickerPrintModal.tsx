@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import QRCode from 'react-qr-code';
-import { X, Printer, Smartphone, Share2, HelpCircle, ArrowLeft, Download, Check, Sparkles } from 'lucide-react';
+import { X, Printer, Smartphone, Share2, HelpCircle, ArrowLeft, Download, Check, Sparkles, RotateCw } from 'lucide-react';
 
 interface StickerPrintModalProps {
   isOpen: boolean;
@@ -25,6 +25,8 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
   const [isExportingImage, setIsExportingImage] = useState(false);
   const [showIPrintGuide, setShowIPrintGuide] = useState(false);
   const [exportSuccessMsg, setExportSuccessMsg] = useState<string | null>(null);
+  const [rotateForBrother, setRotateForBrother] = useState<boolean>(true);
+  const [isIPrintLandscapeRotated, setIsIPrintLandscapeRotated] = useState<boolean>(false);
 
   const isMobileOrIos = useMemo(() => {
     if (typeof window === 'undefined') return false;
@@ -85,6 +87,32 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
     }
   };
 
+  const rotateImage90 = (dataUrl: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.height;
+        canvas.height = img.width;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.translate(canvas.width, 0);
+        ctx.rotate((90 * Math.PI) / 180);
+        ctx.drawImage(img, 0, 0);
+        
+        resolve(canvas.toDataURL('image/png', 1.0));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  };
+
   const handleExportPngForIPrint = async (targetPageIndex: number = 0) => {
     try {
       setIsExportingImage(true);
@@ -116,29 +144,39 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
         }
       });
 
-      const fileName = `Tem_POSM_Trang_${targetPageIndex + 1}_${Date.now()}.png`;
-      const res = await fetch(dataUrl);
+      const isLandscape = layoutStyles.orientation === 'landscape';
+      let finalDataUrl = dataUrl;
+      if (isLandscape && rotateForBrother) {
+        finalDataUrl = await rotateImage90(dataUrl);
+      }
+
+      const fileName = `Tem_POSM_A4_${isLandscape && rotateForBrother ? 'VuaTrangBrother_' : ''}Trang_${targetPageIndex + 1}_${Date.now()}.png`;
+      const res = await fetch(finalDataUrl);
       const blob = await res.blob();
       const file = new File([blob], fileName, { type: 'image/png' });
+
+      const msgSuccess = isLandscape && rotateForBrother
+        ? 'Đã tự động xoay vừa khít trang A4 máy in Brother! Hãy chạm chọn app iPrint&Scan để in trọn vẹn 100%.'
+        : 'Đã tạo ảnh tem A4 sắc nét! Hãy chạm chọn app iPrint&Scan để in.';
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
           await navigator.share({
             files: [file],
             title: 'In Tem POSM - iPrint&Scan',
-            text: 'Mở bằng app Brother iPrint&Scan để in ra máy in'
+            text: 'Mở bằng app Brother iPrint&Scan để in vừa khít khổ giấy A4'
           });
-          setExportSuccessMsg('Đã mở menu chia sẻ! Hãy chạm chọn app iPrint&Scan để in.');
-          setTimeout(() => setExportSuccessMsg(null), 5000);
+          setExportSuccessMsg(msgSuccess);
+          setTimeout(() => setExportSuccessMsg(null), 6000);
         } catch (shareErr: any) {
           if (shareErr.name !== 'AbortError') {
-            downloadDataUrl(dataUrl, fileName);
+            downloadDataUrl(finalDataUrl, fileName);
           }
         }
       } else {
-        downloadDataUrl(dataUrl, fileName);
-        setExportSuccessMsg('Đã tải ảnh tem A4 sắc nét! Bạn hãy mở app iPrint&Scan -> chọn In Ảnh (Print Photos) để in.');
-        setTimeout(() => setExportSuccessMsg(null), 5000);
+        downloadDataUrl(finalDataUrl, fileName);
+        setExportSuccessMsg(msgSuccess);
+        setTimeout(() => setExportSuccessMsg(null), 6000);
       }
     } catch (err) {
       console.error('Lỗi khi xuất ảnh cho iPrint&Scan:', err);
@@ -322,6 +360,25 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {layoutStyles.orientation === 'landscape' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRotateForBrother(!rotateForBrother);
+                  setIsIPrintLandscapeRotated(!isIPrintLandscapeRotated);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer border shadow-sm ${
+                  rotateForBrother 
+                    ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-300' 
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-600'
+                }`}
+                title="Xoay dọc 90 độ để khi in ra khay A4 máy in Brother không bị mất nửa trang"
+              >
+                <RotateCw size={13} className={rotateForBrother ? 'animate-spin-slow' : ''} />
+                <span>{rotateForBrother ? 'Đã Xoay Vừa A4 Brother' : 'Chưa Xoay A4'}</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => handleExportPngForIPrint(0)}
@@ -353,6 +410,23 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
       ) : (
         /* THANH ĐIỀU KHIỂN XEM TRƯỚC MẶC ĐỊNH */
         <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex flex-wrap items-center gap-2 print:hidden z-50">
+          {/* Nút Xoay 90 độ vừa khít A4 Brother khi là layout ngang */}
+          {layoutStyles.orientation === 'landscape' && (
+            <button
+              type="button"
+              onClick={() => setRotateForBrother(!rotateForBrother)}
+              className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all cursor-pointer border ${
+                rotateForBrother 
+                  ? 'bg-amber-400 hover:bg-amber-500 text-slate-950 border-amber-300 shadow-amber-500/25' 
+                  : 'bg-slate-800/90 hover:bg-slate-900 text-slate-300 border-slate-700'
+              }`}
+              title="Xoay dọc 90 độ để khi máy in Brother HL-L2360D in ra không bị cắt mất nửa trang"
+            >
+              <RotateCw size={14} className={rotateForBrother ? 'text-slate-950 animate-spin-slow' : 'text-slate-400'} />
+              <span>{rotateForBrother ? 'Xoay Vừa A4: BẬT' : 'Xoay Vừa A4: TẮT'}</span>
+            </button>
+          )}
+
           {/* Nút Chế độ In iPrint&Scan (Tối ưu riêng cho iPhone và app Brother) */}
           <button 
             type="button"
@@ -531,6 +605,17 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                   <li>Menu chia sẻ của iPhone hiện ra &rarr; Chạm chọn biểu tượng app <strong>"iPrint&Scan"</strong>.</li>
                   <li>App Brother iPrint&Scan sẽ tự động nạp bức ảnh tem khổ A4 cực nét &rarr; Bạn chỉ việc bấm <strong>Print</strong> là xong!</li>
                 </ol>
+              </div>
+
+              {/* Lưu ý máy in Brother */}
+              <div className="p-3.5 bg-amber-50/90 border border-amber-300 rounded-2xl space-y-1 text-xs text-amber-950 font-medium">
+                <div className="font-black text-amber-900 flex items-center gap-1.5">
+                  <RotateCw size={14} className="text-amber-700" />
+                  <span>Khắc phục lỗi bị cắt nửa trang trên máy in Brother (HL-L2360D...):</span>
+                </div>
+                <p className="leading-relaxed text-slate-700 mt-1">
+                  Khay nạp giấy của máy in Brother A4 nạp theo chiều dọc. Với tem <strong>A4 Ngang</strong>, hệ thống đã <strong>tự động bật tính năng "Xoay Vừa A4 (90°)"</strong>. File ảnh gửi sang app sẽ vừa khít 100% toàn bộ tờ giấy A4 mà không bị cắt mất chữ hay lệch mép!
+                </p>
               </div>
             </div>
 
