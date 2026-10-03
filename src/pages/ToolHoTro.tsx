@@ -7666,38 +7666,41 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
       {/* Modal Giỏ In POSM ALL SP */}
       {isPosmCartModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 md:p-4 animate-[fadeIn_0.2s_ease-out]">
-          <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[92vh] shadow-2xl overflow-hidden border border-slate-200 flex flex-col">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-1.5 sm:p-4 animate-[fadeIn_0.2s_ease-out] overflow-x-hidden">
+          <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-[calc(100vw-12px)] sm:max-w-5xl max-h-[92dvh] sm:max-h-[92vh] shadow-2xl overflow-hidden border border-slate-200 flex flex-col mx-auto">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 px-5 py-4 text-white flex items-center justify-between shrink-0 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center text-white font-black shadow-inner">
-                  <ShoppingCart size={22} />
+            <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 px-3.5 sm:px-5 py-3 sm:py-4 text-white flex items-center justify-between shrink-0 shadow-sm">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center text-white font-black shadow-inner shrink-0">
+                  <ShoppingCart size={18} className="sm:w-[22px] sm:h-[22px]" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-black text-base md:text-lg uppercase tracking-wider leading-tight text-white">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    <h3 className="font-black text-sm sm:text-base md:text-lg uppercase tracking-wider leading-tight text-white truncate">
                       Giỏ In POSM ALL SP
                     </h3>
-                    <span className="bg-white/20 text-white text-xs font-black px-2.5 py-0.5 rounded-full backdrop-blur-xs shadow-2xs border border-white/20">
-                      {posmCartItems.length} sản phẩm
+                    <span className="bg-white/20 text-white text-[10px] sm:text-xs font-black px-2 sm:px-2.5 py-0.5 rounded-full backdrop-blur-xs shadow-2xs border border-white/20 shrink-0">
+                      {posmCartItems.length} SP
                     </span>
                     {posmDeletedCarts.length > 0 && (
                       <button
                         type="button"
                         onClick={() => setIsPosmHistoryModalOpen(true)}
-                        className="bg-white/15 hover:bg-white/25 text-white text-xs font-bold px-2.5 py-0.5 rounded-full backdrop-blur-xs shadow-2xs border border-white/20 flex items-center gap-1 transition-all cursor-pointer"
+                        className="bg-white/15 hover:bg-white/25 text-white text-[10px] sm:text-xs font-bold px-2 sm:px-2.5 py-0.5 rounded-full backdrop-blur-xs shadow-2xs border border-white/20 flex items-center gap-1 transition-all cursor-pointer shrink-0"
                         title="Xem lịch sử các giỏ hàng đã xóa và khôi phục"
                       >
-                        <RotateCcw size={11} />
-                        <span>Lịch sử đã xóa ({posmDeletedCarts.length})</span>
+                        <RotateCcw size={10} />
+                        <span>Lịch sử ({posmDeletedCarts.length})</span>
                       </button>
                     )}
                   </div>
-                  <p className="text-[11px] text-emerald-100 font-semibold mt-0.5 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
-                    <span>Lưu Firestore theo siêu thị: <strong className="text-white underline font-black">{currentStoreId && currentStoreId !== 'ALL' ? currentStoreId : 'Siêu thị đang chọn'}</strong></span>
-                    <span>• Đồng bộ tất cả trình duyệt</span>
+                  <p className="text-[10px] sm:text-[11px] text-emerald-100 font-semibold mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 leading-snug">
+                    <span className="inline-flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>
+                      <span>Lưu Firestore: <strong className="text-white underline font-black">{currentStoreId && currentStoreId !== 'ALL' ? currentStoreId : 'Siêu thị đang chọn'}</strong></span>
+                    </span>
+                    <span className="hidden sm:inline">•</span>
+                    <span className="hidden sm:inline">Đồng bộ tất cả trình duyệt</span>
                     {isSavingPosmCart && <span className="text-amber-200 italic ml-1">Đang lưu...</span>}
                   </p>
                 </div>
@@ -7705,7 +7708,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
               <button 
                 type="button"
                 onClick={() => setIsPosmCartModalOpen(false)}
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0 ml-2"
                 title="Đóng modal"
               >
                 <X size={18} />
@@ -7714,38 +7717,38 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
             {/* Toolbar if cart has items */}
             {posmCartItems.length > 0 && (
-              <div className="px-5 py-2.5 bg-emerald-50/70 border-b border-emerald-100 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
-                <div className="flex items-center gap-2 text-slate-700 font-medium">
-                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>Nhập trực tiếp <strong>Giá gốc</strong> và <strong>Giá giảm</strong> trên từng dòng, dữ liệu tự động lưu và đồng bộ tức thì.</span>
+              <div className="px-3 sm:px-5 py-2 sm:py-2.5 bg-emerald-50/70 border-b border-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs shrink-0">
+                <div className="flex items-center gap-1.5 text-slate-700 font-medium text-[10.5px] sm:text-xs leading-tight">
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                  <span>Nhập trực tiếp <strong>Giá gốc</strong> và <strong>Giá giảm</strong>, dữ liệu tự động lưu tức thì.</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => setIsPosmQrScannerOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black shadow-md shadow-emerald-500/20 transition-all cursor-pointer active:scale-95"
+                    className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-[11px] sm:text-xs font-black shadow-md shadow-emerald-500/20 transition-all cursor-pointer active:scale-95"
                     title="Bật máy quét camera để tự động khớp sản phẩm từ Google Sheet và thêm vào giỏ in"
                   >
-                    <Scan size={14} className="animate-pulse" />
+                    <Scan size={13} className="animate-pulse" />
                     <span>QUÉT QR MÃ SP</span>
                   </button>
                   {posmDeletedCarts.length > 0 && (
                     <button
                       type="button"
                       onClick={() => setIsPosmHistoryModalOpen(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer hover:border-slate-300"
+                      className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-[11px] sm:text-xs font-bold transition-all shadow-2xs cursor-pointer hover:border-slate-300"
                       title="Xem danh sách các giỏ in đã xóa và khôi phục"
                     >
-                      <History size={13} className="text-amber-600" />
-                      <span>Lịch sử đã xóa ({posmDeletedCarts.length})</span>
+                      <History size={12} className="text-amber-600" />
+                      <span>Đã xóa ({posmDeletedCarts.length})</span>
                     </button>
                   )}
                   <button
                     type="button"
                     onClick={handleClearPosmCart}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer hover:border-red-300"
+                    className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-xl text-[11px] sm:text-xs font-bold transition-all shadow-2xs cursor-pointer hover:border-red-300"
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={12} />
                     <span>Xóa toàn bộ giỏ</span>
                   </button>
                 </div>
@@ -7753,7 +7756,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
             )}
 
             {/* Body */}
-            <div className="p-4 md:p-5 overflow-y-auto flex-1 space-y-4">
+            <div className="p-2 sm:p-4 overflow-y-auto overflow-x-hidden flex-1 space-y-3 w-full max-w-full">
               {posmCartItems.length === 0 ? (
                 <div className="py-12 flex flex-col items-center justify-center text-center">
                   {/* Banner khôi phục giỏ vừa xóa gần nhất nếu có */}
@@ -7823,100 +7826,111 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                   </div>
                 </div>
               ) : (
-                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
-                  <div className="overflow-x-auto max-h-[48vh]" style={{ WebkitOverflowScrolling: 'touch' }}>
-                    <table className="w-full text-left border-collapse min-w-[760px]">
-                      <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-xs border-b border-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider">
+                <div className="w-full max-w-full border border-slate-200 rounded-xl sm:rounded-2xl overflow-hidden shadow-2xs bg-white">
+                  <div className="w-full max-w-full overflow-x-auto max-h-[46vh] sm:max-h-[50vh]" style={{ WebkitOverflowScrolling: 'touch', maxWidth: '100%' }}>
+                    <table className="w-full text-left border-collapse min-w-[640px] sm:min-w-[740px] table-fixed">
+                      <colgroup>
+                        <col style={{ width: '42px' }} />
+                        <col style={{ width: '106px' }} />
+                        <col style={{ width: '108px' }} />
+                        <col style={{ minWidth: '160px' }} />
+                        <col style={{ width: '124px' }} />
+                        <col style={{ width: '124px' }} />
+                        <col style={{ width: '42px' }} />
+                      </colgroup>
+                      <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-xs border-b border-slate-200 text-slate-700 text-[11px] sm:text-xs font-bold uppercase tracking-wider">
                         <tr>
-                          <th className="py-3 px-3 text-center w-12">STT</th>
-                          <th className="py-3 px-3 text-center w-32">SL In (Tem)</th>
-                          <th className="py-3 px-3 w-28">Mã SP</th>
-                          <th className="py-3 px-4">Tên sản phẩm</th>
-                          <th className="py-3 px-3 text-right w-40">Giá gốc (VNĐ)</th>
-                          <th className="py-3 px-3 text-right w-40">Giá giảm (VNĐ)</th>
-                          <th className="py-3 px-3 text-center w-12">Xóa</th>
+                          <th className="py-2.5 px-1.5 sm:px-2 text-center">STT</th>
+                          <th className="py-2.5 px-2 text-center">SL In (Tem)</th>
+                          <th className="py-2.5 px-2">Mã SP</th>
+                          <th className="py-2.5 px-2 sm:px-3">Tên sản phẩm</th>
+                          <th className="py-2.5 px-2 text-right">Giá gốc (VNĐ)</th>
+                          <th className="py-2.5 px-2 text-right">Giá giảm (VNĐ)</th>
+                          <th className="py-2.5 px-1 text-center">Xóa</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-sm">
                         {posmCartItems.map((item, idx) => (
                           <tr key={item.id || idx} className="hover:bg-emerald-50/20 transition-colors">
-                            <td className="py-3 px-3 text-center font-bold text-slate-400 text-xs">{idx + 1}</td>
-                            <td className="py-3 px-3 text-center">
+                            <td className="py-2 px-1 text-center font-bold text-slate-400 text-xs">{idx + 1}</td>
+                            <td className="py-2 px-1.5 text-center">
                               <div className="inline-flex items-center border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
                                 <button
                                   type="button"
                                   onClick={() => handleUpdatePosmCartItem(item.id, 'quantity', Math.max(1, (item.quantity || 1) - 1))}
-                                  className="p-1.5 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+                                  className="p-1 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
                                   title="Giảm 1 tem"
                                 >
-                                  <Minus size={12} />
+                                  <Minus size={11} />
                                 </button>
                                 <input
                                   type="number"
                                   min="1"
                                   value={item.quantity || 1}
                                   onChange={(e) => handleUpdatePosmCartItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
-                                  className="w-12 text-center text-xs font-black text-slate-800 py-1 focus:outline-none bg-transparent"
+                                  className="w-9 text-center text-xs font-black text-slate-800 py-0.5 focus:outline-none bg-transparent"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => handleUpdatePosmCartItem(item.id, 'quantity', (item.quantity || 1) + 1)}
-                                  className="p-1.5 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+                                  className="p-1 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
                                   title="Tăng 1 tem"
                                 >
-                                  <Plus size={12} />
+                                  <Plus size={11} />
                                 </button>
                               </div>
                             </td>
-                            <td className="py-3 px-3 text-xs font-bold text-emerald-700 font-mono">
+                            <td className="py-2 px-2 text-[11px] sm:text-xs font-bold text-emerald-700 font-mono truncate">
                               {item.productCode || item.maSanPham || '-'}
                             </td>
-                            <td className="py-3 px-4 text-xs font-bold text-slate-800 leading-snug">
-                              {item.name}
+                            <td className="py-2 px-2 sm:px-3 text-xs leading-snug">
+                              <div className="font-bold text-slate-800 truncate" title={item.name}>
+                                {item.name}
+                              </div>
                               {(item.nganhHang || item.nhomHang) && (
-                                <div className="text-[10px] text-slate-400 font-normal mt-0.5">
+                                <div className="text-[10px] text-slate-400 font-normal truncate mt-0.5">
                                   {[item.nganhHang, item.nhomHang].filter(Boolean).join(' • ')}
                                 </div>
                               )}
                             </td>
-                            <td className="py-3 px-3 text-right">
-                              <div className="relative inline-block">
+                            <td className="py-2 px-2 text-right">
+                              <div className="relative inline-block w-full max-w-[115px]">
                                 <input 
                                   type="text"
-                                  className="w-32 bg-slate-50 border border-slate-200 text-slate-700 py-1.5 pl-2 pr-6 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-right transition-all"
+                                  className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-1 pl-1.5 pr-4 rounded-lg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:bg-white text-right transition-all"
                                   value={item.originalPrice ? Number(item.originalPrice).toLocaleString('vi-VN') : ''}
                                   placeholder="0"
                                   onFocus={(e) => e.target.select()}
                                   onChange={(e) => handleUpdatePosmCartItem(item.id, 'originalPrice', e.target.value)}
                                 />
-                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400 pointer-events-none select-none">
+                                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none select-none">
                                   đ
                                 </span>
                               </div>
                             </td>
-                            <td className="py-3 px-3 text-right">
-                              <div className="relative inline-block">
+                            <td className="py-2 px-2 text-right">
+                              <div className="relative inline-block w-full max-w-[115px]">
                                 <input 
                                   type="text"
-                                  className="w-32 bg-rose-50/40 border border-rose-300 text-rose-600 py-1.5 pl-2 pr-6 rounded-xl text-xs font-black focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white text-right transition-all shadow-2xs"
+                                  className="w-full bg-rose-50/40 border border-rose-300 text-rose-600 py-1 pl-1.5 pr-4 rounded-lg text-xs font-black focus:outline-none focus:ring-1 focus:ring-rose-500 focus:bg-white text-right transition-all shadow-2xs"
                                   value={item.discountPrice ? Number(item.discountPrice).toLocaleString('vi-VN') : ''}
                                   placeholder="0"
                                   onFocus={(e) => e.target.select()}
                                   onChange={(e) => handleUpdatePosmCartItem(item.id, 'discountPrice', e.target.value)}
                                 />
-                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-black text-rose-400 pointer-events-none select-none">
+                                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-rose-400 pointer-events-none select-none">
                                   đ
                                 </span>
                               </div>
                             </td>
-                            <td className="py-3 px-3 text-center">
+                            <td className="py-2 px-1 text-center">
                               <button
                                 type="button"
                                 onClick={() => handleRemoveFromPosmCart(item.id)}
-                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                                 title="Xóa khỏi giỏ in"
                               >
-                                <Trash2 size={15} />
+                                <Trash2 size={14} />
                               </button>
                             </td>
                           </tr>
@@ -7930,44 +7944,44 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
             {/* Footer / POSM Print Buttons */}
             {posmCartItems.length > 0 && (
-              <div className="p-4 md:p-5 bg-slate-50/90 border-t border-slate-200 shrink-0 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Printer size={16} className="text-emerald-700" />
-                    <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-                      BẤM IN TRỰC TIẾP TỪ GIỎ HÀNG POSM ({totalPosmCartStickers} TEM)
+              <div className="p-3 sm:p-4 bg-slate-50/95 border-t border-slate-200 shrink-0 space-y-2 sm:space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Printer size={15} className="text-emerald-700 shrink-0" />
+                    <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-slate-800">
+                      BẤM IN TRỰC TIẾP TỪ GIỎ HÀNG POSM
                     </span>
                   </div>
-                  <div className="text-xs text-slate-500 font-medium">
-                    Tổng cộng: <strong className="text-slate-900 font-black">{posmCartItems.length} sản phẩm</strong> • <strong className="text-emerald-700 font-black">{totalPosmCartStickers} tem in</strong>
+                  <div className="text-[11px] sm:text-xs text-slate-600 font-medium">
+                    Tổng: <strong className="text-slate-900 font-black">{posmCartItems.length} SP</strong> • <strong className="text-emerald-700 font-black">{totalPosmCartStickers} tem in</strong>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5">
                   <button
                     type="button"
                     onClick={() => handlePrintFromPosmCart('a4_ngang')}
-                    className="p-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+                    className="py-2.5 px-3 sm:p-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-[0.98]"
                   >
-                    <Printer size={16} />
+                    <Printer size={15} className="shrink-0" />
                     <span>IN 1 STICKER / TRANG A4 NGANG ({totalPosmCartStickers} TRANG)</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handlePrintFromPosmCart('1')}
-                    className="p-3.5 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-sky-500/20 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+                    className="py-2.5 px-3 sm:p-3.5 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-sky-500/20 flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-[0.98]"
                   >
-                    <Printer size={16} />
+                    <Printer size={15} className="shrink-0" />
                     <span>IN 1 STICKER / TRANG A5 NGANG ({totalPosmCartStickers} TRANG)</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handlePrintFromPosmCart('2')}
-                    className="p-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+                    className="py-2.5 px-3 sm:p-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-[0.98]"
                   >
-                    <Printer size={16} />
+                    <Printer size={15} className="shrink-0" />
                     <span>IN 2 STICKER / TRANG A4 ĐỨNG ({Math.ceil(totalPosmCartStickers / 2)} TRANG)</span>
                   </button>
                 </div>
@@ -7979,8 +7993,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
       {/* Modal Quét QR Mã Sản Phẩm Cho POSM ALL SP */}
       {isPosmQrScannerOpen && (
-        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 animate-[fadeIn_0.2s_ease-out]">
-          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[95vh] shadow-2xl overflow-hidden border border-slate-200 flex flex-col">
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-1.5 sm:p-4 animate-[fadeIn_0.2s_ease-out] overflow-hidden">
+          <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-[calc(100vw-12px)] sm:max-w-lg max-h-[94dvh] sm:max-h-[95vh] shadow-2xl overflow-hidden border border-slate-200 flex flex-col mx-auto">
             {/* Header */}
             <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 px-4 sm:px-5 py-3.5 text-white flex items-center justify-between shrink-0 shadow-md">
               <div className="flex items-center gap-3">
@@ -8233,8 +8247,8 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
       {/* Modal Lịch Sử Giỏ In POSM Đã Xóa & Khôi Phục */}
       {isPosmHistoryModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 animate-[fadeIn_0.2s_ease-out]">
-          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[92vh] shadow-2xl overflow-hidden border border-slate-200 flex flex-col">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-1.5 sm:p-4 animate-[fadeIn_0.2s_ease-out] overflow-hidden">
+          <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-[calc(100vw-12px)] sm:max-w-2xl max-h-[92dvh] sm:max-h-[92vh] shadow-2xl overflow-hidden border border-slate-200 flex flex-col mx-auto">
             {/* Header */}
             <div className="bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 px-5 py-4 text-white flex items-center justify-between shrink-0 shadow-md">
               <div className="flex items-center gap-3">
