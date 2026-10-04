@@ -40,7 +40,7 @@ export default function StickerPrintModal({
   const containerRef = useRef<HTMLDivElement>(null);
   const isA5 = ((config.style === 'display' || config.style === 'giovang') && currentLayout === '1') || 
                ((config.style === 'sticker_ce' || config.style === 'sticker_lk') && currentLayout === '1') || 
-               (config.style === 'popup_all_sp' && currentLayout === '1') || 
+               (config.style === 'popup_all_sp' && (currentLayout === '1' || currentLayout === '2_a5')) || 
                (config.style === 'phieu_bh' && currentLayout === 'right');
   const isA4Giasoc = config.style === 'a4_giasoc';
   const isPhieuBH = config.style === 'phieu_bh';
@@ -68,6 +68,7 @@ export default function StickerPrintModal({
     if (config.style === 'popup_all_sp') {
       if (currentLayout === 'a4_ngang' || currentLayout === '1_a4') return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
       if (currentLayout === '2') return { cols: 1, rows: 2, scale: 1, orientation: 'portrait' };
+      if (currentLayout === '2_a5') return { cols: 1, rows: 2, scale: 0.70, orientation: 'portrait' };
       if (currentLayout === '8') return { cols: 2, rows: 4, scale: 0.488, orientation: 'portrait' };
       if (currentLayout === '16') return { cols: 4, rows: 4, scale: 0.345, orientation: 'landscape' };
       return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
@@ -629,6 +630,7 @@ export default function StickerPrintModal({
                 { layout: 'a4_ngang', label: '1 A4 Ngang', pagesCount: data.length },
                 { layout: '1', label: '1 A5 Ngang', pagesCount: data.length },
                 { layout: '2', label: '2 A4 Đứng', pagesCount: Math.ceil(data.length / 2) },
+                { layout: '2_a5', label: '2 A5 Đứng', pagesCount: Math.ceil(data.length / 2) },
                 { layout: '8', label: '8 A4 Ngang', pagesCount: Math.ceil(data.length / 8) },
                 { layout: '16', label: '16 A4 Ngang', pagesCount: Math.ceil(data.length / 16) }
               ].map((item) => {
