@@ -7509,6 +7509,16 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         mlnHeaderTemplate={activeTab === 'sticker-gvgs' ? gvgsHeaderTemplate : mlnHeaderTemplate}
         mlnFooterTemplate={activeTab === 'sticker-gvgs' ? gvgsFooterTemplate : mlnFooterTemplate}
         promoLabelText={promoLabelTextVal}
+        onLayoutChange={(newLayout) => {
+          setPrintConfig(prev => ({ ...prev, layout: newLayout }));
+          if (activeTab === 'popup-all-sp') {
+            setPopupPrintLayout(newLayout);
+          } else if (activeTab === 'sticker-lk') {
+            setLkPrintLayout(newLayout);
+          } else if (activeTab === 'sticker-ce') {
+            setCePrintLayout(newLayout);
+          }
+        }}
       />
 
       {/* Modal Giỏ Hàng In - EVENT ĐMX */}

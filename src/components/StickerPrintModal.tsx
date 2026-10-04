@@ -11,15 +11,37 @@ interface StickerPrintModalProps {
   mlnHeaderTemplate?: string;
   mlnFooterTemplate?: string;
   promoLabelText?: string;
+  onLayoutChange?: (layout: string) => void;
 }
 
-export default function StickerPrintModal({ isOpen, onClose, data, config = { style: 'classic', layout: '4', showPromoLabel: true }, mlnHeaderTemplate = '', mlnFooterTemplate = '', promoLabelText = 'sản phẩm giá sốc - event T7 & CN' }: StickerPrintModalProps) {
+export default function StickerPrintModal({ 
+  isOpen, 
+  onClose, 
+  data, 
+  config = { style: 'classic', layout: '4', showPromoLabel: true }, 
+  mlnHeaderTemplate = '', 
+  mlnFooterTemplate = '', 
+  promoLabelText = 'sản phẩm giá sốc - event T7 & CN',
+  onLayoutChange
+}: StickerPrintModalProps) {
+  const [activeLayout, setActiveLayout] = useState(config.layout);
+
+  useEffect(() => {
+    setActiveLayout(config.layout);
+  }, [config.layout]);
+
+  const handleSelectLayout = (layoutKey: string) => {
+    setActiveLayout(layoutKey);
+    onLayoutChange?.(layoutKey);
+  };
+
+  const currentLayout = activeLayout || config.layout;
   const [previewScale, setPreviewScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
-  const isA5 = ((config.style === 'display' || config.style === 'giovang') && config.layout === '1') || 
-               ((config.style === 'sticker_ce' || config.style === 'sticker_lk') && config.layout === '1') || 
-               (config.style === 'popup_all_sp' && config.layout === '1') || 
-               (config.style === 'phieu_bh' && config.layout === 'right');
+  const isA5 = ((config.style === 'display' || config.style === 'giovang') && currentLayout === '1') || 
+               ((config.style === 'sticker_ce' || config.style === 'sticker_lk') && currentLayout === '1') || 
+               (config.style === 'popup_all_sp' && currentLayout === '1') || 
+               (config.style === 'phieu_bh' && currentLayout === 'right');
   const isA4Giasoc = config.style === 'a4_giasoc';
   const isPhieuBH = config.style === 'phieu_bh';
   const [renderAllPages, setRenderAllPages] = useState(false);
@@ -34,27 +56,27 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
 
   const getLayoutStyles = () => {
     if (config.style === 'phieu_bh') {
-      if (config.layout === '1') return { cols: 1, rows: 1, scale: 1.8, orientation: 'portrait' };
-      if (config.layout === '2') return { cols: 2, rows: 1, scale: 1.35, orientation: 'landscape' };
-      if (config.layout === '4') return { cols: 2, rows: 2, scale: 0.92, orientation: 'portrait' };
-      if (config.layout === 'right') return { cols: 2, rows: 1, scale: 0.95, orientation: 'landscape' };
+      if (currentLayout === '1') return { cols: 1, rows: 1, scale: 1.8, orientation: 'portrait' };
+      if (currentLayout === '2') return { cols: 2, rows: 1, scale: 1.35, orientation: 'landscape' };
+      if (currentLayout === '4') return { cols: 2, rows: 2, scale: 0.92, orientation: 'portrait' };
+      if (currentLayout === 'right') return { cols: 2, rows: 1, scale: 0.95, orientation: 'landscape' };
       return { cols: 2, rows: 2, scale: 0.92, orientation: 'portrait' };
     }
     if (config.style === 'address_flyer') return { cols: 3, rows: 2, scale: 1, orientation: 'portrait' };
     if (config.style === 'dcnb') return { cols: 3, rows: 8, scale: 1, orientation: 'portrait' };
     if (config.style === 'display' || config.style === 'giovang' || config.style === 'a4_giasoc') return { cols: 1, rows: 1, scale: 1, orientation: 'portrait' };
     if (config.style === 'popup_all_sp') {
-      if (config.layout === 'a4_ngang' || config.layout === '1_a4') return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
-      if (config.layout === '2') return { cols: 1, rows: 2, scale: 1, orientation: 'portrait' };
-      if (config.layout === '8') return { cols: 2, rows: 4, scale: 0.488, orientation: 'portrait' };
-      if (config.layout === '16') return { cols: 4, rows: 4, scale: 0.345, orientation: 'landscape' };
+      if (currentLayout === 'a4_ngang' || currentLayout === '1_a4') return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
+      if (currentLayout === '2') return { cols: 1, rows: 2, scale: 1, orientation: 'portrait' };
+      if (currentLayout === '8') return { cols: 2, rows: 4, scale: 0.488, orientation: 'portrait' };
+      if (currentLayout === '16') return { cols: 4, rows: 4, scale: 0.345, orientation: 'landscape' };
       return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
     }
     if (config.style === 'sticker_ce' || config.style === 'sticker_lk') {
-      if (config.layout === '2') return { cols: 1, rows: 2, scale: 1, orientation: 'portrait' };
+      if (currentLayout === '2') return { cols: 1, rows: 2, scale: 1, orientation: 'portrait' };
       return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
     }
-    switch (config.layout) {
+    switch (currentLayout) {
       case '1': return { cols: 1, rows: 1, scale: 1.96, orientation: 'landscape' };
       case '2': return { cols: 1, rows: 2, scale: 1.38, orientation: 'portrait' };
       case '4': return { cols: 2, rows: 2, scale: 0.94, orientation: 'landscape' };
@@ -121,7 +143,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
     setTimeout(updateScale, 100);
     window.addEventListener('resize', updateScale);
     return () => window.removeEventListener('resize', updateScale);
-  }, [isOpen, config.layout, config.style, isIPrintMode, targetWidthPx, targetHeightPx]);
+  }, [isOpen, currentLayout, config.style, isIPrintMode, targetWidthPx, targetHeightPx]);
 
   if (!isOpen) return null;
 
@@ -373,16 +395,16 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
   const isCeA6 = false;
   const isAddressFlyer = config.style === 'address_flyer';
   const isDcnb = config.style === 'dcnb';
-  const isDisplayA4 = config.style === 'display' && config.layout === '2';
-  const isA4Ngang = config.style === 'popup_all_sp' && (config.layout === 'a4_ngang' || config.layout === '1_a4');
-  const baseStickerWidth = isDcnb ? 66 : (isAddressFlyer ? 66 : (isPhieuBH ? (config.layout === 'right' ? 98 : 105) : (isCeA6 ? 148.5 : (isA4Ngang ? 297 : (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp' || isDisplayA4 ? 210 : (isA5 ? 148.5 : (isA4Giasoc ? 210 : 148.5))))))); // mm
-  const baseStickerHeight = isDcnb ? 35 : (isAddressFlyer ? 142 : (isPhieuBH ? (config.layout === 'right' ? 132 : 148.5) : (isCeA6 ? 105 : (isA4Ngang ? 210 : (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp' ? 148.5 : (isA5 ? 210 : (isA4Giasoc || isDisplayA4 ? 297 : 105))))))); // mm
+  const isDisplayA4 = config.style === 'display' && currentLayout === '2';
+  const isA4Ngang = config.style === 'popup_all_sp' && (currentLayout === 'a4_ngang' || currentLayout === '1_a4');
+  const baseStickerWidth = isDcnb ? 66 : (isAddressFlyer ? 66 : (isPhieuBH ? (currentLayout === 'right' ? 98 : 105) : (isCeA6 ? 148.5 : (isA4Ngang ? 297 : (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp' || isDisplayA4 ? 210 : (isA5 ? 148.5 : (isA4Giasoc ? 210 : 148.5))))))); // mm
+  const baseStickerHeight = isDcnb ? 35 : (isAddressFlyer ? 142 : (isPhieuBH ? (currentLayout === 'right' ? 132 : 148.5) : (isCeA6 ? 105 : (isA4Ngang ? 210 : (config.style === 'sticker_ce' || config.style === 'sticker_lk' || config.style === 'popup_all_sp' ? 148.5 : (isA5 ? 210 : (isA4Giasoc || isDisplayA4 ? 297 : 105))))))); // mm
 
   return createPortal(
     <div className={`print-modal-container fixed inset-0 z-50 print:static print:bg-white print:p-0 print:block ${
       isIPrintMode 
         ? 'bg-white p-0 m-0 overflow-y-auto block' 
-        : 'bg-black/80 flex items-center justify-center p-2 sm:p-4'
+        : 'bg-black/80 flex items-center justify-center pt-16 sm:pt-16 pb-2 sm:pb-4 px-2 sm:px-4'
     }`}>
       <style type="text/css">
         {`
@@ -594,56 +616,131 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
           </div>
         </div>
       ) : (
-        /* THANH ĐIỀU KHIỂN XEM TRƯỚC MẶC ĐỊNH */
-        <div className="absolute top-2 right-2 sm:top-4 sm:right-4 flex flex-wrap items-center justify-end gap-1.5 sm:gap-2 print:hidden z-50 max-w-[96vw]">
-          {/* Nút Xuất PDF thay thế 2 nút Xoay A4 và In Qua App iPrint&Scan */}
-          <button 
-            type="button"
-            onClick={() => handleExportPdf()}
-            disabled={isExportingPdf}
-            className="bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-800 active:scale-95 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-red-500/25 transition-all cursor-pointer border border-red-400/40 disabled:opacity-60"
-            title="Xuất file PDF chuẩn khổ in A4/A5 để in trực tiếp trên iPhone qua app Brother iPrint&Scan hoặc AirPrint"
-          >
-            <FileText size={15} className={isExportingPdf ? 'animate-bounce text-red-200' : 'text-red-100'} />
-            <span>{isExportingPdf ? 'Đang tạo PDF...' : 'XUẤT PDF'}</span>
-          </button>
+        /* THANH ĐIỀU KHIỂN XEM TRƯỚC MẶC ĐỊNH (CỐ ĐỊNH PHÍA TRÊN) */
+        <div className="fixed top-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md px-3 sm:px-6 py-2.5 shadow-xl border-b border-slate-800 flex flex-wrap items-center justify-between gap-2.5 print:hidden no-export">
+          {/* CỤM BÊN TRÁI: DẢI NÚT CHỌN NHANH BỐ CỤC IN */}
+          {config.style === 'popup_all_sp' ? (
+            <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar max-w-full py-0.5">
+              <div className="flex items-center gap-1 text-[11px] sm:text-xs font-black uppercase text-amber-400 shrink-0 mr-1">
+                <Sparkles size={14} className="text-amber-400 shrink-0 animate-pulse" />
+                <span className="hidden xs:inline">BỐ CỤC:</span>
+              </div>
+              {[
+                { layout: 'a4_ngang', label: '1 A4 Ngang', pagesCount: data.length },
+                { layout: '1', label: '1 A5 Ngang', pagesCount: data.length },
+                { layout: '2', label: '2 A4 Đứng', pagesCount: Math.ceil(data.length / 2) },
+                { layout: '8', label: '8 A4 Ngang', pagesCount: Math.ceil(data.length / 8) },
+                { layout: '16', label: '16 A4 Ngang', pagesCount: Math.ceil(data.length / 16) }
+              ].map((item) => {
+                const isActive = currentLayout === item.layout;
+                return (
+                  <button
+                    key={item.layout}
+                    type="button"
+                    onClick={() => handleSelectLayout(item.layout)}
+                    className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[10.5px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 border flex items-center gap-1.5 active:scale-95 ${
+                      isActive
+                        ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 border-amber-300 ring-2 ring-amber-400/60 shadow-md font-black'
+                        : 'bg-slate-800/90 hover:bg-slate-700/90 text-slate-300 border-slate-700/80 hover:text-white font-bold'
+                    }`}
+                    title={`Chuyển nhanh sang bố cục ${item.label} (${item.pagesCount} trang)`}
+                  >
+                    <span>{item.label}</span>
+                    <span className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-md ${isActive ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-700/60 text-slate-400'}`}>
+                      {item.pagesCount} tr
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (config.style === 'sticker_lk' || config.style === 'sticker_ce') ? (
+            <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              <div className="flex items-center gap-1 text-[11px] sm:text-xs font-black uppercase text-amber-400 shrink-0 mr-1">
+                <Sparkles size={14} className="text-amber-400 shrink-0" />
+                <span className="hidden xs:inline">BỐ CỤC:</span>
+              </div>
+              {[
+                { layout: '1', label: '1 A5 Ngang', pagesCount: data.length },
+                { layout: '2', label: '2 A4 Đứng', pagesCount: Math.ceil(data.length / 2) }
+              ].map((item) => {
+                const isActive = currentLayout === item.layout;
+                return (
+                  <button
+                    key={item.layout}
+                    type="button"
+                    onClick={() => handleSelectLayout(item.layout)}
+                    className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[10.5px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 border flex items-center gap-1.5 active:scale-95 ${
+                      isActive
+                        ? 'bg-amber-500 text-slate-950 border-amber-300 ring-2 ring-amber-400/60 shadow-md font-black'
+                        : 'bg-slate-800/90 hover:bg-slate-700/90 text-slate-300 border-slate-700/80 hover:text-white font-bold'
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                    <span className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-md ${isActive ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-700/60 text-slate-400'}`}>
+                      {item.pagesCount} tr
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-xs font-bold text-slate-300 flex items-center gap-1.5 py-1">
+              <Eye size={14} className="text-blue-400" />
+              <span>Xem trước bản in ({data.length} tem)</span>
+            </div>
+          )}
 
-          {/* Nút Chia sẻ ảnh sang iPrint&Scan */}
-          <button 
-            type="button"
-            onClick={() => handleExportPngForIPrint(0)}
-            disabled={isExportingImage}
-            className="bg-teal-700 hover:bg-teal-800 active:scale-95 text-white px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1.5 shadow-lg transition-all cursor-pointer border border-teal-500/50"
-            title="Xuất file ảnh độ nét cao (300 DPI) để in qua tính năng Print Photos của Brother iPrint&Scan"
-          >
-            <Share2 size={13} className="text-teal-200" />
-            <span>{isExportingImage ? 'Đang xuất...' : 'Chia Sẻ Ảnh'}</span>
-          </button>
+          {/* CỤM BÊN PHẢI: CÁC NÚT HÀNH ĐỘNG */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
+            {/* Nút Xuất PDF */}
+            <button 
+              type="button"
+              onClick={() => handleExportPdf()}
+              disabled={isExportingPdf}
+              className="bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-800 active:scale-95 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-red-500/25 transition-all cursor-pointer border border-red-400/40 disabled:opacity-60"
+              title="Xuất file PDF chuẩn khổ in A4/A5 để in trực tiếp trên iPhone qua app Brother iPrint&Scan hoặc AirPrint"
+            >
+              <FileText size={15} className={isExportingPdf ? 'animate-bounce text-red-200' : 'text-red-100'} />
+              <span>{isExportingPdf ? 'Đang tạo PDF...' : 'XUẤT PDF'}</span>
+            </button>
 
-          {/* Nút Hướng dẫn */}
-          <button
-            type="button"
-            onClick={() => setShowIPrintGuide(true)}
-            className="bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white p-1.5 sm:p-2 rounded-xl shadow-lg transition-all cursor-pointer"
-            title="Xem hướng dẫn in bằng app Brother iPrint&Scan trên iPhone"
-          >
-            <HelpCircle size={16} />
-          </button>
+            {/* Nút Chia sẻ ảnh sang iPrint&Scan */}
+            <button 
+              type="button"
+              onClick={() => handleExportPngForIPrint(0)}
+              disabled={isExportingImage}
+              className="bg-teal-700 hover:bg-teal-800 active:scale-95 text-white px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1.5 shadow-lg transition-all cursor-pointer border border-teal-500/50"
+              title="Xuất file ảnh độ nét cao (300 DPI) để in qua tính năng Print Photos của Brother iPrint&Scan"
+            >
+              <Share2 size={13} className="text-teal-200" />
+              <span>{isExportingImage ? 'Đang xuất...' : 'Chia Sẻ Ảnh'}</span>
+            </button>
 
-          {/* Nút In Ngay */}
-          <button 
-            onClick={handlePrint} 
-            disabled={isPreparing}
-            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-3 sm:px-5 py-1.5 sm:py-2 rounded-xl font-black text-[11px] sm:text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-colors cursor-pointer"
-          >
-            <Printer size={15} />
-            <span>{isPreparing ? 'Chờ...' : 'In Ngay'}</span>
-          </button>
+            {/* Nút Hướng dẫn */}
+            <button
+              type="button"
+              onClick={() => setShowIPrintGuide(true)}
+              className="bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white p-1.5 sm:p-2 rounded-xl shadow-lg transition-all cursor-pointer border border-slate-700"
+              title="Xem hướng dẫn in bằng app Brother iPrint&Scan trên iPhone"
+            >
+              <HelpCircle size={16} />
+            </button>
 
-          {/* Nút Đóng */}
-          <button onClick={onClose} className="bg-white hover:bg-slate-100 text-slate-800 p-1.5 sm:p-2 rounded-xl shadow-lg transition-colors cursor-pointer" title="Đóng">
-            <X size={18} />
-          </button>
+            {/* Nút In Ngay */}
+            <button 
+              onClick={handlePrint} 
+              disabled={isPreparing}
+              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white px-3 sm:px-5 py-1.5 sm:py-2 rounded-xl font-black text-[11px] sm:text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-colors cursor-pointer"
+            >
+              <Printer size={15} />
+              <span>{isPreparing ? 'Chờ...' : 'In Ngay'}</span>
+            </button>
+
+            {/* Nút Đóng */}
+            <button onClick={onClose} className="bg-white hover:bg-slate-100 text-slate-800 p-1.5 sm:p-2 rounded-xl shadow-lg transition-colors cursor-pointer" title="Đóng">
+              <X size={18} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -762,7 +859,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
                               flexShrink: 0 
                             }}>
                               {item ? (
-                                 <Sticker item={item} style={config.style} layout={config.layout} showPromoLabel={config.showPromoLabel} mlnHeaderTemplate={mlnHeaderTemplate} mlnFooterTemplate={mlnFooterTemplate} promoLabelText={promoLabelText} />
+                                 <Sticker item={item} style={config.style} layout={currentLayout} showPromoLabel={config.showPromoLabel} mlnHeaderTemplate={mlnHeaderTemplate} mlnFooterTemplate={mlnFooterTemplate} promoLabelText={promoLabelText} />
                               ) : null}
                             </div>
                           </div>
