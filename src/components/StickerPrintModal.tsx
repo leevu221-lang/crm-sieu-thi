@@ -46,6 +46,8 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
     if (config.style === 'popup_all_sp') {
       if (config.layout === 'a4_ngang' || config.layout === '1_a4') return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
       if (config.layout === '2') return { cols: 1, rows: 2, scale: 1, orientation: 'portrait' };
+      if (config.layout === '8') return { cols: 2, rows: 4, scale: 0.488, orientation: 'portrait' };
+      if (config.layout === '16') return { cols: 4, rows: 4, scale: 0.345, orientation: 'landscape' };
       return { cols: 1, rows: 1, scale: 1, orientation: 'landscape' };
     }
     if (config.style === 'sticker_ce' || config.style === 'sticker_lk') {

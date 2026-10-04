@@ -1142,7 +1142,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     }
   };
 
-  const handlePrintFromPosmCart = (layout: 'a4_ngang' | '1' | '2') => {
+  const handlePrintFromPosmCart = (layout: 'a4_ngang' | '1' | '2' | '8' | '16') => {
     if (posmCartItems.length === 0) {
       showNotification('Giỏ in đang trống! Hãy thêm sản phẩm vào giỏ trước khi in.', 'error');
       return;
@@ -1150,7 +1150,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
     setPrintSource('posm_cart');
     setPopupPrintLayout(layout as any);
     setPrintConfig({
-      style: 'sticker_lk',
+      style: 'popup_all_sp',
       layout: layout,
       showPromoLabel: false
     });
@@ -5731,7 +5731,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                     </div>
 
                     <div className="rounded-3xl border border-indigo-100/70 overflow-hidden flex flex-col mb-4 bg-white shadow-xl shadow-indigo-100/10">
-                      <div className={`${activeTab === 'sticker-dcnb' || (activeTab === 'sticker-lk' && lkPrintLayout === '2') || (activeTab === 'popup-all-sp' && popupPrintLayout === '2') || (activeTab === 'sticker-ce' && cePrintLayout === '2') || (activeTab === 'sticker-mln' && mlnPrintLayout === '2') || (activeTab === 'sticker-gvgs' && gvgsPrintLayout === '2') ? 'h-[760px]' : (activeTab === 'popup-all-sp' && popupPrintLayout === 'a4_ngang') ? 'h-[360px] sm:h-[440px] md:h-[520px]' : 'h-[340px] sm:h-[390px] md:h-[440px]'} bg-gradient-to-tr from-slate-50 via-indigo-50/20 to-purple-50/30 flex items-center justify-center overflow-hidden relative p-2 sm:p-4 md:p-8`}>
+                      <div className={`${activeTab === 'sticker-dcnb' || (activeTab === 'sticker-lk' && lkPrintLayout === '2') || (activeTab === 'popup-all-sp' && (popupPrintLayout === '2' || popupPrintLayout === '8')) || (activeTab === 'sticker-ce' && cePrintLayout === '2') || (activeTab === 'sticker-mln' && mlnPrintLayout === '2') || (activeTab === 'sticker-gvgs' && gvgsPrintLayout === '2') ? 'h-[760px]' : (activeTab === 'popup-all-sp' && (popupPrintLayout === 'a4_ngang' || popupPrintLayout === '16')) ? 'h-[360px] sm:h-[440px] md:h-[520px]' : 'h-[340px] sm:h-[390px] md:h-[440px]'} bg-gradient-to-tr from-slate-50 via-indigo-50/20 to-purple-50/30 flex items-center justify-center overflow-hidden relative p-2 sm:p-4 md:p-8`}>
                         <div
                           className="pointer-events-none select-none shadow-[0_20px_50px_rgba(99,102,241,0.15)] border border-slate-900/10 rounded-xl overflow-hidden transition-all duration-300 flex flex-col bg-white"
                           style={{
@@ -5744,7 +5744,11 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                       ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.28)' : 'scale(0.44)') 
                                       : popupPrintLayout === '1' 
                                         ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.38)' : 'scale(0.56)') 
-                                        : (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.46)' : 'scale(0.58)'))
+                                        : popupPrintLayout === '8'
+                                          ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.38)' : 'scale(0.52)')
+                                          : popupPrintLayout === '16'
+                                            ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.28)' : 'scale(0.44)')
+                                            : (typeof window !== 'undefined' && window.innerWidth < 640 ? 'scale(0.46)' : 'scale(0.58)'))
                                   : activeTab === 'sticker-ce'
                                     ? (cePrintLayout === '1' ? 'scale(0.48)' : 'scale(0.58)')
                                     : activeTab === 'sticker-dcnb'
@@ -5758,7 +5762,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               : activeTab === 'sticker-lk'
                                 ? '210mm'
                                 : activeTab === 'popup-all-sp'
-                                  ? (popupPrintLayout === 'a4_ngang' ? '297mm' : '210mm')
+                                  ? (popupPrintLayout === 'a4_ngang' || popupPrintLayout === '16' ? '297mm' : '210mm')
                                   : activeTab === 'sticker-ce'
                                     ? '210mm'
                                     : activeTab === 'sticker-dcnb'
@@ -5771,7 +5775,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                               : activeTab === 'sticker-lk'
                                 ? (lkPrintLayout === '1' ? '148.5mm' : '297mm')
                                 : activeTab === 'popup-all-sp'
-                                  ? (popupPrintLayout === 'a4_ngang' ? '210mm' : popupPrintLayout === '1' ? '148.5mm' : '297mm')
+                                  ? (popupPrintLayout === 'a4_ngang' || popupPrintLayout === '16' ? '210mm' : popupPrintLayout === '1' ? '148.5mm' : '297mm')
                                   : activeTab === 'sticker-ce'
                                     ? (cePrintLayout === '1' ? '148.5mm' : '297mm')
                                     : activeTab === 'sticker-dcnb'
@@ -5802,6 +5806,60 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                                   <DcnbCard />
                                 </div>
                               ))}
+                            </div>
+                          ) : (activeTab === 'popup-all-sp' && (popupPrintLayout === '8' || popupPrintLayout === '16')) ? (
+                            <div 
+                              className="w-full h-full grid bg-white"
+                              style={{
+                                gridTemplateColumns: popupPrintLayout === '8' ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+                                gridTemplateRows: 'repeat(4, 1fr)',
+                                padding: '2mm',
+                                boxSizing: 'border-box'
+                              }}
+                            >
+                              {Array.from({ length: popupPrintLayout === '8' ? 8 : 16 }).map((_, idx) => {
+                                const sVal = popupPrintLayout === '8' ? 0.488 : 0.345;
+                                const sampleItem = selectedIndices.length > 0 && combinedPriceData[selectedIndices[0]] 
+                                  ? combinedPriceData[selectedIndices[0]] 
+                                  : combinedPriceData.length > 0 
+                                    ? combinedPriceData[0] 
+                                    : { name: 'Loa kéo karaoke Mobell MK-2120C', originalPrice: 5800000, discountPrice: 3800000, qrData: 'LK001', maSanPham: 'LK001', nganhHang: 'POSM ALL SP' };
+                                return (
+                                  <div 
+                                    key={idx} 
+                                    className="w-full h-full flex items-center justify-center relative overflow-hidden border border-dashed border-slate-200"
+                                    style={{ borderWidth: '0.5px' }}
+                                  >
+                                    <div 
+                                      style={{
+                                        width: `${210 * sVal}mm`,
+                                        height: `${148.5 * sVal}mm`,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexShrink: 0
+                                      }}
+                                    >
+                                      <div 
+                                        style={{ 
+                                          transform: `scale(${sVal})`, 
+                                          transformOrigin: 'center', 
+                                          width: '210mm', 
+                                          height: '148.5mm', 
+                                          flexShrink: 0 
+                                        }}
+                                      >
+                                        <Sticker
+                                          item={sampleItem}
+                                          style="popup_all_sp"
+                                          layout={popupPrintLayout}
+                                          showPromoLabel={false}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           ) : (activeTab === 'sticker-lk' && lkPrintLayout === '2') || (activeTab === 'popup-all-sp' && popupPrintLayout === '2') || (activeTab === 'sticker-ce' && cePrintLayout === '2') ? (
                             <div className="flex flex-col h-full justify-between bg-white w-full overflow-hidden">
@@ -6046,11 +6104,13 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                         ))}
                       </div>
                     ) : activeTab === 'popup-all-sp' ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
                         {[
                           { layout: 'a4_ngang', label: 'BẤM ĐỂ IN (1 / TRANG A4 NGANG)' },
                           { layout: '1', label: 'BẤM ĐỂ IN (1 / TRANG A5 NGANG)' },
-                          { layout: '2', label: 'BẤM ĐỂ IN (2 / TRANG A4 ĐỨNG)' }
+                          { layout: '2', label: 'BẤM ĐỂ IN (2 / TRANG A4 ĐỨNG)' },
+                          { layout: '8', label: 'BẤM ĐỂ IN (8 / TRANG A4 NGANG)' },
+                          { layout: '16', label: 'BẤM ĐỂ IN (16 / TRANG A4 NGANG)' }
                         ].map((s) => (
                           <button
                             key={s.layout}
@@ -7957,11 +8017,11 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-2.5">
                   <button
                     type="button"
                     onClick={() => handlePrintFromPosmCart('a4_ngang')}
-                    className="py-2.5 px-3 sm:p-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-[0.98]"
+                    className="py-2.5 px-2.5 sm:p-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl sm:rounded-2xl text-[10.5px] sm:text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
                   >
                     <Printer size={15} className="shrink-0" />
                     <span>IN 1 STICKER / TRANG A4 NGANG ({totalPosmCartStickers} TRANG)</span>
@@ -7970,7 +8030,7 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                   <button
                     type="button"
                     onClick={() => handlePrintFromPosmCart('1')}
-                    className="py-2.5 px-3 sm:p-3.5 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-sky-500/20 flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-[0.98]"
+                    className="py-2.5 px-2.5 sm:p-3 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white rounded-xl sm:rounded-2xl text-[10.5px] sm:text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-sky-500/20 flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
                   >
                     <Printer size={15} className="shrink-0" />
                     <span>IN 1 STICKER / TRANG A5 NGANG ({totalPosmCartStickers} TRANG)</span>
@@ -7979,10 +8039,28 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                   <button
                     type="button"
                     onClick={() => handlePrintFromPosmCart('2')}
-                    className="py-2.5 px-3 sm:p-3.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer active:scale-[0.98]"
+                    className="py-2.5 px-2.5 sm:p-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 rounded-xl sm:rounded-2xl text-[10.5px] sm:text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
                   >
                     <Printer size={15} className="shrink-0" />
                     <span>IN 2 STICKER / TRANG A4 ĐỨNG ({Math.ceil(totalPosmCartStickers / 2)} TRANG)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handlePrintFromPosmCart('8')}
+                    className="py-2.5 px-2.5 sm:p-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl sm:rounded-2xl text-[10.5px] sm:text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20 flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
+                  >
+                    <Printer size={15} className="shrink-0" />
+                    <span>IN 8 STICKER / TRANG A4 NGANG ({Math.ceil(totalPosmCartStickers / 8)} TRANG)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handlePrintFromPosmCart('16')}
+                    className="py-2.5 px-2.5 sm:p-3 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white rounded-xl sm:rounded-2xl text-[10.5px] sm:text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-rose-500/20 flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
+                  >
+                    <Printer size={15} className="shrink-0" />
+                    <span>IN 16 STICKER / TRANG A4 NGANG ({Math.ceil(totalPosmCartStickers / 16)} TRANG)</span>
                   </button>
                 </div>
               </div>
