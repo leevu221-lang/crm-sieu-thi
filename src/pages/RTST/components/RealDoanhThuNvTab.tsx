@@ -1038,19 +1038,19 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
       {/* ── 2. BẢNG TRONG TAB REAL D.THU NV NHƯ HÌNH ── */}
       <div 
         ref={tableRef}
-        className="w-full bg-white rounded-3xl overflow-hidden border border-emerald-300/80 shadow-[0_8px_30px_rgb(0,0,0,0.08)] select-none"
+        className="w-full bg-white rounded-2xl sm:rounded-3xl overflow-hidden border border-emerald-300/80 shadow-[0_8px_30px_rgb(0,0,0,0.08)] select-none"
         style={{ fontFamily: "'UTM Avo', 'Inter', -apple-system, sans-serif" }}
       >
         {/* Header Banner - Emerald Green with Neon Gold Title */}
-        <div className="bg-[#00825e] text-center pt-5 pb-4 px-4">
+        <div className="bg-[#00825e] text-center pt-3 pb-2.5 sm:pt-5 sm:pb-4 px-2 sm:px-4">
           <h1 
-            className="text-2xl sm:text-3xl md:text-[32px] font-black uppercase tracking-wider text-[#ffe500] drop-shadow-xs whitespace-nowrap"
+            className="text-lg sm:text-2xl md:text-[32px] font-black uppercase tracking-wider text-[#ffe500] drop-shadow-xs whitespace-nowrap"
             style={{ letterSpacing: '0.04em', whiteSpace: 'nowrap' }}
           >
             REALTIME D.THU QUI ĐỔI
           </h1>
           <div 
-            className="flex flex-row flex-nowrap items-center justify-center gap-2.5 text-white/95 font-bold text-xs sm:text-sm mt-1.5 tracking-wide whitespace-nowrap select-none"
+            className="flex flex-row flex-nowrap items-center justify-center gap-1.5 sm:gap-2.5 text-white/95 font-bold text-[10px] sm:text-xs md:text-sm mt-1 sm:mt-1.5 tracking-wide whitespace-nowrap select-none"
             style={{ 
               whiteSpace: 'nowrap', 
               display: 'flex', 
@@ -1061,7 +1061,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
             }}
           >
             <span 
-              className="text-[#ffe500] font-black inline-flex items-center gap-1 whitespace-nowrap"
+              className="text-[#ffe500] font-black inline-flex items-center gap-0.5 sm:gap-1 whitespace-nowrap"
               style={{ 
                 whiteSpace: 'nowrap', 
                 display: 'inline-flex', 
@@ -1070,17 +1070,17 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                 flexShrink: 0 
               }}
             >
-              <span className="inline-block leading-none select-none text-[13px] sm:text-[15px]">⚡</span>
-              <span className="leading-none text-xs sm:text-sm font-black">Realtime</span>
+              <span className="inline-block leading-none select-none text-[11px] sm:text-[13px] md:text-[15px]">⚡</span>
+              <span className="leading-none text-[10px] sm:text-xs md:text-sm font-black">Realtime</span>
             </span>
             <span 
-              className="text-white/60 font-mono font-bold select-none px-0.5 whitespace-nowrap leading-none"
+              className="text-white/60 font-mono font-bold select-none px-0.5 whitespace-nowrap leading-none text-[9px] sm:text-xs"
               style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
             >
               ||
             </span>
             <span 
-              className="font-bold tracking-wider whitespace-nowrap leading-none text-white/95 text-xs sm:text-sm"
+              className="font-bold tracking-wider whitespace-nowrap leading-none text-white/95 text-[10px] sm:text-xs md:text-sm"
               style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
             >
               {timeStr}
@@ -1089,46 +1089,46 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
         </div>
 
         {/* Khoảng trắng giữa Tiêu đề lớn và Tiêu đề cột */}
-        <div className="h-2.5 sm:h-3 bg-white w-full" style={{ height: '10px', backgroundColor: '#ffffff' }} />
+        <div className="h-1.5 sm:h-2.5 bg-white w-full" style={{ height: '6px', backgroundColor: '#ffffff' }} />
 
         {/* The Exact 7 Columns Table */}
         <div className="w-full overflow-x-auto">
-          <table className="w-full text-center border-collapse table-fixed" style={{ minWidth: '770px', width: '100%', tableLayout: 'fixed' }}>
+          <table className="w-full text-center border-collapse table-fixed mobile-compact-table" style={{ width: '100%', tableLayout: 'fixed' }}>
             <colgroup>
-              <col style={{ width: '54px' }} />
-              <col style={{ width: '240px' }} />
-              <col style={{ width: '90px' }} />
-              <col style={{ width: '100px' }} />
-              <col style={{ width: '85px' }} />
-              <col style={{ width: '100px' }} />
-              <col style={{ width: '100px' }} />
+              <col className="w-[24px] sm:w-[36px] md:w-[54px]" />
+              <col className="w-auto" />
+              <col className="w-[36px] sm:w-[54px] md:w-[90px]" />
+              <col className="w-[42px] sm:w-[60px] md:w-[100px]" />
+              <col className="w-[32px] sm:w-[52px] md:w-[85px]" />
+              <col className="w-[40px] sm:w-[58px] md:w-[100px]" />
+              <col className="w-[36px] sm:w-[60px] md:w-[100px]" />
             </colgroup>
             <thead>
-              <tr className="bg-[#006b4b] text-white text-[11px] sm:text-xs font-black uppercase tracking-wider">
-                <th style={{ width: '54px' }} className="py-3.5 px-2 w-[54px] border-r border-[#00573d]/40">
+              <tr className="bg-[#006b4b] text-white text-[6.5px] sm:text-[9.5px] md:text-xs font-black uppercase tracking-wider h-[28px] sm:h-[36px] md:h-[42px]">
+                <th className="py-1 sm:py-3.5 px-0.5 sm:px-2 border-r border-[#00573d]/40 text-center whitespace-nowrap overflow-hidden">
                   STT
                 </th>
-                <th style={{ width: '240px' }} className="py-3.5 px-4 text-left w-[240px] min-w-[240px] border-r border-[#00573d]/40">
+                <th className="py-1 sm:py-3.5 px-1 sm:px-4 text-left border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
                   NHÂN VIÊN
                 </th>
-                <th style={{ width: '90px' }} className="py-3.5 px-2 sm:px-3 w-[90px] border-r border-[#00573d]/40">
+                <th className="py-1 sm:py-3.5 px-0.5 sm:px-2 border-r border-[#00573d]/40 text-center tracking-tight whitespace-nowrap overflow-hidden">
                   DT. THỰC
                 </th>
-                <th style={{ width: '100px' }} className="py-3.5 px-2 sm:px-3 w-[100px] border-r border-[#00573d]/40">
+                <th className="py-1 sm:py-3.5 px-0.5 sm:px-2 border-r border-[#00573d]/40 text-center tracking-tight whitespace-nowrap overflow-hidden">
                   DT. QUY ĐỔI
                 </th>
-                <th style={{ width: '85px' }} className="py-3.5 px-2 sm:px-3 w-[85px] border-r border-[#00573d]/40">
+                <th className="py-1 sm:py-3.5 px-0.5 sm:px-2 border-r border-[#00573d]/40 text-center tracking-tight whitespace-nowrap overflow-hidden">
                   HQ.QĐ
                 </th>
-                <th style={{ width: '100px' }} className="py-3.5 px-2 sm:px-3 w-[100px] border-r border-[#00573d]/40">
+                <th className="py-1 sm:py-3.5 px-0.5 sm:px-2 border-r border-[#00573d]/40 text-center tracking-tight whitespace-nowrap overflow-hidden">
                   DT TRẢ GÓP
                 </th>
-                <th style={{ width: '100px' }} className="py-3.5 px-3 w-[100px]">
+                <th className="py-1 sm:py-3.5 px-0.5 sm:px-3 text-center tracking-tight whitespace-nowrap overflow-hidden">
                   % TRẢ GÓP
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-emerald-100/70 text-[13px] sm:text-[14px] font-black">
+            <tbody className="divide-y divide-emerald-100/70 font-black">
               {displayRows.map((staff, idx) => {
                 const rankNum = idx + 1;
                 
@@ -1143,21 +1143,25 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                 return (
                   <tr 
                     key={`${staff.id}-${idx}`}
-                    className="bg-white hover:bg-emerald-50/60 transition-colors group"
+                    className="bg-white hover:bg-emerald-50/60 transition-colors group h-[28px] sm:h-[36px] md:h-[40px]"
                   >
                     {/* STT: #1, #2, ... in bold emerald */}
-                    <td className="py-3 sm:py-3.5 px-2 font-black text-[#00825e] text-center text-[13px] sm:text-[14px]">
+                    <td className="py-0.5 sm:py-2.5 px-0.5 sm:px-2 font-black text-[#00825e] text-center text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden">
                       #{rankNum}
                     </td>
 
                     {/* NHÂN VIÊN: Bold Uppercase Name with Quick Hide Option */}
-                    <td className="py-3 sm:py-3.5 px-4 text-left font-black tracking-tight text-[13px] sm:text-[14px] overflow-visible whitespace-nowrap">
-                      <div className="flex items-center justify-between gap-1.5 overflow-visible whitespace-nowrap">
-                        <span className={`whitespace-nowrap overflow-visible ${
-                          isTop ? "text-[#00825e]" :
-                          isBottom ? "text-[#e11d48]" :
-                          "text-[#0f172a]"
-                        }`}>
+                    <td className="py-0.5 sm:py-2.5 px-1 sm:px-4 text-left font-black tracking-tight text-[8px] sm:text-[11px] md:text-[13.5px] overflow-hidden whitespace-nowrap">
+                      <div className="flex items-center justify-between gap-1 overflow-hidden whitespace-nowrap">
+                        <span 
+                          className={`truncate block flex-1 leading-tight ${
+                            isTop ? "text-[#00825e]" :
+                            isBottom ? "text-[#e11d48]" :
+                            "text-[#0f172a]"
+                          }`}
+                          style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          title={staff.name}
+                        >
                           {staff.name}
                         </span>
 
@@ -1165,18 +1169,18 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                         <button
                           type="button"
                           onClick={() => handleToggleStaff(staff.id)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-rose-500 rounded-md hover:bg-rose-50 no-capture cursor-pointer"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 sm:p-1 text-slate-400 hover:text-rose-500 rounded hover:bg-rose-50 no-capture cursor-pointer shrink-0"
                           title="Ẩn nhân viên này khỏi bảng (lưu tự động)"
                         >
-                          <EyeOff size={13} />
+                          <EyeOff size={11} className="sm:w-[13px] sm:h-[13px]" />
                         </button>
                       </div>
                     </td>
 
                     {/* DT. THỰC: Bold Dark Slate, Red pill badge if 0 */}
-                    <td className="py-3 sm:py-3.5 px-2 sm:px-3 font-black text-[#0f172a] text-[13px] sm:text-[14px]">
+                    <td className="py-0.5 sm:py-2.5 px-0.5 sm:px-2 font-black text-[#0f172a] text-center text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden">
                       {staff.actualRevenue === 0 ? (
-                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[13px] sm:text-[14px] leading-tight">
+                        <span className="inline-block px-1 sm:px-2 py-0.2 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[7.5px] sm:text-[10px] md:text-[13px] leading-tight">
                           0
                         </span>
                       ) : (
@@ -1185,9 +1189,9 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                     </td>
 
                     {/* DT. QUY ĐỔI: Bold Emerald Green, Red pill badge if 0 */}
-                    <td className="py-3 sm:py-3.5 px-2 sm:px-3 font-black text-[#00825e] text-[13px] sm:text-[14px]">
+                    <td className="py-0.5 sm:py-2.5 px-0.5 sm:px-2 font-black text-[#00825e] text-center text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden">
                       {staff.convertedRevenue === 0 ? (
-                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[13px] sm:text-[14px] leading-tight">
+                        <span className="inline-block px-1 sm:px-2 py-0.2 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[7.5px] sm:text-[10px] md:text-[13px] leading-tight">
                           0
                         </span>
                       ) : (
@@ -1196,22 +1200,22 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                     </td>
 
                     {/* HQ.QĐ: Green if > 0.0%, Red pill badge if <= 0.0% */}
-                    <td className="py-3 sm:py-3.5 px-2 sm:px-3 font-black text-[13px] sm:text-[14px]">
+                    <td className="py-0.5 sm:py-2.5 px-0.5 sm:px-2 font-black text-center text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden">
                       {staff.shareRate <= 0 ? (
-                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[13px] sm:text-[14px] leading-tight">
+                        <span className="inline-block px-1 sm:px-1.5 py-0.2 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[7px] sm:text-[9.5px] md:text-[13px] leading-tight">
                           {staff.shareRate.toFixed(1)}%
                         </span>
                       ) : (
-                        <span className="text-[#00825e]">
+                        <span className="text-[#00825e] leading-tight">
                           {staff.shareRate.toFixed(1)}%
                         </span>
                       )}
                     </td>
 
                     {/* DT TRẢ GÓP: Bold Blue, Red pill badge if 0 */}
-                    <td className="py-3 sm:py-3.5 px-2 sm:px-3 font-black text-[13px] sm:text-[14px]">
+                    <td className="py-0.5 sm:py-2.5 px-0.5 sm:px-2 font-black text-center text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden">
                       {staff.installmentRevenue === 0 ? (
-                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[13px] sm:text-[14px] leading-tight">
+                        <span className="inline-block px-1 sm:px-2 py-0.2 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[7.5px] sm:text-[10px] md:text-[13px] leading-tight">
                           0
                         </span>
                       ) : (
@@ -1222,13 +1226,13 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                     </td>
 
                     {/* % TRẢ GÓP: Pill Badge (Green >= 50%, Red < 50%) */}
-                    <td className="py-3 sm:py-3.5 px-3 text-center font-black text-[13px] sm:text-[14px]">
+                    <td className="py-0.5 sm:py-2.5 px-0.5 sm:px-3 text-center font-black text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden">
                       {staff.installmentRate >= 50.0 ? (
-                        <span className="inline-block px-2.5 sm:px-3 py-0.5 rounded-full bg-[#e6f8ef] text-[#00825e] font-black text-[13px] sm:text-[14px] leading-tight">
+                        <span className="inline-block px-1 sm:px-2 py-0.2 rounded-full bg-[#e6f8ef] text-[#00825e] font-black text-[7px] sm:text-[9.5px] md:text-[13px] leading-tight">
                           {staff.installmentRate.toFixed(1)}%
                         </span>
                       ) : (
-                        <span className="inline-block px-2.5 sm:px-3 py-0.5 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[13px] sm:text-[14px] leading-tight">
+                        <span className="inline-block px-1 sm:px-2 py-0.2 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[7px] sm:text-[9.5px] md:text-[13px] leading-tight">
                           {staff.installmentRate.toFixed(1)}%
                         </span>
                       )}
@@ -1240,23 +1244,23 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
 
             {/* Dòng Tổng - Exact Dark Green Footer matching image */}
             <tfoot>
-              <tr className="bg-[#006b4b] text-white font-black text-[13px] sm:text-[14px]">
-                <td colSpan={2} className="py-4 px-4 text-left uppercase tracking-wider border-r border-[#00573d]/40">
+              <tr className="bg-[#006b4b] text-white font-black text-[8px] sm:text-[11px] md:text-[14px] h-[30px] sm:h-[40px]">
+                <td colSpan={2} className="py-1 sm:py-3.5 px-1 sm:px-4 text-left uppercase tracking-wider border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
                   TỔNG ({count} NV)
                 </td>
-                <td className="py-4 px-2 sm:px-3 border-r border-[#00573d]/40">
+                <td className="py-1 sm:py-3.5 px-0.5 sm:px-2 text-center border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
                   {totals.actualRevenue}
                 </td>
-                <td className="py-4 px-2 sm:px-3 border-r border-[#00573d]/40">
+                <td className="py-1 sm:py-3.5 px-0.5 sm:px-2 text-center border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
                   {totals.convertedRevenue}
                 </td>
-                <td className="py-4 px-2 sm:px-3 text-[#ffe500] border-r border-[#00573d]/40">
+                <td className="py-1 sm:py-3.5 px-0.5 sm:px-2 text-center text-[#ffe500] border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
                   {totals.shareRate.toFixed(1)}%
                 </td>
-                <td className="py-4 px-2 sm:px-3 border-r border-[#00573d]/40">
+                <td className="py-1 sm:py-3.5 px-0.5 sm:px-2 text-center border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
                   {totals.installmentRevenue}
                 </td>
-                <td className="py-4 px-3">
+                <td className="py-1 sm:py-3.5 px-0.5 sm:px-3 text-center whitespace-nowrap overflow-hidden">
                   {totals.installmentRate.toFixed(1)}%
                 </td>
               </tr>
