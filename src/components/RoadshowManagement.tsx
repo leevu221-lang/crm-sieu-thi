@@ -158,6 +158,11 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
   const tableRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // IME & Debounce refs to prevent Vietnamese typing glitches and excessive Firestore writes
+  const activeFieldRef = useRef<string | null>(null);
+  const isComposingRef = useRef(false);
+  const saveConfigsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const showToast = (message: string, isSuccess: boolean) => {
     setToast({ message, isSuccess });
     setTimeout(() => setToast(null), 3000);
@@ -222,7 +227,15 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
         // 4. Sync configs for selected date
         const dbConfigs = data.configs || {};
         const dateConfigs = dbConfigs[plannerDate] || {};
-        localStorage.setItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`, JSON.stringify(dateConfigs));
+        
+        // Preserve local actively-typed configs if user is currently typing
+        const cachedConfigsRaw = localStorage.getItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`);
+        const localCurrentConfigs = cachedConfigsRaw ? JSON.parse(cachedConfigsRaw) : {};
+        if (activeFieldRef.current) {
+          localStorage.setItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`, JSON.stringify({ ...dateConfigs, ...localCurrentConfigs }));
+        } else {
+          localStorage.setItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`, JSON.stringify(dateConfigs));
+        }
 
         const effectiveMaster = dbMaster.length > 0 
           ? dbMaster 
@@ -245,12 +258,28 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
             isPg: true
           }))
         ];
-        setStaffList(mappedStaffList);
+        
+        // Only trigger re-render if staff list actually changed
+        setStaffList(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(mappedStaffList)) {
+            return prev;
+          }
+          return mappedStaffList;
+        });
 
-        setMorningTime(dateConfigs.morningTime || '7:00');
-        setAfternoonTime(dateConfigs.afternoonTime || '15:00');
-        setMorningRoute(dateConfigs.morningRoute || '');
-        setAfternoonRoute(dateConfigs.afternoonRoute || '');
+        // Never overwrite fields that the user is actively typing into
+        if (activeFieldRef.current !== 'morningTime') {
+          setMorningTime(dateConfigs.morningTime || '7:00');
+        }
+        if (activeFieldRef.current !== 'afternoonTime') {
+          setAfternoonTime(dateConfigs.afternoonTime || '15:00');
+        }
+        if (activeFieldRef.current !== 'morningRoute') {
+          setMorningRoute(dateConfigs.morningRoute || '');
+        }
+        if (activeFieldRef.current !== 'afternoonRoute') {
+          setAfternoonRoute(dateConfigs.afternoonRoute || '');
+        }
       } else {
         // Fallback to local storage if Firestore document doesn't exist yet
         loadPlannerFromLocalStorage();
@@ -261,7 +290,17 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
       loadPlannerFromLocalStorage();
     });
 
-    return () => unsub();
+    return () => {
+      unsub();
+      // Flush any pending debounced config saves before cleanup
+      if (saveConfigsTimeoutRef.current) {
+        clearTimeout(saveConfigsTimeoutRef.current);
+        const cachedConfigs = localStorage.getItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`);
+        const current = cachedConfigs ? JSON.parse(cachedConfigs) : {};
+        savePlannerDataToFirestore(undefined, undefined, current);
+        saveConfigsTimeoutRef.current = null;
+      }
+    };
   }, [warehouseCode, plannerDate]);
 
   const loadPlannerFromLocalStorage = () => {
@@ -292,15 +331,15 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     const cachedConfigs = localStorage.getItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`);
     if (cachedConfigs) {
       const configs = JSON.parse(cachedConfigs);
-      setMorningTime(configs.morningTime || '7:00');
-      setAfternoonTime(configs.afternoonTime || '15:00');
-      setMorningRoute(configs.morningRoute || '');
-      setAfternoonRoute(configs.afternoonRoute || '');
+      if (activeFieldRef.current !== 'morningTime') setMorningTime(configs.morningTime || '7:00');
+      if (activeFieldRef.current !== 'afternoonTime') setAfternoonTime(configs.afternoonTime || '15:00');
+      if (activeFieldRef.current !== 'morningRoute') setMorningRoute(configs.morningRoute || '');
+      if (activeFieldRef.current !== 'afternoonRoute') setAfternoonRoute(configs.afternoonRoute || '');
     } else {
-      setMorningTime('7:00');
-      setAfternoonTime('15:00');
-      setMorningRoute('');
-      setAfternoonRoute('');
+      if (activeFieldRef.current !== 'morningTime') setMorningTime('7:00');
+      if (activeFieldRef.current !== 'afternoonTime') setAfternoonTime('15:00');
+      if (activeFieldRef.current !== 'morningRoute') setMorningRoute('');
+      if (activeFieldRef.current !== 'afternoonRoute') setAfternoonRoute('');
     }
   };
 
@@ -429,7 +468,10 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
 
       const updatedConfigs = { ...(currentData.configs || {}) };
       if (configsForDate) {
-        updatedConfigs[effectiveDateKey] = configsForDate;
+        updatedConfigs[effectiveDateKey] = {
+          ...(updatedConfigs[effectiveDateKey] || {}),
+          ...configsForDate
+        };
       }
 
       await setDoc(docRef, {
@@ -1300,15 +1342,39 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
     updateRecentDatesList();
   };
 
+  // Debounced save for planner configs to optimize Firebase costs and prevent IME typing glitches
+  const debouncedSaveConfigsToFirestore = (immediate = false) => {
+    if (saveConfigsTimeoutRef.current) {
+      clearTimeout(saveConfigsTimeoutRef.current);
+      saveConfigsTimeoutRef.current = null;
+    }
+
+    const performSave = () => {
+      const cachedConfigs = localStorage.getItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`);
+      const current = cachedConfigs ? JSON.parse(cachedConfigs) : {};
+      savePlannerDataToFirestore(undefined, undefined, current);
+    };
+
+    if (immediate) {
+      performSave();
+      return;
+    }
+
+    saveConfigsTimeoutRef.current = setTimeout(() => {
+      performSave();
+      saveConfigsTimeoutRef.current = null;
+    }, 800);
+  };
+
   // Save planner route/time configs keyed by selected date
-  const handleSavePlannerConfigs = (key: string, value: string) => {
+  const handleSavePlannerConfigs = (key: string, value: string, immediate = false) => {
     const cachedConfigs = localStorage.getItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`);
     const current = cachedConfigs ? JSON.parse(cachedConfigs) : {};
     current[key] = value;
     localStorage.setItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`, JSON.stringify(current));
 
-    // Sync Firestore
-    savePlannerDataToFirestore(undefined, undefined, current);
+    // Sync Firestore with debounce (or immediate on blur)
+    debouncedSaveConfigsToFirestore(immediate);
   };
 
   // Copy plan from another date
@@ -1938,6 +2004,16 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                       onChange={(e) => {
                         const newDate = e.target.value;
                         if (newDate) {
+                          // Flush pending configs before changing date
+                          if (saveConfigsTimeoutRef.current) {
+                            clearTimeout(saveConfigsTimeoutRef.current);
+                            const cachedConfigs = localStorage.getItem(`crm_roadshow_planner_configs_${warehouseCode}_${plannerDate}`);
+                            const current = cachedConfigs ? JSON.parse(cachedConfigs) : {};
+                            savePlannerDataToFirestore(undefined, undefined, current);
+                            saveConfigsTimeoutRef.current = null;
+                          }
+                          activeFieldRef.current = null;
+
                           setPlannerDate(newDate);
                           
                           // Instantly load shifts for the selected date from localStorage
@@ -2013,9 +2089,16 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                       <input
                         type="text"
                         value={morningTime}
+                        onFocus={() => {
+                          activeFieldRef.current = 'morningTime';
+                        }}
+                        onBlur={(e) => {
+                          activeFieldRef.current = null;
+                          handleSavePlannerConfigs('morningTime', e.target.value, true);
+                        }}
                         onChange={(e) => {
                           setMorningTime(e.target.value);
-                          handleSavePlannerConfigs('morningTime', e.target.value);
+                          handleSavePlannerConfigs('morningTime', e.target.value, false);
                         }}
                         className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
@@ -2025,9 +2108,16 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                       <input
                         type="text"
                         value={afternoonTime}
+                        onFocus={() => {
+                          activeFieldRef.current = 'afternoonTime';
+                        }}
+                        onBlur={(e) => {
+                          activeFieldRef.current = null;
+                          handleSavePlannerConfigs('afternoonTime', e.target.value, true);
+                        }}
                         onChange={(e) => {
                           setAfternoonTime(e.target.value);
-                          handleSavePlannerConfigs('afternoonTime', e.target.value);
+                          handleSavePlannerConfigs('afternoonTime', e.target.value, false);
                         }}
                         className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
@@ -2224,9 +2314,27 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                                         data-route-type="morning"
                                         rows={Math.max(3, morningStaff.length)}
                                         value={morningRoute}
+                                        onFocus={() => {
+                                          activeFieldRef.current = 'morningRoute';
+                                        }}
+                                        onBlur={(e) => {
+                                          activeFieldRef.current = null;
+                                          isComposingRef.current = false;
+                                          handleSavePlannerConfigs('morningRoute', e.target.value, true);
+                                        }}
+                                        onCompositionStart={() => {
+                                          isComposingRef.current = true;
+                                        }}
+                                        onCompositionEnd={(e) => {
+                                          isComposingRef.current = false;
+                                          const val = (e.target as HTMLTextAreaElement).value;
+                                          setMorningRoute(val);
+                                          handleSavePlannerConfigs('morningRoute', val, false);
+                                        }}
                                         onChange={(e) => {
-                                          setMorningRoute(e.target.value);
-                                          handleSavePlannerConfigs('morningRoute', e.target.value);
+                                          const val = e.target.value;
+                                          setMorningRoute(val);
+                                          handleSavePlannerConfigs('morningRoute', val, false);
                                         }}
                                         className="w-full h-full border-0 bg-transparent resize-none focus:outline-none p-1 font-utm-avo font-black text-black leading-relaxed text-[14px] sm:text-[15px]"
                                         placeholder="Nhập tuyến đường ca sáng..."
@@ -2274,9 +2382,27 @@ export const RoadshowManagement: React.FC<RoadshowManagementProps> = ({ warehous
                                         data-route-type="afternoon"
                                         rows={Math.max(3, afternoonStaff.length)}
                                         value={afternoonRoute}
+                                        onFocus={() => {
+                                          activeFieldRef.current = 'afternoonRoute';
+                                        }}
+                                        onBlur={(e) => {
+                                          activeFieldRef.current = null;
+                                          isComposingRef.current = false;
+                                          handleSavePlannerConfigs('afternoonRoute', e.target.value, true);
+                                        }}
+                                        onCompositionStart={() => {
+                                          isComposingRef.current = true;
+                                        }}
+                                        onCompositionEnd={(e) => {
+                                          isComposingRef.current = false;
+                                          const val = (e.target as HTMLTextAreaElement).value;
+                                          setAfternoonRoute(val);
+                                          handleSavePlannerConfigs('afternoonRoute', val, false);
+                                        }}
                                         onChange={(e) => {
-                                          setAfternoonRoute(e.target.value);
-                                          handleSavePlannerConfigs('afternoonRoute', e.target.value);
+                                          const val = e.target.value;
+                                          setAfternoonRoute(val);
+                                          handleSavePlannerConfigs('afternoonRoute', val, false);
                                         }}
                                         className="w-full h-full border-0 bg-transparent resize-none focus:outline-none p-1 font-utm-avo font-black text-black leading-relaxed text-[14px] sm:text-[15px]"
                                         placeholder="Nhập tuyến đường ca chiều..."
