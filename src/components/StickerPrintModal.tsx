@@ -95,21 +95,31 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
 
       if (containerRef.current) {
         const availableWidth = containerRef.current.clientWidth;
-        const padding = window.innerWidth < 640 ? 16 : 48;
-        const usableWidth = availableWidth - padding;
+        const paddingX = window.innerWidth < 640 ? 16 : 48;
+        const usableWidth = availableWidth - paddingX;
         
-        if (usableWidth < targetWidthPx) {
-          setPreviewScale(Math.max(0.15, usableWidth / targetWidthPx));
-        } else {
-          setPreviewScale(1);
-        }
+        // Tính chiều cao khả dụng để toàn bộ trang hiển thị đầy đủ trong popup mà không bị cắt mất chân tem
+        const windowHeight = window.innerHeight;
+        // Modal có max-h-[90vh], trừ đi padding dọc container và thanh badge thông tin ("Trang 1 / x")
+        const verticalPadding = window.innerWidth < 640 ? 20 : 52;
+        const pageHeaderHeight = 44; // Chiều cao thanh badge trang
+        const usableHeight = (windowHeight * 0.88) - verticalPadding - pageHeaderHeight;
+
+        const scaleW = usableWidth / targetWidthPx;
+        const scaleH = usableHeight > 100 ? usableHeight / targetHeightPx : scaleW;
+
+        // Tự động scale sao cho vừa khít cả chiều ngang và chiều dọc (không bị cắt chân tem)
+        const fitScale = Math.min(scaleW, scaleH);
+        
+        setPreviewScale(Math.max(0.15, Math.min(1, fitScale)));
       }
     };
 
     setTimeout(updateScale, 20);
+    setTimeout(updateScale, 100);
     window.addEventListener('resize', updateScale);
     return () => window.removeEventListener('resize', updateScale);
-  }, [isOpen, config.layout, config.style, isIPrintMode, targetWidthPx]);
+  }, [isOpen, config.layout, config.style, isIPrintMode, targetWidthPx, targetHeightPx]);
 
   if (!isOpen) return null;
 
@@ -353,9 +363,9 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
     pages.push(data.slice(i, i + itemsPerPage));
   }
 
-  // Luôn hiển thị đầy đủ tem xem trước cho POPUP ALL SP và các bản in dưới 30 trang
-  const isAllSp = config.style === 'popup_all_sp';
-  const shouldRenderAll = renderAllPages || isAllSp || pages.length <= 30;
+  // Luôn hiển thị đầy đủ tem xem trước cho GVGS, MLN, POPUP ALL SP, LOA KÉO và các bản in dưới 50 trang
+  const isSinglePageSticker = config.style === 'popup_all_sp' || config.style === 'display' || config.style === 'giovang' || config.style === 'sticker_lk' || config.style === 'sticker_ce';
+  const shouldRenderAll = renderAllPages || isSinglePageSticker || pages.length <= 50;
 
   // Base sticker dimensions
   const isCeA6 = false;
@@ -641,7 +651,7 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
         className={`w-full ${
           isIPrintMode 
             ? 'bg-white p-0 m-0 overflow-visible max-h-none rounded-none shadow-none flex justify-center' 
-            : 'bg-slate-100 rounded-2xl overflow-auto max-h-[90vh] max-w-6xl p-2 sm:p-6 md:p-8 print:p-0 print:m-0 print:max-h-none print:w-full print:bg-white print:overflow-visible'
+            : 'bg-slate-100 rounded-2xl overflow-auto max-h-[90vh] max-w-6xl p-2 sm:p-4 md:p-5 print:p-0 print:m-0 print:max-h-none print:w-full print:bg-white print:overflow-visible'
         }`}
       >
         <div className="print-area flex flex-col items-center w-full">
@@ -650,11 +660,11 @@ export default function StickerPrintModal({ isOpen, onClose, data, config = { st
               Không có dữ liệu để in. Vui lòng tải file dữ liệu.
             </div>
           ) : (
-            <div className={`flex flex-col items-center gap-6 sm:gap-8 print:gap-0 print:block w-full ${isIPrintMode ? 'py-4' : ''}`}>
+            <div className={`flex flex-col items-center gap-5 sm:gap-6 print:gap-0 print:block w-full ${isIPrintMode ? 'py-4' : ''}`}>
               {(shouldRenderAll ? pages : pages.slice(0, 30)).map((page, pageIndex) => (
                 <div 
                   key={pageIndex} 
-                  className="preview-page-wrapper flex flex-col items-center print:contents"
+                  className="preview-page-wrapper flex flex-col items-center print:contents shrink-0"
                   style={{
                     width: `${targetWidthPx * previewScale}px`,
                     maxWidth: '100%',
