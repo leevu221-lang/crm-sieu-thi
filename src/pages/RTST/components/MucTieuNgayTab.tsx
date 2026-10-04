@@ -80,6 +80,52 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
   const { showNotification } = useNotification();
   const captureRef = useRef<HTMLDivElement | null>(null);
 
+  // Auto Zoom for Mobile Viewport to display full table without clipping columns or text
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [zoomScale, setZoomScale] = useState<number>(1);
+  const [isAutoZoom, setIsAutoZoom] = useState<boolean>(true);
+  const [isMobileScreen, setIsMobileScreen] = useState<boolean>(false);
+
+  const calculateAutoZoom = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const isMobile = window.innerWidth < 768;
+    setIsMobileScreen(isMobile);
+
+    if (!isMobile || !isAutoZoom) {
+      setZoomScale(1);
+      return;
+    }
+
+    // BASE_REPORT_WIDTH is 720px (optimal standard proportion for all 6 columns)
+    const BASE_REPORT_WIDTH = 720;
+    const containerWidth = wrapperRef.current ? wrapperRef.current.clientWidth : (window.innerWidth - 16);
+
+    if (containerWidth > 0) {
+      // Calculate fit scale with safety margin
+      const scale = Math.min(1, Math.max(0.35, (containerWidth - 6) / BASE_REPORT_WIDTH));
+      setZoomScale(Number(scale.toFixed(3)));
+    }
+  }, [isAutoZoom]);
+
+  useEffect(() => {
+    calculateAutoZoom();
+    const handleResize = () => calculateAutoZoom();
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && wrapperRef.current) {
+      ro = new ResizeObserver(() => calculateAutoZoom());
+      ro.observe(wrapperRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+      if (ro) ro.disconnect();
+    };
+  }, [calculateAutoZoom]);
+
   // Check if current user is 43751
   const is43751 = Boolean(
     isUser43751 || 
@@ -710,48 +756,87 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
         </button>
       </div>
 
-      {/* ── Main Report Export Container ── */}
-      <div 
-        ref={captureRef}
-        className={`bg-white rounded-3xl border ${theme.cardBorder} p-2.5 sm:p-5 shadow-sm space-y-3.5 w-full max-w-[760px] mx-auto box-border`}
-        style={{ fontFamily: "'UTM Avo', sans-serif", width: '100%', maxWidth: '760px' }}
-      >
-        {/* Top Header Card */}
-        <div className={`rounded-2xl border ${theme.topCardBorder} overflow-hidden text-center divide-y ${theme.topCardDivide} ${theme.topCardBg} w-full`} style={{ width: '100%' }}>
-          {/* Row 1: TÊN CỤM BASE */}
-          <div className={`grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x ${theme.topCardDivide} ${theme.row1Bg}`}>
-            <div className={`p-2.5 sm:p-3 text-[13px] sm:text-[14px] font-black uppercase ${theme.row1Label} flex items-center justify-center sm:justify-start px-4`}>
-              TÊN CỤM BASE :
-            </div>
-            <div className={`sm:col-span-2 p-2.5 sm:p-3 text-[13px] sm:text-[14.5px] font-black uppercase ${theme.row1Val} flex items-center justify-center sm:justify-start px-4 truncate`}>
-              {currentStoreName}
-            </div>
-          </div>
-
-          {/* Row 2: BÁO CÁO DOANH THU REALTIME Banner */}
-          <div className={`p-3.5 sm:p-4 ${theme.bannerBg} text-white flex flex-col items-center justify-center shadow-inner`}>
-            <h1 className={`text-[21px] sm:text-[25px] font-black ${theme.bannerTitle} uppercase tracking-wider drop-shadow-sm leading-tight`}>
-              BÁO CÁO DOANH THU REALTIME
-            </h1>
-            <span className={`text-[10px] sm:text-[11px] font-extrabold uppercase tracking-widest ${theme.bannerSub} mt-0.5`}>
-              THEO DÕI TIẾN ĐỘ VÀ MỤC TIÊU NGÀY
-            </span>
-          </div>
-
-          {/* Row 3: REALTIME ĐẾN */}
-          <div className={`grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x ${theme.topCardDivide} ${theme.row3Bg}`}>
-            <div className={`p-2.5 text-[12px] sm:text-[13px] font-black uppercase ${theme.row3Label} flex items-center justify-center sm:justify-start px-4`}>
-              REALTIME ĐẾN :
-            </div>
-            <div className={`sm:col-span-2 p-2.5 text-[12.5px] sm:text-[13.5px] font-black uppercase ${theme.row3Val} flex items-center justify-center sm:justify-start px-4 tracking-wide`}>
-              {timeStr} {dateStr}
-            </div>
-          </div>
+      {/* ── Mobile Auto-Zoom Mode Toolbar (Chỉ hiện trên mobile) ── */}
+      <div className="sm:hidden flex items-center justify-between bg-white/95 backdrop-blur-md p-2.5 px-3.5 rounded-2xl border border-slate-200 shadow-xs text-xs font-black no-capture">
+        <div className="flex items-center gap-1.5 text-slate-700">
+          <span className="text-sm">📱</span>
+          <span className="text-[11px] uppercase tracking-wide">Hiển thị Mobile:</span>
         </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setIsAutoZoom(true)}
+            className={`px-3 py-1.5 rounded-xl text-[10.5px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+              isAutoZoom 
+                ? 'bg-emerald-600 text-white shadow-xs' 
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            🔍 Co Full Màn Hình ({Math.round(zoomScale * 100)}%)
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAutoZoom(false)}
+            className={`px-2.5 py-1.5 rounded-xl text-[10.5px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+              !isAutoZoom 
+                ? 'bg-indigo-600 text-white shadow-xs' 
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            100% (Kéo ngang)
+          </button>
+        </div>
+      </div>
 
-        {/* ── Table 1: TIÊU CHÍ TỔNG QUAN ── */}
-        <div className={`overflow-hidden rounded-2xl border ${theme.tableCardBorder} shadow-xs bg-white w-full`} style={{ width: '100%' }}>
-          <table className="w-full border-collapse table-fixed bg-white text-[13px] sm:text-[14px]" style={{ width: '100%', minWidth: '100%', maxWidth: '100%', tableLayout: 'fixed' }}>
+      {/* ── Main Report Export Container with Auto-Zoom on Mobile ── */}
+      <div ref={wrapperRef} className="w-full flex justify-center overflow-x-auto pb-4">
+        <div 
+          ref={captureRef}
+          className={`bg-white rounded-3xl border ${theme.cardBorder} p-3 sm:p-5 shadow-sm space-y-3.5 box-border mx-auto shrink-0 transition-transform duration-200`}
+          style={{ 
+            fontFamily: "'UTM Avo', sans-serif", 
+            width: (isMobileScreen && isAutoZoom) ? '720px' : '100%',
+            minWidth: (isMobileScreen && isAutoZoom) ? '720px' : 'auto',
+            maxWidth: '760px',
+            zoom: (isMobileScreen && isAutoZoom) ? zoomScale : 1,
+          }}
+        >
+          {/* Top Header Card */}
+          <div className={`rounded-2xl border ${theme.topCardBorder} overflow-hidden text-center divide-y ${theme.topCardDivide} ${theme.topCardBg} w-full`} style={{ width: '100%' }}>
+            {/* Row 1: TÊN CỤM BASE */}
+            <div className={`flex items-center divide-x ${theme.topCardDivide} ${theme.row1Bg}`}>
+              <div className={`w-[170px] sm:w-[210px] shrink-0 p-2.5 sm:p-3 text-[13px] sm:text-[14px] font-black uppercase ${theme.row1Label} flex items-center justify-start px-3 sm:px-4`}>
+                TÊN CỤM BASE :
+              </div>
+              <div className={`flex-1 p-2.5 sm:p-3 text-[13px] sm:text-[14.5px] font-black uppercase ${theme.row1Val} flex items-center justify-start px-3 sm:px-4 truncate`}>
+                {currentStoreName}
+              </div>
+            </div>
+
+            {/* Row 2: BÁO CÁO DOANH THU REALTIME Banner */}
+            <div className={`p-3.5 sm:p-4 ${theme.bannerBg} text-white flex flex-col items-center justify-center shadow-inner`}>
+              <h1 className={`text-[21px] sm:text-[25px] font-black ${theme.bannerTitle} uppercase tracking-wider drop-shadow-sm leading-tight text-center`}>
+                BÁO CÁO DOANH THU REALTIME
+              </h1>
+              <span className={`text-[10px] sm:text-[11px] font-extrabold uppercase tracking-widest ${theme.bannerSub} mt-0.5 text-center`}>
+                THEO DÕI TIẾN ĐỘ VÀ MỤC TIÊU NGÀY
+              </span>
+            </div>
+
+            {/* Row 3: REALTIME ĐẾN */}
+            <div className={`flex items-center divide-x ${theme.topCardDivide} ${theme.row3Bg}`}>
+              <div className={`w-[170px] sm:w-[210px] shrink-0 p-2.5 text-[12px] sm:text-[13px] font-black uppercase ${theme.row3Label} flex items-center justify-start px-3 sm:px-4`}>
+                REALTIME ĐẾN :
+              </div>
+              <div className={`flex-1 p-2.5 text-[12.5px] sm:text-[13.5px] font-black uppercase ${theme.row3Val} flex items-center justify-start px-3 sm:px-4 tracking-wide`}>
+                {timeStr} {dateStr}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Table 1: TIÊU CHÍ TỔNG QUAN ── */}
+          <div className={`overflow-hidden rounded-2xl border ${theme.tableCardBorder} shadow-xs bg-white w-full`} style={{ width: '100%' }}>
+            <table className="w-full border-collapse table-fixed bg-white text-[13px] sm:text-[14px] no-mobile-zoom" style={{ width: '100%', minWidth: '100%', maxWidth: '100%', tableLayout: 'fixed' }}>
             <colgroup>
               <col width="6.5%" style={{ width: '6.5%' }} />
               <col width="43.5%" style={{ width: '43.5%' }} />
@@ -950,7 +1035,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
 
         {/* ── Table 2: NGÀNH HÀNG (Đồng bộ Tab Tổng Quan) ── */}
         <div className={`overflow-hidden rounded-2xl border ${theme.tableCardBorder} shadow-xs bg-white w-full`} style={{ width: '100%' }}>
-          <table className="w-full border-collapse table-fixed bg-white text-[13px] sm:text-[14px]" style={{ width: '100%', minWidth: '100%', maxWidth: '100%', tableLayout: 'fixed' }}>
+          <table className="w-full border-collapse table-fixed bg-white text-[13px] sm:text-[14px] no-mobile-zoom" style={{ width: '100%', minWidth: '100%', maxWidth: '100%', tableLayout: 'fixed' }}>
             <colgroup>
               <col width="6.5%" style={{ width: '6.5%' }} />
               <col width="43.5%" style={{ width: '43.5%' }} />
@@ -1078,6 +1163,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
           </div>
         )}
       </div>
+    </div>
 
       {/* ── Multi-Select Category Filter Modal ── */}
       <AnimatePresence>
