@@ -8294,19 +8294,50 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                       className={`bg-white ${isDrillFullscreen ? 'flex-1 mt-4' : ''}`}
                     >
                       <table 
-                        className="w-full border-collapse border border-slate-200/50 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-200/50 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap" 
-                        style={{ borderSpacing: 0, minWidth: `${compareMode !== 'none' ? 1160 : 840}px` }}
+                        className="w-full table-fixed border-collapse border border-slate-200/50 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-200/50 [&_th]:whitespace-nowrap" 
+                        style={{ borderSpacing: 0, width: `${compareMode !== 'none' ? 1160 : 840}px`, minWidth: `${compareMode !== 'none' ? 1160 : 840}px` }}
                       >
+                        {compareMode === 'none' ? (
+                          <colgroup>
+                            <col style={{ width: '280px' }} />
+                            <col style={{ width: '68px' }} />
+                            <col style={{ width: '68px' }} />
+                            <col style={{ width: '88px' }} />
+                            <col style={{ width: '68px' }} />
+                            <col style={{ width: '88px' }} />
+                            <col style={{ width: '88px' }} />
+                            <col style={{ width: '92px' }} />
+                          </colgroup>
+                        ) : (
+                          <colgroup>
+                            <col style={{ width: '260px' }} />
+                            <col style={{ width: '60px' }} />
+                            <col style={{ width: '60px' }} />
+                            <col style={{ width: '60px' }} />
+                            <col style={{ width: '60px' }} />
+                            <col style={{ width: '60px' }} />
+                            <col style={{ width: '60px' }} />
+                            <col style={{ width: '60px' }} />
+                            <col style={{ width: '60px' }} />
+                            <col style={{ width: '60px' }} />
+                            <col style={{ width: '60px' }} />
+                            <col style={{ width: '60px' }} />
+                            <col style={{ width: '60px' }} />
+                            <col style={{ width: '60px' }} />
+                            <col style={{ width: '60px' }} />
+                            <col style={{ width: '60px' }} />
+                          </colgroup>
+                        )}
                         <thead>
                           {compareMode === 'none' ? (
                             <>
                               <tr className={`bg-slate-50 border-b border-slate-200/50 text-slate-800 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase`}>
-                                <th rowSpan={2} className="py-2.5 px-4 text-left bg-slate-50 min-w-[260px] border-r border-slate-200/50 font-black align-middle">CHI TIẾT NGÀNH HÀNG</th>
+                                <th rowSpan={2} className="py-2.5 px-3 text-left bg-slate-50 w-[280px] border-r border-slate-200/50 font-black align-middle">CHI TIẾT NGÀNH HÀNG</th>
                                 <th colSpan={2} className={`py-1 px-3 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} border-b border-emerald-100`}>SỐ LƯỢNG</th>
                                 <th colSpan={2} className={`py-1 px-3 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 font-black ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} border-b border-blue-100`}>DOANH THU</th>
                                 <th rowSpan={2} className="py-2.5 px-3 text-center text-[#b45309] bg-[#fef3c7] border-r border-slate-200/50 w-[88px] font-black align-middle">DTQĐ</th>
                                 <th rowSpan={2} className="py-2.5 px-3 text-center text-[#6b21a8] bg-[#f3e8ff] border-r border-slate-200/50 w-[88px] font-black align-middle">GIÁ TRỊ ĐH</th>
-                                <th rowSpan={2} className="py-2.5 px-3 text-center text-[#be123c] bg-[#ffe4e6] w-[88px] font-black align-middle">TRẢ CHẬM</th>
+                                <th rowSpan={2} className="py-2.5 px-3 text-center text-[#be123c] bg-[#ffe4e6] w-[92px] font-black align-middle">TRẢ CHẬM</th>
                               </tr>
                               <tr className={`bg-slate-50 border-b border-slate-200/50 text-slate-800 ${isUser43751 ? 'text-[12.5px]' : 'text-[11px]'} font-black uppercase`}>
                                 <th className="py-1 px-3 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 w-[68px] font-black">SL</th>
@@ -8393,10 +8424,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 <tr key={row.key} className="border-b border-slate-100/70 hover:bg-slate-50/80 transition-colors h-10">
                                   {/* Danh mục / Indented */}
                                   <td 
-                                    className={`py-2 px-4 text-left border-r border-slate-200/50 drill-cell-name select-none ${hasChildren ? 'cursor-pointer hover:bg-slate-100/60' : ''}`}
+                                    className={`py-2 px-2 text-left border-r border-slate-200/50 drill-cell-name select-none overflow-hidden ${hasChildren ? 'cursor-pointer hover:bg-slate-100/60' : ''}`}
                                     data-depth={row.depth}
-                                    data-padding-left={`${16 + row.depth * 20}px`}
-                                    style={{ paddingLeft: `${16 + row.depth * 20}px` }}
+                                    data-padding-left={`${6 + Math.min(row.depth * 10, 65)}px`}
+                                    style={{ paddingLeft: `${6 + Math.min(row.depth * 10, 65)}px` }}
                                     onClick={() => {
                                       if (hasChildren) {
                                         setExpandedDrillRows(prev => ({
@@ -8406,7 +8437,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                       }
                                     }}
                                   >
-                                    <div className="flex items-center">
+                                    <div className="flex items-center min-w-0 overflow-hidden">
                                       {hasChildren ? (
                                         <button
                                           onClick={(e) => {
@@ -8416,14 +8447,19 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                               [row.key]: !isExpanded
                                             }));
                                           }}
-                                          className="w-5 h-5 rounded hover:bg-slate-100 flex items-center justify-center text-slate-400 mr-1.5 transition-colors cursor-pointer shrink-0 drill-toggle-btn"
+                                          className="w-4 h-4 rounded hover:bg-slate-100 flex items-center justify-center text-slate-400 mr-1 transition-colors cursor-pointer shrink-0 drill-toggle-btn"
                                         >
-                                          <ChevronRight size={14} className={`transform transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+                                          <ChevronRight size={13} className={`transform transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
                                         </button>
                                       ) : (
-                                        <div className="w-5 h-5 mr-1.5 shrink-0 drill-toggle-btn" />
+                                        <div className="w-4 h-4 mr-1 shrink-0 drill-toggle-btn" />
                                       )}
-                                      <span className={`${isUser43751 ? 'text-[14px]' : 'text-[13px]'} tracking-tight whitespace-nowrap ${textClass}`}>{row.name}</span>
+                                      <span 
+                                        className={`${isUser43751 ? 'text-[14px]' : 'text-[13px]'} tracking-tight truncate block ${textClass}`}
+                                        title={row.name}
+                                      >
+                                        {row.name}
+                                      </span>
                                     </div>
                                   </td>
 
@@ -8539,14 +8575,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             if (compareMode === 'none') {
                               return (
                                 <tr className="bg-[#ccfbf1]/80 border-t-2 border-teal-300 font-black text-slate-900 h-10 uppercase">
-                                  <td className={`py-3 px-4 text-left ${isUser43751 ? 'text-[15px]' : 'text-[14px]'} text-teal-800 font-black pl-6 border-r border-slate-200/50 min-w-[260px]`}>TỔNG</td>
+                                  <td className={`py-3 px-3 text-left ${isUser43751 ? 'text-[15px]' : 'text-[14px]'} text-teal-800 font-black pl-4 border-r border-slate-200/50 w-[280px] truncate`}>TỔNG</td>
                                   <td className={`py-3 px-3 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50 w-[68px]`}>{slTotal.toLocaleString('vi-VN')}</td>
                                   <td className={`py-3 px-3 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-[#0f766e] font-black border-r border-slate-200/50 w-[68px]`}>100%</td>
                                   <td className={`py-3 px-3 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50 w-[88px]`}>{fmtTr(dtTotal)}</td>
                                   <td className={`py-3 px-3 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-[#ea580c] font-black border-r border-slate-200/50 w-[68px]`}>100%</td>
                                   <td className={`py-3 px-3 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50 w-[88px]`}>{fmtTr(dtqdTotal)}</td>
                                   <td className={`py-3 px-3 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50 w-[88px]`}>{totalOrderValue > 0 ? totalOrderValue.toFixed(1) : '-'}</td>
-                                  <td className={`py-3 px-3 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-[88px] ${totalTcPct >= 50 ? 'text-[#047857]' : totalTcPct > 0 ? 'text-amber-600' : 'text-rose-600'}`}>
+                                  <td className={`py-3 px-3 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-[92px] ${totalTcPct >= 50 ? 'text-[#047857]' : totalTcPct > 0 ? 'text-amber-600' : 'text-rose-600'}`}>
                                     {totalTcPct > 0 ? totalTcPct.toFixed(0) + '%' : '-'}
                                   </td>
                                 </tr>
@@ -8554,7 +8590,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             } else {
                               return (
                                 <tr className="bg-[#ccfbf1]/80 border-t-2 border-teal-300 font-black text-slate-900 h-10 uppercase">
-                                  <td className={`py-3 px-4 text-left ${isUser43751 ? 'text-[15px]' : 'text-[14px]'} text-teal-800 font-black pl-6 border-r border-slate-200/50 min-w-[260px]`}>TỔNG</td>
+                                  <td className={`py-3 px-3 text-left ${isUser43751 ? 'text-[15px]' : 'text-[14px]'} text-teal-800 font-black pl-4 border-r border-slate-200/50 w-[260px] truncate`}>TỔNG</td>
                                   <td className={`py-3 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50`}>{slTotal.toLocaleString('vi-VN')}</td>
                                   <td className={`py-3 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>{prevSlTotal.toLocaleString('vi-VN')}</td>
                                   <td className="py-3 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">{fmtDiff(slTotal, prevSlTotal)}</td>
