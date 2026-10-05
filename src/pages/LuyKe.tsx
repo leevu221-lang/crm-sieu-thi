@@ -2798,21 +2798,21 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                         )}
 
                         <div className="overflow-x-auto w-full grow rounded-xl sm:rounded-2xl border border-sky-300/80">
-                          <table className="w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                          <table className="w-full min-w-[350px] sm:min-w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                             <colgroup>
-                              <col className="w-[24px] sm:w-[32px] md:w-[40px]" />
+                              <col className="w-[22px] sm:w-[32px] md:w-[40px]" />
                               <col className="w-auto" />
-                              <col className="w-[34px] sm:w-[48px] md:w-[60px]" />
-                              <col className="w-[30px] sm:w-[44px] md:w-[54px]" />
-                              <col className="w-[36px] sm:w-[48px] md:w-[56px]" />
-                              <col className="w-[30px] sm:w-[44px] md:w-[54px]" />
+                              <col className="w-[44px] sm:w-[50px] md:w-[62px]" />
+                              <col className="w-[46px] sm:w-[52px] md:w-[62px]" />
+                              <col className="w-[42px] sm:w-[50px] md:w-[58px]" />
+                              <col className="w-[42px] sm:w-[50px] md:w-[58px]" />
                             </colgroup>
                             <thead>
                               <tr className="text-white h-[28px] sm:h-[38px] md:h-[44px]">
                                 <th className="px-0.5 py-0 text-[8px] sm:text-[11px] md:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] whitespace-nowrap overflow-hidden">STT</th>
                                 <th className="px-1 sm:px-2 py-0 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] font-black uppercase text-left border-r border-b border-sky-500 bg-[#0369A1] whitespace-nowrap overflow-hidden">NGÀNH HÀNG</th>
-                                <th className="px-0.5 py-0 text-[7px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] tracking-tight whitespace-nowrap overflow-hidden">TARGET</th>
-                                <th className="px-0.5 py-0 text-[7px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] tracking-tight whitespace-nowrap overflow-hidden">LUỸ KẾ</th>
+                                <th className="px-0.5 sm:px-1 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] tracking-tight whitespace-nowrap overflow-hidden">TARGET</th>
+                                <th className="px-0.5 sm:px-1 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] tracking-tight whitespace-nowrap overflow-hidden">LUỸ KẾ</th>
                                 <th 
                                   onClick={() => setSortModeSL(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
                                   className={`px-0.5 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b border-sky-500 cursor-pointer select-none transition-colors tracking-tight whitespace-nowrap overflow-hidden ${
@@ -2866,14 +2866,14 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                           {cat.name}
                                         </div>
                                       </td>
-                                      <td className="px-0.5 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-r border-b border-sky-100/90 text-slate-800 whitespace-nowrap overflow-hidden">{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
-                                      <td className="px-0.5 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-black text-center border-r border-b border-sky-100/90 text-sky-700 whitespace-nowrap overflow-hidden">{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
+                                      <td className="px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-r border-b border-sky-100/90 text-slate-800 whitespace-nowrap overflow-hidden">{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
+                                      <td className="px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-black text-center border-r border-b border-sky-100/90 text-sky-700 whitespace-nowrap overflow-hidden">{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
                                       <td className="px-0.5 py-0.5 text-center border-r border-b border-sky-100/90 whitespace-nowrap overflow-hidden">
-                                        <span className={`inline-flex items-center justify-center px-1 sm:px-1.5 py-0.2 rounded font-black leading-none text-[7.5px] sm:text-[10.5px] md:text-[13px] ${Math.round(rate) >= 100 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-rose-100 text-rose-600'}`}>
+                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded font-black leading-none text-[8px] sm:text-[10.5px] md:text-[13px] ${Math.round(rate) >= 100 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-rose-100 text-rose-600'}`}>
                                           {Math.round(rate)}%
                                         </span>
                                       </td>
-                                      <td className={`px-0.5 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-b border-sky-100/90 ${sortModeSL.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600 whitespace-nowrap overflow-hidden`}>
+                                      <td className={`px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-b border-sky-100/90 ${sortModeSL.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600 whitespace-nowrap overflow-hidden`}>
                                         {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
                                       </td>
                                     </tr>
@@ -2978,21 +2978,21 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                         )}
 
                         <div className="overflow-x-auto w-full grow rounded-xl sm:rounded-2xl border border-sky-300/80">
-                          <table className="w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                          <table className="w-full min-w-[350px] sm:min-w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                             <colgroup>
-                              <col className="w-[24px] sm:w-[32px] md:w-[40px]" />
+                              <col className="w-[22px] sm:w-[32px] md:w-[40px]" />
                               <col className="w-auto" />
-                              <col className="w-[34px] sm:w-[48px] md:w-[60px]" />
-                              <col className="w-[30px] sm:w-[44px] md:w-[54px]" />
-                              <col className="w-[36px] sm:w-[48px] md:w-[56px]" />
-                              <col className="w-[30px] sm:w-[44px] md:w-[54px]" />
+                              <col className="w-[44px] sm:w-[50px] md:w-[62px]" />
+                              <col className="w-[46px] sm:w-[52px] md:w-[62px]" />
+                              <col className="w-[42px] sm:w-[50px] md:w-[58px]" />
+                              <col className="w-[42px] sm:w-[50px] md:w-[58px]" />
                             </colgroup>
                             <thead>
                               <tr className="text-white h-[28px] sm:h-[38px] md:h-[44px]">
                                 <th className="px-0.5 py-0 text-[8px] sm:text-[11px] md:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] whitespace-nowrap overflow-hidden">STT</th>
                                 <th className="px-1 sm:px-2 py-0 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] font-black uppercase text-left border-r border-b border-sky-500 bg-[#0369A1] whitespace-nowrap overflow-hidden">NGÀNH HÀNG</th>
-                                <th className="px-0.5 py-0 text-[7px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] tracking-tight whitespace-nowrap overflow-hidden">TARGET</th>
-                                <th className="px-0.5 py-0 text-[7px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] tracking-tight whitespace-nowrap overflow-hidden">LUỸ KẾ</th>
+                                <th className="px-0.5 sm:px-1 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] tracking-tight whitespace-nowrap overflow-hidden">TARGET</th>
+                                <th className="px-0.5 sm:px-1 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] tracking-tight whitespace-nowrap overflow-hidden">LUỸ KẾ</th>
                                 <th 
                                   onClick={() => setSortModeDT(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
                                   className={`px-0.5 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b border-sky-500 cursor-pointer select-none transition-colors tracking-tight whitespace-nowrap overflow-hidden ${
@@ -3046,14 +3046,14 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                           {cat.name}
                                         </div>
                                       </td>
-                                      <td className="px-0.5 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-r border-b border-sky-100/90 text-slate-800 whitespace-nowrap overflow-hidden">{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
-                                      <td className="px-0.5 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-black text-center border-r border-b border-sky-100/90 text-sky-700 whitespace-nowrap overflow-hidden">{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
+                                      <td className="px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-r border-b border-sky-100/90 text-slate-800 whitespace-nowrap overflow-hidden">{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
+                                      <td className="px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-black text-center border-r border-b border-sky-100/90 text-sky-700 whitespace-nowrap overflow-hidden">{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
                                       <td className="px-0.5 py-0.5 text-center border-r border-b border-sky-100/90 whitespace-nowrap overflow-hidden">
-                                        <span className={`inline-flex items-center justify-center px-1 sm:px-1.5 py-0.2 rounded font-black leading-none text-[7.5px] sm:text-[10.5px] md:text-[13px] ${Math.round(rate) >= 100 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-rose-100 text-rose-600'}`}>
+                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded font-black leading-none text-[8px] sm:text-[10.5px] md:text-[13px] ${Math.round(rate) >= 100 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-rose-100 text-rose-600'}`}>
                                           {Math.round(rate)}%
                                         </span>
                                       </td>
-                                      <td className={`px-0.5 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-b border-sky-100/90 ${sortModeDT.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600 whitespace-nowrap overflow-hidden`}>
+                                      <td className={`px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-b border-sky-100/90 ${sortModeDT.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600 whitespace-nowrap overflow-hidden`}>
                                         {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
                                       </td>
                                     </tr>
