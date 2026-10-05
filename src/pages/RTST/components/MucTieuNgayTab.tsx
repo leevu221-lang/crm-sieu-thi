@@ -47,6 +47,8 @@ interface MucTieuNgayTabProps {
   luykeProcessedData?: any;
   dailyTargetQD?: number;
   isUser43751?: boolean;
+  luykeCatMap?: Map<string, { target: number; revenue: number }>;
+  mucTieu100Info?: { totalDaysInMonth: number; daysPassed: number };
 }
 
 // Fallback standard DT category template if no categories are uploaded yet
@@ -75,7 +77,9 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
   userProfile,
   luykeProcessedData,
   dailyTargetQD,
-  isUser43751 = false
+  isUser43751 = false,
+  luykeCatMap,
+  mucTieu100Info,
 }) => {
   const { showNotification } = useNotification();
   const captureRef = useRef<HTMLDivElement | null>(null);
@@ -402,28 +406,112 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
   const dtThucRemaining = overviewTargets.dtThuc - dtlk;
   const dtQdRemaining = overviewTargets.dtQd - dtqd;
 
+  // ── 1. Tính toán số ngày trong tháng và nhịp ngày cho M.tiêu/ngày ──
+  const effectiveMucTieu100Info = useMemo(() => {
+    if (mucTieu100Info) return mucTieu100Info;
+    const now = lastUpdated || new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysPassed = now.getDate();
+    return { totalDaysInMonth, daysPassed };
+  }, [mucTieu100Info, lastUpdated]);
+
+  // ── 2. Xây dựng bản đồ danh mục Luỹ Kế đồng bộ 100% với Tab "TỔNG QUAN" ──
+  const effectiveLuykeCatMap = useMemo(() => {
+    if (luykeCatMap && luykeCatMap.size > 0) return luykeCatMap;
+    const map = new Map<string, { target: number; revenue: number }>();
+    if (!luykeProcessedData?.categories) return map;
+
+    luykeProcessedData.categories
+      .filter((cat: any) =>
+        marketFilter === 'ALL' || !cat.marketName ||
+        normalize(cat.marketName).includes(normalize(marketFilter)) ||
+        normalize(marketFilter).includes(normalize(cat.marketName)) ||
+        normalize(cat.marketName).includes(normalize(currentStoreName)) ||
+        normalize(currentStoreName).includes(normalize(cat.marketName))
+      )
+      .forEach((cat: any) => {
+        const name = cat.name.trim().toUpperCase();
+        const type = cat.type || 'DT';
+        const key = `${name}_${type}`;
+        const existing = map.get(key);
+        if (existing) {
+          existing.target += (cat.target || 0);
+          existing.revenue += (cat.revenue || cat.actual || 0);
+        } else {
+          map.set(key, { target: (cat.target || 0), revenue: (cat.revenue || cat.actual || 0) });
+        }
+      });
+    return map;
+  }, [luykeCatMap, luykeProcessedData?.categories, marketFilter, currentStoreName]);
+
+  // ── 3. Helper lấy giá trị cột "M.tiêu/ngày" từ bảng Tổng Quan chuẩn xác 100% ──
+  const getMucTieuNgayFromTongQuan = useCallback((catName: string, catType: string): number => {
+    const rawName = (catName || '').trim().toUpperCase();
+    const typeKey = (catType === 'ALL' || !catType) ? 'DT' : catType;
+    const cleanName = rawName.replace(/^T\d{1,2}\s*[-–]\s*/i, '').trim();
+
+    // 1. Khớp chính xác key trong map
+    let lkCat = effectiveLuykeCatMap.get(`${rawName}_${typeKey}`)
+      || effectiveLuykeCatMap.get(`${rawName}_ALL`)
+      || effectiveLuykeCatMap.get(rawName)
+      || effectiveLuykeCatMap.get(`${cleanName}_${typeKey}`)
+      || effectiveLuykeCatMap.get(`${cleanName}_ALL`)
+      || effectiveLuykeCatMap.get(cleanName);
+
+    // 2. Khớp chuẩn hóa nếu chưa tìm thấy
+    if (!lkCat && effectiveLuykeCatMap.size > 0) {
+      const normRaw = normalize(rawName);
+      const normClean = normalize(cleanName);
+      for (const [k, v] of effectiveLuykeCatMap.entries()) {
+        const [kName, kType] = k.split('_');
+        const normK = normalize(kName);
+        const normKClean = normalize(kName.replace(/^T\d{1,2}\s*[-–]\s*/i, ''));
+        const matchesName = normK === normRaw || normK === normClean || normKClean === normRaw || normKClean === normClean;
+        const matchesType = !kType || kType === typeKey || kType === 'ALL' || typeKey === 'ALL';
+        if (matchesName && matchesType) {
+          lkCat = v;
+          break;
+        }
+      }
+    }
+
+    if (!lkCat || !lkCat.target || lkCat.target <= 0) return 0;
+    const { totalDaysInMonth, daysPassed } = effectiveMucTieu100Info;
+    const rawMucTieu = Math.round((lkCat.target / totalDaysInMonth) * daysPassed - (lkCat.revenue || 0));
+    return rawMucTieu > 0 ? rawMucTieu : 0;
+  }, [effectiveLuykeCatMap, effectiveMucTieu100Info]);
+
   // ── Build Category List Synchronized 100% with Tab "TỔNG QUAN" (Both DT and SL categories) ──
   const allAvailableCategoryList = useMemo(() => {
     if (filteredCategories && filteredCategories.length > 0) {
-      return filteredCategories.map(cat => ({
-        key: `${cat.name.toUpperCase()}__${cat.type || 'DT'}`,
-        name: cat.name.toUpperCase(),
-        type: cat.type || 'DT',
-        realtimeRevenue: cat.revenue || cat.actual || 0,
-        defaultTarget: cat.target || 0,
-        rate: cat.rate || 0,
-      }));
+      return filteredCategories.map(cat => {
+        const catType = cat.type || 'DT';
+        const mucTieuNgay = getMucTieuNgayFromTongQuan(cat.name, catType);
+        return {
+          key: `${cat.name.toUpperCase()}__${catType}`,
+          name: cat.name.toUpperCase(),
+          type: catType,
+          realtimeRevenue: cat.revenue || cat.actual || 0,
+          defaultTarget: mucTieuNgay, // Cột "Mục tiêu" = cột "M.tiêu/ngày" ở bảng "Tổng Quan"
+          rate: cat.rate || 0,
+        };
+      });
     }
 
-    return DEFAULT_DT_CATEGORIES.map(c => ({
-      key: `${c.name.toUpperCase()}__${c.type}`,
-      name: c.name.toUpperCase(),
-      type: c.type,
-      realtimeRevenue: 0,
-      defaultTarget: c.defaultTarget,
-      rate: 0,
-    }));
-  }, [filteredCategories]);
+    return DEFAULT_DT_CATEGORIES.map(c => {
+      const mucTieuNgay = getMucTieuNgayFromTongQuan(c.name, c.type);
+      return {
+        key: `${c.name.toUpperCase()}__${c.type}`,
+        name: c.name.toUpperCase(),
+        type: c.type,
+        realtimeRevenue: 0,
+        defaultTarget: mucTieuNgay,
+        rate: 0,
+      };
+    });
+  }, [filteredCategories, getMucTieuNgayFromTongQuan]);
 
   // Selected Count (Safe calculation)
   const selectedCount = useMemo(() => {
@@ -463,15 +551,17 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
     saveTargetsDebounced(overviewTargets, categoryTargets, newSelected);
   }, [selectedCategoryKeys, allAvailableCategoryList, overviewTargets, categoryTargets, saveTargetsDebounced]);
 
-  // Đồng bộ Mục tiêu từ cột C.LẠI bên BC THÁNG > TỔNG QUAN (hoạt động song song với nhập thủ công)
+  // Đồng bộ Mục tiêu từ cột "M.tiêu/ngày" bên Tab TỔNG QUAN (hoạt động song song với nhập thủ công)
   const handleSyncFromLuyke = useCallback(() => {
-    if (!luykeProcessedData) {
+    if (!luykeProcessedData && effectiveLuykeCatMap.size === 0) {
       showNotification('Chưa có dữ liệu BC THÁNG để đồng bộ!', 'warning');
       return;
     }
 
-    // 1. Sync Table 1 Overview KPIs from BC THÁNG > TỔNG QUAN (C.LẠI = Target - Lũy kế)
-    const luykeStore = luykeProcessedData.markets?.find((pm: any) =>
+    const { totalDaysInMonth, daysPassed } = effectiveMucTieu100Info;
+
+    // 1. Sync Table 1 Overview KPIs from BC THÁNG > TỔNG QUAN (Mục tiêu ngày)
+    const luykeStore = luykeProcessedData?.markets?.find((pm: any) =>
       normalize(pm.name).includes(normalize(currentStoreName)) ||
       normalize(currentStoreName).includes(normalize(pm.name))
     );
@@ -480,66 +570,51 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
     if (luykeStore) {
       const lkTargetThuc = (luykeStore as any).targetReal || luykeStore.targetST || 0;
       const lkActualThuc = (luykeStore as any).actualReal || 0;
-      const remainThuc = Math.max(0, lkTargetThuc - lkActualThuc);
+      const paceThuc = Math.round((lkTargetThuc / totalDaysInMonth) * daysPassed - lkActualThuc);
+      const dailyThuc = totalDaysInMonth > 0 ? Math.round(lkTargetThuc / totalDaysInMonth) : lkTargetThuc;
+      const targetThucNgay = paceThuc > 0 ? paceThuc : dailyThuc;
 
       const lkTargetQD = luykeStore.targetQD || 0;
       const lkActualQD = luykeStore.actualVirtual || 0;
-      const remainQD = Math.max(0, lkTargetQD - lkActualQD);
+      const paceQD = Math.round((lkTargetQD / totalDaysInMonth) * daysPassed - lkActualQD);
+      const dailyQD = dailyTargetQD || (totalDaysInMonth > 0 ? Math.round(lkTargetQD / totalDaysInMonth) : lkTargetQD);
+      const targetQDNgay = paceQD > 0 ? paceQD : dailyQD;
 
       newOverview = {
-        dtThuc: Math.round(remainThuc),
-        dtQd: Math.round(remainQD),
+        dtThuc: Math.round(targetThucNgay),
+        dtQd: Math.round(targetQDNgay),
         effQd: overviewTargets.effQd > 0 ? overviewTargets.effQd : (luykeStore.percentQD || 50),
         traCham: overviewTargets.traCham > 0 ? overviewTargets.traCham : (luykeStore.installmentRate || 60),
       };
       setOverviewTargets(newOverview);
     }
 
-    // 2. Sync Table 2 Category Targets from BC THÁNG > TỔNG QUAN > C.LẠI
-    const lkCats = luykeProcessedData.categories?.filter((cat: any) =>
-      marketFilter === 'ALL' || !cat.marketName ||
-      normalize(cat.marketName).includes(normalize(currentStoreName)) ||
-      normalize(currentStoreName).includes(normalize(cat.marketName))
-    ) || [];
-
-    if (lkCats.length === 0 && !luykeStore) {
-      showNotification('Không tìm thấy dữ liệu luỹ kế của siêu thị này trong BC THÁNG!', 'warning');
-      return;
-    }
-
+    // 2. Sync Table 2 Category Targets: Lấy chuẩn theo cột "M.tiêu/ngày" ở bảng TỔNG QUAN
     const newCatTargets: Record<string, number> = { ...categoryTargets };
     let syncCount = 0;
 
-    const lkRemainMap = new Map<string, number>();
-    lkCats.forEach((c: any) => {
-      const normN = normalize(c.name);
-      const keyWith = `${normN}__${c.type || 'DT'}`;
-      const keySimple = normN;
-      const remaining = (c.target || 0) - (c.revenue || c.actual || 0);
-      const val = remaining > 0 ? (c.type === 'SL' ? Math.round(remaining) : Math.round(remaining * 10) / 10) : 0;
-      lkRemainMap.set(keyWith, val);
-      if (!lkRemainMap.has(keySimple)) {
-        lkRemainMap.set(keySimple, val);
-      }
-    });
-
     allAvailableCategoryList.forEach(item => {
-      const normN = normalize(item.name);
-      const keyWith = `${normN}__${item.type}`;
-      const keySimple = normN;
-      if (lkRemainMap.has(keyWith)) {
-        newCatTargets[item.name.toUpperCase()] = lkRemainMap.get(keyWith)!;
-        syncCount++;
-      } else if (lkRemainMap.has(keySimple)) {
-        newCatTargets[item.name.toUpperCase()] = lkRemainMap.get(keySimple)!;
-        syncCount++;
-      }
+      const mtNgay = getMucTieuNgayFromTongQuan(item.name, item.type);
+      newCatTargets[item.name.toUpperCase()] = mtNgay;
+      if (mtNgay > 0) syncCount++;
     });
 
     setCategoryTargets(newCatTargets);
     saveTargetsDebounced(newOverview, newCatTargets, selectedCategoryKeys);
-    showNotification(`✅ Đã đồng bộ Mục tiêu theo Còn lại Luỹ Kế (${syncCount} ngành hàng)!`, 'success');
-  }, [luykeProcessedData, currentStoreName, marketFilter, overviewTargets, categoryTargets, selectedCategoryKeys, allAvailableCategoryList, saveTargetsDebounced, showNotification]);
+    showNotification(`✅ Đã đồng bộ Mục tiêu theo cột "M.tiêu/ngày" bảng Tổng Quan (${syncCount} ngành hàng)!`, 'success');
+  }, [luykeProcessedData, effectiveLuykeCatMap, effectiveMucTieu100Info, currentStoreName, overviewTargets, dailyTargetQD, categoryTargets, allAvailableCategoryList, getMucTieuNgayFromTongQuan, selectedCategoryKeys, saveTargetsDebounced, showNotification]);
+
+  // Tự động đồng bộ 1 lần sang logic M.tiêu/ngày cho siêu thị hiện tại (nếu trước đó đang lưu giá trị Còn lại cả tháng cũ)
+  useEffect(() => {
+    if (effectiveLuykeCatMap.size > 0 && allAvailableCategoryList.length > 0) {
+      const syncKey = `DAILY_TARGETS_SYNCED_V2_${storeNormalizedKey}`;
+      const isSyncedV2 = localStorage.getItem(syncKey);
+      if (!isSyncedV2) {
+        handleSyncFromLuyke();
+        localStorage.setItem(syncKey, 'true');
+      }
+    }
+  }, [effectiveLuykeCatMap, allAvailableCategoryList, storeNormalizedKey, handleSyncFromLuyke]);
 
   // Date and Time string
   const now = lastUpdated || new Date();
@@ -659,14 +734,14 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
             <span>LỌC NGÀNH HÀNG ({selectedCount}/{allAvailableCategoryList.length})</span>
           </button>
 
-          {/* ĐỒNG BỘ LUỸ KẾ Button */}
+          {/* ĐỒNG BỘ MỤC TIÊU NGÀY Button */}
           <button
             onClick={handleSyncFromLuyke}
             className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider ${theme.syncBtn} transition-all active:scale-95 cursor-pointer`}
-            title="Đồng bộ Mục tiêu từ cột C.LẠI bên BC THÁNG > TỔNG QUAN"
+            title="Đồng bộ Mục tiêu từ cột M.tiêu/ngày bên Tab TỔNG QUAN"
           >
             <RefreshCw size={14} />
-            <span>ĐỒNG BỘ LUỸ KẾ</span>
+            <span>ĐỒNG BỘ MỤC TIÊU NGÀY</span>
           </button>
 
           {/* NHẬN XÉT Button */}
@@ -697,7 +772,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
         <div className="flex items-center gap-2.5">
           <span className="text-base shrink-0">💡</span>
           <div className="leading-snug">
-            <strong className={`${theme.hintStrong} font-black uppercase`}>Hướng dẫn:</strong> Bấm nút <strong className={`uppercase font-black px-1.5 py-0.5 rounded ${theme.hintBadge}`}>"ĐỒNG BỘ LUỸ KẾ"</strong> để tự động điền mục tiêu từ cột <strong>C.LẠI</strong> bên <strong>BC THÁNG</strong>, hoặc nhập tay trực tiếp theo nhu cầu. Hệ thống tự động lưu riêng theo từng siêu thị.
+            <strong className={`${theme.hintStrong} font-black uppercase`}>Hướng dẫn:</strong> Bấm nút <strong className={`uppercase font-black px-1.5 py-0.5 rounded ${theme.hintBadge}`}>"ĐỒNG BỘ MỤC TIÊU NGÀY"</strong> để tự động điền mục tiêu từ cột <strong>M.TIÊU/NGÀY</strong> bên <strong>TỔNG QUAN</strong>, hoặc nhập tay trực tiếp theo nhu cầu. Hệ thống tự động lưu riêng theo từng siêu thị.
           </div>
         </div>
         <button
@@ -771,7 +846,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                       type="button"
                       onClick={handleSyncFromLuyke}
                       className="no-capture p-0.5 hover:bg-white/20 rounded text-[#FEF08A] hover:text-white transition-colors cursor-pointer"
-                      title="Bấm để đồng bộ số Còn lại từ BC THÁNG"
+                      title="Bấm để đồng bộ Mục tiêu từ cột M.tiêu/ngày của Tab Tổng quan"
                     >
                       <RefreshCw size={9} className="sm:w-[11px] sm:h-[11px]" />
                     </button>
@@ -970,7 +1045,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                       type="button"
                       onClick={handleSyncFromLuyke}
                       className="no-capture p-0.5 hover:bg-white/20 rounded text-[#FEF08A] hover:text-white transition-colors cursor-pointer"
-                      title="Bấm để đồng bộ số Còn lại từ BC THÁNG"
+                      title="Bấm để đồng bộ Mục tiêu từ cột M.tiêu/ngày của Tab Tổng quan"
                     >
                       <RefreshCw size={9} className="sm:w-[11px] sm:h-[11px]" />
                     </button>

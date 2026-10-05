@@ -7652,6 +7652,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                     luykeProcessedData={luykeProcessedData}
                     dailyTargetQD={activeStoreDailyTargetQD}
                     isUser43751={isEffective43751}
+                    luykeCatMap={luykeCatMap}
+                    mucTieu100Info={mucTieu100Info}
                   />
                 </motion.div>
               )}
