@@ -9,6 +9,7 @@ import * as htmlToImage from 'html-to-image';
 import { domToPng } from 'modern-screenshot';
 import html2canvas from 'html2canvas';
 import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
+import { startCaptureSession, endCaptureSession } from '../utils/captureUtil';
 import { 
   RefreshCw, ShoppingBag, TrendingUp, Camera, LayoutGrid, Activity, Globe, ChevronDown, Zap, Upload, Trash2, 
   HelpCircle, FileSpreadsheet, X, AlertCircle, Trophy, Target, BarChart3, CreditCard, Calendar, ArrowUpRight, 
@@ -1937,23 +1938,32 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
 
   const captureOffscreenHelper = async (element: HTMLElement, fileName: string) => {
     setIsCapturing(true);
+    startCaptureSession();
     try {
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
       const isSingleTable = fileName?.includes('_SL_') || fileName?.includes('_DT_') || fileName === 'BaoCaoThuongSt' || fileName?.includes('ThuongSt');
-      // Wider width for THI ĐUA table to fit long category names without truncation
       const isThuongSt = fileName === 'BaoCaoThuongSt' || fileName?.includes('ThuongSt');
-      const targetWidthPx = isThuongSt ? 1200 : (isSingleTable ? 1000 : 1850);
+      
+      // Desktop: Giữ nguyên 100% kích thước 1850px / 1000px / 1200px chuẩn
+      // Mobile: Tối ưu kích thước 1150px / 800px / 950px để canvas < 8MP, chống 100% crash bộ nhớ trên iOS Safari
+      const targetWidthPx = isMobile
+        ? (isThuongSt ? 950 : (isSingleTable ? 800 : 1150))
+        : (isThuongSt ? 1200 : (isSingleTable ? 1000 : 1850));
       const targetWidth = `${targetWidthPx}px`;
+      const exportScale = isMobile ? 2 : 2.5;
 
       const tempContainer = document.createElement('div');
-      tempContainer.style.position = 'fixed';
+      tempContainer.style.position = 'absolute';
       tempContainer.style.top = '0';
-      tempContainer.style.left = '-99999px';
+      tempContainer.style.left = '0';
+      tempContainer.style.opacity = '0';
+      tempContainer.style.pointerEvents = 'none';
+      tempContainer.style.zIndex = '-99999';
       tempContainer.style.width = targetWidth;
       tempContainer.style.minWidth = targetWidth;
       tempContainer.style.maxWidth = targetWidth;
-      tempContainer.style.zIndex = '-9999';
-      tempContainer.style.pointerEvents = 'none';
       tempContainer.style.overflow = 'visible';
+      (tempContainer.style as any).zoom = '1';
 
       const clone = element.cloneNode(true) as HTMLElement;
       clone.style.width = '100%';
@@ -1963,6 +1973,19 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       clone.style.padding = '0';
       clone.style.margin = '0 auto';
       clone.style.backgroundColor = '#ffffff';
+
+      // Unwrap AutoFitTable elements so they are never captured in a shrunk state
+      const autofitEls = clone.querySelectorAll('.autofit-sizing-box, .autofit-content-box, .autofit-table-container, [data-autofit-sizing], [data-autofit-content], [data-autofit-container]');
+      autofitEls.forEach(el => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.width = '100%';
+        htmlEl.style.minWidth = '100%';
+        htmlEl.style.maxWidth = 'none';
+        htmlEl.style.height = 'auto';
+        htmlEl.style.position = 'static';
+        htmlEl.style.overflow = 'visible';
+        htmlEl.style.transform = 'none';
+      });
 
       // Hide no-capture elements, buttons, and textareas
       clone.querySelectorAll('.no-capture, button, textarea, .screenshot-comment').forEach(el => {
@@ -2000,17 +2023,16 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       clone.querySelectorAll('*').forEach(node => {
         const htmlEl = node as HTMLElement;
         const cs = htmlEl.style;
-        // If any element has inline overflow:hidden + text-overflow:ellipsis, clear them
         if (cs.textOverflow === 'ellipsis') {
           cs.textOverflow = 'clip';
           cs.overflow = 'visible';
         }
       });
 
-      // Explicitly style ONLY emerald table banner headers with yellow text
-      clone.querySelectorAll('.bg-gradient-to-r h2, [class*="from-[#047857]"] h2').forEach(h2 => {
+      // Explicitly style ONLY emerald/sky table banner headers with crisp bold text
+      clone.querySelectorAll('.bg-gradient-to-r h2, [class*="from-[#047857]"] h2, [class*="from-[#0284C7]"] h2').forEach(h2 => {
         const el = h2 as HTMLElement;
-        el.style.color = '#FEF08A';
+        el.style.color = '#ffffff';
         el.style.fontFamily = "'UTM Avo', sans-serif";
         el.style.fontWeight = '900';
         el.style.fontSize = '26px';
@@ -2032,15 +2054,15 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
           el.style.width = '100%';
           el.style.background = 'none';
           (el.style as any).webkitTextFillColor = '#0f172a';
-        } else if (!el.closest('.bg-gradient-to-r') && !el.closest('[class*="from-[#047857]"]')) {
+        } else if (!el.closest('.bg-gradient-to-r') && !el.closest('[class*="from-[#047857]"]') && !el.closest('[class*="from-[#0284C7]"]')) {
           el.style.color = '#0f172a'; // Pure black text-slate-900
           el.style.fontFamily = "'UTM Avo', sans-serif";
           el.style.fontWeight = '900';
         }
       });
 
-      // Ensure subtitle lines in emerald banners are white and visible
-      clone.querySelectorAll('.bg-gradient-to-r span, .bg-gradient-to-r p, .bg-gradient-to-r div, [class*="from-[#047857]"] span').forEach(node => {
+      // Ensure subtitle lines in banners are white and visible
+      clone.querySelectorAll('.bg-gradient-to-r span, .bg-gradient-to-r p, .bg-gradient-to-r div, [class*="from-[#047857]"] span, [class*="from-[#0284C7]"] span').forEach(node => {
         const el = node as HTMLElement;
         if (el.textContent && (el.textContent.includes('Luỹ kế:') || el.textContent.includes('Realtime:') || el.textContent.includes('ĐẠT') || el.textContent.includes('TGSD'))) {
           el.style.color = '#ffffff';
@@ -2133,55 +2155,51 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       const tables = clone.querySelectorAll('table');
       tables.forEach(table => {
         const htmlTable = table as HTMLTableElement;
+        htmlTable.style.width = '100%';
+        htmlTable.style.minWidth = '100%';
+        htmlTable.style.boxSizing = 'border-box';
+        (htmlTable.style as any).zoom = '1';
+
         if (isSingleTable) {
           // Single table capture: auto-layout for natural column sizing
-          htmlTable.style.width = '100%';
-          htmlTable.style.minWidth = '100%';
           htmlTable.style.tableLayout = 'auto';
-          // Remove colgroup col width constraints so auto-layout sizes columns by content
           const colEls = htmlTable.querySelectorAll('colgroup col');
           colEls.forEach(col => {
             (col as HTMLElement).style.width = 'auto';
             (col as HTMLElement).style.minWidth = 'auto';
           });
         } else {
-          htmlTable.style.width = '100%';
           htmlTable.style.tableLayout = 'fixed';
         }
-        htmlTable.style.boxSizing = 'border-box';
 
         const cells = htmlTable.querySelectorAll('th, td');
         cells.forEach(cell => {
           const htmlCell = cell as HTMLElement;
           htmlCell.style.boxSizing = 'border-box';
 
-          // ★ CRITICAL: Determine if this is a "name/label" cell (typically col 2, text-left)
-          // or a numeric/data cell (text-center, text-right)
+          // Determine if this is a "name/label" cell (col 2, text-left)
           const isNameCell = htmlCell.classList.contains('text-left') ||
-            (htmlCell.tagName === 'TD' && htmlCell.cellIndex === 1);
+            (htmlCell.tagName === 'TD' && htmlCell.cellIndex === 1) ||
+            (htmlCell.tagName === 'TH' && htmlCell.cellIndex === 1);
 
-          if (isSingleTable) {
-            if (isNameCell) {
-              // ★ Name cells: ALLOW WRAPPING so no text is ever cut off
-              htmlCell.style.whiteSpace = 'normal';
-              htmlCell.style.wordBreak = 'break-word';
-              htmlCell.style.overflow = 'visible';
-              htmlCell.style.textOverflow = 'clip';
-              htmlCell.style.paddingLeft = '12px';
-              htmlCell.style.paddingRight = '12px';
-              htmlCell.style.minWidth = '180px';
-            } else {
-              // Numeric cells: keep nowrap since numbers are short
-              htmlCell.style.whiteSpace = 'nowrap';
-              htmlCell.style.overflow = 'visible';
-              htmlCell.style.textOverflow = 'clip';
-              htmlCell.style.paddingLeft = '12px';
-              htmlCell.style.paddingRight = '12px';
+          if (isNameCell) {
+            // ★ Name cells: ALLOW WRAPPING so no text is EVER cut off
+            htmlCell.style.whiteSpace = 'normal';
+            htmlCell.style.wordBreak = 'break-word';
+            htmlCell.style.overflow = 'visible';
+            htmlCell.style.textOverflow = 'clip';
+            htmlCell.style.paddingLeft = '8px';
+            htmlCell.style.paddingRight = '8px';
+            if (isSingleTable) {
+              htmlCell.style.minWidth = '160px';
             }
           } else {
+            // Numeric cells: keep nowrap
             htmlCell.style.whiteSpace = 'nowrap';
-            htmlCell.style.overflow = 'hidden';
-            htmlCell.style.textOverflow = 'ellipsis';
+            htmlCell.style.overflow = 'visible';
+            htmlCell.style.textOverflow = 'clip';
+            htmlCell.style.paddingLeft = '6px';
+            htmlCell.style.paddingRight = '6px';
           }
 
           // ★ Force all child spans/divs inside cells to also be visible (no truncation)
@@ -2192,6 +2210,7 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
             if (isNameCell) {
               childEl.style.whiteSpace = 'normal';
               childEl.style.wordBreak = 'break-word';
+              (childEl.style as any).webkitLineClamp = 'unset';
             }
           });
         });
@@ -2222,9 +2241,9 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       });
 
       const frameWrapper = document.createElement('div');
-      frameWrapper.style.padding = isSingleTable ? '20px' : '28px';
+      frameWrapper.style.padding = isSingleTable ? '18px' : '24px';
       frameWrapper.style.backgroundColor = '#ffffff';
-      frameWrapper.style.borderRadius = isSingleTable ? '24px' : '32px';
+      frameWrapper.style.borderRadius = isSingleTable ? '20px' : '28px';
       frameWrapper.style.width = targetWidth;
       frameWrapper.style.minWidth = targetWidth;
       frameWrapper.style.maxWidth = targetWidth;
@@ -2235,14 +2254,14 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
       document.body.appendChild(tempContainer);
 
       await ensureFontsReady();
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise(r => setTimeout(r, 150));
 
       const exactHeight = Math.max(frameWrapper.scrollHeight, frameWrapper.offsetHeight, clone.scrollHeight, 100);
 
       let dataUrl: string = '';
       try {
         const canvas = await html2canvas(frameWrapper, {
-          scale: 2.5,
+          scale: exportScale,
           backgroundColor: '#ffffff',
           logging: false,
           useCORS: true,
@@ -2251,10 +2270,13 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
           windowWidth: targetWidthPx,
         });
         dataUrl = canvas.toDataURL('image/png');
+        if (!dataUrl || dataUrl === 'data:,' || dataUrl.length < 100) {
+          throw new Error('Canvas produced empty data URL');
+        }
       } catch (h2cErr) {
         console.warn('html2canvas failed, fallback to domToPng:', h2cErr);
         dataUrl = await domToPng(frameWrapper, {
-          scale: 2.5,
+          scale: exportScale,
           backgroundColor: '#ffffff',
           width: targetWidthPx,
           height: exactHeight,
@@ -2262,11 +2284,15 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
         });
       }
 
-      document.body.removeChild(tempContainer);
       setPreviewImage(dataUrl);
     } catch (err) {
       console.error('Error capturing offscreen:', err);
     } finally {
+      const existingTemp = document.body.querySelector('div[style*="z-index: -99999"]');
+      if (existingTemp) {
+        document.body.removeChild(existingTemp);
+      }
+      endCaptureSession();
       setIsCapturing(false);
     }
   };
@@ -2771,44 +2797,44 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                           </div>
                         )}
 
-                        <div className="overflow-x-auto w-full grow rounded-xl sm:rounded-2xl border border-sky-300/80">
+                        <div className="overflow-x-auto w-full grow rounded-xl sm:rounded-2xl border border-sky-300/80 mobile-auto-zoom">
                           <table className="w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                             <colgroup>
-                              <col style={{ width: '44px' }} />
-                              <col style={{ width: 'auto' }} />
-                              <col style={{ width: '68px' }} />
-                              <col style={{ width: '68px' }} />
-                              <col style={{ width: '62px' }} />
-                              <col style={{ width: '72px' }} />
+                              <col className="w-[28px] sm:w-[44px]" style={{ width: '28px' }} />
+                              <col className="w-auto" style={{ width: 'auto' }} />
+                              <col className="w-[50px] sm:w-[68px]" style={{ width: '50px' }} />
+                              <col className="w-[50px] sm:w-[68px]" style={{ width: '50px' }} />
+                              <col className="w-[44px] sm:w-[62px]" style={{ width: '44px' }} />
+                              <col className="w-[48px] sm:w-[72px]" style={{ width: '48px' }} />
                             </colgroup>
                             <thead>
-                              <tr className="text-white h-[38px] sm:h-[46px]">
-                                <th className="px-1 py-0 text-[11px] sm:text-[14.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7]">STT</th>
-                                <th className="px-2.5 py-0 text-[11px] sm:text-[14.5px] font-black uppercase text-left border-r border-b border-sky-500 bg-[#0369A1]">NGÀNH HÀNG</th>
-                                <th className="px-1 py-0 text-[10px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7]">TARGET</th>
-                                <th className="px-1 py-0 text-[10px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7]">LUỸ KẾ</th>
+                              <tr className="text-white h-[34px] sm:h-[46px]">
+                                <th className="px-0.5 sm:px-1 py-0 text-[10px] sm:text-[14.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] whitespace-nowrap">STT</th>
+                                <th className="px-1.5 sm:px-2.5 py-0 text-[10.5px] sm:text-[14.5px] font-black uppercase text-left border-r border-b border-sky-500 bg-[#0369A1]">NGÀNH HÀNG</th>
+                                <th className="px-0.5 sm:px-1 py-0 text-[9.5px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] whitespace-nowrap">TARGET</th>
+                                <th className="px-0.5 sm:px-1 py-0 text-[9.5px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] whitespace-nowrap">LUỸ KẾ</th>
                                 <th 
                                   onClick={() => setSortModeSL(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
-                                  className={`px-1 py-0 text-[10px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 cursor-pointer select-none transition-colors ${
+                                  className={`px-0.5 sm:px-1 py-0 text-[9.5px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 cursor-pointer select-none transition-colors whitespace-nowrap ${
                                     sortModeSL.startsWith('HT') ? 'bg-[#075985] hover:bg-[#0c4a6e]' : 'bg-[#0369A1] hover:bg-[#0284C7]'
                                   }`}
                                   title="Bấm để sắp xếp %HT (Giảm dần / Tăng dần)"
                                 >
                                   <div className="flex items-center justify-center gap-0.5">
                                     <span>%HT</span>
-                                    <span className="text-[9px] sm:text-[10.5px] opacity-90">{sortModeSL === 'HT_DESC' ? '▼' : (sortModeSL === 'HT_ASC' ? '▲' : '⇅')}</span>
+                                    <span className="text-[8.5px] sm:text-[10.5px] opacity-90">{sortModeSL === 'HT_DESC' ? '▼' : (sortModeSL === 'HT_ASC' ? '▲' : '⇅')}</span>
                                   </div>
                                 </th>
                                 <th 
                                   onClick={() => setSortModeSL(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
-                                  className={`px-1 py-0 text-[10px] sm:text-[13.5px] font-black uppercase text-center border-b border-sky-500 cursor-pointer select-none transition-colors ${
+                                  className={`px-0.5 sm:px-1 py-0 text-[9.5px] sm:text-[13.5px] font-black uppercase text-center border-b border-sky-500 cursor-pointer select-none transition-colors whitespace-nowrap ${
                                     sortModeSL.startsWith('CONLAI') ? 'bg-amber-600 hover:bg-amber-700' : 'bg-[#0284C7] hover:bg-[#0369A1]'
                                   }`}
                                   title="Bấm để sắp xếp theo C.LẠI (Còn lại nhiều nhất / ít nhất)"
                                 >
                                   <div className="flex items-center justify-center gap-0.5">
                                     <span>C.LẠI</span>
-                                    <span className="text-[9px] sm:text-[10.5px] opacity-90">{sortModeSL === 'CONLAI_DESC' ? '▼' : (sortModeSL === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
+                                    <span className="text-[8.5px] sm:text-[10.5px] opacity-90">{sortModeSL === 'CONLAI_DESC' ? '▼' : (sortModeSL === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
                                   </div>
                                 </th>
                               </tr>
@@ -2834,16 +2860,20 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                   const isEven = idx % 2 === 0;
                                   return (
                                     <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-sky-50/25'} hover:bg-sky-50/70 transition-colors h-[32px] sm:h-[40px]`}>
-                                      <td className="px-1 py-0 text-[11px] sm:text-[14.5px] font-black text-slate-700 text-center border-r border-b border-sky-100/90 bg-sky-50/40">{idx + 1}</td>
-                                      <td className={`px-2.5 py-0 text-[10.5px] sm:text-[14px] font-black uppercase border-r border-b border-sky-100/90 truncate tracking-tight ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>{cat.name}</td>
-                                      <td className="px-1 py-0 text-[11px] sm:text-[14.5px] font-bold text-center border-r border-b border-sky-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
-                                      <td className="px-1 py-0 text-[11px] sm:text-[14.5px] font-black text-center border-r border-b border-sky-100/90 text-sky-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                      <td className="px-0.5 sm:px-1 py-0 text-[10.5px] sm:text-[14.5px] font-black text-slate-700 text-center border-r border-b border-sky-100/90 bg-sky-50/40 whitespace-nowrap">{idx + 1}</td>
+                                      <td className={`px-1.5 sm:px-2.5 py-0.5 sm:py-0 text-[10.5px] sm:text-[14px] font-black uppercase border-r border-b border-sky-100/90 tracking-tight leading-snug overflow-hidden ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>
+                                        <div className="line-clamp-2 break-words leading-[1.2] text-left" title={cat.name}>
+                                          {cat.name}
+                                        </div>
+                                      </td>
+                                      <td className="px-0.5 sm:px-1 py-0 text-[10px] sm:text-[14.5px] font-bold text-center border-r border-b border-sky-100/90 text-slate-800 whitespace-nowrap">{Math.round(cat.target).toLocaleString()}</td>
+                                      <td className="px-0.5 sm:px-1 py-0 text-[10px] sm:text-[14.5px] font-black text-center border-r border-b border-sky-100/90 text-sky-700 whitespace-nowrap">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
                                       <td className="px-0.5 py-0 text-center border-r border-b border-sky-100/90 whitespace-nowrap">
-                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-rose-100 text-rose-600'}`}>
+                                        <span className={`inline-flex items-center justify-center px-1 sm:px-1.5 py-0.5 rounded font-black text-[10px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-rose-100 text-rose-600'}`}>
                                           {Math.round(rate)}%
                                         </span>
                                       </td>
-                                      <td className={`px-1 py-0 text-[11px] sm:text-[14.5px] font-bold text-center border-b border-sky-100/90 ${sortModeSL.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600`}>
+                                      <td className={`px-0.5 sm:px-1 py-0 text-[10px] sm:text-[14.5px] font-bold text-center border-b border-sky-100/90 ${sortModeSL.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600 whitespace-nowrap`}>
                                         {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
                                       </td>
                                     </tr>
@@ -2947,44 +2977,44 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                           </div>
                         )}
 
-                        <div className="overflow-x-auto w-full grow rounded-xl sm:rounded-2xl border border-sky-300/80">
+                        <div className="overflow-x-auto w-full grow rounded-xl sm:rounded-2xl border border-sky-300/80 mobile-auto-zoom">
                           <table className="w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
                             <colgroup>
-                              <col style={{ width: '44px' }} />
-                              <col style={{ width: 'auto' }} />
-                              <col style={{ width: '68px' }} />
-                              <col style={{ width: '68px' }} />
-                              <col style={{ width: '62px' }} />
-                              <col style={{ width: '72px' }} />
+                              <col className="w-[28px] sm:w-[44px]" style={{ width: '28px' }} />
+                              <col className="w-auto" style={{ width: 'auto' }} />
+                              <col className="w-[50px] sm:w-[68px]" style={{ width: '50px' }} />
+                              <col className="w-[50px] sm:w-[68px]" style={{ width: '50px' }} />
+                              <col className="w-[44px] sm:w-[62px]" style={{ width: '44px' }} />
+                              <col className="w-[48px] sm:w-[72px]" style={{ width: '48px' }} />
                             </colgroup>
                             <thead>
-                              <tr className="text-white h-[38px] sm:h-[46px]">
-                                <th className="px-1 py-0 text-[11px] sm:text-[14.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7]">STT</th>
-                                <th className="px-2.5 py-0 text-[11px] sm:text-[14.5px] font-black uppercase text-left border-r border-b border-sky-500 bg-[#0369A1]">NGÀNH HÀNG</th>
-                                <th className="px-1 py-0 text-[10px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7]">TARGET</th>
-                                <th className="px-1 py-0 text-[10px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7]">LUỸ KẾ</th>
+                              <tr className="text-white h-[34px] sm:h-[46px]">
+                                <th className="px-0.5 sm:px-1 py-0 text-[10px] sm:text-[14.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] whitespace-nowrap">STT</th>
+                                <th className="px-1.5 sm:px-2.5 py-0 text-[10.5px] sm:text-[14.5px] font-black uppercase text-left border-r border-b border-sky-500 bg-[#0369A1]">NGÀNH HÀNG</th>
+                                <th className="px-0.5 sm:px-1 py-0 text-[9.5px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] whitespace-nowrap">TARGET</th>
+                                <th className="px-0.5 sm:px-1 py-0 text-[9.5px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 bg-[#0284C7] whitespace-nowrap">LUỸ KẾ</th>
                                 <th 
                                   onClick={() => setSortModeDT(prev => prev === 'HT_DESC' ? 'HT_ASC' : 'HT_DESC')}
-                                  className={`px-1 py-0 text-[10px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 cursor-pointer select-none transition-colors ${
+                                  className={`px-0.5 sm:px-1 py-0 text-[9.5px] sm:text-[13.5px] font-black uppercase text-center border-r border-b border-sky-500 cursor-pointer select-none transition-colors whitespace-nowrap ${
                                     sortModeDT.startsWith('HT') ? 'bg-[#075985] hover:bg-[#0c4a6e]' : 'bg-[#0369A1] hover:bg-[#0284C7]'
                                   }`}
                                   title="Bấm để sắp xếp %HT (Giảm dần / Tăng dần)"
                                 >
                                   <div className="flex items-center justify-center gap-0.5">
                                     <span>%HT</span>
-                                    <span className="text-[9px] sm:text-[10.5px] opacity-90">{sortModeDT === 'HT_DESC' ? '▼' : (sortModeDT === 'HT_ASC' ? '▲' : '⇅')}</span>
+                                    <span className="text-[8.5px] sm:text-[10.5px] opacity-90">{sortModeDT === 'HT_DESC' ? '▼' : (sortModeDT === 'HT_ASC' ? '▲' : '⇅')}</span>
                                   </div>
                                 </th>
                                 <th 
                                   onClick={() => setSortModeDT(prev => prev === 'CONLAI_DESC' ? 'CONLAI_ASC' : 'CONLAI_DESC')}
-                                  className={`px-1 py-0 text-[10px] sm:text-[13.5px] font-black uppercase text-center border-b border-sky-500 cursor-pointer select-none transition-colors ${
+                                  className={`px-0.5 sm:px-1 py-0 text-[9.5px] sm:text-[13.5px] font-black uppercase text-center border-b border-sky-500 cursor-pointer select-none transition-colors whitespace-nowrap ${
                                     sortModeDT.startsWith('CONLAI') ? 'bg-amber-600 hover:bg-amber-700' : 'bg-[#0284C7] hover:bg-[#0369A1]'
                                   }`}
                                   title="Bấm để sắp xếp theo C.LẠI (Còn lại nhiều nhất / ít nhất)"
                                 >
                                   <div className="flex items-center justify-center gap-0.5">
                                     <span>C.LẠI</span>
-                                    <span className="text-[9px] sm:text-[10.5px] opacity-90">{sortModeDT === 'CONLAI_DESC' ? '▼' : (sortModeDT === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
+                                    <span className="text-[8.5px] sm:text-[10.5px] opacity-90">{sortModeDT === 'CONLAI_DESC' ? '▼' : (sortModeDT === 'CONLAI_ASC' ? '▲' : '⇅')}</span>
                                   </div>
                                 </th>
                               </tr>
@@ -3010,16 +3040,20 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
                                   const isEven = idx % 2 === 0;
                                   return (
                                     <tr key={idx} className={`${isEven ? 'bg-white' : 'bg-sky-50/25'} hover:bg-sky-50/70 transition-colors h-[32px] sm:h-[40px]`}>
-                                      <td className="px-1 py-0 text-[11px] sm:text-[14.5px] font-black text-slate-700 text-center border-r border-b border-sky-100/90 bg-sky-50/40">{idx + 1}</td>
-                                      <td className={`px-2.5 py-0 text-[10.5px] sm:text-[14px] font-black uppercase border-r border-b border-sky-100/90 truncate tracking-tight ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>{cat.name}</td>
-                                      <td className="px-1 py-0 text-[11px] sm:text-[14.5px] font-bold text-center border-r border-b border-sky-100/90 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>
-                                      <td className="px-1 py-0 text-[11px] sm:text-[14.5px] font-black text-center border-r border-b border-sky-100/90 text-sky-700">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                      <td className="px-0.5 sm:px-1 py-0 text-[10.5px] sm:text-[14.5px] font-black text-slate-700 text-center border-r border-b border-sky-100/90 bg-sky-50/40 whitespace-nowrap">{idx + 1}</td>
+                                      <td className={`px-1.5 sm:px-2.5 py-0.5 sm:py-0 text-[10.5px] sm:text-[14px] font-black uppercase border-r border-b border-sky-100/90 tracking-tight leading-snug overflow-hidden ${Math.round(rate) < 100 ? 'text-rose-600' : 'text-slate-900'}`} title={cat.name}>
+                                        <div className="line-clamp-2 break-words leading-[1.2] text-left" title={cat.name}>
+                                          {cat.name}
+                                        </div>
+                                      </td>
+                                      <td className="px-0.5 sm:px-1 py-0 text-[10px] sm:text-[14.5px] font-bold text-center border-r border-b border-sky-100/90 text-slate-800 whitespace-nowrap">{Math.round(cat.target).toLocaleString()}</td>
+                                      <td className="px-0.5 sm:px-1 py-0 text-[10px] sm:text-[14.5px] font-black text-center border-r border-b border-sky-100/90 text-sky-700 whitespace-nowrap">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
                                       <td className="px-0.5 py-0 text-center border-r border-b border-sky-100/90 whitespace-nowrap">
-                                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-rose-100 text-rose-600'}`}>
+                                        <span className={`inline-flex items-center justify-center px-1 sm:px-1.5 py-0.5 rounded font-black text-[10px] sm:text-[14px] leading-none ${Math.round(rate) >= 100 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-rose-100 text-rose-600'}`}>
                                           {Math.round(rate)}%
                                         </span>
                                       </td>
-                                      <td className={`px-1 py-0 text-[11px] sm:text-[14.5px] font-bold text-center border-b border-sky-100/90 ${sortModeDT.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600`}>
+                                      <td className={`px-0.5 sm:px-1 py-0 text-[10px] sm:text-[14.5px] font-bold text-center border-b border-sky-100/90 ${sortModeDT.startsWith('CONLAI') ? 'bg-amber-50/60 font-black' : ''} text-rose-600 whitespace-nowrap`}>
                                         {remaining > 0 ? Math.round(remaining).toLocaleString() : ""}
                                       </td>
                                     </tr>
