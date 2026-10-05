@@ -48,6 +48,7 @@ import {
   Share2,
   Maximize2,
   Minimize2,
+  Scan,
   Search,
   MoreVertical,
   MinusCircle,
@@ -107,6 +108,7 @@ import * as XLSX from 'xlsx';
 import { domToPng } from 'modern-screenshot';
 import { addWhiteBorderToDataUrl } from '../utils/imageBorderUtil';
 import { isValidStoreName, normalize, normalizeStoreId } from './RTST/utils';
+import { AutoFitTable } from '../components/AutoFitTable';
 
 const TabButton = ({ active, onClick, icon: Icon, label, count }: { active: boolean, onClick: () => void, icon: any, label: string, count?: number }) => (
   <button
@@ -2098,6 +2100,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   const [drillLevels, setDrillLevels] = useState<string[]>(['kho', 'nganh', 'nhom', 'hang', 'sanpham', 'nguoitao', 'trangthaisp']);
   const [expandedDrillRows, setExpandedDrillRows] = useState<Record<string, boolean>>({});
   const [isDrillFullscreen, setIsDrillFullscreen] = useState(false);
+  const [isDrillAutoFit, setIsDrillAutoFit] = useState(true);
   const [drillExpandDepth, setDrillExpandDepth] = useState<number>(1);
   const [selectedDrillGroups, setSelectedDrillGroups] = useState<string[]>([]);
   const [drillFilterNhomSmall, setDrillFilterNhomSmall] = useState<string[]>([]);
@@ -3315,6 +3318,19 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     });
     root.querySelectorAll('table, .mobile-auto-zoom').forEach(el => {
       (el as HTMLElement).style.setProperty('zoom', '1', 'important');
+    });
+
+    // Unwrap AutoFitTable elements so they are never captured in a shrunk state
+    const autofitEls = root.querySelectorAll('.autofit-sizing-box, .autofit-content-box, .autofit-table-container, [data-autofit-sizing], [data-autofit-content], [data-autofit-container]');
+    autofitEls.forEach(el => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.setProperty('width', '100%', 'important');
+      htmlEl.style.setProperty('min-width', '100%', 'important');
+      htmlEl.style.setProperty('max-width', 'none', 'important');
+      htmlEl.style.setProperty('height', 'auto', 'important');
+      htmlEl.style.setProperty('position', 'static', 'important');
+      htmlEl.style.setProperty('overflow', 'visible', 'important');
+      htmlEl.style.setProperty('transform', 'none', 'important');
     });
 
     // 1. Remove mobile compact class
@@ -8225,6 +8241,17 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               <ChevronsDownUp size={13} className="sm:w-[14px] sm:h-[14px]" />
                             </button>
                             <button
+                              onClick={() => setIsDrillAutoFit(!isDrillAutoFit)}
+                              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center transition-all cursor-pointer shadow-sm ${
+                                isDrillAutoFit
+                                  ? 'bg-blue-50 border-blue-200 text-blue-600 font-bold'
+                                  : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600'
+                              }`}
+                              title={isDrillAutoFit ? "Đang bật Auto Zoom vừa màn hình mobile (Bấm để chuyển cuộn ngang)" : "Bật Auto Zoom vừa màn hình mobile"}
+                            >
+                              <Scan size={13} className="sm:w-[14px] sm:h-[14px]" />
+                            </button>
+                            <button
                               onClick={() => setIsDrillFullscreen(!isDrillFullscreen)}
                               className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 flex items-center justify-center transition-all cursor-pointer shadow-sm"
                               title={isDrillFullscreen ? "Thu nhỏ" : "Toàn màn hình"}
@@ -8259,24 +8286,33 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                     </div>
 
                     {/* Table */}
-                    <div className={`overflow-x-auto bg-white ${isDrillFullscreen ? 'flex-1 mt-4' : ''}`} id="chi-tiet-nganh-hang-table-container">
-                      <table className="w-full border-collapse border border-slate-200/50 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-200/50 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap" style={{ borderSpacing: 0 }}>
+                    <AutoFitTable
+                      id="chi-tiet-nganh-hang-table-container"
+                      minWidth={compareMode !== 'none' ? 1160 : 840}
+                      minScale={0.25}
+                      disabled={!isDrillAutoFit}
+                      className={`bg-white ${isDrillFullscreen ? 'flex-1 mt-4' : ''}`}
+                    >
+                      <table 
+                        className="w-full border-collapse border border-slate-200/50 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-200/50 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap" 
+                        style={{ borderSpacing: 0, minWidth: `${compareMode !== 'none' ? 1160 : 840}px` }}
+                      >
                         <thead>
                           {compareMode === 'none' ? (
                             <>
                               <tr className={`bg-slate-50 border-b border-slate-200/50 text-slate-800 ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black uppercase`}>
-                                <th rowSpan={2} className="py-2.5 px-4 text-left bg-slate-50 min-w-[240px] border-r border-slate-200/50 font-black align-middle">CHI TIẾT NGÀNH HÀNG</th>
-                                <th colSpan={2} className={`py-1 px-4 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} border-b border-emerald-100`}>SỐ LƯỢNG</th>
-                                <th colSpan={2} className={`py-1 px-4 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 font-black ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} border-b border-blue-100`}>DOANH THU</th>
-                                <th rowSpan={2} className="py-2.5 px-4 text-center text-[#b45309] bg-[#fef3c7] border-r border-slate-200/50 w-28 font-black align-middle">DTQĐ</th>
-                                <th rowSpan={2} className="py-2.5 px-4 text-center text-[#6b21a8] bg-[#f3e8ff] border-r border-slate-200/50 w-28 font-black align-middle">GIÁ TRỊ ĐH</th>
-                                <th rowSpan={2} className="py-2.5 px-4 text-center text-[#be123c] bg-[#ffe4e6] w-28 font-black align-middle">TRẢ CHẬM</th>
+                                <th rowSpan={2} className="py-2.5 px-4 text-left bg-slate-50 min-w-[260px] border-r border-slate-200/50 font-black align-middle">CHI TIẾT NGÀNH HÀNG</th>
+                                <th colSpan={2} className={`py-1 px-3 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} border-b border-emerald-100`}>SỐ LƯỢNG</th>
+                                <th colSpan={2} className={`py-1 px-3 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 font-black ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} border-b border-blue-100`}>DOANH THU</th>
+                                <th rowSpan={2} className="py-2.5 px-3 text-center text-[#b45309] bg-[#fef3c7] border-r border-slate-200/50 w-[88px] font-black align-middle">DTQĐ</th>
+                                <th rowSpan={2} className="py-2.5 px-3 text-center text-[#6b21a8] bg-[#f3e8ff] border-r border-slate-200/50 w-[88px] font-black align-middle">GIÁ TRỊ ĐH</th>
+                                <th rowSpan={2} className="py-2.5 px-3 text-center text-[#be123c] bg-[#ffe4e6] w-[88px] font-black align-middle">TRẢ CHẬM</th>
                               </tr>
                               <tr className={`bg-slate-50 border-b border-slate-200/50 text-slate-800 ${isUser43751 ? 'text-[12.5px]' : 'text-[11px]'} font-black uppercase`}>
-                                <th className="py-1 px-4 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 w-24 font-black">SL</th>
-                                <th className="py-1 px-4 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 w-24 font-black">%SL</th>
-                                <th className="py-1 px-4 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 w-28 font-black">DT ⬇</th>
-                                <th className="py-1 px-4 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 w-24 font-black">%DT</th>
+                                <th className="py-1 px-3 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 w-[68px] font-black">SL</th>
+                                <th className="py-1 px-3 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 w-[68px] font-black">%SL</th>
+                                <th className="py-1 px-3 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 w-[88px] font-black">DT ⬇</th>
+                                <th className="py-1 px-3 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 w-[68px] font-black">%DT</th>
                               </tr>
                             </>
                           ) : (
@@ -8357,10 +8393,18 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 <tr key={row.key} className="border-b border-slate-100/70 hover:bg-slate-50/80 transition-colors h-10">
                                   {/* Danh mục / Indented */}
                                   <td 
-                                    className="py-2 px-4 text-left border-r border-slate-200/50 drill-cell-name" 
+                                    className={`py-2 px-4 text-left border-r border-slate-200/50 drill-cell-name select-none ${hasChildren ? 'cursor-pointer hover:bg-slate-100/60' : ''}`}
                                     data-depth={row.depth}
                                     data-padding-left={`${16 + row.depth * 20}px`}
                                     style={{ paddingLeft: `${16 + row.depth * 20}px` }}
+                                    onClick={() => {
+                                      if (hasChildren) {
+                                        setExpandedDrillRows(prev => ({
+                                          ...prev,
+                                          [row.key]: !isExpanded
+                                        }));
+                                      }
+                                    }}
                                   >
                                     <div className="flex items-center">
                                       {hasChildren ? (
@@ -8384,7 +8428,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   </td>
 
                                   {/* SL & %SL */}
-                                  <td className={`py-2 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-800 w-24 border-r border-slate-200/50`}>{row.sl === 0 ? '-' : row.sl.toLocaleString('vi-VN')}</td>
+                                  <td className={`py-2 px-3 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-slate-800 w-[68px] border-r border-slate-200/50`}>{row.sl === 0 ? '-' : row.sl.toLocaleString('vi-VN')}</td>
                                   {compareMode !== 'none' && (
                                     <>
                                       <td className={`py-2 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>
@@ -8396,11 +8440,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                     </>
                                   )}
                                   {compareMode === 'none' && (
-                                    <td className={`py-2 px-4 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-[#0f766e] w-24 border-r border-slate-200/50`}>{slPct.toFixed(0)}%</td>
+                                    <td className={`py-2 px-3 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black text-[#0f766e] w-[68px] border-r border-slate-200/50`}>{slPct.toFixed(0)}%</td>
                                   )}
 
                                   {/* DT & %DT */}
-                                  <td className={`py-2 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-28 border-r border-slate-200/50 ${row.dt === 0 ? 'text-rose-600 font-black' : 'text-slate-800'}`}>{fmtTr(row.dt)}</td>
+                                  <td className={`py-2 px-3 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-[88px] border-r border-slate-200/50 ${row.dt === 0 ? 'text-rose-600 font-black' : 'text-slate-800'}`}>{fmtTr(row.dt)}</td>
                                   {compareMode !== 'none' && (
                                     <>
                                       <td className={`py-2 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>
@@ -8412,13 +8456,13 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                     </>
                                   )}
                                   {compareMode === 'none' && (
-                                    <td className={`py-2 px-4 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-24 border-r border-slate-200/50 ${row.dt === 0 ? 'text-rose-600 font-black' : 'text-[#ea580c]'}`}>
+                                    <td className={`py-2 px-3 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-[68px] border-r border-slate-200/50 ${row.dt === 0 ? 'text-rose-600 font-black' : 'text-[#ea580c]'}`}>
                                       {row.dt > 0 ? `${dtPct.toFixed(0)}%` : '-'}
                                     </td>
                                   )}
 
                                   {/* DTQĐ */}
-                                  <td className={`py-2 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-28 border-r border-slate-200/50 ${row.dtqd === 0 ? 'text-rose-600 font-black' : 'text-slate-800'}`}>{fmtTr(row.dtqd)}</td>
+                                  <td className={`py-2 px-3 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-[88px] border-r border-slate-200/50 ${row.dtqd === 0 ? 'text-rose-600 font-black' : 'text-slate-800'}`}>{fmtTr(row.dtqd)}</td>
                                   {compareMode !== 'none' && (
                                     <>
                                       <td className={`py-2 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>
@@ -8431,7 +8475,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   )}
 
                                   {/* GIÁ TRỊ ĐH */}
-                                  <td className={`py-2 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-28 border-r border-slate-200/50 ${orderValue < 1.0 ? 'text-rose-600 font-black' : 'text-slate-800'}`}>
+                                  <td className={`py-2 px-3 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-[88px] border-r border-slate-200/50 ${orderValue < 1.0 ? 'text-rose-600 font-black' : 'text-slate-800'}`}>
                                     {orderValue > 0 ? orderValue.toFixed(1) : '-'}
                                   </td>
                                   {compareMode !== 'none' && (
@@ -8446,7 +8490,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   )}
 
                                   {/* TRẢ CHẬM */}
-                                  <td className={`py-2 px-4 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-28 border-r border-slate-200/50 ${row.dt === 0 || row.tc_dt === 0
+                                  <td className={`py-2 px-3 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-[88px] border-r border-slate-200/50 ${row.dt === 0 || row.tc_dt === 0
                                     ? 'text-rose-600 font-black'
                                     : tcPct >= 50
                                       ? 'text-[#047857]'
@@ -8495,14 +8539,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             if (compareMode === 'none') {
                               return (
                                 <tr className="bg-[#ccfbf1]/80 border-t-2 border-teal-300 font-black text-slate-900 h-10 uppercase">
-                                  <td className={`py-3 px-4 text-left ${isUser43751 ? 'text-[15px]' : 'text-[14px]'} text-teal-800 font-black pl-6 border-r border-slate-200/50`}>TỔNG</td>
-                                  <td className={`py-3 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50`}>{slTotal.toLocaleString('vi-VN')}</td>
-                                  <td className={`py-3 px-4 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-[#0f766e] font-black border-r border-slate-200/50`}>100%</td>
-                                  <td className={`py-3 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50`}>{fmtTr(dtTotal)}</td>
-                                  <td className={`py-3 px-4 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-[#ea580c] font-black border-r border-slate-200/50`}>100%</td>
-                                  <td className={`py-3 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50`}>{fmtTr(dtqdTotal)}</td>
-                                  <td className={`py-3 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50`}>{totalOrderValue > 0 ? totalOrderValue.toFixed(1) : '-'}</td>
-                                  <td className={`py-3 px-4 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black ${totalTcPct >= 50 ? 'text-[#047857]' : totalTcPct > 0 ? 'text-amber-600' : 'text-rose-600'}`}>
+                                  <td className={`py-3 px-4 text-left ${isUser43751 ? 'text-[15px]' : 'text-[14px]'} text-teal-800 font-black pl-6 border-r border-slate-200/50 min-w-[260px]`}>TỔNG</td>
+                                  <td className={`py-3 px-3 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50 w-[68px]`}>{slTotal.toLocaleString('vi-VN')}</td>
+                                  <td className={`py-3 px-3 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-[#0f766e] font-black border-r border-slate-200/50 w-[68px]`}>100%</td>
+                                  <td className={`py-3 px-3 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50 w-[88px]`}>{fmtTr(dtTotal)}</td>
+                                  <td className={`py-3 px-3 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-[#ea580c] font-black border-r border-slate-200/50 w-[68px]`}>100%</td>
+                                  <td className={`py-3 px-3 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50 w-[88px]`}>{fmtTr(dtqdTotal)}</td>
+                                  <td className={`py-3 px-3 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50 w-[88px]`}>{totalOrderValue > 0 ? totalOrderValue.toFixed(1) : '-'}</td>
+                                  <td className={`py-3 px-3 text-center ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} font-black w-[88px] ${totalTcPct >= 50 ? 'text-[#047857]' : totalTcPct > 0 ? 'text-amber-600' : 'text-rose-600'}`}>
                                     {totalTcPct > 0 ? totalTcPct.toFixed(0) + '%' : '-'}
                                   </td>
                                 </tr>
@@ -8510,7 +8554,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             } else {
                               return (
                                 <tr className="bg-[#ccfbf1]/80 border-t-2 border-teal-300 font-black text-slate-900 h-10 uppercase">
-                                  <td className={`py-3 px-4 text-left ${isUser43751 ? 'text-[15px]' : 'text-[14px]'} text-teal-800 font-black pl-6 border-r border-slate-200/50`}>TỔNG</td>
+                                  <td className={`py-3 px-4 text-left ${isUser43751 ? 'text-[15px]' : 'text-[14px]'} text-teal-800 font-black pl-6 border-r border-slate-200/50 min-w-[260px]`}>TỔNG</td>
                                   <td className={`py-3 px-4 text-right ${isUser43751 ? 'text-[14.5px]' : 'text-[13px]'} text-slate-800 font-black border-r border-slate-200/50`}>{slTotal.toLocaleString('vi-VN')}</td>
                                   <td className={`py-3 px-2 text-center bg-slate-50/50 ${isUser43751 ? 'text-[12px]' : 'text-[11px]'} font-black text-slate-400 border-r border-slate-200/50`}>{prevSlTotal.toLocaleString('vi-VN')}</td>
                                   <td className="py-3 px-2 text-center bg-slate-50/30 border-r border-slate-200/50">{fmtDiff(slTotal, prevSlTotal)}</td>
@@ -8532,7 +8576,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           })()}
                         </tbody>
                       </table>
-                    </div>
+                    </AutoFitTable>
                     </div>{/* close chi-tiet-nganh-hang-capture-wrapper */}
                   </div>
 
