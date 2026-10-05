@@ -7134,7 +7134,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         return (
                                           <tr key={idx} className={`${isEven ? 'bg-white' : (isEffective43751 ? 'bg-sky-50/25' : 'bg-emerald-50/20')} ${isEffective43751 ? 'hover:bg-sky-50/70' : 'hover:bg-emerald-50/70'} transition-colors h-[28px] sm:h-[36px] md:h-[40px]`}>
                                             <td className={`px-0.5 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-black text-slate-700 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 bg-sky-50/40' : 'border-emerald-100/90 bg-emerald-50/40'} whitespace-nowrap overflow-hidden`}>{idx + 1}</td>
-                                            <td className={`px-1 sm:px-2 py-0.5 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] font-black uppercase border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-900 leading-[1.12] tracking-tight overflow-hidden`} title={cat.name}>
+                                            <td className={`px-1 sm:px-2 py-0.5 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] font-black uppercase border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} ${Math.round(cat.rate || 0) === 0 ? 'text-rose-600' : 'text-slate-900'} leading-[1.12] tracking-tight overflow-hidden`} title={cat.name}>
                                               <div className="line-clamp-2 break-words leading-[1.12] text-left overflow-hidden" title={cat.name}>
                                                 {cat.name}
                                               </div>
@@ -7303,7 +7303,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                         return (
                                           <tr key={idx} className={`${isEven ? 'bg-white' : (isEffective43751 ? 'bg-sky-50/25' : 'bg-blue-50/25')} ${isEffective43751 ? 'hover:bg-sky-50/70' : 'hover:bg-blue-50/70'} transition-colors h-[28px] sm:h-[36px] md:h-[40px]`}>
                                             <td className={`px-0.5 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-black text-slate-700 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 bg-sky-50/40' : 'border-blue-100/90 bg-blue-50/40'} whitespace-nowrap overflow-hidden`}>{idx + 1}</td>
-                                            <td className={`px-1 sm:px-2 py-0.5 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] font-black uppercase border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-900 leading-[1.12] tracking-tight overflow-hidden`} title={cat.name}>
+                                            <td className={`px-1 sm:px-2 py-0.5 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] font-black uppercase border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} ${Math.round(cat.rate || 0) === 0 ? 'text-rose-600' : 'text-slate-900'} leading-[1.12] tracking-tight overflow-hidden`} title={cat.name}>
                                               <div className="line-clamp-2 break-words leading-[1.12] text-left overflow-hidden" title={cat.name}>
                                                 {cat.name}
                                               </div>
@@ -7496,7 +7496,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                           return (
                                             <tr key={idx} className="hover:bg-indigo-50/50 transition-colors h-[40px]">
                                               <td className="px-2 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-slate-200 bg-slate-50">{idx + 1}</td>
-                                              <td className="px-3 py-0 text-[14px] font-black uppercase border-r border-b border-slate-200 text-slate-900 truncate tracking-tight">{cat.name}</td>
+                                              <td className={`px-3 py-0 text-[14px] font-black uppercase border-r border-b border-slate-200 ${Math.round(cat.rate || 0) === 0 ? 'text-rose-600' : 'text-slate-900'} truncate tracking-tight`}>{cat.name}</td>
                                               {showTargetCols && <td className="px-2 py-0 text-[14.5px] font-bold text-center border-r border-b border-slate-200 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
                                               {showTargetCols && <td className="px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 text-emerald-600">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
                                               {showTargetCols && <td className={`px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-700 bg-emerald-50/80' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
@@ -7624,7 +7624,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                           return (
                                             <tr key={idx} className="hover:bg-indigo-50/50 transition-colors h-[40px]">
                                               <td className="px-2 py-0 text-[14.5px] font-black text-slate-700 text-center border-r border-b border-slate-200 bg-slate-50">{idx + 1}</td>
-                                              <td className="px-3 py-0 text-[14px] font-black uppercase border-r border-b border-slate-200 text-slate-900 truncate tracking-tight">{cat.name}</td>
+                                              <td className={`px-3 py-0 text-[14px] font-black uppercase border-r border-b border-slate-200 ${Math.round(cat.rate || 0) === 0 ? 'text-rose-600' : 'text-slate-900'} truncate tracking-tight`}>{cat.name}</td>
                                               {showTargetCols && <td className="px-2 py-0 text-[14.5px] font-bold text-center border-r border-b border-slate-200 text-slate-800">{Math.round(cat.target).toLocaleString()}</td>}
                                               {showTargetCols && <td className="px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 text-emerald-600">{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>}
                                               {showTargetCols && <td className={`px-2 py-0 text-[14.5px] font-black text-center border-r border-b border-slate-200 ${Math.round(cat.rate || 0) >= 100 ? 'text-emerald-700 bg-emerald-50/80' : 'text-rose-600'}`}>{Math.round(cat.rate || 0)}%</td>}
