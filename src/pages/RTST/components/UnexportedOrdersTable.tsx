@@ -1,6 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Camera, Filter, ChevronDown, ChevronUp, AtSign } from 'lucide-react';
-import AutoFitTable from '../../../components/AutoFitTable';
 
 interface UnexportedOrdersTableProps {
   rawYcxRows: string[][];
@@ -241,9 +240,8 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
         </div>
       </div>
       
-      <div className="p-2.5 sm:p-6 bg-white overflow-hidden">
-        <AutoFitTable minWidth={920} className="w-full">
-          <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300" style={{ minWidth: '920px' }}>
+      <div className="overflow-x-auto p-2.5 sm:p-6 bg-white">
+        <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300">
           <thead>
             <tr className="bg-slate-50 text-slate-800 text-[12px] font-black uppercase">
               <th className="py-2.5 px-4 text-center border-r border-b border-slate-300 w-16">STT</th>
@@ -351,7 +349,6 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
             </tr>
           </tfoot>
         </table>
-        </AutoFitTable>
       </div>
     </div>
   );

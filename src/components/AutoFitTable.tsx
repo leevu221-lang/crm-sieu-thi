@@ -29,14 +29,12 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
   const contentRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState<number>(1);
   const [naturalHeight, setNaturalHeight] = useState<number | null>(null);
-  const [effectiveWidth, setEffectiveWidth] = useState<number>(minWidth);
   const instanceId = useId();
 
   const calculateFit = useCallback(() => {
     if (disabled) {
       setScale(1);
       setNaturalHeight(null);
-      setEffectiveWidth(minWidth);
       return;
     }
 
@@ -48,7 +46,6 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
     ) {
       setScale(1);
       setNaturalHeight(null);
-      setEffectiveWidth(minWidth);
       return;
     }
 
@@ -59,25 +56,17 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
     const containerWidth = container.clientWidth;
     if (containerWidth <= 0) return;
 
-    // Chiều rộng chuẩn của bảng desktop: kết hợp giữa minWidth cấu hình và kích thước thực tế
-    const tableEl = content.querySelector('table');
-    let naturalW = minWidth;
-    if (tableEl) {
-      const inlineStyleWidth = parseInt(tableEl.style.minWidth || tableEl.style.width || '0', 10);
-      if (inlineStyleWidth > 0) {
-        naturalW = Math.max(naturalW, inlineStyleWidth);
-      }
-      naturalW = Math.max(naturalW, tableEl.scrollWidth || 0, tableEl.offsetWidth || 0);
-    }
+    // Chiều rộng chuẩn của bảng desktop
+    const naturalW = minWidth;
 
     // Chiều cao tự nhiên thật của bảng
+    const tableEl = content.querySelector('table');
     const naturalH = tableEl ? tableEl.scrollHeight : content.scrollHeight;
 
     // Nếu khung chứa rộng hơn hoặc bằng độ rộng chuẩn (Desktop), không cần scale
     if (containerWidth >= naturalW) {
       setScale(1);
       setNaturalHeight(null);
-      setEffectiveWidth(naturalW);
       return;
     }
 
@@ -87,7 +76,6 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
 
     setScale(targetScale);
     setNaturalHeight(naturalH);
-    setEffectiveWidth(naturalW);
   }, [disabled, minWidth, minScale]);
 
   // Lắng nghe thay đổi kích thước của container và content (ResizeObserver)
@@ -169,8 +157,8 @@ export const AutoFitTable: React.FC<AutoFitTableProps> = ({
             data-autofit-content="true"
             className="autofit-content-box"
             style={{
-              width: `${effectiveWidth}px`,
-              minWidth: `${effectiveWidth}px`,
+              width: `${minWidth}px`,
+              minWidth: `${minWidth}px`,
               transform: `scale(${scale})`,
               transformOrigin: 'top left',
               position: 'absolute',
