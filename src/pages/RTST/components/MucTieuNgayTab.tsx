@@ -1136,11 +1136,11 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                       <span className="leading-tight">MỤC TIÊU</span>
                       <button
                         type="button"
-                        onClick={handleSyncOverviewTargets}
+                        onClick={handleSyncFromLuyke}
                         className="no-capture inline-flex items-center justify-center p-0.5 rounded hover:bg-white/20 transition-all text-[#FEF08A] hover:text-white cursor-pointer active:scale-90 shrink-0"
-                        title="Bấm để đồng bộ mục tiêu từ tab Tổng Quan"
+                        title="Bấm để đồng bộ Mục tiêu từ cột M.tiêu/ngày của Tab Tổng quan"
                       >
-                        <RefreshCw size={11} className={isSyncing ? "animate-spin" : ""} />
+                        <RefreshCw size={11} />
                       </button>
                     </div>
                   </th>
