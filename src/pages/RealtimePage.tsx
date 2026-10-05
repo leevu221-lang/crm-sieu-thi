@@ -1861,10 +1861,38 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     return window.innerWidth < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   });
 
+  // Dynamic fluid zoom for Data YCX tab to scale all tables, buttons, and text when resizing browser window
+  const [tabZoom, setTabZoom] = useState<number>(1);
+
   useEffect(() => {
     const handleCheckMobile = () => {
       const isMobile = window.innerWidth < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       setIsMobileScreen(isMobile);
+
+      // Khi đang chụp ảnh, luôn giữ zoom: 1 để ảnh xuất phẳng, sắc nét 100%
+      if (
+        typeof document !== 'undefined' &&
+        (document.body.classList.contains('capturing-screenshot') ||
+          document.body.classList.contains('export-short-mode'))
+      ) {
+        setTabZoom(1);
+        return;
+      }
+
+      const w = window.innerWidth;
+      // Laptop / Desktop (>= 1024px): tính zoom liên tục từ 0.86 đến 1.2 theo chiều rộng màn hình
+      if (w >= 1024) {
+        const desktopScale = Math.min(1.2, Math.max(0.86, 0.86 + ((w - 1024) / (1920 - 1024)) * (1.2 - 0.86)));
+        setTabZoom(Number(desktopScale.toFixed(3)));
+      } else if (w >= 768) {
+        // Tablet (768 - 1023px): co giãn nhẹ từ 0.85 đến 0.95
+        const tabletScale = Math.min(0.95, Math.max(0.85, 0.85 + ((w - 768) / (1024 - 768)) * 0.1));
+        setTabZoom(Number(tabletScale.toFixed(3)));
+      } else {
+        // Mobile (< 768px): co giãn nhẹ theo bề rộng màn hình điện thoại (360px - 430px)
+        const mobileScale = Math.min(1.0, Math.max(0.88, 0.88 + ((w - 360) / (430 - 360)) * 0.12));
+        setTabZoom(Number(mobileScale.toFixed(3)));
+      }
     };
     handleCheckMobile();
     window.addEventListener('resize', handleCheckMobile);
@@ -2101,6 +2129,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
   const [expandedDrillRows, setExpandedDrillRows] = useState<Record<string, boolean>>({});
   const [isDrillFullscreen, setIsDrillFullscreen] = useState(false);
   const [isDrillAutoFit, setIsDrillAutoFit] = useState(true);
+  const [isKhaiThacAutoFit, setIsKhaiThacAutoFit] = useState(true);
+  const [isBanKemAutoFit, setIsBanKemAutoFit] = useState(true);
   const [drillExpandDepth, setDrillExpandDepth] = useState<number>(1);
   const [selectedDrillGroups, setSelectedDrillGroups] = useState<string[]>([]);
   const [drillFilterNhomSmall, setDrillFilterNhomSmall] = useState<string[]>([]);
@@ -7725,8 +7755,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                   key={activeTab}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="space-y-4 sm:space-y-6 w-full max-w-full"
-                  style={{ zoom: isMobileScreen ? 1 : 1.3 }}
+                  className="space-y-4 sm:space-y-6 w-full max-w-full min-w-0"
+                  style={{ zoom: tabZoom }}
                 >
                   {/* HƯỚNG DẪN TẢI BÁO CÁO YCX */}
                   <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-5 shadow-sm space-y-4">
@@ -8630,20 +8660,34 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             <p className="text-[10.5px] sm:text-[11px] text-slate-400 mt-0.5">Chi tiết sản phẩm & hiệu quả bán kèm THEO USER BÁN HÀNG</p>
                           </div>
                         </div>
-                        {/* Nút chụp ảnh */}
-                        <button
-                          onClick={() => handleCaptureTable('phan-tich-khai-thac-card-container', 'phan_tich_khai_thac')}
-                          className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-[11px] font-bold flex items-center gap-1.5 shadow-sm no-capture"
-                          title="Chụp ảnh bảng này"
-                        >
-                          <Camera size={13} className="text-slate-500 hover:text-indigo-600" />
-                          <span>Chụp ảnh</span>
-                        </button>
+                        {/* Nút Auto Zoom & Chụp ảnh */}
+                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end no-capture">
+                          <button
+                            onClick={() => setIsKhaiThacAutoFit(!isKhaiThacAutoFit)}
+                            className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition-all cursor-pointer text-[11px] font-bold shadow-sm ${
+                              isKhaiThacAutoFit
+                                ? 'bg-blue-50 border-blue-200 text-blue-600 font-bold'
+                                : 'bg-white border-slate-200 text-slate-500 hover:text-slate-700'
+                            }`}
+                            title={isKhaiThacAutoFit ? "Đang bật Auto Zoom vừa màn hình (Bấm để chuyển cuộn ngang)" : "Bật Auto Zoom vừa màn hình"}
+                          >
+                            <Scan size={13} />
+                            <span>{isKhaiThacAutoFit ? 'Auto Zoom' : 'Cuộn ngang'}</span>
+                          </button>
+                          <button
+                            onClick={() => handleCaptureTable('phan-tich-khai-thac-card-container', 'phan_tich_khai_thac')}
+                            className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-[11px] font-bold flex items-center gap-1.5 shadow-sm"
+                            title="Chụp ảnh bảng này"
+                          >
+                            <Camera size={13} className="text-slate-500 hover:text-indigo-600" />
+                            <span>Chụp ảnh</span>
+                          </button>
+                        </div>
                       </div>
 
                       {/* Filter bar - menu hiển thị */}
                       <div className="flex flex-col gap-3 bg-slate-50 rounded-xl p-3 sm:px-5 sm:py-4 no-capture">
-                        <div className="flex flex-wrap sm:flex-nowrap sm:overflow-x-auto no-scrollbar items-center gap-1.5 sm:gap-2.5 pb-1">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pb-1">
                           <span className="text-[11px] sm:text-[12px] font-black text-slate-500 uppercase tracking-wider whitespace-nowrap mr-1 flex items-center gap-1.5 w-full sm:w-auto mb-1 sm:mb-0">
                             <Filter size={13} />
                             HIỂN THỊ:
@@ -8840,8 +8884,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                     </div>
 
                     {/* Table */}
-                    <div className="overflow-x-auto bg-white" id="phan-tich-khai-thac-table-container">
-                      <table className="w-full border-collapse border border-slate-200/50 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-200/50 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap [&_tr>th:last-child]:border-r-0 [&_tr>td:last-child]:border-r-0" style={{ borderSpacing: 0 }}>
+                    <AutoFitTable
+                      id="phan-tich-khai-thac-table-container"
+                      className="bg-white"
+                      minWidth={1100}
+                      minScale={0.2}
+                      disabled={!isKhaiThacAutoFit}
+                    >
+                      <table className="w-full border-collapse border border-slate-200/50 [&_th]:border-r [&_th]:border-slate-200/50 [&_td]:border-r [&_td]:border-slate-200/50 [&_th]:whitespace-nowrap [&_td]:whitespace-nowrap [&_tr>th:last-child]:border-r-0 [&_tr>td:last-child]:border-r-0" style={{ borderSpacing: 0, minWidth: '1100px' }}>
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-200/50 text-slate-800 text-[13px] font-black uppercase">
                             <th
@@ -9408,7 +9458,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           </tfoot>
                         )}
                       </table>
-                    </div>
+                    </AutoFitTable>
                   </div>
 
                   {/* HIỆU QUẢ BÁN KÈM THEO NHÂN VIÊN */}
@@ -9439,6 +9489,18 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           <span>{crossSellingStats.length > 0 && crossSellingStats.every(s => expandedCrossSellingStaff[s.staffName]) ? 'Đóng tất cả' : 'Xổ tất cả'}</span>
                         </button>
                         <button
+                          onClick={() => setIsBanKemAutoFit(!isBanKemAutoFit)}
+                          className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-colors flex items-center gap-1.5 no-capture shadow-sm ${
+                            isBanKemAutoFit
+                              ? 'bg-blue-50 border-blue-200 text-blue-600 font-bold'
+                              : 'bg-white/50 border-[#3b82f6] text-[#1e3a8a] hover:bg-[#3b82f6] hover:text-white'
+                          }`}
+                          title={isBanKemAutoFit ? "Đang bật Auto Zoom vừa màn hình (Bấm để chuyển cuộn ngang)" : "Bật Auto Zoom vừa màn hình"}
+                        >
+                          <Scan size={12} />
+                          <span>{isBanKemAutoFit ? 'Auto Zoom' : 'Cuộn ngang'}</span>
+                        </button>
+                        <button
                           onClick={() => handleCaptureTable('hieu-qua-ban-kem-card-container', 'hieu_qua_ban_kem')}
                           className="px-3 py-1.5 rounded-lg border border-[#3b82f6] text-[10px] font-bold text-[#1e3a8a] hover:bg-[#3b82f6] hover:text-white transition-colors flex items-center gap-1.5 no-capture shadow-sm bg-white/50"
                         >
@@ -9448,8 +9510,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                       </div>
                     </div>
 
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse text-center" style={{ borderSpacing: 0 }}>
+                    <AutoFitTable
+                      id="hieu-qua-ban-kem-table-container"
+                      className="bg-white"
+                      minWidth={860}
+                      minScale={0.25}
+                      disabled={!isBanKemAutoFit}
+                    >
+                      <table className="w-full border-collapse text-center" style={{ borderSpacing: 0, minWidth: '860px' }}>
                         <thead>
                           <tr>
                             <th rowSpan={2} className="py-2.5 px-4 text-center bg-[#fed7aa] text-[#9a3412] font-black border-r border-[#fdba74] border-b align-middle min-w-[200px]">NHÂN VIÊN</th>
@@ -9558,7 +9626,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           ))}
                         </tbody>
                       </table>
-                    </div>
+                    </AutoFitTable>
                   </div>
                   )}
 
