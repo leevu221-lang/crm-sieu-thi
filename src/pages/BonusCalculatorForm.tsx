@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Camera, RotateCcw, Info, Edit, Check, AlertCircle } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
 import { ensureFontsReady, EXPORT_FONT_STYLE } from '../utils/fontExportUtil';
@@ -37,18 +37,18 @@ interface SectionState {
 }
 
 // Utility to clean and extract default region from store name
-const detectRegionCode = (storeName: string): string => {
-  if (!storeName) return 'V02';
+const detectRegionCode = (storeName?: string): string => {
+  if (!storeName || typeof storeName !== 'string') return 'V02';
   const clean = storeName.toUpperCase();
   if (clean.includes('V01')) return 'V01';
   if (clean.includes('V02')) return 'V02';
   if (clean.includes('V03')) return 'V03';
   if (clean.includes('V04')) return 'V04';
-  return 'V02'; // default to mockup V02
+  return 'V02';
 };
 
 // Region multipliers mapping
-const getRegionMultiplier = (region: string): number => {
+const getRegionMultiplier = (region?: string): number => {
   switch (region) {
     case 'V01': return 1.00;
     case 'V02': return 0.97;
@@ -69,58 +69,213 @@ const K2_TABLE: number[][] = [
 ];
 
 const getK2Multiplier = (soLuongSt: number, doanhThuCum: number): number => {
-  const row = Math.min(Math.max(soLuongSt, 1), 5) - 1;
+  const row = Math.min(Math.max(soLuongSt || 1, 1), 5) - 1;
   let col: number;
-  if (doanhThuCum < 3_000_000_000) col = 0;
-  else if (doanhThuCum < 5_000_000_000) col = 1;
-  else if (doanhThuCum < 12_000_000_000) col = 2;
-  else if (doanhThuCum < 16_000_000_000) col = 3;
+  const safeDt = Math.max(0, doanhThuCum || 0);
+  if (safeDt < 3_000_000_000) col = 0;
+  else if (safeDt < 5_000_000_000) col = 1;
+  else if (safeDt < 12_000_000_000) col = 2;
+  else if (safeDt < 16_000_000_000) col = 3;
   else col = 4;
   return K2_TABLE[row][col];
 };
 
 const getK2ColIndex = (doanhThuCum: number): number => {
-  if (doanhThuCum < 3_000_000_000) return 0;
-  if (doanhThuCum < 5_000_000_000) return 1;
-  if (doanhThuCum < 12_000_000_000) return 2;
-  if (doanhThuCum < 16_000_000_000) return 3;
+  const safeDt = Math.max(0, doanhThuCum || 0);
+  if (safeDt < 3_000_000_000) return 0;
+  if (safeDt < 5_000_000_000) return 1;
+  if (safeDt < 12_000_000_000) return 2;
+  if (safeDt < 16_000_000_000) return 3;
   return 4;
 };
 
 // Compute Thưởng chuẩn from formula (Excel: VÍ DỤ sheet)
-// QL: ((10^7 + DT^0.65 × 5.5) × K1) × K2
-// TC: (DT^0.9 × 0.016 × K1) × K2
 const computeThuongChuanFormula = (doanhThuCum: number, k1: number, k2: number, isQL: boolean): number => {
-  const safeDt = Math.max(0, doanhThuCum);
+  const safeDt = Math.max(0, doanhThuCum || 0);
+  const safeK1 = k1 || 0.97;
+  const safeK2 = k2 || 1.0;
   if (isQL) {
-    // K1 multiplies the entire (10M + DT^0.65 * 5.5) sum
-    return Math.floor(((10_000_000 + Math.pow(safeDt, 0.65) * 5.5) * k1) * k2);
+    return Math.floor(((10_000_000 + Math.pow(safeDt, 0.65) * 5.5) * safeK1) * safeK2);
   } else {
-    return Math.floor((Math.pow(safeDt, 0.9) * 0.016 * k1) * k2);
+    return Math.floor((Math.pow(safeDt, 0.9) * 0.016 * safeK1) * safeK2);
   }
 };
 
 // Normalize and match store prefixes starting with ĐML, ĐMM, ĐMS, TGD, AAR
-const matchPrefix = (name: string): boolean => {
-  if (!name) return false;
+const matchPrefix = (name?: string): boolean => {
+  if (!name || typeof name !== 'string') return false;
   const normName = name.trim().normalize('NFC').toUpperCase();
   const prefixes = ['ĐML', 'ĐMM', 'ĐMS', 'TGD', 'AAR', 'ÐML', 'ÐMM', 'ÐMS', 'DML', 'DMM', 'DMS'];
   return prefixes.some(pref => normName.startsWith(pref));
 };
 
 // Formats cluster revenue for display: e.g. 6977000000 -> 6,977,000,000
-const formatRevenueDisplay = (val: number): string => {
-  if (!val) return '-';
+const formatRevenueDisplay = (val?: number): string => {
+  if (!val || isNaN(val)) return '-';
   return Math.round(val).toLocaleString('en-US');
 };
 
-export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ activeStore, filteredMarkets, clusterMarkets }) => {
+const formatCurrency = (val: number | string | undefined): string => {
+  if (val === undefined || val === null) return '-';
+  const num = typeof val === 'string' ? parseFloat(val.replace(/,/g, '')) : val;
+  if (isNaN(num)) return '-';
+  return num.toLocaleString('en-US');
+};
+
+// Helper component to render an Excel-like editable cell (Module-scoped & Memoized for max performance)
+interface ExcelCellProps {
+  value: string | number;
+  displayValue?: string;
+  isInput?: boolean;
+  textColor?: string;
+  bgColor?: string;
+  align?: 'left' | 'center' | 'right';
+  isBold?: boolean;
+  onChange?: (val: string) => void;
+  placeholder?: string;
+  onResetOverride?: () => void;
+  isOverridden?: boolean;
+}
+
+const ExcelCell: React.FC<ExcelCellProps> = React.memo(({
+  value,
+  displayValue,
+  isInput = false,
+  textColor = 'text-slate-800',
+  bgColor = 'bg-white',
+  align = 'right',
+  isBold = false,
+  onChange,
+  placeholder = '',
+  onResetOverride,
+  isOverridden = false
+}) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [tempValue, setTempValue] = useState('');
+  const [inputFocused, setInputFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const formattedDisplay = () => {
+    if (displayValue !== undefined) {
+      return displayValue;
+    }
+    if (typeof value === 'number') {
+      return value.toLocaleString('en-US');
+    }
+    return value !== undefined && value !== null ? value.toString() : '';
+  };
+
+  const startEditing = () => {
+    if (!onChange) return;
+    setTempValue(value !== undefined && value !== null ? value.toString() : '');
+    setIsEditing(true);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const stopEditing = () => {
+    setIsEditing(false);
+    if (onChange) {
+      onChange(tempValue);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      stopEditing();
+    } else if (e.key === 'Escape') {
+      setIsEditing(false);
+    }
+  };
+
+  const alignClass = align === 'left' ? 'text-left' : align === 'center' ? 'text-center' : 'text-right';
+  const weightClass = isBold ? 'font-bold' : 'font-medium';
+
+  if (isInput && onChange) {
+    const displayVal = inputFocused
+      ? (value ?? '').toString()
+      : (typeof value === 'number' ? value.toLocaleString('en-US') : (value || placeholder || '-'));
+    return (
+      <td className={`p-0 border border-slate-300 ${bgColor}`}>
+        <input
+          type="text"
+          inputMode="numeric"
+          className={`w-full h-full px-2.5 sm:px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-[#ffffcc] ${alignClass} font-bold text-xs sm:text-sm ${textColor} ${bgColor} transition-colors`}
+          value={displayVal}
+          onFocus={() => setInputFocused(true)}
+          onBlur={() => setInputFocused(false)}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder || '-'}
+        />
+      </td>
+    );
+  }
+
+  if (isEditing) {
+    return (
+      <td className={`p-0 border border-slate-300 ${bgColor}`}>
+        <input
+          ref={inputRef}
+          type="text"
+          className={`w-full h-full px-2 py-1 focus:outline-none ${alignClass} font-semibold ${textColor} bg-[#ffffcc] border-2 border-indigo-500 text-xs sm:text-sm`}
+          value={tempValue}
+          onChange={(e) => setTempValue(e.target.value)}
+          onBlur={stopEditing}
+          onKeyDown={handleKeyDown}
+        />
+      </td>
+    );
+  }
+
+  return (
+    <td
+      onClick={startEditing}
+      className={`px-2.5 sm:px-3 py-1.5 border border-slate-300 text-xs sm:text-sm select-none relative group ${alignClass} ${weightClass} ${textColor} ${bgColor} ${onChange ? 'cursor-pointer hover:bg-slate-100/80' : ''}`}
+    >
+      <span>{formattedDisplay() || placeholder}</span>
+      {isOverridden && (
+        <div className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-500" title="Đã sửa công thức" />
+      )}
+      {onChange && !isInput && (
+        <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 no-capture">
+          <Edit size={10} />
+        </div>
+      )}
+    </td>
+  );
+});
+ExcelCell.displayName = 'ExcelCell';
+
+// Helper to safely parse local storage section state
+const safeParseSectionState = (jsonStr: string | null, fallback: SectionState): SectionState => {
+  if (!jsonStr) return fallback;
+  try {
+    const p = JSON.parse(jsonStr);
+    return {
+      ...fallback,
+      ...p,
+      departments: Array.isArray(p?.departments) && p.departments.length > 0 ? p.departments : fallback.departments,
+      overrides: p?.overrides && typeof p.overrides === 'object' ? p.overrides : {}
+    };
+  } catch {
+    return fallback;
+  }
+};
+
+export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ 
+  activeStore = '', 
+  filteredMarkets = [], 
+  clusterMarkets = [] 
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isCapturing, setIsCapturing] = useState(false);
 
+  // Safe initial stores
+  const storeKey = String(activeStore || 'default');
+  const safeRegion = detectRegionCode(storeKey);
+
   // Default initial states
-  const createDefaultQLState = (storeCode: string, defaultRevenue: number): SectionState => {
-    const region = detectRegionCode(activeStore);
+  const createDefaultQLState = useCallback((storeCode: string, defaultRevenue: number): SectionState => {
+    const region = detectRegionCode(storeCode);
     const mult = getRegionMultiplier(region);
     return {
       tongDoanhThuCum: defaultRevenue,
@@ -138,10 +293,10 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
       ],
       overrides: {}
     };
-  };
+  }, []);
 
-  const createDefaultTCState = (storeCode: string, defaultRevenue: number): SectionState => {
-    const region = detectRegionCode(activeStore);
+  const createDefaultTCState = useCallback((storeCode: string, defaultRevenue: number): SectionState => {
+    const region = detectRegionCode(storeCode);
     const mult = getRegionMultiplier(region);
     return {
       tongDoanhThuCum: defaultRevenue,
@@ -160,140 +315,116 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
       ],
       overrides: {}
     };
-  };
+  }, []);
 
-  const [qlState, setQlState] = useState<SectionState>(() => createDefaultQLState('V02', 7000000000));
-  const [tcState, setTcState] = useState<SectionState>(() => createDefaultTCState('V02', 7000000000));
+  const [qlState, setQlState] = useState<SectionState>(() => createDefaultQLState(safeRegion, 7000000000));
+  const [tcState, setTcState] = useState<SectionState>(() => createDefaultTCState(safeRegion, 7000000000));
 
   // Loading state when activeStore changes
   useEffect(() => {
     if (!activeStore) return;
-    
     const storeCode = detectRegionCode(activeStore);
-    const market = filteredMarkets.find(m => m.name === activeStore);
+    const market = (filteredMarkets || []).find(m => m && m.name === activeStore);
     const defaultRev = market?.actualReal ? Math.round(market.actualReal) : 7000000000;
 
-    const savedQL = localStorage.getItem(`BONUS_CALC_QL_${activeStore}`);
-    if (savedQL) {
-      try {
-        setQlState(JSON.parse(savedQL));
-      } catch (e) {
-        setQlState(createDefaultQLState(storeCode, defaultRev));
-      }
-    } else {
-      setQlState(createDefaultQLState(storeCode, defaultRev));
-    }
+    const defaultQL = createDefaultQLState(storeCode, defaultRev);
+    const defaultTC = createDefaultTCState(storeCode, defaultRev);
 
-    const savedTC = localStorage.getItem(`BONUS_CALC_TC_${activeStore}`);
-    if (savedTC) {
-      try {
-        setTcState(JSON.parse(savedTC));
-      } catch (e) {
-        setTcState(createDefaultTCState(storeCode, defaultRev));
-      }
-    } else {
-      setTcState(createDefaultTCState(storeCode, defaultRev));
+    try {
+      const savedQL = localStorage.getItem(`BONUS_CALC_QL_${activeStore}`);
+      const savedTC = localStorage.getItem(`BONUS_CALC_TC_${activeStore}`);
+      setQlState(safeParseSectionState(savedQL, defaultQL));
+      setTcState(safeParseSectionState(savedTC, defaultTC));
+    } catch {
+      setQlState(defaultQL);
+      setTcState(defaultTC);
     }
-  }, [activeStore, filteredMarkets]);
+  }, [activeStore, createDefaultQLState, createDefaultTCState]);
 
   // Auto-sync computed values from pasted cluster data (clusterMarkets)
   useEffect(() => {
     if (!clusterMarkets || clusterMarkets.length === 0) return;
 
-    // 1. Fetch Cluster Total Revenue from the summary row (TỔNG)
-    // Use "DOANH THU QĐ" (actualVirtual - cột thứ 3 từ trái) or fallback to targetQD
-    // BI data is in triệu đồng → multiply by 1,000,000 to convert to đồng (internal unit)
-    const totalRow = clusterMarkets.find(m => m.name === 'TỔNG' || m.isSummary);
+    const totalRow = clusterMarkets.find(m => m && (m.name === 'TỔNG' || m.isSummary));
     const rawRevenue = totalRow?.actualVirtual || totalRow?.targetQD || 0;
     const clusterRevenue = rawRevenue > 0 && rawRevenue < 1_000_000 ? rawRevenue * 1_000_000 : rawRevenue;
 
-    // 2. Count parsed store counts matching ĐML, ĐMM, ĐMS, TGD, AAR
-    const validStores = clusterMarkets.filter(m => !m.isSummary && m.name !== 'TỔNG' && matchPrefix(m.name));
+    const validStores = clusterMarkets.filter(m => m && !m.isSummary && m.name !== 'TỔNG' && matchPrefix(m.name));
     const storeCount = validStores.length;
     const completedLnttCount = validStores.filter(m => m.percentHT !== undefined && m.percentHT >= 100).length;
-
-    // 3. Get %HT TARGET from TỔNG row (percentHT)
     const htTargetDt = totalRow?.percentHT || 0;
 
-    // Update Quản Lý State
     setQlState(prev => {
-      const updates: Partial<SectionState> = {};
-      if (clusterRevenue > 0 && prev.overrides.tongDoanhThuCum === undefined && prev.tongDoanhThuCum !== clusterRevenue) {
-        updates.tongDoanhThuCum = clusterRevenue;
+      const overrides = prev.overrides || {};
+      let changed = false;
+      const next = { ...prev };
+      if (clusterRevenue > 0 && overrides.tongDoanhThuCum === undefined && prev.tongDoanhThuCum !== clusterRevenue) {
+        next.tongDoanhThuCum = clusterRevenue;
+        changed = true;
       }
-      if (storeCount > 0 && prev.overrides.soLuongStTrongCum === undefined && prev.soLuongStTrongCum !== storeCount) {
-        updates.soLuongStTrongCum = storeCount;
+      if (storeCount > 0 && overrides.soLuongStTrongCum === undefined && prev.soLuongStTrongCum !== storeCount) {
+        next.soLuongStTrongCum = storeCount;
+        changed = true;
       }
-      if (prev.overrides.soLuongStHtTargetLntt === undefined && prev.soLuongStHtTargetLntt !== completedLnttCount) {
-        updates.soLuongStHtTargetLntt = completedLnttCount;
+      if (overrides.soLuongStHtTargetLntt === undefined && prev.soLuongStHtTargetLntt !== completedLnttCount) {
+        next.soLuongStHtTargetLntt = completedLnttCount;
+        changed = true;
       }
-      if (htTargetDt > 0 && prev.overrides.htTargetCumDt === undefined && prev.htTargetCumDt !== htTargetDt) {
-        updates.htTargetCumDt = htTargetDt;
+      if (htTargetDt > 0 && overrides.htTargetCumDt === undefined && prev.htTargetCumDt !== htTargetDt) {
+        next.htTargetCumDt = htTargetDt;
+        changed = true;
       }
-      
-      if (Object.keys(updates).length > 0) {
-        const next = { ...prev, ...updates };
+      if (changed) {
         if (activeStore) {
-          localStorage.setItem(`BONUS_CALC_QL_${activeStore}`, JSON.stringify(next));
+          try { localStorage.setItem(`BONUS_CALC_QL_${activeStore}`, JSON.stringify(next)); } catch {}
         }
         return next;
       }
       return prev;
     });
 
-    // Update Trưởng Ca State
     setTcState(prev => {
-      const updates: Partial<SectionState> = {};
-      if (clusterRevenue > 0 && prev.overrides.tongDoanhThuCum === undefined && prev.tongDoanhThuCum !== clusterRevenue) {
-        updates.tongDoanhThuCum = clusterRevenue;
+      const overrides = prev.overrides || {};
+      let changed = false;
+      const next = { ...prev };
+      if (clusterRevenue > 0 && overrides.tongDoanhThuCum === undefined && prev.tongDoanhThuCum !== clusterRevenue) {
+        next.tongDoanhThuCum = clusterRevenue;
+        changed = true;
       }
-      if (storeCount > 0 && prev.overrides.soLuongStTrongCum === undefined && prev.soLuongStTrongCum !== storeCount) {
-        updates.soLuongStTrongCum = storeCount;
+      if (storeCount > 0 && overrides.soLuongStTrongCum === undefined && prev.soLuongStTrongCum !== storeCount) {
+        next.soLuongStTrongCum = storeCount;
+        changed = true;
       }
-      if (prev.overrides.soLuongStHtTargetLntt === undefined && prev.soLuongStHtTargetLntt !== completedLnttCount) {
-        updates.soLuongStHtTargetLntt = completedLnttCount;
+      if (overrides.soLuongStHtTargetLntt === undefined && prev.soLuongStHtTargetLntt !== completedLnttCount) {
+        next.soLuongStHtTargetLntt = completedLnttCount;
+        changed = true;
       }
-      if (htTargetDt > 0 && prev.overrides.htTargetCumDt === undefined && prev.htTargetCumDt !== htTargetDt) {
-        updates.htTargetCumDt = htTargetDt;
+      if (htTargetDt > 0 && overrides.htTargetCumDt === undefined && prev.htTargetCumDt !== htTargetDt) {
+        next.htTargetCumDt = htTargetDt;
+        changed = true;
       }
-      if (Object.keys(updates).length > 0) {
-        const next = { ...prev, ...updates };
+      if (changed) {
         if (activeStore) {
-          localStorage.setItem(`BONUS_CALC_TC_${activeStore}`, JSON.stringify(next));
+          try { localStorage.setItem(`BONUS_CALC_TC_${activeStore}`, JSON.stringify(next)); } catch {}
         }
         return next;
       }
       return prev;
     });
-  }, [clusterMarkets, activeStore]);
+  }, [clusterMarkets?.length, activeStore]);
 
   // Persist states to LocalStorage
   const saveQLState = (newState: SectionState) => {
     setQlState(newState);
     if (activeStore) {
-      localStorage.setItem(`BONUS_CALC_QL_${activeStore}`, JSON.stringify(newState));
+      try { localStorage.setItem(`BONUS_CALC_QL_${activeStore}`, JSON.stringify(newState)); } catch {}
     }
   };
 
   const saveTCState = (newState: SectionState) => {
     setTcState(newState);
     if (activeStore) {
-      localStorage.setItem(`BONUS_CALC_TC_${activeStore}`, JSON.stringify(newState));
-    }
-  };
-
-  // Reset to default auto calculations
-  const handleReset = () => {
-    if (window.confirm('Bạn có chắc chắn muốn khôi phục tất cả công thức và giá trị mặc định?')) {
-      const storeCode = detectRegionCode(activeStore);
-      const market = filteredMarkets.find(m => m.name === activeStore);
-      const defaultRev = market?.actualReal ? Math.round(market.actualReal) : 7000000000;
-
-      const ql = createDefaultQLState(storeCode, defaultRev);
-      const tc = createDefaultTCState(storeCode, defaultRev);
-      
-      saveQLState(ql);
-      saveTCState(tc);
+      try { localStorage.setItem(`BONUS_CALC_TC_${activeStore}`, JSON.stringify(newState)); } catch {}
     }
   };
 
@@ -355,7 +486,6 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
     document.body.appendChild(tempContainer);
     
     try {
-      // ★ Ensure UTM Avo font is fully loaded before export
       await ensureFontsReady();
       await new Promise(resolve => setTimeout(resolve, 200));
 
@@ -393,50 +523,43 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
     }
   };
 
-  // Core Math Calculation Engine (with K1, K2, auto-computed thưởng chuẩn & thưởng quy mô)
-  const calculateSectionValues = (state: SectionState, isTC: boolean) => {
+  // Core Math Calculation Engine
+  const calculateSectionValues = useCallback((state: SectionState, isTC: boolean) => {
     const {
-      tongDoanhThuCum,
-      vungSieuThiBase,
-      soLuongStTrongCum,
-      soLuongStHtTargetLntt,
-      htTargetCumDt,
-      htTargetCumLn,
-      overrides
-    } = state;
+      tongDoanhThuCum = 0,
+      vungSieuThiBase = 'V02',
+      soLuongStTrongCum = 1,
+      soLuongStHtTargetLntt = 1,
+      htTargetCumDt = 120.0,
+      htTargetCumLn = 110.0,
+      overrides = {}
+    } = state || {};
 
-    // K1 (Hệ số Vùng) & K2 (Hệ số SL siêu thị)
     const k1 = getRegionMultiplier(vungSieuThiBase);
     const k2 = getK2Multiplier(soLuongStTrongCum, tongDoanhThuCum);
 
-    // Thưởng chuẩn (auto-computed from formula unless overridden)
     const computedThuongChuan = computeThuongChuanFormula(tongDoanhThuCum, k1, k2, !isTC);
     const thuongChuan = overrides.thuongChuan !== undefined ? overrides.thuongChuan : computedThuongChuan;
 
-    // 1. Thưởng chuẩn Doanh thu & LNTT (60% and 40%)
     const defaultThuongChuanDt = Math.floor(thuongChuan * 0.6);
     const defaultThuongChuanLntt = Math.floor(thuongChuan * 0.4);
 
     const thuongChuanDt = overrides.thuongChuanDt !== undefined ? overrides.thuongChuanDt : defaultThuongChuanDt;
     const thuongChuanLntt = overrides.thuongChuanLntt !== undefined ? overrides.thuongChuanLntt : defaultThuongChuanLntt;
 
-    // 2. Tỷ lệ thưởng Doanh thu & LNTT
-    const tyLeThuongDt = htTargetCumDt;
-    const tyLeThuongLntt = htTargetCumLn;
+    const tyLeThuongDt = htTargetCumDt || 0;
+    const tyLeThuongLntt = htTargetCumLn || 0;
 
-    // 3. Thưởng Doanh thu & LNTT
     const defaultThuongDt = Math.floor(thuongChuanDt * (tyLeThuongDt / 100));
     const defaultThuongLntt = Math.floor(thuongChuanLntt * (tyLeThuongLntt / 100));
 
     const thuongDt = overrides.thuongDt !== undefined ? overrides.thuongDt : defaultThuongDt;
     const thuongLntt = overrides.thuongLntt !== undefined ? overrides.thuongLntt : defaultThuongLntt;
 
-    // 4. Thưởng quy mô LNTT: (SL ST đạt target - 1) × 5%, min=0
-    const tyLeThuongQuyMo = Math.max(0, (soLuongStHtTargetLntt - 1) * 5); // in %
+    const tyLeThuongQuyMo = Math.max(0, (soLuongStHtTargetLntt - 1) * 5);
     const computedThuongQyMoLntt = Math.floor(thuongChuan * 0.4 * (tyLeThuongQuyMo / 100));
     const thuongQyMoLntt = overrides.thuongQyMoLntt !== undefined ? overrides.thuongQyMoLntt : computedThuongQyMoLntt;
 
-    // 5. Quỹ thưởng Final = Thưởng DT + Thưởng LNTT + Thưởng quy mô LNTT
     const defaultQuyThuongFinal = Math.floor(thuongDt + thuongLntt + thuongQyMoLntt);
     const quyThuongFinal = overrides.quyThuongFinal !== undefined ? overrides.quyThuongFinal : defaultQuyThuongFinal;
 
@@ -455,19 +578,16 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
       quyThuongFinal,
       isOverridden: (key: string) => overrides[key] !== undefined
     };
-  };
+  }, []);
 
-  const qlCalc = calculateSectionValues(qlState, false);
-  const tcCalc = calculateSectionValues(tcState, true);
+  const qlCalc = useMemo(() => calculateSectionValues(qlState, false), [calculateSectionValues, qlState]);
+  const tcCalc = useMemo(() => calculateSectionValues(tcState, true), [calculateSectionValues, tcState]);
 
-  // Shared fields that should sync between QL and TC
   const SHARED_FIELDS: (keyof SectionState)[] = [
     'tongDoanhThuCum', 'vungSieuThiBase', 'soLuongStTrongCum',
     'soLuongStHtTargetLntt', 'htTargetCumDt', 'htTargetCumLn'
   ];
 
-  // Field edit handler for standard inputs (marks standard inputs as overridden)
-  // Syncs shared fields bidirectionally between QL ↔ TC
   const handleInputChange = (
     section: 'QL' | 'TC',
     field: keyof SectionState,
@@ -481,12 +601,11 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
       ...state,
       [field]: value,
       overrides: {
-        ...state.overrides,
+        ...(state.overrides || {}),
         [field as string]: value
       }
     });
 
-    // Sync shared fields to the other section
     if (SHARED_FIELDS.includes(field)) {
       const otherState = isQL ? tcState : qlState;
       const otherSave = isQL ? saveTCState : saveQLState;
@@ -494,14 +613,13 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
         ...otherState,
         [field]: value,
         overrides: {
-          ...otherState.overrides,
+          ...(otherState.overrides || {}),
           [field as string]: value
         }
       });
     }
   };
 
-  // Edit handler for override values
   const handleOverrideChange = (
     section: 'QL' | 'TC',
     field: string,
@@ -512,7 +630,7 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
     const saveState = isQL ? saveQLState : saveTCState;
 
     const numericVal = parseFloat(value.replace(/,/g, ''));
-    const newOverrides = { ...state.overrides };
+    const newOverrides = { ...(state.overrides || {}) };
     if (isNaN(numericVal)) {
       delete newOverrides[field];
     } else {
@@ -525,7 +643,6 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
     });
   };
 
-  // Edit handler for department names & work hours
   const handleDeptChange = (
     section: 'QL' | 'TC',
     index: number,
@@ -536,159 +653,19 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
     const state = isQL ? qlState : tcState;
     const saveState = isQL ? saveQLState : saveTCState;
 
-    const newDepts = [...state.departments];
-    newDepts[index] = {
-      ...newDepts[index],
+    const currentDepts = Array.isArray(state?.departments) ? [...state.departments] : [];
+    if (!currentDepts[index]) return;
+    currentDepts[index] = {
+      ...currentDepts[index],
       [field]: value
     };
 
     saveState({
       ...state,
-      departments: newDepts
+      departments: currentDepts
     });
   };
 
-  // Helper component to render an Excel-like editable cell
-  const ExcelCell: React.FC<{
-    value: string | number;
-    displayValue?: string;
-    isInput?: boolean;
-    textColor?: string;
-    bgColor?: string;
-    align?: 'left' | 'center' | 'right';
-    isBold?: boolean;
-    onChange?: (val: string) => void;
-    placeholder?: string;
-    onResetOverride?: () => void;
-    isOverridden?: boolean;
-  }> = ({
-    value,
-    displayValue,
-    isInput = false,
-    textColor = 'text-slate-800',
-    bgColor = 'bg-white',
-    align = 'right',
-    isBold = false,
-    onChange,
-    placeholder = '',
-    onResetOverride,
-    isOverridden = false
-  }) => {
-    const [isEditing, setIsEditing] = useState(false);
-    const [tempValue, setTempValue] = useState('');
-    const [inputFocused, setInputFocused] = useState(false);
-    const inputRef = useRef<HTMLInputElement>(null);
-
-    const formattedDisplay = () => {
-      if (displayValue !== undefined) {
-        return displayValue;
-      }
-      if (typeof value === 'number') {
-        return value.toLocaleString('en-US');
-      }
-      return value;
-    };
-
-    const startEditing = () => {
-      if (!onChange) return;
-      setTempValue(value.toString());
-      setIsEditing(true);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    };
-
-    const stopEditing = () => {
-      setIsEditing(false);
-      if (onChange) {
-        onChange(tempValue);
-      }
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        stopEditing();
-      } else if (e.key === 'Escape') {
-        setIsEditing(false);
-      }
-    };
-
-    const alignClass = align === 'left' ? 'text-left' : align === 'center' ? 'text-center' : 'text-right';
-    const weightClass = isBold ? 'font-bold' : 'font-medium';
-
-    // isInput mode: always render a visible input (no click-to-edit needed)
-    // Format number with commas when displaying, show raw when editing
-    if (isInput && onChange) {
-      const displayVal = inputFocused
-        ? value.toString()
-        : (typeof value === 'number' ? value.toLocaleString('en-US') : (value || placeholder || '-'));
-      return (
-        <td className={`p-0 border border-slate-300 ${bgColor}`}>
-          <input
-            type="text"
-            inputMode="numeric"
-            className={`w-full h-full px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-[#ffffcc] ${alignClass} font-bold text-xs sm:text-sm ${textColor} ${bgColor} transition-colors`}
-            value={displayVal}
-            onFocus={() => setInputFocused(true)}
-            onBlur={() => setInputFocused(false)}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder || '-'}
-          />
-        </td>
-      );
-    }
-
-    if (isEditing) {
-      return (
-        <td className={`p-0 border border-slate-300 ${bgColor}`}>
-          <input
-            ref={inputRef}
-            type="text"
-            className={`w-full h-full px-2 py-1 focus:outline-none ${alignClass} font-semibold ${textColor} bg-[#ffffcc] border-2 border-indigo-500`}
-            value={tempValue}
-            onChange={(e) => setTempValue(e.target.value)}
-            onBlur={stopEditing}
-            onKeyDown={handleKeyDown}
-          />
-        </td>
-      );
-    }
-
-    return (
-      <td
-        onClick={startEditing}
-        className={`px-3 py-1.5 border border-slate-300 text-xs sm:text-sm select-none relative group ${alignClass} ${weightClass} ${textColor} ${bgColor} ${onChange ? 'cursor-pointer hover:bg-slate-100/80' : ''}`}
-      >
-        <span>{formattedDisplay() || placeholder}</span>
-        {isOverridden && (
-          <div className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-500" title="Đã sửa công thức" />
-        )}
-        {onChange && !isInput && (
-          <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 no-capture">
-            <Edit size={10} />
-          </div>
-        )}
-        {false && isOverridden && onResetOverride && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onResetOverride();
-            }}
-            className="absolute left-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-amber-500 hover:text-amber-700 bg-amber-50 rounded p-0.5 no-capture"
-            title="Khôi phục công thức tự động"
-          >
-            <RotateCcw size={10} />
-          </button>
-        )}
-      </td>
-    );
-  };
-
-  const formatCurrency = (val: number | string) => {
-    const num = typeof val === 'string' ? parseFloat(val.replace(/,/g, '')) : val;
-    if (isNaN(num)) return '-';
-    return num.toLocaleString('en-US');
-  };
-
-  // Render a Single Reward Section (Quản lý or Trưởng ca)
   const renderRewardSection = (
     title: string,
     state: SectionState,
@@ -698,25 +675,39 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
     const isQL = sectionKey === 'QL';
     const saveState = isQL ? saveQLState : saveTCState;
 
+    const departments = Array.isArray(state?.departments) && state.departments.length > 0
+      ? state.departments
+      : isQL
+        ? [
+            { boPhan: 'Quản Lý', gioCong: '200' },
+            { boPhan: 'Quản Lý', gioCong: '' },
+            { boPhan: 'NV Ủy quyền', gioCong: '' }
+          ]
+        : [
+            { boPhan: 'Trưởng Ca 1', gioCong: '200' },
+            { boPhan: 'Trưởng Ca 2', gioCong: '' },
+            { boPhan: 'Trưởng Ca 3', gioCong: '' },
+            { boPhan: 'Trưởng Ca 4', gioCong: '' }
+          ];
+
     return (
-      <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm p-5 md:p-8 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-150 pb-4">
-          <div className="flex items-center gap-3">
-            <div className={`w-3 h-8 rounded-full ${isQL ? 'bg-indigo-500' : 'bg-emerald-500'}`} />
-            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">{title}</h3>
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 overflow-hidden shadow-sm p-3.5 sm:p-6 md:p-8 space-y-5 max-w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-150 pb-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className={`w-2.5 sm:w-3 h-6 sm:h-8 rounded-full ${isQL ? 'bg-indigo-500' : 'bg-emerald-500'}`} />
+            <h3 className="text-base sm:text-lg font-black text-slate-800 uppercase tracking-tight">{title}</h3>
           </div>
-          {/* KHÔI PHỤC CÔNG THỨC button hidden */}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
           {/* LEFT TABLE: Target calculation details */}
-          <div className="lg:col-span-7 overflow-x-auto">
-            <table className="w-full border-collapse border border-slate-300">
+          <div className="lg:col-span-7 w-full overflow-x-auto no-scrollbar">
+            <table className="w-full min-w-[340px] border-collapse border border-slate-300">
               <thead>
                 <tr>
                   <th
                     colSpan={2}
-                    className="px-4 py-2 border border-slate-350 bg-[#ffff00] text-[#000000] font-black text-center text-sm md:text-base tracking-wide"
+                    className="px-3 sm:px-4 py-2 border border-slate-350 bg-[#ffff00] text-[#000000] font-black text-center text-xs sm:text-sm md:text-base tracking-wide"
                   >
                     Thưởng Target {isQL ? 'QUẢN LÝ' : 'TRƯỞNG CA'}
                   </th>
@@ -725,52 +716,47 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
               <tbody>
                 {/* 1. Tổng doanh thu cụm */}
                 <tr>
-                  <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50 w-2/3">
+                  <td className="px-2.5 sm:px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50 w-2/3">
                     Tổng doanh thu cụm
                   </td>
                   <td className="p-0 border border-slate-300 bg-white relative group">
                     <input
                       type="text"
                       inputMode="numeric"
-                      className="w-full h-full px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-[#ffffcc] text-right font-bold text-xs sm:text-sm text-[#ff0000] bg-white transition-colors"
+                      className="w-full h-full px-2.5 sm:px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-[#ffffcc] text-right font-bold text-xs sm:text-sm text-[#ff0000] bg-white transition-colors"
                       value={formatRevenueDisplay(state.tongDoanhThuCum)}
                       onChange={(e) => {
                         const num = parseFloat(e.target.value.replace(/,/g, '')) || 0;
-                        // Update without marking as override → auto-sync from BI still works
                         saveState({ ...state, tongDoanhThuCum: num });
-                        // Sync to the other section
                         const otherState = isQL ? tcState : qlState;
                         const otherSave = isQL ? saveTCState : saveQLState;
                         otherSave({ ...otherState, tongDoanhThuCum: num });
                       }}
                       placeholder="-"
                     />
-                    {/* Reset button hidden */}
                   </td>
                 </tr>
 
-                {/* 2. Vùng siêu thị Base (Render select dropdown with multipliers) */}
+                {/* 2. Vùng siêu thị Base */}
                 <tr>
-                  <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
+                  <td className="px-2.5 sm:px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
                     Vùng siêu thị Base
                   </td>
-                  <td className="px-3 py-1.5 border border-slate-300 text-center bg-white">
+                  <td className="px-2 sm:px-3 py-1.5 border border-slate-300 text-center bg-white">
                     <select
-                      value={state.vungSieuThiBase}
+                      value={state.vungSieuThiBase || 'V02'}
                       onChange={(e) => {
                         const region = e.target.value;
-                        // Let thuongChuan be auto-recomputed via formula with new K1
-                        const newOverrides = { ...state.overrides };
+                        const newOverrides = { ...(state.overrides || {}) };
                         delete newOverrides.thuongChuan;
                         saveState({
                           ...state,
                           vungSieuThiBase: region,
                           overrides: newOverrides
                         });
-                        // Sync to the other section (QL ↔ TC)
                         const otherState = isQL ? tcState : qlState;
                         const otherSave = isQL ? saveTCState : saveQLState;
-                        const otherOverrides = { ...otherState.overrides };
+                        const otherOverrides = { ...(otherState.overrides || {}) };
                         delete otherOverrides.thuongChuan;
                         otherSave({
                           ...otherState,
@@ -791,11 +777,11 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
 
                 {/* 3. Số lượng siêu thị trong cụm */}
                 <tr>
-                  <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
+                  <td className="px-2.5 sm:px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
                     Số lượng siêu thị trong cụm
                   </td>
                   <ExcelCell
-                    value={state.soLuongStTrongCum}
+                    value={state.soLuongStTrongCum || 1}
                     textColor="text-[#008000]"
                     bgColor="bg-[#e2efda]"
                     align="center"
@@ -805,40 +791,27 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
                       const num = parseInt(val) || 0;
                       handleInputChange(sectionKey, 'soLuongStTrongCum', num);
                     }}
-                    onResetOverride={() => {
-                      const newOverrides = { ...state.overrides };
-                      delete newOverrides.soLuongStTrongCum;
-                      
-                      const validStores = clusterMarkets?.filter(m => !m.isSummary && m.name !== 'TỔNG' && matchPrefix(m.name)) || [];
-                      const storeCount = validStores.length || 1;
-                      
-                      saveState({
-                        ...state,
-                        soLuongStTrongCum: storeCount,
-                        overrides: newOverrides
-                      });
-                    }}
-                    isOverridden={state.overrides.soLuongStTrongCum !== undefined}
+                    isOverridden={(state.overrides || {}).soLuongStTrongCum !== undefined}
                   />
                 </tr>
 
-                {/* 3b. K2 - Hệ số SL siêu thị (auto-computed) */}
+                {/* 3b. K2 - Hệ số SL siêu thị */}
                 <tr>
-                  <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
+                  <td className="px-2.5 sm:px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
                     K2 - Hệ số SL siêu thị
                   </td>
-                  <td className="px-3 py-1.5 border border-slate-300 text-center text-xs sm:text-sm font-black text-indigo-700 bg-indigo-50">
+                  <td className="px-2.5 sm:px-3 py-1.5 border border-slate-300 text-center text-xs sm:text-sm font-black text-indigo-700 bg-indigo-50">
                     {(calc.k2 * 100).toFixed(0)}%
                   </td>
                 </tr>
 
                 {/* 4. Số lượng siêu thị HT target LNTT */}
                 <tr>
-                  <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
+                  <td className="px-2.5 sm:px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
                     Số lượng siêu thị HT target LNTT
                   </td>
                   <ExcelCell
-                    value={state.soLuongStHtTargetLntt}
+                    value={state.soLuongStHtTargetLntt || 1}
                     textColor="text-[#008000]"
                     bgColor="bg-[#e2efda]"
                     align="center"
@@ -848,28 +821,15 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
                       const num = parseInt(val) || 0;
                       handleInputChange(sectionKey, 'soLuongStHtTargetLntt', num);
                     }}
-                    onResetOverride={() => {
-                      const newOverrides = { ...state.overrides };
-                      delete newOverrides.soLuongStHtTargetLntt;
-                      
-                      const validStores = clusterMarkets?.filter(m => !m.isSummary && m.name !== 'TỔNG' && matchPrefix(m.name)) || [];
-                      const completedLnttCount = validStores.filter(m => m.percentHT !== undefined && m.percentHT >= 100).length || 1;
-                      
-                      saveState({
-                        ...state,
-                        soLuongStHtTargetLntt: completedLnttCount,
-                        overrides: newOverrides
-                      });
-                    }}
-                    isOverridden={state.overrides.soLuongStHtTargetLntt !== undefined}
+                    isOverridden={(state.overrides || {}).soLuongStHtTargetLntt !== undefined}
                   />
                 </tr>
 
                 {/* 5. Thưởng chuẩn */}
                 <tr>
-                  <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
+                  <td className="px-2.5 sm:px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
                     Thưởng chuẩn
-                    <span className="block text-[9px] text-slate-400 font-medium mt-0.5">
+                    <span className="block text-[8.5px] sm:text-[9px] text-slate-400 font-medium mt-0.5">
                       {isQL ? '(10tr + DT^0.65 × 5.5 × K1) × K2' : '(DT^0.9 × 0.016 × K1) × K2'}
                     </span>
                   </td>
@@ -883,61 +843,43 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
                       const num = parseFloat(val.replace(/,/g, '')) || 0;
                       handleInputChange(sectionKey, 'thuongChuan', num);
                     }}
-                    onResetOverride={() => {
-                      const newOverrides = { ...state.overrides };
-                      delete newOverrides.thuongChuan;
-                      saveState({
-                        ...state,
-                        overrides: newOverrides
-                      });
-                    }}
                     isOverridden={calc.isOverridden('thuongChuan')}
                   />
                 </tr>
 
                 {/* 6. Thưởng chuẩn Doanh thu */}
                 <tr>
-                  <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-medium pl-6 text-slate-600 bg-white">
+                  <td className="px-2.5 sm:px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-medium pl-5 sm:pl-6 text-slate-600 bg-white">
                     Thưởng chuẩn Doanh thu
                   </td>
                   <ExcelCell
                     value={calc.thuongChuanDt}
                     textColor="text-slate-800"
                     onChange={(val) => handleOverrideChange(sectionKey, 'thuongChuanDt', val)}
-                    onResetOverride={() => {
-                      const newOverrides = { ...state.overrides };
-                      delete newOverrides.thuongChuanDt;
-                      saveState({ ...state, overrides: newOverrides });
-                    }}
                     isOverridden={calc.isOverridden('thuongChuanDt')}
                   />
                 </tr>
 
                 {/* 7. Thưởng chuẩn LNTT */}
                 <tr>
-                  <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-medium pl-6 text-slate-600 bg-white">
+                  <td className="px-2.5 sm:px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-medium pl-5 sm:pl-6 text-slate-600 bg-white">
                     Thưởng chuẩn LNTT
                   </td>
                   <ExcelCell
                     value={calc.thuongChuanLntt}
                     textColor="text-slate-800"
                     onChange={(val) => handleOverrideChange(sectionKey, 'thuongChuanLntt', val)}
-                    onResetOverride={() => {
-                      const newOverrides = { ...state.overrides };
-                      delete newOverrides.thuongChuanLntt;
-                      saveState({ ...state, overrides: newOverrides });
-                    }}
                     isOverridden={calc.isOverridden('thuongChuanLntt')}
                   />
                 </tr>
 
                 {/* 8. %Tỷ lệ thưởng Doanh thu */}
                 <tr>
-                  <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
+                  <td className="px-2.5 sm:px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
                     %Tỷ lệ thưởng Doanh thu
                   </td>
                   <ExcelCell
-                    value={`${calc.tyLeThuongDt.toFixed(1)}%`}
+                    value={`${(calc.tyLeThuongDt || 0).toFixed(1)}%`}
                     textColor="text-slate-800"
                     align="right"
                     isBold
@@ -946,11 +888,11 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
 
                 {/* 9. %Tỷ lệ thưởng LNTT */}
                 <tr>
-                  <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
+                  <td className="px-2.5 sm:px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-slate-50/50">
                     %Tỷ lệ thưởng LNTT
                   </td>
                   <ExcelCell
-                    value={`${calc.tyLeThuongLntt.toFixed(1)}%`}
+                    value={`${(calc.tyLeThuongLntt || 0).toFixed(1)}%`}
                     textColor="text-slate-800"
                     align="right"
                     isBold
@@ -959,7 +901,7 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
 
                 {/* 10. Thưởng Doanh thu */}
                 <tr>
-                  <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-white">
+                  <td className="px-2.5 sm:px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-white">
                     Thưởng Doanh thu
                   </td>
                   <ExcelCell
@@ -967,18 +909,13 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
                     textColor="text-slate-800"
                     isBold
                     onChange={(val) => handleOverrideChange(sectionKey, 'thuongDt', val)}
-                    onResetOverride={() => {
-                      const newOverrides = { ...state.overrides };
-                      delete newOverrides.thuongDt;
-                      saveState({ ...state, overrides: newOverrides });
-                    }}
                     isOverridden={calc.isOverridden('thuongDt')}
                   />
                 </tr>
 
                 {/* 11. Thưởng LNTT */}
                 <tr>
-                  <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-white">
+                  <td className="px-2.5 sm:px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-white">
                     Thưởng LNTT
                   </td>
                   <ExcelCell
@@ -986,20 +923,15 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
                     textColor="text-slate-800"
                     isBold
                     onChange={(val) => handleOverrideChange(sectionKey, 'thuongLntt', val)}
-                    onResetOverride={() => {
-                      const newOverrides = { ...state.overrides };
-                      delete newOverrides.thuongLntt;
-                      saveState({ ...state, overrides: newOverrides });
-                    }}
                     isOverridden={calc.isOverridden('thuongLntt')}
                   />
                 </tr>
 
                 {/* 12. Thưởng quy mô LNTT */}
                 <tr>
-                  <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-white">
+                  <td className="px-2.5 sm:px-3 py-1.5 border border-slate-300 text-xs sm:text-sm font-semibold bg-white">
                     Thưởng quy mô LNTT
-                    <span className="block text-[9px] text-slate-400 font-medium mt-0.5">
+                    <span className="block text-[8.5px] sm:text-[9px] text-slate-400 font-medium mt-0.5">
                       Tỷ lệ QM: {calc.tyLeThuongQuyMo}% = ({state.soLuongStHtTargetLntt} ST đạt − 1) × 5%
                     </span>
                   </td>
@@ -1011,18 +943,13 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
                       const cleanVal = val.trim() === '-' ? 0 : parseFloat(val.replace(/,/g, '')) || 0;
                       handleOverrideChange(sectionKey, 'thuongQyMoLntt', cleanVal.toString());
                     }}
-                    onResetOverride={() => {
-                      const newOverrides = { ...state.overrides };
-                      delete newOverrides.thuongQyMoLntt;
-                      saveState({ ...state, overrides: newOverrides });
-                    }}
                     isOverridden={calc.isOverridden('thuongQyMoLntt')}
                   />
                 </tr>
 
                 {/* 13. Quỹ thưởng Final */}
                 <tr>
-                  <td className="px-3 py-2 border border-slate-300 text-xs sm:text-sm font-black bg-slate-100">
+                  <td className="px-2.5 sm:px-2 py-2 border border-slate-300 text-xs sm:text-sm font-black bg-slate-100">
                     Quỹ thưởng Final
                   </td>
                   <ExcelCell
@@ -1031,197 +958,181 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
                     bgColor="bg-slate-100"
                     isBold
                     onChange={(val) => handleOverrideChange(sectionKey, 'quyThuongFinal', val)}
-                    onResetOverride={() => {
-                      const newOverrides = { ...state.overrides };
-                      delete newOverrides.quyThuongFinal;
-                      saveState({ ...state, overrides: newOverrides });
-                    }}
                     isOverridden={calc.isOverridden('quyThuongFinal')}
                   />
                 </tr>
               </tbody>
             </table>
-            <div className="text-[11px] font-black italic text-slate-800 mt-2 px-1">
+            <div className="text-[10px] sm:text-[11px] font-black italic text-slate-800 mt-2 px-1">
               *Nhập dữ liệu tại các ô màu xanh
             </div>
           </div>
 
           {/* RIGHT SIDE: Two tables */}
-          <div className="lg:col-span-5 space-y-6">
+          <div className="lg:col-span-5 space-y-5 w-full overflow-hidden">
             {/* Table 1: %HT Target lũy kế */}
-            <div className="space-y-1">
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse border border-slate-300">
-                  <thead>
-                    <tr className="bg-slate-50 text-xs font-black text-slate-700">
-                      <th colSpan={3} className="px-2 py-1.5 border border-slate-300 text-center uppercase tracking-tight">
-                        %HT Target lũy kế
-                      </th>
-                    </tr>
-                    <tr className="bg-slate-50 text-[11px] font-black text-slate-600 text-center">
-                      <th className="px-2 py-1 border border-slate-300 w-1/3">Siêu thị</th>
-                      <th className="px-2 py-1 border border-slate-300">Doanh thu</th>
-                      <th className="px-2 py-1 border border-slate-300">Lợi Nhuận</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="px-2 py-1.5 border border-slate-300 text-[11px] font-black text-slate-800 text-center">
-                        %HT target cụm
-                      </td>
-                      <td className="p-0 border border-slate-300 bg-[#e2efda]">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          className="w-full h-full px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-[#ffffcc] text-center font-bold text-xs sm:text-sm text-[#c00000] bg-[#e2efda] transition-colors"
-                          value={`${state.htTargetCumDt.toFixed(1)}%`}
-                          onChange={(e) => {
-                            const num = parseFloat(e.target.value.replace(/%/g, '')) || 0;
-                            handleInputChange(sectionKey, 'htTargetCumDt', num);
-                          }}
-                          onFocus={(e) => { e.target.value = state.htTargetCumDt.toString(); }}
-                          onBlur={(e) => { e.target.value = `${state.htTargetCumDt.toFixed(1)}%`; }}
-                          placeholder="-"
-                        />
-                      </td>
-                      <td className="p-0 border border-slate-300 bg-[#e2efda]">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          className="w-full h-full px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-[#ffffcc] text-center font-bold text-xs sm:text-sm text-[#c00000] bg-[#e2efda] transition-colors"
-                          value={`${state.htTargetCumLn.toFixed(1)}%`}
-                          onChange={(e) => {
-                            const num = parseFloat(e.target.value.replace(/%/g, '')) || 0;
-                            handleInputChange(sectionKey, 'htTargetCumLn', num);
-                          }}
-                          onFocus={(e) => { e.target.value = state.htTargetCumLn.toString(); }}
-                          onBlur={(e) => { e.target.value = `${state.htTargetCumLn.toFixed(1)}%`; }}
-                          placeholder="-"
-                        />
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div className="text-[10px] font-semibold text-slate-500 italic text-right px-1">
+            <div className="space-y-1 w-full overflow-x-auto no-scrollbar">
+              <table className="w-full min-w-[280px] border-collapse border border-slate-300">
+                <thead>
+                  <tr className="bg-slate-50 text-xs font-black text-slate-700">
+                    <th colSpan={3} className="px-2 py-1.5 border border-slate-300 text-center uppercase tracking-tight">
+                      %HT Target lũy kế
+                    </th>
+                  </tr>
+                  <tr className="bg-slate-50 text-[10.5px] sm:text-[11px] font-black text-slate-600 text-center">
+                    <th className="px-2 py-1 border border-slate-300 w-1/3">Siêu thị</th>
+                    <th className="px-2 py-1 border border-slate-300">Doanh thu</th>
+                    <th className="px-2 py-1 border border-slate-300">Lợi Nhuận</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="px-2 py-1.5 border border-slate-300 text-[10.5px] sm:text-[11px] font-black text-slate-800 text-center">
+                      %HT target cụm
+                    </td>
+                    <td className="p-0 border border-slate-300 bg-[#e2efda]">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        className="w-full h-full px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-[#ffffcc] text-center font-bold text-xs sm:text-sm text-[#c00000] bg-[#e2efda] transition-colors"
+                        value={`${(state.htTargetCumDt || 0).toFixed(1)}%`}
+                        onChange={(e) => {
+                          const num = parseFloat(e.target.value.replace(/%/g, '')) || 0;
+                          handleInputChange(sectionKey, 'htTargetCumDt', num);
+                        }}
+                        onFocus={(e) => { e.target.value = (state.htTargetCumDt || 0).toString(); }}
+                        onBlur={(e) => { e.target.value = `${(state.htTargetCumDt || 0).toFixed(1)}%`; }}
+                        placeholder="-"
+                      />
+                    </td>
+                    <td className="p-0 border border-slate-300 bg-[#e2efda]">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        className="w-full h-full px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-[#ffffcc] text-center font-bold text-xs sm:text-sm text-[#c00000] bg-[#e2efda] transition-colors"
+                        value={`${(state.htTargetCumLn || 0).toFixed(1)}%`}
+                        onChange={(e) => {
+                          const num = parseFloat(e.target.value.replace(/%/g, '')) || 0;
+                          handleInputChange(sectionKey, 'htTargetCumLn', num);
+                        }}
+                        onFocus={(e) => { e.target.value = (state.htTargetCumLn || 0).toString(); }}
+                        onBlur={(e) => { e.target.value = `${(state.htTargetCumLn || 0).toFixed(1)}%`; }}
+                        placeholder="-"
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div className="text-[9.5px] sm:text-[10px] font-semibold text-slate-500 italic text-right px-1">
                 Tổng thực hiện / tổng target cụm lũy kế
               </div>
             </div>
 
             {/* K2 Reference Table */}
-            <div className="space-y-1">
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse border border-slate-300 text-[10px]">
-                  <thead>
-                    <tr className="bg-[#dce6f1]">
-                      <th colSpan={6} className="px-2 py-1.5 border border-slate-300 text-center font-black text-[11px] text-slate-700 uppercase tracking-tight">
-                        K2 - Hệ số SL siêu thị trong cụm
-                      </th>
-                    </tr>
-                    <tr className="bg-[#dce6f1] text-[10px] font-bold text-slate-600 text-center">
-                      <th className="px-1 py-1 border border-slate-300 w-[40px]">SL ST</th>
-                      <th className="px-1 py-1 border border-slate-300">{'<'}3 tỷ</th>
-                      <th className="px-1 py-1 border border-slate-300">3-5 tỷ</th>
-                      <th className="px-1 py-1 border border-slate-300">5-12 tỷ</th>
-                      <th className="px-1 py-1 border border-slate-300">12-16 tỷ</th>
-                      <th className="px-1 py-1 border border-slate-300">{'>'}16 tỷ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {K2_TABLE.map((row, rowIdx) => {
-                      const stCount = rowIdx + 1;
-                      const currentRow = Math.min(Math.max(state.soLuongStTrongCum, 1), 5) - 1;
-                      const currentCol = getK2ColIndex(state.tongDoanhThuCum);
-                      const isActiveRow = rowIdx === currentRow;
-                      return (
-                        <tr key={rowIdx} className={isActiveRow ? 'font-black' : ''}>
-                          <td className={`px-1 py-0.5 border border-slate-300 text-center font-bold ${isActiveRow ? 'bg-amber-100' : 'bg-slate-50'}`}>
-                            {stCount >= 5 ? '5+' : stCount}
-                          </td>
-                          {row.map((val, colIdx) => {
-                            const isActive = isActiveRow && colIdx === currentCol;
-                            return (
-                              <td
-                                key={colIdx}
-                                className={`px-1 py-0.5 border border-slate-300 text-center ${
-                                  isActive
-                                    ? 'bg-amber-300 font-black text-slate-900'
-                                    : isActiveRow
-                                    ? 'bg-amber-50'
-                                    : ''
-                                }`}
-                              >
-                                {(val * 100).toFixed(0)}%
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="text-[10px] font-semibold text-slate-500 italic text-right px-1">
-                K1: {state.vungSieuThiBase} = {(calc.k1 * 100).toFixed(0)}% · K2 = {(calc.k2 * 100).toFixed(0)}%
+            <div className="space-y-1 w-full overflow-x-auto no-scrollbar">
+              <table className="w-full min-w-[300px] border-collapse border border-slate-300 text-[10px]">
+                <thead>
+                  <tr className="bg-[#dce6f1]">
+                    <th colSpan={6} className="px-2 py-1.5 border border-slate-300 text-center font-black text-[10.5px] sm:text-[11px] text-slate-700 uppercase tracking-tight">
+                      K2 - Hệ số SL siêu thị trong cụm
+                    </th>
+                  </tr>
+                  <tr className="bg-[#dce6f1] text-[9.5px] sm:text-[10px] font-bold text-slate-600 text-center">
+                    <th className="px-1 py-1 border border-slate-300 w-[40px]">SL ST</th>
+                    <th className="px-1 py-1 border border-slate-300">{'<'}3 tỷ</th>
+                    <th className="px-1 py-1 border border-slate-300">3-5 tỷ</th>
+                    <th className="px-1 py-1 border border-slate-300">5-12 tỷ</th>
+                    <th className="px-1 py-1 border border-slate-300">12-16 tỷ</th>
+                    <th className="px-1 py-1 border border-slate-300">{'>'}16 tỷ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {K2_TABLE.map((row, rowIdx) => {
+                    const stCount = rowIdx + 1;
+                    const currentRow = Math.min(Math.max(state.soLuongStTrongCum || 1, 1), 5) - 1;
+                    const currentCol = getK2ColIndex(state.tongDoanhThuCum || 0);
+                    const isActiveRow = rowIdx === currentRow;
+                    return (
+                      <tr key={rowIdx} className={isActiveRow ? 'font-black' : ''}>
+                        <td className={`px-1 py-0.5 border border-slate-300 text-center font-bold ${isActiveRow ? 'bg-amber-100' : 'bg-slate-50'}`}>
+                          {stCount >= 5 ? '5+' : stCount}
+                        </td>
+                        {row.map((val, colIdx) => {
+                          const isActive = isActiveRow && colIdx === currentCol;
+                          return (
+                            <td
+                              key={colIdx}
+                              className={`px-1 py-0.5 border border-slate-300 text-center ${
+                                isActive
+                                  ? 'bg-amber-300 font-black text-slate-900'
+                                  : isActiveRow
+                                  ? 'bg-amber-50'
+                                  : ''
+                              }`}
+                            >
+                              {(val * 100).toFixed(0)}%
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="text-[9.5px] sm:text-[10px] font-semibold text-slate-500 italic text-right px-1">
+                K1: {state.vungSieuThiBase || 'V02'} = {((calc.k1 || 1) * 100).toFixed(0)}% · K2 = {((calc.k2 || 1) * 100).toFixed(0)}%
               </div>
             </div>
 
             {/* Table 2: Department Allocation */}
-            <div className="space-y-1">
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse border border-slate-300">
-                  <thead>
-                    <tr className="bg-slate-50 text-xs font-black text-slate-700 text-center">
-                      <th className="px-3 py-1.5 border border-slate-300 w-1/2">Bộ phận</th>
-                      <th className="px-3 py-1.5 border border-slate-300 w-1/4">Giờ công</th>
-                      <th className="px-3 py-1.5 border border-slate-300">Thưởng</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      // Calculate total hours across all departments for ratio-based allocation
-                      const totalHours = state.departments.reduce((sum, r) => {
-                        const h = parseFloat(r.gioCong);
-                        return sum + (isNaN(h) ? 0 : h);
-                      }, 0);
+            <div className="space-y-1 w-full overflow-x-auto no-scrollbar">
+              <table className="w-full min-w-[280px] border-collapse border border-slate-300">
+                <thead>
+                  <tr className="bg-slate-50 text-xs font-black text-slate-700 text-center">
+                    <th className="px-2.5 sm:px-3 py-1.5 border border-slate-300 w-1/2">Bộ phận</th>
+                    <th className="px-2 sm:px-3 py-1.5 border border-slate-300 w-1/4">Giờ công</th>
+                    <th className="px-2.5 sm:px-3 py-1.5 border border-slate-300">Thưởng</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const totalHours = departments.reduce((sum, r) => {
+                      const h = parseFloat(r?.gioCong || '0');
+                      return sum + (isNaN(h) ? 0 : h);
+                    }, 0);
 
-                      return state.departments.map((row, idx) => {
-                        const hours = parseFloat(row.gioCong);
-                        // Thưởng = (Giờ công / Tổng giờ công) × Quỹ thưởng Final
-                        const finalReward = isNaN(hours) || totalHours === 0
-                          ? '-'
-                          : Math.round(calc.quyThuongFinal * (hours / totalHours));
+                    return departments.map((row, idx) => {
+                      const hours = parseFloat(row?.gioCong || '0');
+                      const finalReward = isNaN(hours) || totalHours === 0
+                        ? '-'
+                        : Math.round((calc.quyThuongFinal || 0) * (hours / totalHours));
 
                       return (
                         <tr key={idx}>
-                          {/* Department Name (Editable) */}
                           <ExcelCell
-                            value={row.boPhan}
+                            value={row?.boPhan || ''}
                             align="left"
                             onChange={(val) => handleDeptChange(sectionKey, idx, 'boPhan', val)}
                           />
-                          {/* Hours Input (Direct inline input - no ExcelCell to avoid focus loss) */}
                           <td className="p-0 border border-slate-300 bg-[#e2efda]">
                             <input
                               type="text"
                               inputMode="numeric"
-                              className="w-full h-full px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-[#ffffcc] text-center font-bold text-xs sm:text-sm text-[#c00000] bg-[#e2efda] transition-colors"
-                              value={row.gioCong}
+                              className="w-full h-full px-2 sm:px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-[#ffffcc] text-center font-bold text-xs sm:text-sm text-[#c00000] bg-[#e2efda] transition-colors"
+                              value={row?.gioCong || ''}
                               onChange={(e) => handleDeptChange(sectionKey, idx, 'gioCong', e.target.value)}
                               placeholder="-"
                             />
                           </td>
-                          {/* Allocated Reward (Read-only, calculated or can be overridden) */}
-                          <td className="px-3 py-1.5 border border-slate-300 text-xs sm:text-sm text-right font-black text-slate-900 bg-white">
+                          <td className="px-2.5 sm:px-3 py-1.5 border border-slate-300 text-xs sm:text-sm text-right font-black text-slate-900 bg-white">
                             {formatCurrency(finalReward)}
                           </td>
                         </tr>
                       );
                     });
-                    })()}
-                  </tbody>
-                </table>
-              </div>
+                  })()}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -1229,31 +1140,31 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
     );
   };
 
-  const selectedStoreCode = detectRegionCode(activeStore);
+  const safeStoreName = String(activeStore || 'TẤT CẢ SIÊU THỊ');
+  const storeDisplayTitle = safeStoreName.includes(' - ') ? safeStoreName.split(' - ')[0] : safeStoreName;
 
   return (
-    <div className="space-y-8" ref={containerRef}>
+    <div className="w-full max-w-full space-y-6 overflow-hidden" ref={containerRef}>
       {/* Action Header card matching page style */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm no-capture">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-            <Info size={22} />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm no-capture">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2.5 sm:p-3 bg-indigo-50 text-indigo-600 rounded-xl shrink-0">
+            <Info size={20} className="sm:w-[22px] sm:h-[22px]" />
           </div>
-          <div>
-            <h4 className="text-base font-black text-slate-800">
-              BẢNG TÍNH THƯỞNG TARGET SIÊU THỊ ({activeStore.split(' - ')[0]})
+          <div className="min-w-0">
+            <h4 className="text-sm sm:text-base font-black text-slate-800 truncate">
+              BẢNG TÍNH THƯỞNG TARGET SIÊU THỊ ({storeDisplayTitle})
             </h4>
-            <p className="text-xs text-slate-400 font-medium">
+            <p className="text-[11px] sm:text-xs text-slate-400 font-medium">
               Chỉnh sửa các ô màu xanh hoặc click đúp vào các ô tính toán để ghi đè công thức.
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          {/* KHÔI PHỤC button hidden */}
+        <div className="flex items-center gap-3 shrink-0">
           <button
             onClick={handleCapture}
             disabled={isCapturing}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10.5px] sm:text-[11px] font-bold uppercase tracking-wider transition-all shadow-md shadow-emerald-100 disabled:opacity-50 cursor-pointer active:scale-95"
           >
             <Camera size={14} />
             <span>{isCapturing ? 'ĐANG CHỤP...' : 'CHỤP ẢNH BÁO CÁO'}</span>
@@ -1262,7 +1173,7 @@ export const BonusCalculatorForm: React.FC<BonusCalculatorFormProps> = ({ active
       </div>
 
       {/* Main calculation forms */}
-      <div className="space-y-8">
+      <div className="space-y-6 sm:space-y-8 max-w-full">
         {renderRewardSection('Thưởng Target QUẢN LÝ', qlState, qlCalc, 'QL')}
         {renderRewardSection('Thưởng Target TRƯỞNG CA', tcState, tcCalc, 'TC')}
       </div>

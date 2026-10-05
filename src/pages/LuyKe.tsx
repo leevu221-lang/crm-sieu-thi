@@ -36,6 +36,74 @@ import BcDtNganhHang from './BcDtNganhHang';
 import SSGBoss from './SSGBoss';
 import ClusterReportTab from './ClusterReportTab';
 
+interface TabErrorBoundaryProps {
+  children: React.ReactNode;
+  tabName?: string;
+}
+
+interface TabErrorBoundaryState {
+  hasError: boolean;
+  error?: Error | null;
+}
+
+class TabErrorBoundary extends React.Component<TabErrorBoundaryProps, TabErrorBoundaryState> {
+  constructor(props: TabErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): TabErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error(`[TabErrorBoundary] Lỗi tại tab ${this.props.tabName || ''}:`, error, errorInfo);
+  }
+
+  handleReset = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="bg-white p-6 sm:p-8 rounded-3xl border border-rose-200 shadow-sm text-center max-w-xl mx-auto my-6">
+          <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <AlertCircle size={28} />
+          </div>
+          <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-2">
+            ĐÃ XẢY RA LỖI TẠI {this.props.tabName ? `TAB ${this.props.tabName.toUpperCase()}` : 'MỤC NÀY'}
+          </h3>
+          <p className="text-xs sm:text-sm text-slate-500 mb-5 leading-relaxed">
+            Hệ thống đã tự động cô lập lỗi để bảo vệ ứng dụng, bạn vẫn có thể chuyển sang các tab khác hoặc chuyển trang bình thường.
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={this.handleReset}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase transition-all shadow-md active:scale-95 cursor-pointer"
+            >
+              Tải lại nội dung tab
+            </button>
+            <button
+              onClick={() => {
+                try {
+                  const keys = Object.keys(localStorage).filter(k => k.startsWith('BONUS_CALC_'));
+                  keys.forEach(k => localStorage.removeItem(k));
+                } catch {}
+                this.handleReset();
+              }}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black uppercase transition-all cursor-pointer"
+            >
+              Xóa cache tính thưởng
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const getCategoryGroup = (name: string): 'yellow' | 'green' | 'blue' => {
   const normalized = name.toLowerCase().trim();
   
@@ -3114,39 +3182,41 @@ const LuyKe: React.FC<{ pageMaintenanceState?: Record<string, boolean>, isUser43
             )}
 
             {activeTab === 'efficiency' && (
-              <motion.div
-                key="efficiency"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-                className="space-y-6"
-              >
-                {String(userProfile?.username).trim() === '43751' ? (
-                  <BonusCalculatorForm
-                    activeStore={marketFilter}
-                    filteredMarkets={filteredMarkets}
-                    clusterMarkets={displayData.markets}
-                  />
-                ) : (
-                  <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm">
-                    <div className="flex items-center gap-4 mb-6">
-                      <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-                        <Activity size={24} />
+              <TabErrorBoundary tabName="Thưởng QL/TC">
+                <motion.div
+                  key="efficiency"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-6"
+                >
+                  {String(userProfile?.username).trim() === '43751' ? (
+                    <BonusCalculatorForm
+                      activeStore={marketFilter || (filteredMarkets[0]?.name) || 'ALL'}
+                      filteredMarkets={filteredMarkets || []}
+                      clusterMarkets={displayData?.markets || []}
+                    />
+                  ) : (
+                    <div className="bg-white p-6 sm:p-8 rounded-2xl sm:rounded-[32px] border border-slate-100 shadow-sm">
+                      <div className="flex items-center gap-3 sm:gap-4 mb-6">
+                        <div className="w-12 sm:w-14 h-12 sm:h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+                          <Activity size={24} />
+                        </div>
+                        <div>
+                          <h3 className="text-lg sm:text-xl font-black text-slate-900 uppercase tracking-tight">THƯỞNG QUẢN LÝ / TRƯỞNG CA</h3>
+                          <p className="text-xs sm:text-sm text-slate-400">Phân tích hiệu quả & tính thưởng theo tháng</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">THƯỞNG QUẢN LÝ / TRƯỞNG CA</h3>
-                        <p className="text-sm text-slate-400">Phân tích hiệu quả & tính thưởng theo tháng</p>
+                      <div className="flex flex-col items-center justify-center py-12 sm:py-20 text-slate-400 text-center px-4">
+                        <Activity size={44} className="mb-4 opacity-20" />
+                        <p className="text-xs sm:text-sm font-bold uppercase tracking-wider">Đang trong quá trình xây dựng</p>
+                        <p className="text-[11px] sm:text-xs text-slate-400 mt-1 max-w-md">Tính năng tính thưởng quản lý / trưởng ca đang trong quá trình xây dựng và phát triển. Vui lòng quay lại sau.</p>
                       </div>
                     </div>
-                    <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                      <Activity size={48} className="mb-4 opacity-20" />
-                      <p className="text-sm font-bold uppercase tracking-wider">Đang trong quá trình xây dựng</p>
-                      <p className="text-xs text-slate-300 mt-1">Tính năng tính thưởng quản lý / trưởng ca đang trong quá trình xây dựng và phát triển. Vui lòng quay lại sau.</p>
-                    </div>
-                  </div>
-                )}
-              </motion.div>
+                  )}
+                </motion.div>
+              </TabErrorBoundary>
             )}
 
             {activeTab === 'thuong_st' && (
