@@ -1852,6 +1852,27 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       setActiveTab('summary');
     }
   }, [activeTab, isUser43751]);
+
+  // Check Mobile Client for responsive auto-zoom and layout adjustments
+  const [isMobileScreen, setIsMobileScreen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  });
+
+  useEffect(() => {
+    const handleCheckMobile = () => {
+      const isMobile = window.innerWidth < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setIsMobileScreen(isMobile);
+    };
+    handleCheckMobile();
+    window.addEventListener('resize', handleCheckMobile);
+    window.addEventListener('orientationchange', handleCheckMobile);
+    return () => {
+      window.removeEventListener('resize', handleCheckMobile);
+      window.removeEventListener('orientationchange', handleCheckMobile);
+    };
+  }, []);
+
   const { ycxData, setYcxData, ycxDataMoi, setYcxDataMoi, ycxFileName, setYcxFileName, ycxFileNameMoi, setYcxFileNameMoi, processedData, isLoadingRealtime, isProcessingRealtime, loadData, lastUpdated, hasLoadedFromDB, processError, activeStore, setActiveStore, marketInput, setMarketInput, categoryInput, setCategoryInput, categoryRevenueInput, setCategoryRevenueInput, saveRealtimeData } = useRealtimeData(selectedMaKho);
 
   const daysRemaining = useMemo(() => {
@@ -7686,12 +7707,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                   key={activeTab}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="space-y-6"
-                  style={{ zoom: 1.3 }}
+                  className="space-y-4 sm:space-y-6 w-full max-w-full"
+                  style={{ zoom: isMobileScreen ? 1 : 1.3 }}
                 >
                   {/* HƯỚNG DẪN TẢI BÁO CÁO YCX */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
-                    <div className="flex items-center justify-between">
+                  <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-5 shadow-sm space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
                           <Globe size={18} />
@@ -7702,45 +7723,45 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                         </div>
                       </div>
                       {isUser43751 && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                           <button
                             onClick={() => setShowConfigModal(true)}
-                            className="p-2 bg-slate-100 hover:bg-indigo-100 text-slate-500 hover:text-indigo-600 rounded-lg transition-colors flex items-center gap-2"
+                            className="p-1.5 sm:p-2 bg-slate-100 hover:bg-indigo-100 text-slate-500 hover:text-indigo-600 rounded-lg transition-colors flex items-center gap-1.5"
                             title="Cấu hình phân loại nhóm hàng"
                           >
-                            <Settings size={18} />
+                            <Settings size={16} />
                             <span className="hidden md:inline text-[11px] font-bold">CẤU HÌNH NHÓM HÀNG</span>
                           </button>
                           <button
                             onClick={() => setShowConfigBaoHiemModal(true)}
-                            className="p-2 bg-slate-100 hover:bg-teal-100 text-slate-500 hover:text-teal-600 rounded-lg transition-colors flex items-center gap-2"
+                            className="p-1.5 sm:p-2 bg-slate-100 hover:bg-teal-100 text-slate-500 hover:text-teal-600 rounded-lg transition-colors flex items-center gap-1.5"
                             title="Cấu hình phân loại Bảo hiểm & VAS"
                           >
-                            <Settings size={18} />
+                            <Settings size={16} />
                             <span className="hidden md:inline text-[11px] font-bold">CẤU HÌNH BH & VAS</span>
                           </button>
                           <button
                             onClick={() => setShowConfigLoaiBoModal(true)}
-                            className="p-2 bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-lg transition-colors flex items-center gap-2"
+                            className="p-1.5 sm:p-2 bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-lg transition-colors flex items-center gap-1.5"
                             title="Cấu hình loại bỏ dữ liệu"
                           >
-                            <Settings size={18} />
+                            <Settings size={16} />
                             <span className="hidden md:inline text-[11px] font-bold">CẤU HÌNH LOẠI BỎ</span>
                           </button>
                           <button
                             onClick={() => setShowConfigQuyDoiModal(true)}
-                            className="p-2 bg-slate-100 hover:bg-purple-100 text-slate-500 hover:text-purple-600 rounded-lg transition-colors flex items-center gap-2"
+                            className="p-1.5 sm:p-2 bg-slate-100 hover:bg-purple-100 text-slate-500 hover:text-purple-600 rounded-lg transition-colors flex items-center gap-1.5"
                             title="Cấu hình hệ số quy đổi"
                           >
-                            <Settings size={18} />
+                            <Settings size={16} />
                             <span className="hidden md:inline text-[11px] font-bold">CẤU HÌNH QUY ĐỔI</span>
                           </button>
                           <button
                             onClick={() => setShowConfigGoogleSheetModal(true)}
-                            className="p-2 bg-slate-100 hover:bg-green-100 text-slate-500 hover:text-green-600 rounded-lg transition-colors flex items-center gap-2"
+                            className="p-1.5 sm:p-2 bg-slate-100 hover:bg-green-100 text-slate-500 hover:text-green-600 rounded-lg transition-colors flex items-center gap-1.5"
                             title="Đồng bộ Google Sheets"
                           >
-                            <FileSpreadsheet size={18} />
+                            <FileSpreadsheet size={16} />
                             <span className="hidden md:inline text-[11px] font-bold">ĐỒNG BỘ GOOGLE SHEET</span>
                           </button>
                         </div>
@@ -7836,28 +7857,28 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                   <div className={`bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm ${isDrillFullscreen ? 'fixed inset-0 z-[9999] p-6 flex flex-col bg-white' : ''
                     }`}>
                     {/* Header */}
-                    <div className="px-6 pt-5 pb-4 border-b border-slate-100 bg-white">
-                      <div className="flex items-start justify-between mb-4">
+                    <div className="px-3.5 sm:px-6 pt-4 sm:pt-5 pb-3 sm:pb-4 border-b border-slate-100 bg-white">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3 sm:mb-4">
                         <div className="flex items-center gap-3" id="chi-tiet-nganh-hang-title-block">
-                          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 font-bold border border-blue-100">
-                            <LayoutGrid size={20} />
+                          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 font-bold border border-blue-100">
+                            <LayoutGrid size={18} className="sm:w-5 sm:h-5" />
                           </div>
                           <div>
-                            <h3 className="text-[18px] font-black text-red-600 tracking-tight uppercase">
+                            <h3 className="text-[15px] sm:text-[18px] font-black text-red-600 tracking-tight uppercase">
                               {compareMode !== 'none' ? 'SO SÁNH CÙNG KỲ' : 'CHI TIẾT NGÀNH HÀNG'}
                             </h3>
-                            <p className="text-[11px] font-normal text-slate-500 uppercase tracking-wide">
+                            <p className="text-[10px] sm:text-[11px] font-normal text-slate-500 uppercase tracking-wide">
                               THỐNG KÊ CHI TIẾT THEO NGÀNH HÀNG VÀ NHÓM HÀNG.
                             </p>
-                            <p className="text-[10px] text-slate-400 mt-0.5 font-normal uppercase tracking-wider">
+                            <p className="text-[9.5px] sm:text-[10px] text-slate-400 mt-0.5 font-normal uppercase tracking-wider">
                               TRẠNG THÁI XUẤT: ĐÃ XUẤT | TỪ {minDateStr} ĐẾN {maxDateStr}
                             </p>
                           </div>
                         </div>
 
                         {/* Comparison period select & Layout group */}
-                        <div className="flex items-center gap-3 no-capture">
-                          <div className="flex items-center gap-1 bg-slate-100 border border-slate-200/60 rounded-xl p-1">
+                        <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 flex-wrap no-capture w-full sm:w-auto">
+                          <div className="flex items-center gap-0.5 sm:gap-1 bg-slate-100 border border-slate-200/60 rounded-xl p-0.5 sm:p-1 overflow-x-auto max-w-full">
                             {([
                               { key: 'none', label: 'Mặc định' },
                               { key: 'day', label: 'Cùng ngày' },
@@ -7867,7 +7888,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               <button
                                 key={opt.key}
                                 onClick={() => setCompareMode(opt.key)}
-                                className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all whitespace-nowrap uppercase ${compareMode === opt.key
+                                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[9.5px] sm:text-[10px] font-black transition-all whitespace-nowrap uppercase ${compareMode === opt.key
                                   ? 'bg-white text-indigo-700 shadow-sm border border-indigo-200/50'
                                   : 'text-slate-500 hover:text-slate-700'
                                   }`}
@@ -7877,22 +7898,22 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             ))}
                           </div>
 
-                          <div className="flex items-center gap-1.5 border border-slate-200 rounded-xl p-1 bg-white shadow-sm">
-                            <button className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center transition-all hover:bg-blue-100 cursor-pointer" title="Xem dạng lưới">
-                              <LayoutGrid size={15} />
+                          <div className="flex items-center gap-1 sm:gap-1.5 border border-slate-200 rounded-xl p-0.5 sm:p-1 bg-white shadow-sm shrink-0">
+                            <button className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center transition-all hover:bg-blue-100 cursor-pointer" title="Xem dạng lưới">
+                              <LayoutGrid size={14} className="sm:w-[15px] sm:h-[15px]" />
                             </button>
-                            <button className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 flex items-center justify-center transition-all hover:bg-slate-50 cursor-pointer" title="Bố cục cột">
-                              <Columns size={15} />
+                            <button className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-slate-400 hover:text-slate-600 flex items-center justify-center transition-all hover:bg-slate-50 cursor-pointer" title="Bố cục cột">
+                              <Columns size={14} className="sm:w-[15px] sm:h-[15px]" />
                             </button>
-                            <button className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 flex items-center justify-center transition-all hover:bg-slate-50 cursor-pointer" title="Cấu hình hiển thị">
-                              <Sliders size={15} />
+                            <button className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-slate-400 hover:text-slate-600 flex items-center justify-center transition-all hover:bg-slate-50 cursor-pointer" title="Cấu hình hiển thị">
+                              <Sliders size={14} className="sm:w-[15px] sm:h-[15px]" />
                             </button>
                             <button
                               onClick={() => handleCaptureTable('chi-tiet-nganh-hang-capture-wrapper', 'chi_tiet_nganh_hang')}
-                              className="w-8 h-8 rounded-lg text-slate-400 hover:text-indigo-600 flex items-center justify-center transition-all hover:bg-indigo-50 cursor-pointer"
+                              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg text-slate-400 hover:text-indigo-600 flex items-center justify-center transition-all hover:bg-indigo-50 cursor-pointer"
                               title="Chụp ảnh bảng này (bao gồm tiêu đề)"
                             >
-                              <Camera size={15} />
+                              <Camera size={14} className="sm:w-[15px] sm:h-[15px]" />
                             </button>
                           </div>
                         </div>
@@ -7909,9 +7930,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                       )}
 
                       {/* Filter bar - reference image style (hidden in capture) */}
-                      <div ref={drillFilterBarRef} className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4 bg-white relative no-capture">
-                        <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-500 uppercase tracking-wider whitespace-nowrap flex-shrink-0">
-                          Cấu trúc hiển thị & lọc (kéo thả để sắp xếp):
+                      <div ref={drillFilterBarRef} className="flex flex-wrap items-center gap-1.5 sm:gap-2 border-t border-slate-100 pt-3 sm:pt-4 bg-white relative no-capture">
+                        <div className="w-full sm:w-auto flex items-center gap-1.5 text-[10px] sm:text-[11px] font-black text-slate-500 uppercase tracking-wider whitespace-nowrap shrink-0 mb-1 sm:mb-0">
+                          Cấu trúc hiển thị & lọc:
                         </div>
 
                         {/* Level pills in the order of drillLevels */}
@@ -8084,20 +8105,20 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                     setActiveDrillFilter(isOpen ? null : level.key);
                                     setDrillFilterSearch('');
                                   }}
-                                  className={`flex items-center gap-1.5 px-4 py-2 rounded-full border text-[13px] font-bold transition-all select-none whitespace-nowrap shadow-sm cursor-grab active:cursor-grabbing
+                                  className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full border text-[11px] sm:text-[13px] font-bold transition-all select-none whitespace-nowrap shadow-sm cursor-grab active:cursor-grabbing
                               ${isActive ? `${level.bgActive} ${level.textActive}` : `${level.bgInactive} ${level.textInactive} hover:border-slate-300`}`}
                                 >
-                                  <IconComp size={13} />
+                                  <IconComp size={12} className="sm:w-[13px] sm:h-[13px]" />
                                   <span>{level.buttonLabel || level.label}</span>
                                   {level.activeCount > 0 && (
-                                    <span className="ml-0.5 bg-orange-500 text-white rounded-full text-[11px] w-5 h-5 flex items-center justify-center font-black">{level.activeCount}</span>
+                                    <span className="ml-0.5 bg-orange-500 text-white rounded-full text-[9.5px] sm:text-[11px] w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center font-black">{level.activeCount}</span>
                                   )}
-                                  <Filter size={12} className={`ml-0.5 ${isActive ? level.filterActive : level.filterInactive}`} />
+                                  <Filter size={10} className={`ml-0.5 ${isActive ? level.filterActive : level.filterInactive} sm:w-[12px] sm:h-[12px]`} />
                                 </button>
 
                                 {/* Dropdown panel */}
                                 {isOpen && level.options.length > 0 && (
-                                  <div className="absolute top-full left-0 mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 w-[280px] overflow-hidden">
+                                  <div className="absolute top-full left-0 sm:left-auto mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 w-[280px] max-w-[calc(100vw-32px)] overflow-hidden">
                                     {/* Search box */}
                                     <div className="p-3 pb-0">
                                       <div className="flex items-center gap-2 border-2 border-indigo-400 rounded-xl px-3 py-2 bg-white">
@@ -8107,7 +8128,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                           value={drillFilterSearch}
                                           onChange={e => setDrillFilterSearch(e.target.value)}
                                           placeholder={`Tìm kiếm ${level.label}...`}
-                                          className="flex-1 text-[14px] text-slate-600 outline-none bg-transparent placeholder-slate-400"
+                                          className="flex-1 text-[13px] sm:text-[14px] text-slate-600 outline-none bg-transparent placeholder-slate-400"
                                         />
                                       </div>
                                     </div>
@@ -8115,11 +8136,11 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                     <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100">
                                       <button
                                         onClick={() => { level.selectAll(); }}
-                                        className="text-[13px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                                        className="text-[12px] sm:text-[13px] font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer"
                                       >Chọn tất cả</button>
                                       <button
                                         onClick={() => { level.clearAll(); }}
-                                        className="text-[13px] font-bold text-slate-500 hover:text-slate-700 cursor-pointer"
+                                        className="text-[12px] sm:text-[13px] font-bold text-slate-500 hover:text-slate-700 cursor-pointer"
                                       >Bỏ chọn</button>
                                     </div>
                                     {/* Items list with toggle switch */}
@@ -8130,12 +8151,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                           <button
                                             key={opt.key}
                                             onClick={() => level.toggleFn(opt.key)}
-                                            className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-50 cursor-pointer"
+                                            className="w-full flex items-center justify-between px-4 py-2.5 sm:py-3 hover:bg-slate-50 transition-colors border-b border-slate-50 cursor-pointer"
                                           >
-                                            <span className="text-[15px] font-bold text-slate-800 text-left">{opt.name}</span>
+                                            <span className="text-[13px] sm:text-[15px] font-bold text-slate-800 text-left truncate mr-2">{opt.name}</span>
                                             {/* iOS toggle switch */}
-                                            <div className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200 ${isOn ? 'bg-indigo-600' : 'bg-slate-200'}`}>
-                                              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${isOn ? 'translate-x-5' : 'translate-x-0'}`} />
+                                            <div className={`relative flex-shrink-0 w-10 h-5 sm:w-11 sm:h-6 rounded-full transition-colors duration-200 ${isOn ? 'bg-indigo-600' : 'bg-slate-200'}`}>
+                                              <span className={`absolute top-0.5 left-0.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${isOn ? 'translate-x-5' : 'translate-x-0'}`} />
                                             </div>
                                           </button>
                                         );
@@ -8157,7 +8178,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                         })()}
 
                         {/* Actions & Clear filters wrapper */}
-                        <div className="ml-auto flex items-center gap-2">
+                        <div className="w-full sm:w-auto sm:ml-auto flex items-center justify-between sm:justify-end gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                           {/* Clear filter */}
                           {(drillFilterStore.length > 0 || selectedDrillGroups.length > 0 || drillFilterNhomSmall.length > 0 || drillFilterBrand.length > 0 || drillFilterStaff.length > 0 || drillFilterProduct.length > 0 || drillFilterTrangThaiSP.length > 0) && (
                             <button
@@ -8171,42 +8192,42 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 setDrillFilterTrangThaiSP([]);
                                 setActiveDrillFilter(null);
                               }}
-                              className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-700 whitespace-nowrap cursor-pointer mr-2"
+                              className="flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-rose-500 hover:text-rose-700 whitespace-nowrap cursor-pointer mr-1 sm:mr-2"
                             >
                               <RotateCcw size={11} /> Xóa bộ lọc
                             </button>
                           )}
 
                           {/* Divider */}
-                          <div className="w-px h-6 bg-slate-200 mx-1 flex-shrink-0" />
+                          <div className="hidden sm:block w-px h-6 bg-slate-200 mx-1 shrink-0" />
 
                           {/* Tree controls (Expand, Collapse, Fullscreen) */}
-                          <div className="flex items-center gap-1.5 no-capture">
+                          <div className="flex items-center gap-1 sm:gap-1.5 no-capture">
                             <button
                               onClick={handleExpandAll}
-                              className="w-8 h-8 rounded-lg bg-[#e6f4ea] text-[#137333] hover:bg-[#d2ebd9] flex items-center justify-center transition-all cursor-pointer shadow-sm relative"
+                              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#e6f4ea] text-[#137333] hover:bg-[#d2ebd9] flex items-center justify-center transition-all cursor-pointer shadow-sm relative"
                               title="Mở rộng 1 cấp"
                             >
-                              <ChevronsUpDown size={14} />
+                              <ChevronsUpDown size={13} className="sm:w-[14px] sm:h-[14px]" />
                               {drillExpandDepth > 0 && (
-                                <span className="absolute -top-1 -right-1 bg-[#137333] text-white text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center border border-white font-bold">
+                                <span className="absolute -top-1 -right-1 bg-[#137333] text-white text-[8px] sm:text-[9px] w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full flex items-center justify-center border border-white font-bold">
                                   {drillExpandDepth}
                                 </span>
                               )}
                             </button>
                             <button
                               onClick={handleCollapseAll}
-                              className="w-8 h-8 rounded-lg bg-[#fef7e0] text-[#b06000] hover:bg-[#fde0a3] flex items-center justify-center transition-all cursor-pointer shadow-sm"
+                              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#fef7e0] text-[#b06000] hover:bg-[#fde0a3] flex items-center justify-center transition-all cursor-pointer shadow-sm"
                               title="Thu gọn 1 cấp"
                             >
-                              <ChevronsDownUp size={14} />
+                              <ChevronsDownUp size={13} className="sm:w-[14px] sm:h-[14px]" />
                             </button>
                             <button
                               onClick={() => setIsDrillFullscreen(!isDrillFullscreen)}
-                              className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 flex items-center justify-center transition-all cursor-pointer shadow-sm"
+                              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 flex items-center justify-center transition-all cursor-pointer shadow-sm"
                               title={isDrillFullscreen ? "Thu nhỏ" : "Toàn màn hình"}
                             >
-                              {isDrillFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                              {isDrillFullscreen ? <Minimize2 size={13} className="sm:w-[14px] sm:h-[14px]" /> : <Maximize2 size={13} className="sm:w-[14px] sm:h-[14px]" />}
                             </button>
                           </div>
                         </div>
@@ -8516,21 +8537,21 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                   {/* PHÂN TÍCH KHAI THÁC - Menu Hiển thị & Bảng dữ liệu */}
                   <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6" id="phan-tich-khai-thac-card-container">
                     {/* Header */}
-                    <div className="px-6 pt-5 pb-4 border-b border-slate-100">
-                      <div className="flex items-center justify-between mb-4">
+                    <div className="px-4 sm:px-6 pt-5 pb-4 border-b border-slate-100">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0 font-bold border border-red-100">
                             <BarChart3 size={20} />
                           </div>
                           <div>
-                            <h3 className="text-[18px] font-black text-red-600 tracking-tight uppercase">PHÂN TÍCH KHAI THÁC</h3>
-                            <p className="text-[11px] text-slate-400 mt-0.5">Chi tiết sản phẩm & hiệu quả bán kèm THEO USER BÁN HÀNG</p>
+                            <h3 className="text-[16px] sm:text-[18px] font-black text-red-600 tracking-tight uppercase">PHÂN TÍCH KHAI THÁC</h3>
+                            <p className="text-[10.5px] sm:text-[11px] text-slate-400 mt-0.5">Chi tiết sản phẩm & hiệu quả bán kèm THEO USER BÁN HÀNG</p>
                           </div>
                         </div>
                         {/* Nút chụp ảnh */}
                         <button
                           onClick={() => handleCaptureTable('phan-tich-khai-thac-card-container', 'phan_tich_khai_thac')}
-                          className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-[11px] font-bold flex items-center gap-1.5 shadow-sm no-capture"
+                          className="w-full sm:w-auto justify-center px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all text-[11px] font-bold flex items-center gap-1.5 shadow-sm no-capture"
                           title="Chụp ảnh bảng này"
                         >
                           <Camera size={13} className="text-slate-500 hover:text-indigo-600" />
@@ -8539,9 +8560,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                       </div>
 
                       {/* Filter bar - menu hiển thị */}
-                      <div className="flex flex-col gap-3 bg-slate-50 rounded-xl px-5 py-4 no-capture">
-                        <div className="flex flex-nowrap overflow-x-auto no-scrollbar items-center gap-2.5 pb-1">
-                          <span className="text-[12px] font-black text-slate-500 uppercase tracking-wider whitespace-nowrap mr-1 flex items-center gap-1.5">
+                      <div className="flex flex-col gap-3 bg-slate-50 rounded-xl p-3 sm:px-5 sm:py-4 no-capture">
+                        <div className="flex flex-wrap sm:flex-nowrap sm:overflow-x-auto no-scrollbar items-center gap-1.5 sm:gap-2.5 pb-1">
+                          <span className="text-[11px] sm:text-[12px] font-black text-slate-500 uppercase tracking-wider whitespace-nowrap mr-1 flex items-center gap-1.5 w-full sm:w-auto mb-1 sm:mb-0">
                             <Filter size={13} />
                             HIỂN THỊ:
                           </span>
@@ -8561,21 +8582,21 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               <button
                                 key={btn.key}
                                 onClick={() => handleToggleKhaiThacCol(btn.key, !isActive)}
-                                className={`px-4 py-2 rounded-xl text-[12px] font-black transition-all border whitespace-nowrap flex items-center gap-1.5 ${isActive
+                                className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[10.5px] sm:text-[12px] font-black transition-all border whitespace-nowrap flex items-center gap-1.5 ${isActive
                                   ? `${btn.activeBg} ${btn.activeText} ${btn.activeBorder} shadow-sm`
                                   : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
                                   }`}
                               >
-                                <span className="text-[14px]">{btn.icon}</span>
+                                <span className="text-[12px] sm:text-[14px]">{btn.icon}</span>
                                 {btn.label}
                               </button>
                             );
                           })}
                         </div>
-                        <div className="flex flex-col gap-2.5 pl-[90px]">
+                        <div className="flex flex-col gap-2.5 pl-0 sm:pl-[90px]">
                           {showKhaiThacCols.doanhThu && (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[10px] font-black text-[#1d4ed8] w-20 flex items-center gap-1">💰 DOANH THU:</span>
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                              <span className="text-[10px] font-black text-[#1d4ed8] w-auto sm:w-20 shrink-0 flex items-center gap-1">💰 DOANH THU:</span>
                               {[
                                 { key: 'target', label: 'TARGET' },
                                 { key: 'pctHt', label: '%HT' }
@@ -8585,7 +8606,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   <button
                                     key={btn.key}
                                     onClick={() => handleToggleKhaiThacCol(btn.key, !isActive)}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
+                                    className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
                                       ? 'bg-blue-50 text-[#1d4ed8] border-blue-200 shadow-sm'
                                       : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
                                       }`}
@@ -8597,8 +8618,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             </div>
                           )}
                           {showKhaiThacCols.spChinh && (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[10px] font-black text-[#047857] w-20 flex items-center gap-1">📱 SP CHÍNH:</span>
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                              <span className="text-[10px] font-black text-[#047857] w-auto sm:w-20 shrink-0 flex items-center gap-1">📱 SP CHÍNH:</span>
                               {[
                                 { key: 'spcSmf', label: 'SMF' },
                                 { key: 'spcLap', label: 'LAP' },
@@ -8613,7 +8634,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   <button
                                     key={btn.key}
                                     onClick={() => handleToggleKhaiThacCol(btn.key, !isActive)}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
+                                    className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
                                       ? 'bg-emerald-50 text-[#047857] border-emerald-200 shadow-sm'
                                       : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
                                       }`}
@@ -8625,8 +8646,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             </div>
                           )}
                           {showKhaiThacCols.smartphone && (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[10px] font-black text-yellow-700 w-20 flex items-center gap-1">📲 SMARTPHONE:</span>
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                              <span className="text-[10px] font-black text-yellow-700 w-auto sm:w-20 shrink-0 flex items-center gap-1">📲 SMARTPHONE:</span>
                               {[
                                 { key: 'smfIphone', label: 'IPHONE' },
                                 { key: 'smfSamsung', label: 'SAMSUNG' },
@@ -8642,7 +8663,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   <button
                                     key={btn.key}
                                     onClick={() => handleToggleKhaiThacCol(btn.key, !isActive)}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
+                                    className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
                                       ? 'bg-yellow-50 text-yellow-700 border-yellow-200 shadow-sm'
                                       : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
                                       }`}
@@ -8654,8 +8675,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             </div>
                           )}
                           {showKhaiThacCols.baoHiem && (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[10px] font-black text-[#be123c] w-20 flex items-center gap-1">🛡️ VAS:</span>
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                              <span className="text-[10px] font-black text-[#be123c] w-auto sm:w-20 shrink-0 flex items-center gap-1">🛡️ VAS:</span>
                               {[
                                 { key: 'vasBh', label: 'SL B.HIỂM' },
                                 { key: 'vasVieon', label: 'SL VIEON' },
@@ -8667,7 +8688,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   <button
                                     key={btn.key}
                                     onClick={() => handleToggleKhaiThacCol(btn.key, !isActive)}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
+                                    className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
                                       ? 'bg-rose-50 text-[#be123c] border-rose-200 shadow-sm'
                                       : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
                                       }`}
@@ -8679,8 +8700,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             </div>
                           )}
                           {showKhaiThacCols.phuKien && (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[10px] font-black text-[#be123c] w-20 flex items-center gap-1">🎧 PHỤ KIỆN:</span>
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                              <span className="text-[10px] font-black text-[#be123c] w-auto sm:w-20 shrink-0 flex items-center gap-1">🎧 PHỤ KIỆN:</span>
                               {[
                                 { key: 'pkCam', label: 'SL CÁP/SẠC' },
                                 { key: 'pkLoa', label: 'SL LOA' },
@@ -8693,7 +8714,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   <button
                                     key={btn.key}
                                     onClick={() => handleToggleKhaiThacCol(btn.key, !isActive)}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
+                                    className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
                                       ? 'bg-rose-50 text-[#be123c] border-rose-200 shadow-sm'
                                       : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
                                       }`}
@@ -8705,8 +8726,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             </div>
                           )}
                           {showKhaiThacCols.giaDung && (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[10px] font-black text-[#0e7490] w-20 flex items-center gap-1">🏠 GIA DỤNG:</span>
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                              <span className="text-[10px] font-black text-[#0e7490] w-auto sm:w-20 shrink-0 flex items-center gap-1">🏠 GIA DỤNG:</span>
                               {[
                                 { key: 'gdMln', label: 'SL MLN' },
                                 { key: 'gdNcom', label: 'SL NCƠM' },
@@ -8721,7 +8742,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   <button
                                     key={btn.key}
                                     onClick={() => handleToggleKhaiThacCol(btn.key, !isActive)}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
+                                    className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
                                       ? 'bg-cyan-50 text-[#0e7490] border-cyan-200 shadow-sm'
                                       : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
                                       }`}
@@ -9311,13 +9332,13 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                   {/* HIỆU QUẢ BÁN KÈM THEO NHÂN VIÊN */}
                   {!isMoiTab && (
                     <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6 mb-12" id="hieu-qua-ban-kem-card-container">
-                    <div className="bg-[#93c5fd] px-6 py-4 flex items-center justify-between border-b border-[#60a5fa] relative">
-                      <div className="flex items-center gap-3 mx-auto">
-                        <h3 className="text-2xl font-black text-[#1e3a8a] uppercase tracking-widest text-center" style={{ textShadow: '1px 1px 0px rgba(255,255,255,0.5)' }}>
+                    <div className="bg-[#93c5fd] p-4 sm:px-6 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#60a5fa] relative">
+                      <div className="flex items-center gap-3 sm:mx-auto">
+                        <h3 className="text-base sm:text-2xl font-black text-[#1e3a8a] uppercase tracking-widest text-left sm:text-center" style={{ textShadow: '1px 1px 0px rgba(255,255,255,0.5)' }}>
                           HIỆU QUẢ BÁN KÈM THEO NHÂN VIÊN
                         </h3>
                       </div>
-                      <div className="flex items-center gap-2 absolute right-6 top-1/2 -translate-y-1/2">
+                      <div className="flex items-center gap-2 w-full sm:w-auto justify-end sm:absolute sm:right-6 sm:top-1/2 sm:-translate-y-1/2">
                         <button
                           onClick={() => {
                             const allExpanded = crossSellingStats.length > 0 && crossSellingStats.every(s => expandedCrossSellingStaff[s.staffName]);
@@ -9471,15 +9492,15 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
                   {/* Raw Data Table: 3. THÊM YCX RT */}
                   <div className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-md mt-8 mb-12">
-                    <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+                    <div className="bg-white border-b border-slate-200 p-4 sm:px-6 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <ShoppingBag size={18} className="text-slate-700 flex-shrink-0" />
                         <div>
-                          <h3 className="text-[15px] font-black text-slate-900 uppercase tracking-widest">3. DỮ LIỆU NGUỒN</h3>
+                          <h3 className="text-[14px] sm:text-[15px] font-black text-slate-900 uppercase tracking-widest">3. DỮ LIỆU NGUỒN</h3>
                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{isMoiTab ? 'Hiển thị tất cả dữ liệu (không lọc)' : 'Lọc: Đã xuất, Chưa xuất & Chưa trả'}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                         <button
                           onClick={() => handleCaptureTable('ycx-raw-data-container', 'data_ycx_rt')}
                           className="px-3 py-1.5 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-colors flex items-center gap-1.5 no-capture"

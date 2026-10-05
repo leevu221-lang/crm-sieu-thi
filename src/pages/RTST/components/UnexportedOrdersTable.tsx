@@ -198,32 +198,32 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
           display: table-footer-group !important;
         }
       `}</style>
-      <div className="bg-rose-100 px-6 py-4 flex items-center justify-between border-b border-rose-200 relative">
-        <div className="flex items-center gap-3 pr-[360px]">
-          <h3 className="text-2xl font-black text-rose-700 uppercase tracking-widest text-left" style={{ textShadow: '1px 1px 0px rgba(255,255,255,0.5)' }}>
+      <div className="bg-rose-100 px-3.5 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-rose-200 relative">
+        <div className="flex items-center gap-2.5 sm:gap-3 pr-0 sm:pr-[360px]">
+          <h3 className="text-lg sm:text-2xl font-black text-rose-700 uppercase tracking-wide sm:tracking-widest text-left" style={{ textShadow: '1px 1px 0px rgba(255,255,255,0.5)' }}>
             {dynamicTitle}
           </h3>
         </div>
-        <div className="flex items-center gap-2 absolute right-6">
+        <div className="flex items-center gap-1.5 sm:gap-2 sm:absolute sm:right-6 flex-wrap no-capture">
           <button
             onClick={handleCopyTags}
-            className="px-3 py-1.5 rounded-lg border border-indigo-400 text-[10px] font-bold text-indigo-700 hover:bg-indigo-500 hover:text-white hover:border-indigo-500 transition-colors flex items-center gap-1.5 bg-white no-capture shadow-sm cursor-pointer"
+            className="px-2.5 sm:px-3 py-1.5 rounded-lg border border-indigo-400 text-[9.5px] sm:text-[10px] font-bold text-indigo-700 hover:bg-indigo-500 hover:text-white hover:border-indigo-500 transition-colors flex items-center gap-1 sm:gap-1.5 bg-white shadow-sm cursor-pointer"
           >
-            <AtSign size={14} />
+            <AtSign size={13} className="sm:w-[14px] sm:h-[14px]" />
             <span>{copied ? 'Đã sao chép!' : 'Tag tên NV'}</span>
           </button>
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 text-[10px] font-bold text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1.5 bg-white no-capture shadow-sm cursor-pointer"
+            className="px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-300 text-[9.5px] sm:text-[10px] font-bold text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1 sm:gap-1.5 bg-white shadow-sm cursor-pointer"
           >
             {isExpanded ? (
               <>
-                <ChevronUp size={14} />
+                <ChevronUp size={13} className="sm:w-[14px] sm:h-[14px]" />
                 <span>Thu gọn</span>
               </>
             ) : (
               <>
-                <ChevronDown size={14} />
+                <ChevronDown size={13} className="sm:w-[14px] sm:h-[14px]" />
                 <span>Xem chi tiết</span>
               </>
             )}
@@ -231,16 +231,16 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
           {onCapture && (
             <button
               onClick={onCapture}
-              className="px-3 py-1.5 rounded-lg border border-rose-400 text-[10px] font-bold text-rose-700 hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-colors flex items-center gap-1.5 bg-white no-capture shadow-sm cursor-pointer"
+              className="px-2.5 sm:px-3 py-1.5 rounded-lg border border-rose-400 text-[9.5px] sm:text-[10px] font-bold text-rose-700 hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-colors flex items-center gap-1 sm:gap-1.5 bg-white shadow-sm cursor-pointer"
             >
-              <Camera size={14} />
+              <Camera size={13} className="sm:w-[14px] sm:h-[14px]" />
               <span>Chụp ảnh</span>
             </button>
           )}
         </div>
       </div>
       
-      <div className="overflow-x-auto p-6 bg-white">
+      <div className="overflow-x-auto p-2.5 sm:p-6 bg-white">
         <table className="w-full border-separate border-spacing-0 border-t border-l border-slate-300">
           <thead>
             <tr className="bg-slate-50 text-slate-800 text-[12px] font-black uppercase">
