@@ -6284,7 +6284,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
         <div className="w-full space-y-3">
           {/* Top Horizontal Subtab Navigation Bar — Mobile only (sidebar has these on desktop) */}
-          <div className="md:hidden bg-white/90 backdrop-blur-xl p-2 rounded-2xl md:rounded-3xl border border-slate-200/80 shadow-sm flex items-center justify-start gap-2 overflow-x-auto no-scrollbar">
+          <div className="md:hidden w-full bg-white/95 backdrop-blur-xl p-1 sm:p-1.5 rounded-2xl border border-slate-200/80 shadow-xs flex items-stretch justify-between gap-1">
             {[
               { id: 'summary', label: 'TỔNG QUAN', icon: LayoutGrid, grad: 'from-indigo-600 to-purple-600', activeBg: 'bg-indigo-50 text-indigo-600' },
               { id: 'muc_tieu_ngay', label: 'MỤC TIÊU NGÀY', icon: Target, grad: 'from-emerald-600 via-teal-600 to-emerald-700', activeBg: 'bg-emerald-50 text-emerald-600' },
@@ -6303,16 +6303,18 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                     setActiveTab(item.id as any);
                     if (item.id === 'khai_thac' || item.id === 'khai_thac_moi') setRawTablePage(0);
                   })}
-                  className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl md:rounded-2xl text-[11px] sm:text-[12.5px] font-black uppercase tracking-wider whitespace-nowrap transition-all duration-300 cursor-pointer shrink-0 active:scale-95 ${
+                  className={`flex-1 min-w-0 flex flex-col items-center justify-center py-1.5 px-0.5 sm:py-2 sm:px-1 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 text-center relative ${
                     isActive
-                      ? `bg-gradient-to-r ${item.grad} text-white shadow-md shadow-indigo-500/20 scale-[1.02]`
-                      : 'bg-slate-50 text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200/60'
+                      ? `bg-gradient-to-r ${item.grad} text-white shadow-sm shadow-indigo-500/20`
+                      : 'bg-slate-50/90 text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200/60'
                   }`}
                 >
-                  <Icon size={18} strokeWidth={isActive ? 2.5 : 2} className={isActive ? 'text-white' : 'text-slate-500'} />
-                  <span>{item.label}</span>
+                  <Icon size={15} strokeWidth={isActive ? 2.5 : 2} className={`mb-0.5 shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                  <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-tight text-center leading-[1.1] break-words line-clamp-2 w-full px-0.5">
+                    {item.label}
+                  </span>
                   {isActive && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                    <span className="w-1 h-1 rounded-full bg-white/90 animate-pulse mt-0.5 shrink-0" />
                   )}
                 </button>
               );
