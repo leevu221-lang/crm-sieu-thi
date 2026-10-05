@@ -488,30 +488,28 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
     if (filteredCategories && filteredCategories.length > 0) {
       return filteredCategories.map(cat => {
         const catType = cat.type || 'DT';
-        const mucTieuNgay = getMucTieuNgayFromTongQuan(cat.name, catType);
         return {
           key: `${cat.name.toUpperCase()}__${catType}`,
           name: cat.name.toUpperCase(),
           type: catType,
           realtimeRevenue: cat.revenue || cat.actual || 0,
-          defaultTarget: mucTieuNgay, // Cột "Mục tiêu" = cột "M.tiêu/ngày" ở bảng "Tổng Quan"
+          defaultTarget: 0, // Chỉ đồng bộ khi người dùng nhấn nút đồng bộ
           rate: cat.rate || 0,
         };
       });
     }
 
     return DEFAULT_DT_CATEGORIES.map(c => {
-      const mucTieuNgay = getMucTieuNgayFromTongQuan(c.name, c.type);
       return {
         key: `${c.name.toUpperCase()}__${c.type}`,
         name: c.name.toUpperCase(),
         type: c.type,
         realtimeRevenue: 0,
-        defaultTarget: mucTieuNgay,
+        defaultTarget: 0,
         rate: 0,
       };
     });
-  }, [filteredCategories, getMucTieuNgayFromTongQuan]);
+  }, [filteredCategories]);
 
   // Selected Count (Safe calculation)
   const selectedCount = useMemo(() => {
@@ -551,7 +549,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
     saveTargetsDebounced(overviewTargets, categoryTargets, newSelected);
   }, [selectedCategoryKeys, allAvailableCategoryList, overviewTargets, categoryTargets, saveTargetsDebounced]);
 
-  // Đồng bộ Mục tiêu từ cột "M.tiêu/ngày" bên Tab TỔNG QUAN (hoạt động song song với nhập thủ công)
+  // Đồng bộ Mục tiêu từ cột "M.tiêu/ngày" bên Tab TỔNG QUAN (CHỈ ĐỒNG BỘ CÁC NGÀNH HÀNG ĐANG HIỂN THỊ TRÊN BẢNG)
   const handleSyncFromLuyke = useCallback(() => {
     if (!luykeProcessedData && effectiveLuykeCatMap.size === 0) {
       showNotification('Chưa có dữ liệu BC THÁNG để đồng bộ!', 'warning');
@@ -589,11 +587,11 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
       setOverviewTargets(newOverview);
     }
 
-    // 2. Sync Table 2 Category Targets: Lấy chuẩn theo cột "M.tiêu/ngày" ở bảng TỔNG QUAN
-    const newCatTargets: Record<string, number> = { ...categoryTargets };
+    // 2. Sync Table 2 Category Targets: CHỈ đồng bộ những tên ngành hàng hiển thị trên bảng, KHÔNG đồng bộ all
+    const newCatTargets: Record<string, number> = {};
     let syncCount = 0;
 
-    allAvailableCategoryList.forEach(item => {
+    displayedCategoryList.forEach(item => {
       const mtNgay = getMucTieuNgayFromTongQuan(item.name, item.type);
       newCatTargets[item.name.toUpperCase()] = mtNgay;
       if (mtNgay > 0) syncCount++;
@@ -601,20 +599,30 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
 
     setCategoryTargets(newCatTargets);
     saveTargetsDebounced(newOverview, newCatTargets, selectedCategoryKeys);
-    showNotification(`✅ Đã đồng bộ Mục tiêu theo cột "M.tiêu/ngày" bảng Tổng Quan (${syncCount} ngành hàng)!`, 'success');
-  }, [luykeProcessedData, effectiveLuykeCatMap, effectiveMucTieu100Info, currentStoreName, overviewTargets, dailyTargetQD, categoryTargets, allAvailableCategoryList, getMucTieuNgayFromTongQuan, selectedCategoryKeys, saveTargetsDebounced, showNotification]);
+    showNotification(`✅ Đã đồng bộ Mục tiêu ${syncCount}/${displayedCategoryList.length} ngành hàng hiển thị!`, 'success');
+  }, [
+    luykeProcessedData,
+    effectiveLuykeCatMap,
+    effectiveMucTieu100Info,
+    currentStoreName,
+    overviewTargets,
+    dailyTargetQD,
+    displayedCategoryList,
+    getMucTieuNgayFromTongQuan,
+    selectedCategoryKeys,
+    saveTargetsDebounced,
+    showNotification
+  ]);
 
-  // Tự động đồng bộ 1 lần sang logic M.tiêu/ngày cho siêu thị hiện tại (nếu trước đó đang lưu giá trị Còn lại cả tháng cũ)
+  // Dọn dẹp bộ nhớ đệm nếu trước đó từng bị auto-sync V2 cũ (đảm bảo chỉ đồng bộ khi bấm nút)
   useEffect(() => {
-    if (effectiveLuykeCatMap.size > 0 && allAvailableCategoryList.length > 0) {
-      const syncKey = `DAILY_TARGETS_SYNCED_V2_${storeNormalizedKey}`;
-      const isSyncedV2 = localStorage.getItem(syncKey);
-      if (!isSyncedV2) {
-        handleSyncFromLuyke();
-        localStorage.setItem(syncKey, 'true');
-      }
+    const legacyV2Key = `DAILY_TARGETS_SYNCED_V2_${storeNormalizedKey}`;
+    if (localStorage.getItem(legacyV2Key)) {
+      localStorage.removeItem(legacyV2Key);
+      localStorage.removeItem(`DAILY_CAT_TARGETS_${storeNormalizedKey}`);
+      setCategoryTargets({});
     }
-  }, [effectiveLuykeCatMap, allAvailableCategoryList, storeNormalizedKey, handleSyncFromLuyke]);
+  }, [storeNormalizedKey]);
 
   // Date and Time string
   const now = lastUpdated || new Date();
