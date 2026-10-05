@@ -318,6 +318,38 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
   // State: Sort C.LẠI column
   const [sortConLai, setSortConLai] = useState<'none' | 'desc' | 'asc'>('none');
 
+  // Dynamic scale calculation for Mobile Auto-Zoom
+  const [isMobileScreen, setIsMobileScreen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  });
+  const [isAutoZoom, setIsAutoZoom] = useState<boolean>(true);
+  const [zoomScale, setZoomScale] = useState<number>(1);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleCheckMobile = () => {
+      const screenW = window.innerWidth;
+      const isMobile = screenW < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setIsMobileScreen(isMobile);
+      if (isMobile) {
+        // Target canvas width is 700px (clean fit for mobile screen auto-zoom)
+        const availableW = Math.min(screenW - 16, 700);
+        const scale = Math.max(0.42, Math.min(1, availableW / 700));
+        setZoomScale(scale);
+      } else {
+        setZoomScale(1);
+      }
+    };
+    handleCheckMobile();
+    window.addEventListener('resize', handleCheckMobile);
+    window.addEventListener('orientationchange', handleCheckMobile);
+    return () => {
+      window.removeEventListener('resize', handleCheckMobile);
+      window.removeEventListener('orientationchange', handleCheckMobile);
+    };
+  }, []);
+
   // Refs to avoid unnecessary updates and flickering
   const isEditingRef = useRef(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -776,8 +808,8 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
       </div>
 
       {/* ── Instruction Hint Banner (Hidden on export) ── */}
-      <div className={`${theme.hintBg} rounded-2xl p-3 px-4 flex items-center justify-between gap-2.5 text-[12px] sm:text-[13px] font-bold shadow-2xs no-capture`}>
-        <div className="flex items-center gap-2.5">
+      <div className={`${theme.hintBg} rounded-2xl p-2.5 sm:p-3 px-3 sm:px-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-[11px] sm:text-[13px] font-bold shadow-2xs no-capture`}>
+        <div className="flex items-center gap-2">
           <span className="text-base shrink-0">💡</span>
           <div className="leading-snug">
             <strong className={`${theme.hintStrong} font-black uppercase`}>Hướng dẫn:</strong> Bấm nút <strong className={`uppercase font-black px-1.5 py-0.5 rounded ${theme.hintBadge}`}>"ĐỒNG BỘ MỤC TIÊU NGÀY"</strong> để tự động điền mục tiêu từ cột <strong>M.TIÊU/NGÀY</strong> bên <strong>TỔNG QUAN</strong>, hoặc nhập tay trực tiếp theo nhu cầu. Hệ thống tự động lưu riêng theo từng siêu thị.
@@ -785,7 +817,7 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
         </div>
         <button
           onClick={() => setShowInlineComment(prev => !prev)}
-          className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider border transition-all cursor-pointer shrink-0 ${
+          className={`w-full sm:w-auto px-3 py-1.5 rounded-xl text-[10.5px] sm:text-xs font-black uppercase tracking-wider border transition-all cursor-pointer shrink-0 text-center ${
             showInlineComment ? theme.commentToggleActive : theme.commentToggleInactive
           }`}
         >
@@ -793,372 +825,427 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
         </button>
       </div>
 
-      {/* ── Main Report Export Container ── */}
-      <div 
-        ref={captureRef}
-        className={`bg-white rounded-3xl border ${theme.cardBorder} p-2.5 sm:p-5 shadow-sm space-y-3.5 w-full max-w-[760px] mx-auto box-border`}
-        style={{ fontFamily: "'UTM Avo', sans-serif", width: '100%', maxWidth: '760px' }}
-      >
-        {/* Top Header Card */}
-        <div className={`rounded-2xl border ${theme.topCardBorder} overflow-hidden text-center divide-y ${theme.topCardDivide} ${theme.topCardBg} w-full`} style={{ width: '100%' }}>
-          {/* Row 1: TÊN CỤM BASE */}
-          <div className={`flex items-center divide-x ${theme.topCardDivide} ${theme.row1Bg}`}>
-            <div className={`w-[115px] sm:w-[190px] shrink-0 p-1.5 sm:p-3 text-[10px] sm:text-[13.5px] font-black uppercase ${theme.row1Label} flex items-center justify-start px-2.5 sm:px-4`}>
-              TÊN CỤM BASE :
-            </div>
-            <div className={`flex-1 p-1.5 sm:p-3 text-[10.5px] sm:text-[14px] font-black uppercase ${theme.row1Val} flex items-center justify-start px-2.5 sm:px-4 truncate`}>
-              {currentStoreName}
-            </div>
-          </div>
-
-          {/* Row 2: BÁO CÁO DOANH THU REALTIME Banner */}
-          <div className={`p-2.5 sm:p-4 ${theme.bannerBg} text-white flex flex-col items-center justify-center shadow-inner`}>
-            <h1 className={`text-[16px] sm:text-[23px] md:text-[25px] font-black ${theme.bannerTitle} uppercase tracking-wider drop-shadow-sm leading-tight text-center`}>
-              BÁO CÁO DOANH THU REALTIME
-            </h1>
-            <span className={`text-[8.5px] sm:text-[11px] font-extrabold uppercase tracking-widest ${theme.bannerSub} mt-0.5 text-center`}>
-              THEO DÕI TIẾN ĐỘ VÀ MỤC TIÊU NGÀY
-            </span>
-          </div>
-
-          {/* Row 3: REALTIME ĐẾN */}
-          <div className={`flex items-center divide-x ${theme.topCardDivide} ${theme.row3Bg}`}>
-            <div className={`w-[115px] sm:w-[190px] shrink-0 p-1.5 sm:p-2.5 text-[9.5px] sm:text-[12.5px] font-black uppercase ${theme.row3Label} flex items-center justify-start px-2.5 sm:px-4`}>
-              REALTIME ĐẾN :
-            </div>
-            <div className={`flex-1 p-1.5 sm:p-2.5 text-[10px] sm:text-[13px] font-black uppercase ${theme.row3Val} flex items-center justify-start px-2.5 sm:px-4 tracking-wide`}>
-              {timeStr} {dateStr}
-            </div>
-          </div>
+      {/* ── Mobile Auto-Zoom Mode Toolbar (Chỉ hiện trên mobile) ── */}
+      <div className="sm:hidden flex items-center justify-between bg-white/95 backdrop-blur-md p-2 px-3 rounded-2xl border border-slate-200 shadow-xs text-xs font-black no-capture">
+        <div className="flex items-center gap-1.5 text-slate-700">
+          <span className="text-sm">📱</span>
+          <span className="text-[11px] uppercase tracking-wide">Xem Mobile:</span>
         </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setIsAutoZoom(true)}
+            className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+              isAutoZoom 
+                ? 'bg-emerald-600 text-white shadow-xs' 
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            🔍 Vừa Màn Hình ({Math.round(zoomScale * 100)}%)
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAutoZoom(false)}
+            className={`px-2 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+              !isAutoZoom 
+                ? 'bg-indigo-600 text-white shadow-xs' 
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            100% (Cuộn Ngang)
+          </button>
+        </div>
+      </div>
 
-        {/* ── Table 1: TIÊU CHÍ TỔNG QUAN ── */}
-        <div className={`overflow-x-auto w-full rounded-xl sm:rounded-2xl border ${theme.tableCardBorder} shadow-xs bg-white`}>
-          <table className="w-full border-collapse table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
-            <colgroup>
-              <col className="w-[24px] sm:w-[32px] md:w-[40px]" />
-              <col className="w-auto" />
-              <col className="w-[46px] sm:w-[60px] md:w-[72px]" />
-              <col className="w-[44px] sm:w-[58px] md:w-[70px]" />
-              <col className="w-[48px] sm:w-[62px] md:w-[76px]" />
-              <col className="w-[40px] sm:w-[54px] md:w-[68px]" />
-            </colgroup>
-            <thead>
-              <tr className="text-white h-[28px] sm:h-[38px] md:h-[42px]">
-                <th className={`px-0.5 py-0 text-[8px] sm:text-[11px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${theme.thDark} whitespace-nowrap overflow-hidden`}>STT</th>
-                <th className={`px-1 sm:px-2 py-0 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] font-black uppercase text-left border-r border-b ${theme.thLight} whitespace-nowrap overflow-hidden`}>TIÊU CHÍ</th>
-                <th className={`px-0.5 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${theme.thDark} tracking-tight whitespace-nowrap overflow-hidden`}>
-                  <div className="flex items-center justify-center gap-0.5 sm:gap-1">
-                    <span>MỤC TIÊU</span>
-                    <button
-                      type="button"
-                      onClick={handleSyncFromLuyke}
-                      className="no-capture p-0.5 hover:bg-white/20 rounded text-[#FEF08A] hover:text-white transition-colors cursor-pointer"
-                      title="Bấm để đồng bộ Mục tiêu từ cột M.tiêu/ngày của Tab Tổng quan"
-                    >
-                      <RefreshCw size={9} className="sm:w-[11px] sm:h-[11px]" />
-                    </button>
-                  </div>
-                </th>
-                <th className={`px-0.5 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${theme.thLight} tracking-tight whitespace-nowrap overflow-hidden`}>THỰC HIỆN</th>
-                <th className={`px-0.5 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${theme.thDark} tracking-tight whitespace-nowrap overflow-hidden`}>HOÀN THÀNH</th>
-                <th className={`px-0.5 py-0 text-[7px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-b ${theme.thLight} tracking-tight whitespace-nowrap overflow-hidden`}>C.LẠI</th>
-              </tr>
-            </thead>
-            <tbody className="font-black">
-              {/* 1. Doanh Thu Thực */}
-              <tr className={`bg-white ${theme.rowHover} transition-colors h-[28px] sm:h-[36px] md:h-[40px]`}>
-                <td className={`px-0.5 py-0.5 font-black text-slate-700 text-center border ${theme.cellBorder} ${theme.sttCellBg} text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>
-                  1
-                </td>
-                <td className={`px-1.5 sm:px-3 py-0.5 font-black text-slate-900 border ${theme.cellBorder} uppercase tracking-tight text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>Doanh Thu Thực</td>
-                <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} text-slate-800 ${theme.inputCellBgLight}`}>
-                  <input
-                    type="number"
-                    value={overviewTargets.dtThuc > 0 ? overviewTargets.dtThuc : ''}
-                    placeholder="0"
-                    onChange={(e) => handleOverviewTargetChange('dtThuc', Number(e.target.value))}
-                    className={`w-full text-center bg-transparent font-black focus:outline-none ${theme.inputFocusBg} rounded py-0.5 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
-                    title="Nhập mục tiêu Doanh Thu Thực"
-                  />
-                </td>
-                <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} ${theme.actualValText} text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>
-                  {Math.round(dtlk).toLocaleString()}
-                </td>
-                <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} whitespace-nowrap overflow-hidden`}>
-                  {overviewTargets.dtThuc > 0 ? (
-                    <span className={`inline-flex items-center justify-center px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded font-black text-[7.5px] sm:text-[10.5px] md:text-[13px] leading-tight ${
-                      dtThucRate >= 100 ? theme.rateSuccessBadge : 'bg-rose-100 text-rose-600'
-                    }`}>
-                      {dtThucRate.toFixed(1)}%
-                    </span>
-                  ) : (
-                    <span className="text-slate-400 font-bold text-[8.5px] sm:text-[11px]">-</span>
-                  )}
-                </td>
-                <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} font-black text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>
-                  {overviewTargets.dtThuc > 0 ? (
-                    <span className={dtThucRemaining > 0 ? 'text-rose-600' : theme.remainingGoodText}>
-                      {dtThucRemaining > 0 ? Math.round(dtThucRemaining).toLocaleString() : '0'}
-                    </span>
-                  ) : (
-                    <span className="text-slate-400 font-bold text-[8.5px] sm:text-[11px]">-</span>
-                  )}
-                </td>
-              </tr>
+      {/* ── Main Report Export Container with Auto-Zoom on Mobile ── */}
+      <div ref={wrapperRef} className="w-full flex justify-center overflow-x-auto pb-2">
+        <div 
+          ref={captureRef}
+          className={`bg-white rounded-3xl border ${theme.cardBorder} p-3 sm:p-5 shadow-sm space-y-3.5 box-border mx-auto shrink-0 transition-transform duration-200`}
+          style={{ 
+            fontFamily: "'UTM Avo', sans-serif", 
+            width: (isMobileScreen && isAutoZoom) ? '700px' : '100%',
+            minWidth: (isMobileScreen && isAutoZoom) ? '700px' : 'auto',
+            maxWidth: '750px',
+            zoom: (isMobileScreen && isAutoZoom) ? zoomScale : 1,
+          }}
+        >
+          {/* Top Header Card */}
+          <div className={`rounded-2xl border ${theme.topCardBorder} overflow-hidden text-center divide-y ${theme.topCardDivide} ${theme.topCardBg} w-full`} style={{ width: '100%' }}>
+            {/* Row 1: TÊN CỤM BASE */}
+            <div className={`flex items-center divide-x ${theme.topCardDivide} ${theme.row1Bg}`}>
+              <div className={`w-[170px] sm:w-[210px] shrink-0 p-2 sm:p-3 text-[12px] sm:text-[14px] font-black uppercase ${theme.row1Label} flex items-center justify-start px-3 sm:px-4`}>
+                TÊN CỤM BASE :
+              </div>
+              <div className={`flex-1 p-2 sm:p-3 text-[12.5px] sm:text-[14.5px] font-black uppercase ${theme.row1Val} flex items-center justify-start px-3 sm:px-4 truncate`}>
+                {currentStoreName}
+              </div>
+            </div>
 
-              {/* 2. Doanh Thu Quy Đổi */}
-              <tr className={`${theme.rowOddBg} ${theme.rowHover} transition-colors h-[28px] sm:h-[36px] md:h-[40px]`}>
-                <td className={`px-0.5 py-0.5 font-black text-slate-700 text-center border ${theme.cellBorder} ${theme.sttCellBg} text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>
-                  2
-                </td>
-                <td className={`px-1.5 sm:px-3 py-0.5 font-black text-slate-900 border ${theme.cellBorder} uppercase tracking-tight text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>Doanh Thu Quy Đổi</td>
-                <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} text-slate-800 ${theme.inputCellBgDark}`}>
-                  <input
-                    type="number"
-                    value={overviewTargets.dtQd > 0 ? overviewTargets.dtQd : ''}
-                    placeholder="0"
-                    onChange={(e) => handleOverviewTargetChange('dtQd', Number(e.target.value))}
-                    className={`w-full text-center bg-transparent font-black focus:outline-none ${theme.inputFocusBg} rounded py-0.5 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
-                    title="Nhập mục tiêu Doanh Thu Quy Đổi"
-                  />
-                </td>
-                <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} ${theme.actualValText} text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>
-                  {Math.round(dtqd).toLocaleString()}
-                </td>
-                <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} whitespace-nowrap overflow-hidden`}>
-                  {overviewTargets.dtQd > 0 ? (
-                    <span className={`inline-flex items-center justify-center px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded font-black text-[7.5px] sm:text-[10.5px] md:text-[13px] leading-tight ${
-                      dtQdRate >= 100 ? theme.rateSuccessBadge : 'bg-rose-100 text-rose-600'
-                    }`}>
-                      {dtQdRate.toFixed(1)}%
-                    </span>
-                  ) : (
-                    <span className="text-slate-400 font-bold text-[8.5px] sm:text-[11px]">-</span>
-                  )}
-                </td>
-                <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} font-black text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>
-                  {overviewTargets.dtQd > 0 ? (
-                    <span className={dtQdRemaining > 0 ? 'text-rose-600' : theme.remainingGoodText}>
-                      {dtQdRemaining > 0 ? Math.round(dtQdRemaining).toLocaleString() : '0'}
-                    </span>
-                  ) : (
-                    <span className="text-slate-400 font-bold text-[8.5px] sm:text-[11px]">-</span>
-                  )}
-                </td>
-              </tr>
+            {/* Row 2: BÁO CÁO DOANH THU REALTIME Banner */}
+            <div className={`p-3 sm:p-4 ${theme.bannerBg} text-white flex flex-col items-center justify-center shadow-inner`}>
+              <h1 className={`text-[20px] sm:text-[23px] md:text-[25px] font-black ${theme.bannerTitle} uppercase tracking-wider drop-shadow-sm leading-tight text-center`}>
+                BÁO CÁO DOANH THU REALTIME
+              </h1>
+              <span className={`text-[9.5px] sm:text-[11px] font-extrabold uppercase tracking-widest ${theme.bannerSub} mt-0.5 text-center`}>
+                THEO DÕI TIẾN ĐỘ VÀ MỤC TIÊU NGÀY
+              </span>
+            </div>
 
-              {/* 3. Hiệu Quả Quy Đổi */}
-              <tr className={`bg-white ${theme.rowHover} transition-colors h-[28px] sm:h-[36px] md:h-[40px]`}>
-                <td className={`px-0.5 py-0.5 font-black text-slate-700 text-center border ${theme.cellBorder} ${theme.sttCellBg} text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>
-                  3
-                </td>
-                <td className={`px-1.5 sm:px-3 py-0.5 font-black text-slate-900 border ${theme.cellBorder} uppercase tracking-tight text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>Hiệu Quả Quy Đổi</td>
-                <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} text-slate-800 ${theme.inputCellBgLight}`}>
-                  <div className="flex items-center justify-center gap-0.5">
+            {/* Row 3: REALTIME ĐẾN */}
+            <div className={`flex items-center divide-x ${theme.topCardDivide} ${theme.row3Bg}`}>
+              <div className={`w-[170px] sm:w-[210px] shrink-0 p-2 sm:p-2.5 text-[11.5px] sm:text-[12.5px] font-black uppercase ${theme.row3Label} flex items-center justify-start px-3 sm:px-4`}>
+                REALTIME ĐẾN :
+              </div>
+              <div className={`flex-1 p-2 sm:p-2.5 text-[12px] sm:text-[13px] font-black uppercase ${theme.row3Val} flex items-center justify-start px-3 sm:px-4 tracking-wide`}>
+                {timeStr} {dateStr}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Table 1: TIÊU CHÍ TỔNG QUAN ── */}
+          <div className={`overflow-hidden rounded-xl sm:rounded-2xl border ${theme.tableCardBorder} shadow-xs bg-white w-full`} style={{ width: '100%' }}>
+            <table className="w-full border-collapse table-fixed bg-white text-[12px] sm:text-[13.5px] no-mobile-zoom" style={{ fontFamily: "'UTM Avo', sans-serif", width: '100%', tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '40%' }} />
+                <col style={{ width: '13.5%' }} />
+                <col style={{ width: '13.5%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '13%' }} />
+              </colgroup>
+              <thead>
+                <tr className="text-white h-[32px] sm:h-[38px] md:h-[42px]">
+                  <th className={`px-1 py-1 text-[11px] sm:text-[13px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${theme.thDark} whitespace-nowrap`}>STT</th>
+                  <th className={`px-2 sm:px-3 py-1 text-[11px] sm:text-[13px] md:text-[13.5px] font-black uppercase text-left border-r border-b ${theme.thLight}`}>TIÊU CHÍ</th>
+                  <th className={`px-0.5 sm:px-1 py-1 text-[10.5px] sm:text-[12px] md:text-[13px] font-black uppercase text-center border-r border-b ${theme.thDark} tracking-tight`}>
+                    <div className="flex items-center justify-center gap-0.5 sm:gap-1">
+                      <span className="leading-tight">MỤC TIÊU</span>
+                      <button
+                        type="button"
+                        onClick={handleSyncFromLuyke}
+                        className="no-capture p-0.5 hover:bg-white/20 rounded text-[#FEF08A] hover:text-white transition-colors cursor-pointer shrink-0"
+                        title="Bấm để đồng bộ Mục tiêu từ cột M.tiêu/ngày của Tab Tổng quan"
+                      >
+                        <RefreshCw size={11} />
+                      </button>
+                    </div>
+                  </th>
+                  <th className={`px-0.5 sm:px-1 py-1 text-[10.5px] sm:text-[12px] md:text-[13px] font-black uppercase text-center border-r border-b ${theme.thLight} tracking-tight`}>
+                    <span className="leading-tight block">THỰC HIỆN</span>
+                  </th>
+                  <th className={`px-0.5 sm:px-1 py-1 text-[10.5px] sm:text-[12px] md:text-[13px] font-black uppercase text-center border-r border-b ${theme.thDark} tracking-tight`}>
+                    <span className="leading-tight block">HOÀN THÀNH</span>
+                  </th>
+                  <th className={`px-0.5 sm:px-1 py-1 text-[10.5px] sm:text-[12px] md:text-[13px] font-black uppercase text-center border-b ${theme.thLight} tracking-tight whitespace-nowrap`}>
+                    C.LẠI
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="font-black">
+                {/* 1. Doanh Thu Thực */}
+                <tr className={`bg-white ${theme.rowHover} transition-colors h-[32px] sm:h-[36px] md:h-[40px]`}>
+                  <td className={`px-1 py-1 font-black text-slate-700 text-center border ${theme.cellBorder} ${theme.sttCellBg} text-[11.5px] sm:text-[13.5px] whitespace-nowrap`}>
+                    1
+                  </td>
+                  <td className={`px-2 sm:px-3 py-1 font-black text-slate-900 border ${theme.cellBorder} uppercase tracking-tight text-[11.5px] sm:text-[13.5px]`}>
+                    Doanh Thu Thực
+                  </td>
+                  <td className={`px-1 py-1 text-center border ${theme.cellBorder} text-slate-800 ${theme.inputCellBgLight}`}>
                     <input
                       type="number"
-                      step="0.1"
-                      value={overviewTargets.effQd > 0 ? overviewTargets.effQd : ''}
+                      value={overviewTargets.dtThuc > 0 ? overviewTargets.dtThuc : ''}
                       placeholder="0"
-                      onChange={(e) => handleOverviewTargetChange('effQd', Number(e.target.value))}
-                      className={`w-7 sm:w-12 text-center bg-transparent font-black focus:outline-none ${theme.inputFocusBg} rounded py-0.5 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
-                      title="Nhập % Mục tiêu Hiệu Quả QĐ"
+                      onChange={(e) => handleOverviewTargetChange('dtThuc', Number(e.target.value))}
+                      className={`w-full text-center bg-transparent font-black focus:outline-none ${theme.inputFocusBg} rounded py-0.5 text-[11.5px] sm:text-[13.5px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                      title="Nhập mục tiêu Doanh Thu Thực"
                     />
-                    <span className="text-[7.5px] sm:text-[10.5px] font-black">%</span>
-                  </div>
-                </td>
-                <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} text-slate-800 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>
-                  {actualEff.toFixed(1)}%
-                </td>
-                <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} whitespace-nowrap overflow-hidden`}>
-                  {overviewTargets.effQd > 0 ? (
-                    <span className={`inline-flex items-center justify-center gap-0.5 px-0.5 sm:px-1.5 py-0.2 sm:py-0.5 rounded font-black text-[7.5px] sm:text-[10.5px] md:text-[13px] leading-tight ${
-                      diffEff >= 0 ? theme.diffSuccessBadge : 'bg-rose-100 text-rose-600'
-                    }`}>
-                      <span>{diffEff >= 0 ? '🟢 +' : '🔻 '}</span>
-                      <span>{diffEff.toFixed(1)}%</span>
-                    </span>
-                  ) : (
-                    <span className="text-slate-400 font-bold text-[8.5px] sm:text-[11px]">-</span>
-                  )}
-                </td>
-                <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} font-bold text-slate-400 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>
-                  -
-                </td>
-              </tr>
+                  </td>
+                  <td className={`px-1 py-1 text-center border ${theme.cellBorder} ${theme.actualValText} text-[11.5px] sm:text-[13.5px] whitespace-nowrap`}>
+                    {Math.round(dtlk).toLocaleString()}
+                  </td>
+                  <td className={`px-1 py-1 text-center border ${theme.cellBorder} whitespace-nowrap`}>
+                    {overviewTargets.dtThuc > 0 ? (
+                      <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded font-black text-[11px] sm:text-[12.5px] md:text-[13px] leading-tight ${
+                        dtThucRate >= 100 ? theme.rateSuccessBadge : 'bg-rose-100 text-rose-600'
+                      }`}>
+                        {dtThucRate.toFixed(1)}%
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 font-bold text-[11px] sm:text-[12px]">-</span>
+                    )}
+                  </td>
+                  <td className={`px-1 py-1 text-center border ${theme.cellBorder} font-black text-[11.5px] sm:text-[13.5px] whitespace-nowrap`}>
+                    {overviewTargets.dtThuc > 0 ? (
+                      <span className={dtThucRemaining > 0 ? 'text-rose-600' : theme.remainingGoodText}>
+                        {dtThucRemaining > 0 ? Math.round(dtThucRemaining).toLocaleString() : '0'}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 font-bold text-[11px] sm:text-[12px]">-</span>
+                    )}
+                  </td>
+                </tr>
 
-              {/* 4. Trả Chậm */}
-              <tr className={`${theme.rowOddBg} ${theme.rowHover} transition-colors h-[28px] sm:h-[36px] md:h-[40px]`}>
-                <td className={`px-0.5 py-0.5 font-black text-slate-700 text-center border ${theme.cellBorder} ${theme.sttCellBg} text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>
-                  4
-                </td>
-                <td className={`px-1.5 sm:px-3 py-0.5 font-black text-slate-900 border ${theme.cellBorder} uppercase tracking-tight text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>Trả Chậm</td>
-                <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} text-slate-800 ${theme.inputCellBgDark}`}>
-                  <div className="flex items-center justify-center gap-0.5">
+                {/* 2. Doanh Thu Quy Đổi */}
+                <tr className={`${theme.rowOddBg} ${theme.rowHover} transition-colors h-[32px] sm:h-[36px] md:h-[40px]`}>
+                  <td className={`px-1 py-1 font-black text-slate-700 text-center border ${theme.cellBorder} ${theme.sttCellBg} text-[11.5px] sm:text-[13.5px] whitespace-nowrap`}>
+                    2
+                  </td>
+                  <td className={`px-2 sm:px-3 py-1 font-black text-slate-900 border ${theme.cellBorder} uppercase tracking-tight text-[11.5px] sm:text-[13.5px]`}>
+                    Doanh Thu Quy Đổi
+                  </td>
+                  <td className={`px-1 py-1 text-center border ${theme.cellBorder} text-slate-800 ${theme.inputCellBgDark}`}>
                     <input
                       type="number"
-                      step="0.1"
-                      value={overviewTargets.traCham > 0 ? overviewTargets.traCham : ''}
+                      value={overviewTargets.dtQd > 0 ? overviewTargets.dtQd : ''}
                       placeholder="0"
-                      onChange={(e) => handleOverviewTargetChange('traCham', Number(e.target.value))}
-                      className={`w-7 sm:w-12 text-center bg-transparent font-black focus:outline-none ${theme.inputFocusBg} rounded py-0.5 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
-                      title="Nhập % Mục tiêu Trả Chậm"
+                      onChange={(e) => handleOverviewTargetChange('dtQd', Number(e.target.value))}
+                      className={`w-full text-center bg-transparent font-black focus:outline-none ${theme.inputFocusBg} rounded py-0.5 text-[11.5px] sm:text-[13.5px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                      title="Nhập mục tiêu Doanh Thu Quy Đổi"
                     />
-                    <span className="text-[7.5px] sm:text-[10.5px] font-black">%</span>
-                  </div>
-                </td>
-                <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} text-slate-800 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>
-                  {actualInstallment.toFixed(1)}%
-                </td>
-                <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} whitespace-nowrap overflow-hidden`}>
-                  {overviewTargets.traCham > 0 ? (
-                    <span className={`inline-flex items-center justify-center gap-0.5 px-0.5 sm:px-1.5 py-0.2 sm:py-0.5 rounded font-black text-[7.5px] sm:text-[10.5px] md:text-[13px] leading-tight ${
-                      diffInstallment >= 0 ? theme.diffSuccessBadge : 'bg-rose-100 text-rose-600'
-                    }`}>
-                      <span>{diffInstallment >= 0 ? '🟢 +' : '🔻 '}</span>
-                      <span>{diffInstallment.toFixed(1)}%</span>
-                    </span>
-                  ) : (
-                    <span className="text-slate-400 font-bold text-[8.5px] sm:text-[11px]">-</span>
-                  )}
-                </td>
-                <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} font-bold text-slate-400 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>
-                  -
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                  </td>
+                  <td className={`px-1 py-1 text-center border ${theme.cellBorder} ${theme.actualValText} text-[11.5px] sm:text-[13.5px] whitespace-nowrap`}>
+                    {Math.round(dtqd).toLocaleString()}
+                  </td>
+                  <td className={`px-1 py-1 text-center border ${theme.cellBorder} whitespace-nowrap`}>
+                    {overviewTargets.dtQd > 0 ? (
+                      <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded font-black text-[11px] sm:text-[12.5px] md:text-[13px] leading-tight ${
+                        dtQdRate >= 100 ? theme.rateSuccessBadge : 'bg-rose-100 text-rose-600'
+                      }`}>
+                        {dtQdRate.toFixed(1)}%
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 font-bold text-[11px] sm:text-[12px]">-</span>
+                    )}
+                  </td>
+                  <td className={`px-1 py-1 text-center border ${theme.cellBorder} font-black text-[11.5px] sm:text-[13.5px] whitespace-nowrap`}>
+                    {overviewTargets.dtQd > 0 ? (
+                      <span className={dtQdRemaining > 0 ? 'text-rose-600' : theme.remainingGoodText}>
+                        {dtQdRemaining > 0 ? Math.round(dtQdRemaining).toLocaleString() : '0'}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 font-bold text-[11px] sm:text-[12px]">-</span>
+                    )}
+                  </td>
+                </tr>
 
-        {/* ── Table 2: NGÀNH HÀNG (Đồng bộ Tab Tổng Quan) ── */}
-        <div className={`overflow-x-auto w-full rounded-xl sm:rounded-2xl border ${theme.tableCardBorder} shadow-xs bg-white`}>
-          <table className="w-full border-collapse table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
-            <colgroup>
-              <col className="w-[24px] sm:w-[32px] md:w-[40px]" />
-              <col className="w-auto" />
-              <col className="w-[46px] sm:w-[60px] md:w-[72px]" />
-              <col className="w-[44px] sm:w-[58px] md:w-[70px]" />
-              <col className="w-[48px] sm:w-[62px] md:w-[76px]" />
-              <col className="w-[40px] sm:w-[54px] md:w-[68px]" />
-            </colgroup>
-            <thead>
-              <tr className="text-white h-[28px] sm:h-[38px] md:h-[42px]">
-                <th className={`px-0.5 py-0 text-[8px] sm:text-[11px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${theme.thDark} whitespace-nowrap overflow-hidden`}>STT</th>
-                <th className={`px-1 sm:px-2 py-0 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] font-black uppercase text-left border-r border-b ${theme.thLight} whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
-                <th className={`px-0.5 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${theme.thDark} tracking-tight whitespace-nowrap overflow-hidden`}>
-                  <div className="flex items-center justify-center gap-0.5 sm:gap-1">
-                    <span>MỤC TIÊU</span>
-                    <button
-                      type="button"
-                      onClick={handleSyncFromLuyke}
-                      className="no-capture p-0.5 hover:bg-white/20 rounded text-[#FEF08A] hover:text-white transition-colors cursor-pointer"
-                      title="Bấm để đồng bộ Mục tiêu từ cột M.tiêu/ngày của Tab Tổng quan"
-                    >
-                      <RefreshCw size={9} className="sm:w-[11px] sm:h-[11px]" />
-                    </button>
-                  </div>
-                </th>
-                <th className={`px-0.5 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${theme.thLight} tracking-tight whitespace-nowrap overflow-hidden`}>THỰC HIỆN</th>
-                <th className={`px-0.5 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${theme.thDark} tracking-tight whitespace-nowrap overflow-hidden`}>HOÀN THÀNH</th>
-                <th 
-                  className={`px-0.5 py-0 text-[7px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-b ${theme.thLight} cursor-pointer select-none ${theme.thSortHover} transition-colors tracking-tight whitespace-nowrap overflow-hidden`}
-                  onClick={() => setSortConLai(prev => prev === 'desc' ? 'asc' : prev === 'asc' ? 'none' : 'desc')}
-                  title="Bấm để sắp xếp theo C.LẠI"
-                >
-                  C.LẠI {sortConLai === 'desc' ? '▼' : sortConLai === 'asc' ? '▲' : ''}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="font-black">
-              {displayedCategoryList.map((item, idx) => {
-                const isEven = idx % 2 === 0;
-                const thucHien = item.realtimeRevenue || 0;
-                const savedTarget = categoryTargets[item.name] !== undefined ? categoryTargets[item.name] : (item.defaultTarget || 0);
-                const hasTarget = savedTarget > 0;
-                const rate = hasTarget ? (thucHien / savedTarget) * 100 : 0;
-                const remaining = hasTarget ? (savedTarget - thucHien) : 0;
-                const isSL = item.type === 'SL';
-
-                return (
-                  <tr key={item.key || idx} className={`${isEven ? 'bg-white' : theme.rowOddBg} ${theme.rowHover} transition-colors h-[28px] sm:h-[36px] md:h-[40px]`}>
-                    <td className={`px-0.5 py-0.5 font-black text-slate-700 text-center border ${theme.cellBorder} ${theme.sttCellBg} text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>
-                      {idx + 1}
-                    </td>
-                    <td className={`px-1 sm:px-2 py-0.5 font-black text-slate-900 border ${theme.cellBorder} uppercase tracking-tight overflow-hidden`} title={item.name}>
-                      <div className="flex items-center justify-between gap-1 w-full min-w-0" style={{ overflow: 'hidden' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveCategory(item.key)}
-                          className="no-capture shrink-0 w-3.5 h-3.5 sm:w-5 sm:h-5 flex items-center justify-center rounded-full hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                          title={`Xóa ${item.name} khỏi danh sách`}
-                        >
-                          <X size={10} className="sm:w-[12px] sm:h-[12px]" strokeWidth={3} />
-                        </button>
-                        <span 
-                          className="truncate block flex-1 text-[8px] sm:text-[11.5px] md:text-[13.5px] leading-tight" 
-                          style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', minWidth: 0 }}
-                        >
-                          {item.name}
-                        </span>
-                        <span className={`text-[7px] sm:text-[9.5px] px-1 sm:px-1.5 py-0.2 rounded font-black shrink-0 ${
-                          isSL ? 'bg-amber-100 text-amber-800 border border-amber-200' : theme.dtBadge
-                        }`}>
-                          {item.type}
-                        </span>
-                      </div>
-                    </td>
-                    <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} text-slate-800 ${theme.inputCellBgLight}`}>
+                {/* 3. Hiệu Quả Quy Đổi */}
+                <tr className={`bg-white ${theme.rowHover} transition-colors h-[32px] sm:h-[36px] md:h-[40px]`}>
+                  <td className={`px-1 py-1 font-black text-slate-700 text-center border ${theme.cellBorder} ${theme.sttCellBg} text-[11.5px] sm:text-[13.5px] whitespace-nowrap`}>
+                    3
+                  </td>
+                  <td className={`px-2 sm:px-3 py-1 font-black text-slate-900 border ${theme.cellBorder} uppercase tracking-tight text-[11.5px] sm:text-[13.5px]`}>
+                    Hiệu Quả Quy Đổi
+                  </td>
+                  <td className={`px-1 py-1 text-center border ${theme.cellBorder} text-slate-800 ${theme.inputCellBgLight}`}>
+                    <div className="flex items-center justify-center gap-0.5">
                       <input
                         type="number"
-                        value={savedTarget > 0 ? savedTarget : ''}
-                        onChange={(e) => handleCategoryTargetChange(item.name, Number(e.target.value))}
-                        className={`w-full text-center bg-transparent font-black focus:outline-none ${theme.inputFocusBg} rounded py-0.5 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                        step="0.1"
+                        value={overviewTargets.effQd > 0 ? overviewTargets.effQd : ''}
                         placeholder="0"
-                        title={`Nhập mục tiêu cho ${item.name}`}
+                        onChange={(e) => handleOverviewTargetChange('effQd', Number(e.target.value))}
+                        className={`w-9 sm:w-12 text-center bg-transparent font-black focus:outline-none ${theme.inputFocusBg} rounded py-0.5 text-[11.5px] sm:text-[13.5px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                        title="Nhập % Mục tiêu Hiệu Quả QĐ"
                       />
-                    </td>
-                    <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} ${theme.actualValText} font-black text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>
-                      {thucHien > 0 ? (isSL ? Math.round(thucHien).toLocaleString() : (Math.round(thucHien * 10) / 10).toLocaleString()) : (isSL ? '0' : '0.0')}
-                    </td>
-                    <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} whitespace-nowrap overflow-hidden`}>
-                      {hasTarget ? (
-                        <span className={`inline-flex items-center justify-center px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded font-black text-[7.5px] sm:text-[10.5px] md:text-[13px] leading-tight ${
-                          rate >= 100 ? theme.rateSuccessBadge : 'bg-rose-100 text-rose-600'
-                        }`}>
-                          {rate.toFixed(1)}%
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 font-bold text-[8.5px] sm:text-[11px]">-</span>
-                      )}
-                    </td>
-                    <td className={`px-0.5 py-0.5 text-center border ${theme.cellBorder} font-black text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden`}>
-                      {hasTarget ? (
-                        <span className={remaining > 0 ? 'text-rose-600' : theme.remainingGoodText}>
-                          {remaining > 0 ? (isSL ? Math.round(remaining).toLocaleString() : (Math.round(remaining * 10) / 10).toLocaleString()) : '0'}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 font-bold text-[8.5px] sm:text-[11px]">-</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <span className="text-[10px] sm:text-[12px] font-black">%</span>
+                    </div>
+                  </td>
+                  <td className={`px-1 py-1 text-center border ${theme.cellBorder} text-slate-800 text-[11.5px] sm:text-[13.5px] whitespace-nowrap`}>
+                    {actualEff.toFixed(1)}%
+                  </td>
+                  <td className={`px-1 py-1 text-center border ${theme.cellBorder} whitespace-nowrap`}>
+                    {overviewTargets.effQd > 0 ? (
+                      <span className={`inline-flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded font-black text-[11px] sm:text-[12.5px] md:text-[13px] leading-tight ${
+                        diffEff >= 0 ? theme.diffSuccessBadge : 'bg-rose-100 text-rose-600'
+                      }`}>
+                        <span>{diffEff >= 0 ? '🟢 +' : '🔻 '}</span>
+                        <span>{diffEff.toFixed(1)}%</span>
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 font-bold text-[11px] sm:text-[12px]">-</span>
+                    )}
+                  </td>
+                  <td className={`px-1 py-1 text-center border ${theme.cellBorder} font-bold text-slate-400 text-[11.5px] sm:text-[13.5px] whitespace-nowrap`}>
+                    -
+                  </td>
+                </tr>
 
-        {/* ── Optional Inline Comment Box (Rendered inside captured image if active) ── */}
-        {showInlineComment && (
-          <div className={`p-3 ${theme.inlineCommentBg} rounded-2xl`}>
-            <textarea
-              value={inlineComment}
-              onChange={(e) => setInlineComment(e.target.value)}
-              placeholder="Nhập ghi chú / nhận xét tiến độ đính kèm vào ảnh xuất..."
-              className={`w-full p-2.5 rounded-xl text-[12px] font-bold resize-none min-h-[60px] ${theme.inlineCommentArea}`}
-            />
+                {/* 4. Trả Chậm */}
+                <tr className={`${theme.rowOddBg} ${theme.rowHover} transition-colors h-[32px] sm:h-[36px] md:h-[40px]`}>
+                  <td className={`px-1 py-1 font-black text-slate-700 text-center border ${theme.cellBorder} ${theme.sttCellBg} text-[11.5px] sm:text-[13.5px] whitespace-nowrap`}>
+                    4
+                  </td>
+                  <td className={`px-2 sm:px-3 py-1 font-black text-slate-900 border ${theme.cellBorder} uppercase tracking-tight text-[11.5px] sm:text-[13.5px]`}>
+                    Trả Chậm
+                  </td>
+                  <td className={`px-1 py-1 text-center border ${theme.cellBorder} text-slate-800 ${theme.inputCellBgDark}`}>
+                    <div className="flex items-center justify-center gap-0.5">
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={overviewTargets.traCham > 0 ? overviewTargets.traCham : ''}
+                        placeholder="0"
+                        onChange={(e) => handleOverviewTargetChange('traCham', Number(e.target.value))}
+                        className={`w-9 sm:w-12 text-center bg-transparent font-black focus:outline-none ${theme.inputFocusBg} rounded py-0.5 text-[11.5px] sm:text-[13.5px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                        title="Nhập % Mục tiêu Trả Chậm"
+                      />
+                      <span className="text-[10px] sm:text-[12px] font-black">%</span>
+                    </div>
+                  </td>
+                  <td className={`px-1 py-1 text-center border ${theme.cellBorder} text-slate-800 text-[11.5px] sm:text-[13.5px] whitespace-nowrap`}>
+                    {actualInstallment.toFixed(1)}%
+                  </td>
+                  <td className={`px-1 py-1 text-center border ${theme.cellBorder} whitespace-nowrap`}>
+                    {overviewTargets.traCham > 0 ? (
+                      <span className={`inline-flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded font-black text-[11px] sm:text-[12.5px] md:text-[13px] leading-tight ${
+                        diffInstallment >= 0 ? theme.diffSuccessBadge : 'bg-rose-100 text-rose-600'
+                      }`}>
+                        <span>{diffInstallment >= 0 ? '🟢 +' : '🔻 '}</span>
+                        <span>{diffInstallment.toFixed(1)}%</span>
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 font-bold text-[11px] sm:text-[12px]">-</span>
+                    )}
+                  </td>
+                  <td className={`px-1 py-1 text-center border ${theme.cellBorder} font-bold text-slate-400 text-[11.5px] sm:text-[13.5px] whitespace-nowrap`}>
+                    -
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-        )}
+
+          {/* ── Table 2: NGÀNH HÀNG (Đồng bộ Tab Tổng Quan) ── */}
+          <div className={`overflow-hidden rounded-xl sm:rounded-2xl border ${theme.tableCardBorder} shadow-xs bg-white w-full`} style={{ width: '100%' }}>
+            <table className="w-full border-collapse table-fixed bg-white text-[12px] sm:text-[13.5px] no-mobile-zoom" style={{ fontFamily: "'UTM Avo', sans-serif", width: '100%', tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '40%' }} />
+                <col style={{ width: '13.5%' }} />
+                <col style={{ width: '13.5%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '13%' }} />
+              </colgroup>
+              <thead>
+                <tr className="text-white h-[32px] sm:h-[38px] md:h-[42px]">
+                  <th className={`px-1 py-1 text-[11px] sm:text-[13px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${theme.thDark} whitespace-nowrap`}>STT</th>
+                  <th className={`px-2 sm:px-3 py-1 text-[11px] sm:text-[13px] md:text-[13.5px] font-black uppercase text-left border-r border-b ${theme.thLight}`}>NGÀNH HÀNG</th>
+                  <th className={`px-0.5 sm:px-1 py-1 text-[10.5px] sm:text-[12px] md:text-[13px] font-black uppercase text-center border-r border-b ${theme.thDark} tracking-tight`}>
+                    <div className="flex items-center justify-center gap-0.5 sm:gap-1">
+                      <span className="leading-tight">MỤC TIÊU</span>
+                      <button
+                        type="button"
+                        onClick={handleSyncOverviewTargets}
+                        className="no-capture inline-flex items-center justify-center p-0.5 rounded hover:bg-white/20 transition-all text-[#FEF08A] hover:text-white cursor-pointer active:scale-90 shrink-0"
+                        title="Bấm để đồng bộ mục tiêu từ tab Tổng Quan"
+                      >
+                        <RefreshCw size={11} className={isSyncing ? "animate-spin" : ""} />
+                      </button>
+                    </div>
+                  </th>
+                  <th className={`px-0.5 sm:px-1 py-1 text-[10.5px] sm:text-[12px] md:text-[13px] font-black uppercase text-center border-r border-b ${theme.thLight} tracking-tight`}>
+                    <span className="leading-tight block">THỰC HIỆN</span>
+                  </th>
+                  <th className={`px-0.5 sm:px-1 py-1 text-[10.5px] sm:text-[12px] md:text-[13px] font-black uppercase text-center border-r border-b ${theme.thDark} tracking-tight`}>
+                    <span className="leading-tight block">HOÀN THÀNH</span>
+                  </th>
+                  <th 
+                    className={`px-0.5 sm:px-1 py-1 text-[10.5px] sm:text-[12px] md:text-[13px] font-black uppercase text-center border-b ${theme.thLight} cursor-pointer select-none ${theme.thSortHover} transition-colors tracking-tight whitespace-nowrap`}
+                    onClick={() => setSortConLai(prev => prev === 'desc' ? 'asc' : prev === 'asc' ? 'none' : 'desc')}
+                    title="Bấm để sắp xếp theo C.LẠI"
+                  >
+                    C.LẠI {sortConLai === 'desc' ? '▼' : sortConLai === 'asc' ? '▲' : ''}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="font-black">
+                {displayedCategoryList.map((item, idx) => {
+                  const isEven = idx % 2 === 0;
+                  const thucHien = item.realtimeRevenue || 0;
+                  const savedTarget = categoryTargets[item.name] !== undefined ? categoryTargets[item.name] : (item.defaultTarget || 0);
+                  const hasTarget = savedTarget > 0;
+                  const rate = hasTarget ? (thucHien / savedTarget) * 100 : 0;
+                  const remaining = hasTarget ? (savedTarget - thucHien) : 0;
+                  const isSL = item.type === 'SL';
+
+                  return (
+                    <tr key={item.key || idx} className={`${isEven ? 'bg-white' : theme.rowOddBg} ${theme.rowHover} transition-colors h-[32px] sm:h-[36px] md:h-[40px]`}>
+                      <td className={`px-1 py-1 font-black text-slate-700 text-center border ${theme.cellBorder} ${theme.sttCellBg} text-[11.5px] sm:text-[13.5px] whitespace-nowrap`}>
+                        {idx + 1}
+                      </td>
+                      <td className={`px-1.5 sm:px-3 py-1 font-black text-slate-900 border ${theme.cellBorder} uppercase tracking-tight`} title={item.name}>
+                        <div className="flex items-center justify-between gap-1 sm:gap-1.5 w-full min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCategory(item.key)}
+                            className="no-capture shrink-0 w-3.5 h-3.5 sm:w-5 sm:h-5 flex items-center justify-center rounded-full hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                            title={`Xóa ${item.name} khỏi danh sách`}
+                          >
+                            <X size={10} className="sm:w-[11px] sm:h-[11px]" strokeWidth={3} />
+                          </button>
+                          <span className="block flex-1 text-[11px] sm:text-[13px] md:text-[13.5px] leading-tight break-words">
+                            {item.name}
+                          </span>
+                          <span className={`text-[7.5px] sm:text-[9.5px] px-1 sm:px-1.5 py-0.5 rounded font-black shrink-0 ${
+                            isSL ? 'bg-amber-100 text-amber-800 border border-amber-200' : theme.dtBadge
+                          }`}>
+                            {item.type}
+                          </span>
+                        </div>
+                      </td>
+                      <td className={`px-1 py-1 text-center border ${theme.cellBorder} text-slate-800 ${theme.inputCellBgLight}`}>
+                        <input
+                          type="number"
+                          value={savedTarget > 0 ? savedTarget : ''}
+                          onChange={(e) => handleCategoryTargetChange(item.name, Number(e.target.value))}
+                          className={`w-full text-center bg-transparent font-black focus:outline-none ${theme.inputFocusBg} rounded py-0.5 text-[11.5px] sm:text-[13.5px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                          placeholder="0"
+                          title={`Nhập mục tiêu cho ${item.name}`}
+                        />
+                      </td>
+                      <td className={`px-1 py-1 text-center border ${theme.cellBorder} ${theme.actualValText} font-black text-[11.5px] sm:text-[13.5px] whitespace-nowrap`}>
+                        {thucHien > 0 ? (isSL ? Math.round(thucHien).toLocaleString() : (Math.round(thucHien * 10) / 10).toLocaleString()) : (isSL ? '0' : '0.0')}
+                      </td>
+                      <td className={`px-1 py-1 text-center border ${theme.cellBorder} whitespace-nowrap`}>
+                        {hasTarget ? (
+                          <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded font-black text-[11px] sm:text-[12.5px] md:text-[13px] leading-tight ${
+                            rate >= 100 ? theme.rateSuccessBadge : 'bg-rose-100 text-rose-600'
+                          }`}>
+                            {rate.toFixed(1)}%
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-bold text-[11px] sm:text-[12px]">-</span>
+                        )}
+                      </td>
+                      <td className={`px-1 py-1 text-center border ${theme.cellBorder} font-black text-[11.5px] sm:text-[13.5px] whitespace-nowrap`}>
+                        {hasTarget ? (
+                          <span className={remaining > 0 ? 'text-rose-600' : theme.remainingGoodText}>
+                            {remaining > 0 ? (isSL ? Math.round(remaining).toLocaleString() : (Math.round(remaining * 10) / 10).toLocaleString()) : '0'}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-bold text-[11px] sm:text-[12px]">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ── Optional Inline Comment Box (Rendered inside captured image if active) ── */}
+          {showInlineComment && (
+            <div className={`p-2 sm:p-2.5 ${theme.inlineCommentBg} rounded-xl sm:rounded-2xl`}>
+              <textarea
+                value={inlineComment}
+                onChange={(e) => setInlineComment(e.target.value)}
+                placeholder="Nhập ghi chú / nhận xét tiến độ đính kèm vào ảnh xuất..."
+                className={`w-full p-2 sm:p-2.5 rounded-lg sm:rounded-xl text-[10px] sm:text-[12px] font-semibold sm:font-bold resize-none min-h-[44px] sm:min-h-[55px] ${theme.inlineCommentArea}`}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Multi-Select Category Filter Modal ── */}
@@ -1314,27 +1401,27 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
               style={{ fontFamily: "'UTM Avo', sans-serif" }}
             >
               {/* Modal Header */}
-              <div className={`p-4 sm:p-5 ${theme.modalHeaderBg} text-white flex items-center justify-between shrink-0`}>
-                <div className="flex items-center gap-2.5">
-                  <Sparkles size={18} className="text-[#FEF08A]" />
-                  <h3 className="text-base sm:text-lg font-black uppercase tracking-wide">
+              <div className={`p-3.5 sm:p-5 ${theme.modalHeaderBg} text-white flex items-center justify-between shrink-0`}>
+                <div className="flex items-center gap-2 sm:gap-2.5">
+                  <Sparkles size={16} className="text-[#FEF08A] sm:w-[18px] sm:h-[18px]" />
+                  <h3 className="text-sm sm:text-lg font-black uppercase tracking-wide">
                     NHẬN XÉT MỤC TIÊU NGÀY
                   </h3>
                 </div>
                 <button
                   onClick={() => setIsCommentModalOpen(false)}
-                  className="p-1.5 rounded-full hover:bg-white/20 text-white transition-colors cursor-pointer"
+                  className="p-1 sm:p-1.5 rounded-full hover:bg-white/20 text-white transition-colors cursor-pointer"
                 >
-                  <X size={18} />
+                  <X size={16} className="sm:w-[18px] sm:h-[18px]" />
                 </button>
               </div>
 
               {/* Template Selector */}
-              <div className="p-3 sm:p-4 bg-slate-50 border-b border-slate-200 shrink-0">
-                <p className="text-[11px] font-black text-slate-500 mb-2 uppercase tracking-wide">
+              <div className="p-2.5 sm:p-4 bg-slate-50 border-b border-slate-200 shrink-0">
+                <p className="text-[10px] sm:text-[11px] font-black text-slate-500 mb-1.5 sm:mb-2 uppercase tracking-wide">
                   Chọn mẫu nhận xét:
                 </p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                   {commentTemplates.map((tab, idx) => (
                     <button
                       key={tab.id}
@@ -1342,13 +1429,13 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                         setSelectedCommentTemplate(idx);
                         setCustomCommentText(tab.text);
                       }}
-                      className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all cursor-pointer border ${
+                      className={`flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2.5 rounded-xl text-[10.5px] sm:text-xs font-black uppercase tracking-wide transition-all cursor-pointer border ${
                         selectedCommentTemplate === idx
                           ? theme.commentActiveTab
                           : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                       }`}
                     >
-                      <span>{tab.icon}</span>
+                      <span className="text-xs sm:text-sm">{tab.icon}</span>
                       <span>{tab.title}</span>
                     </button>
                   ))}
@@ -1356,23 +1443,23 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
               </div>
 
               {/* Editable Text Area */}
-              <div className="p-3 sm:p-4 overflow-y-auto grow space-y-3">
+              <div className="p-2.5 sm:p-4 overflow-y-auto grow space-y-2 sm:space-y-3">
                 <textarea
                   value={customCommentText}
                   onChange={(e) => setCustomCommentText(e.target.value)}
-                  rows={10}
-                  className={`w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-[12px] font-bold text-slate-800 leading-relaxed resize-none outline-none ${theme.commentTextareaFocus}`}
+                  rows={isMobileScreen ? 8 : 10}
+                  className={`w-full p-2.5 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl text-[10.5px] sm:text-[12px] font-medium sm:font-bold text-slate-800 leading-normal sm:leading-relaxed resize-none outline-none ${theme.commentTextareaFocus}`}
                 />
               </div>
 
               {/* Modal Footer */}
-              <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
-                <span className="text-[11px] font-bold text-slate-400 italic">
+              <div className="p-2.5 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+                <span className="text-[9.5px] sm:text-[11px] font-bold text-slate-400 italic">
                   Sẵn sàng dán trực tiếp vào Zalo
                 </span>
                 <button
                   onClick={handleCopyComment}
-                  className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-white transition-all cursor-pointer shadow-md active:scale-95 ${
+                  className={`flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-xs font-black uppercase tracking-wider text-white transition-all cursor-pointer shadow-md active:scale-95 ${
                     copiedComment
                       ? theme.commentCopySuccess
                       : theme.commentCopyBtn
@@ -1380,12 +1467,12 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
                 >
                   {copiedComment ? (
                     <>
-                      <Check size={16} />
+                      <Check size={14} className="sm:w-[16px] sm:h-[16px]" />
                       <span>ĐÃ COPY!</span>
                     </>
                   ) : (
                     <>
-                      <Copy size={16} />
+                      <Copy size={14} className="sm:w-[16px] sm:h-[16px]" />
                       <span>SAO CHÉP NHẬN XÉT</span>
                     </>
                   )}
