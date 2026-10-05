@@ -7093,25 +7093,25 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               )}
 
                               <div className={`overflow-x-auto w-full rounded-xl sm:rounded-2xl border ${isEffective43751 ? 'border-sky-300/80' : 'border-emerald-200/80'}`}>
-                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                <table className="w-full min-w-[350px] sm:min-w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                                   <colgroup>
-                                    <col className="w-[24px] sm:w-[32px] md:w-[40px]" />
+                                    <col className="w-[22px] sm:w-[32px] md:w-[40px]" />
                                     <col className="w-auto" />
-                                    <col className="w-[34px] sm:w-[48px] md:w-[60px]" />
-                                    <col className="w-[30px] sm:w-[44px] md:w-[54px]" />
-                                    <col className="w-[36px] sm:w-[48px] md:w-[56px]" />
-                                    <col className="w-[30px] sm:w-[44px] md:w-[54px]" />
-                                    {showOrangeCols && showLuykeColumn && <col className="w-[34px] sm:w-[48px] md:w-[60px]" />}
-                                    {showOrangeCols && <col className="w-[38px] sm:w-[54px] md:w-[68px]" />}
+                                    <col className="w-[44px] sm:w-[50px] md:w-[60px]" />
+                                    <col className="w-[46px] sm:w-[52px] md:w-[54px]" />
+                                    <col className="w-[42px] sm:w-[50px] md:w-[56px]" />
+                                    <col className="w-[42px] sm:w-[50px] md:w-[54px]" />
+                                    {showOrangeCols && showLuykeColumn && <col className="w-[36px] sm:w-[48px] md:w-[60px]" />}
+                                    {showOrangeCols && <col className="w-[40px] sm:w-[54px] md:w-[68px]" />}
                                   </colgroup>
                                   <thead>
                                     <tr className="text-white h-[28px] sm:h-[38px] md:h-[44px]">
                                       <th className={`px-0.5 py-0 text-[8px] sm:text-[11px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} whitespace-nowrap overflow-hidden`}>STT</th>
                                       <th className={`px-1 sm:px-2 py-0 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] font-black uppercase text-left border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-emerald-500 bg-[#059669]'} whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
-                                      <th className={`px-0.5 py-0 text-[7px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} tracking-tight whitespace-nowrap overflow-hidden`}>TARGET</th>
-                                      <th className={`px-0.5 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} tracking-tight whitespace-nowrap overflow-hidden`}>REAL</th>
+                                      <th className={`px-0.5 sm:px-1 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} tracking-tight whitespace-nowrap overflow-hidden`}>TARGET</th>
+                                      <th className={`px-0.5 sm:px-1 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} tracking-tight whitespace-nowrap overflow-hidden`}>REAL</th>
                                       <th className={`px-0.5 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-emerald-500 bg-[#059669]'} tracking-tight whitespace-nowrap overflow-hidden`}>%HT</th>
-                                      <th className={`px-0.5 py-0 text-[7px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} tracking-tight whitespace-nowrap overflow-hidden`}>C.LẠI</th>
+                                      <th className={`px-0.5 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-emerald-500 bg-[#047857]'} tracking-tight whitespace-nowrap overflow-hidden`}>C.LẠI</th>
                                       {showOrangeCols && showLuykeColumn && <th className={`px-0.5 py-0 text-[6.5px] sm:text-[9.5px] md:text-[11.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-emerald-500 bg-[#064E3B]'} leading-[1.05] tracking-tight overflow-hidden`}>LK<br />C.LẠI</th>}
                                       {showOrangeCols && <th className={`px-0.5 py-0 text-[6px] sm:text-[9px] md:text-[11.5px] font-black uppercase text-center border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-emerald-500 bg-[#064E3B]'} leading-[1.05] tracking-tight overflow-hidden`}>M.TIÊU<br />/ NGÀY</th>}
                                     </tr>
@@ -7139,14 +7139,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                                 {cat.name}
                                               </div>
                                             </td>
-                                            <td className={`px-0.5 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-800 whitespace-nowrap overflow-hidden`}>{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
-                                            <td className={`px-0.5 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-black text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-emerald-100/90 text-emerald-700'} whitespace-nowrap overflow-hidden`}>{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
+                                            <td className={`px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-slate-800 whitespace-nowrap overflow-hidden`}>{cat.target > 0 ? Math.round(cat.target).toLocaleString() : ""}</td>
+                                            <td className={`px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-black text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-emerald-100/90 text-emerald-700'} whitespace-nowrap overflow-hidden`}>{cat.revenue > 0 ? Math.round(cat.revenue).toLocaleString() : ""}</td>
                                             <td className={`px-0.5 py-0.5 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} whitespace-nowrap overflow-hidden`}>
-                                              <span className={`inline-flex items-center justify-center px-1 sm:px-1.5 py-0.2 rounded font-black leading-none text-[7.5px] sm:text-[10.5px] md:text-[13px] ${Math.round(cat.rate || 0) >= 100 ? (isEffective43751 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-emerald-100 text-emerald-800') : 'bg-rose-100 text-rose-600'}`}>
+                                              <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded font-black leading-none text-[8px] sm:text-[10.5px] md:text-[13px] ${Math.round(cat.rate || 0) >= 100 ? (isEffective43751 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-emerald-100 text-emerald-800') : 'bg-rose-100 text-rose-600'}`}>
                                                 {Math.round(cat.rate || 0)}%
                                               </span>
                                             </td>
-                                            <td className={`px-0.5 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-rose-600 whitespace-nowrap overflow-hidden`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
+                                            <td className={`px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-emerald-100/90'} text-rose-600 whitespace-nowrap overflow-hidden`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
                                             {showOrangeCols && showLuykeColumn && (
                                               <td className={`px-0.5 py-0.5 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-blue-700' : 'border-emerald-100/90 text-purple-700'} whitespace-nowrap overflow-hidden`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
                                             )}
@@ -7262,25 +7262,25 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               )}
 
                               <div className={`overflow-x-auto w-full rounded-xl sm:rounded-2xl border ${isEffective43751 ? 'border-sky-300/80' : 'border-blue-300/80'}`}>
-                                <table className="w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+                                <table className="w-full min-w-[350px] sm:min-w-full border-separate border-spacing-0 table-fixed bg-white mobile-compact-table" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
                                   <colgroup>
-                                    <col className="w-[24px] sm:w-[32px] md:w-[40px]" />
+                                    <col className="w-[22px] sm:w-[32px] md:w-[40px]" />
                                     <col className="w-auto" />
-                                    <col className="w-[34px] sm:w-[48px] md:w-[60px]" />
-                                    <col className="w-[30px] sm:w-[44px] md:w-[54px]" />
-                                    <col className="w-[36px] sm:w-[48px] md:w-[56px]" />
-                                    <col className="w-[30px] sm:w-[44px] md:w-[54px]" />
-                                    {showOrangeCols && showLuykeColumn && <col className="w-[34px] sm:w-[48px] md:w-[60px]" />}
-                                    {showOrangeCols && <col className="w-[38px] sm:w-[54px] md:w-[68px]" />}
+                                    <col className="w-[44px] sm:w-[50px] md:w-[60px]" />
+                                    <col className="w-[46px] sm:w-[52px] md:w-[54px]" />
+                                    <col className="w-[42px] sm:w-[50px] md:w-[56px]" />
+                                    <col className="w-[42px] sm:w-[50px] md:w-[54px]" />
+                                    {showOrangeCols && showLuykeColumn && <col className="w-[36px] sm:w-[48px] md:w-[60px]" />}
+                                    {showOrangeCols && <col className="w-[40px] sm:w-[54px] md:w-[68px]" />}
                                   </colgroup>
                                   <thead>
                                     <tr className="text-white h-[28px] sm:h-[38px] md:h-[44px]">
                                       <th className={`px-0.5 py-0 text-[8px] sm:text-[11px] md:text-[13.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} whitespace-nowrap overflow-hidden`}>STT</th>
                                       <th className={`px-1 sm:px-2 py-0 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] font-black uppercase text-left border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-blue-500 bg-[#2563EB]'} whitespace-nowrap overflow-hidden`}>NGÀNH HÀNG</th>
-                                      <th className={`px-0.5 py-0 text-[7px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} tracking-tight whitespace-nowrap overflow-hidden`}>TARGET</th>
-                                      <th className={`px-0.5 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} tracking-tight whitespace-nowrap overflow-hidden`}>REAL</th>
+                                      <th className={`px-0.5 sm:px-1 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} tracking-tight whitespace-nowrap overflow-hidden`}>TARGET</th>
+                                      <th className={`px-0.5 sm:px-1 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} tracking-tight whitespace-nowrap overflow-hidden`}>REAL</th>
                                       <th className={`px-0.5 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0369A1]' : 'border-blue-500 bg-[#2563EB]'} tracking-tight whitespace-nowrap overflow-hidden`}>%HT</th>
-                                      <th className={`px-0.5 py-0 text-[7px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} tracking-tight whitespace-nowrap overflow-hidden`}>C.LẠI</th>
+                                      <th className={`px-0.5 py-0 text-[7.5px] sm:text-[10px] md:text-[13px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#0284C7]' : 'border-blue-500 bg-[#1E40AF]'} tracking-tight whitespace-nowrap overflow-hidden`}>C.LẠI</th>
                                       {showOrangeCols && showLuykeColumn && <th className={`px-0.5 py-0 text-[6.5px] sm:text-[9.5px] md:text-[11.5px] font-black uppercase text-center border-r border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-blue-500 bg-[#1E3A8A]'} leading-[1.05] tracking-tight overflow-hidden`}>LK<br />C.LẠI</th>}
                                       {showOrangeCols && <th className={`px-0.5 py-0 text-[6px] sm:text-[9px] md:text-[11.5px] font-black uppercase text-center border-b ${isEffective43751 ? 'border-sky-500 bg-[#075985]' : 'border-blue-500 bg-[#1E3A8A]'} leading-[1.05] tracking-tight overflow-hidden`}>M.TIÊU<br />/ NGÀY</th>}
                                     </tr>
@@ -7308,14 +7308,14 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                                 {cat.name}
                                               </div>
                                             </td>
-                                            <td className={`px-0.5 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-800 whitespace-nowrap overflow-hidden`}>{Math.round(cat.target).toLocaleString()}</td>
-                                            <td className={`px-0.5 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-black text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-blue-100/90 text-blue-700'} whitespace-nowrap overflow-hidden`}>{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
+                                            <td className={`px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-slate-800 whitespace-nowrap overflow-hidden`}>{Math.round(cat.target).toLocaleString()}</td>
+                                            <td className={`px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-black text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-blue-100/90 text-blue-700'} whitespace-nowrap overflow-hidden`}>{cat.revenue === 0 ? "" : Math.round(cat.revenue).toLocaleString()}</td>
                                             <td className={`px-0.5 py-0.5 text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} whitespace-nowrap overflow-hidden`}>
-                                              <span className={`inline-flex items-center justify-center px-1 sm:px-1.5 py-0.2 rounded font-black leading-none text-[7.5px] sm:text-[10.5px] md:text-[13px] ${Math.round(cat.rate || 0) >= 100 ? (isEffective43751 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-blue-100 text-blue-800 border border-blue-200/60') : 'bg-rose-100 text-rose-600'}`}>
+                                              <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded font-black leading-none text-[8px] sm:text-[10.5px] md:text-[13px] ${Math.round(cat.rate || 0) >= 100 ? (isEffective43751 ? 'bg-sky-100 text-sky-800 border border-sky-200/60' : 'bg-blue-100 text-blue-800 border border-blue-200/60') : 'bg-rose-100 text-rose-600'}`}>
                                                 {Math.round(cat.rate || 0)}%
                                               </span>
                                             </td>
-                                            <td className={`px-0.5 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-rose-600 whitespace-nowrap overflow-hidden`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
+                                            <td className={`px-0.5 sm:px-1 py-0.5 text-[9px] sm:text-[12px] md:text-[14px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90' : 'border-blue-100/90'} text-rose-600 whitespace-nowrap overflow-hidden`}>{remaining > 0 ? Math.round(remaining).toLocaleString() : ""}</td>
                                             {showOrangeCols && showLuykeColumn && (
                                               <td className={`px-0.5 py-0.5 text-[8.5px] sm:text-[11.5px] md:text-[13.5px] font-bold text-center border-r border-b ${isEffective43751 ? 'border-sky-100/90 text-sky-700' : 'border-blue-100/90 text-indigo-700'} whitespace-nowrap overflow-hidden`}>{lkRemaining ? Math.abs(Math.round(lkRemaining)).toLocaleString() : ""}</td>
                                             )}
