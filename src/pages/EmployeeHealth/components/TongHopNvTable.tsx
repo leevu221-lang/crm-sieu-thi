@@ -493,7 +493,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
       (el as HTMLElement).style.display = 'none';
     });
 
-    // Zero shadow export
+    // Zero shadow export per project rules
     const allElements = clone.querySelectorAll('*');
     allElements.forEach(el => {
       const htmlEl = el as HTMLElement;
@@ -503,7 +503,6 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
         htmlEl.style.filter = 'none';
       }
       if (htmlEl.classList) {
-        htmlEl.classList.remove('truncate');
         Array.from(htmlEl.classList).forEach(cls => {
           if (cls.startsWith('shadow') || cls.startsWith('drop-shadow')) {
             htmlEl.classList.remove(cls);
@@ -525,16 +524,26 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
     clone.style.borderRadius = '24px';
     clone.style.boxShadow = 'none';
     
-    // Make sure overflow wrappers in the clone are visible and fill full width
-    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto, .overflow-hidden, [class*="overflow"]');
+    // Make sure table scroll wrappers in the clone are visible and fill full width (never touch .overflow-hidden on progress bars)
+    const scrollContainers = clone.querySelectorAll('.overflow-x-auto, .overflow-y-auto');
     scrollContainers.forEach((el) => {
       const htmlEl = el as HTMLElement;
       htmlEl.style.overflow = 'visible';
       htmlEl.style.width = '100%';
-      htmlEl.style.height = 'auto';
       htmlEl.style.maxWidth = 'none';
-      htmlEl.style.maxHeight = 'none';
-      el.classList.remove('overflow-x-auto', 'overflow-y-auto', 'overflow-hidden', 'overflow-auto');
+      el.classList.remove('overflow-x-auto', 'overflow-y-auto');
+    });
+
+    // Ensure all progress bars retain explicit dimensions, pill styling, and overflow:hidden
+    const progressBars = clone.querySelectorAll<HTMLElement>('[data-progress-bar]');
+    progressBars.forEach(bar => {
+      const targetHeight = bar.getAttribute('data-height') || '15px';
+      bar.style.height = targetHeight;
+      bar.style.minHeight = targetHeight;
+      bar.style.maxHeight = targetHeight;
+      bar.style.overflow = 'hidden';
+      bar.style.display = 'block';
+      bar.style.position = 'relative';
     });
 
     // Force all tables to stretch 100% cleanly inside their parent card with exact desktop column widths
@@ -665,7 +674,7 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
             BẢNG THI ĐUA NGÀNH HÀNG NHÂN VIÊN {dateStr}
           </h2>
           {storeDisplayName && (
-            <p style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 700 }} className="text-xs sm:text-sm font-bold text-white/95 mt-1.5 flex items-center justify-center gap-1.5">
+            <p style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 700 }} className="text-xs sm:text-sm font-bold text-white/95 mt-1.5 flex items-center justify-center gap-1.5 whitespace-nowrap">
               <span>⚡ {storeDisplayName}</span>
             </p>
           )}
@@ -745,18 +754,38 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
                       {/* LUỸ KẾ QUY ĐỔI (with progress bar) */}
                       <td className={cn("px-2 py-0 border-r border-b border-emerald-100/90")}>
                         <div className="flex flex-col items-center justify-center gap-0.5">
-                          <span style={{ fontWeight: 900 }} className="text-[13px] sm:text-[14.5px] font-black text-slate-900">
+                          <span style={{ fontWeight: 900 }} className="text-[13px] sm:text-[14.5px] font-black text-slate-900 leading-tight">
                             {formatRevenue(row.lkQuyDoi)}
                           </span>
-                          <div className="w-full h-[15px] rounded-full overflow-hidden relative bg-slate-100 border border-slate-200/60">
+                          <div
+                            data-progress-bar="true"
+                            data-height="15px"
+                            className="w-full rounded-full relative border border-slate-200/80"
+                            style={{
+                              height: '15px',
+                              minHeight: '15px',
+                              maxHeight: '15px',
+                              backgroundColor: '#f1f5f9',
+                              overflow: 'hidden',
+                              position: 'relative',
+                              display: 'block'
+                            }}
+                          >
                             <div
-                              className="h-full rounded-full transition-all"
                               style={{ 
                                 width: `${Math.min(progressWidth, 100)}%`,
-                                backgroundColor: row.progressPercent >= 100 ? '#10b981' : '#fb7185'
+                                height: '15px',
+                                minHeight: '15px',
+                                maxHeight: '15px',
+                                backgroundColor: row.progressPercent >= 100 ? '#10b981' : '#fb7185',
+                                borderRadius: '9999px',
+                                transition: 'all 0.3s ease'
                               }}
                             />
-                            <span className="absolute inset-0 flex items-center justify-center text-[9.5px] font-black text-[#0f172a]">
+                            <span 
+                              className="absolute inset-0 flex items-center justify-center text-[9.5px] font-black text-[#0f172a] select-none pointer-events-none"
+                              style={{ height: '15px', lineHeight: '15px' }}
+                            >
                               {Math.round(row.progressPercent)}%
                             </span>
                           </div>
@@ -842,18 +871,37 @@ const TongHopNvTable: React.FC<TongHopNvTableProps> = ({
                   </td>
                   <td className="px-2 py-0 border-r border-emerald-600/50 bg-[#047857]">
                     <div className="flex flex-col items-center justify-center gap-0.5">
-                      <span style={{ fontWeight: 900 }} className="text-[13px] sm:text-[15px] font-black text-white">
+                      <span style={{ fontWeight: 900 }} className="text-[13px] sm:text-[15px] font-black text-white leading-tight">
                         {formatRevenue(totals.totalLkQuyDoi)}
                       </span>
-                      <div className="w-full h-[14px] rounded-full overflow-hidden relative bg-emerald-950/40">
+                      <div
+                        data-progress-bar="true"
+                        data-height="14px"
+                        className="w-full rounded-full relative"
+                        style={{
+                          height: '14px',
+                          minHeight: '14px',
+                          maxHeight: '14px',
+                          backgroundColor: 'rgba(2, 44, 34, 0.45)',
+                          overflow: 'hidden',
+                          position: 'relative',
+                          display: 'block'
+                        }}
+                      >
                         <div
-                          className="h-full rounded-full"
                           style={{ 
                             width: `${Math.min(totals.totalProgress, 100)}%`,
-                            backgroundColor: totals.totalProgress >= 100 ? '#10b981' : '#fbbf24'
+                            height: '14px',
+                            minHeight: '14px',
+                            maxHeight: '14px',
+                            backgroundColor: totals.totalProgress >= 100 ? '#10b981' : '#fbbf24',
+                            borderRadius: '9999px'
                           }}
                         />
-                        <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black text-white">
+                        <span 
+                          className="absolute inset-0 flex items-center justify-center text-[9px] font-black text-white select-none pointer-events-none"
+                          style={{ height: '14px', lineHeight: '14px' }}
+                        >
                           {Math.round(totals.totalProgress)}%
                         </span>
                       </div>

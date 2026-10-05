@@ -20,13 +20,15 @@ import {
   Search,
   X,
   CheckSquare,
-  Square
+  Square,
+  Scan
 } from 'lucide-react';
 import { domToPng } from 'modern-screenshot';
 import { addWhiteBorderToDataUrl } from '../../../utils/imageBorderUtil';
 import { motion, AnimatePresence } from 'framer-motion';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
+import AutoFitTable from '../../../components/AutoFitTable';
 
 export const DEFAULT_RAW_MWG_DATA_1841 = `Dashboards
 [Danh mục báo cáo](https://baocao.dienmayxanh.com/dashboard/home)[Hiệu quả kinh doanh](https://baocao.dienmayxanh.com/dashboard/effectiveness)[Doanh thu hợp nhất](https://baocao.dienmayxanh.com/dashboard/revenue-consolidated)[Thi đua](https://baocao.dienmayxanh.com/dashboard/thi-dua)[Doanh Thu Ngành Hàng BI](https://baocao.dienmayxanh.com/dashboard/bi-category)[Giờ Công Làm Việc](https://baocao.dienmayxanh.com/dashboard/timekeeping)[Báo cáo trả chậm](https://baocao.dienmayxanh.com/dashboard/tra-cham)[Lượt bill TGDĐ](https://baocao.dienmayxanh.com/dashboard/countbill-tgdd)[Chi phí chăm sóc khách hàng](https://baocao.dienmayxanh.com/dashboard/productreturncost)L
@@ -352,6 +354,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
   const [isFilterModalOpen, setIsFilterModalOpen] = useState<boolean>(false);
   const [filterSearchTerm, setFilterSearchTerm] = useState<string>('');
   const [isInputCollapsed, setIsInputCollapsed] = useState<boolean>(false);
+  const [isTableAutoFit, setIsTableAutoFit] = useState<boolean>(true);
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
 
@@ -930,36 +933,34 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
             />
 
             {/* Toolbar Buttons */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-              <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+              <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={handlePasteClipboard}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-xs cursor-pointer transition-all active:scale-95"
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10.5px] sm:text-xs font-black uppercase tracking-wider shadow-xs cursor-pointer transition-all active:scale-95"
                 >
-                  <ClipboardPaste size={14} />
+                  <ClipboardPaste size={13} className="shrink-0" />
                   <span>Dán Từ Clipboard</span>
                 </button>
-
-
 
                 <button
                   type="button"
                   onClick={() => handleSaveData('', true)}
-                  className="inline-flex items-center gap-1 px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold cursor-pointer transition-all active:scale-95"
+                  className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-[10.5px] sm:text-xs font-bold cursor-pointer transition-all active:scale-95 shrink-0"
                   title="Xoá trắng khung nhập"
                 >
-                  <Trash2 size={13} />
+                  <Trash2 size={12} />
                   <span>Xóa Trắng</span>
                 </button>
               </div>
 
               {/* View Toggle */}
-              <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200">
+              <div className="grid grid-cols-2 sm:flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => handleToggleOnlyWithRevenue(true)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                  className={`px-2 sm:px-2.5 py-1 rounded-lg text-[10.5px] sm:text-xs font-black transition-all cursor-pointer text-center truncate ${
                     onlyWithRevenue ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
@@ -968,7 +969,7 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                 <button
                   type="button"
                   onClick={() => handleToggleOnlyWithRevenue(false)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                  className={`px-2 sm:px-2.5 py-1 rounded-lg text-[10.5px] sm:text-xs font-black transition-all cursor-pointer text-center truncate ${
                     !onlyWithRevenue ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
@@ -980,46 +981,61 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
         )}
       </div>
 
-      {/* ── TOP ACTION BUTTONS (BỘ LỌC NV / XUẤT ẢNH / ZALO) ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1 no-capture">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase tracking-wider">
-            <Sparkles size={13} className="text-emerald-600" />
+      {/* ── TOP ACTION BUTTONS (BỘ LỌC NV / XUẤT ẢNH / ZALO / AUTO ZOOM) ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 px-0.5 sm:px-1 no-capture">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 sm:py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] sm:text-xs font-black uppercase tracking-wider">
+            <Sparkles size={11} className="text-emerald-600 sm:w-[13px] sm:h-[13px]" />
             MẪU CHUẨN MWG
           </span>
-          <span className="text-xs text-slate-600 font-bold">
-            Hiển thị <b>{count}</b> / {allRows.length} nhân viên
+          <span className="text-[11px] sm:text-xs text-slate-600 font-bold">
+            Hiển thị <b>{count}</b> / {allRows.length} NV
           </span>
           {excludedCount > 0 && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[11px] font-extrabold border border-amber-200">
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] sm:text-[11px] font-extrabold border border-amber-200">
               Đang ẩn {excludedCount} NV
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="grid grid-cols-4 gap-1.5 w-full sm:w-auto sm:flex sm:items-center sm:gap-2">
+          {/* NÚT AUTO ZOOM / CUỘN NGANG */}
+          <button
+            type="button"
+            onClick={() => setIsTableAutoFit(!isTableAutoFit)}
+            className={`inline-flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider border shadow-xs cursor-pointer transition-all active:scale-95 ${
+              isTableAutoFit
+                ? 'bg-blue-50 border-blue-200 text-blue-600'
+                : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
+            }`}
+            title={isTableAutoFit ? "Đang bật Auto Zoom vừa màn hình mobile (Bấm để chuyển sang cuộn ngang)" : "Bật Auto Zoom vừa màn hình mobile"}
+          >
+            <Scan size={12} className="shrink-0 sm:w-[13px] sm:h-[13px]" />
+            <span className="truncate">{isTableAutoFit ? 'Auto Zoom' : 'Cuộn ngang'}</span>
+          </button>
+
           {/* BỘ LỌC NHÂN VIÊN BUTTON */}
           <button
             type="button"
             onClick={() => setIsFilterModalOpen(true)}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider border shadow-xs cursor-pointer transition-all active:scale-95 ${
+            className={`inline-flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider border shadow-xs cursor-pointer transition-all active:scale-95 ${
               excludedCount > 0 
                 ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-600 shadow-amber-500/20'
                 : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
             }`}
           >
-            <Filter size={14} className={excludedCount > 0 ? 'text-white' : 'text-emerald-600'} />
-            <span>Lọc Nhân Viên ({count}/{allRows.length})</span>
+            <Filter size={12} className={`shrink-0 sm:w-[14px] sm:h-[14px] ${excludedCount > 0 ? 'text-white' : 'text-emerald-600'}`} />
+            <span className="truncate">Lọc NV ({count})</span>
           </button>
 
           {/* COPY NHẬN XÉT ZALO */}
           <button
             type="button"
             onClick={handleCopyZalo}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm cursor-pointer transition-all active:scale-95"
+            className="inline-flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-3.5 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider shadow-sm cursor-pointer transition-all active:scale-95"
           >
-            {isCopied ? <Check size={14} className="text-emerald-300" /> : <Copy size={14} />}
-            <span>{isCopied ? 'Đã Copy!' : 'Copy Nhận Xét Zalo'}</span>
+            {isCopied ? <Check size={12} className="text-emerald-300 shrink-0 sm:w-[14px] sm:h-[14px]" /> : <Copy size={12} className="shrink-0 sm:w-[14px] sm:h-[14px]" />}
+            <span className="truncate">{isCopied ? 'Đã Copy!' : 'Copy Zalo'}</span>
           </button>
 
           {/* XUẤT ẢNH BẢNG (PNG) */}
@@ -1027,10 +1043,10 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
             type="button"
             onClick={handleExportPng}
             disabled={isCapturing}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-emerald-600/25 cursor-pointer transition-all active:scale-95"
+            className="inline-flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 sm:px-3.5 py-1.5 sm:py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider shadow-md shadow-emerald-600/25 cursor-pointer transition-all active:scale-95"
           >
-            <Camera size={14} />
-            <span>{isCapturing ? 'Đang Xuất Ảnh...' : 'Xuất Ảnh Bảng (PNG)'}</span>
+            <Camera size={12} className="shrink-0 sm:w-[14px] sm:h-[14px]" />
+            <span className="truncate">{isCapturing ? 'Đang Xuất...' : 'Xuất Ảnh'}</span>
           </button>
         </div>
       </div>
@@ -1091,39 +1107,48 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
         {/* Khoảng trắng giữa Tiêu đề lớn và Tiêu đề cột */}
         <div className="h-1.5 sm:h-2.5 bg-white w-full" style={{ height: '6px', backgroundColor: '#ffffff' }} />
 
-        {/* The Exact 7 Columns Table */}
-        <div className="w-full overflow-x-auto">
-          <table className="w-full text-center border-collapse table-fixed mobile-compact-table" style={{ width: '100%', tableLayout: 'fixed' }}>
+        {/* The Exact 7 Columns Table with AutoFitTable */}
+        <AutoFitTable
+          id="real-doanh-thu-nv-table-container"
+          minWidth={660}
+          minScale={0.3}
+          disabled={!isTableAutoFit}
+          className="w-full bg-white"
+        >
+          <table 
+            className="w-full text-center border-collapse table-fixed" 
+            style={{ width: '100%', minWidth: '660px', tableLayout: 'fixed' }}
+          >
             <colgroup>
-              <col className="w-[24px] sm:w-[36px] md:w-[54px]" />
-              <col className="w-auto" />
-              <col className="w-[36px] sm:w-[54px] md:w-[90px]" />
-              <col className="w-[42px] sm:w-[60px] md:w-[100px]" />
-              <col className="w-[32px] sm:w-[52px] md:w-[85px]" />
-              <col className="w-[40px] sm:w-[58px] md:w-[100px]" />
-              <col className="w-[36px] sm:w-[60px] md:w-[100px]" />
+              <col style={{ width: '44px' }} />
+              <col className="w-auto" style={{ minWidth: '180px' }} />
+              <col style={{ width: '85px' }} />
+              <col style={{ width: '95px' }} />
+              <col style={{ width: '75px' }} />
+              <col style={{ width: '95px' }} />
+              <col style={{ width: '85px' }} />
             </colgroup>
             <thead>
-              <tr className="bg-[#006b4b] text-white text-[6.5px] sm:text-[9.5px] md:text-xs font-black uppercase tracking-wider h-[28px] sm:h-[36px] md:h-[42px]">
-                <th className="py-1 sm:py-3.5 px-0.5 sm:px-2 border-r border-[#00573d]/40 text-center whitespace-nowrap overflow-hidden">
+              <tr className="bg-[#006b4b] text-white text-[11px] sm:text-xs md:text-[13px] font-black uppercase tracking-wider h-[34px] sm:h-[38px] md:h-[42px]">
+                <th className="py-1.5 sm:py-2.5 px-0.5 sm:px-1 border-r border-[#00573d]/40 text-center whitespace-nowrap overflow-hidden">
                   STT
                 </th>
-                <th className="py-1 sm:py-3.5 px-1 sm:px-4 text-left border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
+                <th className="py-1.5 sm:py-2.5 px-2 sm:px-3 text-left border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
                   NHÂN VIÊN
                 </th>
-                <th className="py-1 sm:py-3.5 px-0.5 sm:px-2 border-r border-[#00573d]/40 text-center tracking-tight whitespace-nowrap overflow-hidden">
+                <th className="py-1.5 sm:py-2.5 px-1 border-r border-[#00573d]/40 text-center tracking-tight whitespace-nowrap overflow-hidden">
                   DT. THỰC
                 </th>
-                <th className="py-1 sm:py-3.5 px-0.5 sm:px-2 border-r border-[#00573d]/40 text-center tracking-tight whitespace-nowrap overflow-hidden">
+                <th className="py-1.5 sm:py-2.5 px-1 border-r border-[#00573d]/40 text-center tracking-tight whitespace-nowrap overflow-hidden">
                   DT. QUY ĐỔI
                 </th>
-                <th className="py-1 sm:py-3.5 px-0.5 sm:px-2 border-r border-[#00573d]/40 text-center tracking-tight whitespace-nowrap overflow-hidden">
+                <th className="py-1.5 sm:py-2.5 px-1 border-r border-[#00573d]/40 text-center tracking-tight whitespace-nowrap overflow-hidden">
                   HQ.QĐ
                 </th>
-                <th className="py-1 sm:py-3.5 px-0.5 sm:px-2 border-r border-[#00573d]/40 text-center tracking-tight whitespace-nowrap overflow-hidden">
+                <th className="py-1.5 sm:py-2.5 px-1 border-r border-[#00573d]/40 text-center tracking-tight whitespace-nowrap overflow-hidden">
                   DT TRẢ GÓP
                 </th>
-                <th className="py-1 sm:py-3.5 px-0.5 sm:px-3 text-center tracking-tight whitespace-nowrap overflow-hidden">
+                <th className="py-1.5 sm:py-2.5 px-1 text-center tracking-tight whitespace-nowrap overflow-hidden">
                   % TRẢ GÓP
                 </th>
               </tr>
@@ -1143,15 +1168,15 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                 return (
                   <tr 
                     key={`${staff.id}-${idx}`}
-                    className="bg-white hover:bg-emerald-50/60 transition-colors group h-[28px] sm:h-[36px] md:h-[40px]"
+                    className="bg-white hover:bg-emerald-50/60 transition-colors group h-[32px] sm:h-[36px] md:h-[40px]"
                   >
                     {/* STT: #1, #2, ... in bold emerald */}
-                    <td className="py-0.5 sm:py-2.5 px-0.5 sm:px-2 font-black text-[#00825e] text-center text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden">
+                    <td className="py-1 sm:py-2 px-1 font-black text-[#00825e] text-center text-[12px] sm:text-[13px] whitespace-nowrap overflow-hidden">
                       #{rankNum}
                     </td>
 
                     {/* NHÂN VIÊN: Bold Uppercase Name with Quick Hide Option */}
-                    <td className="py-0.5 sm:py-2.5 px-1 sm:px-4 text-left font-black tracking-tight text-[8px] sm:text-[11px] md:text-[13.5px] overflow-hidden whitespace-nowrap">
+                    <td className="py-1 sm:py-2 px-2 sm:px-3 text-left font-black tracking-tight text-[12px] sm:text-[13px] overflow-hidden whitespace-nowrap">
                       <div className="flex items-center justify-between gap-1 overflow-hidden whitespace-nowrap">
                         <span 
                           className={`truncate block flex-1 leading-tight ${
@@ -1172,15 +1197,15 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                           className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 sm:p-1 text-slate-400 hover:text-rose-500 rounded hover:bg-rose-50 no-capture cursor-pointer shrink-0"
                           title="Ẩn nhân viên này khỏi bảng (lưu tự động)"
                         >
-                          <EyeOff size={11} className="sm:w-[13px] sm:h-[13px]" />
+                          <EyeOff size={12} className="sm:w-[13px] sm:h-[13px]" />
                         </button>
                       </div>
                     </td>
 
                     {/* DT. THỰC: Bold Dark Slate, Red pill badge if 0 */}
-                    <td className="py-0.5 sm:py-2.5 px-0.5 sm:px-2 font-black text-[#0f172a] text-center text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden">
+                    <td className="py-1 sm:py-2 px-1 font-black text-[#0f172a] text-center text-[12px] sm:text-[13px] whitespace-nowrap overflow-hidden">
                       {staff.actualRevenue === 0 ? (
-                        <span className="inline-block px-1 sm:px-2 py-0.2 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[7.5px] sm:text-[10px] md:text-[13px] leading-tight">
+                        <span className="inline-block px-2 py-0.5 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[11px] sm:text-xs leading-tight">
                           0
                         </span>
                       ) : (
@@ -1189,9 +1214,9 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                     </td>
 
                     {/* DT. QUY ĐỔI: Bold Emerald Green, Red pill badge if 0 */}
-                    <td className="py-0.5 sm:py-2.5 px-0.5 sm:px-2 font-black text-[#00825e] text-center text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden">
+                    <td className="py-1 sm:py-2 px-1 font-black text-[#00825e] text-center text-[12px] sm:text-[13px] whitespace-nowrap overflow-hidden">
                       {staff.convertedRevenue === 0 ? (
-                        <span className="inline-block px-1 sm:px-2 py-0.2 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[7.5px] sm:text-[10px] md:text-[13px] leading-tight">
+                        <span className="inline-block px-2 py-0.5 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[11px] sm:text-xs leading-tight">
                           0
                         </span>
                       ) : (
@@ -1200,22 +1225,22 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                     </td>
 
                     {/* HQ.QĐ: Green if > 0.0%, Red pill badge if <= 0.0% */}
-                    <td className="py-0.5 sm:py-2.5 px-0.5 sm:px-2 font-black text-center text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden">
+                    <td className="py-1 sm:py-2 px-1 font-black text-center text-[12px] sm:text-[13px] whitespace-nowrap overflow-hidden">
                       {staff.shareRate <= 0 ? (
-                        <span className="inline-block px-1 sm:px-1.5 py-0.2 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[7px] sm:text-[9.5px] md:text-[13px] leading-tight">
+                        <span className="inline-block px-1.5 py-0.5 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[10.5px] sm:text-[12px] leading-tight">
                           {staff.shareRate.toFixed(1)}%
                         </span>
                       ) : (
-                        <span className="text-[#00825e] leading-tight">
+                        <span className="text-[#00825e] leading-tight text-[12px] sm:text-[13px]">
                           {staff.shareRate.toFixed(1)}%
                         </span>
                       )}
                     </td>
 
                     {/* DT TRẢ GÓP: Bold Blue, Red pill badge if 0 */}
-                    <td className="py-0.5 sm:py-2.5 px-0.5 sm:px-2 font-black text-center text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden">
+                    <td className="py-1 sm:py-2 px-1 font-black text-center text-[12px] sm:text-[13px] whitespace-nowrap overflow-hidden">
                       {staff.installmentRevenue === 0 ? (
-                        <span className="inline-block px-1 sm:px-2 py-0.2 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[7.5px] sm:text-[10px] md:text-[13px] leading-tight">
+                        <span className="inline-block px-2 py-0.5 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[11px] sm:text-xs leading-tight">
                           0
                         </span>
                       ) : (
@@ -1226,13 +1251,13 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
                     </td>
 
                     {/* % TRẢ GÓP: Pill Badge (Green >= 50%, Red < 50%) */}
-                    <td className="py-0.5 sm:py-2.5 px-0.5 sm:px-3 text-center font-black text-[8.5px] sm:text-[11.5px] md:text-[13.5px] whitespace-nowrap overflow-hidden">
+                    <td className="py-1 sm:py-2 px-1 text-center font-black text-[12px] sm:text-[13px] whitespace-nowrap overflow-hidden">
                       {staff.installmentRate >= 50.0 ? (
-                        <span className="inline-block px-1 sm:px-2 py-0.2 rounded-full bg-[#e6f8ef] text-[#00825e] font-black text-[7px] sm:text-[9.5px] md:text-[13px] leading-tight">
+                        <span className="inline-block px-2 py-0.5 rounded-full bg-[#e6f8ef] text-[#00825e] font-black text-[10.5px] sm:text-[12px] leading-tight">
                           {staff.installmentRate.toFixed(1)}%
                         </span>
                       ) : (
-                        <span className="inline-block px-1 sm:px-2 py-0.2 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[7px] sm:text-[9.5px] md:text-[13px] leading-tight">
+                        <span className="inline-block px-2 py-0.5 rounded-full bg-[#ffebee] text-[#e11d48] font-black text-[10.5px] sm:text-[12px] leading-tight">
                           {staff.installmentRate.toFixed(1)}%
                         </span>
                       )}
@@ -1244,29 +1269,29 @@ export const RealDoanhThuNvTab: React.FC<RealDoanhThuNvTabProps> = ({
 
             {/* Dòng Tổng - Exact Dark Green Footer matching image */}
             <tfoot>
-              <tr className="bg-[#006b4b] text-white font-black text-[8px] sm:text-[11px] md:text-[14px] h-[30px] sm:h-[40px]">
-                <td colSpan={2} className="py-1 sm:py-3.5 px-1 sm:px-4 text-left uppercase tracking-wider border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
+              <tr className="bg-[#006b4b] text-white font-black text-[11.5px] sm:text-[13px] md:text-[14px] h-[34px] sm:h-[40px]">
+                <td colSpan={2} className="py-1.5 sm:py-2.5 px-2 sm:px-3 text-left uppercase tracking-wider border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
                   TỔNG ({count} NV)
                 </td>
-                <td className="py-1 sm:py-3.5 px-0.5 sm:px-2 text-center border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
+                <td className="py-1.5 sm:py-2.5 px-1 text-center border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
                   {totals.actualRevenue}
                 </td>
-                <td className="py-1 sm:py-3.5 px-0.5 sm:px-2 text-center border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
+                <td className="py-1.5 sm:py-2.5 px-1 text-center border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
                   {totals.convertedRevenue}
                 </td>
-                <td className="py-1 sm:py-3.5 px-0.5 sm:px-2 text-center text-[#ffe500] border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
+                <td className="py-1.5 sm:py-2.5 px-1 text-center text-[#ffe500] border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
                   {totals.shareRate.toFixed(1)}%
                 </td>
-                <td className="py-1 sm:py-3.5 px-0.5 sm:px-2 text-center border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
+                <td className="py-1.5 sm:py-2.5 px-1 text-center border-r border-[#00573d]/40 whitespace-nowrap overflow-hidden">
                   {totals.installmentRevenue}
                 </td>
-                <td className="py-1 sm:py-3.5 px-0.5 sm:px-3 text-center whitespace-nowrap overflow-hidden">
+                <td className="py-1.5 sm:py-2.5 px-1 text-center whitespace-nowrap overflow-hidden">
                   {totals.installmentRate.toFixed(1)}%
                 </td>
               </tr>
             </tfoot>
           </table>
-        </div>
+        </AutoFitTable>
       </div>
 
       {/* ── 3. MODAL BỘ LỌC NHÂN VIÊN (LƯU TỰ ĐỘNG) ── */}
