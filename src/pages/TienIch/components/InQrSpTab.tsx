@@ -32,7 +32,9 @@ import {
   CheckCircle2,
   Minus,
   Sliders,
-  ExternalLink
+  ExternalLink,
+  ChevronDown,
+  Filter
 } from 'lucide-react';
 import { domToPng } from 'modern-screenshot';
 import { useStore } from '../../../contexts/StoreContext';
@@ -44,11 +46,379 @@ export interface QrProductItem {
   productName: string; // Tên sản phẩm
   nganhHang?: string; // Ngành hàng
   nhomHang?: string; // Nhóm hàng
+  nhaSanXuat?: string; // Nhà sản xuất (Hãng / Brand)
   imei?: string; // IMEI_1
   status?: string; // Trạng thái sản phẩm
   quantity: number; // Số lượng tem cần in
   selected: boolean; // Chọn để in
 }
+
+/**
+ * Tự động trích xuất / suy luận Nhà sản xuất (Hãng/Brand) từ tên sản phẩm hoặc nhóm hàng
+ */
+export const inferManufacturer = (name: string = '', nhom: string = '', nganh: string = ''): string => {
+  if (!name && !nhom && !nganh) return '';
+  const text = `${name} ${nhom} ${nganh}`;
+
+  const BRAND_PATTERNS: [RegExp, string][] = [
+    [/\b(aqua|sanyo)\b/i, 'AQUA'],
+    [/\bpanasonic\b/i, 'Panasonic'],
+    [/\bsamsung\b/i, 'Samsung'],
+    [/\bsony\b/i, 'Sony'],
+    [/\blg\b/i, 'LG'],
+    [/\btoshiba\b/i, 'Toshiba'],
+    [/\bsharp\b/i, 'Sharp'],
+    [/\bsanaky\b/i, 'Sanaky'],
+    [/\b(hòa phát|hoa phat|funiki)\b/i, 'Hòa Phát'],
+    [/\bcasper\b/i, 'Casper'],
+    [/\bdaikin\b/i, 'Daikin'],
+    [/\bgree\b/i, 'Gree'],
+    [/\bbeko\b/i, 'Beko'],
+    [/\belectrolux\b/i, 'Electrolux'],
+    [/\bmidea\b/i, 'Midea'],
+    [/\btcl\b/i, 'TCL'],
+    [/\bhisense\b/i, 'Hisense'],
+    [/\bnagakawa\b/i, 'Nagakawa'],
+    [/\bgalanz\b/i, 'Galanz'],
+    [/\bhitachi\b/i, 'Hitachi'],
+    [/\bmitsubishi\b/i, 'Mitsubishi'],
+    [/\bcarrier\b/i, 'Carrier'],
+    [/\bsunhouse\b/i, 'Sunhouse'],
+    [/\bkangaroo\b/i, 'Kangaroo'],
+    [/\bphilips\b/i, 'Philips'],
+    [/\btefal\b/i, 'Tefal'],
+    [/\bbluestone\b/i, 'Bluestone'],
+    [/\bhafele\b/i, 'Hafele'],
+    [/\belmich\b/i, 'Elmich'],
+    [/\block&lock\b|\block & lock\b|\blocknlock\b/i, 'Lock&Lock'],
+    [/\bcomet\b/i, 'Comet'],
+    [/\brapido\b/i, 'Rapido'],
+    [/\bferroli\b/i, 'Ferroli'],
+    [/\bariston\b/i, 'Ariston'],
+    [/\brossi\b/i, 'Rossi'],
+    [/\bpicenza\b/i, 'Picenza'],
+    [/\bkarofi\b/i, 'Karofi'],
+    [/\bkorihome\b/i, 'Korihome'],
+    [/\bdaikiosan\b/i, 'Daikiosan'],
+    [/\bmakano\b/i, 'Makano'],
+    [/\brobot\b/i, 'Robot'],
+    [/\bcuckoo\b/i, 'Cuckoo'],
+    [/\btiger\b/i, 'Tiger'],
+    [/\bzojirushi\b/i, 'Zojirushi'],
+    [/\bbear\b/i, 'Bear'],
+    [/\bhawonkoo\b/i, 'Hawonkoo'],
+    [/\bmishio\b/i, 'Mishio'],
+    [/\bkalite\b/i, 'Kalite'],
+    [/\bunie\b/i, 'Unie'],
+    [/\bsimplus\b/i, 'Simplus'],
+    [/\bapple\b|\biphone\b|\bipad\b|\bmacbook\b/i, 'Apple'],
+    [/\bxiaomi\b|\bredmi\b|\bpoco\b/i, 'Xiaomi'],
+    [/\boppo\b/i, 'Oppo'],
+    [/\bvivo\b/i, 'Vivo'],
+    [/\brealme\b/i, 'Realme'],
+    [/\bnokia\b/i, 'Nokia'],
+    [/\basus\b|\brog\b/i, 'Asus'],
+    [/\bacer\b/i, 'Acer'],
+    [/\bdell\b/i, 'Dell'],
+    [/\bhp\b/i, 'HP'],
+    [/\blenovo\b/i, 'Lenovo'],
+    [/\bmsi\b/i, 'MSI'],
+    [/\bhuawei\b/i, 'Huawei'],
+    [/\bhonor\b/i, 'Honor'],
+    [/\binfinix\b/i, 'Infinix'],
+    [/\btecno\b/i, 'Tecno'],
+    [/\bjbl\b/i, 'JBL'],
+    [/\bmarshall\b/i, 'Marshall'],
+    [/\bbose\b/i, 'Bose'],
+    [/\bhavit\b/i, 'Havit'],
+    [/\banker\b/i, 'Anker'],
+    [/\bbaseus\b/i, 'Baseus'],
+    [/\bbelkin\b/i, 'Belkin'],
+    [/\bugreen\b/i, 'Ugreen'],
+    [/\basia\b/i, 'Asia'],
+    [/\bsenko\b/i, 'Senko']
+  ];
+
+  for (const [pattern, brand] of BRAND_PATTERNS) {
+    if (pattern.test(text)) {
+      return brand;
+    }
+  }
+
+  return '';
+};
+
+/**
+ * Tự động phân loại Ngành hàng nếu dữ liệu chưa có cột Ngành hàng
+ */
+export const inferNganhHang = (name: string = '', nhom: string = ''): string => {
+  const text = `${name} ${nhom}`.toLowerCase();
+  if (/tủ lạnh|tủ đông|tủ mát|máy giặt|máy sấy|máy lạnh|điều hòa/.test(text)) {
+    return '1755 - Điện lạnh';
+  }
+  if (/máy nước nóng|nồi cơm|nồi chiên|bếp|quạt|lọc nước|lò vi sóng|xay sinh tố|ấm đun|bình đun|hút bụi|bàn ủi|nồi áp suất|nồi lẩu/.test(text)) {
+    return 'Gia dụng';
+  }
+  if (/tivi|loa|dàn âm thanh|soundbar|tai nghe|amply|micro/.test(text)) {
+    return 'Điện tử';
+  }
+  if (/điện thoại|iphone|smartphone|tablet|ipad/.test(text)) {
+    return 'Điện thoại - Tablet';
+  }
+  if (/laptop|máy tính|màn hình|máy in|pc/.test(text)) {
+    return 'Laptop - IT';
+  }
+  if (/sạc|cáp|pin dự phòng|ốp lưng|chuột|bàn phím/.test(text)) {
+    return 'Phụ kiện';
+  }
+  if (/đồng hồ/.test(text)) {
+    return 'Đồng hồ';
+  }
+  return 'Khác';
+};
+
+interface FilterOption {
+  label: string;
+  count: number;
+}
+
+interface FilterDropdownProps {
+  label: string;
+  icon: React.ReactNode;
+  value: string;
+  onChange: (val: string) => void;
+  options: FilterOption[];
+  activeColor: 'rose' | 'teal' | 'purple' | 'sky';
+  totalCount: number;
+}
+
+const FilterDropdown: React.FC<FilterDropdownProps> = ({
+  label,
+  icon,
+  value,
+  onChange,
+  options,
+  activeColor,
+  totalCount,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const isSelected = value !== 'ALL';
+
+  const colorStyles = {
+    rose: {
+      activeBtn: 'bg-rose-50 border-rose-300 text-rose-800 font-black ring-1 ring-rose-200',
+      activeBadge: 'bg-rose-100 text-rose-700',
+      activeText: 'text-rose-700',
+      hoverOption: 'hover:bg-rose-50',
+      selectedOption: 'bg-rose-50/80 text-rose-800 font-black',
+      searchFocus: 'focus:border-rose-400',
+    },
+    teal: {
+      activeBtn: 'bg-teal-50 border-teal-300 text-teal-800 font-black ring-1 ring-teal-200',
+      activeBadge: 'bg-teal-100 text-teal-700',
+      activeText: 'text-teal-700',
+      hoverOption: 'hover:bg-teal-50',
+      selectedOption: 'bg-teal-50/80 text-teal-800 font-black',
+      searchFocus: 'focus:border-teal-400',
+    },
+    purple: {
+      activeBtn: 'bg-purple-50 border-purple-300 text-purple-800 font-black ring-1 ring-purple-200',
+      activeBadge: 'bg-purple-100 text-purple-700',
+      activeText: 'text-purple-700',
+      hoverOption: 'hover:bg-purple-50',
+      selectedOption: 'bg-purple-50/80 text-purple-800 font-black',
+      searchFocus: 'focus:border-purple-400',
+    },
+    sky: {
+      activeBtn: 'bg-sky-50 border-sky-300 text-sky-800 font-black ring-1 ring-sky-200',
+      activeBadge: 'bg-sky-100 text-sky-700',
+      activeText: 'text-sky-700',
+      hoverOption: 'hover:bg-sky-50',
+      selectedOption: 'bg-sky-50/80 text-sky-800 font-black',
+      searchFocus: 'focus:border-sky-400',
+    },
+  }[activeColor];
+
+  const filteredOptions = useMemo(() => {
+    if (!search.trim()) return options;
+    const q = search.toLowerCase().trim();
+    return options.filter(opt => opt.label.toLowerCase().includes(q));
+  }, [options, search]);
+
+  return (
+    <div ref={dropdownRef} className="relative flex-1 min-w-0">
+      <button
+        type="button"
+        onClick={() => setIsOpen(prev => !prev)}
+        className={`w-full py-1.5 px-2.5 rounded-xl border text-left text-xs transition-all flex items-center justify-between gap-1.5 cursor-pointer select-none ${
+          isSelected
+            ? colorStyles.activeBtn
+            : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+        }`}
+        title={`${label}: ${isSelected ? value : 'Tất cả'}`}
+      >
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <span className="shrink-0">{icon}</span>
+          <span className="truncate text-[11px]">
+            {isSelected ? (
+              <span>
+                <span className="opacity-70 font-semibold">{label}: </span>
+                <strong className={colorStyles.activeText}>{value}</strong>
+              </span>
+            ) : (
+              <span className="text-slate-600 font-medium">
+                {label} <span className="text-slate-400 font-normal">({options.length})</span>
+              </span>
+            )}
+          </span>
+        </div>
+
+        {isSelected ? (
+          <span
+            onClick={e => {
+              e.stopPropagation();
+              onChange('ALL');
+              setIsOpen(false);
+            }}
+            className="w-4 h-4 rounded-full hover:bg-black/10 flex items-center justify-center shrink-0 cursor-pointer"
+            title={`Bỏ lọc ${label}`}
+          >
+            <X size={11} />
+          </span>
+        ) : (
+          <ChevronDown size={13} className="text-slate-400 shrink-0" />
+        )}
+      </button>
+
+      {/* Popover Dropdown */}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.15 }}
+            className="absolute top-full left-0 mt-1 z-50 w-72 sm:w-80 bg-white rounded-2xl border border-slate-200 shadow-xl p-2.5 space-y-2"
+          >
+            <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+              <span className="text-[11px] font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
+                {icon}
+                <span>Lọc theo {label}</span>
+              </span>
+              {isSelected && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange('ALL');
+                    setIsOpen(false);
+                  }}
+                  className="text-[10px] text-slate-500 hover:text-red-600 font-bold cursor-pointer"
+                >
+                  Xóa lọc
+                </button>
+              )}
+            </div>
+
+            {/* Ô tìm kiếm trong danh mục */}
+            {options.length > 5 && (
+              <div className="relative">
+                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder={`Tìm kiếm ${label.toLowerCase()}...`}
+                  className={`w-full pl-7 pr-2.5 py-1 text-[11px] bg-slate-50 border border-slate-200 rounded-lg focus:outline-none ${colorStyles.searchFocus} font-medium`}
+                  autoFocus
+                />
+              </div>
+            )}
+
+            {/* Danh sách các tùy chọn */}
+            <div className="max-h-56 overflow-y-auto space-y-0.5 no-scrollbar pr-0.5">
+              {/* Nút Tất cả */}
+              <button
+                type="button"
+                onClick={() => {
+                  onChange('ALL');
+                  setIsOpen(false);
+                }}
+                className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                  !isSelected
+                    ? `${colorStyles.selectedOption} shadow-2xs`
+                    : `${colorStyles.hoverOption} text-slate-700`
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${!isSelected ? 'border-sky-600 bg-sky-600 text-white' : 'border-slate-300'}`}>
+                    {!isSelected && <Check size={10} strokeWidth={3} />}
+                  </span>
+                  <span className="font-bold">Tất cả {label.toLowerCase()}</span>
+                </div>
+                <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                  {totalCount}
+                </span>
+              </button>
+
+              {/* Các tùy chọn cụ thể */}
+              {filteredOptions.length === 0 ? (
+                <div className="p-3 text-center text-slate-400 text-[11px]">
+                  Không tìm thấy {label.toLowerCase()} nào
+                </div>
+              ) : (
+                filteredOptions.map(opt => {
+                  const isCurrent = value === opt.label;
+                  return (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => {
+                        onChange(opt.label);
+                        setIsOpen(false);
+                      }}
+                      className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                        isCurrent
+                          ? `${colorStyles.selectedOption} shadow-2xs`
+                          : `${colorStyles.hoverOption} text-slate-700`
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${isCurrent ? 'border-sky-600 bg-sky-600 text-white' : 'border-slate-300'}`}>
+                          {isCurrent && <Check size={10} strokeWidth={3} />}
+                        </span>
+                        <span className="truncate font-semibold">{opt.label}</span>
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md shrink-0 ml-1.5 font-bold">
+                        {opt.count}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 export interface QrPrintConfig {
   layoutCols: '2' | '3' | '4' | '5' | 'custom'; // 2, 3, 4, 5 hoặc custom
@@ -74,6 +444,7 @@ export const SAMPLE_PRODUCTS: QrProductItem[] = [
     id: 'sample-1',
     nganhHang: '1755 - Tủ lạnh, đông, mát',
     nhomHang: '6421 - Mô hình tủ lạnh, đông, mát',
+    nhaSanXuat: 'Panasonic',
     productCode: '3052959000401',
     productName: 'Mô hình Tủ lạnh Panasonic NR-MBX471GPK -2021',
     imei: '141K00132',
@@ -85,6 +456,7 @@ export const SAMPLE_PRODUCTS: QrProductItem[] = [
     id: 'sample-2',
     nganhHang: '1755 - Tủ lạnh, đông, mát',
     nhomHang: '6421 - Mô hình tủ lạnh, đông, mát',
+    nhaSanXuat: 'Panasonic',
     productCode: '3052959000356',
     productName: 'Mô hình Tủ lạnh Panasonic NR-MKBA190PP -2020',
     imei: '0X3P00218',
@@ -96,6 +468,7 @@ export const SAMPLE_PRODUCTS: QrProductItem[] = [
     id: 'sample-3',
     nganhHang: '1755 - Tủ lạnh, đông, mát',
     nhomHang: '6421 - Mô hình tủ lạnh, đông, mát',
+    nhaSanXuat: 'Panasonic',
     productCode: '3051097001907',
     productName: 'Mô hình Tủ lạnh Panasonic NR-MTV261BPK -2021',
     imei: '162K00371',
@@ -107,6 +480,7 @@ export const SAMPLE_PRODUCTS: QrProductItem[] = [
     id: 'sample-4',
     nganhHang: '1755 - Tủ lạnh, đông, mát',
     nhomHang: '6421 - Mô hình tủ lạnh, đông, mát',
+    nhaSanXuat: 'Panasonic',
     productCode: '3052959000411',
     productName: 'Mô hình Tủ lạnh Panasonic NR-MTV341VGM -2021',
     imei: '162M00096',
@@ -118,6 +492,7 @@ export const SAMPLE_PRODUCTS: QrProductItem[] = [
     id: 'sample-5',
     nganhHang: '1755 - Tủ lạnh, đông, mát',
     nhomHang: '6421 - Mô hình tủ lạnh, đông, mát',
+    nhaSanXuat: 'Panasonic',
     productCode: '3052959000440',
     productName: 'Mô hình Tủ lạnh Panasonic NR-MTX461GPK -2021',
     imei: '1X1K00254',
@@ -129,6 +504,7 @@ export const SAMPLE_PRODUCTS: QrProductItem[] = [
     id: 'sample-6',
     nganhHang: '1755 - Tủ lạnh, đông, mát',
     nhomHang: '6421 - Mô hình tủ lạnh, đông, mát',
+    nhaSanXuat: 'Hòa Phát',
     productCode: '3052959000568',
     productName: 'Mô hình Tủ đông Hòa Phát 245 lít HPF BD6245',
     imei: '23614U9P331437',
@@ -140,6 +516,7 @@ export const SAMPLE_PRODUCTS: QrProductItem[] = [
     id: 'sample-7',
     nganhHang: '1755 - Tủ lạnh, đông, mát',
     nhomHang: '6421 - Mô hình tủ lạnh, đông, mát',
+    nhaSanXuat: 'Hòa Phát',
     productCode: '3052959000573',
     productName: 'Mô hình Tủ đông Hòa Phát 352 lít HPF AD6352',
     imei: '23614Y9P156505',
@@ -151,6 +528,7 @@ export const SAMPLE_PRODUCTS: QrProductItem[] = [
     id: 'sample-8',
     nganhHang: '1755 - Tủ lạnh, đông, mát',
     nhomHang: '6421 - Mô hình tủ lạnh, đông, mát',
+    nhaSanXuat: 'Sanaky',
     productCode: '1750893000048',
     productName: 'Mô hình Tủ đông Sanaky Inverter VH-6699W3/MH',
     imei: 'D39MH1A2D000050',
@@ -162,6 +540,7 @@ export const SAMPLE_PRODUCTS: QrProductItem[] = [
     id: 'sample-9',
     nganhHang: '1755 - Tủ lạnh, đông, mát',
     nhomHang: '6421 - Mô hình tủ lạnh, đông, mát',
+    nhaSanXuat: 'Sanaky',
     productCode: '1750893000038',
     productName: 'Mô hình Tủ đông Sanaky VH-162HY2/MH',
     imei: 'D28MH1A2D000035',
@@ -173,6 +552,7 @@ export const SAMPLE_PRODUCTS: QrProductItem[] = [
     id: 'sample-10',
     nganhHang: '1755 - Tủ lạnh, đông, mát',
     nhomHang: '6421 - Mô hình tủ lạnh, đông, mát',
+    nhaSanXuat: 'Sanaky',
     productCode: '1756421000003',
     productName: 'Mô hình Tủ Đông Sanaky VH-255HY2/MH',
     imei: 'C63MH1A2D000011',
@@ -219,13 +599,19 @@ export const InQrSpTab: React.FC = () => {
   const { currentStoreId } = useStore();
   const { showNotification } = useNotification();
 
-  // 1. Danh sách sản phẩm
+  // 1. Danh sách sản phẩm (tự động chuẩn hóa và suy luận NSX/Ngành hàng nếu dữ liệu cũ chưa có)
   const [products, setProducts] = useState<QrProductItem[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_PRODUCTS_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(p => ({
+            ...p,
+            nhaSanXuat: p.nhaSanXuat || inferManufacturer(p.productName, p.nhomHang, p.nganhHang),
+            nganhHang: p.nganhHang || inferNganhHang(p.productName, p.nhomHang),
+          }));
+        }
       }
     } catch {}
     return SAMPLE_PRODUCTS;
@@ -267,8 +653,14 @@ export const InQrSpTab: React.FC = () => {
     } catch {}
   }, [config]);
 
-  // Bộ lọc tìm kiếm
+  // Bộ lọc tìm kiếm văn bản
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // ── BỘ LỌC 3 TIÊU CHÍ: NGÀNH HÀNG, NHÓM HÀNG, NHÀ SẢN XUẤT ──
+  const [selectedNganh, setSelectedNganh] = useState<string>('ALL');
+  const [selectedNhom, setSelectedNhom] = useState<string>('ALL');
+  const [selectedNsx, setSelectedNsx] = useState<string>('ALL');
+
   // Tab điều khiển bên trái: 'list' | 'settings' | 'add'
   const [activeLeftTab, setActiveLeftTab] = useState<'list' | 'settings' | 'add'>('list');
   // Modal Dán dữ liệu Excel
@@ -290,6 +682,78 @@ export const InQrSpTab: React.FC = () => {
   const [newStatus, setNewStatus] = useState('');
   const [newNganh, setNewNganh] = useState('');
   const [newNhom, setNewNhom] = useState('');
+  const [newNsx, setNewNsx] = useState('');
+
+  // 1. Danh sách ngành hàng có sẵn kèm số lượng
+  const availableNganhs = useMemo(() => {
+    const counts = new Map<string, number>();
+    products.forEach(p => {
+      const n = (p.nganhHang || '').trim();
+      if (n) {
+        counts.set(n, (counts.get(n) || 0) + 1);
+      }
+    });
+    return Array.from(counts.entries())
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }, [products]);
+
+  // 2. Danh sách nhóm hàng có sẵn kèm số lượng (phụ thuộc vào ngành hàng nếu đang chọn)
+  const availableNhoms = useMemo(() => {
+    const counts = new Map<string, number>();
+    const pool = selectedNganh === 'ALL'
+      ? products
+      : products.filter(p => (p.nganhHang || '').trim() === selectedNganh);
+    pool.forEach(p => {
+      const nh = (p.nhomHang || '').trim();
+      if (nh) {
+        counts.set(nh, (counts.get(nh) || 0) + 1);
+      }
+    });
+    return Array.from(counts.entries())
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }, [products, selectedNganh]);
+
+  // 3. Danh sách nhà sản xuất có sẵn kèm số lượng (phụ thuộc vào ngành và nhóm đang chọn)
+  const availableNsxs = useMemo(() => {
+    const counts = new Map<string, number>();
+    let pool = products;
+    if (selectedNganh !== 'ALL') {
+      pool = pool.filter(p => (p.nganhHang || '').trim() === selectedNganh);
+    }
+    if (selectedNhom !== 'ALL') {
+      pool = pool.filter(p => (p.nhomHang || '').trim() === selectedNhom);
+    }
+    pool.forEach(p => {
+      const nsx = (p.nhaSanXuat || '').trim();
+      if (nsx) {
+        counts.set(nsx, (counts.get(nsx) || 0) + 1);
+      }
+    });
+    return Array.from(counts.entries())
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }, [products, selectedNganh, selectedNhom]);
+
+  // Tự động reset nhóm hàng nếu không còn trong ngành hàng mới
+  useEffect(() => {
+    if (selectedNhom !== 'ALL') {
+      const exists = availableNhoms.some(o => o.label === selectedNhom);
+      if (!exists) setSelectedNhom('ALL');
+    }
+  }, [selectedNganh, availableNhoms, selectedNhom]);
+
+  // Tự động reset nhà sản xuất nếu không còn trong ngành/nhóm mới
+  useEffect(() => {
+    if (selectedNsx !== 'ALL') {
+      const exists = availableNsxs.some(o => o.label === selectedNsx);
+      if (!exists) setSelectedNsx('ALL');
+    }
+  }, [selectedNganh, selectedNhom, availableNsxs, selectedNsx]);
+
+  // Trạng thái có bộ lọc đang kích hoạt hay không
+  const isFilterActive = selectedNganh !== 'ALL' || selectedNhom !== 'ALL' || selectedNsx !== 'ALL' || !!searchTerm.trim();
 
   // Số cột và số hàng hiện tại (chuẩn hóa fallback)
   const cols = config.customCols || (config.layoutCols === '2' ? 2 : config.layoutCols === '4' ? 4 : config.layoutCols === '5' ? 5 : 3);
@@ -319,18 +783,75 @@ export const InQrSpTab: React.FC = () => {
     });
   };
 
-  // Lọc sản phẩm hiển thị trong bảng danh sách
+  // Lọc sản phẩm hiển thị trong bảng danh sách theo toàn bộ tiêu chí
   const filteredProducts = useMemo(() => {
-    if (!searchTerm.trim()) return products;
-    const term = searchTerm.toLowerCase().trim();
-    return products.filter(
-      p =>
-        p.productCode.toLowerCase().includes(term) ||
-        p.productName.toLowerCase().includes(term) ||
-        (p.imei && p.imei.toLowerCase().includes(term)) ||
-        (p.nhomHang && p.nhomHang.toLowerCase().includes(term))
+    return products.filter(p => {
+      // 1. Text search
+      if (searchTerm.trim()) {
+        const term = searchTerm.toLowerCase().trim();
+        const matchesTerm =
+          p.productCode.toLowerCase().includes(term) ||
+          p.productName.toLowerCase().includes(term) ||
+          (p.imei && p.imei.toLowerCase().includes(term)) ||
+          (p.nhomHang && p.nhomHang.toLowerCase().includes(term)) ||
+          (p.nhaSanXuat && p.nhaSanXuat.toLowerCase().includes(term)) ||
+          (p.nganhHang && p.nganhHang.toLowerCase().includes(term));
+        if (!matchesTerm) return false;
+      }
+
+      // 2. Ngành hàng
+      if (selectedNganh !== 'ALL') {
+        if ((p.nganhHang || '').trim() !== selectedNganh) return false;
+      }
+
+      // 3. Nhóm hàng
+      if (selectedNhom !== 'ALL') {
+        if ((p.nhomHang || '').trim() !== selectedNhom) return false;
+      }
+
+      // 4. Nhà sản xuất
+      if (selectedNsx !== 'ALL') {
+        if ((p.nhaSanXuat || '').trim() !== selectedNsx) return false;
+      }
+
+      return true;
+    });
+  }, [products, searchTerm, selectedNganh, selectedNhom, selectedNsx]);
+
+  // ── Thao tác chọn nhanh theo bộ lọc ──
+  const handleSelectOnlyFiltered = () => {
+    const filteredIdSet = new Set(filteredProducts.map(p => p.id));
+    setProducts(prev =>
+      prev.map(p => ({
+        ...p,
+        selected: filteredIdSet.has(p.id),
+      }))
     );
-  }, [products, searchTerm]);
+    showNotification(`Đã chỉ chọn ${filteredProducts.length} sản phẩm theo bộ lọc!`, 'success');
+  };
+
+  const handleSelectAllFiltered = () => {
+    const filteredIdSet = new Set(filteredProducts.map(p => p.id));
+    setProducts(prev =>
+      prev.map(p => (filteredIdSet.has(p.id) ? { ...p, selected: true } : p))
+    );
+    showNotification(`Đã chọn thêm ${filteredProducts.length} sản phẩm theo bộ lọc!`, 'success');
+  };
+
+  const handleDeselectFiltered = () => {
+    const filteredIdSet = new Set(filteredProducts.map(p => p.id));
+    setProducts(prev =>
+      prev.map(p => (filteredIdSet.has(p.id) ? { ...p, selected: false } : p))
+    );
+    showNotification(`Đã bỏ chọn ${filteredProducts.length} sản phẩm theo bộ lọc!`, 'info');
+  };
+
+  const handleResetFilters = () => {
+    setSelectedNganh('ALL');
+    setSelectedNhom('ALL');
+    setSelectedNsx('ALL');
+    setSearchTerm('');
+  };
 
   // Danh sách tem cần in (được chọn + nhân bản theo quantity)
   const printQueue = useMemo(() => {
@@ -383,6 +904,7 @@ export const InQrSpTab: React.FC = () => {
     let imeiCol = -1;
     let nganhCol = -1;
     let nhomCol = -1;
+    let nsxCol = -1;
     let statusCol = -1;
 
     // Quét tìm dòng tiêu đề
@@ -436,8 +958,35 @@ export const InQrSpTab: React.FC = () => {
         nameCol = nIdx;
         qtyCol = qIdx;
         imeiCol = row.findIndex(cell => cell.includes('imei') || cell.includes('serial') || cell.includes('seri'));
-        nganhCol = row.findIndex(cell => cell.includes('ngành'));
-        nhomCol = row.findIndex(cell => cell.includes('nhóm'));
+        nganhCol = row.findIndex(cell => cell.includes('ngành') || cell.includes('nganh') || cell.includes('category'));
+        nhomCol = row.findIndex(cell => cell.includes('nhóm') || cell.includes('nhom') || cell.includes('sub-category') || cell.includes('group'));
+        nsxCol = row.findIndex(cell => {
+          const c = cell.trim().toLowerCase();
+          return (
+            c === 'nsx' ||
+            c === 'hãng' ||
+            c === 'hang' ||
+            c === 'brand' ||
+            c === 'vendor' ||
+            c === 'thương hiệu' ||
+            c === 'thuong hieu' ||
+            c === 'nhà sx' ||
+            c === 'nha sx' ||
+            c === 'nhà sản xuất' ||
+            c === 'nha san xuat' ||
+            c === 'nhasanxuat' ||
+            c === 'hãng sx' ||
+            c === 'hang sx' ||
+            c === 'hãng sản xuất' ||
+            c === 'hang san xuat' ||
+            c.includes('nhà sản xuất') ||
+            c.includes('nha san xuat') ||
+            c.includes('hãng sản xuất') ||
+            c.includes('hang san xuat') ||
+            c.includes('thương hiệu') ||
+            c.includes('thuong hieu')
+          );
+        });
         statusCol = row.findIndex(cell => {
           const c = cell.trim().toLowerCase();
           return (
@@ -471,6 +1020,7 @@ export const InQrSpTab: React.FC = () => {
       let pImei = '';
       let pNganh = '';
       let pNhom = '';
+      let pNsx = '';
       let pStatus = '';
       let pQty = 1;
 
@@ -479,6 +1029,7 @@ export const InQrSpTab: React.FC = () => {
       if (imeiCol !== -1 && row[imeiCol] !== undefined) pImei = String(row[imeiCol] ?? '').trim();
       if (nganhCol !== -1 && row[nganhCol] !== undefined) pNganh = String(row[nganhCol] ?? '').trim();
       if (nhomCol !== -1 && row[nhomCol] !== undefined) pNhom = String(row[nhomCol] ?? '').trim();
+      if (nsxCol !== -1 && row[nsxCol] !== undefined) pNsx = String(row[nsxCol] ?? '').trim();
       if (statusCol !== -1 && row[statusCol] !== undefined) pStatus = String(row[statusCol] ?? '').trim();
 
       // Đọc số lượng từ cột Số lượng trong file Excel nếu có
@@ -489,7 +1040,6 @@ export const InQrSpTab: React.FC = () => {
         } else {
           const rawStr = String(rawCell).trim();
           if (rawStr) {
-            // Hỗ trợ số có phân cách hàng ngàn hoặc thập phân
             let cleanStr = rawStr;
             if (/^\d{1,3}([.,]\d{3})+$/.test(rawStr)) {
               cleanStr = rawStr.replace(/[.,]/g, '');
@@ -549,6 +1099,14 @@ export const InQrSpTab: React.FC = () => {
         if (statusCand) pStatus = statusCand;
       }
 
+      // Tự động suy luận NSX & Ngành hàng nếu chưa có cột trong file
+      if (!pNsx) {
+        pNsx = inferManufacturer(pName, pNhom, pNganh);
+      }
+      if (!pNganh) {
+        pNganh = inferNganhHang(pName, pNhom);
+      }
+
       if (pCode || pName) {
         newItems.push({
           id: `qr_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`,
@@ -557,6 +1115,7 @@ export const InQrSpTab: React.FC = () => {
           imei: pImei,
           nganhHang: pNganh,
           nhomHang: pNhom,
+          nhaSanXuat: pNsx,
           status: pStatus,
           quantity: pQty,
           selected: true,
@@ -643,14 +1202,17 @@ export const InQrSpTab: React.FC = () => {
       showNotification('Vui lòng nhập Mã sản phẩm hoặc Tên sản phẩm!', 'warning');
       return;
     }
+    const derivedNsx = newNsx.trim() || inferManufacturer(newName.trim(), newNhom.trim(), newNganh.trim());
+    const derivedNganh = newNganh.trim() || inferNganhHang(newName.trim(), newNhom.trim());
     const item: QrProductItem = {
       id: `manual_${Date.now()}`,
       productCode: newCode.trim() || 'N/A',
       productName: newName.trim() || 'Sản phẩm mới',
       imei: newImei.trim(),
       status: newStatus.trim(),
-      nganhHang: newNganh.trim(),
+      nganhHang: derivedNganh,
       nhomHang: newNhom.trim(),
+      nhaSanXuat: derivedNsx,
       quantity: 1,
       selected: true,
     };
@@ -661,6 +1223,7 @@ export const InQrSpTab: React.FC = () => {
     setNewStatus('');
     setNewNganh('');
     setNewNhom('');
+    setNewNsx('');
     showNotification(`Đã thêm mã "${item.productCode}"!`, 'success');
   };
 
@@ -1135,13 +1698,28 @@ export const InQrSpTab: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Nút chọn tất cả */}
+                  {/* Nút chọn tất cả (thông minh theo bộ lọc nếu đang lọc) */}
                   <button
-                    onClick={() => handleToggleSelectAll(products.some(p => !p.selected))}
+                    onClick={() => {
+                      if (isFilterActive) {
+                        const allFilteredSelected = filteredProducts.length > 0 && filteredProducts.every(p => p.selected);
+                        const filteredIdSet = new Set(filteredProducts.map(p => p.id));
+                        setProducts(prev =>
+                          prev.map(p => (filteredIdSet.has(p.id) ? { ...p, selected: !allFilteredSelected } : p))
+                        );
+                      } else {
+                        handleToggleSelectAll(products.some(p => !p.selected));
+                      }
+                    }}
                     className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold cursor-pointer transition-colors"
-                    title={products.every(p => p.selected) ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                    title={
+                      isFilterActive
+                        ? (filteredProducts.length > 0 && filteredProducts.every(p => p.selected) ? 'Bỏ chọn các sản phẩm đang lọc' : 'Chọn tất cả sản phẩm đang lọc')
+                        : (products.length > 0 && products.every(p => p.selected) ? 'Bỏ chọn tất cả' : 'Chọn tất cả')
+                    }
                   >
-                    {products.length > 0 && products.every(p => p.selected) ? (
+                    {(isFilterActive ? filteredProducts : products).length > 0 &&
+                    (isFilterActive ? filteredProducts : products).every(p => p.selected) ? (
                       <CheckSquare size={16} className="text-sky-600" />
                     ) : (
                       <Square size={16} className="text-slate-400" />
@@ -1160,20 +1738,152 @@ export const InQrSpTab: React.FC = () => {
                   )}
                 </div>
 
-                {/* Badge Thống kê */}
-                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 px-1">
-                  <span>
-                    Đã chọn:{' '}
-                    <strong className="text-sky-600 font-black">
-                      {products.filter(p => p.selected).length}
-                    </strong>{' '}
-                    / {products.length} sản phẩm
-                  </span>
-                  <span>
-                    Tổng tem cần in:{' '}
-                    <strong className="text-indigo-600 font-black">{printQueue.length}</strong>{' '}
-                    (Ước tính <strong className="text-emerald-600 font-black">{totalPages}</strong> trang A4)
-                  </span>
+                {/* ── BỘ LỌC CHUYÊN SÂU: NGÀNH HÀNG, NHÓM HÀNG, NHÀ SẢN XUẤT ── */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 pt-0.5">
+                  <FilterDropdown
+                    label="Ngành hàng"
+                    icon={<Layers size={13} className="text-rose-500" />}
+                    value={selectedNganh}
+                    onChange={setSelectedNganh}
+                    options={availableNganhs}
+                    activeColor="rose"
+                    totalCount={products.length}
+                  />
+
+                  <FilterDropdown
+                    label="Nhóm hàng"
+                    icon={<Tag size={13} className="text-teal-500" />}
+                    value={selectedNhom}
+                    onChange={setSelectedNhom}
+                    options={availableNhoms}
+                    activeColor="teal"
+                    totalCount={selectedNganh === 'ALL' ? products.length : products.filter(p => (p.nganhHang || '').trim() === selectedNganh).length}
+                  />
+
+                  <FilterDropdown
+                    label="Nhà sản xuất"
+                    icon={<Store size={13} className="text-purple-500" />}
+                    value={selectedNsx}
+                    onChange={setSelectedNsx}
+                    options={availableNsxs}
+                    activeColor="purple"
+                    totalCount={products.length}
+                  />
+                </div>
+
+                {/* Dải Tag Bộ Lọc Đang Chọn */}
+                {(selectedNganh !== 'ALL' || selectedNhom !== 'ALL' || selectedNsx !== 'ALL') && (
+                  <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-50 border border-slate-200/80 rounded-xl text-[10.5px]">
+                    <span className="text-slate-400 font-semibold text-[10px]">Đang lọc:</span>
+                    {selectedNganh !== 'ALL' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-bold">
+                        <Layers size={11} className="text-rose-500" />
+                        <span className="max-w-[110px] truncate">{selectedNganh}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedNganh('ALL')}
+                          className="hover:text-rose-900 cursor-pointer ml-0.5"
+                          title="Xóa lọc Ngành hàng"
+                        >
+                          <X size={11} />
+                        </button>
+                      </span>
+                    )}
+                    {selectedNhom !== 'ALL' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200 font-bold">
+                        <Tag size={11} className="text-teal-500" />
+                        <span className="max-w-[110px] truncate">{selectedNhom}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedNhom('ALL')}
+                          className="hover:text-teal-900 cursor-pointer ml-0.5"
+                          title="Xóa lọc Nhóm hàng"
+                        >
+                          <X size={11} />
+                        </button>
+                      </span>
+                    )}
+                    {selectedNsx !== 'ALL' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 font-bold">
+                        <Store size={11} className="text-purple-500" />
+                        <span className="max-w-[110px] truncate">{selectedNsx}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedNsx('ALL')}
+                          className="hover:text-purple-900 cursor-pointer ml-0.5"
+                          title="Xóa lọc Nhà sản xuất"
+                        >
+                          <X size={11} />
+                        </button>
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleResetFilters}
+                      className="text-[10px] text-slate-500 hover:text-red-600 font-bold underline cursor-pointer ml-auto"
+                    >
+                      Xóa tất cả
+                    </button>
+                  </div>
+                )}
+
+                {/* Badge Thống kê & Thao tác nhanh theo lọc */}
+                <div className="space-y-1.5 px-1">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                    <span>
+                      Đã chọn:{' '}
+                      <strong className="text-sky-600 font-black">
+                        {products.filter(p => p.selected).length}
+                      </strong>{' '}
+                      / {products.length} SP
+                      {isFilterActive && (
+                        <span className="ml-1 text-amber-700 font-bold bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                          Khớp lọc: <strong className="font-black text-amber-800">{filteredProducts.length}</strong>
+                        </span>
+                      )}
+                    </span>
+                    <span>
+                      Tổng tem:{' '}
+                      <strong className="text-indigo-600 font-black">{printQueue.length}</strong>{' '}
+                      (<strong className="text-emerald-600 font-black">{totalPages}</strong> trang A4)
+                    </span>
+                  </div>
+
+                  {/* Nút hành động nhanh khi đang lọc */}
+                  {isFilterActive && filteredProducts.length > 0 && (
+                    <div className="flex items-center justify-between gap-1 p-1.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 rounded-xl text-[10.5px]">
+                      <div className="flex items-center gap-1 text-amber-800 font-bold text-[10.5px] truncate">
+                        <Sparkles size={12} className="text-amber-600 shrink-0" />
+                        <span className="truncate">Thao tác {filteredProducts.length} SP:</span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={handleSelectOnlyFiltered}
+                          className="px-2 py-0.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-black cursor-pointer shadow-2xs transition-all active:scale-95"
+                          title="Chỉ chọn in các sản phẩm đang hiển thị trong bộ lọc"
+                        >
+                          Chỉ chọn lọc
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSelectAllFiltered}
+                          className="px-2 py-0.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold cursor-pointer transition-all active:scale-95"
+                          title="Chọn thêm tất cả sản phẩm đang lọc"
+                        >
+                          + Chọn hết
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDeselectFiltered}
+                          className="px-2 py-0.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold cursor-pointer transition-all active:scale-95"
+                          title="Bỏ chọn các sản phẩm đang lọc"
+                        >
+                          - Bỏ chọn
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Danh sách cuộn sản phẩm */}
@@ -1186,7 +1896,16 @@ export const InQrSpTab: React.FC = () => {
                           <p className="text-[11px]">Bấm "Nạp dữ liệu mẫu" hoặc "Dán từ Excel" để bắt đầu.</p>
                         </div>
                       ) : (
-                        'Không tìm thấy sản phẩm nào khớp với tìm kiếm.'
+                        <div className="space-y-2">
+                          <p className="font-bold text-slate-600">Không tìm thấy sản phẩm nào khớp với bộ lọc</p>
+                          <button
+                            type="button"
+                            onClick={handleResetFilters}
+                            className="px-3 py-1 rounded-lg bg-white border border-slate-200 text-sky-600 font-bold text-xs hover:bg-sky-50 cursor-pointer shadow-2xs"
+                          >
+                            Xóa toàn bộ lọc
+                          </button>
+                        </div>
                       )}
                     </div>
                   ) : (
@@ -1231,10 +1950,24 @@ export const InQrSpTab: React.FC = () => {
                           <p className="text-xs font-bold text-slate-800 mt-1 line-clamp-3 leading-snug">
                             {p.productName}
                           </p>
-                          {p.nhomHang && (
-                            <p className="text-[10px] text-slate-400 mt-0.5 truncate">
-                              {p.nhomHang}
-                            </p>
+                          {(p.nhomHang || p.nhaSanXuat || p.nganhHang) && (
+                            <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-400 flex-wrap">
+                              {p.nhaSanXuat && (
+                                <span className="font-black text-purple-700 bg-purple-50 border border-purple-200/80 px-1.5 py-0.2 rounded">
+                                  {p.nhaSanXuat}
+                                </span>
+                              )}
+                              {p.nhomHang && (
+                                <span className="truncate text-slate-500 font-medium">
+                                  {p.nhomHang}
+                                </span>
+                              )}
+                              {p.nganhHang && !p.nhomHang && (
+                                <span className="truncate text-slate-400">
+                                  {p.nganhHang}
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
 
@@ -1709,13 +2442,36 @@ export const InQrSpTab: React.FC = () => {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700 text-[11px]">Ngành hàng:</label>
+                    <input
+                      type="text"
+                      value={newNganh}
+                      onChange={e => setNewNganh(e.target.value)}
+                      placeholder="VD: Điện lạnh (tự suy nếu trống)"
+                      className="w-full p-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700 text-[11px]">Nhóm hàng:</label>
+                    <input
+                      type="text"
+                      value={newNhom}
+                      onChange={e => setNewNhom(e.target.value)}
+                      placeholder="VD: Tủ lạnh"
+                      className="w-full p-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-700 text-[11px]">Nhóm hàng:</label>
+                  <label className="font-bold text-slate-700 text-[11px]">Nhà sản xuất (Hãng):</label>
                   <input
                     type="text"
-                    value={newNhom}
-                    onChange={e => setNewNhom(e.target.value)}
-                    placeholder="VD: Tủ lạnh"
+                    value={newNsx}
+                    onChange={e => setNewNsx(e.target.value)}
+                    placeholder="VD: PANASONIC, AQUA, SAMSUNG... (tự nhận diện nếu để trống)"
                     className="w-full p-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
                   />
                 </div>
