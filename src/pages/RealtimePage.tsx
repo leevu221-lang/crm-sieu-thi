@@ -96,6 +96,7 @@ import { ConfigBaoHiemModal, BaoHiemRule } from '../components/ConfigBaoHiemModa
 import { ConfigExclusionModal, ExclusionRule } from '../components/ConfigExclusionModal';
 import { ConfigQuyDoiModal, QuyDoiRule } from '../components/ConfigQuyDoiModal';
 import { ConfigGoogleSheetModal } from '../components/ConfigGoogleSheetModal';
+import { CeBrandOrderModal, DEFAULT_CE_BRANDS, CeBrandDef } from '../components/CeBrandOrderModal';
 import { useLuykeData } from './RTST/hooks/useLuykeData';
 import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';
 import { YcxStaffData } from './RTST/types';
@@ -4038,11 +4039,124 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     gdQdh: true
   });
 
+  // CE Brand column ordering state (per store)
+  const [ceBrandOrder, setCeBrandOrder] = useState<string[]>(() => {
+    return DEFAULT_CE_BRANDS.map(b => b.key);
+  });
+  const [showCeBrandOrderModal, setShowCeBrandOrderModal] = useState<boolean>(false);
+  const [draggedBrandKey, setDraggedBrandKey] = useState<string | null>(null);
+  const [dragOverBrandKey, setDragOverBrandKey] = useState<string | null>(null);
+
+  // Ordered CE brands based on current supermarket's custom order
+  const orderedCeBrands = useMemo(() => {
+    const brandMap = new Map(DEFAULT_CE_BRANDS.map(b => [b.key, b]));
+    const ordered: CeBrandDef[] = [];
+
+    if (Array.isArray(ceBrandOrder) && ceBrandOrder.length > 0) {
+      ceBrandOrder.forEach(key => {
+        const b = brandMap.get(key);
+        if (b) {
+          ordered.push(b);
+          brandMap.delete(key);
+        }
+      });
+    }
+
+    // Append any missing brands
+    brandMap.forEach(b => ordered.push(b));
+    return ordered;
+  }, [ceBrandOrder]);
+
+  // Auto-save brand order per active store
+  const handleSaveCeBrandOrder = async (newOrder: string[]) => {
+    setCeBrandOrder(newOrder);
+    if (!activeStore) return;
+    const storeId = normalizeStoreId(activeStore);
+    if (!storeId) return;
+
+    // 1. Immediate local storage fallback for instant response
+    try {
+      localStorage.setItem(`ceBrandOrder_${storeId}`, JSON.stringify(newOrder));
+    } catch (e) {
+      console.error('Failed to save ceBrandOrder to localStorage:', e);
+    }
+
+    // 2. Persist to Firestore store settings
+    try {
+      const docRef = doc(db, 'store', storeId);
+      await updateDoc(docRef, {
+        'khaiThacSettings.ceBrandOrder': newOrder
+      });
+      showNotification(`Đã lưu thứ tự cột hãng cho ${activeStore}`, 'success');
+    } catch (err) {
+      console.error('Error saving brand order to Firestore:', err);
+      try {
+        const docRef = doc(db, 'store', storeId);
+        await setDoc(docRef, {
+          khaiThacSettings: {
+            ceBrandOrder: newOrder
+          }
+        }, { merge: true });
+        showNotification(`Đã lưu thứ tự cột hãng cho ${activeStore}`, 'success');
+      } catch (e2) {
+        console.error('Error merging brand order to Firestore:', e2);
+        showNotification('Không thể lưu lên đám mây, đã lưu trên máy này', 'warning');
+      }
+    }
+  };
+
+  // Drag and drop handlers for sub-filter pills
+  const handleBrandPillDragStart = (e: React.DragEvent, key: string) => {
+    e.dataTransfer.setData('text/plain', key);
+    setDraggedBrandKey(key);
+  };
+
+  const handleBrandPillDragOver = (e: React.DragEvent, key: string) => {
+    e.preventDefault();
+    if (draggedBrandKey && draggedBrandKey !== key) {
+      setDragOverBrandKey(key);
+    }
+  };
+
+  const handleBrandPillDrop = (e: React.DragEvent, targetKey: string) => {
+    e.preventDefault();
+    const sourceKey = draggedBrandKey || e.dataTransfer.getData('text/plain');
+    setDraggedBrandKey(null);
+    setDragOverBrandKey(null);
+
+    if (!sourceKey || sourceKey === targetKey) return;
+
+    const currentOrder = orderedCeBrands.map(b => b.key);
+    const fromIndex = currentOrder.indexOf(sourceKey);
+    const toIndex = currentOrder.indexOf(targetKey);
+    if (fromIndex === -1 || toIndex === -1) return;
+
+    const updated = [...currentOrder];
+    const [removed] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, removed);
+    handleSaveCeBrandOrder(updated);
+  };
+
   // Load preferences from Firebase when activeStore changes
   useEffect(() => {
     if (!activeStore) return;
     const storeId = normalizeStoreId(activeStore);
     if (!storeId) return;
+
+    // Fast-restore from LocalStorage first for instant UI response without waiting network
+    try {
+      const localSavedOrder = localStorage.getItem(`ceBrandOrder_${storeId}`);
+      if (localSavedOrder) {
+        const parsed = JSON.parse(localSavedOrder);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCeBrandOrder(parsed);
+        }
+      } else {
+        setCeBrandOrder(DEFAULT_CE_BRANDS.map(b => b.key));
+      }
+    } catch (e) {
+      setCeBrandOrder(DEFAULT_CE_BRANDS.map(b => b.key));
+    }
     
     const loadSettings = async () => {
       try {
@@ -4051,6 +4165,12 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         if (docSnap.exists()) {
           const data = docSnap.data();
           if (data.khaiThacSettings) {
+            if (Array.isArray(data.khaiThacSettings.ceBrandOrder) && data.khaiThacSettings.ceBrandOrder.length > 0) {
+              setCeBrandOrder(data.khaiThacSettings.ceBrandOrder);
+              try {
+                localStorage.setItem(`ceBrandOrder_${storeId}`, JSON.stringify(data.khaiThacSettings.ceBrandOrder));
+              } catch (e) {}
+            }
             setShowKhaiThacCols(prev => ({ 
               ...prev, 
               ...data.khaiThacSettings,
@@ -4109,7 +4229,10 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       }
       
       await updateDoc(docRef, {
-        khaiThacSettings: newState
+        khaiThacSettings: {
+          ...newState,
+          ceBrandOrder: ceBrandOrder
+        }
       });
     } catch (err) {
       console.error('Error saving toggle:', err);
@@ -8996,40 +9119,41 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                           )}
                           {showKhaiThacCols.hangCe && (
                             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                              <span className="text-[10px] font-black text-[#0284c7] w-auto sm:w-20 shrink-0 flex items-center gap-1">❄️ HÃNG:</span>
-                              {[
-                                { key: 'cePana', label: 'PANASONIC' },
-                                { key: 'ceAqua', label: 'AQUA' },
-                                { key: 'ceHaier', label: 'HAIER' },
-                                { key: 'ceSunhouse', label: 'SUNHOUSE' },
-                                { key: 'ceToshiba', label: 'TOSHIBA' },
-                                { key: 'ceDaikin', label: 'DAIKIN' },
-                                { key: 'ceComfee', label: 'COMFEE' },
-                                { key: 'ceNagakawa', label: 'NAGAKAWA' },
-                                { key: 'ceSamsung', label: 'SAMSUNG' },
-                                { key: 'ceCasper', label: 'CASPER' },
-                                { key: 'ceLg', label: 'LG' },
-                                { key: 'ceSharp', label: 'SHARP' },
-                                { key: 'ceTcl', label: 'TCL' },
-                                { key: 'ceSony', label: 'SONY' },
-                                { key: 'ceElectrolux', label: 'ELECTROLUX' },
-                                { key: 'ceBeko', label: 'BEKO' },
-                                { key: 'ceSanaky', label: 'SANAKY' },
-                                { key: 'ceFuniki', label: 'FUNIKI' },
-                                { key: 'ceMidea', label: 'MIDEA' },
-                                { key: 'ceGree', label: 'GREE' },
-                                { key: 'ceHisense', label: 'HISENSE' },
-                                { key: 'ceKhac', label: 'KHÁC' }
-                              ].map(btn => {
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="text-[10px] font-black text-[#0284c7] flex items-center gap-1">❄️ HÃNG:</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowCeBrandOrderModal(true)}
+                                  title="Đổi thứ tự cột Hãng và tự động lưu theo siêu thị"
+                                  className="no-capture inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9.5px] font-black bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300 transition-all hover:scale-105 shadow-xs cursor-pointer active:scale-95"
+                                >
+                                  <Sliders className="w-3 h-3 text-sky-600" />
+                                  <span>Đổi vị trí</span>
+                                </button>
+                              </div>
+                              {orderedCeBrands.map(btn => {
                                 const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
+                                const isDragging = draggedBrandKey === btn.key;
+                                const isDragOver = dragOverBrandKey === btn.key;
                                 return (
                                   <button
                                     key={btn.key}
+                                    draggable
+                                    onDragStart={(e) => handleBrandPillDragStart(e, btn.key)}
+                                    onDragOver={(e) => handleBrandPillDragOver(e, btn.key)}
+                                    onDragLeave={() => { if (dragOverBrandKey === btn.key) setDragOverBrandKey(null); }}
+                                    onDrop={(e) => handleBrandPillDrop(e, btn.key)}
+                                    onDragEnd={() => { setDraggedBrandKey(null); setDragOverBrandKey(null); }}
                                     onClick={() => handleToggleKhaiThacCol(btn.key, !isActive)}
-                                    className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap ${isActive
-                                      ? 'bg-sky-50 text-[#0284c7] border-sky-200 shadow-sm'
+                                    title={`Kéo thả để đổi thứ tự | Nhấp để bật/tắt cột ${btn.label}`}
+                                    className={`cursor-grab active:cursor-grabbing px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[9.5px] sm:text-[10px] font-bold transition-all border whitespace-nowrap select-none ${
+                                      isDragging ? 'opacity-40 scale-95 border-dashed border-sky-500' : ''
+                                    } ${
+                                      isDragOver ? 'ring-2 ring-sky-500 ring-offset-1 bg-sky-100' : ''
+                                    } ${isActive
+                                      ? 'bg-sky-50 text-[#0284c7] border-sky-200 shadow-sm hover:bg-sky-100'
                                       : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
-                                      }`}
+                                    }`}
                                   >
                                     {btn.label}
                                   </button>
@@ -9149,32 +9273,24 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             {showKhaiThacCols.hangCe && (
                               <th
                                 colSpan={
-                                  (showKhaiThacCols.cePana ? 1 : 0) +
-                                  (showKhaiThacCols.ceAqua ? 1 : 0) +
-                                  (showKhaiThacCols.ceHaier ? 1 : 0) +
-                                  (showKhaiThacCols.ceSunhouse ? 1 : 0) +
-                                  (showKhaiThacCols.ceToshiba ? 1 : 0) +
-                                  (showKhaiThacCols.ceDaikin ? 1 : 0) +
-                                  (showKhaiThacCols.ceComfee ? 1 : 0) +
-                                  (showKhaiThacCols.ceNagakawa ? 1 : 0) +
-                                  (showKhaiThacCols.ceSamsung ? 1 : 0) +
-                                  (showKhaiThacCols.ceCasper ? 1 : 0) +
-                                  (showKhaiThacCols.ceLg ? 1 : 0) +
-                                  (showKhaiThacCols.ceSharp ? 1 : 0) +
-                                  (showKhaiThacCols.ceTcl ? 1 : 0) +
-                                  (showKhaiThacCols.ceSony ? 1 : 0) +
-                                  (showKhaiThacCols.ceElectrolux ? 1 : 0) +
-                                  (showKhaiThacCols.ceBeko ? 1 : 0) +
-                                  (showKhaiThacCols.ceSanaky ? 1 : 0) +
-                                  (showKhaiThacCols.ceFuniki ? 1 : 0) +
-                                  (showKhaiThacCols.ceMidea ? 1 : 0) +
-                                  (showKhaiThacCols.ceGree ? 1 : 0) +
-                                  (showKhaiThacCols.ceHisense ? 1 : 0) +
-                                  (showKhaiThacCols.ceKhac ? 1 : 0)
+                                  orderedCeBrands.reduce((count, b) => count + (showKhaiThacCols[b.key] ? 1 : 0), 0)
                                 }
                                 className="py-1 px-3 text-center text-[#0284c7] bg-[#f0f9ff] border-r border-slate-200/50 font-black text-[13px] border-b border-sky-100"
                               >
-                                HÃNG
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <span>HÃNG</span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowCeBrandOrderModal(true);
+                                    }}
+                                    title="Tùy chỉnh thứ tự cột hãng"
+                                    className="no-capture p-0.5 rounded text-sky-600 hover:text-sky-800 hover:bg-sky-100 transition-colors cursor-pointer"
+                                  >
+                                    <Sliders className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               </th>
                             )}
                             {(showKhaiThacCols.baoHiem || showKhaiThacCols.sim) && (
@@ -9262,28 +9378,15 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                             {/* HÃNG Sub Headers */}
                             {showKhaiThacCols.hangCe && (
                               <>
-                                {showKhaiThacCols.cePana && renderKhaiThacHeader('cePanaQty', 'PANASONIC', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-16')}
-                                {showKhaiThacCols.ceAqua && renderKhaiThacHeader('ceAquaQty', 'AQUA', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-14')}
-                                {showKhaiThacCols.ceHaier && renderKhaiThacHeader('ceHaierQty', 'HAIER', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-14')}
-                                {showKhaiThacCols.ceSunhouse && renderKhaiThacHeader('ceSunhouseQty', 'SUNHOUSE', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-16')}
-                                {showKhaiThacCols.ceToshiba && renderKhaiThacHeader('ceToshibaQty', 'TOSHIBA', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-16')}
-                                {showKhaiThacCols.ceDaikin && renderKhaiThacHeader('ceDaikinQty', 'DAIKIN', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-14')}
-                                {showKhaiThacCols.ceComfee && renderKhaiThacHeader('ceComfeeQty', 'COMFEE', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-16')}
-                                {showKhaiThacCols.ceNagakawa && renderKhaiThacHeader('ceNagakawaQty', 'NAGAKAWA', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-16')}
-                                {showKhaiThacCols.ceSamsung && renderKhaiThacHeader('ceSamsungQty', 'SAMSUNG', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-16')}
-                                {showKhaiThacCols.ceCasper && renderKhaiThacHeader('ceCasperQty', 'CASPER', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-16')}
-                                {showKhaiThacCols.ceLg && renderKhaiThacHeader('ceLgQty', 'LG', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-14')}
-                                {showKhaiThacCols.ceSharp && renderKhaiThacHeader('ceSharpQty', 'SHARP', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-14')}
-                                {showKhaiThacCols.ceTcl && renderKhaiThacHeader('ceTclQty', 'TCL', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-14')}
-                                {showKhaiThacCols.ceSony && renderKhaiThacHeader('ceSonyQty', 'SONY', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-14')}
-                                {showKhaiThacCols.ceElectrolux && renderKhaiThacHeader('ceElectroluxQty', 'ELECTROLUX', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-18')}
-                                {showKhaiThacCols.ceBeko && renderKhaiThacHeader('ceBekoQty', 'BEKO', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-14')}
-                                {showKhaiThacCols.ceSanaky && renderKhaiThacHeader('ceSanakyQty', 'SANAKY', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-16')}
-                                {showKhaiThacCols.ceFuniki && renderKhaiThacHeader('ceFunikiQty', 'FUNIKI', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-14')}
-                                {showKhaiThacCols.ceMidea && renderKhaiThacHeader('ceMideaQty', 'MIDEA', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-14')}
-                                {showKhaiThacCols.ceGree && renderKhaiThacHeader('ceGreeQty', 'GREE', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-14')}
-                                {showKhaiThacCols.ceHisense && renderKhaiThacHeader('ceHisenseQty', 'HISENSE', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-16')}
-                                {showKhaiThacCols.ceKhac && renderKhaiThacHeader('ceKhacQty', 'KHÁC', 'text-[#0284c7]', 'bg-[#f0f9ff]', 'w-14')}
+                                {orderedCeBrands.map(b => (
+                                  showKhaiThacCols[b.key] && renderKhaiThacHeader(
+                                    b.field,
+                                    b.label,
+                                    'text-[#0284c7]',
+                                    'bg-[#f0f9ff]',
+                                    b.label.length > 7 ? 'w-16' : (b.label.length > 5 ? 'w-16' : 'w-14')
+                                  )
+                                ))}
                               </>
                             )}
                             {/* DỊCH VỤ Sub Headers */}
@@ -9476,28 +9579,16 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   {/* HÃNG Cells */}
                                   {showKhaiThacCols.hangCe && (
                                     <>
-                                      {showKhaiThacCols.cePana && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.cePanaQty)}</td>}
-                                      {showKhaiThacCols.ceAqua && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceAquaQty)}</td>}
-                                      {showKhaiThacCols.ceHaier && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceHaierQty)}</td>}
-                                      {showKhaiThacCols.ceSunhouse && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceSunhouseQty)}</td>}
-                                      {showKhaiThacCols.ceToshiba && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceToshibaQty)}</td>}
-                                      {showKhaiThacCols.ceDaikin && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceDaikinQty)}</td>}
-                                      {showKhaiThacCols.ceComfee && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceComfeeQty)}</td>}
-                                      {showKhaiThacCols.ceNagakawa && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceNagakawaQty)}</td>}
-                                      {showKhaiThacCols.ceSamsung && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceSamsungQty)}</td>}
-                                      {showKhaiThacCols.ceCasper && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceCasperQty)}</td>}
-                                      {showKhaiThacCols.ceLg && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceLgQty)}</td>}
-                                      {showKhaiThacCols.ceSharp && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceSharpQty)}</td>}
-                                      {showKhaiThacCols.ceTcl && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceTclQty)}</td>}
-                                      {showKhaiThacCols.ceSony && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceSonyQty)}</td>}
-                                      {showKhaiThacCols.ceElectrolux && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceElectroluxQty)}</td>}
-                                      {showKhaiThacCols.ceBeko && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceBekoQty)}</td>}
-                                      {showKhaiThacCols.ceSanaky && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceSanakyQty)}</td>}
-                                      {showKhaiThacCols.ceFuniki && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceFunikiQty)}</td>}
-                                      {showKhaiThacCols.ceMidea && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceMideaQty)}</td>}
-                                      {showKhaiThacCols.ceGree && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceGreeQty)}</td>}
-                                      {showKhaiThacCols.ceHisense && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceHisenseQty)}</td>}
-                                      {showKhaiThacCols.ceKhac && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatVal(item.ceKhacQty)}</td>}
+                                      {orderedCeBrands.map(b => (
+                                        showKhaiThacCols[b.key] && (
+                                          <td
+                                            key={b.key}
+                                            className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50"
+                                          >
+                                            {formatVal((item as any)[b.field])}
+                                          </td>
+                                        )
+                                      ))}
                                     </>
                                   )}
                                   {/* DỊCH VỤ Cells */}
@@ -9744,28 +9835,18 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                   {/* HÃNG Totals */}
                                   {showKhaiThacCols.hangCe && (
                                     <>
-                                      {showKhaiThacCols.cePana && <td className="py-2 px-2 text-center text-[13px] text-[#0284c7] font-black border-r border-slate-200/50">{formatFooterVal(totalCePana)}</td>}
-                                      {showKhaiThacCols.ceAqua && <td className="py-2 px-2 text-center text-[13px] text-[#0284c7] font-black border-r border-slate-200/50">{formatFooterVal(totalCeAqua)}</td>}
-                                      {showKhaiThacCols.ceHaier && <td className="py-2 px-2 text-center text-[13px] text-[#0284c7] font-black border-r border-slate-200/50">{formatFooterVal(totalCeHaier)}</td>}
-                                      {showKhaiThacCols.ceSunhouse && <td className="py-2 px-2 text-center text-[13px] text-[#0284c7] font-black border-r border-slate-200/50">{formatFooterVal(totalCeSunhouse)}</td>}
-                                      {showKhaiThacCols.ceToshiba && <td className="py-2 px-2 text-center text-[13px] text-[#0284c7] font-black border-r border-slate-200/50">{formatFooterVal(totalCeToshiba)}</td>}
-                                      {showKhaiThacCols.ceDaikin && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatFooterVal(totalCeDaikin)}</td>}
-                                      {showKhaiThacCols.ceComfee && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatFooterVal(totalCeComfee)}</td>}
-                                      {showKhaiThacCols.ceNagakawa && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatFooterVal(totalCeNagakawa)}</td>}
-                                      {showKhaiThacCols.ceSamsung && <td className="py-2 px-2 text-center text-[13px] text-[#0284c7] font-black border-r border-slate-200/50">{formatFooterVal(totalCeSamsung)}</td>}
-                                      {showKhaiThacCols.ceCasper && <td className="py-2 px-2 text-center text-[13px] text-[#0284c7] font-black border-r border-slate-200/50">{formatFooterVal(totalCeCasper)}</td>}
-                                      {showKhaiThacCols.ceLg && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatFooterVal(totalCeLg)}</td>}
-                                      {showKhaiThacCols.ceSharp && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatFooterVal(totalCeSharp)}</td>}
-                                      {showKhaiThacCols.ceTcl && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatFooterVal(totalCeTcl)}</td>}
-                                      {showKhaiThacCols.ceSony && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatFooterVal(totalCeSony)}</td>}
-                                      {showKhaiThacCols.ceElectrolux && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatFooterVal(totalCeElectrolux)}</td>}
-                                      {showKhaiThacCols.ceBeko && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatFooterVal(totalCeBeko)}</td>}
-                                      {showKhaiThacCols.ceSanaky && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatFooterVal(totalCeSanaky)}</td>}
-                                      {showKhaiThacCols.ceFuniki && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatFooterVal(totalCeFuniki)}</td>}
-                                      {showKhaiThacCols.ceMidea && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatFooterVal(totalCeMidea)}</td>}
-                                      {showKhaiThacCols.ceGree && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatFooterVal(totalCeGree)}</td>}
-                                      {showKhaiThacCols.ceHisense && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatFooterVal(totalCeHisense)}</td>}
-                                      {showKhaiThacCols.ceKhac && <td className="py-2 px-2 text-center text-[13px] font-black text-[#0284c7] border-r border-slate-200/50">{formatFooterVal(totalCeKhac)}</td>}
+                                      {orderedCeBrands.map(b => {
+                                        if (!showKhaiThacCols[b.key]) return null;
+                                        const totalBrandQty = staffKhaiThacStats.reduce((s, x) => s + ((x as any)[b.field] || 0), 0);
+                                        return (
+                                          <td
+                                            key={b.key}
+                                            className="py-2 px-2 text-center text-[13px] text-[#0284c7] font-black border-r border-slate-200/50"
+                                          >
+                                            {formatFooterVal(totalBrandQty)}
+                                          </td>
+                                        );
+                                      })}
                                     </>
                                   )}
                                   {/* DỊCH VỤ Totals */}
@@ -10531,6 +10612,17 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           <pre className="whitespace-pre-wrap leading-relaxed max-h-40 overflow-auto">{processError}</pre>
         </div>
       )}
+
+      {/* Ce Brand Order Modal */}
+      <CeBrandOrderModal
+        isOpen={showCeBrandOrderModal}
+        onClose={() => setShowCeBrandOrderModal(false)}
+        activeStore={activeStore}
+        ceBrandOrder={ceBrandOrder}
+        onSaveOrder={handleSaveCeBrandOrder}
+        showKhaiThacCols={showKhaiThacCols}
+        onToggleCol={handleToggleKhaiThacCol}
+      />
 
       {/* Config Nhom Hang Modal */}
       <ConfigNhomHangModal
