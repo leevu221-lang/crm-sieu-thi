@@ -29,6 +29,7 @@ export const DEFAULT_CE_BRANDS: CeBrandDef[] = [
   { key: 'ceMidea', label: 'MIDEA', field: 'ceMideaQty' },
   { key: 'ceGree', label: 'GREE', field: 'ceGreeQty' },
   { key: 'ceHisense', label: 'HISENSE', field: 'ceHisenseQty' },
+  { key: 'ceFerroli', label: 'FERROLI', field: 'ceFerroliQty' },
   { key: 'ceKhac', label: 'KHÁC', field: 'ceKhacQty' }
 ];
 

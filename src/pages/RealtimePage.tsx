@@ -1369,6 +1369,9 @@ const detectCeBrand = (brandVal?: string, productName?: string): string => {
   // 21. Hisense
   if (b.includes('HISENSE') || p.includes('HISENSE')) return 'ceHisense';
 
+  // 22. Ferroli
+  if (b.includes('FERROLI') || p.includes('FERROLI')) return 'ceFerroli';
+
   return 'ceKhac';
 };
 
@@ -4017,6 +4020,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     ceMidea: true,
     ceGree: true,
     ceHisense: true,
+    ceFerroli: true,
     ceKhac: true,
     spcSmf: true,
     spcLap: true,
@@ -4025,6 +4029,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     spcMl: true,
     spcTl: true,
     spcMg: true,
+    spcMnn: true,
     pkCam: true,
     pkLoa: true,
     pkPin: true,
@@ -4200,7 +4205,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
               ceMidea: data.khaiThacSettings.ceMidea !== undefined ? data.khaiThacSettings.ceMidea : true,
               ceGree: data.khaiThacSettings.ceGree !== undefined ? data.khaiThacSettings.ceGree : true,
               ceHisense: data.khaiThacSettings.ceHisense !== undefined ? data.khaiThacSettings.ceHisense : true,
-              ceKhac: data.khaiThacSettings.ceKhac !== undefined ? data.khaiThacSettings.ceKhac : true
+              ceFerroli: data.khaiThacSettings.ceFerroli !== undefined ? data.khaiThacSettings.ceFerroli : true,
+              ceKhac: data.khaiThacSettings.ceKhac !== undefined ? data.khaiThacSettings.ceKhac : true,
+              spcMnn: data.khaiThacSettings.spcMnn !== undefined ? data.khaiThacSettings.spcMnn : true
             }));
           }
         }
@@ -4690,6 +4697,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       if (showKhaiThacCols.spcMl) total += (item.spcMlQty || 0);
       if (showKhaiThacCols.spcTl) total += (item.spcTlQty || 0);
       if (showKhaiThacCols.spcMg) total += (item.spcMgQty || 0);
+      if (showKhaiThacCols.spcMnn) total += (item.spcMnnQty || 0);
     }
 
     // 2. SMARTPHONE
@@ -4706,28 +4714,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
     // 2.5 HÃNG CE
     if (showKhaiThacCols.hangCe) {
-      if (showKhaiThacCols.cePana) total += (item.cePanaQty || 0);
-      if (showKhaiThacCols.ceAqua) total += (item.ceAquaQty || 0);
-      if (showKhaiThacCols.ceHaier) total += (item.ceHaierQty || 0);
-      if (showKhaiThacCols.ceSunhouse) total += (item.ceSunhouseQty || 0);
-      if (showKhaiThacCols.ceToshiba) total += (item.ceToshibaQty || 0);
-      if (showKhaiThacCols.ceDaikin) total += (item.ceDaikinQty || 0);
-      if (showKhaiThacCols.ceComfee) total += (item.ceComfeeQty || 0);
-      if (showKhaiThacCols.ceNagakawa) total += (item.ceNagakawaQty || 0);
-      if (showKhaiThacCols.ceSamsung) total += (item.ceSamsungQty || 0);
-      if (showKhaiThacCols.ceCasper) total += (item.ceCasperQty || 0);
-      if (showKhaiThacCols.ceLg) total += (item.ceLgQty || 0);
-      if (showKhaiThacCols.ceSharp) total += (item.ceSharpQty || 0);
-      if (showKhaiThacCols.ceTcl) total += (item.ceTclQty || 0);
-      if (showKhaiThacCols.ceSony) total += (item.ceSonyQty || 0);
-      if (showKhaiThacCols.ceElectrolux) total += (item.ceElectroluxQty || 0);
-      if (showKhaiThacCols.ceBeko) total += (item.ceBekoQty || 0);
-      if (showKhaiThacCols.ceSanaky) total += (item.ceSanakyQty || 0);
-      if (showKhaiThacCols.ceFuniki) total += (item.ceFunikiQty || 0);
-      if (showKhaiThacCols.ceMidea) total += (item.ceMideaQty || 0);
-      if (showKhaiThacCols.ceGree) total += (item.ceGreeQty || 0);
-      if (showKhaiThacCols.ceHisense) total += (item.ceHisenseQty || 0);
-      if (showKhaiThacCols.ceKhac) total += (item.ceKhacQty || 0);
+      DEFAULT_CE_BRANDS.forEach(b => {
+        if (showKhaiThacCols[b.key]) total += ((item as any)[b.field] || 0);
+      });
     }
 
     // 3. DỊCH VỤ
@@ -4881,6 +4870,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       ceMideaQty: number;
       ceGreeQty: number;
       ceHisenseQty: number;
+      ceFerroliQty: number;
       ceKhacQty: number;
       spcLapQty: number;
       spcTabQty: number;
@@ -4888,6 +4878,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       spcMlQty: number;
       spcTlQty: number;
       spcMgQty: number;
+      spcMnnQty: number;
       bhQty: number;
       bhRev: number;
       vieonQty: number;
@@ -5052,6 +5043,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           ceMideaQty: 0,
           ceGreeQty: 0,
           ceHisenseQty: 0,
+          ceFerroliQty: 0,
           ceKhacQty: 0,
           spcLapQty: 0,
           spcTabQty: 0,
@@ -5059,6 +5051,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           spcMlQty: 0,
           spcTlQty: 0,
           spcMgQty: 0,
+          spcMnnQty: 0,
           bhQty: 0,
           bhRev: 0,
           vieonQty: 0,
@@ -5199,6 +5192,15 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         item.spcTlQty += qty;
       } else if (nhomLarge === 'CE' && nSmall === 'MG') {
         item.spcMgQty += qty;
+      } else if (
+        nSmall === 'MNN' ||
+        normCatUpper.includes('MAY NUOC NONG') ||
+        normCatUpper.includes('911') ||
+        normProdUpper.includes('MAY NUOC NONG') ||
+        normProdUpper.includes('WATER HEATER') ||
+        removeAccents(rawNhomHang).toUpperCase().includes('MAY NUOC NONG')
+      ) {
+        item.spcMnnQty += qty;
       }
 
       // Phân tích HÃNG CE
@@ -5213,33 +5215,22 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
         normCatUpper.includes('TU MAT') ||
         normCatUpper.includes('MAY SAY') ||
         normCatUpper.includes('MAY RUA CHEN') ||
-        normCatUpper.includes('MAY NUOC NONG')
+        normCatUpper.includes('MAY NUOC NONG') ||
+        normCatUpper.includes('911') ||
+        normProdUpper.includes('MAY NUOC NONG') ||
+        normProdUpper.includes('WATER HEATER') ||
+        brandVal.includes('FERROLI') ||
+        productName.toUpperCase().includes('FERROLI')
       );
 
       if (isCeRow) {
         const ceBrand = detectCeBrand(brandVal, productName);
-        if (ceBrand === 'cePana') item.cePanaQty += qty;
-        else if (ceBrand === 'ceAqua') item.ceAquaQty += qty;
-        else if (ceBrand === 'ceHaier') item.ceHaierQty += qty;
-        else if (ceBrand === 'ceSunhouse') item.ceSunhouseQty += qty;
-        else if (ceBrand === 'ceToshiba') item.ceToshibaQty += qty;
-        else if (ceBrand === 'ceDaikin') item.ceDaikinQty += qty;
-        else if (ceBrand === 'ceComfee') item.ceComfeeQty += qty;
-        else if (ceBrand === 'ceNagakawa') item.ceNagakawaQty += qty;
-        else if (ceBrand === 'ceSamsung') item.ceSamsungQty += qty;
-        else if (ceBrand === 'ceCasper') item.ceCasperQty += qty;
-        else if (ceBrand === 'ceLg') item.ceLgQty += qty;
-        else if (ceBrand === 'ceSharp') item.ceSharpQty += qty;
-        else if (ceBrand === 'ceTcl') item.ceTclQty += qty;
-        else if (ceBrand === 'ceSony') item.ceSonyQty += qty;
-        else if (ceBrand === 'ceElectrolux') item.ceElectroluxQty += qty;
-        else if (ceBrand === 'ceBeko') item.ceBekoQty += qty;
-        else if (ceBrand === 'ceSanaky') item.ceSanakyQty += qty;
-        else if (ceBrand === 'ceFuniki') item.ceFunikiQty += qty;
-        else if (ceBrand === 'ceMidea') item.ceMideaQty += qty;
-        else if (ceBrand === 'ceGree') item.ceGreeQty += qty;
-        else if (ceBrand === 'ceHisense') item.ceHisenseQty += qty;
-        else item.ceKhacQty += qty;
+        const brandField = `${ceBrand}Qty`;
+        if ((item as any)[brandField] !== undefined) {
+          (item as any)[brandField] += qty;
+        } else {
+          item.ceKhacQty += qty;
+        }
       }
 
       const rawSmallCatVal = idxSmallCat !== -1 ? removeAccents(String(row[idxSmallCat] || '')).trim().toUpperCase() : '';
@@ -5387,7 +5378,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
           (showKhaiThacCols.spcTivi ? item.spcTiviQty : 0) +
           (showKhaiThacCols.spcMl ? item.spcMlQty : 0) +
           (showKhaiThacCols.spcTl ? item.spcTlQty : 0) +
-          (showKhaiThacCols.spcMg ? item.spcMgQty : 0);
+          (showKhaiThacCols.spcMg ? item.spcMgQty : 0) +
+          (showKhaiThacCols.spcMnn ? item.spcMnnQty : 0);
       };
 
       const getVisibleVasTotalQty = (item: any) => {
@@ -9070,7 +9062,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 { key: 'spcTivi', label: 'TIVI' },
                                 { key: 'spcMl', label: 'ML' },
                                 { key: 'spcTl', label: 'TL,TĐ,TM' },
-                                { key: 'spcMg', label: 'MG,MS,MRC' }
+                                { key: 'spcMg', label: 'MG,MS,MRC' },
+                                { key: 'spcMnn', label: 'MNN' }
                               ].map(btn => {
                                 const isActive = showKhaiThacCols[btn.key as keyof typeof showKhaiThacCols];
                                 return (
@@ -9265,7 +9258,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               <th colSpan={5 + (showKhaiThacCols.target ? 1 : 0) + (showKhaiThacCols.pctHt ? 1 : 0)} className="py-1 px-3 text-center text-[#1d4ed8] bg-[#eff6ff] border-r border-slate-200/50 font-black text-[13px] border-b border-blue-100">DOANH THU</th>
                             )}
                             {showKhaiThacCols.spChinh && (
-                              <th colSpan={1 + (showKhaiThacCols.spcSmf ? 1 : 0) + (showKhaiThacCols.spcLap ? 1 : 0) + (showKhaiThacCols.spcTab ? 1 : 0) + (showKhaiThacCols.spcTivi ? 1 : 0) + (showKhaiThacCols.spcMl ? 1 : 0) + (showKhaiThacCols.spcTl ? 1 : 0) + (showKhaiThacCols.spcMg ? 1 : 0)} className="py-1 px-3 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black text-[13px] border-b border-emerald-100">SP CHÍNH</th>
+                              <th colSpan={1 + (showKhaiThacCols.spcSmf ? 1 : 0) + (showKhaiThacCols.spcLap ? 1 : 0) + (showKhaiThacCols.spcTab ? 1 : 0) + (showKhaiThacCols.spcTivi ? 1 : 0) + (showKhaiThacCols.spcMl ? 1 : 0) + (showKhaiThacCols.spcTl ? 1 : 0) + (showKhaiThacCols.spcMg ? 1 : 0) + (showKhaiThacCols.spcMnn ? 1 : 0)} className="py-1 px-3 text-center text-[#047857] bg-[#e6fbf4] border-r border-slate-200/50 font-black text-[13px] border-b border-emerald-100">SP CHÍNH</th>
                             )}
                             {showKhaiThacCols.smartphone && (
                               <th colSpan={(showKhaiThacCols.smfIphone ? 1 : 0) + (showKhaiThacCols.smfSamsung ? 1 : 0) + (showKhaiThacCols.smfOppo ? 1 : 0) + (showKhaiThacCols.smfVivo ? 1 : 0) + (showKhaiThacCols.smfRealme ? 1 : 0) + (showKhaiThacCols.smfXiaomi ? 1 : 0) + (showKhaiThacCols.smfHonor ? 1 : 0) + (showKhaiThacCols.smfMotorola ? 1 : 0)} className="py-1 px-3 text-center text-yellow-700 bg-yellow-50 border-r border-slate-200/50 font-black text-[13px] border-b border-yellow-100">SMARTPHONE</th>
@@ -9359,6 +9352,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 {showKhaiThacCols.spcMl && renderKhaiThacHeader('spcMlQty', 'ML', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-14')}
                                 {showKhaiThacCols.spcTl && renderKhaiThacHeader('spcTlQty', 'TL,TĐ,TM', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-16')}
                                 {showKhaiThacCols.spcMg && renderKhaiThacHeader('spcMgQty', 'MG,MS,MRC', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-16')}
+                                {showKhaiThacCols.spcMnn && renderKhaiThacHeader('spcMnnQty', 'MNN', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-14')}
                                 {renderKhaiThacHeader('spChinhTotalQty', 'TỔNG', 'text-[#047857]', 'bg-[#e6fbf4]', 'w-16')}
                               </>
                             )}
@@ -9443,7 +9437,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 (showKhaiThacCols.spcTivi ? item.spcTiviQty : 0) +
                                 (showKhaiThacCols.spcMl ? item.spcMlQty : 0) +
                                 (showKhaiThacCols.spcTl ? item.spcTlQty : 0) +
-                                (showKhaiThacCols.spcMg ? item.spcMgQty : 0);
+                                (showKhaiThacCols.spcMg ? item.spcMgQty : 0) +
+                                (showKhaiThacCols.spcMnn ? item.spcMnnQty : 0);
                             };
                             const formatVal = (val: number) => val === 0 ? <span className="text-slate-300">-</span> : val;
                             const formatRev = (val: number) => {
@@ -9560,6 +9555,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                       {showKhaiThacCols.spcMl && <td className="py-2 px-2 text-center text-[13px] font-black text-[#047857] border-r border-slate-200/50">{formatVal(item.spcMlQty)}</td>}
                                       {showKhaiThacCols.spcTl && <td className="py-2 px-2 text-center text-[13px] font-black text-[#047857] border-r border-slate-200/50">{formatVal(item.spcTlQty)}</td>}
                                       {showKhaiThacCols.spcMg && <td className="py-2 px-2 text-center text-[13px] font-black text-[#047857] border-r border-slate-200/50">{formatVal(item.spcMgQty)}</td>}
+                                      {showKhaiThacCols.spcMnn && <td className="py-2 px-2 text-center text-[13px] font-black text-[#047857] border-r border-slate-200/50">{formatVal(item.spcMnnQty)}</td>}
                                       <td className="py-2 px-2 text-center text-[13px] font-black text-[#047857] bg-[#e6fbf4]/20 border-r border-slate-200/50">{formatVal(visibleSpChinhTotalQty)}</td>
                                     </>
                                   )}
@@ -9668,6 +9664,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               const totalSpcMl = staffKhaiThacStats.reduce((s, x) => s + x.spcMlQty, 0);
                               const totalSpcTl = staffKhaiThacStats.reduce((s, x) => s + x.spcTlQty, 0);
                               const totalSpcMg = staffKhaiThacStats.reduce((s, x) => s + x.spcMgQty, 0);
+                              const totalSpcMnn = staffKhaiThacStats.reduce((s, x) => s + x.spcMnnQty, 0);
 
                               const totalSpChinhQty =
                                 (showKhaiThacCols.spcSmf ? totalSpcSmf : 0) +
@@ -9676,7 +9673,8 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                 (showKhaiThacCols.spcTivi ? totalSpcTivi : 0) +
                                 (showKhaiThacCols.spcMl ? totalSpcMl : 0) +
                                 (showKhaiThacCols.spcTl ? totalSpcTl : 0) +
-                                (showKhaiThacCols.spcMg ? totalSpcMg : 0);
+                                (showKhaiThacCols.spcMg ? totalSpcMg : 0) +
+                                (showKhaiThacCols.spcMnn ? totalSpcMnn : 0);
 
                               const totalSmfIphone = staffKhaiThacStats.reduce((s, x) => s + x.smfIphoneQty, 0);
                               const totalSmfSamsung = staffKhaiThacStats.reduce((s, x) => s + x.smfSamsungQty, 0);
@@ -9686,29 +9684,6 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                               const totalSmfXiaomi = staffKhaiThacStats.reduce((s, x) => s + x.smfXiaomiQty, 0);
                               const totalSmfHonor = staffKhaiThacStats.reduce((s, x) => s + x.smfHonorQty, 0);
                               const totalSmfMotorola = staffKhaiThacStats.reduce((s, x) => s + x.smfMotorolaQty, 0);
-
-                              const totalCePana = staffKhaiThacStats.reduce((s, x) => s + x.cePanaQty, 0);
-                              const totalCeAqua = staffKhaiThacStats.reduce((s, x) => s + x.ceAquaQty, 0);
-                              const totalCeHaier = staffKhaiThacStats.reduce((s, x) => s + x.ceHaierQty, 0);
-                              const totalCeSunhouse = staffKhaiThacStats.reduce((s, x) => s + x.ceSunhouseQty, 0);
-                              const totalCeToshiba = staffKhaiThacStats.reduce((s, x) => s + x.ceToshibaQty, 0);
-                              const totalCeDaikin = staffKhaiThacStats.reduce((s, x) => s + x.ceDaikinQty, 0);
-                              const totalCeComfee = staffKhaiThacStats.reduce((s, x) => s + x.ceComfeeQty, 0);
-                              const totalCeNagakawa = staffKhaiThacStats.reduce((s, x) => s + x.ceNagakawaQty, 0);
-                              const totalCeSamsung = staffKhaiThacStats.reduce((s, x) => s + x.ceSamsungQty, 0);
-                              const totalCeCasper = staffKhaiThacStats.reduce((s, x) => s + x.ceCasperQty, 0);
-                              const totalCeLg = staffKhaiThacStats.reduce((s, x) => s + x.ceLgQty, 0);
-                              const totalCeSharp = staffKhaiThacStats.reduce((s, x) => s + x.ceSharpQty, 0);
-                              const totalCeTcl = staffKhaiThacStats.reduce((s, x) => s + x.ceTclQty, 0);
-                              const totalCeSony = staffKhaiThacStats.reduce((s, x) => s + x.ceSonyQty, 0);
-                              const totalCeElectrolux = staffKhaiThacStats.reduce((s, x) => s + x.ceElectroluxQty, 0);
-                              const totalCeBeko = staffKhaiThacStats.reduce((s, x) => s + x.ceBekoQty, 0);
-                              const totalCeSanaky = staffKhaiThacStats.reduce((s, x) => s + x.ceSanakyQty, 0);
-                              const totalCeFuniki = staffKhaiThacStats.reduce((s, x) => s + x.ceFunikiQty, 0);
-                              const totalCeMidea = staffKhaiThacStats.reduce((s, x) => s + x.ceMideaQty, 0);
-                              const totalCeGree = staffKhaiThacStats.reduce((s, x) => s + x.ceGreeQty, 0);
-                              const totalCeHisense = staffKhaiThacStats.reduce((s, x) => s + x.ceHisenseQty, 0);
-                              const totalCeKhac = staffKhaiThacStats.reduce((s, x) => s + x.ceKhacQty, 0);
 
                               const totalBhQty = staffKhaiThacStats.reduce((s, x) => s + x.bhQty, 0);
                               const totalVieonQty = staffKhaiThacStats.reduce((s, x) => s + x.vieonQty, 0);
@@ -9816,6 +9791,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                       {showKhaiThacCols.spcMl && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcMl)}</td>}
                                       {showKhaiThacCols.spcTl && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcTl)}</td>}
                                       {showKhaiThacCols.spcMg && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcMg)}</td>}
+                                      {showKhaiThacCols.spcMnn && <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpcMnn)}</td>}
                                       <td className="py-2 px-2 text-center text-[13px] text-[#047857] font-black border-r border-slate-200/50">{formatFooterVal(totalSpChinhQty)}</td>
                                     </>
                                   )}
