@@ -606,11 +606,19 @@ export const InQrSpTab: React.FC = () => {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map(p => ({
-            ...p,
-            nhaSanXuat: p.nhaSanXuat || inferManufacturer(p.productName, p.nhomHang, p.nganhHang),
-            nganhHang: p.nganhHang || inferNganhHang(p.productName, p.nhomHang),
-          }));
+          return parsed.map(p => {
+            let pName = p.productName;
+            if (!pName || pName === p.productCode) {
+              const sample = SAMPLE_PRODUCTS.find(s => s.productCode === p.productCode);
+              if (sample) pName = sample.productName;
+            }
+            return {
+              ...p,
+              productName: pName,
+              nhaSanXuat: p.nhaSanXuat || inferManufacturer(pName, p.nhomHang, p.nganhHang),
+              nganhHang: p.nganhHang || inferNganhHang(pName, p.nhomHang),
+            };
+          });
         }
       }
     } catch {}
@@ -910,15 +918,28 @@ export const InQrSpTab: React.FC = () => {
     // Quét tìm dòng tiêu đề (quét tối đa 15 dòng đầu)
     for (let r = 0; r < Math.min(15, rows.length); r++) {
       const row = (rows[r] || []).map(c => String(c ?? '').trim().toLowerCase());
-      const cIdx = row.findIndex(cell => 
-        cell.includes('mã sản phẩm') || cell.includes('mã sp') || cell.includes('masp') || 
-        cell.includes('mã hàng') || cell.includes('ma hang') ||
-        cell.includes('barcode') || cell.includes('product code') || cell.includes('sku') || cell === 'mã' || cell === 'code'
-      );
-      const nIdx = row.findIndex(cell => 
-        cell.includes('tên sản phẩm') || cell.includes('tên sp') || cell.includes('tensp') || 
-        cell.includes('product name') || cell.includes('tên hàng') || cell.includes('ten hang') || cell.includes('model') || cell === 'tên' || cell.includes('sản phẩm')
-      );
+
+      // 1. Cột mã sản phẩm (tránh nhầm với các cột có chữ tên/name)
+      const cIdx = row.findIndex(cell => {
+        if (cell.includes('tên') || cell.includes('name') || cell.includes('ngành') || cell.includes('nhóm')) return false;
+        return (
+          cell.includes('mã sản phẩm') || cell.includes('mã sp') || cell.includes('masp') || 
+          cell.includes('mã hàng') || cell.includes('ma hang') ||
+          cell.includes('barcode') || cell.includes('product code') || cell.includes('sku') || 
+          cell === 'mã' || cell === 'ma' || cell === 'code'
+        );
+      });
+
+      // 2. Cột tên sản phẩm (loại trừ các cột có chữ mã/code/sku/barcode/ngành/nhóm)
+      const nIdx = row.findIndex(cell => {
+        if (cell.includes('mã') || cell.includes('code') || cell.includes('sku') || cell.includes('barcode') || cell.includes('ngành') || cell.includes('nhóm')) return false;
+        return (
+          cell.includes('tên sản phẩm') || cell.includes('tên sp') || cell.includes('tensp') || 
+          cell.includes('product name') || cell.includes('tên hàng') || cell.includes('ten hang') || 
+          cell.includes('model') || cell === 'tên' || cell === 'ten'
+        );
+      });
+
       const qIdx = row.findIndex(cell => {
         const c = cell.trim().toLowerCase();
         if (
@@ -953,16 +974,15 @@ export const InQrSpTab: React.FC = () => {
         );
       });
 
-      const hasNsxOrNganhOrNhom = row.some(cell => 
-        cell.includes('nhà sản xuất') || cell.includes('nha san xuat') || cell.includes('ngành hàng') || cell.includes('nhóm hàng') || cell === 'nsx' || cell === 'hãng'
-      );
-
-      if (cIdx !== -1 || nIdx !== -1 || hasNsxOrNganhOrNhom) {
+      if (cIdx !== -1 || nIdx !== -1) {
         headerRowIdx = r;
-        codeCol = cIdx !== -1 ? cIdx : (row.length > 1 ? 1 : 0);
-        nameCol = nIdx !== -1 ? nIdx : (row.length > 2 ? 2 : 1);
+        codeCol = cIdx;
+        nameCol = nIdx;
         qtyCol = qIdx;
-        imeiCol = row.findIndex(cell => cell.includes('imei') || cell.includes('serial') || cell.includes('seri'));
+        imeiCol = row.findIndex(cell => {
+          const c = cell.trim().toLowerCase();
+          return c.includes('imei') || c.includes('serial') || c.includes('seri') || c === 'sn' || c.includes('imei_1') || c.includes('imei 1');
+        });
         nganhCol = row.findIndex(cell => cell.includes('ngành') || cell.includes('nganh') || cell.includes('category'));
         nhomCol = row.findIndex(cell => cell.includes('nhóm') || cell.includes('nhom') || cell.includes('sub-category') || cell.includes('group'));
         nsxCol = row.findIndex(cell => {
@@ -1099,20 +1119,32 @@ export const InQrSpTab: React.FC = () => {
         }
       }
 
-      // Heuristic fallback nếu không có header chuẩn
-      if (!pCode || !pName) {
+      // Heuristic fallback nếu không có header chuẩn hoặc tên bị trùng với mã sản phẩm
+      if (!pCode || !pName || pName === pCode) {
         const nonEmpties = row.map(c => String(c ?? '').trim()).filter(Boolean);
         if (!pCode) {
           const codeCand = nonEmpties.find(val => /^\d{6,16}$/.test(val));
           if (codeCand) pCode = codeCand;
           else if (nonEmpties.length > 0) pCode = nonEmpties[0];
         }
-        if (!pName) {
+        if (!pName || pName === pCode) {
           const nameCand = [...nonEmpties]
-            .filter(val => val !== pCode && /[a-zA-ZÀ-ỹ]/.test(val))
+            .filter(val => val !== pCode && val !== pImei && val !== pNganh && val !== pNhom && val !== pNsx && val !== pStatus && /[a-zA-ZÀ-ỹ]/.test(val))
             .sort((a, b) => b.length - a.length)[0];
           if (nameCand) pName = nameCand;
-          else if (nonEmpties.length > 1) pName = nonEmpties[1];
+          else if (nonEmpties.length > 1 && nonEmpties[1] !== pCode) pName = nonEmpties[1];
+        }
+      }
+
+      // Fallback IMEI đầy đủ nếu chưa lấy được từ header
+      if (!pImei) {
+        const nonEmpties = row.map(c => String(c ?? '').trim()).filter(Boolean);
+        const imeiCand = nonEmpties.find(val => 
+          val !== pCode && val !== pName && val !== pNganh && val !== pNhom && val !== pNsx && val !== pStatus &&
+          /^[A-Z0-9]{8,24}$/i.test(val) && /[A-Z]/i.test(val) && /\d/.test(val)
+        );
+        if (imeiCand) {
+          pImei = imeiCand;
         }
       }
 
@@ -1508,10 +1540,15 @@ export const InQrSpTab: React.FC = () => {
             </div>
           )}
 
-          {/* IMEI (nếu có và bật) */}
+          {/* IMEI đầy đủ - không bị cắt chữ ... */}
           {config.showImei && item.imei && (
-            <div className={`${isCompact ? 'text-[8px]' : 'text-[9px]'} text-slate-500 font-medium mt-0.5 line-clamp-1`}>
-              IMEI: <span className="font-mono font-bold text-slate-700">{item.imei}</span>
+            <div
+              className={`${
+                isCompact ? 'text-[7.5px] sm:text-[8px]' : 'text-[8.5px] sm:text-[9.5px]'
+              } text-slate-600 font-medium mt-0.5 leading-tight break-all w-full select-all`}
+              title={item.imei}
+            >
+              IMEI: <span className="font-mono font-bold text-slate-800 tracking-tight">{item.imei}</span>
             </div>
           )}
 
