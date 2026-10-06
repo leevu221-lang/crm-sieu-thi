@@ -907,16 +907,17 @@ export const InQrSpTab: React.FC = () => {
     let nsxCol = -1;
     let statusCol = -1;
 
-    // Quét tìm dòng tiêu đề
-    for (let r = 0; r < Math.min(6, rows.length); r++) {
+    // Quét tìm dòng tiêu đề (quét tối đa 15 dòng đầu)
+    for (let r = 0; r < Math.min(15, rows.length); r++) {
       const row = (rows[r] || []).map(c => String(c ?? '').trim().toLowerCase());
       const cIdx = row.findIndex(cell => 
         cell.includes('mã sản phẩm') || cell.includes('mã sp') || cell.includes('masp') || 
-        cell.includes('barcode') || cell.includes('product code') || cell.includes('sku') || cell === 'mã'
+        cell.includes('mã hàng') || cell.includes('ma hang') ||
+        cell.includes('barcode') || cell.includes('product code') || cell.includes('sku') || cell === 'mã' || cell === 'code'
       );
       const nIdx = row.findIndex(cell => 
         cell.includes('tên sản phẩm') || cell.includes('tên sp') || cell.includes('tensp') || 
-        cell.includes('product name') || cell.includes('tên hàng') || cell.includes('model') || cell === 'tên'
+        cell.includes('product name') || cell.includes('tên hàng') || cell.includes('ten hang') || cell.includes('model') || cell === 'tên' || cell.includes('sản phẩm')
       );
       const qIdx = row.findIndex(cell => {
         const c = cell.trim().toLowerCase();
@@ -952,10 +953,14 @@ export const InQrSpTab: React.FC = () => {
         );
       });
 
-      if (cIdx !== -1 || nIdx !== -1) {
+      const hasNsxOrNganhOrNhom = row.some(cell => 
+        cell.includes('nhà sản xuất') || cell.includes('nha san xuat') || cell.includes('ngành hàng') || cell.includes('nhóm hàng') || cell === 'nsx' || cell === 'hãng'
+      );
+
+      if (cIdx !== -1 || nIdx !== -1 || hasNsxOrNganhOrNhom) {
         headerRowIdx = r;
-        codeCol = cIdx;
-        nameCol = nIdx;
+        codeCol = cIdx !== -1 ? cIdx : (row.length > 1 ? 1 : 0);
+        nameCol = nIdx !== -1 ? nIdx : (row.length > 2 ? 2 : 1);
         qtyCol = qIdx;
         imeiCol = row.findIndex(cell => cell.includes('imei') || cell.includes('serial') || cell.includes('seri'));
         nganhCol = row.findIndex(cell => cell.includes('ngành') || cell.includes('nganh') || cell.includes('category'));
@@ -987,6 +992,10 @@ export const InQrSpTab: React.FC = () => {
             c.includes('thuong hieu')
           );
         });
+        // Quy chuẩn Cột F (index 5) là Nhà sản xuất trong file Excel:
+        if (nsxCol === -1 && row.length > 5) {
+          nsxCol = 5;
+        }
         statusCol = row.findIndex(cell => {
           const c = cell.trim().toLowerCase();
           return (
@@ -1029,8 +1038,40 @@ export const InQrSpTab: React.FC = () => {
       if (imeiCol !== -1 && row[imeiCol] !== undefined) pImei = String(row[imeiCol] ?? '').trim();
       if (nganhCol !== -1 && row[nganhCol] !== undefined) pNganh = String(row[nganhCol] ?? '').trim();
       if (nhomCol !== -1 && row[nhomCol] !== undefined) pNhom = String(row[nhomCol] ?? '').trim();
-      if (nsxCol !== -1 && row[nsxCol] !== undefined) pNsx = String(row[nsxCol] ?? '').trim();
       if (statusCol !== -1 && row[statusCol] !== undefined) pStatus = String(row[statusCol] ?? '').trim();
+
+      // Bỏ qua dòng tiêu đề phụ lặp lại nếu có
+      const normCode = pCode.toLowerCase();
+      const normName = pName.toLowerCase();
+      if (
+        normCode === 'mã sp' || normCode === 'mã sản phẩm' || normCode === 'masp' || normCode === 'code' ||
+        normName === 'tên sp' || normName === 'tên sản phẩm' || normName === 'tensp'
+      ) {
+        continue;
+      }
+
+      // ƯU TIÊN TUYỆT ĐỐI THEO YÊU CẦU: Bộ lọc "Nhà sản xuất" = Cột F (index 5) trong file Excel
+      if (row.length > 5 && row[5] !== undefined && row[5] !== null && String(row[5]).trim() !== '') {
+        pNsx = String(row[5]).trim();
+      } else if (nsxCol !== -1 && row[nsxCol] !== undefined && row[nsxCol] !== null && String(row[nsxCol]).trim() !== '') {
+        pNsx = String(row[nsxCol]).trim();
+      }
+
+      // Fallback Ngành hàng: Cột D (index 3) nếu chưa có
+      if (!pNganh && row.length > 3 && row[3] !== undefined && row[3] !== null) {
+        const dVal = String(row[3]).trim();
+        if (dVal && dVal !== pCode && dVal !== pName && dVal !== pNsx) {
+          pNganh = dVal;
+        }
+      }
+
+      // Fallback Nhóm hàng: Cột E (index 4) nếu chưa có
+      if (!pNhom && row.length > 4 && row[4] !== undefined && row[4] !== null) {
+        const eVal = String(row[4]).trim();
+        if (eVal && eVal !== pCode && eVal !== pName && eVal !== pNsx && eVal !== pNganh) {
+          pNhom = eVal;
+        }
+      }
 
       // Đọc số lượng từ cột Số lượng trong file Excel nếu có
       if (qtyCol !== -1 && row[qtyCol] !== undefined && row[qtyCol] !== null) {
@@ -2498,8 +2539,8 @@ export const InQrSpTab: React.FC = () => {
               <li>
                 Lấy dữ liệu tồn kho nhanh: <a href="https://report.mwgroup.vn/home/dashboard/4286" target="_blank" rel="noopener noreferrer" className="font-bold underline text-sky-700 hover:text-sky-900">Link đổ tồn kho chi tiết &gt;</a>
               </li>
-              <li>Chỉ cần bôi đen và copy các cột từ Excel (gồm cột <strong>Mã SP</strong>, <strong>Tên SP</strong>, và <strong>Số lượng</strong>) rồi bấm <strong>"Dán từ Excel"</strong>.</li>
-              <li>Hệ thống tự động nhận diện các cột và loại bỏ khoảng trắng thừa.</li>
+              <li>Chỉ cần bôi đen và copy các cột từ Excel (gồm cột <strong>Mã SP</strong>, <strong>Tên SP</strong>, <strong>Số lượng</strong>, và <strong>Cột F: Nhà sản xuất</strong>) rồi bấm <strong>"Dán từ Excel"</strong> hoặc tải trực tiếp file Excel.</li>
+              <li>Bộ lọc <strong>Nhà sản xuất</strong> tự động lấy chuẩn xác từ <strong>Cột F</strong> trong file Excel (kèm tự động suy luận hãng nếu file thiếu cột).</li>
               <li>Dùng nút <strong>[+]</strong> và <strong>[-]</strong> để tăng giảm số lượng tem in cho từng sản phẩm.</li>
             </ul>
           </div>
