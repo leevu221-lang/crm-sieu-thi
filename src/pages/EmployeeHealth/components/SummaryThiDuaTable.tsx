@@ -886,6 +886,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isCopyingAll, setIsCopyingAll] = useState(false);
   const [visibleCategories, setVisibleCategories] = useState<string[]>([]);
+  const initializedRef = useRef(false);
   const [catSearchTerm, setCatSearchTerm] = useState('');
   const [isCatDropdownOpen, setIsCatDropdownOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -950,15 +951,18 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   });
 
   // Use passed luykeCategories (BC THÁNG displayed data) for staffMatrix calculation
-  const { staffMatrix, categories } = parseStaffMatrixDataRefined(
-    thiDuaNv || '', 
-    staffCount, 
-    categoryTargets, 
-    luykeCategories, 
-    daysPassed, 
-    totalDays,
-    false,
-    categoryConfig
+  const { staffMatrix, categories } = React.useMemo(() =>
+    parseStaffMatrixDataRefined(
+      thiDuaNv || '', 
+      staffCount, 
+      categoryTargets, 
+      luykeCategories, 
+      daysPassed, 
+      totalDays,
+      false,
+      categoryConfig
+    ),
+    [thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays, categoryConfig]
   );
 
   const sortedStaffMatrix = React.useMemo(() => {
@@ -1044,23 +1048,19 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
     return staffCount > 0 ? baseTarget / staffCount : 0;
   };
   
-  // Initialize visible categories when categories load or change
-  const serializedCats = JSON.stringify(categories);
+  // Initialize visible categories once when categories load or change
   React.useEffect(() => {
     if (categories.length > 0) {
       const savedKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
       const savedVal = localStorage.getItem(savedKey);
-      if (savedVal !== null) {
+      if (savedVal !== null && !initializedRef.current) {
         try {
           const parsed = JSON.parse(savedVal);
           if (Array.isArray(parsed)) {
-            // Filter to ensure only categories currently available are visible
             const validSaved = parsed.filter((c: string) => categories.includes(c));
-            // Add any newly configured categories that weren't in parsed previously so they're not hidden
-            const newCats = categories.filter((c: string) => !parsed.includes(c));
-            const combined = [...validSaved, ...newCats];
-            if (combined.length > 0) {
-              setVisibleCategories(combined);
+            if (validSaved.length > 0 || parsed.length === 0) {
+              setVisibleCategories(validSaved);
+              initializedRef.current = true;
               return;
             }
           }
@@ -1068,22 +1068,31 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
           console.error(e);
         }
       }
-      setVisibleCategories(categories);
+      if (!initializedRef.current) {
+        setVisibleCategories(categories);
+        initializedRef.current = true;
+      }
     }
-  }, [serializedCats, activeStore]);
+  }, [categories, activeStore]);
 
   // Save selected categories when selection changes
   React.useEffect(() => {
-    if (categories.length > 0 && visibleCategories.length > 0) {
+    if (initializedRef.current && categories.length > 0) {
       const savedKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
-      localStorage.setItem(savedKey, JSON.stringify(visibleCategories));
+      try {
+        localStorage.setItem(savedKey, JSON.stringify(visibleCategories));
+      } catch (e) {
+        console.error(e);
+      }
     }
   }, [visibleCategories, categories, activeStore]);
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside (safe against DOM node detachment during React re-renders)
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
-      if (catDropdownRef.current && !catDropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node | null;
+      if (!target || !document.contains(target)) return;
+      if (catDropdownRef.current && !catDropdownRef.current.contains(target)) {
         setIsCatDropdownOpen(false);
       }
     };
@@ -1374,61 +1383,124 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
             </button>
 
             {isCatDropdownOpen && (
-              <div className="absolute top-full right-0 mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[100] overflow-hidden">
-                <div className="p-3 border-b border-slate-100 bg-slate-50/50">
+              <div className="absolute top-full right-0 mt-2 w-80 max-w-[calc(100vw-32px)] bg-white border border-slate-200 rounded-2xl shadow-2xl z-[100] overflow-hidden text-slate-800">
+                <div className="p-3 border-b border-slate-100 bg-slate-50/70">
                   <div className="relative">
-                    <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="text"
                       placeholder="Tìm ngành hàng..."
                       value={catSearchTerm}
                       onChange={(e) => setCatSearchTerm(e.target.value)}
-                      className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold focus:ring-2 focus:ring-emerald-500/30 outline-none uppercase"
+                      className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold focus:ring-2 focus:ring-emerald-500/30 outline-none uppercase placeholder:normal-case placeholder:font-normal"
                     />
                   </div>
                 </div>
-                <div className="p-2 border-b border-slate-100 flex items-center justify-between px-4">
+
+                {/* Quick Selection Actions */}
+                <div className="p-2 border-b border-slate-100 flex items-center justify-between px-3.5 bg-white">
                   <button
+                    type="button"
                     onClick={() => setVisibleCategories([...categories])}
                     className="text-[10px] font-black uppercase text-emerald-600 hover:text-emerald-800 transition-colors cursor-pointer"
                   >
-                    Chọn tất cả
+                    Chọn tất cả ({categories.length})
                   </button>
                   <button
+                    type="button"
                     onClick={() => setVisibleCategories([])}
-                    className="text-[10px] font-black uppercase text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
+                    className="text-[10px] font-black uppercase text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
                   >
                     Bỏ chọn tất cả
                   </button>
                 </div>
-                <div className="max-h-64 overflow-y-auto p-2">
-                  {filteredCatList.map(cat => (
-                    <label
-                      key={cat}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-emerald-50 cursor-pointer transition-colors group"
-                    >
-                      <div className={cn(
-                        "w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all",
-                        visibleCategories.includes(cat)
-                          ? "bg-emerald-600 border-emerald-600"
-                          : "border-slate-200 group-hover:border-slate-300 bg-white"
-                      )}>
-                        {visibleCategories.includes(cat) && <Check size={12} className="text-white stroke-[3px]" />}
+
+                {/* Quick Group Filters (ICT, DỊCH VỤ, CE) */}
+                <div className="p-2 border-b border-slate-100 flex items-center gap-1.5 px-3 bg-slate-50/80">
+                  {(['ICT', 'DỊCH VỤ', 'CE'] as const).map(grp => {
+                    const grpCats = categories.filter(c => getCategoryGroupType(c, categoryConfig) === grp);
+                    const selectedCount = grpCats.filter(c => visibleCategories.includes(c)).length;
+                    const isAllSelected = grpCats.length > 0 && selectedCount === grpCats.length;
+
+                    return (
+                      <button
+                        key={grp}
+                        type="button"
+                        onClick={() => {
+                          if (isAllSelected) {
+                            // Deselect this group
+                            setVisibleCategories(prev => prev.filter(c => getCategoryGroupType(c, categoryConfig) !== grp));
+                          } else {
+                            // Select this group
+                            setVisibleCategories(prev => Array.from(new Set([...prev, ...grpCats])));
+                          }
+                        }}
+                        className={cn(
+                          "flex-1 py-1 px-1.5 rounded-lg text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer border text-center",
+                          isAllSelected
+                            ? grp === 'ICT'
+                              ? "bg-amber-100 border-amber-300 text-amber-900"
+                              : grp === 'DỊCH VỤ'
+                                ? "bg-emerald-100 border-emerald-300 text-emerald-900"
+                                : "bg-sky-100 border-sky-300 text-sky-900"
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                        )}
+                      >
+                        {grp === 'DỊCH VỤ' ? 'DV' : grp} ({selectedCount}/{grpCats.length})
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Category List */}
+                <div className="max-h-72 overflow-y-auto p-2 space-y-1">
+                  {filteredCatList.map(cat => {
+                    const isSelected = visibleCategories.includes(cat);
+                    const grp = getCategoryGroupType(cat, categoryConfig);
+                    const grpBadgeClass = grp === 'ICT'
+                      ? 'bg-amber-50 text-amber-800 border-amber-200/80'
+                      : grp === 'DỊCH VỤ'
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80'
+                        : 'bg-sky-50 text-sky-800 border-sky-200/80';
+
+                    return (
+                      <div
+                        key={cat}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => toggleCategory(cat)}
+                        className={cn(
+                          "flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl cursor-pointer transition-all select-none text-left border",
+                          isSelected 
+                            ? "bg-emerald-50/70 border-emerald-200/60 shadow-2xs" 
+                            : "bg-white hover:bg-slate-50 border-transparent text-slate-600"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={cn(
+                            "w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all shrink-0",
+                            isSelected
+                              ? "bg-emerald-600 border-emerald-600 text-white"
+                              : "border-slate-300 bg-white"
+                          )}>
+                            {isSelected && <Check size={11} className="stroke-[3px]" />}
+                          </div>
+                          <span className={cn(
+                            "text-[11px] font-black uppercase tracking-tight truncate",
+                            isSelected ? "text-emerald-900" : "text-slate-700"
+                          )}>
+                            {cat}
+                          </span>
+                        </div>
+                        <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded border uppercase shrink-0", grpBadgeClass)}>
+                          {grp === 'DỊCH VỤ' ? 'DV' : grp}
+                        </span>
                       </div>
-                      <input
-                        type="checkbox"
-                        className="hidden"
-                        checked={visibleCategories.includes(cat)}
-                        onChange={() => toggleCategory(cat)}
-                      />
-                      <span className={cn(
-                        "text-[11px] font-black uppercase tracking-wider transition-colors",
-                        visibleCategories.includes(cat) ? "text-emerald-700" : "text-slate-600"
-                      )}>
-                        {cat}
-                      </span>
-                    </label>
-                  ))}
+                    );
+                  })}
+                  {filteredCatList.length === 0 && (
+                    <p className="text-center text-xs text-slate-400 py-4 font-bold">Không tìm thấy ngành hàng phù hợp</p>
+                  )}
                 </div>
               </div>
             )}
