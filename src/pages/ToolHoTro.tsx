@@ -7593,12 +7593,20 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
         promoLabelText={promoLabelTextVal}
         onLayoutChange={(newLayout) => {
           setPrintConfig(prev => ({ ...prev, layout: newLayout }));
-          if (activeTab === 'popup-all-sp') {
+          if (activeTab === 'sticker-event-dmx' || activeTab === 'sticker-dong-gia-100k') {
+            setEventPrintLayout(newLayout);
+          } else if (activeTab === 'popup-all-sp') {
             setPopupPrintLayout(newLayout);
           } else if (activeTab === 'sticker-lk') {
             setLkPrintLayout(newLayout);
           } else if (activeTab === 'sticker-ce') {
             setCePrintLayout(newLayout);
+          } else if (activeTab === 'sticker-mln') {
+            setMlnPrintLayout(newLayout);
+          } else if (activeTab === 'sticker-gvgs') {
+            setGvgsPrintLayout(newLayout);
+          } else if (activeTab === 'in-phieu-bh') {
+            setPhieuBhPrintLayout(newLayout);
           }
         }}
       />

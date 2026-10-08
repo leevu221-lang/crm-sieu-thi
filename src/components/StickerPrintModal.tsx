@@ -685,10 +685,109 @@ export default function StickerPrintModal({
                 );
               })}
             </div>
-          ) : (
+          ) : (config.style === 'display' || config.style === 'giovang') ? (
+            <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar py-0.5 shrink min-w-0">
+              <div className="flex items-center gap-1 text-[11px] sm:text-xs font-black uppercase text-amber-400 shrink-0 mr-1">
+                <Sparkles size={14} className="text-amber-400 shrink-0" />
+                <span className="hidden xs:inline">BỐ CỤC:</span>
+              </div>
+              {[
+                { layout: '1', label: '1 A5 Đứng', pagesCount: data.length },
+                { layout: '2', label: '1 A4 Đứng', pagesCount: data.length }
+              ].map((item) => {
+                const isActive = currentLayout === item.layout;
+                return (
+                  <button
+                    key={item.layout}
+                    type="button"
+                    onClick={() => handleSelectLayout(item.layout)}
+                    className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[10.5px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 border flex items-center gap-1.5 active:scale-95 ${
+                      isActive
+                        ? 'bg-amber-500 text-slate-950 border-amber-300 ring-2 ring-amber-400/60 shadow-md font-black'
+                        : 'bg-slate-800/90 hover:bg-slate-700/90 text-slate-300 border-slate-700/80 hover:text-white font-bold'
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                    <span className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-md ${isActive ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-700/60 text-slate-400'}`}>
+                      {item.pagesCount} tr
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (config.style === 'phieu_bh') ? (
+            <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar py-0.5 shrink min-w-0">
+              <div className="flex items-center gap-1 text-[11px] sm:text-xs font-black uppercase text-amber-400 shrink-0 mr-1">
+                <Sparkles size={14} className="text-amber-400 shrink-0" />
+                <span className="hidden xs:inline">BỐ CỤC:</span>
+              </div>
+              {[
+                { layout: '1', label: '1 Phiếu / A4', pagesCount: data.length },
+                { layout: '2', label: '2 Phiếu / A4', pagesCount: Math.ceil(data.length / 2) },
+                { layout: '4', label: '4 Phiếu / A4', pagesCount: Math.ceil(data.length / 4) },
+                { layout: 'right', label: 'Nửa phải A4', pagesCount: data.length }
+              ].map((item) => {
+                const isActive = currentLayout === item.layout;
+                return (
+                  <button
+                    key={item.layout}
+                    type="button"
+                    onClick={() => handleSelectLayout(item.layout)}
+                    className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[10.5px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 border flex items-center gap-1.5 active:scale-95 ${
+                      isActive
+                        ? 'bg-amber-500 text-slate-950 border-amber-300 ring-2 ring-amber-400/60 shadow-md font-black'
+                        : 'bg-slate-800/90 hover:bg-slate-700/90 text-slate-300 border-slate-700/80 hover:text-white font-bold'
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                    <span className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-md ${isActive ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-700/60 text-slate-400'}`}>
+                      {item.pagesCount} tr
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (config.style === 'address_flyer' || config.style === 'dcnb') ? (
             <div className="text-xs font-bold text-slate-300 flex items-center gap-1.5 py-1">
               <Eye size={14} className="text-blue-400" />
               <span>Xem trước bản in ({data.length} tem)</span>
+            </div>
+          ) : (
+            /* BỐ CỤC IN CHO EVENT ĐMX / CLASSIC / ĐỒNG GIÁ / MODERN */
+            <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar max-w-full py-0.5 shrink min-w-0">
+              <div className="flex items-center gap-1 text-[11px] sm:text-xs font-black uppercase text-amber-400 shrink-0 mr-1">
+                <Sparkles size={14} className="text-amber-400 shrink-0 animate-pulse" />
+                <span className="hidden xs:inline">BỐ CỤC:</span>
+              </div>
+              {[
+                { layout: '1', label: '1 Tem / A4', shortLabel: '1 Tem', pagesCount: data.length },
+                { layout: '2', label: '2 Tem / A4', shortLabel: '2 Tem', pagesCount: Math.ceil(data.length / 2) },
+                { layout: '4', label: '4 Tem / A4', shortLabel: '4 Tem', pagesCount: Math.ceil(data.length / 4) },
+                { layout: '8', label: '8 Tem / A4', shortLabel: '8 Tem', pagesCount: Math.ceil(data.length / 8) },
+                { layout: '12', label: '12 Tem / A4', shortLabel: '12 Tem', pagesCount: Math.ceil(data.length / 12) },
+                { layout: '16', label: '16 Tem / A4', shortLabel: '16 Tem', pagesCount: Math.ceil(data.length / 16) }
+              ].map((item) => {
+                const isActive = currentLayout === item.layout;
+                return (
+                  <button
+                    key={item.layout}
+                    type="button"
+                    onClick={() => handleSelectLayout(item.layout)}
+                    className={`px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 border flex items-center gap-1 sm:gap-1.5 active:scale-95 ${
+                      isActive
+                        ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 border-amber-300 ring-2 ring-amber-400/60 shadow-md font-black'
+                        : 'bg-slate-800/90 hover:bg-slate-700/90 text-slate-300 border-slate-700/80 hover:text-white font-bold'
+                    }`}
+                    title={`Chuyển nhanh sang bố cục ${item.label} (${item.pagesCount} trang)`}
+                  >
+                    <span className="hidden sm:inline">{item.label}</span>
+                    <span className="sm:hidden">{item.shortLabel}</span>
+                    <span className={`text-[9px] sm:text-[9.5px] font-bold px-1.5 py-0.2 rounded-md ${isActive ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-700/60 text-slate-400'}`}>
+                      {item.pagesCount} tr
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
 
