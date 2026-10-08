@@ -1,141 +1,111 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Smartphone,
-  Monitor,
   RotateCw,
   RefreshCw,
-  X,
-  ExternalLink,
-  ChevronDown,
-  Sliders,
-  Check,
-  Sparkles,
-  Maximize2,
-  Zap
+  X
 } from 'lucide-react';
 
 export interface DevicePreset {
   id: string;
   name: string;
-  category: 'ios' | 'android' | 'custom';
+  category: 'ios' | 'android' | 'fold' | 'custom';
   width: number;
   height: number;
   osName: string;
-  badge: string;
-  frameRadius: number;
-  screenRadius: number;
   hasDynamicIsland?: boolean;
   hasPunchHole?: boolean;
 }
 
 export const DEVICE_PRESETS: DevicePreset[] = [
   {
-    id: 'iphone-18-pro-max',
-    name: 'iPhone 18 Pro Max',
-    category: 'ios',
-    width: 440,
-    height: 956,
-    osName: 'iOS 20 Ultra',
-    badge: 'Mới nhất • Màn cực đại',
-    frameRadius: 58,
-    screenRadius: 48,
-    hasDynamicIsland: true
-  },
-  {
-    id: 'iphone-17-pro-max',
-    name: 'iPhone 17 Pro Max',
-    category: 'ios',
-    width: 432,
-    height: 936,
-    osName: 'iOS 19 Max',
-    badge: 'Màn hình lớn',
-    frameRadius: 56,
-    screenRadius: 46,
-    hasDynamicIsland: true
-  },
-  {
-    id: 'iphone-17-18-pro',
-    name: 'iPhone 17 / 18 Pro',
-    category: 'ios',
-    width: 402,
-    height: 874,
-    osName: 'iOS 19 / 20',
-    badge: 'Chuẩn Pro mới',
-    frameRadius: 54,
-    screenRadius: 44,
-    hasDynamicIsland: true
-  },
-  {
-    id: 'iphone-16-pro-max',
-    name: 'iPhone 16 Pro Max',
-    category: 'ios',
-    width: 430,
-    height: 932,
-    osName: 'iOS 18 Max',
-    badge: 'Màn hình lớn',
-    frameRadius: 56,
-    screenRadius: 46,
-    hasDynamicIsland: true
-  },
-  {
-    id: 'iphone-16-pro',
-    name: 'iPhone 16 Pro',
-    category: 'ios',
-    width: 393,
-    height: 852,
-    osName: 'iOS 18',
-    badge: 'Chuẩn iOS',
-    frameRadius: 54,
-    screenRadius: 44,
-    hasDynamicIsland: true
-  },
-  {
-    id: 'iphone-15-standard',
-    name: 'iPhone 15 / 14 / 13',
+    id: 'iphone-13',
+    name: '🍎 iPhone 13 / 14 / 12',
     category: 'ios',
     width: 390,
     height: 844,
     osName: 'iOS Standard',
-    badge: 'Phổ biến',
-    frameRadius: 50,
-    screenRadius: 42,
+    hasDynamicIsland: true
+  },
+  {
+    id: 'iphone-17-18-pro-max',
+    name: '🍎 iPhone 17 / 18 Pro Max',
+    category: 'ios',
+    width: 440,
+    height: 956,
+    osName: 'iOS 19 / 20',
+    hasDynamicIsland: true
+  },
+  {
+    id: 'iphone-16-pro-max',
+    name: '🍎 iPhone 16 Pro Max',
+    category: 'ios',
+    width: 430,
+    height: 932,
+    osName: 'iOS 18 Max',
+    hasDynamicIsland: true
+  },
+  {
+    id: 'iphone-15-pro',
+    name: '🍎 iPhone 15 / 16 / 14 Pro',
+    category: 'ios',
+    width: 393,
+    height: 852,
+    osName: 'iOS 18',
     hasDynamicIsland: true
   },
   {
     id: 'samsung-s24',
-    name: 'Samsung Galaxy S24 / S25',
+    name: '🤖 Samsung Galaxy S24 / S25',
     category: 'android',
     width: 412,
     height: 915,
-    osName: 'Android 15 (OneUI)',
-    badge: 'Chuẩn Android',
-    frameRadius: 46,
-    screenRadius: 36,
+    osName: 'Android (OneUI)',
+    hasPunchHole: true
+  },
+  {
+    id: 'galaxy-z-fold-open',
+    name: '🤖 Galaxy Z Fold 7 / 8 (Mở rộng)',
+    category: 'fold',
+    width: 768,
+    height: 960,
+    osName: 'Foldable Android',
+    hasPunchHole: true
+  },
+  {
+    id: 'galaxy-z-fold-cover',
+    name: '🤖 Galaxy Z Fold 7 / 8 (Màn ngoài)',
+    category: 'android',
+    width: 374,
+    height: 912,
+    osName: 'Compact Android',
     hasPunchHole: true
   },
   {
     id: 'xiaomi-redmi',
-    name: 'Xiaomi / OPPO / Vivo',
+    name: '🤖 Xiaomi Redmi / Galaxy dòng A',
     category: 'android',
-    width: 392,
-    height: 872,
-    osName: 'Android (HyperOS/ColorOS)',
-    badge: 'Đa dòng máy',
-    frameRadius: 46,
-    screenRadius: 36,
+    width: 360,
+    height: 800,
+    osName: 'Android (HyperOS)',
     hasPunchHole: true
   },
   {
     id: 'iphone-se',
-    name: 'iPhone SE / 8',
+    name: '🍎 iPhone SE / Compact',
     category: 'ios',
     width: 375,
     height: 667,
-    osName: 'iOS Compact',
-    badge: 'Màn hình nhỏ',
-    frameRadius: 40,
-    screenRadius: 20
+    osName: 'iOS Compact'
+  },
+  {
+    id: 'custom',
+    name: '⚙️ Tùy biến kích thước tự do',
+    category: 'custom',
+    width: 390,
+    height: 844,
+    osName: 'Custom'
   }
 ];
 
@@ -148,15 +118,18 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
   isOpen,
   onClose
 }) => {
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('iphone-18-pro-max');
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>(() => {
+    try {
+      return localStorage.getItem('sim_selected_device') || 'iphone-13';
+    } catch {
+      return 'iphone-13';
+    }
+  });
   const [isLandscape, setIsLandscape] = useState<boolean>(false);
-  const [showChassis, setShowChassis] = useState<boolean>(true);
-  const [scaleMode, setScaleMode] = useState<'fit' | '100' | '90' | '80' | '75'>('fit');
+  const [scaleMode, setScaleMode] = useState<string>('auto');
   const [customWidth, setCustomWidth] = useState<number>(390);
-  const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState<boolean>(false);
   const [iframeKey, setIframeKey] = useState<number>(0);
   const [isIframeLoading, setIsIframeLoading] = useState<boolean>(true);
-  const deviceMenuRef = useRef<HTMLDivElement>(null);
 
   const [windowDimensions, setWindowDimensions] = useState({
     width: typeof window !== 'undefined' ? window.innerWidth : 1440,
@@ -169,17 +142,6 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Close device menu on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (deviceMenuRef.current && !deviceMenuRef.current.contains(e.target as Node)) {
-        setIsDeviceMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // Escape key to close simulator
@@ -198,14 +160,12 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
     if (selectedDeviceId === 'custom') {
       return {
         id: 'custom',
-        name: 'Tùy Chỉnh Kích Thước',
+        name: '⚙️ Tùy biến kích thước',
         category: 'custom' as const,
         width: customWidth,
         height: 844,
-        osName: 'Responsive',
-        badge: 'Custom',
-        frameRadius: 40,
-        screenRadius: 30
+        osName: 'Custom',
+        hasDynamicIsland: true
       };
     }
     return DEVICE_PRESETS.find(d => d.id === selectedDeviceId) || DEVICE_PRESETS[0];
@@ -214,19 +174,22 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
   const effectiveWidth = isLandscape ? currentDevice.height : currentDevice.width;
   const effectiveHeight = isLandscape ? currentDevice.width : currentDevice.height;
 
-  // Compute auto-fit scale
-  const availableH = Math.max(300, windowDimensions.height - 110);
-  const availableW = Math.max(300, windowDimensions.width - 48);
-
-  const fitScale = useMemo(() => {
-    const targetH = effectiveHeight + (showChassis ? 28 : 0);
-    const targetW = effectiveWidth + (showChassis ? 28 : 0);
+  // Công thức Auto Scale khớp chính xác 100% như trang mẫu Hình 1 (tra-cuu-loi-loc):
+  // 56px toolbar + 44px không gian trên dưới = 100px.
+  // Điện thoại tận dụng tối đa chiều cao hiển thị giúp kích thước to lớn, rõ nét.
+  const autoScale = useMemo(() => {
+    const availableH = Math.max(300, windowDimensions.height - 56 - 44);
+    const availableW = Math.max(300, windowDimensions.width - 40);
+    const chassisBorder = 22; // 11px viền mỗi bên
+    const targetH = effectiveHeight + chassisBorder;
+    const targetW = effectiveWidth + chassisBorder;
     const scaleH = availableH / targetH;
     const scaleW = availableW / targetW;
-    return Math.min(1, Math.min(scaleH, scaleW) * 0.98);
-  }, [effectiveHeight, effectiveWidth, availableH, availableW, showChassis]);
+    const scale = Math.min(1, Math.min(scaleH, scaleW));
+    return Math.max(0.35, Math.min(1, scale));
+  }, [effectiveHeight, effectiveWidth, windowDimensions.height, windowDimensions.width]);
 
-  const activeScale = scaleMode === 'fit' ? fitScale : parseFloat(scaleMode) / 100;
+  const activeScale = scaleMode === 'auto' ? autoScale : parseFloat(scaleMode) || 1;
 
   // Generate target URL for iframe: same origin + same path + same query + is_mobile_sim=1
   const iframeUrl = useMemo(() => {
@@ -239,168 +202,89 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] bg-[#0B1120] flex flex-col overflow-hidden text-white font-sans select-none animate-[fadeIn_0.15s_ease-out]">
-      {/* ── TOP CONTROL TOOLBAR ── */}
-      <header className="h-14 sm:h-16 border-b border-slate-800 bg-slate-900/95 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 shrink-0 shadow-md relative z-20">
-        {/* Left cluster: App title & Device Preset Dropdown */}
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-sky-500/20 to-indigo-500/20 border border-sky-500/30 text-sky-400">
-            <Smartphone size={16} className="text-sky-400 animate-pulse shrink-0" />
-            <span className="text-xs font-black uppercase tracking-wider whitespace-nowrap">
-              Giả Lập Mobile
-            </span>
+    <div className="fixed inset-0 z-[99999] bg-[#0f172a] flex flex-col overflow-hidden text-white font-sans select-none animate-[fadeIn_0.15s_ease-out]">
+      {/* ── TOP CONTROL TOOLBAR (Khớp chuẩn Hình 1) ── */}
+      <header className="h-14 bg-slate-800/95 border-b border-slate-700/80 px-3 sm:px-6 flex items-center justify-between gap-3 shrink-0 shadow-md relative z-20">
+        {/* Left: Badge + Device Select + Scale Select */}
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          {/* Title Badge */}
+          <div className="flex items-center gap-1.5 text-sky-400 text-xs font-extrabold uppercase tracking-wide pr-3 border-r border-slate-700">
+            <Smartphone size={16} className="shrink-0" />
+            <span>Mô Phỏng Mobile</span>
           </div>
 
-          {/* Device Preset Selector */}
-          <div ref={deviceMenuRef} className="relative">
-            <button
-              type="button"
-              onClick={() => setIsDeviceMenuOpen(!isDeviceMenuOpen)}
-              className="flex items-center gap-2 px-3 py-1.5 sm:py-2 rounded-xl bg-slate-800 hover:bg-slate-700/90 border border-slate-700 text-slate-100 text-xs font-bold transition-all shadow-sm cursor-pointer"
+          {/* Device Selector */}
+          <div className="flex items-center gap-1.5">
+            <label htmlFor="sim-device-select" className="text-xs font-semibold text-slate-400 hidden sm:inline">
+              Thiết bị:
+            </label>
+            <select
+              id="sim-device-select"
+              value={selectedDeviceId}
+              onChange={(e) => {
+                setSelectedDeviceId(e.target.value);
+                try {
+                  localStorage.setItem('sim_selected_device', e.target.value);
+                } catch {}
+              }}
+              className="bg-slate-900 text-slate-100 border border-slate-700 hover:border-sky-400 focus:border-sky-400 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer max-w-[200px] sm:max-w-none transition-colors"
             >
-              <div className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span className="max-w-[120px] sm:max-w-[170px] truncate">{currentDevice.name}</span>
-              <span className="hidden sm:inline-block text-[10px] text-slate-400 font-mono">
-                ({effectiveWidth}×{effectiveHeight})
-              </span>
-              <ChevronDown size={14} className={`text-slate-400 transition-transform ${isDeviceMenuOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {/* Dropdown Menu */}
-            {isDeviceMenuOpen && (
-              <div className="absolute top-full left-0 mt-2 w-72 sm:w-80 bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl p-2 z-50 animate-[fadeIn_0.15s_ease-out]">
-                <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-800">
-                  Chọn dòng điện thoại mô phỏng
-                </div>
-                <div className="max-h-[420px] overflow-y-auto no-scrollbar py-1 space-y-1">
-                  {DEVICE_PRESETS.map((device) => {
-                    const isSelected = selectedDeviceId === device.id;
-                    return (
-                      <button
-                        key={device.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedDeviceId(device.id);
-                          setIsDeviceMenuOpen(false);
-                        }}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-sky-500 text-slate-950 font-black shadow-md'
-                            : 'hover:bg-slate-800 text-slate-200'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="text-sm shrink-0">
-                            {device.category === 'ios' ? '🍏' : '🤖'}
-                          </span>
-                          <div className="min-w-0">
-                            <div className="font-bold truncate">{device.name}</div>
-                            <div className={`text-[10px] font-mono ${isSelected ? 'text-slate-900/80' : 'text-slate-400'}`}>
-                              {device.width} × {device.height} px • {device.osName}
-                            </div>
-                          </div>
-                        </div>
-                        {isSelected && <Check size={14} className="shrink-0 font-black" />}
-                      </button>
-                    );
-                  })}
-
-                  {/* Custom Width Option */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedDeviceId('custom');
-                      setIsDeviceMenuOpen(false);
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs transition-all cursor-pointer ${
-                      selectedDeviceId === 'custom'
-                        ? 'bg-sky-500 text-slate-950 font-black shadow-md'
-                        : 'hover:bg-slate-800 text-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Sliders size={15} className="shrink-0" />
-                      <div>
-                        <div className="font-bold">Tùy biến chiều rộng</div>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          {customWidth}px (Thanh trượt tự do)
-                        </div>
-                      </div>
-                    </div>
-                    {selectedDeviceId === 'custom' && <Check size={14} className="shrink-0 font-black" />}
-                  </button>
-                </div>
-              </div>
-            )}
+              {DEVICE_PRESETS.map((d) => (
+                <option key={d.id} value={d.id} className="bg-slate-900 text-slate-100">
+                  {d.name} ({d.width} × {d.height} px)
+                </option>
+              ))}
+            </select>
           </div>
 
-          {/* Slider if custom width */}
+          {/* Custom Width Slider (nếu chọn tùy biến) */}
           {selectedDeviceId === 'custom' && (
-            <div className="hidden sm:flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
+            <div className="flex items-center gap-1.5 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-700">
               <span className="text-[10px] text-slate-400 font-bold uppercase">Rộng:</span>
               <input
                 type="range"
                 min="320"
-                max="480"
+                max="500"
                 value={customWidth}
                 onChange={(e) => setCustomWidth(Number(e.target.value))}
-                className="w-24 accent-sky-400 cursor-pointer"
+                className="w-20 accent-sky-400 cursor-pointer"
               />
               <span className="text-xs font-mono font-bold text-sky-400">{customWidth}px</span>
             </div>
           )}
+
+          {/* Scale Selector */}
+          <div className="flex items-center gap-1.5">
+            <label htmlFor="sim-scale-select" className="text-xs font-semibold text-slate-400 hidden sm:inline">
+              Tỷ lệ:
+            </label>
+            <select
+              id="sim-scale-select"
+              value={scaleMode}
+              onChange={(e) => setScaleMode(e.target.value)}
+              className="bg-slate-900 text-slate-100 border border-slate-700 hover:border-sky-400 focus:border-sky-400 rounded-lg px-2 py-1.5 text-xs font-bold outline-none cursor-pointer transition-colors"
+            >
+              <option value="auto">Vừa màn hình (Auto)</option>
+              <option value="1">100%</option>
+              <option value="0.9">90%</option>
+              <option value="0.85">85%</option>
+              <option value="0.75">75%</option>
+            </select>
+          </div>
         </div>
 
-        {/* Center cluster: Orientation, Chassis & Zoom controls */}
-        <div className="flex items-center gap-1 sm:gap-2">
+        {/* Right: Rotate + Reload + Return to Desktop */}
+        <div className="flex items-center gap-2">
           {/* Rotate Portrait / Landscape */}
           <button
             type="button"
             onClick={() => setIsLandscape(!isLandscape)}
-            className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
-              isLandscape
-                ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
-                : 'bg-slate-800 text-slate-300 hover:text-white border-slate-700 hover:bg-slate-700'
-            }`}
-            title={isLandscape ? 'Chuyển sang màn hình Dọc' : 'Chuyển sang màn hình Ngang'}
+            className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+            title="Xoay dọc / ngang màn hình"
           >
-            <RotateCw size={14} className={isLandscape ? 'rotate-90 transition-transform' : ''} />
-            <span className="hidden md:inline">{isLandscape ? 'Màn Ngang' : 'Màn Dọc'}</span>
+            <RotateCw size={13} className={isLandscape ? 'rotate-90 transition-transform' : ''} />
+            <span>{isLandscape ? 'Ngang' : 'Dọc'}</span>
           </button>
-
-          {/* Toggle Chassis */}
-          <button
-            type="button"
-            onClick={() => setShowChassis(!showChassis)}
-            className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
-              showChassis
-                ? 'bg-slate-800 text-sky-400 border-sky-500/40'
-                : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:text-slate-200'
-            }`}
-            title="Bật/Tắt khung viền điện thoại"
-          >
-            <Maximize2 size={14} />
-            <span className="hidden md:inline">{showChassis ? 'Có Khung Máy' : 'Tràn Viền'}</span>
-          </button>
-
-          {/* Scale Presets */}
-          <div className="flex items-center bg-slate-800 border border-slate-700 rounded-xl p-0.5">
-            {(['fit', '100', '80'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setScaleMode(mode)}
-                className={`px-2 py-1 rounded-lg text-[10.5px] font-bold uppercase transition-all cursor-pointer ${
-                  scaleMode === mode
-                    ? 'bg-sky-500 text-slate-950 font-black shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title={mode === '100' ? 'Chuẩn kích thước 100% - Thao tác siêu mượt không độ trễ' : undefined}
-              >
-                {mode === 'fit' ? 'Vừa Màn' : mode === '100' ? '100% ⚡' : `${mode}%`}
-              </button>
-            ))}
-          </div>
 
           {/* Reload Frame */}
           <button
@@ -409,164 +293,127 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
               setIsIframeLoading(true);
               setIframeKey((k) => k + 1);
             }}
-            className="p-1.5 sm:p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer"
+            className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
             title="Tải lại khung hình mobile"
           >
-            <RefreshCw size={14} className={isIframeLoading ? 'animate-spin text-sky-400' : ''} />
-          </button>
-        </div>
-
-        {/* Right cluster: Exit / Back to Desktop button */}
-        <div className="flex items-center gap-2">
-          {/* Popout New Window - Promoted for 120Hz native performance */}
-          <button
-            type="button"
-            onClick={() => {
-              const w = effectiveWidth;
-              const h = effectiveHeight;
-              window.open(iframeUrl, '_blank', `width=${w},height=${h},menubar=no,status=no,toolbar=no,location=no`);
-            }}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/40 text-amber-300 hover:text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
-            title="Mở sang cửa sổ trình duyệt riêng - Tốc độ 120Hz siêu mượt 100%, không bị giới hạn iframe"
-          >
-            <Zap size={13} className="text-amber-400 fill-amber-400 shrink-0" />
-            <span className="hidden xl:inline">Cửa Sổ Riêng 120Hz</span>
-            <span className="xl:hidden hidden sm:inline">120Hz</span>
+            <RefreshCw size={13} className={isIframeLoading ? 'animate-spin text-sky-400' : ''} />
+            <span className="hidden sm:inline">Tải lại</span>
           </button>
 
-          {/* BACK TO DESKTOP BUTTON */}
+          {/* RETURN TO DESKTOP BUTTON (Nút Đỏ Khớp Chuẩn Hình 1) */}
           <button
             type="button"
             onClick={onClose}
-            className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 active:scale-95 text-white text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-sky-500/25 cursor-pointer border border-sky-400/30"
-            title="Thoát chế độ mô phỏng, quay lại toàn màn hình Desktop (Phím tắt: Esc)"
+            className="flex items-center gap-1.5 bg-[#ef4444] hover:bg-[#dc2626] active:scale-95 text-white px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold shadow-md shadow-red-500/30 cursor-pointer transition-all border border-red-400/40"
+            title="Quay lại giao diện Desktop (Phím tắt: ESC)"
           >
-            <Monitor size={15} className="shrink-0" />
-            <span>Quay Lại Desktop</span>
-          </button>
-
-          {/* Close X */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
-            title="Đóng (Esc)"
-          >
-            <X size={16} />
+            <X size={15} />
+            <span>Trở về Desktop</span>
           </button>
         </div>
       </header>
 
-      {/* ── STUDIO CANVAS VIEWPORT ── */}
-      <main className="flex-1 overflow-auto flex items-center justify-center p-4 relative bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-[#030712]">
-        {/* Subtle grid pattern for authentic studio workspace feel */}
+      {/* ── STAGE VIEWPORT (Khớp chuẩn tỉ lệ và kích thước Hình 1) ── */}
+      <main className="flex-1 flex flex-col items-center justify-center p-3 overflow-hidden relative bg-[#0f172a]">
+        {/* REALISTIC PHONE CHASSIS */}
         <div
-          className="absolute inset-0 opacity-15 pointer-events-none"
+          className="relative bg-[#09090b] transition-transform duration-150 ease-out origin-center shrink-0 flex items-center justify-center"
           style={{
-            backgroundImage: `
-              linear-gradient(to right, #38bdf8 1px, transparent 1px),
-              linear-gradient(to bottom, #38bdf8 1px, transparent 1px)
-            `,
-            backgroundSize: '36px 36px'
-          }}
-        />
-
-        {/* Scaled Device Wrapper with Hardware Acceleration */}
-        <div
-          className="relative transition-transform duration-150 ease-out origin-center shrink-0 flex items-center justify-center"
-          style={{
+            border: '11px solid #27272a',
+            borderRadius: '50px',
+            boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 2px #52525b, inset 0 0 0 2px #09090b',
             transform: activeScale === 1 ? 'none' : `scale(${activeScale}) translateZ(0)`,
+            transformOrigin: 'center center',
             willChange: activeScale === 1 ? 'auto' : 'transform',
-            backfaceVisibility: 'hidden',
-            contain: 'paint layout',
-            width: `${effectiveWidth + (showChassis ? 24 : 0)}px`,
-            height: `${effectiveHeight + (showChassis ? 24 : 0)}px`
+            contain: 'layout'
           }}
         >
-          {/* PHONE CHASSIS CONTAINER */}
+          {/* Physical Hardware Buttons (Volume & Power) */}
+          {!isLandscape && (
+            <>
+              {/* Volume Up */}
+              <div
+                className="absolute -left-[15px] top-[110px] w-[4px] h-[48px] bg-[#3f3f46] rounded-l-[3px] pointer-events-none"
+                title="Volume Up"
+              />
+              {/* Volume Down */}
+              <div
+                className="absolute -left-[15px] top-[170px] w-[4px] h-[48px] bg-[#3f3f46] rounded-l-[3px] pointer-events-none"
+                title="Volume Down"
+              />
+              {/* Power Button */}
+              <div
+                className="absolute -right-[15px] top-[130px] w-[4px] h-[64px] bg-[#3f3f46] rounded-r-[3px] pointer-events-none"
+                title="Power"
+              />
+            </>
+          )}
+
+          {/* PHONE SCREEN WRAPPER */}
           <div
-            className={`relative w-full h-full flex flex-col overflow-hidden transition-all duration-200 ${
-              showChassis
-                ? 'bg-slate-900 border-[10px] sm:border-[12px] border-[#1e2433] shadow-2xl shadow-black/80 ring-1 ring-slate-700/60'
-                : 'rounded-2xl border border-slate-700 shadow-xl bg-slate-900'
-            }`}
+            className="relative bg-white overflow-hidden flex flex-col"
             style={{
-              borderRadius: showChassis ? `${currentDevice.frameRadius}px` : '18px'
+              width: `${effectiveWidth}px`,
+              height: `${effectiveHeight}px`,
+              borderRadius: '38px',
+              contain: 'strict'
             }}
           >
-            {/* Dynamic Island / Punch Hole (iOS / Android) */}
-            {showChassis && !isLandscape && (
-              <>
-                {currentDevice.hasDynamicIsland && (
-                  <div
-                    className="absolute top-2.5 left-1/2 -translate-x-1/2 z-30 h-[26px] w-[96px] bg-black rounded-full flex items-center justify-end pr-2.5 shadow-md pointer-events-none transition-all"
-                  >
-                    <div className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-slate-800" />
-                  </div>
-                )}
-                {currentDevice.hasPunchHole && (
-                  <div
-                    className="absolute top-3 left-1/2 -translate-x-1/2 z-30 w-3.5 h-3.5 bg-black rounded-full border border-slate-800 shadow-xs pointer-events-none"
-                  />
-                )}
-              </>
+            {/* Dynamic Island Notch (iOS) */}
+            {!isLandscape && currentDevice.hasDynamicIsland && (
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 h-[24px] w-[105px] bg-black rounded-full flex items-center justify-center pointer-events-none shadow-sm">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#18181b] border border-slate-800" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#09090b]" />
+                </div>
+              </div>
             )}
 
-            {/* SCREEN AREA WITH IFRAME */}
-            <div
-              className="relative flex-1 w-full h-full bg-white overflow-hidden"
+            {/* Punch Hole Camera (Android) */}
+            {!isLandscape && currentDevice.hasPunchHole && (
+              <div className="absolute top-2.5 left-1/2 -translate-x-1/2 z-30 w-3.5 h-3.5 bg-black rounded-full border border-slate-800 pointer-events-none" />
+            )}
+
+            {/* iOS Home Indicator Bar */}
+            {!isLandscape && currentDevice.category === 'ios' && (
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 w-32 h-1 bg-black/50 rounded-full pointer-events-none" />
+            )}
+
+            {/* Loading Overlay */}
+            {isIframeLoading && (
+              <div className="absolute inset-0 bg-slate-900/60 flex flex-col items-center justify-center z-20 text-white pointer-events-none">
+                <div className="w-8 h-8 border-3 border-sky-400 border-t-transparent rounded-full animate-spin mb-2" />
+                <span className="text-xs font-bold tracking-wider uppercase text-sky-200">
+                  Đang nạp giao diện...
+                </span>
+              </div>
+            )}
+
+            {/* LIVE WEB APPLICATION IFRAME */}
+            <iframe
+              key={iframeKey}
+              src={iframeUrl}
+              width={effectiveWidth}
+              height={effectiveHeight}
+              loading="eager"
+              onLoad={() => setIsIframeLoading(false)}
+              className="w-full h-full border-0 bg-white"
               style={{
-                borderRadius: showChassis ? `${currentDevice.screenRadius}px` : '14px',
-                contain: 'strict'
+                width: `${effectiveWidth}px`,
+                height: `${effectiveHeight}px`,
+                WebkitOverflowScrolling: 'touch',
+                touchAction: 'pan-y'
               }}
-            >
-              {/* Loading Overlay */}
-              {isIframeLoading && (
-                <div className="absolute inset-0 bg-slate-900/60 flex flex-col items-center justify-center z-20 text-white pointer-events-none">
-                  <div className="w-8 h-8 border-3 border-sky-400 border-t-transparent rounded-full animate-spin mb-2" />
-                  <span className="text-xs font-bold tracking-wider uppercase text-sky-200">
-                    Đang nạp giao diện...
-                  </span>
-                </div>
-              )}
-
-              {/* LIVE WEB APPLICATION IFRAME */}
-              <iframe
-                key={iframeKey}
-                src={iframeUrl}
-                width={effectiveWidth}
-                height={effectiveHeight}
-                loading="eager"
-                onLoad={() => setIsIframeLoading(false)}
-                className="w-full h-full border-0 bg-white"
-                style={{
-                  width: `${effectiveWidth}px`,
-                  height: `${effectiveHeight}px`,
-                  WebkitOverflowScrolling: 'touch',
-                  touchAction: 'pan-y'
-                }}
-                title={`Mô phỏng ${currentDevice.name}`}
-              />
-
-              {/* iOS Home Indicator Bar */}
-              {showChassis && !isLandscape && currentDevice.category === 'ios' && (
-                <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-30 w-32 h-1 bg-slate-900/60 rounded-full pointer-events-none" />
-              )}
-            </div>
+              title={`Mô phỏng ${currentDevice.name}`}
+            />
           </div>
         </div>
-      </main>
 
-      {/* ── BOTTOM STATUS BADGE ── */}
-      <footer className="h-8 bg-slate-900/80 border-t border-slate-800/80 px-4 flex items-center justify-between text-[11px] text-slate-400 shrink-0">
-        <div className="flex items-center gap-2">
-          <Sparkles size={13} className="text-sky-400" />
-          <span>Mô phỏng môi trường Mobile thật: Viewport CSS, Touch Scroll, Media Queries &amp; Breakpoints.</span>
+        {/* DIMENSION & DEVICE INFO CAPTION (Khớp chuẩn Hình 1) */}
+        <div className="mt-2.5 text-xs font-medium text-slate-400 tracking-wide text-center shrink-0">
+          📱 Đang mô phỏng: <strong className="text-sky-400 font-bold">{currentDevice.name}</strong> ({effectiveWidth} × {effectiveHeight} px - {isLandscape ? 'Ngang' : 'Dọc'}) - Tỷ lệ hiển thị: <span className="font-bold text-slate-200">{Math.round(activeScale * 100)}%</span>
         </div>
-        <div className="font-mono text-slate-400 hidden sm:block">
-          {currentDevice.name} • {effectiveWidth}×{effectiveHeight}px (Tỉ lệ: {Math.round(activeScale * 100)}%)
-        </div>
-      </footer>
+      </main>
     </div>,
     document.body
   );
