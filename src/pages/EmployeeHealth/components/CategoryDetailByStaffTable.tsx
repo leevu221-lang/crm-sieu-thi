@@ -358,14 +358,10 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     );
   }, [thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays, categoryConfig]);
 
-  // 2. Memoized Dropdown Categories list: Ưu tiên danh sách ngành hàng từ "TH Thi đua" để luôn đủ 40 ngành hàng
+  // 2. Memoized Dropdown Categories list: Lấy đúng 100% theo "TH Thi đua" (chỉ 40 ngành hàng, không ghép thừa từ luykeCategories)
   const dropdownCategories = useMemo(() => {
     if (categories && categories.length > 0) {
-      const set = new Set(categories);
-      const extra = (luykeCategories || [])
-        .map((c: any) => c?.name)
-        .filter((n: string) => Boolean(n) && !set.has(n));
-      return extra.length > 0 ? [...categories, ...extra] : categories;
+      return categories;
     }
     if (luykeCategories && luykeCategories.length > 0) {
       return luykeCategories.map((c: any) => c.name).filter((n: string) => Boolean(n));
@@ -532,9 +528,29 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     return map;
   }, [categories, luykeCategories, categoryTargets, staffCount, staffMatrix, dropdownCategories, daysPassed, totalDays]);
 
-  // Restore selection from localStorage - Tự động bổ sung các ngành hàng mới từ TH Thi Đua
+  // Restore selection from localStorage - Tự động đồng bộ chuẩn theo TH Thi Đua
   React.useEffect(() => {
     if (dropdownCategories.length > 0 && !initializedRef.current) {
+      // 1. Ưu tiên đồng bộ trực tiếp theo các ngành hàng đang bật ở TH Thi Đua
+      const savedThiDuaKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
+      const savedThiDuaVal = localStorage.getItem(savedThiDuaKey);
+      if (savedThiDuaVal !== null) {
+        try {
+          const parsedThiDua = JSON.parse(savedThiDuaVal);
+          if (Array.isArray(parsedThiDua) && parsedThiDua.length > 0) {
+            const validThiDua = parsedThiDua.filter((c: string) => dropdownCategories.includes(c));
+            if (validThiDua.length > 0) {
+              setSelectedCategories(validThiDua);
+              initializedRef.current = true;
+              return;
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      // 2. Nếu không có cấu hình TH Thi Đua thì đọc từ cache CT Ngành hàng
       const savedKey = `EH_DETAIL_CATEGORIES_${activeStore || 'GLOBAL'}`;
       const savedVal = localStorage.getItem(savedKey);
       if (savedVal !== null) {
@@ -542,11 +558,8 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
           const parsed = JSON.parse(savedVal);
           if (Array.isArray(parsed)) {
             const validSaved = parsed.filter((c: string) => dropdownCategories.includes(c));
-            // Tự động bổ sung các ngành hàng từ TH Thi Đua nếu trước đó bị thiếu
-            const missingFromSaved = dropdownCategories.filter(c => !parsed.includes(c));
-            const merged = [...validSaved, ...missingFromSaved];
-            if (merged.length > 0) {
-              setSelectedCategories(merged);
+            if (validSaved.length > 0) {
+              setSelectedCategories(validSaved);
               initializedRef.current = true;
               return;
             }
@@ -559,6 +572,17 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
       initializedRef.current = true;
     }
   }, [dropdownCategories, activeStore]);
+
+  // Luôn làm sạch selectedCategories để đảm bảo chỉ chứa các ngành hàng hợp lệ của TH Thi Đua (loại bỏ cache cũ 77 ngành)
+  React.useEffect(() => {
+    if (dropdownCategories.length > 0) {
+      setSelectedCategories(prev => {
+        const cleaned = prev.filter(c => dropdownCategories.includes(c));
+        if (cleaned.length === 0) return dropdownCategories;
+        return cleaned.length !== prev.length ? cleaned : prev;
+      });
+    }
+  }, [dropdownCategories]);
 
   // Tự động bổ sung ngành hàng mới khi danh sách TH Thi Đua cập nhật
   React.useEffect(() => {
