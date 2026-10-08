@@ -7,7 +7,7 @@ import {
   ChevronRight, LayoutGrid, FileText, Tag, Scan, MapPin, ClipboardList,
   RefreshCw, AlertCircle, Banknote, RotateCcw,
   ShoppingCart, Plus, ShoppingBag, Minus, Search, ExternalLink, FileSpreadsheet,
-  QrCode, Camera, History, Undo2, Clock, Zap, ZapOff
+  QrCode, Camera, History, Undo2, Clock, Zap, ZapOff, Sparkles, Layers
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
@@ -2156,6 +2156,49 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
   const handleUpdateCartItemQty = (id: string, newQty: number) => {
     const qty = Math.max(1, newQty);
     setCartItems(prev => prev.map(p => (p.id === id || p.maSanPham === id) ? { ...p, quantity: qty } : p));
+  };
+
+  const [bulkCartQty, setBulkCartQty] = useState<string>('1');
+  const [bulkPosmCartQty, setBulkPosmCartQty] = useState<string>('1');
+
+  // Đặt nhanh số lượng in cho toàn bộ sản phẩm trong Giỏ In EVENT ĐMX
+  const handleSetAllCartQty = (qty: number) => {
+    if (cartItems.length === 0) return;
+    const targetQty = Math.max(1, qty);
+    setCartItems(prev => prev.map(p => ({ ...p, quantity: targetQty })));
+    showNotification(`Đã đặt số lượng in của tất cả ${cartItems.length} sản phẩm thành ${targetQty} tem!`, 'success');
+  };
+
+  // Đặt số lượng in theo Tồn kho cho toàn bộ sản phẩm trong Giỏ In EVENT ĐMX
+  const handleSetAllCartQtyByTonKho = () => {
+    if (cartItems.length === 0) return;
+    setCartItems(prev => prev.map(p => ({
+      ...p,
+      quantity: Math.max(1, Number(p.tonKho) || 1)
+    })));
+    showNotification(`Đã đặt số lượng in theo tồn kho cho tất cả ${cartItems.length} sản phẩm trong giỏ!`, 'success');
+  };
+
+  // Đặt nhanh số lượng in cho toàn bộ sản phẩm trong Giỏ In POSM ALL SP
+  const handleSetAllPosmCartQty = (qty: number) => {
+    const currentCart = posmCartItemsRef.current || posmCartItems;
+    if (currentCart.length === 0) return;
+    const targetQty = Math.max(1, qty);
+    const updated = currentCart.map(item => ({ ...item, quantity: targetQty }));
+    savePosmCartToDb(updated);
+    showNotification(`Đã đặt số lượng in của tất cả ${currentCart.length} sản phẩm POSM thành ${targetQty} tem!`, 'success');
+  };
+
+  // Đặt số lượng in theo Tồn kho cho toàn bộ sản phẩm trong Giỏ In POSM ALL SP
+  const handleSetAllPosmCartQtyByTonKho = () => {
+    const currentCart = posmCartItemsRef.current || posmCartItems;
+    if (currentCart.length === 0) return;
+    const updated = currentCart.map(item => ({
+      ...item,
+      quantity: Math.max(1, Number(item.tonKho) || 1)
+    }));
+    savePosmCartToDb(updated);
+    showNotification(`Đã đặt số lượng in theo tồn kho cho tất cả ${currentCart.length} sản phẩm POSM!`, 'success');
   };
 
   const handleRemoveCartItem = (id: string) => {
@@ -7596,20 +7639,104 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
             {/* Toolbar if cart has items */}
             {cartItems.length > 0 ? (
-              <div className="px-5 py-3 bg-amber-50/60 border-b border-amber-100 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
-                <div className="flex items-center gap-2 text-slate-700 font-medium">
-                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>Dữ liệu giỏ được lưu trên máy này, không bị mất khi lọc dữ liệu hoặc tải lại trang.</span>
+              <>
+                <div className="px-4 sm:px-5 py-2.5 sm:py-3 bg-amber-50/70 border-b border-amber-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs shrink-0">
+                  <div className="flex items-center gap-2 text-slate-700 font-medium">
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                    <span className="text-[11px] sm:text-xs">Dữ liệu giỏ được lưu trên máy này, không bị mất khi lọc dữ liệu hoặc tải lại trang.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearCart}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer hover:border-red-300 shrink-0 self-end sm:self-auto"
+                  >
+                    <Trash2 size={13} />
+                    <span>Xóa toàn bộ giỏ hàng</span>
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleClearCart}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer hover:border-red-300"
-                >
-                  <Trash2 size={13} />
-                  <span>Xóa toàn bộ giỏ hàng</span>
-                </button>
-              </div>
+
+                {/* Thanh công cụ Set SL In Hàng Loạt */}
+                <div className="px-3.5 sm:px-5 py-2.5 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-amber-500/10 border-b border-amber-200 flex flex-wrap items-center justify-between gap-2.5 text-xs shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                    <div className="flex items-center gap-1.5 font-black text-slate-800 uppercase tracking-wider text-[11px] sm:text-xs">
+                      <Sparkles size={14} className="text-amber-600 shrink-0" />
+                      <span>Set SL in toàn bộ:</span>
+                    </div>
+
+                    {/* Nút = 1 tem */}
+                    <button
+                      type="button"
+                      onClick={() => handleSetAllCartQty(1)}
+                      className="px-2.5 sm:px-3 py-1 bg-white hover:bg-amber-100 text-slate-900 border border-amber-300 hover:border-amber-400 rounded-xl text-xs font-black shadow-2xs transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                      title="Đặt số lượng in của tất cả sản phẩm trong giỏ thành 1 tem"
+                    >
+                      <span>= 1 tem</span>
+                    </button>
+
+                    {/* Nút = 2 tem */}
+                    <button
+                      type="button"
+                      onClick={() => handleSetAllCartQty(2)}
+                      className="px-2.5 sm:px-3 py-1 bg-white hover:bg-amber-100 text-slate-900 border border-amber-300 hover:border-amber-400 rounded-xl text-xs font-black shadow-2xs transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                      title="Đặt số lượng in của tất cả sản phẩm trong giỏ thành 2 tem"
+                    >
+                      <span>= 2 tem</span>
+                    </button>
+
+                    {/* Nút theo Tồn kho */}
+                    <button
+                      type="button"
+                      onClick={handleSetAllCartQtyByTonKho}
+                      className="px-2.5 sm:px-3 py-1 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 hover:border-emerald-400 rounded-xl text-xs font-black shadow-2xs transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                      title="Đặt số lượng in của từng sản phẩm bằng chính số lượng tồn kho (tối thiểu 1)"
+                    >
+                      <span>Theo Tồn kho</span>
+                    </button>
+
+                    {/* Nhập số lượng ngẫu nhiên / tùy chọn */}
+                    <div className="inline-flex items-center bg-white border border-slate-300 rounded-xl overflow-hidden shadow-2xs focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/20">
+                      <span className="text-[11px] font-bold text-slate-400 pl-2.5 pr-1 select-none">SL:</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="999"
+                        placeholder="Số..."
+                        value={bulkCartQty}
+                        onChange={(e) => setBulkCartQty(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const val = parseInt(bulkCartQty, 10);
+                            if (val > 0) handleSetAllCartQty(val);
+                          }
+                        }}
+                        className="w-14 sm:w-16 py-1 text-center font-black text-slate-900 text-xs focus:outline-none bg-transparent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const val = parseInt(bulkCartQty, 10);
+                          if (val > 0) {
+                            handleSetAllCartQty(val);
+                          } else {
+                            showNotification('Vui lòng nhập số lượng in hợp lệ (> 0)!', 'error');
+                          }
+                        }}
+                        className="px-2.5 sm:px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs transition-colors cursor-pointer"
+                        title="Áp dụng số lượng này cho toàn bộ sản phẩm trong giỏ"
+                      >
+                        Áp dụng tất cả
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] text-slate-600 font-semibold ml-auto flex items-center gap-1.5">
+                    <span>Tổng tem:</span>
+                    <span className="bg-amber-200/80 text-amber-950 px-2.5 py-0.5 rounded-lg font-black text-xs">
+                      {totalCartStickers} tem
+                    </span>
+                  </div>
+                </div>
+              </>
             ) : null}
 
             {/* Body */}
@@ -7640,7 +7767,19 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                       <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-xs border-b border-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider">
                         <tr>
                           <th className="py-3 px-3 text-center w-12">STT</th>
-                          <th className="py-3 px-3 text-center w-32">SL In (Tem)</th>
+                          <th className="py-3 px-3 text-center w-36">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <span>SL In (Tem)</span>
+                              <button
+                                type="button"
+                                onClick={() => handleSetAllCartQty(1)}
+                                className="text-[10px] text-amber-800 bg-amber-200/80 hover:bg-amber-300 px-1.5 py-0.5 rounded font-black cursor-pointer lowercase"
+                                title="Đặt nhanh tất cả = 1 tem"
+                              >
+                                =1
+                              </button>
+                            </div>
+                          </th>
                           <th className="py-3 px-3 text-center w-20">Tồn kho</th>
                           <th className="py-3 px-3">Mã SP</th>
                           <th className="py-3 px-4">Tên sản phẩm</th>
@@ -7826,42 +7965,126 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
 
             {/* Toolbar if cart has items */}
             {posmCartItems.length > 0 && (
-              <div className="px-3 sm:px-5 py-2 sm:py-2.5 bg-emerald-50/70 border-b border-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs shrink-0">
-                <div className="flex items-center gap-1.5 text-slate-700 font-medium text-[10.5px] sm:text-xs leading-tight">
-                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-                  <span>Nhập trực tiếp <strong>Giá gốc</strong> và <strong>Giá giảm</strong>, dữ liệu tự động lưu tức thì.</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setIsPosmQrScannerOpen(true)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-[11px] sm:text-xs font-black shadow-md shadow-emerald-500/20 transition-all cursor-pointer active:scale-95"
-                    title="Bật máy quét camera để tự động khớp sản phẩm từ Google Sheet và thêm vào giỏ in"
-                  >
-                    <Scan size={13} className="animate-pulse" />
-                    <span>QUÉT QR MÃ SP</span>
-                  </button>
-                  {posmDeletedCarts.length > 0 && (
+              <>
+                <div className="px-3 sm:px-5 py-2 sm:py-2.5 bg-emerald-50/70 border-b border-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs shrink-0">
+                  <div className="flex items-center gap-1.5 text-slate-700 font-medium text-[10.5px] sm:text-xs leading-tight">
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                    <span>Nhập trực tiếp <strong>Giá gốc</strong> và <strong>Giá giảm</strong>, dữ liệu tự động lưu tức thì.</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
                     <button
                       type="button"
-                      onClick={() => setIsPosmHistoryModalOpen(true)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-[11px] sm:text-xs font-bold transition-all shadow-2xs cursor-pointer hover:border-slate-300"
-                      title="Xem danh sách các giỏ in đã xóa và khôi phục"
+                      onClick={() => setIsPosmQrScannerOpen(true)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-[11px] sm:text-xs font-black shadow-md shadow-emerald-500/20 transition-all cursor-pointer active:scale-95"
+                      title="Bật máy quét camera để tự động khớp sản phẩm từ Google Sheet và thêm vào giỏ in"
                     >
-                      <History size={12} className="text-amber-600" />
-                      <span>Đã xóa ({posmDeletedCarts.length})</span>
+                      <Scan size={13} className="animate-pulse" />
+                      <span>QUÉT QR MÃ SP</span>
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleClearPosmCart}
-                    className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-xl text-[11px] sm:text-xs font-bold transition-all shadow-2xs cursor-pointer hover:border-red-300"
-                  >
-                    <Trash2 size={12} />
-                    <span>Xóa toàn bộ giỏ</span>
-                  </button>
+                    {posmDeletedCarts.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setIsPosmHistoryModalOpen(true)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-[11px] sm:text-xs font-bold transition-all shadow-2xs cursor-pointer hover:border-slate-300"
+                        title="Xem danh sách các giỏ in đã xóa và khôi phục"
+                      >
+                        <History size={12} className="text-amber-600" />
+                        <span>Đã xóa ({posmDeletedCarts.length})</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleClearPosmCart}
+                      className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-xl text-[11px] sm:text-xs font-bold transition-all shadow-2xs cursor-pointer hover:border-red-300"
+                    >
+                      <Trash2 size={12} />
+                      <span>Xóa toàn bộ giỏ</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+
+                {/* Thanh công cụ Set SL In Hàng Loạt cho POSM ALL SP */}
+                <div className="px-3 sm:px-5 py-2 bg-gradient-to-r from-emerald-600/10 via-teal-600/5 to-emerald-600/10 border-b border-emerald-200 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                    <div className="flex items-center gap-1.5 font-black text-slate-800 uppercase tracking-wider text-[11px] sm:text-xs">
+                      <Sparkles size={14} className="text-emerald-700 shrink-0" />
+                      <span>Set SL in toàn bộ:</span>
+                    </div>
+
+                    {/* Nút = 1 tem */}
+                    <button
+                      type="button"
+                      onClick={() => handleSetAllPosmCartQty(1)}
+                      className="px-2.5 sm:px-3 py-1 bg-white hover:bg-emerald-100 text-slate-900 border border-emerald-300 hover:border-emerald-400 rounded-xl text-xs font-black shadow-2xs transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                      title="Đặt số lượng in của tất cả sản phẩm thành 1 tem"
+                    >
+                      <span>= 1 tem</span>
+                    </button>
+
+                    {/* Nút = 2 tem */}
+                    <button
+                      type="button"
+                      onClick={() => handleSetAllPosmCartQty(2)}
+                      className="px-2.5 sm:px-3 py-1 bg-white hover:bg-emerald-100 text-slate-900 border border-emerald-300 hover:border-emerald-400 rounded-xl text-xs font-black shadow-2xs transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                      title="Đặt số lượng in của tất cả sản phẩm thành 2 tem"
+                    >
+                      <span>= 2 tem</span>
+                    </button>
+
+                    {/* Nút theo Tồn kho */}
+                    <button
+                      type="button"
+                      onClick={handleSetAllPosmCartQtyByTonKho}
+                      className="px-2.5 sm:px-3 py-1 bg-white hover:bg-teal-50 text-teal-800 border border-teal-300 hover:border-teal-400 rounded-xl text-xs font-black shadow-2xs transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                      title="Đặt số lượng in của từng sản phẩm bằng chính số lượng tồn kho (tối thiểu 1)"
+                    >
+                      <span>Theo Tồn kho</span>
+                    </button>
+
+                    {/* Nhập số lượng ngẫu nhiên / tùy chọn */}
+                    <div className="inline-flex items-center bg-white border border-slate-300 rounded-xl overflow-hidden shadow-2xs focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20">
+                      <span className="text-[11px] font-bold text-slate-400 pl-2.5 pr-1 select-none">SL:</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="999"
+                        placeholder="Số..."
+                        value={bulkPosmCartQty}
+                        onChange={(e) => setBulkPosmCartQty(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const val = parseInt(bulkPosmCartQty, 10);
+                            if (val > 0) handleSetAllPosmCartQty(val);
+                          }
+                        }}
+                        className="w-14 sm:w-16 py-1 text-center font-black text-slate-900 text-xs focus:outline-none bg-transparent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const val = parseInt(bulkPosmCartQty, 10);
+                          if (val > 0) {
+                            handleSetAllPosmCartQty(val);
+                          } else {
+                            showNotification('Vui lòng nhập số lượng in hợp lệ (> 0)!', 'error');
+                          }
+                        }}
+                        className="px-2.5 sm:px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs transition-colors cursor-pointer"
+                        title="Áp dụng số lượng này cho toàn bộ sản phẩm trong giỏ POSM"
+                      >
+                        Áp dụng tất cả
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] text-slate-600 font-semibold ml-auto flex items-center gap-1.5">
+                    <span>Tổng tem:</span>
+                    <span className="bg-emerald-100 text-emerald-900 px-2.5 py-0.5 rounded-lg font-black text-xs">
+                      {totalPosmCartStickers} tem
+                    </span>
+                  </div>
+                </div>
+              </>
             )}
 
             {/* Body */}
@@ -7950,7 +8173,19 @@ export default function ToolHoTro({ pageMaintenanceState = {}, isUser43751Local 
                       <thead className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-xs border-b border-slate-200 text-slate-700 text-[11px] sm:text-xs font-bold uppercase tracking-wider">
                         <tr>
                           <th className="py-2.5 px-1.5 sm:px-2 text-center">STT</th>
-                          <th className="py-2.5 px-2 text-center">SL In (Tem)</th>
+                          <th className="py-2.5 px-2 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <span>SL In (Tem)</span>
+                              <button
+                                type="button"
+                                onClick={() => handleSetAllPosmCartQty(1)}
+                                className="text-[10px] text-emerald-800 bg-emerald-200/80 hover:bg-emerald-300 px-1.5 py-0.5 rounded font-black cursor-pointer lowercase"
+                                title="Đặt nhanh tất cả = 1 tem"
+                              >
+                                =1
+                              </button>
+                            </div>
+                          </th>
                           <th className="py-2.5 px-2">Mã SP</th>
                           <th className="py-2.5 px-2 sm:px-3">Tên sản phẩm</th>
                           <th className="py-2.5 px-2 text-right">Giá gốc (VNĐ)</th>
