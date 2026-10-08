@@ -46,6 +46,8 @@ interface GradientV2HeaderProps {
   /* Hidden from user feature strictly for user 43751 */
   pageHiddenState?: Record<string, boolean>;
   onToggleHide?: (key: string, nextVal: boolean) => Promise<void>;
+  /* Mobile Device Simulator toggle */
+  onToggleMobileSimulator?: () => void;
 }
 
 export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
@@ -67,7 +69,12 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
   sidebarExpanded,
   pageHiddenState = {},
   onToggleHide,
+  onToggleMobileSimulator,
 }) => {
+  const isInsideIframe = typeof window !== 'undefined' && (
+    window.self !== window.top ||
+    window.location.search.includes('is_mobile_sim=1')
+  );
   const [liveClockStr, setLiveClockStr] = useState<string>('');
   const [storeDropdownOpen, setStoreDropdownOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -296,6 +303,28 @@ export const GradientV2Header: React.FC<GradientV2HeaderProps> = ({
               >
                 <Crown size={14} className="text-amber-500 shrink-0" />
                 <span className="hidden sm:inline text-[11px] font-black tracking-wide uppercase">Gói Cước</span>
+              </button>
+            )}
+
+            {/* Nút Chuyển Đổi Chế Độ Desktop & Mobile */}
+            {!isInsideIframe && onToggleMobileSimulator && (
+              <button
+                type="button"
+                onClick={onToggleMobileSimulator}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer border bg-gradient-to-r from-sky-50 via-indigo-50/70 to-sky-50 hover:from-sky-100 hover:via-indigo-100/80 hover:to-sky-100 text-sky-800 border-sky-300 hover:border-sky-400 hover:shadow-md hover:shadow-sky-100/60"
+                title="Chuyển sang chế độ xem Mobile (mô phỏng trực quan các dòng điện thoại iOS & Android)"
+              >
+                <div className="relative flex items-center">
+                  <Monitor size={14} className="text-slate-500" />
+                  <span className="text-[10px] text-slate-300 mx-0.5 font-bold">/</span>
+                  <Smartphone size={14} className="text-sky-600 animate-pulse" />
+                </div>
+                <span className="hidden sm:inline text-[11px] font-black tracking-wide uppercase">
+                  Xem Mobile
+                </span>
+                <span className="sm:hidden text-[10px] font-black uppercase text-sky-700">
+                  Mobile
+                </span>
               </button>
             )}
 

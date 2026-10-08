@@ -2,6 +2,7 @@ import React, { ReactNode, useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GradientV2Header } from './components/GradientV2Header';
 import { GradientV2Sidebar } from './components/GradientV2Sidebar';
+import { MobileDeviceSimulator } from '../../components/MobileDeviceSimulator';
 import { X, LogOut } from 'lucide-react';
 import { isGuestShareLink } from '../../constants/routes';
 
@@ -78,6 +79,12 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
     } catch { return true; }
   });
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [isMobileSimulatorOpen, setIsMobileSimulatorOpen] = useState(false);
+
+  const isInsideIframe = typeof window !== 'undefined' && (
+    window.self !== window.top ||
+    window.location.search.includes('is_mobile_sim=1')
+  );
 
   const toggleSidebar = useCallback(() => {
     setSidebarExpanded(prev => {
@@ -268,6 +275,7 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
               sidebarExpanded={sidebarExpanded}
               pageHiddenState={pageHiddenState}
               onToggleHide={onToggleHide}
+              onToggleMobileSimulator={() => setIsMobileSimulatorOpen(true)}
             />
           </div>
         )}
@@ -333,6 +341,14 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
           })}
         </div>
       </nav>
+      )}
+
+      {/* ── Mobile Device Simulator Modal (Mô phỏng điện thoại đa dòng máy) ── */}
+      {!isInsideIframe && (
+        <MobileDeviceSimulator
+          isOpen={isMobileSimulatorOpen}
+          onClose={() => setIsMobileSimulatorOpen(false)}
+        />
       )}
     </div>
   );
