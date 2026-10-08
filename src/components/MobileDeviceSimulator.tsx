@@ -30,13 +30,37 @@ export interface DevicePreset {
 
 export const DEVICE_PRESETS: DevicePreset[] = [
   {
-    id: 'iphone-16-pro',
-    name: 'iPhone 16 Pro',
+    id: 'iphone-18-pro-max',
+    name: 'iPhone 18 Pro Max',
     category: 'ios',
-    width: 393,
-    height: 852,
-    osName: 'iOS 18',
-    badge: 'Chuẩn iOS',
+    width: 440,
+    height: 956,
+    osName: 'iOS 20 Ultra',
+    badge: 'Mới nhất • Màn cực đại',
+    frameRadius: 58,
+    screenRadius: 48,
+    hasDynamicIsland: true
+  },
+  {
+    id: 'iphone-17-pro-max',
+    name: 'iPhone 17 Pro Max',
+    category: 'ios',
+    width: 432,
+    height: 936,
+    osName: 'iOS 19 Max',
+    badge: 'Màn hình lớn',
+    frameRadius: 56,
+    screenRadius: 46,
+    hasDynamicIsland: true
+  },
+  {
+    id: 'iphone-17-18-pro',
+    name: 'iPhone 17 / 18 Pro',
+    category: 'ios',
+    width: 402,
+    height: 874,
+    osName: 'iOS 19 / 20',
+    badge: 'Chuẩn Pro mới',
     frameRadius: 54,
     screenRadius: 44,
     hasDynamicIsland: true
@@ -51,6 +75,18 @@ export const DEVICE_PRESETS: DevicePreset[] = [
     badge: 'Màn hình lớn',
     frameRadius: 56,
     screenRadius: 46,
+    hasDynamicIsland: true
+  },
+  {
+    id: 'iphone-16-pro',
+    name: 'iPhone 16 Pro',
+    category: 'ios',
+    width: 393,
+    height: 852,
+    osName: 'iOS 18',
+    badge: 'Chuẩn iOS',
+    frameRadius: 54,
+    screenRadius: 44,
     hasDynamicIsland: true
   },
   {
@@ -111,7 +147,7 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
   isOpen,
   onClose
 }) => {
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('iphone-16-pro');
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('iphone-18-pro-max');
   const [isLandscape, setIsLandscape] = useState<boolean>(false);
   const [showChassis, setShowChassis] = useState<boolean>(true);
   const [scaleMode, setScaleMode] = useState<'fit' | '100' | '90' | '80' | '75'>('fit');
@@ -235,7 +271,7 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
                 <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-800">
                   Chọn dòng điện thoại mô phỏng
                 </div>
-                <div className="max-h-[320px] overflow-y-auto no-scrollbar py-1 space-y-1">
+                <div className="max-h-[420px] overflow-y-auto no-scrollbar py-1 space-y-1">
                   {DEVICE_PRESETS.map((device) => {
                     const isSelected = selectedDeviceId === device.id;
                     return (
