@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { Camera, ChevronDown, Check, Search, X, Plus, Layers, Sparkles, Copy } from 'lucide-react';
+import { Camera, ChevronDown, Check, Search, X, Plus, Layers, Sparkles, Copy, RotateCcw, Filter } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
 import { ensureFontsReady, EXPORT_FONT_STYLE } from '../../../utils/fontExportUtil';
 import JSZip from 'jszip';
@@ -11,7 +11,7 @@ import { CaptureLoadingOverlay } from '../../../components/CaptureLoadingOverlay
 import { StaffMatrixData, CategoryData } from '../../RTST/types';
 import { cleanCategoryName } from './EmployeeDetailTable';
 import { useLuykeData } from '../../RTST/hooks/useLuykeData';
-import { parseStaffMatrixDataRefined } from './SummaryThiDuaTable';
+import { parseStaffMatrixDataRefined, getCategoryGroupType } from './SummaryThiDuaTable';
 import { CategoryConfigItem } from '../../../hooks/useCategoryConfig';
 
 export interface CategoryRowData {
@@ -358,13 +358,34 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     );
   }, [thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays, categoryConfig]);
 
-  // 2. Memoized Dropdown Categories list
+  // 2. Memoized Dropdown Categories list: Ưu tiên danh sách ngành hàng từ "TH Thi đua" để luôn đủ 40 ngành hàng
   const dropdownCategories = useMemo(() => {
+    if (categories && categories.length > 0) {
+      const set = new Set(categories);
+      const extra = (luykeCategories || [])
+        .map((c: any) => c?.name)
+        .filter((n: string) => Boolean(n) && !set.has(n));
+      return extra.length > 0 ? [...categories, ...extra] : categories;
+    }
     if (luykeCategories && luykeCategories.length > 0) {
       return luykeCategories.map((c: any) => c.name).filter((n: string) => Boolean(n));
     }
-    return categories;
-  }, [luykeCategories, categories]);
+    return [];
+  }, [categories, luykeCategories]);
+
+  // Phân nhóm ngành hàng ICT, DỊCH VỤ, CE theo chuẩn TH Thi Đua
+  const ictCategories = useMemo(
+    () => dropdownCategories.filter(c => getCategoryGroupType(c, categoryConfig) === 'ICT'),
+    [dropdownCategories, categoryConfig]
+  );
+  const dvCategories = useMemo(
+    () => dropdownCategories.filter(c => getCategoryGroupType(c, categoryConfig) === 'DỊCH VỤ'),
+    [dropdownCategories, categoryConfig]
+  );
+  const ceCategories = useMemo(
+    () => dropdownCategories.filter(c => getCategoryGroupType(c, categoryConfig) === 'CE'),
+    [dropdownCategories, categoryConfig]
+  );
 
   // 3. Memoized Filtered Staff Matrix
   const staffMatrix = useMemo(() => {
@@ -387,19 +408,32 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef(false);
+  const prevStoreRef = useRef(activeStore);
+  const prevDropdownCategoriesRef = useRef<string[]>([]);
 
-  // 4. Precompute Category Data Map with O(1) Lookups
-  // Eliminates thousands of regex and search operations per render!
+  // Reset flag when switching stores
+  React.useEffect(() => {
+    if (prevStoreRef.current !== activeStore) {
+      prevStoreRef.current = activeStore;
+      initializedRef.current = false;
+    }
+  }, [activeStore]);
+
+  // 4. Precompute Category Data Map with O(1) Lookups & Fallback Search
   const allCategoryDataMap = useMemo(() => {
     const cleanCatToIdxMap = new Map<string, number>();
     categories.forEach((c, idx) => {
       cleanCatToIdxMap.set(cleanCategoryName(c), idx);
+      cleanCatToIdxMap.set(c.trim().toLowerCase(), idx);
     });
 
     const cleanCatToLkTargetMap = new Map<string, number>();
     if (luykeCategories && luykeCategories.length > 0) {
       luykeCategories.forEach((c: any) => {
-        if (c?.name) cleanCatToLkTargetMap.set(cleanCategoryName(c.name), c.target || 0);
+        if (c?.name) {
+          cleanCatToLkTargetMap.set(cleanCategoryName(c.name), c.target || 0);
+          cleanCatToLkTargetMap.set(c.name.trim().toLowerCase(), c.target || 0);
+        }
       });
     }
 
@@ -408,6 +442,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
       categoryTargets.forEach((t: any) => {
         if (t?.name && typeof t.adjustedTarget === 'number') {
           cleanCatToMatchingTargetMap.set(cleanCategoryName(t.name), t.adjustedTarget);
+          cleanCatToMatchingTargetMap.set(t.name.trim().toLowerCase(), t.adjustedTarget);
         }
       });
     }
@@ -415,10 +450,51 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     const map = new Map<string, CategoryCardData>();
     for (const catName of dropdownCategories) {
       const cleanName = cleanCategoryName(catName);
-      const catIdx = cleanCatToIdxMap.has(cleanName) ? cleanCatToIdxMap.get(cleanName)! : -1;
-      const baseTarget = cleanCatToMatchingTargetMap.has(cleanName)
-        ? cleanCatToMatchingTargetMap.get(cleanName)!
-        : (cleanCatToLkTargetMap.get(cleanName) || 0);
+      const lowerName = catName.trim().toLowerCase();
+
+      // Find staff matrix index
+      let catIdx = -1;
+      if (cleanCatToIdxMap.has(cleanName)) {
+        catIdx = cleanCatToIdxMap.get(cleanName)!;
+      } else if (cleanCatToIdxMap.has(lowerName)) {
+        catIdx = cleanCatToIdxMap.get(lowerName)!;
+      } else {
+        catIdx = categories.findIndex(c => {
+          const cClean = cleanCategoryName(c);
+          return cClean === cleanName || (cClean.length > 4 && (cClean.includes(cleanName) || cleanName.includes(cClean)));
+        });
+      }
+
+      // Find target
+      let baseTarget = 0;
+      if (cleanCatToMatchingTargetMap.has(cleanName)) {
+        baseTarget = cleanCatToMatchingTargetMap.get(cleanName)!;
+      } else if (cleanCatToMatchingTargetMap.has(lowerName)) {
+        baseTarget = cleanCatToMatchingTargetMap.get(lowerName)!;
+      } else if (cleanCatToLkTargetMap.has(cleanName)) {
+        baseTarget = cleanCatToLkTargetMap.get(cleanName)!;
+      } else if (cleanCatToLkTargetMap.has(lowerName)) {
+        baseTarget = cleanCatToLkTargetMap.get(lowerName)!;
+      } else {
+        const foundTarget = categoryTargets?.find((t: any) => {
+          if (!t?.name) return false;
+          const tClean = cleanCategoryName(t.name);
+          return tClean === cleanName || (tClean.length > 4 && (tClean.includes(cleanName) || cleanName.includes(tClean)));
+        });
+        if (foundTarget && typeof foundTarget.adjustedTarget === 'number') {
+          baseTarget = foundTarget.adjustedTarget;
+        } else {
+          const foundLk = luykeCategories?.find((c: any) => {
+            if (!c?.name) return false;
+            const lkClean = cleanCategoryName(c.name);
+            return lkClean === cleanName || (lkClean.length > 4 && (lkClean.includes(cleanName) || cleanName.includes(lkClean)));
+          });
+          if (foundLk?.target) {
+            baseTarget = foundLk.target;
+          }
+        }
+      }
+
       const targetPerStaff = staffCount > 0 ? baseTarget / staffCount : 0;
 
       const rowData: CategoryRowData[] = staffMatrix.map(staff => {
@@ -456,7 +532,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     return map;
   }, [categories, luykeCategories, categoryTargets, staffCount, staffMatrix, dropdownCategories, daysPassed, totalDays]);
 
-  // Restore selection from localStorage
+  // Restore selection from localStorage - Tự động bổ sung các ngành hàng mới từ TH Thi Đua
   React.useEffect(() => {
     if (dropdownCategories.length > 0 && !initializedRef.current) {
       const savedKey = `EH_DETAIL_CATEGORIES_${activeStore || 'GLOBAL'}`;
@@ -466,8 +542,11 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
           const parsed = JSON.parse(savedVal);
           if (Array.isArray(parsed)) {
             const validSaved = parsed.filter((c: string) => dropdownCategories.includes(c));
-            if (validSaved.length > 0) {
-              setSelectedCategories(validSaved);
+            // Tự động bổ sung các ngành hàng từ TH Thi Đua nếu trước đó bị thiếu
+            const missingFromSaved = dropdownCategories.filter(c => !parsed.includes(c));
+            const merged = [...validSaved, ...missingFromSaved];
+            if (merged.length > 0) {
+              setSelectedCategories(merged);
               initializedRef.current = true;
               return;
             }
@@ -480,6 +559,23 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
       initializedRef.current = true;
     }
   }, [dropdownCategories, activeStore]);
+
+  // Tự động bổ sung ngành hàng mới khi danh sách TH Thi Đua cập nhật
+  React.useEffect(() => {
+    if (initializedRef.current && dropdownCategories.length > 0) {
+      const prevCats = prevDropdownCategoriesRef.current;
+      if (prevCats.length > 0) {
+        const newlyAdded = dropdownCategories.filter(c => !prevCats.includes(c));
+        if (newlyAdded.length > 0) {
+          setSelectedCategories(prev => {
+            const toAdd = newlyAdded.filter(c => !prev.includes(c));
+            return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+          });
+        }
+      }
+    }
+    prevDropdownCategoriesRef.current = dropdownCategories;
+  }, [dropdownCategories]);
 
   // Debounced save to localStorage
   React.useEffect(() => {
@@ -518,6 +614,42 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     const lower = searchTerm.trim().toLowerCase();
     return dropdownCategories.filter(cat => cat.toLowerCase().includes(lower));
   }, [dropdownCategories, searchTerm]);
+
+  // Đồng bộ danh sách hiển thị khớp 100% với các ngành hàng đang bật ở TH Thi Đua
+  const handleSyncWithThiDua = useCallback(() => {
+    const savedThiDuaKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
+    const savedThiDuaVal = localStorage.getItem(savedThiDuaKey);
+    if (savedThiDuaVal) {
+      try {
+        const parsed = JSON.parse(savedThiDuaVal);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const valid = parsed.filter(c => dropdownCategories.includes(c));
+          if (valid.length > 0) {
+            setSelectedCategories(valid);
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('Error syncing with TH Thi Dua:', e);
+      }
+    }
+    setSelectedCategories([...dropdownCategories]);
+  }, [activeStore, dropdownCategories]);
+
+  // Chọn nhanh theo nhóm ngành hàng
+  const handleSelectGroup = useCallback((group: 'ALL' | 'ICT' | 'DỊCH VỤ' | 'CE' | 'THI_DUA') => {
+    if (group === 'ALL') {
+      setSelectedCategories([...dropdownCategories]);
+    } else if (group === 'ICT') {
+      setSelectedCategories([...ictCategories]);
+    } else if (group === 'DỊCH VỤ') {
+      setSelectedCategories([...dvCategories]);
+    } else if (group === 'CE') {
+      setSelectedCategories([...ceCategories]);
+    } else if (group === 'THI_DUA') {
+      handleSyncWithThiDua();
+    }
+  }, [dropdownCategories, ictCategories, dvCategories, ceCategories, handleSyncWithThiDua]);
 
   const toggleCategory = useCallback((cat: string) => {
     setSelectedCategories(prev =>
@@ -939,7 +1071,19 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
           </span>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap" ref={dropdownRef}>
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap" ref={dropdownRef}>
+          {/* Nút Đồng Bộ Theo TH Thi Đua */}
+          <button
+            type="button"
+            onClick={handleSyncWithThiDua}
+            title="Đồng bộ danh sách ngành hàng hiển thị khớp 100% với TH Thi Đua"
+            className="px-3 sm:px-4 py-2 rounded-xl text-[12px] sm:text-[13.5px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-xs flex items-center gap-1.5 active:scale-95 border border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100 hover:border-sky-400"
+          >
+            <RotateCcw size={14} className="stroke-[2.5] text-sky-600 shrink-0" />
+            <span className="hidden xs:inline">ĐỒNG BỘ</span>
+            <span>TH THI ĐUA</span>
+          </button>
+
           {/* 🔍 BỘ LỌC NGÀNH HÀNG Dropdown Button */}
           <div className="relative">
             <button
@@ -965,7 +1109,7 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
                   className="fixed inset-0 z-40 cursor-default" 
                   onClick={() => setIsDropdownOpen(false)} 
                 />
-                <div className="absolute right-0 top-full mt-1.5 w-80 sm:w-96 bg-white border-2 border-emerald-500 shadow-2xl rounded-2xl p-3 z-50 flex flex-col gap-2.5 max-h-[460px]">
+                <div className="absolute right-0 top-full mt-1.5 w-80 sm:w-96 bg-white border-2 border-emerald-500 shadow-2xl rounded-2xl p-3 z-50 flex flex-col gap-2.5 max-h-[490px]">
                   {/* Search box */}
                   <div className="relative">
                     <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 stroke-[2.5]" />
@@ -986,8 +1130,54 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
                     )}
                   </div>
 
+                  {/* Nhóm lọc nhanh: TẤT CẢ, ICT, DỊCH VỤ, CE, THEO THI ĐUA */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5 pb-1.5 border-b border-slate-100 text-[10.5px] sm:text-[11px] font-black">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectGroup('ALL')}
+                      className={cn(
+                        "px-2 py-1 rounded-lg uppercase tracking-wide border transition-all cursor-pointer",
+                        selectedCategories.length === dropdownCategories.length
+                          ? "bg-slate-800 text-white border-slate-800 shadow-xs"
+                          : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
+                      )}
+                    >
+                      TẤT CẢ ({dropdownCategories.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectGroup('ICT')}
+                      className="px-2 py-1 rounded-lg uppercase tracking-wide border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-all cursor-pointer shadow-xs"
+                    >
+                      ICT ({ictCategories.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectGroup('DỊCH VỤ')}
+                      className="px-2 py-1 rounded-lg uppercase tracking-wide border border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 transition-all cursor-pointer shadow-xs"
+                    >
+                      DỊCH VỤ ({dvCategories.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectGroup('CE')}
+                      className="px-2 py-1 rounded-lg uppercase tracking-wide border border-blue-300 bg-blue-50 text-blue-900 hover:bg-blue-100 transition-all cursor-pointer shadow-xs"
+                    >
+                      CE ({ceCategories.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectGroup('THI_DUA')}
+                      title="Lọc các ngành hàng đang bật ở TH Thi Đua"
+                      className="px-2 py-1 rounded-lg uppercase tracking-wide border border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100 transition-all cursor-pointer shadow-xs flex items-center gap-1"
+                    >
+                      <RotateCcw size={10} className="stroke-[2.5]" />
+                      <span>THEO THI ĐUA</span>
+                    </button>
+                  </div>
+
                   {/* Quick actions: CHỌN TẤT CẢ, BỎ CHỌN */}
-                  <div className="flex items-center justify-between px-1.5 py-1 border-b border-slate-200 text-[11.5px] font-black uppercase">
+                  <div className="flex items-center justify-between px-1.5 py-0.5 text-[11px] font-black uppercase">
                     <button
                       type="button"
                       onClick={handleSelectAll}
@@ -1008,24 +1198,31 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
                   <div className="overflow-y-auto flex flex-col gap-1 max-h-64 pr-1">
                     {filteredDropdownCategories.map((cat) => {
                       const isSelected = selectedCategoriesSet.has(cat);
+                      const grp = getCategoryGroupType(cat, categoryConfig);
+                      const badgeCls = grp === 'ICT'
+                        ? 'bg-amber-100 text-amber-900 border-amber-300'
+                        : (grp === 'DỊCH VỤ' ? 'bg-emerald-100 text-emerald-900 border-emerald-300' : 'bg-blue-100 text-blue-900 border-blue-300');
                       return (
                         <label
                           key={cat}
                           className={cn(
-                            "flex items-center justify-between px-3 py-2 text-[13px] font-bold rounded-lg cursor-pointer transition-colors select-none",
+                            "flex items-center justify-between px-2.5 py-1.5 text-[12px] sm:text-[12.5px] font-bold rounded-lg cursor-pointer transition-colors select-none",
                             isSelected ? "bg-emerald-50 text-emerald-800" : "hover:bg-slate-100 text-slate-700"
                           )}
                         >
-                          <div className="flex items-center gap-2.5 truncate pr-2">
+                          <div className="flex items-center gap-2 truncate pr-2">
                             <input
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => toggleCategory(cat)}
-                              className="rounded text-emerald-600 focus:ring-0 cursor-pointer w-4 h-4"
+                              className="rounded text-emerald-600 focus:ring-0 cursor-pointer w-4 h-4 shrink-0"
                             />
-                            <span className="truncate uppercase text-[12.5px] font-black">{cat}</span>
+                            <span className={cn("px-1.5 py-0.5 rounded text-[9.5px] font-black tracking-wider uppercase border shrink-0", badgeCls)}>
+                              {grp}
+                            </span>
+                            <span className="truncate uppercase text-[12px] font-black">{cat}</span>
                           </div>
-                          {isSelected && <Check size={15} className="text-emerald-600 shrink-0 stroke-[3]" />}
+                          {isSelected && <Check size={14} className="text-emerald-600 shrink-0 stroke-[3]" />}
                         </label>
                       );
                     })}

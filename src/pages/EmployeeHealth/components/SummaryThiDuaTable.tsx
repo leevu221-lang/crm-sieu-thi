@@ -41,15 +41,15 @@ export const findMatchingCategoryConfig = (
   return match;
 };
 
-export const getCategoryGroupType = (catName: string, categoryConfig?: CategoryConfigItem[]): 'ICT' | 'DICH_VU' | 'DMX' => {
-  if (!catName) return 'DMX';
+export const getCategoryGroupType = (catName: string, categoryConfig?: CategoryConfigItem[]): 'ICT' | 'DỊCH VỤ' | 'CE' => {
+  if (!catName) return 'CE';
   
   if (categoryConfig && categoryConfig.length > 0) {
     const match = findMatchingCategoryConfig(catName, categoryConfig);
     if (match) {
       if (match.group === 'ICT') return 'ICT';
-      if (match.group === 'DỊCH VỤ' || match.group === 'DICH_VU') return 'DICH_VU';
-      return 'DMX';
+      if (match.group === 'DỊCH VỤ' || match.group === 'DICH_VU') return 'DỊCH VỤ';
+      return 'CE';
     }
   }
 
@@ -76,10 +76,10 @@ export const getCategoryGroupType = (catName: string, categoryConfig?: CategoryC
     norm.includes('icallme') ||
     norm.includes('icall')
   ) {
-    return 'DICH_VU';
+    return 'DỊCH VỤ';
   }
 
-  // 2. NHÓM ICT (Điện thoại, Smartphone, Tablet, Laptop, Đồng hồ, Phụ kiện, Camera, Loa, Audio, Tai nghe, Pin...)
+  // 2. NHÓM ICT (Điện thoại, Smartphone, Tablet, Laptop, Đồng hồ, Phụ kiện, Camera, Tai nghe, Pin...)
   if (
     norm.includes('dien thoai') ||
     norm.includes('smartphone') ||
@@ -97,14 +97,13 @@ export const getCategoryGroupType = (catName: string, categoryConfig?: CategoryC
     norm.includes('macbook') ||
     norm === 'loa' ||
     norm.startsWith('loa ') ||
-    norm.includes(' am thanh') ||
-    norm.includes('audio')
+    norm.includes(' am thanh')
   ) {
     return 'ICT';
   }
 
-  // 3. NHÓM ĐMX (Gia dụng, Nồi cơm, Quạt, Máy lọc nước, Máy lạnh, Tủ lạnh, Máy giặt, Máy sấy, Điện tử...)
-  return 'DMX';
+  // 3. NHÓM CE (Gia dụng, Nồi cơm, Quạt, Máy lọc nước, Máy lạnh, Tủ lạnh, Máy giặt, Máy sấy, Điện tử...)
+  return 'CE';
 };
 
 export const EXACT_CATEGORY_ORDER: string[] = [
@@ -169,8 +168,8 @@ export const getCustomCategoryIndex = (catName: string, categoryConfig?: Categor
 export const getCategoryGroupSortOrder = (catName: string, categoryConfig?: CategoryConfigItem[]): number => {
   const group = getCategoryGroupType(catName, categoryConfig);
   if (group === 'ICT') return 1;
-  if (group === 'DICH_VU') return 2;
-  return 3; // DMX
+  if (group === 'DỊCH VỤ' || group === 'DICH_VU') return 2;
+  return 3; // CE
 };
 
 export const getCategoryBadgeStyleClasses = (catName: string, categoryConfig?: CategoryConfigItem[]): { bgText: string; hover: string; gradient: string } => {
@@ -179,11 +178,11 @@ export const getCategoryBadgeStyleClasses = (catName: string, categoryConfig?: C
     // Soft amber/gold gradient - light tone
     return { bgText: 'text-amber-900', hover: 'hover:bg-[#fef3c7]', gradient: 'linear-gradient(135deg, #fef9c3, #fde68a, #fcd34d)' };
   }
-  if (group === 'DICH_VU') {
+  if (group === 'DỊCH VỤ' || group === 'DICH_VU') {
     // Soft emerald gradient - light tone
     return { bgText: 'text-emerald-900', hover: 'hover:bg-[#d1fae5]', gradient: 'linear-gradient(135deg, #d1fae5, #a7f3d0, #6ee7b7)' };
   }
-  // DMX - Soft blue gradient - light tone
+  // CE - Soft blue gradient - light tone
   return { bgText: 'text-blue-900', hover: 'hover:bg-[#dbeafe]', gradient: 'linear-gradient(135deg, #dbeafe, #bfdbfe, #93c5fd)' };
 };
 
