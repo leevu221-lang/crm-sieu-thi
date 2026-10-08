@@ -2577,12 +2577,10 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maKho, biRevenueData]); // intentionally omit marketFilter & selectedStaffIds to avoid race condition
 
-  // Close filter when clicking outside (safe against detached DOM nodes)
+  // Close filter when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
-      const target = event.target as Node | null;
-      if (!target || !document.contains(target)) return;
-      if (filterRef.current && !filterRef.current.contains(target)) {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
         setIsFilterOpen(false);
       }
     };
@@ -4190,26 +4188,29 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                 if (aSelected !== bSelected) return bSelected - aSelected;
                 return a.displayName.localeCompare(b.displayName);
               }).map(staff => (
-                <div
+                <label
                   key={staff.fullId}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => toggleStaffSelection(staff.fullId)}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-indigo-50 cursor-pointer transition-colors group select-none"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-indigo-50 cursor-pointer transition-colors group"
                 >
                   <div className={cn(
-                    "w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all shrink-0",
+                    "w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all",
                     selectedStaffIds.includes(staff.fullId)
                       ? "bg-indigo-600 border-indigo-600"
                       : "border-slate-200 group-hover:border-slate-300 bg-white"
                   )}>
                     {selectedStaffIds.includes(staff.fullId) && <Check size={11} className="text-white stroke-[3px]" />}
                   </div>
-                  <div className="flex flex-col truncate">
-                    <span className="text-xs sm:text-[13px] font-black text-slate-800 uppercase leading-tight truncate">{staff.displayName}</span>
+                  <input
+                    type="checkbox"
+                    className="hidden"
+                    checked={selectedStaffIds.includes(staff.fullId)}
+                    onChange={() => toggleStaffSelection(staff.fullId)}
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-xs sm:text-[13px] font-black text-slate-800 uppercase leading-tight">{staff.displayName}</span>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{staff.fullId}</span>
                   </div>
-                </div>
+                </label>
               ))}
             </div>
           </motion.div>

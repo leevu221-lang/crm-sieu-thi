@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { parseCategoryData, cn, cleanCategoryName } from '../../RTST/utils';
 import { StaffMatrixData, CategoryData } from '../../RTST/types';
 import { extractStaffNameAndId, isEmpNameStr, excludedKeywords } from '../utils/staffParserHelper';
-import { Download, Copy, Check, MessageSquare, MessageCircle, ChevronDown, Search, X, Sparkles } from 'lucide-react';
+import { Download, Copy, Check, MessageSquare, MessageCircle, ChevronDown, Search, X, Sparkles, Filter, Layers } from 'lucide-react';
 import { domToPng } from 'modern-screenshot';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useLuykeData } from '../../RTST/hooks/useLuykeData';
@@ -886,7 +886,6 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isCopyingAll, setIsCopyingAll] = useState(false);
   const [visibleCategories, setVisibleCategories] = useState<string[]>([]);
-  const initializedRef = useRef(false);
   const [catSearchTerm, setCatSearchTerm] = useState('');
   const [isCatDropdownOpen, setIsCatDropdownOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -951,18 +950,15 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   });
 
   // Use passed luykeCategories (BC THÁNG displayed data) for staffMatrix calculation
-  const { staffMatrix, categories } = React.useMemo(() =>
-    parseStaffMatrixDataRefined(
-      thiDuaNv || '', 
-      staffCount, 
-      categoryTargets, 
-      luykeCategories, 
-      daysPassed, 
-      totalDays,
-      false,
-      categoryConfig
-    ),
-    [thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays, categoryConfig]
+  const { staffMatrix, categories } = parseStaffMatrixDataRefined(
+    thiDuaNv || '', 
+    staffCount, 
+    categoryTargets, 
+    luykeCategories, 
+    daysPassed, 
+    totalDays,
+    false,
+    categoryConfig
   );
 
   const sortedStaffMatrix = React.useMemo(() => {
@@ -1048,30 +1044,57 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
     return staffCount > 0 ? baseTarget / staffCount : 0;
   };
   
-  // Initialize visible categories once when categories load or change
+  // Group computations for quick filtering
+  const ictCategories = React.useMemo(
+    () => categories.filter(c => getCategoryGroupType(c, categoryConfig) === 'ICT'),
+    [categories, categoryConfig]
+  );
+  const dvCategories = React.useMemo(
+    () => categories.filter(c => getCategoryGroupType(c, categoryConfig) === 'DỊCH VỤ'),
+    [categories, categoryConfig]
+  );
+  const ceCategories = React.useMemo(
+    () => categories.filter(c => getCategoryGroupType(c, categoryConfig) === 'CE'),
+    [categories, categoryConfig]
+  );
+
+  const isAll = visibleCategories.length === categories.length && categories.length > 0;
+  const isIctOnly = visibleCategories.length === ictCategories.length && ictCategories.length > 0 && ictCategories.every(c => visibleCategories.includes(c));
+  const isDvOnly = visibleCategories.length === dvCategories.length && dvCategories.length > 0 && dvCategories.every(c => visibleCategories.includes(c));
+  const isCeOnly = visibleCategories.length === ceCategories.length && ceCategories.length > 0 && ceCategories.every(c => visibleCategories.includes(c));
+
+  // Initialize visible categories only once when categories load or activeStore changes
+  const initializedRef = useRef(false);
+  const prevStoreRef = useRef(activeStore);
+
   React.useEffect(() => {
-    if (categories.length > 0) {
+    if (prevStoreRef.current !== activeStore) {
+      prevStoreRef.current = activeStore;
+      initializedRef.current = false;
+    }
+  }, [activeStore]);
+
+  React.useEffect(() => {
+    if (categories.length > 0 && !initializedRef.current) {
       const savedKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
       const savedVal = localStorage.getItem(savedKey);
-      if (savedVal !== null && !initializedRef.current) {
+      if (savedVal !== null) {
         try {
           const parsed = JSON.parse(savedVal);
           if (Array.isArray(parsed)) {
             const validSaved = parsed.filter((c: string) => categories.includes(c));
-            if (validSaved.length > 0 || parsed.length === 0) {
+            if (validSaved.length > 0) {
               setVisibleCategories(validSaved);
               initializedRef.current = true;
               return;
             }
           }
         } catch (e) {
-          console.error(e);
+          console.error('Error loading saved visible categories:', e);
         }
       }
-      if (!initializedRef.current) {
-        setVisibleCategories(categories);
-        initializedRef.current = true;
-      }
+      setVisibleCategories(categories);
+      initializedRef.current = true;
     }
   }, [categories, activeStore]);
 
@@ -1082,27 +1105,10 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       try {
         localStorage.setItem(savedKey, JSON.stringify(visibleCategories));
       } catch (e) {
-        console.error(e);
+        console.error('Error saving visible categories:', e);
       }
     }
   }, [visibleCategories, categories, activeStore]);
-
-  // Close dropdown when clicking outside (safe against DOM node detachment during React re-renders)
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
-      const target = event.target as Node | null;
-      if (!target || !document.contains(target)) return;
-      if (catDropdownRef.current && !catDropdownRef.current.contains(target)) {
-        setIsCatDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-    };
-  }, []);
 
   const toggleCategory = (cat: string) => {
     setVisibleCategories(prev =>
@@ -1110,12 +1116,39 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
     );
   };
 
+  const handleSelectAll = () => {
+    setVisibleCategories([...categories]);
+  };
+
+  const handleDeselectAll = () => {
+    setVisibleCategories([]);
+  };
+
+  const handleSelectGroup = (group: 'ALL' | 'ICT' | 'DỊCH VỤ' | 'CE') => {
+    if (group === 'ALL') {
+      setVisibleCategories([...categories]);
+    } else if (group === 'ICT') {
+      setVisibleCategories([...ictCategories]);
+    } else if (group === 'DỊCH VỤ') {
+      setVisibleCategories([...dvCategories]);
+    } else if (group === 'CE') {
+      setVisibleCategories([...ceCategories]);
+    }
+  };
+
   const filteredCatList = categories.filter(cat =>
     cat.toLowerCase().includes(catSearchTerm.toLowerCase())
   );
 
   const filteredStaffMatrix = selectedStaffIds && selectedStaffIds.length > 0 
-    ? sortedStaffMatrix.filter(s => selectedStaffIds.includes(s.fullId))
+    ? sortedStaffMatrix.filter(s => {
+        const sId = (s.fullId || '').trim().toLowerCase();
+        const sName = (s.name || '').trim().toLowerCase();
+        return selectedStaffIds.some(sel => {
+          const cleanSel = (sel || '').trim().toLowerCase();
+          return cleanSel === sId || sId.includes(cleanSel) || cleanSel.includes(sId) || sName.includes(cleanSel);
+        });
+      })
     : sortedStaffMatrix;
 
   const handleCopyStaff = (staff: StaffMatrixData) => {
@@ -1365,147 +1398,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
         </div>
 
         {/* Action Buttons - positioned top-right */}
-        <div className="absolute right-3 top-3 flex items-center gap-1.5">
-          {/* Category Filter Dropdown */}
-          <div className="relative no-capture" ref={catDropdownRef}>
-            <button
-              onClick={() => setIsCatDropdownOpen(!isCatDropdownOpen)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 border border-white/25 rounded-xl text-[10px] font-black uppercase tracking-wider text-white backdrop-blur-md transition-all min-w-[100px] justify-between cursor-pointer"
-            >
-              <span className="truncate">
-                {visibleCategories.length === categories.length
-                  ? "Tất cả NH"
-                  : visibleCategories.length === 0
-                    ? "Chưa chọn"
-                    : `${visibleCategories.length}/${categories.length} NH`}
-              </span>
-              <ChevronDown size={12} className={cn("transition-transform text-white/70", isCatDropdownOpen && "rotate-180")} />
-            </button>
-
-            {isCatDropdownOpen && (
-              <div className="absolute top-full right-0 mt-2 w-80 max-w-[calc(100vw-32px)] bg-white border border-slate-200 rounded-2xl shadow-2xl z-[100] overflow-hidden text-slate-800">
-                <div className="p-3 border-b border-slate-100 bg-slate-50/70">
-                  <div className="relative">
-                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Tìm ngành hàng..."
-                      value={catSearchTerm}
-                      onChange={(e) => setCatSearchTerm(e.target.value)}
-                      className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold focus:ring-2 focus:ring-emerald-500/30 outline-none uppercase placeholder:normal-case placeholder:font-normal"
-                    />
-                  </div>
-                </div>
-
-                {/* Quick Selection Actions */}
-                <div className="p-2 border-b border-slate-100 flex items-center justify-between px-3.5 bg-white">
-                  <button
-                    type="button"
-                    onClick={() => setVisibleCategories([...categories])}
-                    className="text-[10px] font-black uppercase text-emerald-600 hover:text-emerald-800 transition-colors cursor-pointer"
-                  >
-                    Chọn tất cả ({categories.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setVisibleCategories([])}
-                    className="text-[10px] font-black uppercase text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
-                  >
-                    Bỏ chọn tất cả
-                  </button>
-                </div>
-
-                {/* Quick Group Filters (ICT, DỊCH VỤ, CE) */}
-                <div className="p-2 border-b border-slate-100 flex items-center gap-1.5 px-3 bg-slate-50/80">
-                  {(['ICT', 'DỊCH VỤ', 'CE'] as const).map(grp => {
-                    const grpCats = categories.filter(c => getCategoryGroupType(c, categoryConfig) === grp);
-                    const selectedCount = grpCats.filter(c => visibleCategories.includes(c)).length;
-                    const isAllSelected = grpCats.length > 0 && selectedCount === grpCats.length;
-
-                    return (
-                      <button
-                        key={grp}
-                        type="button"
-                        onClick={() => {
-                          if (isAllSelected) {
-                            // Deselect this group
-                            setVisibleCategories(prev => prev.filter(c => getCategoryGroupType(c, categoryConfig) !== grp));
-                          } else {
-                            // Select this group
-                            setVisibleCategories(prev => Array.from(new Set([...prev, ...grpCats])));
-                          }
-                        }}
-                        className={cn(
-                          "flex-1 py-1 px-1.5 rounded-lg text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer border text-center",
-                          isAllSelected
-                            ? grp === 'ICT'
-                              ? "bg-amber-100 border-amber-300 text-amber-900"
-                              : grp === 'DỊCH VỤ'
-                                ? "bg-emerald-100 border-emerald-300 text-emerald-900"
-                                : "bg-sky-100 border-sky-300 text-sky-900"
-                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                        )}
-                      >
-                        {grp === 'DỊCH VỤ' ? 'DV' : grp} ({selectedCount}/{grpCats.length})
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Category List */}
-                <div className="max-h-72 overflow-y-auto p-2 space-y-1">
-                  {filteredCatList.map(cat => {
-                    const isSelected = visibleCategories.includes(cat);
-                    const grp = getCategoryGroupType(cat, categoryConfig);
-                    const grpBadgeClass = grp === 'ICT'
-                      ? 'bg-amber-50 text-amber-800 border-amber-200/80'
-                      : grp === 'DỊCH VỤ'
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80'
-                        : 'bg-sky-50 text-sky-800 border-sky-200/80';
-
-                    return (
-                      <div
-                        key={cat}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => toggleCategory(cat)}
-                        className={cn(
-                          "flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl cursor-pointer transition-all select-none text-left border",
-                          isSelected 
-                            ? "bg-emerald-50/70 border-emerald-200/60 shadow-2xs" 
-                            : "bg-white hover:bg-slate-50 border-transparent text-slate-600"
-                        )}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className={cn(
-                            "w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all shrink-0",
-                            isSelected
-                              ? "bg-emerald-600 border-emerald-600 text-white"
-                              : "border-slate-300 bg-white"
-                          )}>
-                            {isSelected && <Check size={11} className="stroke-[3px]" />}
-                          </div>
-                          <span className={cn(
-                            "text-[11px] font-black uppercase tracking-tight truncate",
-                            isSelected ? "text-emerald-900" : "text-slate-700"
-                          )}>
-                            {cat}
-                          </span>
-                        </div>
-                        <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded border uppercase shrink-0", grpBadgeClass)}>
-                          {grp === 'DỊCH VỤ' ? 'DV' : grp}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  {filteredCatList.length === 0 && (
-                    <p className="text-center text-xs text-slate-400 py-4 font-bold">Không tìm thấy ngành hàng phù hợp</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
+        <div className="absolute right-3 top-3 flex items-center gap-1.5 z-30">
           <button 
             onClick={() => {
               generateThiDuaComment(commentTemplate);
@@ -1523,6 +1416,224 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
             <Download size={12} />
             <span>XUẤT ẢNH</span>
           </button>
+        </div>
+      </div>
+
+      {/* ═══ Dedicated Filter Bar (Bộ Lọc Nhóm Hàng & Chọn Ngành Hàng) ═══ */}
+      <div className="no-capture flex flex-wrap items-center justify-between gap-2.5 mb-4 p-2 sm:p-2.5 bg-slate-50/90 border border-slate-200 rounded-2xl shadow-2xs">
+        {/* Left: Quick Group Filter Pills */}
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 text-[11px] font-black text-slate-600 uppercase tracking-wider mr-1">
+            <Filter size={13} className="text-emerald-600" />
+            <span>BỘ LỌC NHÓM:</span>
+          </div>
+
+          {/* TẤT CẢ */}
+          <button
+            type="button"
+            onClick={handleSelectAll}
+            className={cn(
+              "px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95",
+              isAll
+                ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-500/25 border border-emerald-500"
+                : "bg-white hover:bg-slate-100 text-slate-600 border border-slate-200"
+            )}
+          >
+            <span>TẤT CẢ</span>
+            <span className={cn("px-1.5 py-0.5 rounded-full text-[10px] font-black", isAll ? "bg-white/25 text-white" : "bg-slate-100 text-slate-500")}>
+              {categories.length}
+            </span>
+          </button>
+
+          {/* ICT */}
+          <button
+            type="button"
+            onClick={() => handleSelectGroup('ICT')}
+            className={cn(
+              "px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95",
+              isIctOnly
+                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-amber-500/25 border border-amber-500"
+                : "bg-white hover:bg-amber-50/50 text-slate-600 border border-amber-200/80"
+            )}
+          >
+            <span className="w-2 h-2 rounded-full bg-amber-400" />
+            <span>ICT</span>
+            <span className={cn("px-1.5 py-0.5 rounded-full text-[10px] font-black", isIctOnly ? "bg-white/25 text-white" : "bg-amber-50 text-amber-700")}>
+              {ictCategories.length}
+            </span>
+          </button>
+
+          {/* DỊCH VỤ */}
+          <button
+            type="button"
+            onClick={() => handleSelectGroup('DỊCH VỤ')}
+            className={cn(
+              "px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95",
+              isDvOnly
+                ? "bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow-emerald-500/25 border border-emerald-500"
+                : "bg-white hover:bg-emerald-50/50 text-slate-600 border border-emerald-200/80"
+            )}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span>DỊCH VỤ</span>
+            <span className={cn("px-1.5 py-0.5 rounded-full text-[10px] font-black", isDvOnly ? "bg-white/25 text-white" : "bg-emerald-50 text-emerald-700")}>
+              {dvCategories.length}
+            </span>
+          </button>
+
+          {/* CE */}
+          <button
+            type="button"
+            onClick={() => handleSelectGroup('CE')}
+            className={cn(
+              "px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95",
+              isCeOnly
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-blue-500/25 border border-blue-500"
+                : "bg-white hover:bg-blue-50/50 text-slate-600 border border-blue-200/80"
+            )}
+          >
+            <span className="w-2 h-2 rounded-full bg-blue-400" />
+            <span>CE</span>
+            <span className={cn("px-1.5 py-0.5 rounded-full text-[10px] font-black", isCeOnly ? "bg-white/25 text-white" : "bg-blue-50 text-blue-700")}>
+              {ceCategories.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Right: Custom Category Filter Multi-Select Dropdown */}
+        <div className="relative ml-auto" ref={catDropdownRef}>
+          <button
+            type="button"
+            onClick={() => setIsCatDropdownOpen(!isCatDropdownOpen)}
+            className="flex items-center gap-2 px-3.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl text-[11px] font-black uppercase tracking-wider text-slate-700 shadow-2xs transition-all cursor-pointer active:scale-95"
+          >
+            <Layers size={13} className="text-emerald-600" />
+            <span>
+              {visibleCategories.length === categories.length
+                ? `Tất cả ngành hàng (${categories.length})`
+                : visibleCategories.length === 0
+                  ? "Chưa chọn ngành hàng"
+                  : `Đã chọn ${visibleCategories.length}/${categories.length} NH`}
+            </span>
+            <ChevronDown size={14} className={cn("transition-transform text-slate-400", isCatDropdownOpen && "rotate-180")} />
+          </button>
+
+          {isCatDropdownOpen && (
+            <>
+              {/* Backdrop */}
+              <div 
+                className="fixed inset-0 z-40 bg-black/15 backdrop-blur-2xs"
+                onClick={() => setIsCatDropdownOpen(false)}
+              />
+
+              {/* Dropdown Container */}
+              <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 p-3 flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-150">
+                {/* Search */}
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Tìm nhanh ngành hàng..."
+                    value={catSearchTerm}
+                    onChange={(e) => setCatSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500/30 outline-none uppercase"
+                  />
+                  {catSearchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setCatSearchTerm('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Quick Selection Buttons */}
+                <div className="flex flex-wrap items-center gap-1.5 py-1 border-b border-slate-100 text-[10px] font-black uppercase">
+                  <button
+                    type="button"
+                    onClick={handleSelectAll}
+                    className="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Tất cả ({categories.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectGroup('ICT')}
+                    className="px-2 py-1 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer"
+                  >
+                    ICT ({ictCategories.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectGroup('DỊCH VỤ')}
+                    className="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Dịch Vụ ({dvCategories.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectGroup('CE')}
+                    className="px-2 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                  >
+                    CE ({ceCategories.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeselectAll}
+                    className="px-2 py-1 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer ml-auto"
+                  >
+                    Bỏ chọn hết
+                  </button>
+                </div>
+
+                {/* Checklist */}
+                <div className="max-h-72 overflow-y-auto flex flex-col gap-1 pr-1">
+                  {filteredCatList.map(cat => {
+                    const group = getCategoryGroupType(cat, categoryConfig);
+                    const isSelected = visibleCategories.includes(cat);
+                    const badgeColor = group === 'ICT' 
+                      ? 'bg-amber-100 text-amber-800 border-amber-200'
+                      : group === 'DỊCH VỤ'
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                        : 'bg-blue-100 text-blue-800 border-blue-200';
+
+                    return (
+                      <label
+                        key={cat}
+                        className={cn(
+                          "flex items-center justify-between px-2.5 py-1.5 rounded-xl cursor-pointer transition-colors group select-none",
+                          isSelected ? "bg-emerald-50/70 hover:bg-emerald-50" : "hover:bg-slate-50 text-slate-600"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5 truncate pr-2">
+                          <input
+                            type="checkbox"
+                            className="rounded text-emerald-600 focus:ring-0 cursor-pointer w-4 h-4 shrink-0"
+                            checked={isSelected}
+                            onChange={() => toggleCategory(cat)}
+                          />
+                          <span className={cn(
+                            "text-[11px] font-black uppercase tracking-tight truncate",
+                            isSelected ? "text-slate-900" : "text-slate-600"
+                          )}>
+                            {cat}
+                          </span>
+                        </div>
+                        <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-black uppercase shrink-0 border", badgeColor)}>
+                          {group}
+                        </span>
+                      </label>
+                    );
+                  })}
+                  {filteredCatList.length === 0 && (
+                    <p className="text-center text-xs text-slate-400 py-6 font-bold">Không tìm thấy ngành hàng</p>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -1622,7 +1733,30 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
             </tr>
           </thead>
           <tbody>
-            {filteredStaffMatrix.map((staff, index) => {
+            {visibleCategories.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="py-12 text-center bg-slate-50 border border-slate-200">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <Filter size={24} className="text-slate-400" />
+                    <span className="text-sm font-black uppercase text-slate-600">Chưa chọn ngành hàng nào trong bộ lọc</span>
+                    <button
+                      type="button"
+                      onClick={handleSelectAll}
+                      className="mt-1 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer shadow-sm active:scale-95"
+                    >
+                      Hiện tất cả ({categories.length}) ngành hàng
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ) : filteredStaffMatrix.length === 0 ? (
+              <tr>
+                <td colSpan={4 + visibleCategories.length} className="py-12 text-center bg-slate-50 border border-slate-200">
+                  <span className="text-sm font-black uppercase text-slate-500">Không có nhân viên nào phù hợp với bộ lọc</span>
+                </td>
+              </tr>
+            ) : (
+              filteredStaffMatrix.map((staff, index) => {
               const visibleAchieved = categories.reduce((count, catName, idx) => {
                 if (!visibleCategories.includes(catName)) return count;
                 const projectedRate = staff.projectedRates[idx] || 0;
@@ -1684,7 +1818,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                 })}
               </tr>
               );
-            })}
+            }))}
           </tbody>
         </table>
       </div>
