@@ -203,10 +203,8 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
   const effectiveWidth = isLandscape ? currentDevice.height : currentDevice.width;
   const effectiveHeight = isLandscape ? currentDevice.width : currentDevice.height;
 
-  // Công thức Auto Scale khớp chính xác 100% như trang mẫu Hình 1 (tra-cuu-loi-loc):
-  // Chiều cao có sẵn = window.innerHeight - 56px (toolbar) - 44px (khoảng thở trên dưới + caption)
-  // Điện thoại tận dụng tối đa không gian dọc để hiển thị to lớn bề thế.
-  const autoScale = useMemo(() => {
+  // Công thức Auto Scale: Giảm nhỏ lại 15% theo yêu cầu ("Chế độ mobile" zoom nhỏ lại 15%)
+  const maxFitScale = useMemo(() => {
     const availableH = Math.max(300, windowDimensions.height - 56 - 44);
     const availableW = Math.max(300, windowDimensions.width - 40);
     const chassisBorder = 22; // 11px viền kim loại mỗi bên
@@ -214,11 +212,19 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
     const targetW = effectiveWidth + chassisBorder;
     const scaleH = availableH / targetH;
     const scaleW = availableW / targetW;
-    const scale = Math.min(1, Math.min(scaleH, scaleW));
-    return Math.max(0.35, Math.min(1, scale));
+    return Math.min(1, Math.min(scaleH, scaleW));
   }, [effectiveHeight, effectiveWidth, windowDimensions.height, windowDimensions.width]);
 
-  const activeScale = scaleMode === 'auto' ? autoScale : parseFloat(scaleMode) || 1;
+  // Zoom nhỏ lại 15% so với mức vừa khít tối đa (1 - 0.15 = 0.85)
+  const autoScale = useMemo(() => {
+    return Math.max(0.35, maxFitScale * 0.85);
+  }, [maxFitScale]);
+
+  const activeScale = scaleMode === 'auto'
+    ? autoScale
+    : scaleMode === 'max'
+      ? maxFitScale
+      : parseFloat(scaleMode) || 1;
 
   // Generate target URL for iframe: same origin + same path + same query + is_mobile_sim=1
   const iframeUrl = useMemo(() => {
@@ -362,8 +368,9 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
               onChange={(e) => setScaleMode(e.target.value)}
               className="bg-slate-800 text-slate-100 border border-slate-700 hover:border-sky-400 focus:border-sky-400 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer transition-colors"
             >
-              <option value="auto">Vừa màn hình (Auto)</option>
-              <option value="1">100%</option>
+              <option value="auto">Vừa màn hình (Nhỏ 15% - Chuẩn)</option>
+              <option value="max">Vừa màn hình (Cực đại 100%)</option>
+              <option value="1">100% (Gốc)</option>
               <option value="0.9">90%</option>
               <option value="0.85">85%</option>
               <option value="0.75">75%</option>

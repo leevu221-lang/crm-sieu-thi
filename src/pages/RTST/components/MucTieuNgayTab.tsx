@@ -763,44 +763,44 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           {/* Filter Category Button */}
           <button
             onClick={() => setIsFilterModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all active:scale-95 cursor-pointer border border-slate-200"
+            className="flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all active:scale-95 cursor-pointer border border-slate-200"
             title="Lọc danh sách ngành hàng hiển thị"
           >
-            <Filter size={14} className={theme.filterIcon} />
+            <Filter size={13} className={theme.filterIcon} />
             <span>LỌC NGÀNH HÀNG ({selectedCount}/{allAvailableCategoryList.length})</span>
           </button>
 
           {/* ĐỒNG BỘ MỤC TIÊU NGÀY Button */}
           <button
             onClick={handleSyncFromLuyke}
-            className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider ${theme.syncBtn} transition-all active:scale-95 cursor-pointer`}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider ${theme.syncBtn} transition-all active:scale-95 cursor-pointer`}
             title="Đồng bộ Mục tiêu từ cột M.tiêu/ngày bên Tab TỔNG QUAN"
           >
-            <RefreshCw size={14} />
+            <RefreshCw size={13} />
             <span>ĐỒNG BỘ MỤC TIÊU NGÀY</span>
           </button>
 
           {/* NHẬN XÉT Button */}
           <button
             onClick={openCommentModal}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-[#2563EB] via-[#4F46E5] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] text-white shadow-md shadow-indigo-500/25 transition-all active:scale-95 cursor-pointer border border-indigo-400/30"
+            className="flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider bg-gradient-to-r from-[#2563EB] via-[#4F46E5] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] text-white shadow-md shadow-indigo-500/25 transition-all active:scale-95 cursor-pointer border border-indigo-400/30"
             title="Xem và sao chép nhận xét mục tiêu ngày"
           >
-            <MessageSquare size={14} />
+            <MessageSquare size={13} />
             <span>NHẬN XÉT</span>
           </button>
 
           {/* XUẤT ẢNH Button - Direct on-screen capture */}
           <button
             onClick={() => captureElementDirect(captureRef)}
-            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider ${theme.exportBtn} transition-all active:scale-95 cursor-pointer no-capture`}
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider ${theme.exportBtn} transition-all active:scale-95 cursor-pointer no-capture`}
             title="Xuất ảnh báo cáo Mục Tiêu Ngày (giữ nguyên layout web)"
           >
-            <Camera size={15} />
+            <Camera size={14} />
             <span>XUẤT ẢNH</span>
           </button>
 
@@ -808,16 +808,16 @@ export const MucTieuNgayTab: React.FC<MucTieuNgayTabProps> = ({
       </div>
 
       {/* ── Instruction Hint Banner (Hidden on export) ── */}
-      <div className={`${theme.hintBg} rounded-2xl p-2.5 sm:p-3 px-3 sm:px-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-[11px] sm:text-[13px] font-bold shadow-2xs no-capture`}>
-        <div className="flex items-center gap-2">
-          <span className="text-base shrink-0">💡</span>
+      <div className={`${theme.hintBg} rounded-xl sm:rounded-2xl p-2 sm:p-3 px-2.5 sm:px-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-2.5 text-[9.5px] sm:text-[13px] font-bold shadow-2xs no-capture`}>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <span className="text-sm sm:text-base shrink-0">💡</span>
           <div className="leading-snug">
-            <strong className={`${theme.hintStrong} font-black uppercase`}>Hướng dẫn:</strong> Bấm nút <strong className={`uppercase font-black px-1.5 py-0.5 rounded ${theme.hintBadge}`}>"ĐỒNG BỘ MỤC TIÊU NGÀY"</strong> để tự động điền mục tiêu từ cột <strong>M.TIÊU/NGÀY</strong> bên <strong>TỔNG QUAN</strong>, hoặc nhập tay trực tiếp theo nhu cầu. Hệ thống tự động lưu riêng theo từng siêu thị.
+            <strong className={`${theme.hintStrong} font-black uppercase`}>Hướng dẫn:</strong> Bấm nút <strong className={`uppercase font-black px-1 py-0.5 rounded ${theme.hintBadge}`}>"ĐỒNG BỘ MỤC TIÊU NGÀY"</strong> để tự động điền mục tiêu từ cột <strong>M.TIÊU/NGÀY</strong> bên <strong>TỔNG QUAN</strong>, hoặc nhập tay trực tiếp theo nhu cầu. Hệ thống tự động lưu riêng theo từng siêu thị.
           </div>
         </div>
         <button
           onClick={() => setShowInlineComment(prev => !prev)}
-          className={`w-full sm:w-auto px-3 py-1.5 rounded-xl text-[10.5px] sm:text-xs font-black uppercase tracking-wider border transition-all cursor-pointer shrink-0 text-center ${
+          className={`w-full sm:w-auto px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[9.5px] sm:text-xs font-black uppercase tracking-wider border transition-all cursor-pointer shrink-0 text-center ${
             showInlineComment ? theme.commentToggleActive : theme.commentToggleInactive
           }`}
         >
