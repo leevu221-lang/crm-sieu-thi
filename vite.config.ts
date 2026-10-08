@@ -42,7 +42,18 @@ export default defineConfig(({ mode }) => {
       }),
     },
     build: {
-      outDir: 'dist'
+      outDir: 'dist',
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-xlsx': ['xlsx'],
+            'vendor-firebase': ['firebase/app', 'firebase/firestore', 'firebase/auth', 'firebase/storage'],
+            'vendor-icons': ['lucide-react'],
+            'vendor-motion': ['framer-motion'],
+            'vendor-charts': ['recharts']
+          }
+        }
+      }
     }
   };
 });

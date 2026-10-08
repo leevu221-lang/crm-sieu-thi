@@ -308,7 +308,10 @@ export const GradientV2Layout: React.FC<GradientV2LayoutProps> = ({
 
       {/* ── Mobile Bottom Floating Navigation (Ẩn khi mở từ link chia sẻ) ── */}
       {!isShareOrGuest && navItems.length > 0 && (
-        <nav className="md:hidden fixed bottom-4 left-3 right-3 bg-white/95 backdrop-blur-2xl border border-slate-200/90 z-[100] px-2 py-2 rounded-3xl shadow-2xl ring-1 ring-slate-900/5 print:hidden">
+        <nav
+          className="md:hidden fixed bottom-4 left-3 right-3 bg-white/95 backdrop-blur-md border border-slate-200/90 z-[100] px-2 py-2 rounded-3xl shadow-xl ring-1 ring-slate-900/5 print:hidden"
+          style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+        >
         <div className="flex items-center justify-around relative overflow-x-auto no-scrollbar py-1">
           {navItems.map((item) => {
             const isActive = currentPage === item.id;

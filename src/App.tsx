@@ -396,25 +396,6 @@ export default function App() {
     const expDate = new Date(userProfile.expiredAt); expDate.setHours(0, 0, 0, 0);
     return expDate < today;
   }, [userProfile, isSuperAdminHardcoded]);
-  const [showHeader, setShowHeader] = useState(true);
-  const lastScrollYRef = useRef(0);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      const lastScrollY = lastScrollYRef.current;
-      
-      if (currentScrollY > lastScrollY && currentScrollY > 80) {
-        setShowHeader(false);
-      } else if (currentScrollY < lastScrollY) {
-        setShowHeader(true);
-      }
-      lastScrollYRef.current = currentScrollY;
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   useEffect(() => {
     // Removed forced viewport width change to allow responsive design to work naturally

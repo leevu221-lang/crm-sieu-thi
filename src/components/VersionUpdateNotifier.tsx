@@ -4,6 +4,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function VersionUpdateNotifier() {
+  // Tối ưu hóa: Không chạy polling và tracking trong iframe giả lập mobile
+  const isInsideSimulator = typeof window !== 'undefined' && (
+    window.self !== window.top ||
+    window.location.search.includes('is_mobile_sim=1')
+  );
+  if (isInsideSimulator) return null;
+
   const { userProfile } = useAuth();
   const [hasNewVersion, setHasNewVersion] = useState(false);
   const initialVersionRef = useRef<string | null>(null);

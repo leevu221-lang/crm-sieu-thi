@@ -11,7 +11,8 @@ import {
   Sliders,
   Check,
   Sparkles,
-  Maximize2
+  Maximize2,
+  Zap
 } from 'lucide-react';
 
 export interface DevicePreset {
@@ -238,9 +239,9 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[99999] bg-slate-950/95 backdrop-blur-xl flex flex-col overflow-hidden text-white font-sans select-none animate-[fadeIn_0.2s_ease-out]">
+    <div className="fixed inset-0 z-[99999] bg-[#0B1120] flex flex-col overflow-hidden text-white font-sans select-none animate-[fadeIn_0.15s_ease-out]">
       {/* ── TOP CONTROL TOOLBAR ── */}
-      <header className="h-14 sm:h-16 border-b border-slate-800 bg-slate-900/90 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 shrink-0 shadow-lg relative z-20">
+      <header className="h-14 sm:h-16 border-b border-slate-800 bg-slate-900/95 px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 shrink-0 shadow-md relative z-20">
         {/* Left cluster: App title & Device Preset Dropdown */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-sky-500/20 to-indigo-500/20 border border-sky-500/30 text-sky-400">
@@ -394,8 +395,9 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
                     ? 'bg-sky-500 text-slate-950 font-black shadow-xs'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
+                title={mode === '100' ? 'Chuẩn kích thước 100% - Thao tác siêu mượt không độ trễ' : undefined}
               >
-                {mode === 'fit' ? 'Vừa Màn' : `${mode}%`}
+                {mode === 'fit' ? 'Vừa Màn' : mode === '100' ? '100% ⚡' : `${mode}%`}
               </button>
             ))}
           </div>
@@ -416,19 +418,20 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
 
         {/* Right cluster: Exit / Back to Desktop button */}
         <div className="flex items-center gap-2">
-          {/* Popout New Window */}
+          {/* Popout New Window - Promoted for 120Hz native performance */}
           <button
             type="button"
             onClick={() => {
               const w = effectiveWidth;
               const h = effectiveHeight;
-              window.open(iframeUrl, '_blank', `width=${w},height=${h},menubar=no,status=no,toolbar=no`);
+              window.open(iframeUrl, '_blank', `width=${w},height=${h},menubar=no,status=no,toolbar=no,location=no`);
             }}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer"
-            title="Mở cửa sổ popup riêng biệt"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/40 text-amber-300 hover:text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+            title="Mở sang cửa sổ trình duyệt riêng - Tốc độ 120Hz siêu mượt 100%, không bị giới hạn iframe"
           >
-            <ExternalLink size={13} />
-            <span className="hidden xl:inline">Cửa Sổ Riêng</span>
+            <Zap size={13} className="text-amber-400 fill-amber-400 shrink-0" />
+            <span className="hidden xl:inline">Cửa Sổ Riêng 120Hz</span>
+            <span className="xl:hidden hidden sm:inline">120Hz</span>
           </button>
 
           {/* BACK TO DESKTOP BUTTON */}
@@ -468,21 +471,24 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
           }}
         />
 
-        {/* Scaled Device Wrapper */}
+        {/* Scaled Device Wrapper with Hardware Acceleration */}
         <div
-          className="relative transition-transform duration-200 ease-out origin-center shrink-0 flex items-center justify-center"
+          className="relative transition-transform duration-150 ease-out origin-center shrink-0 flex items-center justify-center"
           style={{
-            transform: `scale(${activeScale})`,
+            transform: activeScale === 1 ? 'none' : `scale(${activeScale}) translateZ(0)`,
+            willChange: activeScale === 1 ? 'auto' : 'transform',
+            backfaceVisibility: 'hidden',
+            contain: 'paint layout',
             width: `${effectiveWidth + (showChassis ? 24 : 0)}px`,
             height: `${effectiveHeight + (showChassis ? 24 : 0)}px`
           }}
         >
           {/* PHONE CHASSIS CONTAINER */}
           <div
-            className={`relative w-full h-full flex flex-col overflow-hidden transition-all duration-300 ${
+            className={`relative w-full h-full flex flex-col overflow-hidden transition-all duration-200 ${
               showChassis
-                ? 'bg-slate-900 border-[10px] sm:border-[12px] border-[#1e2433] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9),0_0_40px_rgba(56,189,248,0.15)] ring-1 ring-white/10'
-                : 'rounded-2xl border-2 border-slate-700 shadow-2xl'
+                ? 'bg-slate-900 border-[10px] sm:border-[12px] border-[#1e2433] shadow-2xl shadow-black/80 ring-1 ring-slate-700/60'
+                : 'rounded-2xl border border-slate-700 shadow-xl bg-slate-900'
             }`}
             style={{
               borderRadius: showChassis ? `${currentDevice.frameRadius}px` : '18px'
@@ -510,12 +516,13 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
             <div
               className="relative flex-1 w-full h-full bg-white overflow-hidden"
               style={{
-                borderRadius: showChassis ? `${currentDevice.screenRadius}px` : '14px'
+                borderRadius: showChassis ? `${currentDevice.screenRadius}px` : '14px',
+                contain: 'strict'
               }}
             >
               {/* Loading Overlay */}
               {isIframeLoading && (
-                <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs flex flex-col items-center justify-center z-20 text-white pointer-events-none">
+                <div className="absolute inset-0 bg-slate-900/60 flex flex-col items-center justify-center z-20 text-white pointer-events-none">
                   <div className="w-8 h-8 border-3 border-sky-400 border-t-transparent rounded-full animate-spin mb-2" />
                   <span className="text-xs font-bold tracking-wider uppercase text-sky-200">
                     Đang nạp giao diện...
@@ -527,12 +534,16 @@ export const MobileDeviceSimulator: React.FC<MobileDeviceSimulatorProps> = ({
               <iframe
                 key={iframeKey}
                 src={iframeUrl}
+                width={effectiveWidth}
+                height={effectiveHeight}
+                loading="eager"
                 onLoad={() => setIsIframeLoading(false)}
                 className="w-full h-full border-0 bg-white"
                 style={{
-                  width: '100%',
-                  height: '100%',
-                  WebkitOverflowScrolling: 'touch'
+                  width: `${effectiveWidth}px`,
+                  height: `${effectiveHeight}px`,
+                  WebkitOverflowScrolling: 'touch',
+                  touchAction: 'pan-y'
                 }}
                 title={`Mô phỏng ${currentDevice.name}`}
               />
