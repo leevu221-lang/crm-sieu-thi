@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 import { db } from '../firebaseConfig';
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
-import { getCachedDoc } from '../services/cachedFirestore';
+import { getCachedDoc, setCachedDoc } from '../services/cachedFirestore';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -2186,10 +2186,10 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
   };
 
   const handleResetDefaultCategories = () => {
-    if (window.confirm('Khôi phục danh mục 35 ngành hàng mặc định theo chuẩn TNB Leader?')) {
+    if (window.confirm('Khôi phục danh mục 40 ngành hàng mặc định theo chuẩn TNB Leader?')) {
       setPreviewConfig(DEFAULT_CATEGORIES);
       setCategoryConfigText(DEFAULT_CATEGORIES.map(c => `${c.name}\t${c.group}`).join('\n'));
-      showNotification('Đã khôi phục 35 ngành hàng mặc định!', 'info');
+      showNotification('Đã khôi phục 40 ngành hàng mặc định!', 'info');
     }
   };
 
@@ -2229,7 +2229,24 @@ ${botRows.map((r, i) => `🔻 #${topCount + i + 1} ${r.prov}: ${r.datCount} / ${
     }
     setIsSavingConfig(true);
     try {
-      await setDoc(doc(db, 'app_settings', 'TNB_LEADER_DATA'), { categories: previewConfig }, { merge: true });
+      const nowStr = new Date().toLocaleString('vi-VN');
+      const payload = {
+        categories: previewConfig,
+        updated_at: nowStr,
+        updated_source: 'ADMIN'
+      };
+      await setDoc(doc(db, 'app_settings', 'TNB_LEADER_DATA'), payload, { merge: true });
+      // Update memory & local storage cache immediately
+      setCachedDoc('app_settings', 'TNB_LEADER_DATA', payload);
+      try {
+        localStorage.setItem('CRM_CATEGORY_CONFIG_LOCAL', JSON.stringify(previewConfig));
+        localStorage.setItem('TNB_LEADER_DATA_CACHE', JSON.stringify({ data: payload, timestamp: Date.now() }));
+      } catch (e) {
+        console.error('LocalStorage write error:', e);
+      }
+      // Broadcast event so any mounted component (SummaryThiDuaTable, SucKhoeNhanVien, etc.) updates instantly
+      window.dispatchEvent(new CustomEvent('category_config_updated', { detail: previewConfig }));
+
       loadTnbLeaderConfig(true);
       setCategoryConfigText(previewConfig.map(c => `${c.name}\t${c.group}`).join('\n'));
       showNotification('Lưu cấu hình ngành hàng thành công vào toàn bộ hệ thống!', 'success');

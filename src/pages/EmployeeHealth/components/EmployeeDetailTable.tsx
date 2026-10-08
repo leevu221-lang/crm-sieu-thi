@@ -36,6 +36,11 @@ export const cleanCategoryName = (name: string): string => {
   // Strip prefixes like "nnh " or "nh " at the start
   clean = clean.replace(/^(nnh|nh)\s+/, '');
   
+  // Strip month prefixes like "T10 - ", "T09 - T10 ", "T09-T10 ", "Tháng 10 - ", "T10 ", "T9 "
+  clean = clean.replace(/^(t\d{1,2}\s*(?:-\s*t\d{1,2}\s*)?[-:_]?\s*)/i, '');
+  clean = clean.replace(/^(thang\s*\d{1,2}\s*[-:_]?\s*)/i, '');
+  clean = clean.replace(/\bthang\s*\d{1,2}\b/gi, '');
+
   // Replace abbreviations
   clean = clean.replace(/\b(bao hiem)\b/g, 'bh');
   clean = clean.replace(/\b(dien may xanh)\b/g, 'dmx');
