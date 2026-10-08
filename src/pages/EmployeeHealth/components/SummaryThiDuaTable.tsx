@@ -1083,7 +1083,10 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
           if (Array.isArray(parsed)) {
             const validSaved = parsed.filter((c: string) => categories.includes(c));
             if (validSaved.length > 0) {
-              setVisibleCategories(validSaved);
+              // Tự động bổ sung các ngành hàng mới có trong categories chuẩn mà cache cũ chưa từng lưu
+              const newlyAdded = categories.filter((c: string) => !parsed.includes(c));
+              const merged = newlyAdded.length > 0 ? [...validSaved, ...newlyAdded] : validSaved;
+              setVisibleCategories(merged);
               initializedRef.current = true;
               return;
             }
@@ -1096,6 +1099,20 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
       initializedRef.current = true;
     }
   }, [categories, activeStore]);
+
+  // Luôn làm sạch và tự động bổ sung ngành hàng mới khi danh sách categories chuẩn cập nhật
+  React.useEffect(() => {
+    if (initializedRef.current && categories.length > 0) {
+      setVisibleCategories(prev => {
+        const cleaned = prev.filter(c => categories.includes(c));
+        const newlyAdded = categories.filter(c => !prev.includes(c));
+        if (newlyAdded.length > 0) {
+          return [...cleaned, ...newlyAdded];
+        }
+        return cleaned.length !== prev.length ? cleaned : prev;
+      });
+    }
+  }, [categories]);
 
   // Save selected categories when selection changes
   React.useEffect(() => {
