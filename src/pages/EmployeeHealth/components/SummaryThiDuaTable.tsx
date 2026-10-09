@@ -152,17 +152,21 @@ export const getCustomCategoryIndex = (catName: string, categoryConfig?: Categor
   if (categoryConfig && categoryConfig.length > 0) {
     const match = findMatchingCategoryConfig(catName, categoryConfig);
     if (match) {
+      const groupOrder = getCategoryGroupSortOrder(catName, categoryConfig);
       const idx = categoryConfig.indexOf(match);
-      if (idx !== -1) return idx;
+      if (idx !== -1) return groupOrder * 1000 + idx;
     }
   }
   
   const clean = removeAccentsLocal(catName).toLowerCase().replace(/[^a-z0-9]/g, '');
   
   const idx = EXACT_CATEGORY_ORDER.findIndex(k => clean === k || clean.includes(k) || k.includes(clean));
-  if (idx !== -1) return idx;
+  if (idx !== -1) {
+    const groupOrder = getCategoryGroupSortOrder(catName, categoryConfig);
+    return groupOrder * 1000 + idx;
+  }
   
-  return 500 + getCategoryGroupSortOrder(catName, categoryConfig) * 10;
+  return 5000 + getCategoryGroupSortOrder(catName, categoryConfig) * 10;
 };
 
 export const getCategoryGroupSortOrder = (catName: string, categoryConfig?: CategoryConfigItem[]): number => {
@@ -1512,7 +1516,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
             </span>
           </button>
 
-          {/* CE */}
+          {/* CE & GD */}
           <button
             type="button"
             onClick={() => handleSelectGroup('CE')}
@@ -1524,7 +1528,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
             )}
           >
             <span className="w-2 h-2 rounded-full bg-blue-400" />
-            <span>CE</span>
+            <span>CE & GD</span>
             <span className={cn("px-1.5 py-0.5 rounded-full text-[10px] font-black", isCeOnly ? "bg-white/25 text-white" : "bg-blue-50 text-blue-700")}>
               {ceCategories.length}
             </span>
@@ -1614,7 +1618,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                     isCeOnly ? "bg-blue-600 text-white shadow-xs" : "bg-blue-50 text-blue-700 hover:bg-blue-100"
                   )}
                 >
-                  CE ({ceCategories.length})
+                  CE & GD ({ceCategories.length})
                 </button>
                 <button
                   type="button"
@@ -1666,7 +1670,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                         </span>
                       </div>
                       <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded border uppercase shrink-0", badgeColor)}>
-                        {group === 'DỊCH VỤ' ? 'DV' : group}
+                        {group === 'DỊCH VỤ' ? 'DV' : group === 'CE' ? 'CE & GD' : group}
                       </span>
                     </div>
                   );
@@ -1696,84 +1700,154 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
             ))}
           </colgroup>
           <thead>
-            <tr className="text-slate-900 h-[85px]">
-              <th 
-                className="px-1 py-1 text-[13px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none cursor-pointer"
-                style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}
-                onClick={() => handleHeaderClick('default')}
-              >
-                STT{renderSortIcon('default')}
-              </th>
-              <th 
-                className="px-3 py-1 text-[13px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none cursor-pointer"
-                style={{ width: '320px', minWidth: '320px', maxWidth: '320px' }}
-                onClick={() => handleHeaderClick('name')}
-              >
-                NHÂN VIÊN{renderSortIcon('name')}
-              </th>
-              <th 
-                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none cursor-pointer"
-                style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}
-                onClick={() => handleHeaderClick('achieved')}
-              >
-                ĐẠT{renderSortIcon('achieved')}
-              </th>
-              <th 
-                className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none cursor-pointer"
-                style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}
-                onClick={() => handleHeaderClick('rate')}
-              >
-                TỶ LỆ{renderSortIcon('rate')}
-              </th>
-              {(() => {
-                // Pre-compute group info for continuous gradient
-                const visibleCats = categories.filter(catName => visibleCategories.includes(catName));
-                const groupCounts: Record<string, number> = {};
-                const groupIndices: Record<string, number> = {};
-                visibleCats.forEach(catName => {
-                  const group = getCategoryGroupType(catName, categoryConfig);
-                  if (!groupCounts[group]) groupCounts[group] = 0;
-                  groupIndices[catName] = groupCounts[group];
-                  groupCounts[group]++;
-                });
+            {(() => {
+              const visibleCats = categories.filter(catName => visibleCategories.includes(catName));
+              const visibleIctCats = visibleCats.filter(c => getCategoryGroupType(c, categoryConfig) === 'ICT');
+              const visibleDvCats = visibleCats.filter(c => getCategoryGroupType(c, categoryConfig) === 'DỊCH VỤ');
+              const visibleCeCats = visibleCats.filter(c => getCategoryGroupType(c, categoryConfig) === 'CE');
 
-                return visibleCats.map(catName => {
-                  const catStyle = getCategoryBadgeStyleClasses(catName, categoryConfig);
-                  const group = getCategoryGroupType(catName, categoryConfig);
-                  const total = groupCounts[group] || 1;
-                  const idx = groupIndices[catName] || 0;
-                  // Spread gradient across group width
-                  const bgSize = `${total * 100}% 100%`;
-                  const bgPos = `${total > 1 ? (idx / (total - 1)) * 100 : 0}% 0%`;
-                  return (
-                    <React.Fragment key={catName}>
-                      <th 
-                        className={cn(
-                          "px-1 py-1 text-[12px] font-black uppercase tracking-tight text-center border border-white/20 select-none cursor-pointer",
-                          catStyle.bgText
-                        )}
+              const ictSpan = visibleIctCats.reduce((span, catName) => span + (cleanCategoryName(catName) === 'maylanhdacquyen' ? 2 : 1), 0);
+              const dvSpan = visibleDvCats.reduce((span, catName) => span + (cleanCategoryName(catName) === 'maylanhdacquyen' ? 2 : 1), 0);
+              const ceSpan = visibleCeCats.reduce((span, catName) => span + (cleanCategoryName(catName) === 'maylanhdacquyen' ? 2 : 1), 0);
+
+              const hasSubRow = visibleCats.length > 0;
+
+              // Pre-compute group info for continuous gradient
+              const groupCounts: Record<string, number> = {};
+              const groupIndices: Record<string, number> = {};
+              visibleCats.forEach(catName => {
+                const group = getCategoryGroupType(catName, categoryConfig);
+                if (!groupCounts[group]) groupCounts[group] = 0;
+                groupIndices[catName] = groupCounts[group];
+                groupCounts[group]++;
+              });
+
+              return (
+                <>
+                  {/* Dòng 1: STT, NHÂN VIÊN, ĐẠT, TỶ LỆ (rowSpan=2) + Tiêu đề Nhóm ICT, DỊCH VỤ, CE & GD */}
+                  <tr className="text-slate-900 h-[38px]">
+                    <th 
+                      rowSpan={hasSubRow ? 2 : 1}
+                      className="px-1 py-1 text-[13px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none cursor-pointer align-middle"
+                      style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}
+                      onClick={() => handleHeaderClick('default')}
+                    >
+                      STT{renderSortIcon('default')}
+                    </th>
+                    <th 
+                      rowSpan={hasSubRow ? 2 : 1}
+                      className="px-3 py-1 text-[13px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none cursor-pointer align-middle"
+                      style={{ width: '320px', minWidth: '320px', maxWidth: '320px' }}
+                      onClick={() => handleHeaderClick('name')}
+                    >
+                      NHÂN VIÊN{renderSortIcon('name')}
+                    </th>
+                    <th 
+                      rowSpan={hasSubRow ? 2 : 1}
+                      className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none cursor-pointer align-middle"
+                      style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}
+                      onClick={() => handleHeaderClick('achieved')}
+                    >
+                      ĐẠT{renderSortIcon('achieved')}
+                    </th>
+                    <th 
+                      rowSpan={hasSubRow ? 2 : 1}
+                      className="px-1 py-1 text-[11px] font-black uppercase tracking-tight text-center border border-white/20 bg-[#10b981] text-slate-900 select-none cursor-pointer align-middle"
+                      style={{ width: '70px', minWidth: '70px', maxWidth: '70px' }}
+                      onClick={() => handleHeaderClick('rate')}
+                    >
+                      TỶ LỆ{renderSortIcon('rate')}
+                    </th>
+
+                    {/* Tiêu đề nhóm ICT */}
+                    {ictSpan > 0 && (
+                      <th
+                        colSpan={ictSpan}
                         style={{
-                          width: '70px',
-                          minWidth: '70px',
-                          maxWidth: '70px',
-                          wordBreak: 'break-word',
-                          whiteSpace: 'normal',
-                          background: catStyle.gradient,
-                          backgroundSize: bgSize,
-                          backgroundPosition: bgPos,
+                          background: '#FFC220',
+                          fontFamily: "'UTM Avo', 'UTM Avo Black', sans-serif",
+                          fontWeight: 900
                         }}
-                        onClick={() => handleHeaderClick('category', catName)}
+                        className="text-[#1e293b] px-2 py-1.5 border border-white/30 text-center uppercase text-[13px] font-black tracking-wider truncate align-middle shadow-xs"
                       >
-                        {catName}{renderSortIcon('category', catName)}
+                        {visibleIctCats.length <= 1 ? `ICT (${visibleIctCats.length})` : `NHÓM ICT (${visibleIctCats.length} NGÀNH HÀNG)`}
                       </th>
-                      {cleanCategoryName(catName) === 'maylanhdacquyen' && (
-                        <th className="bg-white border border-white/20" style={{ width: '40px', minWidth: '40px', maxWidth: '40px' }}></th>
-                      )}
-                    </React.Fragment>
-                  );
-                });
-              })()}
-            </tr>
+                    )}
+
+                    {/* Tiêu đề nhóm DỊCH VỤ */}
+                    {dvSpan > 0 && (
+                      <th
+                        colSpan={dvSpan}
+                        style={{
+                          background: '#70E59D',
+                          fontFamily: "'UTM Avo', 'UTM Avo Black', sans-serif",
+                          fontWeight: 900
+                        }}
+                        className="text-[#064e3b] px-2 py-1.5 border border-white/30 text-center uppercase text-[13px] font-black tracking-wider truncate align-middle shadow-xs"
+                      >
+                        {visibleDvCats.length <= 1 ? `DỊCH VỤ (${visibleDvCats.length})` : `NHÓM DỊCH VỤ (${visibleDvCats.length} NGÀNH HÀNG)`}
+                      </th>
+                    )}
+
+                    {/* Tiêu đề nhóm CE & GD */}
+                    {ceSpan > 0 && (
+                      <th
+                        colSpan={ceSpan}
+                        style={{
+                          background: '#99C2FF',
+                          fontFamily: "'UTM Avo', 'UTM Avo Black', sans-serif",
+                          fontWeight: 900
+                        }}
+                        className="text-[#1e3a8a] px-2 py-1.5 border border-white/30 text-center uppercase text-[13px] font-black tracking-wider truncate align-middle shadow-xs"
+                      >
+                        {visibleCeCats.length <= 1 ? `CE & GD (${visibleCeCats.length})` : `NHÓM CE & GD (${visibleCeCats.length} NGÀNH HÀNG)`}
+                      </th>
+                    )}
+                  </tr>
+
+                  {/* Dòng 2: Từng cột ngành hàng chi tiết */}
+                  {hasSubRow && (
+                    <tr className="text-slate-900 h-[72px]">
+                      {visibleCats.map(catName => {
+                        const catStyle = getCategoryBadgeStyleClasses(catName, categoryConfig);
+                        const group = getCategoryGroupType(catName, categoryConfig);
+                        const total = groupCounts[group] || 1;
+                        const idx = groupIndices[catName] || 0;
+                        // Spread gradient across group width
+                        const bgSize = `${total * 100}% 100%`;
+                        const bgPos = `${total > 1 ? (idx / (total - 1)) * 100 : 0}% 0%`;
+                        return (
+                          <React.Fragment key={catName}>
+                            <th 
+                              className={cn(
+                                "px-1 py-1 text-[11.5px] font-black uppercase tracking-tight text-center border border-white/20 select-none cursor-pointer align-middle",
+                                catStyle.bgText
+                              )}
+                              style={{
+                                width: '70px',
+                                minWidth: '70px',
+                                maxWidth: '70px',
+                                wordBreak: 'break-word',
+                                whiteSpace: 'normal',
+                                background: catStyle.gradient,
+                                backgroundSize: bgSize,
+                                backgroundPosition: bgPos,
+                              }}
+                              onClick={() => handleHeaderClick('category', catName)}
+                            >
+                              {catName}{renderSortIcon('category', catName)}
+                            </th>
+                            {cleanCategoryName(catName) === 'maylanhdacquyen' && (
+                              <th className="bg-white border border-white/20" style={{ width: '40px', minWidth: '40px', maxWidth: '40px' }}></th>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </tr>
+                  )}
+                </>
+              );
+            })()}
           </thead>
           <tbody>
             {visibleCategories.length === 0 ? (
