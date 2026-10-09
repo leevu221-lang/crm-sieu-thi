@@ -145,7 +145,7 @@ const LiveClockBadge = React.memo(() => {
   }, []);
 
   return (
-    <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gradient-to-r from-slate-50 to-emerald-50/40 border border-emerald-200/90 text-emerald-800 rounded-full text-[10px] sm:text-xs md:text-sm font-black tracking-tight shadow-2xs whitespace-nowrap">
+    <div className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3.5 py-1 sm:py-2 bg-gradient-to-r from-slate-50 to-emerald-50/40 border border-emerald-200/90 text-emerald-800 rounded-full text-[9.5px] sm:text-xs md:text-sm font-black tracking-tight shadow-2xs whitespace-nowrap">
       <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 animate-pulse" />
       <span>{liveClockStr}</span>
     </div>
@@ -4122,9 +4122,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
     <div className="relative z-50" ref={filterRef}>
       <button
         onClick={() => setIsFilterOpen(!isFilterOpen)}
-        className="flex items-center gap-2.5 px-4 py-2 bg-white border border-slate-200 rounded-full text-sm font-black text-slate-700 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+        className="flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-4 py-1 sm:py-2 bg-white border border-slate-200 rounded-full text-[10.5px] sm:text-sm font-black text-slate-700 hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
       >
-        <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full" />
+        <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-emerald-500 rounded-full shrink-0" />
         <span className="truncate uppercase tracking-tight">
           {selectedStaffIds.length === biRevenueData.length
             ? "Tất cả nhân viên"
@@ -4132,7 +4132,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
               ? "Chưa chọn NV"
               : `Đã chọn ${selectedStaffIds.length} NV`}
         </span>
-        <ChevronDown size={16} className={cn("transition-transform text-slate-400", isFilterOpen && "rotate-180")} />
+        <ChevronDown size={13} className={cn("transition-transform text-slate-400 sm:w-4 sm:h-4 shrink-0", isFilterOpen && "rotate-180")} />
       </button>
 
       <AnimatePresence>
@@ -4359,17 +4359,17 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                 </div>
 
                 {/* Middle/Right: Quick Filters & System Status Badges */}
-                <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 w-full sm:w-auto justify-start sm:justify-end">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5 w-full sm:w-auto justify-start sm:justify-end">
                   {/* Staff Multi-Select Filter */}
-                  <div className="flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-slate-50 to-indigo-50/30 border border-slate-200/90 rounded-full pl-2.5 sm:pl-3.5 pr-1 py-1 shadow-2xs">
-                    <span className="font-black text-slate-600 uppercase tracking-wider text-[10px] sm:text-xs">NHÂN VIÊN:</span>
+                  <div className="flex items-center gap-1 sm:gap-2 bg-gradient-to-r from-slate-50 to-indigo-50/30 border border-slate-200/90 rounded-full pl-2 sm:pl-3.5 pr-0.5 sm:pr-1 py-0.5 sm:py-1 shadow-2xs">
+                    <span className="font-black text-slate-600 uppercase tracking-wider text-[9px] sm:text-xs">NHÂN VIÊN:</span>
                     {renderStaffFilterDropdown()}
                   </div>
 
                   {/* Warehouse Badge */}
-                  <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-slate-50 border border-slate-200/90 rounded-full shadow-2xs">
-                    <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">MÃ KHO:</span>
-                    <span className="font-black text-[#2563EB] text-xs sm:text-sm">{maKho || 'CHƯA CHỌN'}</span>
+                  <div className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3.5 py-1 sm:py-2 bg-slate-50 border border-slate-200/90 rounded-full shadow-2xs">
+                    <span className="text-[9px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">MÃ KHO:</span>
+                    <span className="font-black text-[#2563EB] text-[10.5px] sm:text-sm">{maKho || 'CHƯA CHỌN'}</span>
                   </div>
 
                   {/* Live Clock / Update Indicator */}
@@ -4381,9 +4381,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                       refresh();
                       showNotification('Đang làm mới dữ liệu Sức Khỏe NV...', 'info');
                     }}
-                    className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-[#2563EB] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] text-white rounded-full text-[10px] sm:text-xs md:text-sm font-black uppercase tracking-wider shadow-md shadow-indigo-500/20 cursor-pointer transition-all active:scale-95 ml-auto sm:ml-0"
+                    className="inline-flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1 sm:py-2 bg-gradient-to-r from-[#2563EB] to-[#7C3AED] hover:from-[#1D4ED8] hover:to-[#6D28D9] text-white rounded-full text-[9.5px] sm:text-xs md:text-sm font-black uppercase tracking-wider shadow-md shadow-indigo-500/20 cursor-pointer transition-all active:scale-95 ml-auto sm:ml-0"
                   >
-                    <RotateCcw size={14} className="sm:w-[15px] sm:h-[15px]" />
+                    <RotateCcw size={12} className="sm:w-[15px] sm:h-[15px]" />
                     <span>Cập nhật</span>
                   </button>
                 </div>
@@ -4401,13 +4401,13 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                       <button
                         key={item.id}
                         onClick={() => setActiveTab(item.id as any)}
-                        className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-[11px] sm:text-[13px] font-black uppercase tracking-wide whitespace-nowrap transition-all duration-200 cursor-pointer shrink-0 ${
+                        className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl text-[10px] sm:text-[13px] font-black uppercase tracking-tight sm:tracking-wide whitespace-nowrap transition-all duration-200 cursor-pointer shrink-0 ${
                           isActive
                             ? 'bg-gradient-to-r from-[#2563EB] via-[#4F46E5] to-[#7C3AED] text-white shadow-md shadow-indigo-500/25 scale-[1.02] border border-indigo-400/30'
                             : 'bg-white/80 text-slate-600 hover:text-slate-900 hover:bg-white border border-slate-200/60 hover:shadow-2xs'
                         }`}
                       >
-                        <Icon size={14} className={cn("sm:w-4 sm:h-4", isActive ? 'text-white' : 'text-slate-500')} strokeWidth={isActive ? 2.5 : 2} />
+                        <Icon size={13} className={cn("sm:w-4 sm:h-4", isActive ? 'text-white' : 'text-slate-500')} strokeWidth={isActive ? 2.5 : 2} />
                         <span>{item.label}</span>
                       </button>
                     );
@@ -4447,19 +4447,19 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                   className="bg-white/95 backdrop-blur-sm rounded-3xl p-3 sm:p-5 shadow-xl shadow-slate-200/30 border border-slate-200/90 max-w-full mx-auto relative overflow-hidden"
                 >
                   {renderLoadingOverlay()}
-                  <div className="flex flex-wrap items-center justify-end gap-2.5 mb-4">
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2.5 mb-3 sm:mb-4">
                       <button
                         onClick={handleCapture}
                         disabled={isCapturing}
                          className={cn(
-                          "flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer",
+                          "flex items-center gap-1 sm:gap-2 px-2.5 sm:px-5 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wide sm:tracking-wider transition-all shadow-md active:scale-95 cursor-pointer shrink-0",
                           isCapturing
                             ? "bg-slate-400 text-white cursor-wait"
                             : "bg-gradient-to-r from-[#2563EB] to-[#4F46E5] text-white hover:from-[#1D4ED8] hover:to-[#4338CA] shadow-blue-500/20 border-t border-white/20"
                         )}
                       >
                         {isCapturing ? (
-                          <div className="relative w-4 h-4 flex items-center justify-center">
+                          <div className="relative w-3.5 h-3.5 sm:w-4 sm:h-4 flex items-center justify-center">
                             <div className="absolute inset-0 border-2 border-white/20 rounded-full" />
                             <motion.div
                               className="absolute inset-0 border-2 border-white rounded-full border-t-transparent"
@@ -4468,7 +4468,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                             />
                           </div>
                         ) : (
-                          <Camera size={15} />
+                          <Camera size={13} className="sm:w-[15px] sm:h-[15px]" />
                         )}
                         {isCapturing ? 'ĐANG XUẤT...' : 'XUẤT ẢNH BÁO CÁO'}
                       </button>
@@ -4477,14 +4477,14 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                         onClick={handleOpenDoanhThuNvComment}
                         disabled={filteredBiData.length === 0}
                         className={cn(
-                          "flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer",
+                          "flex items-center gap-1 sm:gap-2 px-2.5 sm:px-5 py-1.5 sm:py-2.5 rounded-lg sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-wide sm:tracking-wider transition-all shadow-md active:scale-95 cursor-pointer shrink-0",
                           filteredBiData.length === 0
                             ? "bg-slate-200 text-slate-400 cursor-not-allowed"
                             : "bg-gradient-to-r from-[#2563EB] via-[#4F46E5] to-[#7C3AED] hover:from-[#1D4ED8] hover:via-[#4338CA] hover:to-[#6D28D9] text-white shadow-md shadow-indigo-500/25 border border-indigo-400/30"
                         )}
                         title="Nhận xét thi đua xếp hạng doanh thu"
                       >
-                        <MessageSquare size={14} className="text-white shrink-0" />
+                        <MessageSquare size={13} className="text-white shrink-0 sm:w-[14px] sm:h-[14px]" />
                         <span>NHẬN XÉT</span>
                       </button>
 
@@ -4492,7 +4492,7 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                         onClick={handleCopyTags}
                         disabled={filteredBiData.length === 0}
                         className={cn(
-                          "flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer",
+                          "flex items-center gap-1 sm:gap-2 px-2.5 sm:px-5 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wide sm:tracking-wider transition-all shadow-md active:scale-95 cursor-pointer shrink-0",
                           filteredBiData.length === 0
                             ? "bg-slate-200 text-slate-400 cursor-not-allowed"
                             : isTagCopied
@@ -4501,9 +4501,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                         )}
                       >
                         {isTagCopied ? (
-                          <Check size={16} />
+                          <Check size={13} className="sm:w-4 sm:h-4" />
                         ) : (
-                          <span className="text-[14px]">@</span>
+                          <span className="text-[12px] sm:text-[14px] leading-none font-bold">@</span>
                         )}
                         {isTagCopied ? 'ĐÃ COPY!' : 'TAG TÊN NV'}
                       </button>
@@ -4954,20 +4954,20 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
 
                     return (
                       <div className="mt-10 w-full flex flex-col items-center">
-                        <div className="w-full flex justify-end items-center gap-2.5 mb-4">
+                        <div className="w-full flex justify-end items-center gap-1.5 sm:gap-2.5 mb-3 sm:mb-4">
                           <button
                             onClick={handleOpenPhucVuComment}
-                            className="no-capture flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-full text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer"
+                            className="no-capture flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg sm:rounded-full text-[10px] sm:text-xs font-black uppercase tracking-wide sm:tracking-wider transition-all shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer shrink-0"
                           >
-                            <Sparkles size={14} className="animate-pulse" />
+                            <Sparkles size={13} className="animate-pulse sm:w-[14px] sm:h-[14px]" />
                             <span>NHẬN XÉT</span>
                           </button>
                           <button
                             onClick={handleExportPhucVuImage}
                             disabled={isCapturing}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-[#00965e] hover:bg-[#007b4e] text-white rounded-full font-black text-xs uppercase tracking-widest shadow-md shadow-emerald-200 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                            className="flex items-center gap-1 sm:gap-2 px-2.5 sm:px-5 py-1.5 sm:py-2.5 bg-[#00965e] hover:bg-[#007b4e] text-white rounded-lg sm:rounded-full font-black text-[10px] sm:text-xs uppercase tracking-wide sm:tracking-widest shadow-md shadow-emerald-200 transition-all active:scale-95 disabled:opacity-50 cursor-pointer shrink-0"
                           >
-                            <Camera size={16} />
+                            <Camera size={13} className="sm:w-4 sm:h-4" />
                             {isCapturing ? 'ĐANG CHỤP...' : 'CHỤP ẢNH BÁO CÁO'}
                           </button>
                         </div>
@@ -5145,27 +5145,27 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
                       <button
                         onClick={() => setShowBanKemInput(!showBanKemInput)}
-                        className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                        className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-all cursor-pointer shrink-0"
                       >
-                        <FileText size={14} /> {showBanKemInput ? 'Ẩn ô dán dữ liệu' : 'Dán / Sửa dữ liệu'}
+                        <FileText size={13} className="sm:w-[14px] sm:h-[14px]" /> {showBanKemInput ? 'Ẩn ô dán' : 'Dán / Sửa dữ liệu'}
                       </button>
                       {banKemNv && (
                         <>
                           <button
                             onClick={handleOpenBanKemComment}
-                            className="no-capture flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer"
+                            className="no-capture flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer shrink-0"
                           >
-                            <Sparkles size={14} className="animate-pulse" />
+                            <Sparkles size={13} className="animate-pulse sm:w-[14px] sm:h-[14px]" />
                             <span>NHẬN XÉT</span>
                           </button>
                           <button
                             onClick={handleCaptureBanKem}
-                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer"
+                            className="flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] text-white rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer shrink-0"
                           >
-                            <Camera size={15} /> CHỤP ẢNH BẢNG
+                            <Camera size={13} className="sm:w-[15px] sm:h-[15px]" /> CHỤP ẢNH BẢNG
                           </button>
                         </>
                       )}
@@ -5443,19 +5443,19 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                           <p className="text-[11px] text-slate-500 font-black uppercase tracking-widest">{marketFilter !== 'ALL' ? marketFilter : 'Tất cả siêu thị'}</p>
                         </div>
                         <div className="p-5 flex flex-col items-center justify-center">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 sm:gap-2">
                             <button
                               onClick={handleCaptureThuongNv}
                               disabled={isCapturing}
                               className={cn(
-                                "capture-btn flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer",
+                                "capture-btn flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] text-white rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer",
                                 isCapturing ? "opacity-50 cursor-not-allowed" : "active:scale-95"
                               )}
                             >
-                              <Camera size={14} /> CHỤP ẢNH
+                              <Camera size={13} className="sm:w-3.5 sm:h-3.5" /> CHỤP ẢNH
                             </button>
-                            <div className="px-3 py-2 rounded-lg bg-slate-100">
-                              <span className="text-[12px] font-black text-slate-700 uppercase tracking-widest">{filteredBiData.length} NV</span>
+                            <div className="px-2 sm:px-3 py-1 sm:py-2 rounded-lg bg-slate-100">
+                              <span className="text-[10px] sm:text-[12px] font-black text-slate-700 uppercase tracking-widest">{filteredBiData.length} NV</span>
                             </div>
                           </div>
                         </div>
@@ -5736,17 +5736,17 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
                         {parsedTraChamRows.length > 0 && (
                           <button
                             onClick={handleOpenTraChamComment}
-                            className="no-capture flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer"
+                            className="no-capture flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer shrink-0"
                           >
-                            <Sparkles size={14} className="animate-pulse" />
+                            <Sparkles size={13} className="animate-pulse sm:w-[14px] sm:h-[14px]" />
                             <span>NHẬN XÉT</span>
                           </button>
                         )}
                         <button
                           onClick={handleCaptureTraCham}
-                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer"
+                          className="flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] text-white rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer shrink-0"
                         >
-                          <Camera size={15} /> CHỤP ẢNH BẢNG
+                          <Camera size={13} className="sm:w-[15px] sm:h-[15px]" /> CHỤP ẢNH BẢNG
                         </button>
                       </div>
                     </div>
