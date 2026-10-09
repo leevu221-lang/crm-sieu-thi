@@ -895,6 +895,17 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   const [commentTemplate, setCommentTemplate] = useState<1 | 2 | 3>(1);
   const catDropdownRef = useRef<HTMLDivElement>(null);
 
+  React.useEffect(() => {
+    if (!isCatDropdownOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsCatDropdownOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isCatDropdownOpen]);
+
   const { userProfile } = useAuth();
   const { setCategoryTargets, saveLuykeData, activeStore } = useLuykeData();
   const isAdmin = userProfile?.username === '43751';
@@ -949,16 +960,18 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   });
 
   // Use passed luykeCategories (BC THÁNG displayed data) for staffMatrix calculation
-  const { staffMatrix, categories } = parseStaffMatrixDataRefined(
-    thiDuaNv || '', 
-    staffCount, 
-    categoryTargets, 
-    luykeCategories, 
-    daysPassed, 
-    totalDays,
-    false,
-    categoryConfig
-  );
+  const { staffMatrix, categories } = React.useMemo(() => {
+    return parseStaffMatrixDataRefined(
+      thiDuaNv || '', 
+      staffCount, 
+      categoryTargets, 
+      luykeCategories, 
+      daysPassed, 
+      totalDays,
+      false,
+      categoryConfig
+    );
+  }, [thiDuaNv, staffCount, categoryTargets, luykeCategories, daysPassed, totalDays, categoryConfig]);
 
   const sortedStaffMatrix = React.useMemo(() => {
     const matrix = [...staffMatrix];
@@ -1065,16 +1078,19 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   // Initialize visible categories only once when categories load or activeStore changes
   const initializedRef = useRef(false);
   const prevStoreRef = useRef(activeStore);
+  const prevCategoriesRef = useRef<string[]>([]);
 
   React.useEffect(() => {
     if (prevStoreRef.current !== activeStore) {
       prevStoreRef.current = activeStore;
       initializedRef.current = false;
+      prevCategoriesRef.current = [];
     }
   }, [activeStore]);
 
   React.useEffect(() => {
     if (categories.length > 0 && !initializedRef.current) {
+      prevCategoriesRef.current = categories;
       const savedKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
       const savedVal = localStorage.getItem(savedKey);
       if (savedVal !== null) {
@@ -1083,10 +1099,7 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
           if (Array.isArray(parsed)) {
             const validSaved = parsed.filter((c: string) => categories.includes(c));
             if (validSaved.length > 0) {
-              // Tự động bổ sung các ngành hàng mới có trong categories chuẩn mà cache cũ chưa từng lưu
-              const newlyAdded = categories.filter((c: string) => !parsed.includes(c));
-              const merged = newlyAdded.length > 0 ? [...validSaved, ...newlyAdded] : validSaved;
-              setVisibleCategories(merged);
+              setVisibleCategories(validSaved);
               initializedRef.current = true;
               return;
             }
@@ -1100,17 +1113,26 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
     }
   }, [categories, activeStore]);
 
-  // Luôn làm sạch và tự động bổ sung ngành hàng mới khi danh sách categories chuẩn cập nhật
+  // Chỉ bổ sung ngành hàng mới khi danh sách categories nguồn thực sự có thêm mục mới từ dữ liệu
   React.useEffect(() => {
     if (initializedRef.current && categories.length > 0) {
-      setVisibleCategories(prev => {
-        const cleaned = prev.filter(c => categories.includes(c));
-        const newlyAdded = categories.filter(c => !prev.includes(c));
-        if (newlyAdded.length > 0) {
-          return [...cleaned, ...newlyAdded];
+      const prevCats = prevCategoriesRef.current;
+      if (prevCats.length > 0) {
+        // Kiểm tra xem danh sách categories chuẩn có thực sự thay đổi về nội dung không
+        const isSame = prevCats.length === categories.length && prevCats.every((c, idx) => c === categories[idx]);
+        if (!isSame) {
+          const newlyAdded = categories.filter(c => !prevCats.includes(c));
+          setVisibleCategories(prev => {
+            const cleaned = prev.filter(c => categories.includes(c));
+            if (newlyAdded.length > 0) {
+              const toAdd = newlyAdded.filter(c => !cleaned.includes(c));
+              return toAdd.length > 0 ? [...cleaned, ...toAdd] : cleaned;
+            }
+            return cleaned.length !== prev.length ? cleaned : prev;
+          });
         }
-        return cleaned.length !== prev.length ? cleaned : prev;
-      });
+      }
+      prevCategoriesRef.current = categories;
     }
   }, [categories]);
 
@@ -1543,7 +1565,10 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
               />
 
               {/* Dropdown Container */}
-              <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 p-3 flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-150">
+              <div 
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 p-3 flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-150"
+              >
                 {/* Search */}
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -1570,28 +1595,40 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                   <button
                     type="button"
                     onClick={handleSelectAll}
-                    className="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer"
+                    className={cn(
+                      "px-2 py-1 rounded-lg transition-colors cursor-pointer",
+                      isAll ? "bg-emerald-600 text-white shadow-xs" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                    )}
                   >
                     Tất cả ({categories.length})
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSelectGroup('ICT')}
-                    className="px-2 py-1 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer"
+                    className={cn(
+                      "px-2 py-1 rounded-lg transition-colors cursor-pointer",
+                      isIctOnly ? "bg-amber-600 text-white shadow-xs" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                    )}
                   >
                     ICT ({ictCategories.length})
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSelectGroup('DỊCH VỤ')}
-                    className="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer"
+                    className={cn(
+                      "px-2 py-1 rounded-lg transition-colors cursor-pointer",
+                      isDvOnly ? "bg-emerald-600 text-white shadow-xs" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                    )}
                   >
                     Dịch Vụ ({dvCategories.length})
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSelectGroup('CE')}
-                    className="px-2 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                    className={cn(
+                      "px-2 py-1 rounded-lg transition-colors cursor-pointer",
+                      isCeOnly ? "bg-blue-600 text-white shadow-xs" : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    )}
                   >
                     CE ({ceCategories.length})
                   </button>
@@ -1616,31 +1653,32 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
                         : 'bg-blue-100 text-blue-800 border-blue-200';
 
                     return (
-                      <label
+                      <div
                         key={cat}
+                        onClick={() => toggleCategory(cat)}
                         className={cn(
                           "flex items-center justify-between px-2.5 py-1.5 rounded-xl cursor-pointer transition-colors group select-none",
-                          isSelected ? "bg-emerald-50/70 hover:bg-emerald-50" : "hover:bg-slate-50 text-slate-600"
+                          isSelected ? "bg-emerald-50/70 hover:bg-emerald-50 text-slate-900" : "hover:bg-slate-50 text-slate-600"
                         )}
                       >
-                        <div className="flex items-center gap-2.5 truncate pr-2">
+                        <div className="flex items-center gap-2.5 truncate pr-2 pointer-events-none">
                           <input
                             type="checkbox"
-                            className="rounded text-emerald-600 focus:ring-0 cursor-pointer w-4 h-4 shrink-0"
+                            className="rounded text-emerald-600 focus:ring-0 cursor-pointer w-4 h-4 shrink-0 pointer-events-none"
                             checked={isSelected}
-                            onChange={() => toggleCategory(cat)}
+                            readOnly
                           />
                           <span className={cn(
                             "text-[11px] font-black uppercase tracking-tight truncate",
-                            isSelected ? "text-slate-900" : "text-slate-600"
+                            isSelected ? "text-slate-900 font-black" : "text-slate-600"
                           )}>
                             {cat}
                           </span>
                         </div>
-                        <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-black uppercase shrink-0 border", badgeColor)}>
+                        <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-black uppercase shrink-0 border pointer-events-none", badgeColor)}>
                           {group}
                         </span>
-                      </label>
+                      </div>
                     );
                   })}
                   {filteredCatList.length === 0 && (
