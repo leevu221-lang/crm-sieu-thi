@@ -251,15 +251,29 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
     return (val1Dec % 1 === 0) ? val1Dec.toString() : val1Dec.toFixed(1);
   };
 
+  const [isMobile, setIsMobile] = React.useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 768;
+  });
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
     <div className="w-full flex justify-center" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif" }}>
-      <div className="w-full max-w-[900px] bg-white border border-slate-200/90 p-2 sm:p-2.5 rounded-2xl shadow-sm flex flex-col">
+      <div className="w-full max-w-[900px] bg-white border border-slate-200/90 p-1.5 sm:p-2.5 rounded-xl sm:rounded-2xl shadow-sm flex flex-col">
         {/* Top Header Banner: Emerald Gradient with Gold/Yellow Title matching Bảng 2 */}
-        <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-4 rounded-2xl text-white relative shrink-0 mb-2.5 text-center flex flex-col items-center justify-center">
-          <h2 className="text-[19px] sm:text-[23px] md:text-[27px] font-black text-[#FEF08A] uppercase tracking-wide leading-tight whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
+        <div className="bg-gradient-to-r from-[#047857] via-[#059669] to-[#10B981] p-2.5 sm:p-4 rounded-xl sm:rounded-2xl text-white relative shrink-0 mb-2 sm:mb-2.5 text-center flex flex-col items-center justify-center">
+          <h2 className="text-[17px] sm:text-[23px] md:text-[27px] font-black text-[#FEF08A] uppercase tracking-wide leading-tight whitespace-nowrap" style={{ fontFamily: "'UTM Avo', sans-serif", fontWeight: 900 }}>
             BẢNG XẾP HẠNG DOANH THU
           </h2>
-          <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-2 mt-1.5 text-xs sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
+          <div className="flex items-center justify-center flex-nowrap whitespace-nowrap gap-1.5 sm:gap-2 mt-1 sm:mt-1.5 text-[10.5px] sm:text-sm font-bold text-white/95" style={{ fontFamily: "'UTM Avo', sans-serif" }}>
             <span className="flex items-center gap-1 whitespace-nowrap">
               ⚡ Luỹ kế dự kiến đến ngày: {yesterdayDate}
             </span>
@@ -271,28 +285,36 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
         </div>
 
         {/* Table Container */}
-        <div className="overflow-x-auto w-full grow rounded-2xl border border-emerald-300/80">
-          <table className="w-full border-separate border-spacing-0 table-fixed bg-white text-[12px] sm:text-[14.5px]" style={{ fontFamily: "'UTM Avo', 'Inter', sans-serif", fontWeight: 900, minWidth: '860px' }}>
+        <div className="overflow-x-auto w-full grow rounded-xl sm:rounded-2xl border border-emerald-300/80">
+          <table 
+            className="w-full border-separate border-spacing-0 table-fixed bg-white text-[10.5px] sm:text-[14.5px]" 
+            style={{ 
+              fontFamily: "'UTM Avo', 'Inter', sans-serif", 
+              fontWeight: 900, 
+              minWidth: isMobile ? '100%' : '860px',
+              width: '100%'
+            }}
+          >
             <colgroup>
-              <col style={{ width: '45px' }} />
-              <col style={{ width: '270px' }} />
-              <col style={{ width: '95px' }} />
-              <col style={{ width: '95px' }} />
-              <col style={{ width: '95px' }} />
-              <col style={{ width: '105px' }} />
-              <col style={{ width: '105px' }} />
-              <col style={{ width: '55px' }} />
+              <col style={{ width: isMobile ? '28px' : '45px' }} />
+              <col style={{ width: isMobile ? 'auto' : '270px' }} />
+              <col style={{ width: isMobile ? '44px' : '95px' }} />
+              <col style={{ width: isMobile ? '44px' : '95px' }} />
+              <col style={{ width: isMobile ? '38px' : '95px' }} />
+              <col style={{ width: isMobile ? '42px' : '105px' }} />
+              <col style={{ width: isMobile ? '44px' : '105px' }} />
+              <col style={{ width: isMobile ? '28px' : '55px' }} />
             </colgroup>
             <thead>
-              <tr className="text-white font-black text-[12px] sm:text-[13.5px] uppercase tracking-tight h-[44px]">
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">STT</th>
-                <th style={{ fontWeight: 900 }} className="px-2.5 sm:px-3.5 py-0 text-left text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">NHÂN VIÊN</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">TARGET</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">L.KẾ</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">%HT</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">HQ.QĐ</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">% T.CHẬM</th>
-                <th style={{ fontWeight: 900 }} className="px-1 py-0 text-center text-white border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">XH</th>
+              <tr className="text-white font-black text-[9px] sm:text-[13.5px] uppercase tracking-tight h-[34px] sm:h-[44px]">
+                <th style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">STT</th>
+                <th style={{ fontWeight: 900 }} className="px-1.5 sm:px-3.5 py-0 text-left text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">NHÂN VIÊN</th>
+                <th style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">TARGET</th>
+                <th style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">L.KẾ</th>
+                <th style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">%HT</th>
+                <th style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">HQ.QĐ</th>
+                <th style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center text-white border-r border-b border-emerald-600 bg-[#059669] whitespace-nowrap overflow-hidden">{isMobile ? '% T.C' : '% T.CHẬM'}</th>
+                <th style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center text-white border-b border-emerald-600 bg-[#047857] whitespace-nowrap overflow-hidden">XH</th>
               </tr>
             </thead>
             <tbody>
@@ -322,52 +344,58 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
                       key={staff.fullId}
                       onClick={() => onSelectStaff && onSelectStaff(staff.fullId)}
                       className={cn(
-                        "transition-colors h-[40px] cursor-pointer border-b border-emerald-100/90",
+                        "transition-colors h-[36px] sm:h-[40px] cursor-pointer border-b border-emerald-100/90",
                         isEven ? "bg-white" : "bg-emerald-50/20",
                         "hover:bg-emerald-50/70",
                         selectedStaffId === staff.fullId && "!bg-emerald-100/60"
                       )}
                     >
-                      <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12px] sm:text-[14.5px] text-slate-700 bg-emerald-50/40 whitespace-nowrap">
+                      <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[10px] sm:text-[14.5px] text-slate-700 bg-emerald-50/40 whitespace-nowrap overflow-hidden">
                         #{index + 1}
                       </td>
-                      <td style={{ fontWeight: 900 }} className="px-2.5 sm:px-3.5 py-0.5 border-r border-b border-emerald-100/90 whitespace-nowrap text-left">
-                        <span className={cn(
-                          "font-black uppercase tracking-tight text-[12.5px] sm:text-[14.5px] whitespace-nowrap inline-block",
-                          isBottom ? "text-rose-600" : "text-slate-900"
-                        )}>
-                          {formatName(staff.displayName)} - {staff.fullId}
-                        </span>
+                      <td style={{ fontWeight: 900 }} className="px-1.5 sm:px-3.5 py-0.5 border-r border-b border-emerald-100/90 text-left overflow-hidden">
+                        <div className="flex flex-col min-w-0 leading-tight">
+                          <span className={cn(
+                            "font-black uppercase tracking-tight text-[10px] sm:text-[14.5px] truncate block",
+                            isBottom ? "text-rose-600" : "text-slate-900"
+                          )} title={`${formatName(staff.displayName)} - ${staff.fullId}`}>
+                            {formatName(staff.displayName)}
+                            <span className="hidden sm:inline"> - {staff.fullId}</span>
+                          </span>
+                          <span className="text-[8.5px] sm:hidden text-slate-500 font-bold tracking-tight">
+                            {staff.fullId}
+                          </span>
+                        </div>
                       </td>
-                      <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 font-bold text-[12.5px] sm:text-[14.5px] text-slate-800 whitespace-nowrap">
+                      <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-r border-b border-emerald-100/90 font-bold text-[10px] sm:text-[14.5px] text-slate-800 whitespace-nowrap overflow-hidden">
                         {targetQdPerStaff > 0 ? formatStaffTarget(targetQdPerStaff) : '0'}
                       </td>
-                      <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12.5px] sm:text-[14.5px] text-rose-600 whitespace-nowrap">
+                      <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[10px] sm:text-[14.5px] text-rose-600 whitespace-nowrap overflow-hidden">
                         {formatCurrencyValue(staff.virtualVal || 0)}
                       </td>
-                      <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap">
+                      <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-b border-emerald-100/90 whitespace-nowrap overflow-hidden">
                         <span className={cn(
-                          "inline-flex items-center justify-center px-1.5 py-0.5 rounded-md font-black text-[11px] sm:text-[13px] leading-none",
+                          "inline-flex items-center justify-center px-1 sm:px-1.5 py-0.5 rounded sm:rounded-md font-black text-[9.5px] sm:text-[13px] leading-none",
                           percentHT >= 100 ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-600"
                         )}>
                           {Math.round(percentHT)}%
                         </span>
                       </td>
                       <td style={{ fontWeight: 900 }} className={cn(
-                        "px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap",
+                        "px-0.5 sm:px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[9.5px] sm:text-[14.5px] whitespace-nowrap overflow-hidden",
                         effQd < stPercentHTTargetDuKienQD ? "text-rose-600 font-bold" : "text-emerald-700 font-black"
                       )}>
                         {effQd.toFixed(1)}%
                       </td>
                       <td style={{ fontWeight: 900 }} className={cn(
-                        "px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap",
+                        "px-0.5 sm:px-1 py-0 text-center border-r border-b border-emerald-100/90 font-black text-[9.5px] sm:text-[14.5px] whitespace-nowrap overflow-hidden",
                         traChamPercent !== null
                           ? (traChamPercent >= 50 ? "text-emerald-700 font-black" : "text-rose-600 font-bold")
                           : "text-slate-400"
                       )}>
                         {traChamPercent !== null ? `${traChamPercent.toFixed(1)}%` : '-'}
                       </td>
-                      <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-b border-emerald-100/90 whitespace-nowrap font-black text-[12px] sm:text-[14px]">
+                      <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-b border-emerald-100/90 whitespace-nowrap font-black text-[9px] sm:text-[14px] overflow-hidden">
                         {isTop ? (
                           <span className="text-emerald-700 font-black">Top</span>
                         ) : isBottom ? (
@@ -389,26 +417,26 @@ const RevenueRankingTableQd: React.FC<RevenueRankingTableQdQProps> = ({
             </tbody>
             {sortedData.length > 0 && (
               <tfoot>
-                <tr className="h-[44px] text-white">
-                  <td colSpan={2} style={{ fontWeight: 900 }} className="px-2 sm:px-3 py-0 text-center border-r border-emerald-600/50 font-black text-[13px] sm:text-[15px] text-white uppercase tracking-widest whitespace-nowrap bg-[#047857]">
+                <tr className="h-[36px] sm:h-[44px] text-white">
+                  <td colSpan={2} style={{ fontWeight: 900 }} className="px-1.5 sm:px-3 py-0 text-center border-r border-emerald-600/50 font-black text-[10.5px] sm:text-[15px] text-white uppercase tracking-widest whitespace-nowrap bg-[#047857]">
                     TỔNG
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[13.5px] sm:text-[15px] whitespace-nowrap bg-[#047857]">
+                  <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[10px] sm:text-[15px] whitespace-nowrap bg-[#047857] overflow-hidden">
                     {totalTargetQd > 0 ? formatCurrencyValue(totalTargetQd) : '0'}
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[13.5px] sm:text-[15px] whitespace-nowrap bg-[#047857]">
+                  <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[10px] sm:text-[15px] whitespace-nowrap bg-[#047857] overflow-hidden">
                     {formatCurrencyValue(totalVirtual)}
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[13px] sm:text-[15px] whitespace-nowrap bg-[#047857]">
+                  <td style={{ fontWeight: 900 }} className="px-0.5 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[9.5px] sm:text-[15px] whitespace-nowrap bg-[#047857] overflow-hidden">
                     {Math.round(totalPercentHT)}%
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap bg-[#047857]">
+                  <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[9.5px] sm:text-[14.5px] whitespace-nowrap bg-[#047857] overflow-hidden">
                     {stPercentHTTargetDuKienQD > 0 ? `${stPercentHTTargetDuKienQD.toFixed(1)}%` : ''}
                   </td>
-                  <td style={{ fontWeight: 900 }} className="px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[12.5px] sm:text-[14.5px] whitespace-nowrap bg-[#047857]">
+                  <td style={{ fontWeight: 900 }} className="px-0.5 sm:px-1 py-0 text-center border-r border-emerald-600/50 text-white font-black text-[9.5px] sm:text-[14.5px] whitespace-nowrap bg-[#047857] overflow-hidden">
                     {validTraChamVals.length > 0 ? `${avgTraCham.toFixed(1)}%` : ''}
                   </td>
-                  <td className="px-1 py-0 text-center whitespace-nowrap bg-[#047857]"></td>
+                  <td className="px-0.5 sm:px-1 py-0 text-center whitespace-nowrap bg-[#047857] overflow-hidden"></td>
                 </tr>
               </tfoot>
             )}

@@ -713,9 +713,9 @@ const EmployeeHealth: React.FC<{ pageMaintenanceState?: Record<string, boolean>,
         htmlTable.style.maxWidth = '100%';
         
         if (isDoanhThuNvTab) {
-          htmlTable.style.minWidth = '820px';
+          htmlTable.style.minWidth = '860px';
           const cols = htmlTable.querySelectorAll('colgroup col');
-          const defaultColWidths = ['50px', '310px', '100px', '100px', '105px', '115px', '60px'];
+          const defaultColWidths = ['45px', '270px', '95px', '95px', '95px', '105px', '105px', '55px'];
           cols.forEach((col, idx) => {
             if (defaultColWidths[idx]) {
               (col as HTMLElement).style.width = defaultColWidths[idx];
