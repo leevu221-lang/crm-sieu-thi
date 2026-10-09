@@ -528,6 +528,16 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
     return map;
   }, [categories, luykeCategories, categoryTargets, staffCount, staffMatrix, dropdownCategories, daysPassed, totalDays]);
 
+  // Save selected categories synchronously to localStorage
+  const saveSelectedToStorage = useCallback((cats: string[]) => {
+    try {
+      const savedKey = `EH_DETAIL_CATEGORIES_${activeStore || 'GLOBAL'}`;
+      localStorage.setItem(savedKey, JSON.stringify(cats));
+    } catch (e) {
+      console.error('Error saving detail categories:', e);
+    }
+  }, [activeStore]);
+
   // Restore selection from localStorage - Tự động đồng bộ chuẩn theo TH Thi Đua
   React.useEffect(() => {
     if (dropdownCategories.length > 0 && !initializedRef.current) {
@@ -538,8 +548,11 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
         try {
           const parsed = JSON.parse(savedVal);
           if (Array.isArray(parsed)) {
-            const validSaved = parsed.filter((c: string) => dropdownCategories.includes(c));
-            if (validSaved.length > 0 || parsed.length === 0) {
+            const validSaved = dropdownCategories.filter(cat => {
+              const clean = cleanCategoryName(cat);
+              return parsed.some((p: string) => p === cat || cleanCategoryName(p) === clean);
+            });
+            if (validSaved.length > 0) {
               setSelectedCategories(validSaved);
               initializedRef.current = true;
               return;
@@ -557,8 +570,11 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
         try {
           const parsedThiDua = JSON.parse(savedThiDuaVal);
           if (Array.isArray(parsedThiDua)) {
-            const validThiDua = parsedThiDua.filter((c: string) => dropdownCategories.includes(c));
-            if (validThiDua.length > 0 || parsedThiDua.length === 0) {
+            const validThiDua = dropdownCategories.filter(cat => {
+              const clean = cleanCategoryName(cat);
+              return parsedThiDua.some((p: string) => p === cat || cleanCategoryName(p) === clean);
+            });
+            if (validThiDua.length > 0) {
               setSelectedCategories(validThiDua);
               initializedRef.current = true;
               return;
@@ -574,38 +590,6 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
       initializedRef.current = true;
     }
   }, [dropdownCategories, activeStore]);
-
-  // Debounced save to localStorage
-  React.useEffect(() => {
-    if (initializedRef.current && dropdownCategories.length > 0) {
-      const savedKey = `EH_DETAIL_CATEGORIES_${activeStore || 'GLOBAL'}`;
-      const timer = setTimeout(() => {
-        try {
-          localStorage.setItem(savedKey, JSON.stringify(selectedCategories));
-        } catch (e) {
-          console.error(e);
-        }
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [selectedCategories, dropdownCategories, activeStore]);
-
-  // Close dropdown when clicking outside (safe against DOM node detachment during React re-renders)
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
-      const target = event.target as Node | null;
-      if (!target || !document.contains(target)) return;
-      if (dropdownRef.current && !dropdownRef.current.contains(target)) {
-        setIsDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-    };
-  }, []);
 
   const selectedCategoriesSet = useMemo(() => new Set(selectedCategories), [selectedCategories]);
 
@@ -623,9 +607,13 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
       try {
         const parsed = JSON.parse(savedThiDuaVal);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const valid = parsed.filter(c => dropdownCategories.includes(c));
+          const valid = dropdownCategories.filter(cat => {
+            const clean = cleanCategoryName(cat);
+            return parsed.some(p => p === cat || cleanCategoryName(p) === clean);
+          });
           if (valid.length > 0) {
             setSelectedCategories(valid);
+            saveSelectedToStorage(valid);
             return;
           }
         }
@@ -634,66 +622,80 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
       }
     }
     setSelectedCategories([...dropdownCategories]);
-  }, [activeStore, dropdownCategories]);
+    saveSelectedToStorage([...dropdownCategories]);
+  }, [activeStore, dropdownCategories, saveSelectedToStorage]);
 
   // Chọn nhanh theo nhóm ngành hàng
   const handleSelectGroup = useCallback((group: 'ALL' | 'ICT' | 'DỊCH VỤ' | 'CE' | 'THI_DUA') => {
+    let next: string[] = [];
     if (group === 'ALL') {
-      setSelectedCategories([...dropdownCategories]);
+      next = [...dropdownCategories];
     } else if (group === 'ICT') {
-      setSelectedCategories([...ictCategories]);
+      next = [...ictCategories];
     } else if (group === 'DỊCH VỤ') {
-      setSelectedCategories([...dvCategories]);
+      next = [...dvCategories];
     } else if (group === 'CE') {
-      setSelectedCategories([...ceCategories]);
+      next = [...ceCategories];
     } else if (group === 'THI_DUA') {
       handleSyncWithThiDua();
+      return;
     }
-  }, [dropdownCategories, ictCategories, dvCategories, ceCategories, handleSyncWithThiDua]);
+    setSelectedCategories(next);
+    saveSelectedToStorage(next);
+  }, [dropdownCategories, ictCategories, dvCategories, ceCategories, handleSyncWithThiDua, saveSelectedToStorage]);
 
   const toggleCategory = useCallback((cat: string) => {
-    setSelectedCategories(prev =>
-      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
-    );
-  }, []);
+    setSelectedCategories(prev => {
+      const next = prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat];
+      saveSelectedToStorage(next);
+      return next;
+    });
+  }, [saveSelectedToStorage]);
 
   const handleSelectAll = useCallback(() => {
-    React.startTransition(() => {
-      setSelectedCategories(dropdownCategories);
-    });
-  }, [dropdownCategories]);
+    setSelectedCategories(dropdownCategories);
+    saveSelectedToStorage(dropdownCategories);
+  }, [dropdownCategories, saveSelectedToStorage]);
 
   const handleDeselectAll = useCallback(() => {
-    React.startTransition(() => {
-      setSelectedCategories([]);
-    });
-  }, []);
+    setSelectedCategories([]);
+    saveSelectedToStorage([]);
+  }, [saveSelectedToStorage]);
 
   const handleAddCard = useCallback(() => {
     setSelectedCategories(prev => {
       const unselected = dropdownCategories.filter(x => !prev.includes(x));
       if (unselected.length > 0) {
-        return [...prev, unselected[0]];
+        const next = [...prev, unselected[0]];
+        saveSelectedToStorage(next);
+        return next;
       }
       return prev;
     });
-  }, [dropdownCategories]);
+  }, [dropdownCategories, saveSelectedToStorage]);
 
   const handleRemoveCard = useCallback((catName: string) => {
-    setSelectedCategories(prev => prev.filter(c => c !== catName));
-  }, []);
+    setSelectedCategories(prev => {
+      const next = prev.filter(c => c !== catName);
+      saveSelectedToStorage(next);
+      return next;
+    });
+  }, [saveSelectedToStorage]);
 
   const handleSwitchCategory = useCallback((oldCat: string, newCat: string) => {
     setSelectedCategories(prev => {
       const idx = prev.indexOf(oldCat);
+      let next: string[];
       if (idx !== -1) {
-        const next = [...prev];
+        next = [...prev];
         next[idx] = newCat;
-        return next;
+      } else {
+        next = [...prev, newCat];
       }
-      return [...prev, newCat];
+      saveSelectedToStorage(next);
+      return next;
     });
-  }, []);
+  }, [saveSelectedToStorage]);
 
   const yesterdayDate = useMemo(() => {
     const yesterday = new Date();
@@ -1104,134 +1106,143 @@ const CategoryDetailByStaffTable: React.FC<CategoryDetailByStaffTableProps> = ({
 
             {/* Master Category Popover Dropdown */}
             {isDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-80 sm:w-96 bg-white border border-slate-200 shadow-2xl rounded-2xl p-3 z-[100] flex flex-col gap-2.5 max-h-[490px] animate-in fade-in zoom-in-95 duration-150">
-                {/* Search box */}
-                <div className="relative">
-                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 stroke-[2.5]" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Tìm nhanh ngành hàng..."
-                    className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 font-bold uppercase"
-                  />
-                  {searchTerm && (
-                    <button
-                      onClick={() => setSearchTerm('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-
-                {/* Nhóm lọc nhanh: TẤT CẢ, ICT, DỊCH VỤ, CE, THEO THI ĐUA */}
-                <div className="flex items-center gap-1.5 flex-wrap pt-0.5 pb-1.5 border-b border-slate-100 text-[10px] sm:text-[11px] font-black uppercase">
-                  <button
-                    type="button"
-                    onClick={() => handleSelectGroup('ALL')}
-                    className={cn(
-                      "px-2 py-1 rounded-lg uppercase tracking-wide border transition-all cursor-pointer",
-                      selectedCategories.length === dropdownCategories.length
-                        ? "bg-slate-800 text-white border-slate-800 shadow-xs"
-                        : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
-                    )}
-                  >
-                    TẤT CẢ ({dropdownCategories.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectGroup('ICT')}
-                    className="px-2 py-1 rounded-lg uppercase tracking-wide border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-all cursor-pointer shadow-xs"
-                  >
-                    ICT ({ictCategories.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectGroup('DỊCH VỤ')}
-                    className="px-2 py-1 rounded-lg uppercase tracking-wide border border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 transition-all cursor-pointer shadow-xs"
-                  >
-                    DỊCH VỤ ({dvCategories.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectGroup('CE')}
-                    className="px-2 py-1 rounded-lg uppercase tracking-wide border border-blue-300 bg-blue-50 text-blue-900 hover:bg-blue-100 transition-all cursor-pointer shadow-xs"
-                  >
-                    CE ({ceCategories.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectGroup('THI_DUA')}
-                    title="Lọc các ngành hàng đang bật ở TH Thi Đua"
-                    className="px-2 py-1 rounded-lg uppercase tracking-wide border border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100 transition-all cursor-pointer shadow-xs flex items-center gap-1"
-                  >
-                    <RotateCcw size={10} className="stroke-[2.5]" />
-                    <span>THEO THI ĐUA</span>
-                  </button>
-                </div>
-
-                {/* Quick actions: CHỌN TẤT CẢ, BỎ CHỌN */}
-                <div className="flex items-center justify-between px-1.5 py-0.5 text-[11px] font-black uppercase">
-                  <button
-                    type="button"
-                    onClick={handleSelectAll}
-                    className="text-emerald-700 hover:underline cursor-pointer font-bold"
-                  >
-                    CHỌN TẤT CẢ ({dropdownCategories.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDeselectAll}
-                    className="text-rose-600 hover:underline cursor-pointer font-black"
-                  >
-                    BỎ CHỌN HẾT
-                  </button>
-                </div>
-
-                {/* Category Checklist */}
-                <div className="overflow-y-auto flex flex-col gap-1 max-h-64 pr-1">
-                  {filteredDropdownCategories.map((cat) => {
-                    const isSelected = selectedCategoriesSet.has(cat);
-                    const grp = getCategoryGroupType(cat, categoryConfig);
-                    const badgeCls = grp === 'ICT'
-                      ? 'bg-amber-50 text-amber-800 border-amber-200/80'
-                      : (grp === 'DỊCH VỤ' ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80' : 'bg-sky-50 text-sky-800 border-sky-200/80');
-                    return (
-                      <div
-                        key={cat}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => toggleCategory(cat)}
-                        className={cn(
-                          "flex items-center justify-between px-2.5 py-1.5 text-[12px] sm:text-[12.5px] font-bold rounded-xl cursor-pointer transition-colors select-none text-left border",
-                          isSelected 
-                            ? "bg-emerald-50/70 border-emerald-200/60 text-emerald-900 shadow-2xs" 
-                            : "bg-white hover:bg-slate-50 border-transparent text-slate-700"
-                        )}
+              <>
+                <div 
+                  className="fixed inset-0 z-40 cursor-default" 
+                  onClick={() => setIsDropdownOpen(false)} 
+                />
+                <div className="absolute right-0 top-full mt-1.5 w-80 sm:w-96 bg-white border border-slate-200 shadow-2xl rounded-2xl p-3 z-50 flex flex-col gap-2.5 max-h-[490px] animate-in fade-in zoom-in-95 duration-150">
+                  {/* Search box */}
+                  <div className="relative">
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 stroke-[2.5]" />
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Tìm nhanh ngành hàng..."
+                      className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/30 font-bold uppercase"
+                    />
+                    {searchTerm && (
+                      <button
+                        onClick={() => setSearchTerm('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
                       >
-                        <div className="flex items-center gap-2.5 truncate pr-2 min-w-0">
-                          <div className={cn(
-                            "w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all shrink-0",
-                            isSelected
-                              ? "bg-emerald-600 border-emerald-600 text-white"
-                              : "border-slate-300 bg-white"
-                          )}>
-                            {isSelected && <Check size={11} className="stroke-[3px]" />}
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Nhóm lọc nhanh: TẤT CẢ, ICT, DỊCH VỤ, CE, THEO THI ĐUA */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5 pb-1.5 border-b border-slate-100 text-[10px] sm:text-[11px] font-black uppercase">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectGroup('ALL')}
+                      className={cn(
+                        "px-2 py-1 rounded-lg uppercase tracking-wide border transition-all cursor-pointer",
+                        selectedCategories.length === dropdownCategories.length
+                          ? "bg-slate-800 text-white border-slate-800 shadow-xs"
+                          : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
+                      )}
+                    >
+                      TẤT CẢ ({dropdownCategories.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectGroup('ICT')}
+                      className="px-2 py-1 rounded-lg uppercase tracking-wide border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-all cursor-pointer shadow-xs"
+                    >
+                      ICT ({ictCategories.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectGroup('DỊCH VỤ')}
+                      className="px-2 py-1 rounded-lg uppercase tracking-wide border border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 transition-all cursor-pointer shadow-xs"
+                    >
+                      DỊCH VỤ ({dvCategories.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectGroup('CE')}
+                      className="px-2 py-1 rounded-lg uppercase tracking-wide border border-blue-300 bg-blue-50 text-blue-900 hover:bg-blue-100 transition-all cursor-pointer shadow-xs"
+                    >
+                      CE ({ceCategories.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectGroup('THI_DUA')}
+                      title="Lọc các ngành hàng đang bật ở TH Thi Đua"
+                      className="px-2 py-1 rounded-lg uppercase tracking-wide border border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100 transition-all cursor-pointer shadow-xs flex items-center gap-1"
+                    >
+                      <RotateCcw size={10} className="stroke-[2.5]" />
+                      <span>THEO THI ĐUA</span>
+                    </button>
+                  </div>
+
+                  {/* Quick actions: CHỌN TẤT CẢ, BỎ CHỌN */}
+                  <div className="flex items-center justify-between px-1.5 py-0.5 text-[11px] font-black uppercase">
+                    <button
+                      type="button"
+                      onClick={handleSelectAll}
+                      className="text-emerald-700 hover:underline cursor-pointer font-bold"
+                    >
+                      CHỌN TẤT CẢ ({dropdownCategories.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeselectAll}
+                      className="text-rose-600 hover:underline cursor-pointer font-black"
+                    >
+                      BỎ CHỌN HẾT
+                    </button>
+                  </div>
+
+                  {/* Category Checklist */}
+                  <div className="overflow-y-auto flex flex-col gap-1 max-h-64 pr-1">
+                    {filteredDropdownCategories.map((cat) => {
+                      const isSelected = selectedCategoriesSet.has(cat);
+                      const grp = getCategoryGroupType(cat, categoryConfig);
+                      const badgeCls = grp === 'ICT'
+                        ? 'bg-amber-50 text-amber-800 border-amber-200/80'
+                        : (grp === 'DỊCH VỤ' ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80' : 'bg-sky-50 text-sky-800 border-sky-200/80');
+                      return (
+                        <label
+                          key={cat}
+                          className={cn(
+                            "flex items-center justify-between px-2.5 py-1.5 text-[12px] sm:text-[12.5px] font-bold rounded-xl cursor-pointer transition-colors select-none text-left border",
+                            isSelected 
+                              ? "bg-emerald-50/70 border-emerald-200/60 text-emerald-900 shadow-2xs" 
+                              : "bg-white hover:bg-slate-50 border-transparent text-slate-700"
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleCategory(cat)}
+                            className="hidden"
+                          />
+                          <div className="flex items-center gap-2.5 truncate pr-2 min-w-0">
+                            <div className={cn(
+                              "w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all shrink-0",
+                              isSelected
+                                ? "bg-emerald-600 border-emerald-600 text-white"
+                                : "border-slate-300 bg-white"
+                            )}>
+                              {isSelected && <Check size={11} className="stroke-[3px]" />}
+                            </div>
+                            <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider uppercase border shrink-0", badgeCls)}>
+                              {grp === 'DỊCH VỤ' ? 'DV' : grp}
+                            </span>
+                            <span className="truncate uppercase text-[11px] sm:text-[12px] font-black">{cat}</span>
                           </div>
-                          <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider uppercase border shrink-0", badgeCls)}>
-                            {grp === 'DỊCH VỤ' ? 'DV' : grp}
-                          </span>
-                          <span className="truncate uppercase text-[11px] sm:text-[12px] font-black">{cat}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {filteredDropdownCategories.length === 0 && (
-                    <p className="text-center text-sm text-slate-400 py-4 font-bold">Không tìm thấy ngành hàng phù hợp</p>
-                  )}
+                        </label>
+                      );
+                    })}
+                    {filteredDropdownCategories.length === 0 && (
+                      <p className="text-center text-sm text-slate-400 py-4 font-bold">Không tìm thấy ngành hàng phù hợp</p>
+                    )}
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
 

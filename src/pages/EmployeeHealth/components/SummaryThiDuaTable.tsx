@@ -1079,6 +1079,16 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   const isDvOnly = visibleCategories.length === dvCategories.length && dvCategories.length > 0 && dvCategories.every(c => visibleCategories.includes(c));
   const isCeOnly = visibleCategories.length === ceCategories.length && ceCategories.length > 0 && ceCategories.every(c => visibleCategories.includes(c));
 
+  // Save selected categories synchronously to localStorage
+  const saveCategoriesToStorage = (cats: string[]) => {
+    try {
+      const savedKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
+      localStorage.setItem(savedKey, JSON.stringify(cats));
+    } catch (e) {
+      console.error('Error saving visible categories:', e);
+    }
+  };
+
   // Initialize visible categories once when categories load or activeStore changes
   const initializedRef = useRef(false);
   const prevStoreRef = useRef(activeStore);
@@ -1091,15 +1101,18 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
   }, [activeStore]);
 
   React.useEffect(() => {
-    if (categories.length > 0) {
+    if (categories.length > 0 && !initializedRef.current) {
       const savedKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
       const savedVal = localStorage.getItem(savedKey);
-      if (savedVal !== null && !initializedRef.current) {
+      if (savedVal !== null) {
         try {
           const parsed = JSON.parse(savedVal);
           if (Array.isArray(parsed)) {
-            const validSaved = parsed.filter((c: string) => categories.includes(c));
-            if (validSaved.length > 0 || parsed.length === 0) {
+            const validSaved = categories.filter(cat => {
+              const clean = cleanCategoryName(cat);
+              return parsed.some((p: string) => p === cat || cleanCategoryName(p) === clean);
+            });
+            if (validSaved.length > 0) {
               setVisibleCategories(validSaved);
               initializedRef.current = true;
               return;
@@ -1109,66 +1122,42 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
           console.error('Error loading saved visible categories:', e);
         }
       }
-      if (!initializedRef.current) {
-        setVisibleCategories(categories);
-        initializedRef.current = true;
-      }
+      setVisibleCategories(categories);
+      initializedRef.current = true;
     }
   }, [categories, activeStore]);
 
-  // Save selected categories when selection changes
-  React.useEffect(() => {
-    if (initializedRef.current && categories.length > 0) {
-      const savedKey = `EH_VISIBLE_CATEGORIES_${activeStore || 'GLOBAL'}`;
-      try {
-        localStorage.setItem(savedKey, JSON.stringify(visibleCategories));
-      } catch (e) {
-        console.error('Error saving visible categories:', e);
-      }
-    }
-  }, [visibleCategories, categories, activeStore]);
-
-  // Close dropdown when clicking outside (safe against DOM node detachment during React re-renders)
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
-      const target = event.target as Node | null;
-      if (!target || !document.contains(target)) return;
-      if (catDropdownRef.current && !catDropdownRef.current.contains(target)) {
-        setIsCatDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-    };
-  }, []);
-
   const toggleCategory = (cat: string) => {
-    setVisibleCategories(prev =>
-      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
-    );
+    setVisibleCategories(prev => {
+      const next = prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat];
+      saveCategoriesToStorage(next);
+      return next;
+    });
   };
 
   const handleSelectAll = () => {
     setVisibleCategories([...categories]);
+    saveCategoriesToStorage([...categories]);
   };
 
   const handleDeselectAll = () => {
     setVisibleCategories([]);
+    saveCategoriesToStorage([]);
   };
 
   const handleSelectGroup = (group: 'ALL' | 'ICT' | 'DỊCH VỤ' | 'CE') => {
+    let next: string[] = [];
     if (group === 'ALL') {
-      setVisibleCategories([...categories]);
+      next = [...categories];
     } else if (group === 'ICT') {
-      setVisibleCategories([...ictCategories]);
+      next = [...ictCategories];
     } else if (group === 'DỊCH VỤ') {
-      setVisibleCategories([...dvCategories]);
+      next = [...dvCategories];
     } else if (group === 'CE') {
-      setVisibleCategories([...ceCategories]);
+      next = [...ceCategories];
     }
+    setVisibleCategories(next);
+    saveCategoriesToStorage(next);
   };
 
   const filteredCatList = categories.filter(cat =>
@@ -1554,132 +1543,141 @@ const SummaryThiDuaTable: React.FC<SummaryThiDuaTableProps> = ({
           </button>
 
           {isCatDropdownOpen && (
-            <div 
-              className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[100] p-3 flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-150"
-            >
-              {/* Search */}
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Tìm nhanh ngành hàng..."
-                  value={catSearchTerm}
-                  onChange={(e) => setCatSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500/30 outline-none uppercase"
-                />
-                {catSearchTerm && (
+            <>
+              <div 
+                className="fixed inset-0 z-40 cursor-default" 
+                onClick={() => setIsCatDropdownOpen(false)} 
+              />
+              <div 
+                className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 p-3 flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-150"
+              >
+                {/* Search */}
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Tìm nhanh ngành hàng..."
+                    value={catSearchTerm}
+                    onChange={(e) => setCatSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500/30 outline-none uppercase"
+                  />
+                  {catSearchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setCatSearchTerm('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Quick Selection Buttons */}
+                <div className="flex flex-wrap items-center gap-1.5 py-1 border-b border-slate-100 text-[10px] font-black uppercase">
                   <button
                     type="button"
-                    onClick={() => setCatSearchTerm('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                    onClick={handleSelectAll}
+                    className={cn(
+                      "px-2 py-1 rounded-lg transition-colors cursor-pointer",
+                      isAll ? "bg-emerald-600 text-white shadow-xs" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                    )}
                   >
-                    <X size={13} />
+                    Tất cả ({categories.length})
                   </button>
-                )}
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectGroup('ICT')}
+                    className={cn(
+                      "px-2 py-1 rounded-lg transition-colors cursor-pointer",
+                      isIctOnly ? "bg-amber-600 text-white shadow-xs" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                    )}
+                  >
+                    ICT ({ictCategories.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectGroup('DỊCH VỤ')}
+                    className={cn(
+                      "px-2 py-1 rounded-lg transition-colors cursor-pointer",
+                      isDvOnly ? "bg-emerald-600 text-white shadow-xs" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                    )}
+                  >
+                    Dịch Vụ ({dvCategories.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectGroup('CE')}
+                    className={cn(
+                      "px-2 py-1 rounded-lg transition-colors cursor-pointer",
+                      isCeOnly ? "bg-blue-600 text-white shadow-xs" : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    )}
+                  >
+                    CE & GD ({ceCategories.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeselectAll}
+                    className="px-2 py-1 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer ml-auto font-black"
+                  >
+                    Bỏ chọn hết
+                  </button>
+                </div>
 
-              {/* Quick Selection Buttons */}
-              <div className="flex flex-wrap items-center gap-1.5 py-1 border-b border-slate-100 text-[10px] font-black uppercase">
-                <button
-                  type="button"
-                  onClick={handleSelectAll}
-                  className={cn(
-                    "px-2 py-1 rounded-lg transition-colors cursor-pointer",
-                    isAll ? "bg-emerald-600 text-white shadow-xs" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                  )}
-                >
-                  Tất cả ({categories.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSelectGroup('ICT')}
-                  className={cn(
-                    "px-2 py-1 rounded-lg transition-colors cursor-pointer",
-                    isIctOnly ? "bg-amber-600 text-white shadow-xs" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
-                  )}
-                >
-                  ICT ({ictCategories.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSelectGroup('DỊCH VỤ')}
-                  className={cn(
-                    "px-2 py-1 rounded-lg transition-colors cursor-pointer",
-                    isDvOnly ? "bg-emerald-600 text-white shadow-xs" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                  )}
-                >
-                  Dịch Vụ ({dvCategories.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSelectGroup('CE')}
-                  className={cn(
-                    "px-2 py-1 rounded-lg transition-colors cursor-pointer",
-                    isCeOnly ? "bg-blue-600 text-white shadow-xs" : "bg-blue-50 text-blue-700 hover:bg-blue-100"
-                  )}
-                >
-                  CE & GD ({ceCategories.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeselectAll}
-                  className="px-2 py-1 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer ml-auto font-black"
-                >
-                  Bỏ chọn hết
-                </button>
-              </div>
+                {/* Checklist */}
+                <div className="max-h-72 overflow-y-auto flex flex-col gap-1 pr-1">
+                  {filteredCatList.map(cat => {
+                    const group = getCategoryGroupType(cat, categoryConfig);
+                    const isSelected = visibleCategories.includes(cat);
+                    const badgeColor = group === 'ICT' 
+                      ? 'bg-amber-50 text-amber-800 border-amber-200/80'
+                      : group === 'DỊCH VỤ'
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80'
+                        : 'bg-sky-50 text-sky-800 border-sky-200/80';
 
-              {/* Checklist */}
-              <div className="max-h-72 overflow-y-auto flex flex-col gap-1 pr-1">
-                {filteredCatList.map(cat => {
-                  const group = getCategoryGroupType(cat, categoryConfig);
-                  const isSelected = visibleCategories.includes(cat);
-                  const badgeColor = group === 'ICT' 
-                    ? 'bg-amber-50 text-amber-800 border-amber-200/80'
-                    : group === 'DỊCH VỤ'
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200/80'
-                      : 'bg-sky-50 text-sky-800 border-sky-200/80';
-
-                  return (
-                    <div
-                      key={cat}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => toggleCategory(cat)}
-                      className={cn(
-                        "flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl cursor-pointer transition-all select-none text-left border",
-                        isSelected 
-                          ? "bg-emerald-50/70 border-emerald-200/60 shadow-2xs" 
-                          : "bg-white hover:bg-slate-50 border-transparent text-slate-600"
-                      )}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className={cn(
-                          "w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all shrink-0",
-                          isSelected
-                            ? "bg-emerald-600 border-emerald-600 text-white"
-                            : "border-slate-300 bg-white"
-                        )}>
-                          {isSelected && <Check size={11} className="stroke-[3px]" />}
+                    return (
+                      <label
+                        key={cat}
+                        className={cn(
+                          "flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl cursor-pointer transition-all select-none text-left border",
+                          isSelected 
+                            ? "bg-emerald-50/70 border-emerald-200/60 shadow-2xs" 
+                            : "bg-white hover:bg-slate-50 border-transparent text-slate-600"
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleCategory(cat)}
+                          className="hidden"
+                        />
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={cn(
+                            "w-4 h-4 rounded-md border-2 flex items-center justify-center transition-all shrink-0",
+                            isSelected
+                              ? "bg-emerald-600 border-emerald-600 text-white"
+                              : "border-slate-300 bg-white"
+                          )}>
+                            {isSelected && <Check size={11} className="stroke-[3px]" />}
+                          </div>
+                          <span className={cn(
+                            "text-[11px] font-black uppercase tracking-tight truncate",
+                            isSelected ? "text-emerald-900" : "text-slate-700"
+                          )}>
+                            {cat}
+                          </span>
                         </div>
-                        <span className={cn(
-                          "text-[11px] font-black uppercase tracking-tight truncate",
-                          isSelected ? "text-emerald-900" : "text-slate-700"
-                        )}>
-                          {cat}
+                        <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded border uppercase shrink-0", badgeColor)}>
+                          {group === 'DỊCH VỤ' ? 'DV' : group === 'CE' ? 'CE & GD' : group}
                         </span>
-                      </div>
-                      <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded border uppercase shrink-0", badgeColor)}>
-                        {group === 'DỊCH VỤ' ? 'DV' : group === 'CE' ? 'CE & GD' : group}
-                      </span>
-                    </div>
-                  );
-                })}
-                {filteredCatList.length === 0 && (
-                  <p className="text-center text-xs text-slate-400 py-6 font-bold">Không tìm thấy ngành hàng</p>
-                )}
+                      </label>
+                    );
+                  })}
+                  {filteredCatList.length === 0 && (
+                    <p className="text-center text-xs text-slate-400 py-6 font-bold">Không tìm thấy ngành hàng</p>
+                  )}
+                </div>
               </div>
-            </div>
+            </>
           )}
         </div>
       </div>
