@@ -2891,21 +2891,30 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
     const idxStaff = getStaffIdx(headers);
     const idxQty = findIdx(['số lượng xuất', 'số lượng bán', 'số lượng xuất bán', 'số lượng', 'sl xuất', 'sl bán'], -1);
-    // Ưu tiên tuyệt đối cột "Giá bán_1" / "Giá bán 1" từ dữ liệu nguồn
-    const idxRevenue = (() => {
-      const giaBan1Idx = headers.findIndex(h => {
+    // Cột Giá bán = cột AK (index 36), Cột Giá bán 2 = cột AL (index 37)
+    const idxGiaBan = (() => {
+      const exact = headers.findIndex(h => {
         const norm = removeAccents(String(h || '')).toLowerCase().trim().replace(/\s+/g, ' ');
-        return norm === 'gia ban_1' || norm === 'gia ban 1' || norm === 'giaban_1' || (norm.includes('gia ban') && norm.includes('1'));
+        return norm === 'gia ban' || norm === 'giaban' || norm === 'gia ban_1' || norm === 'gia ban 1' || (norm.includes('gia ban') && !norm.includes('2'));
       });
-      if (giaBan1Idx !== -1) return giaBan1Idx;
-      const giaBanIdx = headers.findIndex(h => {
-        const norm = removeAccents(String(h || '')).toLowerCase().trim();
-        return norm === 'gia ban' || norm === 'giaban';
-      });
-      if (giaBanIdx !== -1) return giaBanIdx;
-      return findIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá bán', 'giá trị đh', 'giá trị'], -1);
+      if (exact !== -1) return exact;
+      return 36; // Cột AK (Index 36)
     })();
-    console.log('[DrillDown] idxRevenue:', idxRevenue, '| Header:', headers[idxRevenue]);
+
+    const idxGiaBan2 = (() => {
+      const exact = headers.findIndex(h => {
+        const norm = removeAccents(String(h || '')).toLowerCase().trim().replace(/\s+/g, ' ');
+        return norm === 'gia ban_2' || norm === 'gia ban 2' || norm === 'giaban_2' || norm === 'giaban 2' || (norm.includes('gia ban') && norm.includes('2'));
+      });
+      if (exact !== -1) return exact;
+      return 37; // Cột AL (Index 37)
+    })();
+
+    const idxRevenue = (() => {
+      if (idxGiaBan !== -1 && idxGiaBan < headers.length) return idxGiaBan;
+      return findIdx(['gia ban', 'doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá trị đh', 'giá trị'], 36);
+    })();
+    console.log('[DrillDown] idxRevenue:', idxRevenue, '| idxGiaBan2:', idxGiaBan2);
     const idxCategory = findIdx(['nhóm hàng', 'tên nhóm hàng', 'ngành hàng', 'nhóm ngành hàng'], -1);
     const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ'], -1);
     const idxHinhThucXuat = findIdx(['hình thức xuất', 'loại ycx', 'loại yêu cầu', 'phân loại ycx'], -1);
@@ -3075,7 +3084,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
       const rawQty = idxQty !== -1 ? Math.round(parseFloat(String(row[idxQty] || '1').replace(/,/g, '')) || 0) : 1;
       const qty = rawQty > 0 ? rawQty : 1;
-      const revenue = idxRevenue !== -1 ? Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0) : 0;
+      const rawRev = idxRevenue !== -1 ? Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0) : 0;
+      const rawRev2 = idxGiaBan2 !== -1 ? Math.round(parseFloat(String(row[idxGiaBan2] || '0').replace(/,/g, '')) || 0) : 0;
+      const revenue = rawRev > 0 ? rawRev : rawRev2;
 
       if (!isSystemRow) {
         // ── Air-con stats ──
@@ -4300,12 +4311,13 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
       return idx !== -1 ? idx : 28;
     })();
     const idxSmallCategoryHeader = headers.findIndex(h => h.toLowerCase().includes('nhóm hàng nhỏ'));
+    // Cột Ngành hàng = cột AN (index 39)
     const idxNganhHang = (() => {
       const idx = headers.findIndex(h => {
         const norm = removeAccents(h).toLowerCase();
         return (norm.includes('nganh hang') && !norm.includes('lon')) || norm.includes('nhom nganh hang');
       });
-      return idx !== -1 ? idx : -1;
+      return idx !== -1 ? idx : 39; // Cột AN (Index 39)
     })();
     const idxNhomHang = (() => {
       const exactNhom = headers.findIndex(h => {
@@ -4782,22 +4794,27 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
     const idxStaff = getStaffIdx(headers);
     const idxQty = findIdx(['số lượng', 'sl'], -1);
-    // Ưu tiên tuyệt đối cột "Giá bán_1" / "Giá bán 1" từ dữ liệu nguồn cho DT THỰC
-    const idxRevenue = (() => {
-      const giaBan1Idx = headers.findIndex(h => {
+    // Cột Giá bán = cột AK (index 36), Cột Giá bán 2 = cột AL (index 37)
+    const idxGiaBan = (() => {
+      const exact = headers.findIndex(h => {
         const norm = removeAccents(String(h || '')).toLowerCase().trim().replace(/\s+/g, ' ');
-        return norm === 'gia ban_1' || norm === 'gia ban 1' || norm === 'giaban_1' || (norm.includes('gia ban') && norm.includes('1'));
+        return norm === 'gia ban' || norm === 'giaban' || norm === 'gia ban_1' || norm === 'gia ban 1' || (norm.includes('gia ban') && !norm.includes('2'));
       });
-      if (giaBan1Idx !== -1) return giaBan1Idx;
-      const giaBanIdx = headers.findIndex(h => {
-        const norm = removeAccents(String(h || '')).toLowerCase().trim();
-        return norm === 'gia ban' || norm === 'giaban';
-      });
-      if (giaBanIdx !== -1) return giaBanIdx;
-      return findIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá bán', 'giá trị đh', 'giá trị'], -1);
+      if (exact !== -1) return exact;
+      return 36; // Cột AK (Index 36)
     })();
-    console.log('[KhaiThac] idxRevenue:', idxRevenue, '| Header:', headers[idxRevenue]);
-    const idxNganhHang = findIdx(['ngành hàng', 'nganh hang', 'tên ngành hàng', 'ten nganh hang', 'mã ngành hàng', 'nhóm ngành hàng'], -1);
+    const idxGiaBan2 = (() => {
+      const exact = headers.findIndex(h => {
+        const norm = removeAccents(String(h || '')).toLowerCase().trim().replace(/\s+/g, ' ');
+        return norm === 'gia ban_2' || norm === 'gia ban 2' || norm === 'giaban_2' || norm === 'giaban 2' || (norm.includes('gia ban') && norm.includes('2'));
+      });
+      if (exact !== -1) return exact;
+      return 37; // Cột AL (Index 37)
+    })();
+    const idxRevenue = idxGiaBan !== -1 ? idxGiaBan : 36;
+    console.log('[KhaiThac] idxRevenue:', idxRevenue, '| idxGiaBan2:', idxGiaBan2);
+    // Cột Ngành hàng = cột AN (index 39)
+    const idxNganhHang = findIdx(['ngành hàng', 'nganh hang', 'tên ngành hàng', 'ten nganh hang', 'mã ngành hàng', 'nhóm ngành hàng'], 39);
     const idxCategory = findIdx(['nhóm hàng', 'tên nhóm hàng', 'ngành hàng', 'nhóm ngành hàng'], -1);
     const idxNhomHang = findIdx(['nhóm hàng', 'nhom hang', 'tên nhóm hàng', 'ten nhom hang'], -1);
     const idxSmallCat = findIdx(['nhóm hàng nhỏ', 'tên nhóm nhỏ'], -1);
@@ -4997,7 +5014,9 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
 
       const rawQty = idxQty !== -1 ? Math.round(parseFloat(String(row[idxQty] || '1').replace(/,/g, '')) || 0) : 1;
       const qty = rawQty > 0 ? rawQty : 1;
-      const revenue = idxRevenue !== -1 ? Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0) : 0;
+      const rawRev = idxRevenue !== -1 ? Math.round(parseFloat(String(row[idxRevenue] || '0').replace(/,/g, '')) || 0) : 0;
+      const rawRev2 = idxGiaBan2 !== -1 ? Math.round(parseFloat(String(row[idxGiaBan2] || '0').replace(/,/g, '')) || 0) : 0;
+      const revenue = rawRev > 0 ? rawRev : rawRev2;
 
       if (!statsMap.has(staffName)) {
         const match = staffName.match(/^(\d+)/);
@@ -5495,7 +5514,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
     const idxProduct = findIdx(['tên sản phẩm', 'tên hàng', 'sản phẩm'], -1);
     const idxProductCode = findIdx(['mã sản phẩm', 'mã sp', 'mã hàng'], -1);
     const idxNhomHang = findIdx(['nhóm hàng', 'nhóm sản phẩm'], -1);
-    const idxNganhHang = findIdx(['ngành hàng', 'nhóm ngành hàng', 'tên nhóm hàng'], -1);
+    const idxNganhHang = findIdx(['ngành hàng', 'nhóm ngành hàng', 'tên nhóm hàng'], 39); // Cột AN (Index 39)
     const idxCustomerName = findIdx(['khách hàng', 'tên kh', 'tên khách hàng', 'người mua'], -1);
     const idxTrangThaiHoSo = findIdx(['trạng thái hồ sơ', 'trạng thái xuất', 'trạng thái'], -1);
 
@@ -10219,7 +10238,7 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                                       const norm = removeAccents(h).toLowerCase();
                                       return (norm.includes('nganh hang') && !norm.includes('lon')) || norm.includes('nhom nganh hang');
                                     });
-                                    return idx !== -1 ? idx : -1;
+                                    return idx !== -1 ? idx : 39; // Cột AN (Index 39)
                                   })();
                                   const idxNhomHang = (() => {
                                     const exactNhom = headers.findIndex(h => {

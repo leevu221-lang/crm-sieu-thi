@@ -811,24 +811,54 @@ export const parseYcxData = (data: string): YcxStaffData[] => {
   const idxStatus = getIdx(['trạng thái xuất']);
   const idxStaffName = getIdx(['nhân viên bán hàng', 'người tạo', 'nhân viên', 'tên nhân viên', 'người bán', 'tên nv', 'người thực hiện', 'user tạo']); // Ưu tiên cột "Nhân viên bán hàng"
   const idxStaffId = getIdx(['user tạo']);
-  const idxRevenue = getIdx(['doanh thu', 'thành tiền', 'giá bán', 'phải thu', 'tổng tiền']);
+  // 1. Cột Giá bán = cột AK (index 36)
+  const idxRevenue = (() => {
+    const giaBanIdx = header.findIndex(h => {
+      const norm = removeAccentsLocal(h).toLowerCase().trim().replace(/\s+/g, ' ');
+      return norm === 'gia ban' || norm === 'giaban' || norm === 'gia ban_1' || norm === 'gia ban 1' || (norm.includes('gia ban') && !norm.includes('2'));
+    });
+    if (giaBanIdx !== -1) return giaBanIdx;
+    return getIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền']);
+  })();
+
+  // 2. Cột Giá bán 2 = cột AL (index 37)
+  const idxGiaBan2 = header.findIndex(h => {
+    const norm = removeAccentsLocal(h).toLowerCase().trim().replace(/\s+/g, ' ');
+    return norm === 'gia ban_2' || norm === 'gia ban 2' || norm === 'giaban_2' || norm === 'giaban 2' || (norm.includes('gia ban') && norm.includes('2'));
+  });
+
   const idxProduct = getIdx(['tên sản phẩm', 'sản phẩm', 'tên hàng']);
   const idxQty = getIdx(['số lượng', 'sl']);
   const idxMarket = getIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm']);
   const idxReturnStatus = getIdx(['trạng thái trả', 'trả hàng', 'tình trạng nhập trả', 'nhập trả']);
-  const idxColumnAO = getIdx(['nhóm ngành hàng', 'nhóm hàng', 'ngành hàng', 'nhóm']);
+  const idxColumnAO = getIdx(['nhóm ngành hàng', 'nhóm hàng', 'nhóm']);
+
+  // 3. Cột Ngành hàng = cột AN (index 39)
+  const idxNganhHang = (() => {
+    const exact = header.findIndex(h => {
+      const norm = removeAccentsLocal(h).toLowerCase().trim();
+      return norm === 'nganh hang' || norm === 'nganh hang lon';
+    });
+    if (exact !== -1) return exact;
+    return header.findIndex(h => {
+      const norm = removeAccentsLocal(h).toLowerCase().trim();
+      return (norm.includes('nganh hang') && !norm.includes('lon')) || norm.includes('nhom nganh hang');
+    });
+  })();
 
   // Fallback indices if header not found
   const colType = idxType !== -1 ? idxType : 3;
   const colStatus = idxStatus !== -1 ? idxStatus : 13;
   const colStaffName = idxStaffName !== -1 ? idxStaffName : 23; // Cột X (Index 23)
   const colStaffId = idxStaffId !== -1 ? idxStaffId : 22; // Cột W (Index 22)
-  const colRevenue = idxRevenue !== -1 ? idxRevenue : 37;
+  const colRevenue = idxRevenue !== -1 ? idxRevenue : 36; // Cột AK (Index 36)
+  const colGiaBan2 = idxGiaBan2 !== -1 ? idxGiaBan2 : 37; // Cột AL (Index 37)
   const colProduct = idxProduct !== -1 ? idxProduct : 33;
   const colQty = idxQty !== -1 ? idxQty : 35;
   const colMarket = idxMarket !== -1 ? idxMarket : 1;
   const colReturnStatus = idxReturnStatus !== -1 ? idxReturnStatus : 44; // Cột AS (Index 44)
-  const colColumnAO = idxColumnAO !== -1 ? idxColumnAO : 40;
+  const colColumnAO = idxColumnAO !== -1 ? idxColumnAO : 40; // Cột AO (Index 40)
+  const colNganhHang = idxNganhHang !== -1 ? idxNganhHang : 39; // Cột AN (Index 39)
 
   const startIdx = headerIdx !== -1 ? headerIdx + 1 : 1;
 
@@ -866,6 +896,12 @@ export const parseYcxData = (data: string): YcxStaffData[] => {
     const staffIdRaw = String(cols[colStaffId] || '').trim();
     const productName = String(cols[colProduct] || "Sản phẩm không tên").trim();
     const revenueStr = String(cols[colRevenue] || '0').replace(/,/g, '');
+    let revenueVal = parseFloat(revenueStr) || 0;
+    if (revenueVal === 0 && colGiaBan2 !== -1) {
+      const revenueStr2 = String(cols[colGiaBan2] || '0').replace(/,/g, '');
+      const val2 = parseFloat(revenueStr2) || 0;
+      if (val2 > 0) revenueVal = val2;
+    }
     const quantityStr = String(cols[colQty] || '0').replace(/,/g, '');
     const quantity = Math.round(parseFloat(quantityStr) || 0);
 
@@ -923,8 +959,8 @@ export const parseYcxData = (data: string): YcxStaffData[] => {
     const isExported = !status.includes('hủy') && !status.includes('huy') && status !== 'đã trả';
     const isNotReturned = returnStatus === 'chưa trả' || returnStatus === '' || !returnStatus.includes('đã trả');
 
-    if (isSales && isExported && isNotReturned && staff && revenueStr) {
-       const revenue = Math.round(parseFloat(revenueStr) || 0);
+    if (isSales && isExported && isNotReturned && staff && (revenueVal > 0 || revenueStr)) {
+       const revenue = Math.round(revenueVal);
        if (revenue < 0) continue;
        
        let isInstallment = false;

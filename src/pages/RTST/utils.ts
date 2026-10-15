@@ -2366,18 +2366,39 @@ export const minifyYcxData = (data: string): string => {
   const idxStatus = getIdx(['trạng thái xuất', 'trạng thái ycx', 'trạng thái', 'tình trạng xuất', 'tình trạng đơn', 'trạng thái đơn', 'tình trạng']);
   const idxStaffName = getIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người lập', 'user lập', 'nv tạo', 'người thực hiện']); 
   const idxStaffId = getIdx(['user tạo', 'mã nv', 'mã nhân viên', 'id nhân viên']);
+  // 1. Cột Giá bán = cột AK (index 36)
   const idxRevenue = (() => {
-    const giaBan1Idx = header.findIndex(h => {
+    const giaBanIdx = header.findIndex(h => {
       const norm = removeAccents(h).toLowerCase().trim().replace(/\s+/g, ' ');
-      return (norm.includes('gia ban') && norm.includes('1')) || norm === 'gia ban_1' || norm === 'gia ban 1';
+      return norm === 'gia ban' || norm === 'giaban' || norm === 'gia ban_1' || norm === 'gia ban 1' || (norm.includes('gia ban') && !norm.includes('2'));
     });
-    if (giaBan1Idx !== -1) return giaBan1Idx;
-    return getIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá trị', 'số tiền', 'tổng cộng', 'tiền', 'giá bán']);
+    if (giaBanIdx !== -1) return giaBanIdx;
+    return getIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá trị', 'số tiền', 'tổng cộng', 'tiền']);
   })();
+
+  // 2. Cột Giá bán 2 = cột AL (index 37)
+  const idxGiaBan2 = header.findIndex(h => {
+    const norm = removeAccents(h).toLowerCase().trim().replace(/\s+/g, ' ');
+    return norm === 'gia ban_2' || norm === 'gia ban 2' || norm === 'giaban_2' || norm === 'giaban 2' || (norm.includes('gia ban') && norm.includes('2'));
+  });
+
+  // 3. Cột Ngành hàng = cột AN (index 39)
+  const idxNganhHang = (() => {
+    const exact = header.findIndex(h => {
+      const norm = removeAccents(h).toLowerCase().trim();
+      return norm === 'nganh hang' || norm === 'nganh hang lon';
+    });
+    if (exact !== -1) return exact;
+    return header.findIndex(h => {
+      const norm = removeAccents(h).toLowerCase().trim();
+      return (norm.includes('nganh hang') && !norm.includes('lon')) || norm.includes('nhom nganh hang');
+    });
+  })();
+
   const idxProduct = getIdx(['tên sản phẩm', 'sản phẩm', 'tên hàng', 'hàng hóa']);
   const idxQty = getIdx(['số lượng', 'sl', 'quantity']);
   const idxMarket = getIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm', 'kho', 'cửa hàng']);
-  const idxColumnAO = getIdx(['nhóm ngành hàng', 'nhóm hàng', 'ngành hàng', 'nhóm']);
+  const idxColumnAO = getIdx(['nhóm ngành hàng', 'nhóm hàng', 'nhóm']);
   const idxReturnStatus = getIdx(['trạng thái trả', 'trả hàng', 'tình trạng nhập trả', 'nhập trả']);
 
   const colType = idxType !== -1 ? idxType : 3;
@@ -2385,11 +2406,13 @@ export const minifyYcxData = (data: string): string => {
   const colStatus = idxStatus;
   const colStaffName = idxStaffName !== -1 ? idxStaffName : 23;
   const colStaffId = idxStaffId !== -1 ? idxStaffId : 22;
-  const colRevenue = idxRevenue !== -1 ? idxRevenue : 37;
+  const colRevenue = idxRevenue !== -1 ? idxRevenue : 36; // Cột AK (Index 36)
+  const colGiaBan2 = idxGiaBan2 !== -1 ? idxGiaBan2 : 37; // Cột AL (Index 37)
+  const colNganhHang = idxNganhHang !== -1 ? idxNganhHang : 39; // Cột AN (Index 39)
   const colProduct = idxProduct !== -1 ? idxProduct : 33;
   const colQty = idxQty !== -1 ? idxQty : 35;
   const colMarket = idxMarket !== -1 ? idxMarket : 1;
-  const colColumnAO = idxColumnAO !== -1 ? idxColumnAO : 40;
+  const colColumnAO = idxColumnAO !== -1 ? idxColumnAO : 40; // Cột AO (Index 40)
   const colReturnStatus = idxReturnStatus;
 
   const idxMaYcx = getIdx(['mã ycx', 'mã đơn', 'mã đơn hàng', 'mã phiếu', 'số phiếu', 'ycx']);
@@ -2406,6 +2429,8 @@ export const minifyYcxData = (data: string): string => {
   // Các cột phục vụ tính toán YCX Mới
   const idxDtqdCol = getIdx(['doanh thu qđ', 'doanh thu qd', 'dt qd', 'dt quy doi']);
   const idxDtThucCol = getIdx(['doanh thu (-r)']);
+  const idxImei = getIdx(['imei', 'so imei', 'seri', 'serial']);
+  const idxCtkm = getIdx(['ctkm', 'khuyen mai', 'chuong trinh khuyen mai', 'ctkm_1']);
 
   const colMaYcx = idxMaYcx !== -1 ? idxMaYcx : 0;
   const colNgayTao = idxNgayTao !== -1 ? idxNgayTao : 2;
@@ -2415,10 +2440,11 @@ export const minifyYcxData = (data: string): string => {
   // Lọc ra danh sách các cột cần giữ lại nội dung
   const essentialCols = [
     colType, colMethod, colStatus, colStaffName, colStaffId,
-    colRevenue, colProduct, colQty, colMarket, colColumnAO, colReturnStatus,
+    colRevenue, colGiaBan2, colNganhHang, colProduct, colQty, colMarket, colColumnAO, colReturnStatus,
     colMaYcx, colNgayTao, colKhachHang, colDienThoai,
     idxSmallCat, idxProductCode, idxNhaSanXuat, idxThuTien,
-    idxDtqdCol, idxDtThucCol
+    idxDtqdCol, idxDtThucCol, idxImei, idxCtkm,
+    35, 36, 37, 38, 39, 40 // Cố định giữ các cột: AJ (IMEI), AK (GIÁ BÁN), AL (GIÁ BÁN_2), AM (CTKM), AN (NGÀNH HÀNG), AO (NHÓM HÀNG)
   ];
   const keepIndices = new Set(essentialCols.filter(i => i !== -1 && i !== undefined));
 
@@ -2573,22 +2599,38 @@ export const parseYcxData = (data: string, customQuyDoiRules?: any[]): YcxStaffD
   const idxMethod = getIdx(['hình thức xuất']);
   const idxStatus = getIdx(['trạng thái xuất', 'trạng thái ycx', 'trạng thái', 'tình trạng xuất', 'tình trạng đơn', 'trạng thái đơn', 'tình trạng']);
   const idxStaffName = getIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người lập', 'user lập', 'nv tạo', 'người thực hiện']); 
+  // 1. Cột Giá bán = cột AK (index 36)
   const idxRevenue = (() => {
-    const giaBan1Idx = header.findIndex(h => {
+    const giaBanIdx = header.findIndex(h => {
       const norm = removeAccents(h).toLowerCase().trim().replace(/\s+/g, ' ');
-      return (norm.includes('gia ban') && norm.includes('1')) || norm === 'gia ban_1' || norm === 'gia ban 1';
+      return norm === 'gia ban' || norm === 'giaban' || norm === 'gia ban_1' || norm === 'gia ban 1' || (norm.includes('gia ban') && !norm.includes('2'));
     });
-    if (giaBan1Idx !== -1) return giaBan1Idx;
-    return getIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá trị', 'số tiền', 'tổng cộng', 'tiền', 'giá bán']);
+    if (giaBanIdx !== -1) return giaBanIdx;
+    return getIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá trị', 'số tiền', 'tổng cộng', 'tiền']);
   })();
+
+  // 2. Cột Giá bán 2 = cột AL (index 37)
+  const idxGiaBan2 = header.findIndex(h => {
+    const norm = removeAccents(h).toLowerCase().trim().replace(/\s+/g, ' ');
+    return norm === 'gia ban_2' || norm === 'gia ban 2' || norm === 'giaban_2' || norm === 'giaban 2' || (norm.includes('gia ban') && norm.includes('2'));
+  });
+
   const idxProduct = getIdx(['tên sản phẩm', 'sản phẩm', 'tên hàng', 'hàng hóa']);
   const idxQty = getIdx(['số lượng', 'sl', 'quantity']);
   const idxMarket = getIdx(['mã kho tạo', 'mã kho', 'siêu thị', 'tên kho', 'địa điểm', 'kho', 'cửa hàng']);
-  const idxColumnAO = getIdx(['nhóm ngành hàng', 'nhóm hàng', 'ngành hàng', 'nhóm']);
+  const idxColumnAO = getIdx(['nhóm ngành hàng', 'nhóm hàng', 'nhóm']);
+
+  // 3. Cột Ngành hàng = cột AN (index 39)
   const idxNganhHang = (() => {
-    const exact = header.findIndex(h => h === 'ngành hàng' || h === 'nganh hang' || h === 'ngành hàng lớn' || h === 'nganh hang lon');
+    const exact = header.findIndex(h => {
+      const norm = removeAccents(h).toLowerCase().trim();
+      return norm === 'nganh hang' || norm === 'nganh hang lon';
+    });
     if (exact !== -1) return exact;
-    return header.findIndex(h => h.includes('ngành hàng') || h.includes('nganh hang') || h.includes('ngành') || h.includes('nganh'));
+    return header.findIndex(h => {
+      const norm = removeAccents(h).toLowerCase().trim();
+      return (norm.includes('nganh hang') && !norm.includes('lon')) || norm.includes('nhom nganh hang');
+    });
   })();
   const idxNhomHang = (() => {
     const exact = header.findIndex(h => h === 'nhóm hàng' || h === 'nhom hang' || h === 'nhóm ngành hàng' || h === 'nhom nganh hang' || h === 'nhóm hàng nhỏ' || h === 'nhom hang nho');
@@ -2600,20 +2642,21 @@ export const parseYcxData = (data: string, customQuyDoiRules?: any[]): YcxStaffD
   const idxCustomerName = getIdx(['tên khách hàng', 'khách hàng', 'tên kh']);
   const idxCustomerPhone = getIdx(['điện thoại', 'số điện thoại', 'sđt', 'phone']);
 
-  console.log('[parseYcxData] Column indices detected:', { idxStaffName, idxRevenue, idxMarket, idxStatus, idxType, idxMethod, idxOrderId, idxNganhHang, idxNhomHang });
+  console.log('[parseYcxData] Column indices detected:', { idxStaffName, idxRevenue, idxGiaBan2, idxMarket, idxStatus, idxType, idxMethod, idxOrderId, idxNganhHang, idxNhomHang });
 
   // Fallback indices if header not found
   const colType = idxType;
   const colMethod = idxMethod;
   const colStatus = idxStatus;
   const colStaffName = idxStaffName;
-  const colRevenue = idxRevenue;
+  const colRevenue = idxRevenue !== -1 ? idxRevenue : 36; // Cột AK (Index 36)
+  const colGiaBan2 = idxGiaBan2 !== -1 ? idxGiaBan2 : 37; // Cột AL (Index 37)
   const colProduct = idxProduct;
   const colQty = idxQty;
   const colMarket = idxMarket;
-  const colColumnAO = idxColumnAO;
-  const colNganhHang = idxNganhHang;
-  const colNhomHang = idxNhomHang;
+  const colColumnAO = idxColumnAO !== -1 ? idxColumnAO : 40; // Cột AO (Index 40)
+  const colNganhHang = idxNganhHang !== -1 ? idxNganhHang : 39; // Cột AN (Index 39)
+  const colNhomHang = idxNhomHang !== -1 ? idxNhomHang : 40;
   const colReturnStatus = idxReturnStatus;
   const colOrderId = idxOrderId;
   const colCustomerName = idxCustomerName;
@@ -2773,7 +2816,12 @@ export const parseYcxData = (data: string, customQuyDoiRules?: any[]): YcxStaffD
     
     const rowString = cols.join(' ').toLowerCase().replace(/\//g, ' ');
     
-    const revenueValue = parseFloat(revenueStr) || 0;
+    let revenueValue = parseFloat(revenueStr) || 0;
+    if (revenueValue === 0 && colGiaBan2 !== -1) {
+      const revenueStr2 = String(cols[colGiaBan2] || '0').replace(/,/g, '');
+      const val2 = parseFloat(revenueStr2) || 0;
+      if (val2 > 0) revenueValue = val2;
+    }
     const hasStaff = Boolean(finalStaffName);
     const hasRevenue = !isNaN(revenueValue) && revenueValue >= 0;
     
@@ -2997,21 +3045,37 @@ export const parseYcxRankData = (data: string, customQuyDoiRules?: any[]): YcxRa
   const idxStatus = getIdx(['trạng thái xuất']);
   const idxStaffName = getIdx(['người tạo', 'user tạo', 'tên người tạo', 'mã/tên người tạo', 'tên nhân viên bán hàng', 'nhân viên bán hàng', 'user bán hàng', 'nv bán hàng', 'tên nhân viên', 'tên nv', 'nhân viên', 'người bán', 'người lập', 'user lập', 'nv tạo', 'người thực hiện']); 
   const idxStaffId = getIdx(['user tạo', 'mã nv', 'mã nhân viên', 'id nhân viên']);
+  // 1. Cột Giá bán = cột AK (index 36)
   const idxRevenue = (() => {
-    const giaBan1Idx = header.findIndex(h => {
+    const giaBanIdx = header.findIndex(h => {
       const norm = removeAccents(h).toLowerCase().trim().replace(/\s+/g, ' ');
-      return (norm.includes('gia ban') && norm.includes('1')) || norm === 'gia ban_1' || norm === 'gia ban 1';
+      return norm === 'gia ban' || norm === 'giaban' || norm === 'gia ban_1' || norm === 'gia ban 1' || (norm.includes('gia ban') && !norm.includes('2'));
     });
-    if (giaBan1Idx !== -1) return giaBan1Idx;
-    return getIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá trị', 'số tiền', 'tổng cộng', 'tiền', 'giá bán']);
+    if (giaBanIdx !== -1) return giaBanIdx;
+    return getIdx(['doanh thu', 'thành tiền', 'phải thu', 'tổng tiền', 'giá trị', 'số tiền', 'tổng cộng', 'tiền']);
   })();
+
+  // 2. Cột Giá bán 2 = cột AL (index 37)
+  const idxGiaBan2 = header.findIndex(h => {
+    const norm = removeAccents(h).toLowerCase().trim().replace(/\s+/g, ' ');
+    return norm === 'gia ban_2' || norm === 'gia ban 2' || norm === 'giaban_2' || norm === 'giaban 2' || (norm.includes('gia ban') && norm.includes('2'));
+  });
+
   const idxProduct = getIdx(['tên sản phẩm', 'sản phẩm', 'tên hàng', 'hàng hóa']);
   const idxReturnStatus = getIdx(['trạng thái trả', 'trả hàng', 'tình trạng nhập trả', 'nhập trả']);
-  const idxColumnAO = getIdx(['nhóm ngành hàng', 'nhóm hàng', 'ngành hàng', 'nhóm']);
+  const idxColumnAO = getIdx(['nhóm ngành hàng', 'nhóm hàng', 'nhóm']);
+
+  // 3. Cột Ngành hàng = cột AN (index 39)
   const idxNganhHang = (() => {
-    const exact = header.findIndex(h => h === 'ngành hàng' || h === 'nganh hang' || h === 'ngành hàng lớn' || h === 'nganh hang lon');
+    const exact = header.findIndex(h => {
+      const norm = removeAccents(h).toLowerCase().trim();
+      return norm === 'nganh hang' || norm === 'nganh hang lon';
+    });
     if (exact !== -1) return exact;
-    return header.findIndex(h => h.includes('ngành hàng') || h.includes('nganh hang') || h.includes('ngành') || h.includes('nganh'));
+    return header.findIndex(h => {
+      const norm = removeAccents(h).toLowerCase().trim();
+      return (norm.includes('nganh hang') && !norm.includes('lon')) || norm.includes('nhom nganh hang');
+    });
   })();
   const idxNhomHang = (() => {
     const exact = header.findIndex(h => h === 'nhóm hàng' || h === 'nhom hang' || h === 'nhóm ngành hàng' || h === 'nhom nganh hang' || h === 'nhóm hàng nhỏ' || h === 'nhom hang nho');
@@ -3024,12 +3088,13 @@ export const parseYcxRankData = (data: string, customQuyDoiRules?: any[]): YcxRa
   const colStatus = idxStatus !== -1 ? idxStatus : 13;
   const colStaffName = idxStaffName !== -1 ? idxStaffName : 23; // Cột X (Index 23)
   const colStaffId = idxStaffId !== -1 ? idxStaffId : 22;   // Cột W (Index 22)
-  const colRevenue = idxRevenue !== -1 ? idxRevenue : 37;
+  const colRevenue = idxRevenue !== -1 ? idxRevenue : 36; // Cột AK (Index 36)
+  const colGiaBan2 = idxGiaBan2 !== -1 ? idxGiaBan2 : 37; // Cột AL (Index 37)
   const colProduct = idxProduct !== -1 ? idxProduct : 33;
   const colReturnStatus = idxReturnStatus !== -1 ? idxReturnStatus : 44; // Cột AS (Index 44)
-  const colColumnAO = idxColumnAO !== -1 ? idxColumnAO : 40;
-  const colNganhHang = idxNganhHang;
-  const colNhomHang = idxNhomHang;
+  const colColumnAO = idxColumnAO !== -1 ? idxColumnAO : 40; // Cột AO (Index 40)
+  const colNganhHang = idxNganhHang !== -1 ? idxNganhHang : 39; // Cột AN (Index 39)
+  const colNhomHang = idxNhomHang !== -1 ? idxNhomHang : 40;
 
   const staffMap = new Map<string, { total: number, converted: number }>();
   const startIdx = headerIdx !== -1 ? headerIdx + 1 : 1;
@@ -3125,8 +3190,13 @@ export const parseYcxRankData = (data: string, customQuyDoiRules?: any[]): YcxRa
     const rowString = cols.join(' ').toLowerCase().replace(/\//g, ' ');
     const isSales = !type.includes('hủy') && !type.includes('huy');
 
-    if (isSales && staff && revenueStr && !isMaNapTien) {
-      const revenue = Math.round(parseFloat(revenueStr) || 0);
+    if (isSales && staff && !isMaNapTien) {
+      let revenue = Math.round(parseFloat(revenueStr) || 0);
+      if (revenue <= 0 && colGiaBan2 !== -1) {
+        const revenueStr2 = String(cols[colGiaBan2] || '0').replace(/,/g, '');
+        const rev2 = Math.round(parseFloat(revenueStr2) || 0);
+        if (rev2 > 0) revenue = rev2;
+      }
       if (revenue <= 0) continue;
 
       let isInstallment = false;
