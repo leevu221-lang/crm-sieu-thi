@@ -20,8 +20,6 @@ interface LineExportPanelProps {
 }
 
 export const LineExportPanel: React.FC<LineExportPanelProps> = ({ tableRefs, activeTab, setActiveTab, isUser43751 }) => {
-  if (!isUser43751) return null;
-
   const [selectedTable, setSelectedTable] = useState<string>('rtTableRef_short');
   const [showConfig, setShowConfig] = useState<boolean>(false);
   const [token, setToken] = useState<string>('');
@@ -251,6 +249,8 @@ export const LineExportPanel: React.FC<LineExportPanelProps> = ({ tableRefs, act
       setIsSending(false);
     }
   };
+
+  if (!isUser43751) return null;
 
   return (
     <div className="bg-[#06C755]/10 border border-[#06C755]/30 rounded-3xl p-4 shadow-sm w-full xl:w-[320px] space-y-3 font-sans relative">

@@ -9,7 +9,6 @@ export default function VersionUpdateNotifier() {
     window.self !== window.top ||
     window.location.search.includes('is_mobile_sim=1')
   );
-  if (isInsideSimulator) return null;
 
   const { userProfile } = useAuth();
   const [hasNewVersion, setHasNewVersion] = useState(false);
@@ -18,6 +17,7 @@ export default function VersionUpdateNotifier() {
   const lastActivityTimeRef = useRef<number>(Date.now());
 
   useEffect(() => {
+    if (isInsideSimulator) return;
     // Track user activity to prevent reloading while typing or interacting
     const updateActivity = () => {
       lastActivityTimeRef.current = Date.now();
@@ -136,6 +136,8 @@ export default function VersionUpdateNotifier() {
     // Wait 2.5s for async saves (gzip + DB upsert) to flush, then reload
     setTimeout(() => window.location.reload(), 2500);
   };
+
+  if (isInsideSimulator) return null;
 
   return (
     <AnimatePresence>

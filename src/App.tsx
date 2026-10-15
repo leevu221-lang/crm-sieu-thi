@@ -69,21 +69,11 @@ const LoadingSpinner = () => (
 
 import { PAGE_URL_MAP, URL_PAGE_MAP, isGuestShareLink, PAGE_DEFAULT_TAB_MAP } from './constants/routes';
 
-export default function App() {
-  const isScannerMode = window.location.search.includes('scanner=true');
-
+function MainApp() {
   // Nhận diện CHẾ ĐỘ KHÁCH: Chỉ kích hoạt khi mở từ link chia sẻ (?view=guest hoặc ?share=true)
   const isDirectDedicatedMode = useMemo(() => {
     return isGuestShareLink(window.location.search);
   }, []);
-
-  if (isScannerMode) {
-    return (
-      <Suspense fallback={<LoadingSpinner />}>
-        <StickerCeScanner />
-      </Suspense>
-    );
-  }
 
   const [currentPage, setCurrentPage] = useState<'realtime' | 'users' | 'health' | 'khaibao' | 'luyke' | 'toolhotro' | 'bbkq' | 'tienich' | 'tnb_data' | 'birthday' | 'feedback' | 'excelviewer' | 'lichpg' | 'tnbleader'>(() => {
     try {
@@ -847,4 +837,16 @@ export default function App() {
       </AnimatePresence>
     </>
   );
+}
+
+export default function App() {
+  const isScannerMode = typeof window !== 'undefined' && window.location.search.includes('scanner=true');
+  if (isScannerMode) {
+    return (
+      <Suspense fallback={<LoadingSpinner />}>
+        <StickerCeScanner />
+      </Suspense>
+    );
+  }
+  return <MainApp />;
 }

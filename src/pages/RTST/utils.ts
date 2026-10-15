@@ -2542,8 +2542,10 @@ export const parseYcxData = (data: string, customQuyDoiRules?: any[]): YcxStaffD
   let rules = Array.isArray(customQuyDoiRules) ? customQuyDoiRules : undefined;
   if (!rules) {
     try {
-      const cached = localStorage.getItem('crm_quy_doi_rules');
-      if (cached) rules = JSON.parse(cached);
+      if (typeof localStorage !== 'undefined') {
+        const cached = localStorage.getItem('crm_quy_doi_rules');
+        if (cached) rules = JSON.parse(cached);
+      }
     } catch (e) {
       console.error(e);
     }

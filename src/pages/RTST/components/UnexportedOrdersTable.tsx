@@ -71,12 +71,22 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
     const idxQty = getIdx(['số lượng']);
     
     const idxRevenue = (() => {
-      const priorityTerms = ['doanh thu', 'thành tiền', 'giá bán_1', 'giá bán', 'phải thu'];
-      for (const term of priorityTerms) {
+      const exactAK = headersLower.findIndex(h => {
+        const norm = h.trim();
+        return norm === 'giá bán' || norm === 'gia ban' || norm === 'giaban' || norm === 'giá bán_1' || norm === 'gia ban 1';
+      });
+      if (exactAK !== -1) return exactAK;
+      for (const term of ['doanh thu', 'thành tiền', 'giá bán', 'phải thu']) {
         const idx = headersLower.findIndex(h => h.includes(term));
         if (idx !== -1) return idx;
       }
-      return -1;
+      return headersLower.length > 36 ? 36 : -1;
+    })();
+
+    const idxGiaBan2 = (() => {
+      const idx = headersLower.findIndex(h => h.includes('giá bán_2') || h.includes('gia ban_2') || h.includes('giá bán 2') || h.includes('gia ban 2'));
+      if (idx !== -1) return idx;
+      return headersLower.length > 37 ? 37 : -1;
     })();
     
     const idxPaymentStatus = getIdx(['trạng thái thu tiền', 'tt thu tiền']);
@@ -103,8 +113,13 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
         if (!drillFilterTrangThaiSP.includes(spStatus)) continue;
       }
       
-      const revenueStr = String(row[idxRevenue] || '0').replace(/,/g, '');
-      const revenue = Math.round(parseFloat(revenueStr) || 0);
+      const revenueStr = idxRevenue !== -1 ? String(row[idxRevenue] || '0').replace(/,/g, '') : '0';
+      let revenue = Math.round(parseFloat(revenueStr) || 0);
+      if (revenue === 0 && idxGiaBan2 !== -1) {
+        const revenueStr2 = String(row[idxGiaBan2] || '0').replace(/,/g, '');
+        const rev2 = Math.round(parseFloat(revenueStr2) || 0);
+        if (rev2 > 0) revenue = rev2;
+      }
       
       if (revenue > 0) {
         const quantityStr = String(row[idxQty] || '0').replace(/,/g, '');
@@ -167,14 +182,6 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
     }
   }, [uniquePaymentStatuses, uniqueExportStatuses, uniqueCancelStatuses, hasSetDefaults]);
 
-  if (unexportedOrders.length === 0) {
-    return null; // Don't show the table if there are no unexported orders
-  }
-
-  const formatMoney = (val: number) => {
-    return val.toLocaleString('vi-VN');
-  };
-
   const dynamicTitle = useMemo(() => {
     const parts = [];
     if (paymentFilter) parts.push(paymentFilter.toUpperCase());
@@ -184,6 +191,14 @@ export const UnexportedOrdersTable: React.FC<UnexportedOrdersTableProps> = ({ ra
     if (parts.length === 0) return 'TẤT CẢ ĐƠN HÀNG';
     return `ĐƠN HÀNG ${parts.join(' - ')}`;
   }, [paymentFilter, exportFilter, cancelFilter]);
+
+  const formatMoney = (val: number) => {
+    return val.toLocaleString('vi-VN');
+  };
+
+  if (unexportedOrders.length === 0) {
+    return null; // Don't show the table if there are no unexported orders
+  }
 
   return (
     <div id="unexported-orders-table-container" className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm mt-6 mb-12 relative bg-white">
