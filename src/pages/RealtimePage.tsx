@@ -101,6 +101,7 @@ import { useLuykeData } from './RTST/hooks/useLuykeData';
 import { useRTSTSharedData } from './RTST/hooks/useRTSTSharedData';
 import { YcxStaffData } from './RTST/types';
 import { UnexportedOrdersTable } from './RTST/components/UnexportedOrdersTable';
+import { BrandDailyStaffSalesTable } from './RTST/components/BrandDailyStaffSalesTable';
 import { BanGiaSocTab } from './RTST/components/BanGiaSocTab';
 import { MucTieuNgayTab } from './RTST/components/MucTieuNgayTab';
 import { RealDoanhThuNvTab } from './RTST/components/RealDoanhThuNvTab';
@@ -10052,6 +10053,18 @@ export default function NewRealtimePage({ pageMaintenanceState = {}, isUser43751
                       </table>
                     </div>
                   </div>
+                  )}
+
+                  {/* THEO DÕI BÁN HÀNG THEO HÃNG THEO NGÀY (TỪNG NHÂN VIÊN) */}
+                  {rawYcxRows && rawYcxRows.length > 1 && (
+                    <BrandDailyStaffSalesTable
+                      rawYcxRows={rawYcxRows}
+                      filteredRawYcxRows={filteredRawYcxRows}
+                      marketFilter={marketFilter}
+                      onCapture={() => handleCaptureTable('brand-daily-staff-sales-container', 'theo_doi_hang_theo_ngay')}
+                      selectedStaffs={selectedStaffs}
+                      drillFilterStaff={drillFilterStaff}
+                    />
                   )}
 
                   {/* Unexported Orders Table */}
